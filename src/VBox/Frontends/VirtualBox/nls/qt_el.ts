@@ -1717,10 +1717,6 @@ Do you want to delete it anyway?</source>
         <translation>Απαιτείται αυθεντικοποίηση</translation>
     </message>
     <message>
-        <source>HTTPS connection requested but SSL support not compiled in</source>
-        <translation>Ζητήθηκε σύνδεση HTTPS αλλά η υποστήριξη για SSL δεν έχει περιληφθεί</translation>
-    </message>
-    <message>
         <source>Connection refused (or timed out)</source>
         <translation>Άρνηση σύνδεσης (ή εξαντλήθηκε το χρονικό όριο)</translation>
     </message>
@@ -1743,6 +1739,10 @@ Do you want to delete it anyway?</source>
     <message>
         <source>SSL handshake failed</source>
         <translation>Η χειραψία SSL απέτυχε</translation>
+    </message>
+    <message>
+        <source>HTTPS connection requested but SSL support not compiled in</source>
+        <translation>Ζητήθηκε σύνδεση HTTPS αλλά η υποστήριξη για SSL δεν έχει περιληφθεί</translation>
     </message>
 </context>
 <context>
@@ -3065,11 +3065,11 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Long side</source>
-        <translation type="unfinished"></translation>
+        <translation>Μακριά πλευρά</translation>
     </message>
     <message>
         <source>Short side</source>
-        <translation type="unfinished"></translation>
+        <translation>Κοντή πλευρά</translation>
     </message>
 </context>
 <context>
@@ -3322,11 +3322,11 @@ Please choose a different file name.</source>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: αδύνατο να τεθεί το κλειδί</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: το μέγεθος δημιουργίας είναι μικρότερο από 0</translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
@@ -3362,11 +3362,11 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>%1: unix key file doesn&apos;t exists</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: το αρχείο κλειδιού unix δεν υπάρχει</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: αποτυχία ftok</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
@@ -3929,7 +3929,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation type="unfinished"></translation>
+        <translation>Αντιγραφή &amp;Θέσης Δεσμού</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
@@ -4054,7 +4054,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Frame load interruped by policy change</source>
-        <translation type="unfinished"></translation>
+        <translation>Η φόρτωση του πλαισίου διακόπηκε λόγω αλλαγής πολιτικής</translation>
     </message>
     <message>
         <source>Cannot show mimetype</source>
@@ -4089,7 +4089,7 @@ Please choose a different file name.</source>
     <message>
         <source>This is a searchable index. Enter search keywords: </source>
         <comment>text that appears at the start of nearly-obsolete web pages in the form of a &apos;searchable index&apos;</comment>
-        <translation type="unfinished"></translation>
+        <translation>Αυτό είναι το ευρετήριο. Εισάγετε λέξεις κλειδιά για αναζήτηση: </translation>
     </message>
     <message>
         <source>Choose File</source>
@@ -4134,7 +4134,7 @@ Please choose a different file name.</source>
     <message>
         <source>Open Frame</source>
         <comment>Open Frame in New Window context menu item</comment>
-        <translation type="unfinished"></translation>
+        <translation>Άνοιγμα πλαισίου</translation>
     </message>
     <message>
         <source>Copy</source>
@@ -4144,12 +4144,12 @@ Please choose a different file name.</source>
     <message>
         <source>Go Back</source>
         <comment>Back context menu item</comment>
-        <translation type="unfinished"></translation>
+        <translation>Πήγαινε πίσω</translation>
     </message>
     <message>
         <source>Go Forward</source>
         <comment>Forward context menu item</comment>
-        <translation type="unfinished"></translation>
+        <translation>Πήγαινε μπροστά</translation>
     </message>
     <message>
         <source>Stop</source>
@@ -4174,7 +4174,7 @@ Please choose a different file name.</source>
     <message>
         <source>No Guesses Found</source>
         <comment>No Guesses Found context menu item</comment>
-        <translation type="unfinished"></translation>
+        <translation>Δεν βρέθηκαν προτάσεις</translation>
     </message>
     <message>
         <source>Ignore</source>
@@ -4284,22 +4284,22 @@ Please choose a different file name.</source>
     <message>
         <source>Inspect</source>
         <comment>Inspect Element context menu item</comment>
-        <translation type="unfinished"></translation>
+        <translation>Επιθεώρηση</translation>
     </message>
     <message>
         <source>No recent searches</source>
         <comment>Label for only item in menu that appears when clicking on the search field image, when no searches have been performed</comment>
-        <translation type="unfinished"></translation>
+        <translation>Όχι πρόσφατες αναζητήσεις</translation>
     </message>
     <message>
         <source>Recent searches</source>
         <comment>label for first item in the menu that appears when clicking on the search field image, used as embedded menu title</comment>
-        <translation type="unfinished"></translation>
+        <translation>Πρόσφατες αναζητήσεις</translation>
     </message>
     <message>
         <source>Clear recent searches</source>
         <comment>menu item in Recent Searches menu that empties menu&apos;s contents</comment>
-        <translation type="unfinished"></translation>
+        <translation>Εκκαθάριση πρόσφατων αναζητήσεων</translation>
     </message>
     <message>
         <source>Unknown</source>
@@ -4309,11 +4309,11 @@ Please choose a different file name.</source>
     <message>
         <source>%1 (%2x%3 pixels)</source>
         <comment>Title string for images</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1 (%2x%3 πίξελ)</translation>
     </message>
     <message>
         <source>Web Inspector - %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Επιθεώρηση σελίδων - %2</translation>
     </message>
 </context>
 <context>
@@ -4334,15 +4334,15 @@ Please choose a different file name.</source>
     <name>QWizard</name>
     <message>
         <source>Go Back</source>
-        <translation type="unfinished"></translation>
+        <translation>Πήγαινε πίσω</translation>
     </message>
     <message>
         <source>Continue</source>
-        <translation type="unfinished"></translation>
+        <translation>Συνέχισε</translation>
     </message>
     <message>
         <source>Commit</source>
-        <translation type="unfinished"></translation>
+        <translation>Διάπραξη</translation>
     </message>
     <message>
         <source>Done</source>
@@ -4444,67 +4444,67 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation type="unfinished"></translation>
+        <translation>σφάλμα ενεργοποιήθηκε από τον καταναλωτή</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
-        <translation type="unfinished"></translation>
+        <translation>απροσδόκητο τέλος αρχείου</translation>
     </message>
     <message>
         <source>more than one document type definition</source>
-        <translation type="unfinished"></translation>
+        <translation>πάνω από ένας ορισμός τύπου αρχείου</translation>
     </message>
     <message>
         <source>error occurred while parsing element</source>
-        <translation type="unfinished"></translation>
+        <translation>λάθος κατά τη συντακτική ανάλυση του στοιχείου</translation>
     </message>
     <message>
         <source>tag mismatch</source>
-        <translation type="unfinished"></translation>
+        <translation>αναντιστοιχία ετικέτας</translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
-        <translation type="unfinished"></translation>
+        <translation>λάθος κατά τη συντακτική ανάλυση του περιεχομένου</translation>
     </message>
     <message>
         <source>unexpected character</source>
-        <translation type="unfinished"></translation>
+        <translation>μη αναμενόμενος χαρακτήρας</translation>
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation type="unfinished"></translation>
+        <translation>μη έγκυρο όνομα για οδηγία επεξεργασίας</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>αναμενόταν η έκδοση ενώ διαβαζόταν η δήλωση XML</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>λάθος τιμή για την αυτόνομη δήλωση</translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>αναμενόταν η κωδικοποιημένη ή η αυτόνομη δήλωση ενώ διαβαζόταν η δήλωση XML</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>αναμενόταν η αυτόνομη δήλωση ενώ διαβαζόταν η δήλωση XML</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translation type="unfinished"></translation>
+        <translation>λάθος κατά τη συντακτική ανάλυση του ορισμού τύπου αρχείου</translation>
     </message>
     <message>
         <source>letter is expected</source>
-        <translation type="unfinished"></translation>
+        <translation>αναμένεται γράμμα</translation>
     </message>
     <message>
         <source>error occurred while parsing comment</source>
-        <translation type="unfinished"></translation>
+        <translation>λάθος κατά τη συντακτική ανάλυση του σχόλιου</translation>
     </message>
     <message>
         <source>error occurred while parsing reference</source>
-        <translation type="unfinished"></translation>
+        <translation>λάθος κατά τη συντακτική ανάλυση της αναφοράς</translation>
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
@@ -4535,27 +4535,27 @@ Please choose a different file name.</source>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Παραπανίσιο περιεχόμενο στο τέλος του κειμένου.</translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
-        <translation type="unfinished"></translation>
+        <translation>Μη έγκυρη τιμή οντότητας.</translation>
     </message>
     <message>
         <source>Invalid XML character.</source>
-        <translation type="unfinished"></translation>
+        <translation>Μη έγκυρος χαρακτήρας XML.</translation>
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation type="unfinished"></translation>
+        <translation>Η ακολουθία &apos;]]&gt;&apos; δεν επιτρέπεται στο περιεχόμενο.</translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation type="unfinished"></translation>
+        <translation>Το πρόθεμα του χώρου ονομάτων %1 δεν έχει δηλωθεί</translation>
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation type="unfinished"></translation>
+        <translation>Η ιδιότητα επαναπροσδιορίστηκε.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
@@ -4563,19 +4563,19 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translation type="unfinished"></translation>
+        <translation>Μη έγκυρη έκδοση XML.</translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translation type="unfinished"></translation>
+        <translation>Μη υποστηριζόμενη έκδοση XML.</translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 είναι μη έγκυρο όνομα κωδικοποίησης.</translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translation type="unfinished"></translation>
+        <translation>Η κωδικοποίηση %1 δεν υποστηρίζεται</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
@@ -4651,7 +4651,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translation type="unfinished"></translation>
+        <translation>Η οντότητα &apos;%1&apos; δεν έχει δηλωθεί.</translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
@@ -4690,10 +4690,6 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Element %1 can&apos;t be serialized because it appears outside the document element.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5105,10 +5101,6 @@ Please choose a different file name.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The namespace %1 is reserved; therefore user defined functions may not use it. Try the predefined prefix %2, which exists for these cases.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5256,16 +5248,24 @@ Please choose a different file name.</source>
         <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
+        <translation></translation>
+    </message>
 </context>
 <context>
     <name>VolumeSlider</name>
     <message>
         <source>Muted</source>
-        <translation type="unfinished"></translation>
+        <translation>Σιώπηση</translation>
     </message>
     <message>
         <source>Volume: %1%</source>
-        <translation type="unfinished"></translation>
+        <translation>Ένταση: %1%</translation>
     </message>
 </context>
 <context>

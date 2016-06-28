@@ -24,9 +24,9 @@
 #include <QMap>
 
 /* External includes: */
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
 #include <limits.h>
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
 /* Forward declarations: */
 class UISettingsPage;

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,15 +20,8 @@
 #ifndef ____H_H_DHCPSERVERIMPL
 #define ____H_H_DHCPSERVERIMPL
 
+#include <VBox/settings.h>
 #include "DHCPServerWrap.h"
-
-namespace settings
-{
-    struct DHCPServer;
-    struct DhcpOptValue;
-    typedef std::map<DhcpOpt_T, DhcpOptValue> DhcpOptionMap;
-}
-
 
 #ifdef VBOX_WITH_HOSTNETIF_API
 struct NETIFINFO;
@@ -64,6 +57,18 @@ public:
  *  the middle.
  */
 
+using settings::DhcpOptValue;
+using settings::DhcpOptionMap;
+using settings::DhcpOptValuePair;
+using settings::DhcpOptConstIterator;
+using settings::DhcpOptIterator;
+
+using settings::VmNameSlotKey;
+using settings::VmSlot2OptionsMap;
+using settings::VmSlot2OptionsPair;
+using settings::VmSlot2OptionsIterator;
+
+
 class ATL_NO_VTABLE DHCPServer :
     public DHCPServerWrap
 {
@@ -82,13 +87,13 @@ public:
 
     // Public internal methids.
     HRESULT i_saveSettings(settings::DHCPServer &data);
-    settings::DhcpOptionMap &i_findOptMapByVmNameSlot(const com::Utf8Str &aVmName,
-                                                      LONG Slot);
+    DhcpOptionMap& i_findOptMapByVmNameSlot(const com::Utf8Str& aVmName,
+                                            LONG Slot);
 
 private:
     HRESULT encodeOption(com::Utf8Str &aEncoded,
-                         uint32_t aOptCode, const settings::DhcpOptValue &aOptValue);
-    int addOption(settings::DhcpOptionMap &aMap,
+                         uint32_t aOptCode, const DhcpOptValue &aOptValue);
+    int addOption(DhcpOptionMap &aMap,
                   DhcpOpt_T aOption, const com::Utf8Str &aValue);
 
     // wrapped IDHCPServer properties
@@ -128,8 +133,9 @@ private:
     struct Data;
     Data *m;
     /** weak VirtualBox parent */
-    VirtualBox *const mVirtualBox;
-    const Utf8Str mName;
+    VirtualBox * const mVirtualBox;
+    const Bstr mName;
+
 };
 
 #endif // ____H_H_DHCPSERVERIMPL

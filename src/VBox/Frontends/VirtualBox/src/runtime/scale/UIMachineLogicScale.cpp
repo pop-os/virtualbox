@@ -20,9 +20,9 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# ifndef VBOX_WS_MAC
+# ifndef Q_WS_MAC
 #  include <QTimer>
-# endif /* !VBOX_WS_MAC */
+# endif /* !Q_WS_MAC */
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -32,20 +32,20 @@
 # include "UIMachineLogicScale.h"
 # include "UIMachineWindow.h"
 # include "UIShortcutPool.h"
-# ifndef VBOX_WS_MAC
+# ifndef Q_WS_MAC
 #  include "QIMenu.h"
-# else  /* VBOX_WS_MAC */
+# else  /* Q_WS_MAC */
 #  include "VBoxUtils.h"
-# endif /* VBOX_WS_MAC */
+# endif /* Q_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIMachineLogicScale::UIMachineLogicScale(QObject *pParent, UISession *pSession)
     : UIMachineLogic(pParent, pSession, UIVisualStateType_Scale)
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     , m_pPopupMenu(0)
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 {
 }
 
@@ -62,7 +62,7 @@ bool UIMachineLogicScale::checkAvailability()
     return true;
 }
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 void UIMachineLogicScale::sltInvokePopupMenu()
 {
     /* Popup main-menu if present: */
@@ -72,7 +72,7 @@ void UIMachineLogicScale::sltInvokePopupMenu()
         QTimer::singleShot(0, m_pPopupMenu, SLOT(sltHighlightFirstAction()));
     }
 }
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
 void UIMachineLogicScale::prepareActionGroups()
 {
@@ -119,11 +119,11 @@ void UIMachineLogicScale::prepareMachineWindows()
     if (isMachineWindowsCreated())
         return;
 
-#ifdef VBOX_WS_MAC // TODO: Is that really need here?
+#ifdef Q_WS_MAC // TODO: Is that really need here?
     /* We have to make sure that we are getting the front most process.
      * This is necessary for Qt versions > 4.3.3: */
     ::darwinSetFrontMostProcess();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* Get monitors count: */
     ulong uMonitorCount = machine().GetMonitorCount();
@@ -144,7 +144,7 @@ void UIMachineLogicScale::prepareMachineWindows()
     setMachineWindowsCreated(true);
 }
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 void UIMachineLogicScale::prepareMenu()
 {
     /* Prepare popup-menu: */
@@ -156,16 +156,16 @@ void UIMachineLogicScale::prepareMenu()
             m_pPopupMenu->addMenu(pMenu);
     }
 }
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 void UIMachineLogicScale::cleanupMenu()
 {
     /* Cleanup popup-menu: */
     delete m_pPopupMenu;
     m_pPopupMenu = 0;
 }
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
 void UIMachineLogicScale::cleanupMachineWindows()
 {

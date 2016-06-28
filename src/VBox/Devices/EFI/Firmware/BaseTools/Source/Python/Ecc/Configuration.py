@@ -1,7 +1,7 @@
 ## @file
 # This file is used to define class Configuration
 #
-# Copyright (c) 2008 - 2014, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2008, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
 # which accompanies this distribution.  The full text of the license may be found at
@@ -14,11 +14,10 @@
 ##
 # Import Modules
 #
-import Common.LongFilePathOs as os
+import os
 import Common.EdkLogger as EdkLogger
 from Common.DataType import *
 from Common.String import *
-from Common.LongFilePathSupport import OpenLongFilePath as open
 
 ## Configuration
 #
@@ -80,8 +79,6 @@ class Configuration(object):
         self.GeneralCheckFileExistence = 1
         # Check whether file has non ACSII char
         self.GeneralCheckNonAcsii = 1
-        # Check whether UNI file is valid
-        self.GeneralCheckUni = 1
 
         ## Space Checking
         self.SpaceCheckAll = 1
@@ -111,7 +108,7 @@ class Configuration(object):
         self.HeaderCheckCFileCommentReferenceFormat = 1
         # Check whether C File header Comment have the License immediately after the ""Copyright"" line
         self.HeaderCheckCFileCommentLicenseFormat = 1
-
+  
         ## C Function Layout Checking
         self.CFunctionLayoutCheckAll = 0
 
@@ -238,15 +235,6 @@ class Configuration(object):
         # Check whether there are FILE_GUID duplication among different INF files
         self.MetaDataFileCheckModuleFileGuidDuplication = 1
 
-        # Check Guid Format in INF files
-        self.MetaDataFileCheckModuleFileGuidFormat = 1
-        # Check Protocol Format in INF files
-        self.MetaDataFileCheckModuleFileProtocolFormat = 1
-        # Check Ppi Format in INF files
-        self.MetaDataFileCheckModuleFilePpiFormat = 1
-        # Check Pcd Format in INF files
-        self.MetaDataFileCheckModuleFilePcdFormat = 1
-
         #
         # The check points in this section are reserved
         #
@@ -259,9 +247,6 @@ class Configuration(object):
 
         # A list for binary file ext name
         self.BinaryExtList = []
-
-        # A list for only scanned folders
-        self.ScanOnlyDirList = []
 
         self.ParseConfig()
 

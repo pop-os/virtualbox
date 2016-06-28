@@ -1,7 +1,7 @@
 /** @file
   The driver binding for IP4 CONFIG protocol.
 
-Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at<BR>
@@ -51,19 +51,13 @@ IP4_CONFIG_INSTANCE        mIp4ConfigTemplate = {
     FALSE,
     FALSE,
     {
-      {
-        0
-      }
+      0
     },
     {
-      {
-        0
-      }
+      0
     },
     {
-      {
-        0
-      }
+      0
     }
   },
   0,
@@ -71,14 +65,12 @@ IP4_CONFIG_INSTANCE        mIp4ConfigTemplate = {
   NULL,
   NULL,
   NULL,
-  0,
+  EFI_NOT_READY,
   {
     0,
     0,
     {
-      {
-        0
-      }
+      0
     }
   },
   (CHAR16 *) NULL,
@@ -87,8 +79,7 @@ IP4_CONFIG_INSTANCE        mIp4ConfigTemplate = {
   NULL,
   NULL,
   NULL,
-  TRUE,
-  FALSE
+  TRUE
 };
 
 /**
@@ -109,8 +100,6 @@ Ip4ConfigDriverEntryPoint (
   IN EFI_SYSTEM_TABLE       *SystemTable
   )
 {
-  mIp4ConfigTemplate.Result = EFI_NOT_READY;
-
   return EfiLibInstallDriverBindingComponentName2 (
            ImageHandle,
            SystemTable,
@@ -319,7 +308,7 @@ Ip4ConfigDriverBindingStart (
   //
   NicConfig = Ip4ConfigReadVariable (Instance);
   if (NicConfig != NULL) {
-    if (!NicConfig->Permanent) {
+    if (!NicConfig->Perment) {
       //
       // Delete the non-permanent configuration.
       //
@@ -497,7 +486,7 @@ Ip4ConfigDriverBindingStop (
     gBS->CloseEvent (Instance->Timer);
     Instance->Timer = NULL;
   }
-
+  
   Ip4ConfigCleanConfig (Instance);
   FreePool (Instance);
 

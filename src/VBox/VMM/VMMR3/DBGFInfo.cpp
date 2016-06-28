@@ -230,8 +230,7 @@ static int dbgfR3InfoRegister(PUVM pUVM, const char *pszName, const char *pszDes
     AssertPtrReturn(pszName, VERR_INVALID_POINTER);
     AssertReturn(*pszName, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pszDesc, VERR_INVALID_POINTER);
-    AssertMsgReturn(!(fFlags & ~(DBGFINFO_FLAGS_RUN_ON_EMT | DBGFINFO_FLAGS_ALL_EMTS)),
-                    ("fFlags=%#x\n", fFlags), VERR_INVALID_FLAGS);
+    AssertMsgReturn(!(fFlags & ~(DBGFINFO_FLAGS_RUN_ON_EMT)), ("fFlags=%#x\n", fFlags), VERR_INVALID_PARAMETER);
 
     /*
      * Allocate and initialize.
@@ -668,7 +667,7 @@ VMMR3DECL(int) DBGFR3InfoDeregisterExternal(PUVM pUVM, const char *pszName)
 
 
 /**
- * Worker for DBGFR3InfoEx.
+ * Worker for DBGFR3Info and DBGFR3InfoEx.
  *
  * @returns VBox status code.
  * @param   pUVM        The user mode VM handle.
@@ -693,7 +692,6 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
     }
     else
         pHlp = &g_dbgfR3InfoLogHlp;
-    Assert(idCpu == NIL_VMCPUID || idCpu < pUVM->cCpus); /* if not nil, we're on that EMT already. */
 
     /*
      * Find the info handler.
@@ -711,25 +709,19 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
         /*
          * Found it.
          */
-        VMCPUID idDstCpu = NIL_VMCPUID;
-        if ((pInfo->fFlags & (DBGFINFO_FLAGS_RUN_ON_EMT | DBGFINFO_FLAGS_ALL_EMTS)) && idCpu == NIL_VMCPUID)
-            idDstCpu = pInfo->fFlags & DBGFINFO_FLAGS_ALL_EMTS ? VMCPUID_ALL : VMCPUID_ANY;
-
         rc = VINF_SUCCESS;
         switch (pInfo->enmType)
         {
             case DBGFINFOTYPE_DEV:
-                if (idDstCpu != NIL_VMCPUID)
-                    rc = VMR3ReqPriorityCallWaitU(pUVM, idDstCpu, (PFNRT)pInfo->u.Dev.pfnHandler, 3,
-                                                  pInfo->u.Dev.pDevIns, pHlp, pszArgs);
+                if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                    rc = VMR3ReqCallVoidWaitU(pUVM, idCpu, (PFNRT)pInfo->u.Dev.pfnHandler, 3, pInfo->u.Dev.pDevIns, pHlp, pszArgs);
                 else
                     pInfo->u.Dev.pfnHandler(pInfo->u.Dev.pDevIns, pHlp, pszArgs);
                 break;
 
             case DBGFINFOTYPE_DRV:
-                if (idDstCpu != NIL_VMCPUID)
-                    rc = VMR3ReqPriorityCallWaitU(pUVM, idDstCpu, (PFNRT)pInfo->u.Drv.pfnHandler, 3,
-                                                  pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
+                if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                    rc = VMR3ReqCallVoidWaitU(pUVM, idCpu, (PFNRT)pInfo->u.Drv.pfnHandler, 3, pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
                 else
                     pInfo->u.Drv.pfnHandler(pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
                 break;
@@ -737,9 +729,8 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
             case DBGFINFOTYPE_INT:
                 if (RT_VALID_PTR(pUVM->pVM))
                 {
-                    if (idDstCpu != NIL_VMCPUID)
-                        rc = VMR3ReqPriorityCallWaitU(pUVM, idDstCpu, (PFNRT)pInfo->u.Int.pfnHandler, 3,
-                                                      pUVM->pVM, pHlp, pszArgs);
+                    if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                        rc = VMR3ReqCallVoidWaitU(pUVM, idCpu, (PFNRT)pInfo->u.Int.pfnHandler, 3, pUVM->pVM, pHlp, pszArgs);
                     else
                         pInfo->u.Int.pfnHandler(pUVM->pVM, pHlp, pszArgs);
                 }
@@ -748,9 +739,8 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
                 break;
 
             case DBGFINFOTYPE_EXT:
-                if (idDstCpu != NIL_VMCPUID)
-                    rc = VMR3ReqPriorityCallWaitU(pUVM, idDstCpu, (PFNRT)pInfo->u.Ext.pfnHandler, 3,
-                                                  pInfo->u.Ext.pvUser, pHlp, pszArgs);
+                if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                    rc = VMR3ReqCallVoidWaitU(pUVM, idCpu, (PFNRT)pInfo->u.Ext.pfnHandler, 3, pInfo->u.Ext.pvUser, pHlp, pszArgs);
                 else
                     pInfo->u.Ext.pfnHandler(pInfo->u.Ext.pvUser, pHlp, pszArgs);
                 break;
@@ -758,7 +748,6 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
             default:
                 AssertMsgFailedReturn(("Invalid info type enmType=%d\n", pInfo->enmType), VERR_IPE_NOT_REACHED_DEFAULT_CASE);
         }
-
         int rc2 = RTCritSectRwLeaveShared(&pUVM->dbgf.s.CritSect);
         AssertRC(rc2);
     }
@@ -771,7 +760,6 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
     return rc;
 }
 
-
 /**
  * Display a piece of info writing to the supplied handler.
  *
@@ -783,7 +771,8 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
  */
 VMMR3DECL(int) DBGFR3Info(PUVM pUVM, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
 {
-    return DBGFR3InfoEx(pUVM, NIL_VMCPUID, pszName, pszArgs, pHlp);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    return dbgfR3Info(pUVM, VMCPUID_ANY, pszName, pszArgs, pHlp);
 }
 
 
@@ -793,26 +782,16 @@ VMMR3DECL(int) DBGFR3Info(PUVM pUVM, const char *pszName, const char *pszArgs, P
  * @returns VBox status code.
  * @param   pUVM        The user mode VM handle.
  * @param   idCpu       The CPU to exectue the request on.  Pass NIL_VMCPUID
- *                      to not involve any EMT unless necessary.
+ *                      to not involve any EMT.
  * @param   pszName     The identifier of the info to display.
  * @param   pszArgs     Arguments to the info handler.
  * @param   pHlp        The output helper functions. If NULL the logger will be used.
  */
 VMMR3DECL(int) DBGFR3InfoEx(PUVM pUVM, VMCPUID idCpu, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
 {
-    /*
-     * Some input validation.
-     */
     UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(   idCpu != VMCPUID_ANY_QUEUE
-                 && idCpu != VMCPUID_ALL
-                 && idCpu != VMCPUID_ALL_REVERSE, VERR_INVALID_PARAMETER);
-
-    /*
-     * Run on any specific EMT?
-     */
     if (idCpu == NIL_VMCPUID)
-        return dbgfR3Info(pUVM, NIL_VMCPUID, pszName, pszArgs, pHlp);
+        return dbgfR3Info(pUVM, VMCPUID_ANY, pszName, pszArgs, pHlp);
     return VMR3ReqPriorityCallWaitU(pUVM, idCpu,
                                     (PFNRT)dbgfR3Info, 5, pUVM, idCpu, pszName, pszArgs, pHlp);
 }
@@ -828,7 +807,7 @@ VMMR3DECL(int) DBGFR3InfoEx(PUVM pUVM, VMCPUID idCpu, const char *pszName, const
  */
 VMMR3DECL(int) DBGFR3InfoLogRel(PUVM pUVM, const char *pszName, const char *pszArgs)
 {
-    return DBGFR3InfoEx(pUVM, NIL_VMCPUID, pszName, pszArgs, &g_dbgfR3InfoLogRelHlp);
+    return DBGFR3Info(pUVM, pszName, pszArgs, &g_dbgfR3InfoLogRelHlp);
 }
 
 
@@ -842,7 +821,7 @@ VMMR3DECL(int) DBGFR3InfoLogRel(PUVM pUVM, const char *pszName, const char *pszA
  */
 VMMR3DECL(int) DBGFR3InfoStdErr(PUVM pUVM, const char *pszName, const char *pszArgs)
 {
-    return DBGFR3InfoEx(pUVM, NIL_VMCPUID, pszName, pszArgs, &g_dbgfR3InfoStdErrHlp);
+    return DBGFR3Info(pUVM, pszName, pszArgs, &g_dbgfR3InfoStdErrHlp);
 }
 
 
@@ -897,42 +876,36 @@ VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const ch
             && !RTStrSimplePatternMultiMatch(pszExcludePat, cchExcludePat, pInfo->szName, pInfo->cchName, NULL))
         {
             pHlp->pfnPrintf(pHlp, pszSepFmt, pInfo->szName);
-
-            VMCPUID idDstCpu = NIL_VMCPUID;
-            if (pInfo->fFlags & (DBGFINFO_FLAGS_RUN_ON_EMT | DBGFINFO_FLAGS_ALL_EMTS))
-                idDstCpu = pInfo->fFlags & DBGFINFO_FLAGS_ALL_EMTS ? VMCPUID_ALL : VMCPUID_ANY;
-
             rc = VINF_SUCCESS;
             switch (pInfo->enmType)
             {
                 case DBGFINFOTYPE_DEV:
-                    if (idDstCpu != NIL_VMCPUID)
-                        rc = VMR3ReqPriorityCallVoidWaitU(pUVM, idDstCpu, (PFNRT)pInfo->u.Dev.pfnHandler, 3,
-                                                          pInfo->u.Dev.pDevIns, pHlp, pszArgs);
+                    if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)pInfo->u.Dev.pfnHandler, 3,
+                                                  pInfo->u.Dev.pDevIns, pHlp, pszArgs);
                     else
                         pInfo->u.Dev.pfnHandler(pInfo->u.Dev.pDevIns, pHlp, pszArgs);
                     break;
 
                 case DBGFINFOTYPE_DRV:
-                    if (idDstCpu != NIL_VMCPUID)
-                        rc = VMR3ReqPriorityCallVoidWaitU(pUVM, idDstCpu, (PFNRT)pInfo->u.Drv.pfnHandler, 3,
-                                                          pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
+                    if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)pInfo->u.Drv.pfnHandler, 3,
+                                                  pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
                     else
                         pInfo->u.Drv.pfnHandler(pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
                     break;
 
                 case DBGFINFOTYPE_INT:
-                    if (idDstCpu != NIL_VMCPUID)
-                        rc = VMR3ReqPriorityCallVoidWaitU(pUVM, idDstCpu, (PFNRT)pInfo->u.Int.pfnHandler, 3,
-                                                          pVM, pHlp, pszArgs);
+                    if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)pInfo->u.Int.pfnHandler, 3, pVM, pHlp, pszArgs);
                     else
                         pInfo->u.Int.pfnHandler(pVM, pHlp, pszArgs);
                     break;
 
                 case DBGFINFOTYPE_EXT:
-                    if (idDstCpu != NIL_VMCPUID)
-                        rc = VMR3ReqPriorityCallVoidWaitU(pUVM, idDstCpu, (PFNRT)pInfo->u.Ext.pfnHandler, 3,
-                                                          pInfo->u.Ext.pvUser, pHlp, pszArgs);
+                    if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)pInfo->u.Ext.pfnHandler, 3,
+                                                  pInfo->u.Ext.pvUser, pHlp, pszArgs);
                     else
                         pInfo->u.Ext.pfnHandler(pInfo->u.Ext.pvUser, pHlp, pszArgs);
                     break;

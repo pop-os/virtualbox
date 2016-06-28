@@ -61,7 +61,6 @@ int main(int argc, char **argv)
                 else
                 {
                     fprintf(stderr, "syntax errro: Unknown options '%s'\n", pszOpt);
-                    free(papszInputs);
                     return 2;
                 }
             }
@@ -82,7 +81,6 @@ int main(int argc, char **argv)
                             if (i + 1 >= argc)
                             {
                                 fprintf(stderr, "syntax error: The --output option expects a filename.\n");
-                                free(papszInputs);
                                 return 12;
                             }
                             pszValue = argv[++i];
@@ -91,7 +89,6 @@ int main(int argc, char **argv)
                         {
                             fprintf(stderr, "Only one output file is allowed. You've specified '%s' and '%s'\n",
                                     pszOutput, pszValue);
-                            free(papszInputs);
                             return 2;
                         }
                         pszOutput = pszValue;
@@ -100,14 +97,13 @@ int main(int argc, char **argv)
                     }
 
                     case 'V':
-                        printf("%s\n", "$Revision: 104490 $");
-                        free(papszInputs);
+                        printf("%s\n", "$Revision: 102121 $");
                         return 0;
 
                     case '?':
                     case 'h':
-                        printf("usage: %s [options] -o <output> <input1> [input2 ... [inputN]]\n", argv[0]);
-                        free(papszInputs);
+                        printf("usage: %s [options] -o <output> <input1> [input2 ... [inputN]]\n",
+                               argv[0]);
                         return 0;
                 }
             }
@@ -119,13 +115,11 @@ int main(int argc, char **argv)
     if (!pszOutput)
     {
         fprintf(stderr, "syntax error: No output file was specified (-o or --output).\n");
-        free(papszInputs);
         return 2;
     }
     if (cInputs == 0)
     {
         fprintf(stderr, "syntax error: No input files was specified.\n");
-        free(papszInputs);
         return 2;
     }
 
@@ -142,7 +136,6 @@ int main(int argc, char **argv)
     if (!pOutput)
     {
         fprintf(stderr, "error: Failed to open output file '%s' for writing\n", pszOutput);
-        free(papszInputs);
         return 1;
     }
 
@@ -212,8 +205,6 @@ int main(int argc, char **argv)
         rcExit = 1;
     }
 
-    fclose(pOutput);
-    free(papszInputs);
     return rcExit;
 }
 

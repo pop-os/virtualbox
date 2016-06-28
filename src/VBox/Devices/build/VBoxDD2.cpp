@@ -37,12 +37,8 @@
 *********************************************************************************************************************************/
 const void *g_apvVBoxDDDependencies2[] =
 {
-    (void *)&g_abPcBiosBinary386,
-    (void *)&g_abPcBiosBinary286,
-    (void *)&g_abPcBiosBinary8086,
-    (void *)&g_abVgaBiosBinary386,
-    (void *)&g_abVgaBiosBinary286,
-    (void *)&g_abVgaBiosBinary8086,
+    (void *)&g_abPcBiosBinary,
+    (void *)&g_abVgaBiosBinary,
 #ifdef VBOX_WITH_PXE_ROM
     (void *)&g_abNetBiosBinary,
 #endif
@@ -62,11 +58,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     AssertReleaseMsg(u32Version == VBOX_VERSION, ("u32Version=%#x VBOX_VERSION=%#x\n", u32Version, VBOX_VERSION));
     int rc;
 
-#ifndef VBOX_WITH_NEW_APIC
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceAPIC);
     if (RT_FAILURE(rc))
         return rc;
-#endif
 #ifndef VBOX_WITH_NEW_IOAPIC
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceIOAPIC);
     if (RT_FAILURE(rc))

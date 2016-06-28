@@ -1,7 +1,7 @@
 /** @file
   MTRR setting library
 
-  Copyright (c) 2008 - 2014, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2008 - 2012, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -19,14 +19,6 @@
 #include <Library/CpuLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
-
-//
-// Context to save and restore when MTRRs are programmed
-//
-typedef struct {
-  UINTN    Cr4;
-  BOOLEAN  InterruptState;
-} MTRR_CONTEXT;
 
 //
 // This table defines the offset, base and length of the fixed MTRRs
@@ -174,18 +166,15 @@ MtrrGetDefaultMemoryType (
   This function will do some preparation for programming MTRRs:
   disable cache, invalid cache and disable MTRR caching functionality
 
-  @param[out] MtrrContext  Pointer to context to save
+  @return  CR4 value before changing.
 
 **/
-VOID
+UINTN
 PreMtrrChange (
-  OUT MTRR_CONTEXT  *MtrrContext
+  VOID
   )
 {
-  //
-  // Disable interrupts and save current interrupt state
-  //
-  MtrrContext->InterruptState = SaveAndDisableInterrupts();
+  UINTN  Value;
 
   //
   // Enter no fill cache mode, CD=1(Bit30), NW=0 (Bit29)
@@ -195,8 +184,8 @@ PreMtrrChange (
   //
   // Save original CR4 value and clear PGE flag (Bit 7)
   //
-  MtrrContext->Cr4 = AsmReadCr4 ();
-  AsmWriteCr4 (MtrrContext->Cr4 & (~BIT7));
+  Value = AsmReadCr4 ();
+  AsmWriteCr4 (Value & (~BIT7));
 
   //
   // Flush all TLBs
@@ -207,6 +196,11 @@ PreMtrrChange (
   // Disable Mtrrs
   //
   AsmMsrBitFieldWrite64 (MTRR_LIB_IA32_MTRR_DEF_TYPE, 10, 11, 0);
+
+  //
+  // Return original CR4 value
+  //
+  return Value;
 }
 
 /**
@@ -215,16 +209,16 @@ PreMtrrChange (
   This function will do some clean up after programming MTRRs:
   Flush all TLBs,  re-enable caching, restore CR4.
 
-  @param[in] MtrrContext  Pointer to context to restore
+  @param  Cr4  CR4 value to restore
 
 **/
 VOID
 PostMtrrChangeEnableCache (
-  IN MTRR_CONTEXT  *MtrrContext
+  IN UINTN  Cr4
   )
 {
   //
-  // Flush all TLBs
+  // Flush all TLBs 
   //
   CpuFlushTlb ();
 
@@ -236,12 +230,7 @@ PostMtrrChangeEnableCache (
   //
   // Restore original CR4 value
   //
-  AsmWriteCr4 (MtrrContext->Cr4);
-
-  //
-  // Restore original interrupt state
-  //
-  SetInterruptState (MtrrContext->InterruptState);
+  AsmWriteCr4 (Cr4);
 }
 
 /**
@@ -250,12 +239,12 @@ PostMtrrChangeEnableCache (
   This function will do some clean up after programming MTRRs:
   enable MTRR caching functionality, and enable cache
 
-  @param[in] MtrrContext  Pointer to context to restore
+  @param  Cr4  CR4 value to restore
 
 **/
 VOID
 PostMtrrChange (
-  IN MTRR_CONTEXT  *MtrrContext
+  IN UINTN  Cr4
   )
 {
   //
@@ -263,7 +252,7 @@ PostMtrrChange (
   //
   AsmMsrBitFieldWrite64 (MTRR_LIB_IA32_MTRR_DEF_TYPE, 10, 11, 3);
 
-  PostMtrrChangeEnableCache (MtrrContext);
+  PostMtrrChangeEnableCache (Cr4);
 }
 
 
@@ -534,7 +523,7 @@ CombineMemoryAttribute (
     //
     if (Attributes == VariableMtrr[Index].Type) {
       //
-      // if the Mtrr range contain the request range, set a flag, then continue to
+      // if the Mtrr range contain the request range, set a flag, then continue to 
       // invalidate any MTRR of the same request range with higher priority cache type.
       //
       if (VariableMtrr[Index].BaseAddress <= *Base && MtrrEnd >= EndAddress) {
@@ -715,11 +704,11 @@ InvalidateMtrr (
    IN     VARIABLE_MTRR      *VariableMtrr
    )
 {
-  UINTN         Index;
-  UINTN         VariableMtrrCount;
-  MTRR_CONTEXT  MtrrContext;
+  UINTN Index;
+  UINTN Cr4;
+  UINTN VariableMtrrCount;
 
-  PreMtrrChange (&MtrrContext);
+  Cr4 = PreMtrrChange ();
   Index = 0;
   VariableMtrrCount = GetVariableMtrrCount ();
   while (Index < VariableMtrrCount) {
@@ -730,7 +719,7 @@ InvalidateMtrr (
     }
     Index ++;
   }
-  PostMtrrChange (&MtrrContext);
+  PostMtrrChange (Cr4);
 }
 
 
@@ -755,10 +744,10 @@ ProgramVariableMtrr (
   IN UINT64                   MtrrValidAddressMask
   )
 {
-  UINT64        TempQword;
-  MTRR_CONTEXT  MtrrContext;
+  UINT64  TempQword;
+  UINTN   Cr4;
 
-  PreMtrrChange (&MtrrContext);
+  Cr4 = PreMtrrChange ();
 
   //
   // MTRR Physical Base
@@ -775,7 +764,7 @@ ProgramVariableMtrr (
     (TempQword & MtrrValidAddressMask) | MTRR_LIB_CACHE_MTRR_ENABLED
     );
 
-  PostMtrrChange (&MtrrContext);
+  PostMtrrChange (Cr4);
 }
 
 
@@ -808,7 +797,7 @@ GetMemoryCacheTypeFromMtrrType (
     // MtrrType is MTRR_CACHE_INVALID_TYPE, that means
     // no mtrr covers the range
     //
-    return MtrrGetDefaultMemoryType ();
+    return CacheUncacheable;
   }
 }
 
@@ -964,10 +953,10 @@ MtrrSetMemoryAttribute (
   UINT32                    UsedMtrr;
   UINT64                    MtrrValidBitsMask;
   UINT64                    MtrrValidAddressMask;
+  UINTN                     Cr4;
   BOOLEAN                   OverwriteExistingMtrr;
   UINT32                    FirmwareVariableMtrrCount;
   UINT32                    VariableMtrrEnd;
-  MTRR_CONTEXT              MtrrContext;
 
   DEBUG((DEBUG_CACHE, "MtrrSetMemoryAttribute() %a:%016lx-%016lx\n", mMtrrMemoryCacheTypeShortName[Attribute], BaseAddress, Length));
 
@@ -1006,9 +995,9 @@ MtrrSetMemoryAttribute (
   //
   Status = RETURN_SUCCESS;
   while ((BaseAddress < BASE_1MB) && (Length > 0) && Status == RETURN_SUCCESS) {
-    PreMtrrChange (&MtrrContext);
+    Cr4 = PreMtrrChange ();
     Status = ProgramFixedMtrr (MemoryType, &BaseAddress, &Length);
-    PostMtrrChange (&MtrrContext);
+    PostMtrrChange (Cr4);
     if (RETURN_ERROR (Status)) {
       goto Done;
     }
@@ -1364,15 +1353,15 @@ MtrrSetVariableMtrr (
   IN MTRR_VARIABLE_SETTINGS         *VariableSettings
   )
 {
-  MTRR_CONTEXT  MtrrContext;
+  UINTN  Cr4;
 
   if (!IsMtrrSupported ()) {
     return VariableSettings;
   }
 
-  PreMtrrChange (&MtrrContext);
+  Cr4 = PreMtrrChange ();
   MtrrSetVariableMtrrWorker (VariableSettings);
-  PostMtrrChange (&MtrrContext);
+  PostMtrrChange (Cr4);
   return  VariableSettings;
 }
 
@@ -1441,15 +1430,15 @@ MtrrSetFixedMtrr (
   IN MTRR_FIXED_SETTINGS          *FixedSettings
   )
 {
-  MTRR_CONTEXT  MtrrContext;
+  UINTN  Cr4;
 
   if (!IsMtrrSupported ()) {
     return FixedSettings;
   }
 
-  PreMtrrChange (&MtrrContext);
+  Cr4 = PreMtrrChange ();
   MtrrSetFixedMtrrWorker (FixedSettings);
-  PostMtrrChange (&MtrrContext);
+  PostMtrrChange (Cr4);
 
   return FixedSettings;
 }
@@ -1506,13 +1495,13 @@ MtrrSetAllMtrrs (
   IN MTRR_SETTINGS                *MtrrSetting
   )
 {
-  MTRR_CONTEXT  MtrrContext;
+  UINTN  Cr4;
 
   if (!IsMtrrSupported ()) {
     return MtrrSetting;
   }
 
-  PreMtrrChange (&MtrrContext);
+  Cr4 = PreMtrrChange ();
 
   //
   // Set fixed MTRRs
@@ -1529,7 +1518,7 @@ MtrrSetAllMtrrs (
   //
   AsmWriteMsr64 (MTRR_LIB_IA32_MTRR_DEF_TYPE, MtrrSetting->MtrrDefType);
 
-  PostMtrrChangeEnableCache (&MtrrContext);
+  PostMtrrChangeEnableCache (Cr4);
 
   return MtrrSetting;
 }
@@ -1567,7 +1556,7 @@ MtrrDebugPrintAllMtrrs (
 
     DEBUG((DEBUG_CACHE, "MTRR Settings\n"));
     DEBUG((DEBUG_CACHE, "=============\n"));
-
+    
     MtrrGetAllMtrrs (&MtrrSettings);
     DEBUG((DEBUG_CACHE, "MTRR Default Type: %016lx\n", MtrrSettings.MtrrDefType));
     for (Index = 0; Index < MTRR_NUMBER_OF_FIXED_MTRR; Index++) {
@@ -1594,7 +1583,7 @@ MtrrDebugPrintAllMtrrs (
       MemoryType = (UINTN)(RShiftU64 (MtrrSettings.Fixed.Mtrr[Index], Index1 * 8) & 0xff);
         if (MemoryType > CacheWriteBack) {
           MemoryType = MTRR_CACHE_INVALID_TYPE;
-        }
+        }            
         if (MemoryType != PreviousMemoryType) {
           if (PreviousMemoryType != MTRR_CACHE_INVALID_TYPE) {
             DEBUG((DEBUG_CACHE, "%016lx\n", Base - 1));
@@ -1609,12 +1598,6 @@ MtrrDebugPrintAllMtrrs (
 
     VariableMtrrCount = GetVariableMtrrCount ();
 
-    Limit        = BIT36 - 1;
-    AsmCpuid (0x80000000, &RegEax, NULL, NULL, NULL);
-    if (RegEax >= 0x80000008) {
-      AsmCpuid (0x80000008, &RegEax, NULL, NULL, NULL);
-      Limit = LShiftU64 (1, RegEax & 0xff) - 1;
-    }
     Base = BASE_1MB;
     PreviousMemoryType = MTRR_CACHE_INVALID_TYPE;
     do {
@@ -1630,12 +1613,18 @@ MtrrDebugPrintAllMtrrs (
         PreviousMemoryType = MemoryType;
         DEBUG((DEBUG_CACHE, "%a:%016lx-", mMtrrMemoryCacheTypeShortName[MemoryType], Base));
       }
-
-      RangeBase    = BASE_1MB;
+      
+      RangeBase    = BASE_1MB;        
       NoRangeBase  = BASE_1MB;
+      Limit        = BIT36 - 1;
+      AsmCpuid (0x80000000, &RegEax, NULL, NULL, NULL);
+      if (RegEax >= 0x80000008) {
+        AsmCpuid (0x80000008, &RegEax, NULL, NULL, NULL);
+        Limit = LShiftU64 (1, RegEax & 0xff) - 1;
+      }
       RangeLimit   = Limit;
       NoRangeLimit = Limit;
-
+      
       for (Index = 0, Found = FALSE; Index < VariableMtrrCount; Index++) {
         if ((MtrrSettings.Variables.Mtrr[Index].Mask & BIT11) == 0) {
           //
@@ -1649,7 +1638,7 @@ MtrrDebugPrintAllMtrrs (
         if (Base >= MtrrBase && Base < MtrrLimit) {
           Found = TRUE;
         }
-
+        
         if (Base >= MtrrBase && MtrrBase > RangeBase) {
           RangeBase = MtrrBase;
         }
@@ -1662,7 +1651,7 @@ MtrrDebugPrintAllMtrrs (
         if (Base < MtrrLimit && MtrrLimit <= RangeLimit) {
           RangeLimit = MtrrLimit;
         }
-
+        
         if (Base > MtrrLimit && NoRangeBase < MtrrLimit) {
           NoRangeBase = MtrrLimit + 1;
         }
@@ -1670,13 +1659,13 @@ MtrrDebugPrintAllMtrrs (
           NoRangeLimit = MtrrBase - 1;
         }
       }
-
+      
       if (Found) {
         Base = RangeLimit + 1;
       } else {
         Base = NoRangeLimit + 1;
       }
-    } while (Base < Limit);
+    } while (Found);
     DEBUG((DEBUG_CACHE, "%016lx\n\n", Base - 1));
   );
 }

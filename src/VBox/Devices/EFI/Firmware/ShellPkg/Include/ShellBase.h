@@ -154,4 +154,5 @@ SHELL_SECURITY_VIOLATION    = 26,
 SHELL_NOT_EQUAL             = 27
 }SHELL_STATUS;
 
-#endif //__SHELL_BASE_
+#endif //__SHELL_BASE__
+

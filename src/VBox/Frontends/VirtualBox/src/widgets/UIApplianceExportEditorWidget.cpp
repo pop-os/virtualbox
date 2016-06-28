@@ -107,7 +107,7 @@ void UIApplianceExportEditorWidget::populate()
             mWarningTextEdit->append("- " + text);
         fWarningsEnabled = true;
     }
-    m_pWarningWidget->setVisible(fWarningsEnabled);
+    m_pWarningWidget->setShown(fWarningsEnabled);
 }
 
 void UIApplianceExportEditorWidget::prepareExport()

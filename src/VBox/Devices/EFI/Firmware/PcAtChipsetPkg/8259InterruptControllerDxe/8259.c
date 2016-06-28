@@ -1,7 +1,7 @@
 /** @file
   This contains the installation function for the driver.
 
-Copyright (c) 2005 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2005 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -123,10 +123,8 @@ Interrupt8259SetVectorBase (
   IN UINT8                     SlaveBase
   )
 {
-  UINT8   Mask;
-  EFI_TPL OriginalTpl;
+  UINT8 Mask;
 
-  OriginalTpl = gBS->RaiseTPL (TPL_HIGH_LEVEL);
   //
   // Set vector base for slave PIC
   //
@@ -213,8 +211,6 @@ Interrupt8259SetVectorBase (
 
   IoWrite8 (LEGACY_8259_CONTROL_REGISTER_SLAVE, LEGACY_8259_EOI);
   IoWrite8 (LEGACY_8259_CONTROL_REGISTER_MASTER, LEGACY_8259_EOI);
-
-  gBS->RestoreTPL (OriginalTpl);
 
   return EFI_SUCCESS;
 }
@@ -417,7 +413,7 @@ Interrupt8259GetVector (
   OUT UINT8                     *Vector
   )
 {
-  if ((UINT32)Irq > Efi8259Irq15) {
+  if (Irq < Efi8259Irq0 || Irq > Efi8259Irq15) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -449,7 +445,7 @@ Interrupt8259EnableIrq (
   IN BOOLEAN                   LevelTriggered
   )
 {
-  if ((UINT32)Irq > Efi8259Irq15) {
+  if (Irq < Efi8259Irq0 || Irq > Efi8259Irq15) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -482,7 +478,7 @@ Interrupt8259DisableIrq (
   IN EFI_8259_IRQ              Irq
   )
 {
-  if ((UINT32)Irq > Efi8259Irq15) {
+  if (Irq < Efi8259Irq0 || Irq > Efi8259Irq15) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -559,7 +555,7 @@ Interrupt8259EndOfInterrupt (
   IN EFI_8259_IRQ              Irq
   )
 {
-  if ((UINT32)Irq > Efi8259Irq15) {
+  if (Irq < Efi8259Irq0 || Irq > Efi8259Irq15) {
     return EFI_INVALID_PARAMETER;
   }
 

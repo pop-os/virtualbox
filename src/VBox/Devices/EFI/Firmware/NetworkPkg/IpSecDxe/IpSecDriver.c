@@ -1,7 +1,7 @@
 /** @file
   Driver Binding Protocol for IPsec Driver.
 
-  Copyright (c) 2009 - 2013, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -20,14 +20,12 @@
 #include "IpSecDebug.h"
 
 /**
-  Test to see if this driver supports ControllerHandle. This is the worker function
-  for IpSec4(6)DriverbindingSupported.
+  Test to see if this driver supports ControllerHandle.
 
   @param[in]  This                 Protocol instance pointer.
   @param[in]  ControllerHandle     Handle of device to test.
   @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
                                    device to start.
-  @param[in]  IpVersion            IP_VERSION_4 or IP_VERSION_6.
 
   @retval EFI_SUCCES           This driver supports this device.
   @retval EFI_ALREADY_STARTED  This driver is already running on this device.
@@ -36,45 +34,50 @@
 **/
 EFI_STATUS
 EFIAPI
-IpSecSupported (
+IpSecDriverBindingSupported (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath  OPTIONAL,
-  IN UINT8                        IpVersion
+  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath  OPTIONAL
   )
 {
-  EFI_STATUS  Status;
-  EFI_GUID    *UdpServiceBindingGuid;
+  EFI_STATUS  Udp4Status;
+  EFI_STATUS  Udp6Status;
 
-  if (IpVersion == IP_VERSION_4) {
-    UdpServiceBindingGuid  = &gEfiUdp4ServiceBindingProtocolGuid;
-  } else {
-    UdpServiceBindingGuid  = &gEfiUdp6ServiceBindingProtocolGuid;
+  Udp4Status = gBS->OpenProtocol (
+                      ControllerHandle,
+                      &gEfiUdp4ServiceBindingProtocolGuid,
+                      NULL,
+                      This->DriverBindingHandle,
+                      ControllerHandle,
+                      EFI_OPEN_PROTOCOL_TEST_PROTOCOL
+                      );
+
+  Udp6Status = gBS->OpenProtocol (
+                      ControllerHandle,
+                      &gEfiUdp6ServiceBindingProtocolGuid,
+                      NULL,
+                      This->DriverBindingHandle,
+                      ControllerHandle,
+                      EFI_OPEN_PROTOCOL_TEST_PROTOCOL
+                      );
+
+  //
+  // The controller with either Udp4Sb or Udp6Sb is supported.
+  //
+  if (!EFI_ERROR (Udp4Status) || !EFI_ERROR (Udp6Status)) {
+    return EFI_SUCCESS;
   }
 
-  Status = gBS->OpenProtocol (
-                  ControllerHandle,
-                  UdpServiceBindingGuid,
-                  NULL,
-                  This->DriverBindingHandle,
-                  ControllerHandle,
-                  EFI_OPEN_PROTOCOL_TEST_PROTOCOL
-                  );
-  if (EFI_ERROR (Status)) {
-    return EFI_UNSUPPORTED;
-  }
-  return EFI_SUCCESS;
+  return EFI_UNSUPPORTED;
 }
 
 /**
-  Start this driver on ControllerHandle. This is the worker function
-  for IpSec4(6)DriverbindingStart.
+  Start this driver on ControllerHandle.
 
   @param[in]  This                 Protocol instance pointer.
   @param[in]  ControllerHandle     Handle of device to bind driver to.
   @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
                                    device to start.
-  @param[in]  IpVersion            IP_VERSION_4 or IP_VERSION_6.
 
   @retval EFI_SUCCES           This driver is added to ControllerHandle
   @retval EFI_ALREADY_STARTED  This driver is already running on ControllerHandle
@@ -85,15 +88,16 @@ IpSecSupported (
 **/
 EFI_STATUS
 EFIAPI
-IpSecStart (
+IpSecDriverBindingStart (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL,
-  IN UINT8                        IpVersion
+  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
   )
 {
   EFI_IPSEC2_PROTOCOL *IpSec;
   EFI_STATUS          Status;
+  EFI_STATUS          Udp4Status;
+  EFI_STATUS          Udp6Status;
   IPSEC_PRIVATE_DATA  *Private;
 
   //
@@ -107,56 +111,52 @@ IpSecStart (
 
   Private = IPSEC_PRIVATE_DATA_FROM_IPSEC (IpSec);
 
-  if (IpVersion == IP_VERSION_4) {
-    //
-    // Try to open a udp4 io for input.
-    //
-    Status = gBS->OpenProtocol (
-                        ControllerHandle,
-                        &gEfiUdp4ServiceBindingProtocolGuid,
-                        NULL,
-                        This->DriverBindingHandle,
-                        ControllerHandle,
-                        EFI_OPEN_PROTOCOL_TEST_PROTOCOL
-                        );
+  //
+  // If udp4 sb is on the controller, try to open a udp4 io for input.
+  //
+  Udp4Status = gBS->OpenProtocol (
+                      ControllerHandle,
+                      &gEfiUdp4ServiceBindingProtocolGuid,
+                      NULL,
+                      This->DriverBindingHandle,
+                      ControllerHandle,
+                      EFI_OPEN_PROTOCOL_TEST_PROTOCOL
+                      );
 
-    if (!EFI_ERROR (Status)) {
-      Status = IkeOpenInputUdp4 (Private, ControllerHandle, This->DriverBindingHandle);
-    }
-  } else {
-    //
-    // Try to open a udp6 io for input.
-    //
-    Status = gBS->OpenProtocol (
-                        ControllerHandle,
-                        &gEfiUdp6ServiceBindingProtocolGuid,
-                        NULL,
-                        This->DriverBindingHandle,
-                        ControllerHandle,
-                        EFI_OPEN_PROTOCOL_TEST_PROTOCOL
-                        );
+  if (!EFI_ERROR (Udp4Status)) {
+    Udp4Status = IkeOpenInputUdp4 (Private, ControllerHandle);
+  }
+  //
+  // If udp6 sb is on the controller, try to open a udp6 io for input.
+  //
+  Udp6Status = gBS->OpenProtocol (
+                      ControllerHandle,
+                      &gEfiUdp6ServiceBindingProtocolGuid,
+                      NULL,
+                      This->DriverBindingHandle,
+                      ControllerHandle,
+                      EFI_OPEN_PROTOCOL_TEST_PROTOCOL
+                      );
 
-    if (!EFI_ERROR (Status)) {
-      Status = IkeOpenInputUdp6 (Private, ControllerHandle, This->DriverBindingHandle);
-    }
+  if (!EFI_ERROR (Udp6Status)) {
+    Udp6Status = IkeOpenInputUdp6 (Private, ControllerHandle);
   }
 
-  if (EFI_ERROR (Status)) {
-    return EFI_DEVICE_ERROR;
+  if (!EFI_ERROR (Udp4Status) || !EFI_ERROR (Udp6Status)) {
+    return EFI_SUCCESS;
   }
-  return EFI_SUCCESS;
+
+  return EFI_DEVICE_ERROR;
 }
 
 /**
-  Stop this driver on ControllerHandle. This is the worker function
-  for IpSec4(6)DriverbindingStop.
+  Stop this driver on ControllerHandle.
 
   @param[in]  This                 Protocol instance pointer.
   @param[in]  ControllerHandle     Handle of a device to stop the driver on.
   @param[in]  NumberOfChildren     Number of Handles in ChildHandleBuffer. If the number of
                                    children is zero, stop the entire bus driver.
   @param[in]  ChildHandleBuffer    List of Child Handles to Stop.
-  @param[in]  IpVersion            IP_VERSION_4 or IP_VERSION_6.
 
   @retval EFI_SUCCES           This driver removed ControllerHandle.
   @retval other                This driver was not removed from this device.
@@ -164,12 +164,11 @@ IpSecStart (
 **/
 EFI_STATUS
 EFIAPI
-IpSecStop (
+IpSecDriverBindingStop (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   ControllerHandle,
   IN UINTN                        NumberOfChildren,
-  IN EFI_HANDLE                   *ChildHandleBuffer,
-  IN UINT8                        IpVersion
+  IN EFI_HANDLE                   *ChildHandleBuffer
   )
 {
   EFI_IPSEC2_PROTOCOL *IpSec;
@@ -191,268 +190,69 @@ IpSecStop (
   Private = IPSEC_PRIVATE_DATA_FROM_IPSEC (IpSec);
 
   //
-  // The SAs are shared by both IP4 and IP6 stack. So we skip the cleanup
-  // and leave the SAs unchanged if the other IP stack is still running.
+  // Delete all SAs before stop Ipsec.
   //
-  if ((IpVersion == IP_VERSION_4 && Private->Udp6Num ==0) ||
-      (IpVersion == IP_VERSION_6 && Private->Udp4Num ==0)) {
-    IkeDeleteAllSas (Private, FALSE);
-  }
+  IkeDeleteAllSas (Private, FALSE);
+  //
+  // If has udp4 io opened on the controller, close and free it.
+  //
+  NET_LIST_FOR_EACH_SAFE (Entry, Next, &Private->Udp4List) {
 
-  if (IpVersion == IP_VERSION_4) {
+    UdpSrv = IPSEC_UDP_SERVICE_FROM_LIST (Entry);
     //
-    // If has udp4 io opened on the controller, close and free it.
+    // Find the right udp service which installed on the appointed nic handle.
     //
-    NET_LIST_FOR_EACH_SAFE (Entry, Next, &Private->Udp4List) {
-
-      UdpSrv = IPSEC_UDP_SERVICE_FROM_LIST (Entry);
-      //
-      // Find the right udp service which installed on the appointed nic handle.
-      //
-      if (UdpSrv->Input != NULL && ControllerHandle == UdpSrv->Input->UdpHandle) {
-        UdpIoFreeIo (UdpSrv->Input);
-        UdpSrv->Input = NULL;
-      }
-
-      if (UdpSrv->Output != NULL && ControllerHandle == UdpSrv->Output->UdpHandle) {
-        UdpIoFreeIo (UdpSrv->Output);
-        UdpSrv->Output = NULL;
-      }
-
-      if (UdpSrv->Input == NULL && UdpSrv->Output == NULL) {
-        RemoveEntryList (&UdpSrv->List);
-        FreePool (UdpSrv);
-        ASSERT (Private->Udp4Num > 0);
-        Private->Udp4Num--;
-      }
+    if (UdpSrv->Input != NULL && ControllerHandle == UdpSrv->Input->UdpHandle) {
+      UdpIoFreeIo (UdpSrv->Input);
+      UdpSrv->Input = NULL;
     }
-  } else {
+
+    if (UdpSrv->Output != NULL && ControllerHandle == UdpSrv->Output->UdpHandle) {
+      UdpIoFreeIo (UdpSrv->Output);
+      UdpSrv->Output = NULL;
+    }
+
+    if (UdpSrv->Input == NULL && UdpSrv->Output == NULL) {
+      RemoveEntryList (&UdpSrv->List);
+      FreePool (UdpSrv);
+      ASSERT (Private->Udp4Num > 0);
+      Private->Udp4Num--;
+    }
+  }
+  //
+  // If has udp6 io opened on the controller, close and free it.
+  //
+  NET_LIST_FOR_EACH_SAFE (Entry, Next, &Private->Udp6List) {
+
+    UdpSrv = IPSEC_UDP_SERVICE_FROM_LIST (Entry);
     //
-    // If has udp6 io opened on the controller, close and free it.
+    // Find the right udp service which installed on the appointed nic handle.
     //
-    NET_LIST_FOR_EACH_SAFE (Entry, Next, &Private->Udp6List) {
+    if (UdpSrv->Input != NULL && ControllerHandle == UdpSrv->Input->UdpHandle) {
+      UdpIoFreeIo (UdpSrv->Input);
+      UdpSrv->Input = NULL;
+    }
 
-      UdpSrv = IPSEC_UDP_SERVICE_FROM_LIST (Entry);
-      //
-      // Find the right udp service which installed on the appointed nic handle.
-      //
-      if (UdpSrv->Input != NULL && ControllerHandle == UdpSrv->Input->UdpHandle) {
-        UdpIoFreeIo (UdpSrv->Input);
-        UdpSrv->Input = NULL;
-      }
+    if (UdpSrv->Output != NULL && ControllerHandle == UdpSrv->Output->UdpHandle) {
+      UdpIoFreeIo (UdpSrv->Output);
+      UdpSrv->Output = NULL;
+    }
 
-      if (UdpSrv->Output != NULL && ControllerHandle == UdpSrv->Output->UdpHandle) {
-        UdpIoFreeIo (UdpSrv->Output);
-        UdpSrv->Output = NULL;
-      }
-
-      if (UdpSrv->Input == NULL && UdpSrv->Output == NULL) {
-        RemoveEntryList (&UdpSrv->List);
-        FreePool (UdpSrv);
-        ASSERT (Private->Udp6Num > 0);
-        Private->Udp6Num--;
-      }
+    if (UdpSrv->Input == NULL && UdpSrv->Output == NULL) {
+      RemoveEntryList (&UdpSrv->List);
+      FreePool (UdpSrv);
+      ASSERT (Private->Udp6Num > 0);
+      Private->Udp6Num--;
     }
   }
 
   return EFI_SUCCESS;
 }
 
-/**
-  Test to see if this driver supports ControllerHandle.
-
-  @param[in]  This                 Protocol instance pointer.
-  @param[in]  ControllerHandle     Handle of device to test.
-  @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
-                                   device to start.
-
-  @retval EFI_SUCCES           This driver supports this device.
-  @retval EFI_ALREADY_STARTED  This driver is already running on this device.
-  @retval other                This driver does not support this device.
-
-**/
-EFI_STATUS
-EFIAPI
-IpSec4DriverBindingSupported (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath  OPTIONAL
-  )
-{
-  return IpSecSupported (
-           This,
-           ControllerHandle,
-           RemainingDevicePath,
-           IP_VERSION_4
-           );
-}
-
-/**
-  Start this driver on ControllerHandle.
-
-  @param[in]  This                 Protocol instance pointer.
-  @param[in]  ControllerHandle     Handle of device to bind driver to.
-  @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
-                                   device to start.
-
-  @retval EFI_SUCCES           This driver is added to ControllerHandle
-  @retval EFI_ALREADY_STARTED  This driver is already running on ControllerHandle
-  @retval EFI_DEVICE_ERROR     The device could not be started due to a device error.
-                               Currently not implemented.
-  @retval other                This driver does not support this device
-
-**/
-EFI_STATUS
-EFIAPI
-IpSec4DriverBindingStart (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
-  )
-{
-  return IpSecStart (
-           This,
-           ControllerHandle,
-           RemainingDevicePath,
-           IP_VERSION_4
-           );
-}
-
-/**
-  Stop this driver on ControllerHandle.
-
-  @param[in]  This                 Protocol instance pointer.
-  @param[in]  ControllerHandle     Handle of a device to stop the driver on.
-  @param[in]  NumberOfChildren     Number of Handles in ChildHandleBuffer. If the number of
-                                   children is zero, stop the entire bus driver.
-  @param[in]  ChildHandleBuffer    List of Child Handles to Stop.
-
-  @retval EFI_SUCCES           This driver removed ControllerHandle.
-  @retval other                This driver was not removed from this device.
-
-**/
-EFI_STATUS
-EFIAPI
-IpSec4DriverBindingStop (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN UINTN                        NumberOfChildren,
-  IN EFI_HANDLE                   *ChildHandleBuffer
-  )
-{
-  return IpSecStop (
-           This,
-           ControllerHandle,
-           NumberOfChildren,
-           ChildHandleBuffer,
-           IP_VERSION_4
-           );
-}
-
-/**
-  Test to see if this driver supports ControllerHandle.
-
-  @param[in]  This                 Protocol instance pointer.
-  @param[in]  ControllerHandle     Handle of device to test.
-  @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
-                                   device to start.
-
-  @retval EFI_SUCCES           This driver supports this device.
-  @retval EFI_ALREADY_STARTED  This driver is already running on this device.
-  @retval other                This driver does not support this device.
-
-**/
-EFI_STATUS
-EFIAPI
-IpSec6DriverBindingSupported (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath  OPTIONAL
-  )
-{
-  return IpSecSupported (
-           This,
-           ControllerHandle,
-           RemainingDevicePath,
-           IP_VERSION_6
-           );
-}
-
-/**
-  Start this driver on ControllerHandle.
-
-  @param[in]  This                 Protocol instance pointer.
-  @param[in]  ControllerHandle     Handle of device to bind driver to.
-  @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
-                                   device to start.
-
-  @retval EFI_SUCCES           This driver is added to ControllerHandle
-  @retval EFI_ALREADY_STARTED  This driver is already running on ControllerHandle
-  @retval EFI_DEVICE_ERROR     The device could not be started due to a device error.
-                               Currently not implemented.
-  @retval other                This driver does not support this device
-
-**/
-EFI_STATUS
-EFIAPI
-IpSec6DriverBindingStart (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
-  )
-{
-  return IpSecStart (
-           This,
-           ControllerHandle,
-           RemainingDevicePath,
-           IP_VERSION_6
-           );
-}
-
-/**
-  Stop this driver on ControllerHandle.
-
-  @param[in]  This                 Protocol instance pointer.
-  @param[in]  ControllerHandle     Handle of a device to stop the driver on.
-  @param[in]  NumberOfChildren     Number of Handles in ChildHandleBuffer. If the number of
-                                   children is zero, stop the entire bus driver.
-  @param[in]  ChildHandleBuffer    List of Child Handles to Stop.
-
-  @retval EFI_SUCCES           This driver removed ControllerHandle.
-  @retval other                This driver was not removed from this device.
-
-**/
-EFI_STATUS
-EFIAPI
-IpSec6DriverBindingStop (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN UINTN                        NumberOfChildren,
-  IN EFI_HANDLE                   *ChildHandleBuffer
-  )
-{
-  return IpSecStop (
-           This,
-           ControllerHandle,
-           NumberOfChildren,
-           ChildHandleBuffer,
-           IP_VERSION_6
-           );
-}
-
-EFI_DRIVER_BINDING_PROTOCOL gIpSec4DriverBinding = {
-  IpSec4DriverBindingSupported,
-  IpSec4DriverBindingStart,
-  IpSec4DriverBindingStop,
-  0xa,
-  NULL,
-  NULL
-};
-
-EFI_DRIVER_BINDING_PROTOCOL gIpSec6DriverBinding = {
-  IpSec6DriverBindingSupported,
-  IpSec6DriverBindingStart,
-  IpSec6DriverBindingStop,
+EFI_DRIVER_BINDING_PROTOCOL gIpSecDriverBinding = {
+  IpSecDriverBindingSupported,
+  IpSecDriverBindingStart,
+  IpSecDriverBindingStop,
   0xa,
   NULL,
   NULL
@@ -586,7 +386,7 @@ IpSecDriverEntryPoint (
   Status = EfiLibInstallDriverBindingComponentName2 (
              ImageHandle,
              SystemTable,
-             &gIpSec4DriverBinding,
+             &gIpSecDriverBinding,
              ImageHandle,
              &gIpSecComponentName,
              &gIpSecComponentName2
@@ -595,31 +395,7 @@ IpSecDriverEntryPoint (
     goto ON_UNINSTALL_IPSEC;
   }
 
-  Status = EfiLibInstallDriverBindingComponentName2 (
-             ImageHandle,
-             SystemTable,
-             &gIpSec6DriverBinding,
-             NULL,
-             &gIpSecComponentName,
-             &gIpSecComponentName2
-             );
-  if (EFI_ERROR (Status)) {
-    goto ON_UNINSTALL_IPSEC4_DB;
-  }
-
   return Status;
-
-ON_UNINSTALL_IPSEC4_DB:
-  gBS->UninstallMultipleProtocolInterfaces (
-         ImageHandle,
-         &gEfiDriverBindingProtocolGuid,
-         &gIpSec4DriverBinding,
-         &gEfiComponentName2ProtocolGuid,
-         &gIpSecComponentName2,
-         &gEfiComponentNameProtocolGuid,
-         &gIpSecComponentName,
-         NULL
-         );
 
 ON_UNINSTALL_IPSEC:
   gBS->UninstallProtocolInterface (

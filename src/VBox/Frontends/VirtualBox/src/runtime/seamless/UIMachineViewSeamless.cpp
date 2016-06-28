@@ -23,9 +23,9 @@
 # include <QApplication>
 # include <QMainWindow>
 # include <QTimer>
-# ifdef VBOX_WS_MAC
+# ifdef Q_WS_MAC
 #  include <QMenuBar>
-# endif /* VBOX_WS_MAC */
+# endif /* Q_WS_MAC */
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -43,9 +43,9 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* External includes: */
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
 # include <limits.h>
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
 
 
@@ -64,6 +64,15 @@ UIMachineViewSeamless::UIMachineViewSeamless(  UIMachineWindow *pMachineWindow
 {
     /* Prepare seamless view: */
     prepareSeamless();
+}
+
+UIMachineViewSeamless::~UIMachineViewSeamless()
+{
+    /* Cleanup seamless mode: */
+    cleanupSeamless();
+
+    /* Cleanup frame buffer: */
+    cleanupFrameBuffer();
 }
 
 void UIMachineViewSeamless::sltAdditionsStateChanged()

@@ -20,86 +20,28 @@
   against EfiSocketLib.  An alternative set of values exists in
   SocketDxe\EntryUnload.c which the SocketDxe driver uses to coexist
   with socket applications.
-
+  
   Tag GUID - IPv4 in use by an application using EfiSocketLib
 **/
-CONST EFI_GUID mEslIp4ServiceGuid __attribute__((weak)) = {
+CONST EFI_GUID mEslIp4ServiceGuid = {
   0x9c756011, 0x5d44, 0x4ee0, { 0xbc, 0xe7, 0xc3, 0x82, 0x18, 0xfe, 0x39, 0x8d }
-};
-
-
-/**
-  Tag GUID - IPv6 in use by an application using EfiSocketLib
-**/
-CONST EFI_GUID mEslIp6ServiceGuid __attribute__((weak)) = {
-  0xc51b2761, 0xc476, 0x45fe, { 0xbe, 0x61, 0xba, 0x4b, 0xcc, 0x32, 0xf2, 0x34 }
 };
 
 
 /**
   Tag GUID - TCPv4 in use by an application using EfiSocketLib
 **/
-CONST EFI_GUID mEslTcp4ServiceGuid __attribute__((weak)) = {
+CONST EFI_GUID mEslTcp4ServiceGuid = {
   0xffc659c2, 0x4ef2, 0x4532, { 0xb8, 0x75, 0xcd, 0x9a, 0xa4, 0x27, 0x4c, 0xde }
-};
-
-
-/**
-  Tag GUID - TCPv6 in use by an application using EfiSocketLib
-**/
-CONST EFI_GUID mEslTcp6ServiceGuid __attribute__((weak)) = {
-  0x279858a4, 0x4e9e, 0x4e53, { 0x93, 0x22, 0xf2, 0x54, 0xe0, 0x7e, 0xef, 0xd4 }
 };
 
 
 /**
   Tag GUID - UDPv4 in use by an application using EfiSocketLib
 **/
-CONST EFI_GUID mEslUdp4ServiceGuid __attribute__((weak)) = {
+CONST EFI_GUID mEslUdp4ServiceGuid = {
   0x44e03a55, 0x8d97, 0x4511, { 0xbf, 0xef, 0xa, 0x8b, 0xc6, 0x2c, 0x25, 0xae }
 };
-
-
-/**
-  Tag GUID - UDPv6 in use by an application using EfiSocketLib
-**/
-CONST EFI_GUID mEslUdp6ServiceGuid __attribute__((weak)) = {
-  0xaa4af677, 0x6efe, 0x477c, { 0x96, 0x68, 0xe8, 0x13, 0x9d, 0x2, 0xfd, 0x9b }
-};
-
-
-/**
-  Free the socket resources
-
-  This releases the socket resources allocated by calling
-  EslServiceGetProtocol.
-
-  This routine is called from the ::close routine in BsdSocketLib
-  to release the socket resources.
-
-  @param [in] pSocketProtocol   Address of an ::EFI_SOCKET_PROTOCOL
-                                structure
-
-  @return       Value for ::errno, zero (0) indicates success.
-
- **/
-int
-EslServiceFreeProtocol (
-  IN EFI_SOCKET_PROTOCOL * pSocketProtocol
-  )
-{
-  int RetVal;
-
-  //
-  //  Release the socket resources
-  //
-  EslSocketFree ( pSocketProtocol, &RetVal );
-
-  //
-  //  Return the operation status
-  //
-  return RetVal;
-}
 
 
 /**
@@ -230,17 +172,10 @@ EslServiceNetworkConnect (
         for ( Index = 0; HandleCount > Index; Index++ ) {
           Status = EslServiceConnect ( gImageHandle,
                                        pHandles[ Index ]);
-          if ( !EFI_ERROR ( Status )) {
-            bSomethingFound = TRUE;
+          if ( EFI_ERROR ( Status )) {
+            break;
           }
-          else {
-            if ( EFI_OUT_OF_RESOURCES == Status ) {
-              //
-              //  Pointless to continue without memory
-              //
-              break;
-            }
-          }
+          bSomethingFound = TRUE;
         }
 
         //
@@ -317,8 +252,10 @@ EslServiceNetworkDisconnect (
                                        NULL,
                                        &HandleCount,
                                        &pHandles );
-    if (( !EFI_ERROR ( Status ))
-      && ( NULL != pHandles )) {
+    if ( EFI_ERROR ( Status )) {
+      break;
+    }
+    if ( NULL != pHandles ) {
       //
       //  Attempt to disconnect from this network adapter
       //
@@ -340,7 +277,6 @@ EslServiceNetworkDisconnect (
     //  Set the next network protocol
     //
     pSocketBinding += 1;
-    Status = EFI_SUCCESS;
   }
 
   //
@@ -361,7 +297,7 @@ EslServiceNetworkDisconnect (
 /**
   Socket layer's service binding protocol delcaration.
 **/
-CONST EFI_SERVICE_BINDING_PROTOCOL mEfiServiceBinding __attribute__((weak)) = {
+CONST EFI_SERVICE_BINDING_PROTOCOL mEfiServiceBinding = {
   NULL,
   NULL
 };
@@ -372,5 +308,5 @@ CONST EFI_SERVICE_BINDING_PROTOCOL mEfiServiceBinding __attribute__((weak)) = {
   for any socket application that links against the EfiSocketLib.
   Note that the SocketDxe driver uses different redirection.
 **/
-PFN_ESL_xSTRUCTOR mpfnEslConstructor __attribute__((weak)) = EslServiceNetworkConnect;    ///<  Constructor for EfiSocketLib
-PFN_ESL_xSTRUCTOR mpfnEslDestructor __attribute__((weak)) = EslServiceNetworkDisconnect;  ///<  Destructor for EfiSocketLib
+PFN_ESL_xSTRUCTOR mpfnEslConstructor = EslServiceNetworkConnect;    ///<  Constructor for EfiSocketLib
+PFN_ESL_xSTRUCTOR mpfnEslDestructor = EslServiceNetworkDisconnect;  ///<  Destructor for EfiSocketLib

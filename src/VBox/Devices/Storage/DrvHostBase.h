@@ -40,7 +40,7 @@ typedef struct DRVHOSTBASE
     /** Pointer driver instance. */
     PPDMDRVINS              pDrvIns;
     /** Drive type. */
-    PDMMEDIATYPE            enmType;
+    PDMBLOCKTYPE            enmType;
     /** Visible to the BIOS. */
     bool                    fBiosVisible;
     /** The configuration readonly value. */
@@ -63,11 +63,13 @@ typedef struct DRVHOSTBASE
     RTUUID                  Uuid;
 
     /** Pointer to the block port interface above us. */
-    PPDMIMEDIAPORT          pDrvMediaPort;
+    PPDMIBLOCKPORT          pDrvBlockPort;
     /** Pointer to the mount notify interface above us. */
     PPDMIMOUNTNOTIFY        pDrvMountNotify;
-    /** Our media interface. */
-    PDMIMEDIA               IMedia;
+    /** Our block interface. */
+    PDMIBLOCK               IBlock;
+    /** Our block interface. */
+    PDMIBLOCKBIOS           IBlockBios;
     /** Our mountable interface. */
     PDMIMOUNT               IMount;
 
@@ -178,13 +180,13 @@ typedef struct DRVHOSTBASE
 } DRVHOSTBASE;
 
 
-int DRVHostBaseInitData(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, PDMMEDIATYPE enmType);
+int DRVHostBaseInitData(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, PDMBLOCKTYPE enmType);
 int DRVHostBaseInitFinish(PDRVHOSTBASE pThis);
 int DRVHostBaseMediaPresent(PDRVHOSTBASE pThis);
 void DRVHostBaseMediaNotPresent(PDRVHOSTBASE pThis);
 DECLCALLBACK(void) DRVHostBaseDestruct(PPDMDRVINS pDrvIns);
 #if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
-DECLCALLBACK(int) DRVHostBaseScsiCmd(PDRVHOSTBASE pThis, const uint8_t *pbCmd, size_t cbCmd, PDMMEDIATXDIR enmTxDir,
+DECLCALLBACK(int) DRVHostBaseScsiCmd(PDRVHOSTBASE pThis, const uint8_t *pbCmd, size_t cbCmd, PDMBLOCKTXDIR enmTxDir,
                                      void *pvBuf, uint32_t *pcbBuf, uint8_t *pbSense, size_t cbSense, uint32_t cTimeoutMillies);
 #endif
 
@@ -192,8 +194,8 @@ DECLCALLBACK(int) DRVHostBaseScsiCmd(PDRVHOSTBASE pThis, const uint8_t *pbCmd, s
 /** Makes a PDRVHOSTBASE out of a PPDMIMOUNT. */
 #define PDMIMOUNT_2_DRVHOSTBASE(pInterface)        ( (PDRVHOSTBASE)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTBASE, IMount)) )
 
-/** Makes a PDRVHOSTBASE out of a PPDMIMEDIA. */
-#define PDMIMEDIA_2_DRVHOSTBASE(pInterface)        ( (PDRVHOSTBASE)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTBASE, IMedia)) )
+/** Makes a PDRVHOSTBASE out of a PPDMIBLOCK. */
+#define PDMIBLOCK_2_DRVHOSTBASE(pInterface)        ( (PDRVHOSTBASE)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTBASE, IBlock)) )
 
 RT_C_DECLS_END
 

@@ -216,10 +216,10 @@ HRESULT SerialPort::setEnabled(BOOL aEnabled)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (m->bd->fEnabled != RT_BOOL(aEnabled))
+    if (m->bd->fEnabled != !!aEnabled)
     {
         m->bd.backup();
-        m->bd->fEnabled = RT_BOOL(aEnabled);
+        m->bd->fEnabled = !!aEnabled;
 
         m->fModified = true;
         // leave the lock before informing callbacks
@@ -466,10 +466,10 @@ HRESULT SerialPort::setServer(BOOL aServer)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (m->bd->fServer != RT_BOOL(aServer))
+    if (m->bd->fServer != !!aServer)
     {
         m->bd.backup();
-        m->bd->fServer = RT_BOOL(aServer);
+        m->bd->fServer = !!aServer;
 
         m->fModified = true;
         // leave the lock before informing callbacks

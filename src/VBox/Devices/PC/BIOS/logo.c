@@ -115,8 +115,7 @@ extern void rtc_post(void);
  * timer at WAIT_HZ for a while.
  */
 void wait_uninit(void);
-#if VBOX_BIOS_CPU >= 80386
-# pragma aux wait_uninit =   \
+#pragma aux wait_uninit =   \
     ".386"                  \
     "mov    al, 34h"        \
     "out    43h, al"        \
@@ -130,21 +129,6 @@ void wait_uninit(void);
     "pop    ds"             \
     "popad"                 \
     modify [ax] nomemory;
-#else
-# pragma aux wait_uninit = \
-    "mov    al, 34h" \
-    "out    43h, al" \
-    "xor    ax, ax" \
-    "out    40h, al" \
-    "out    40h, al" \
-    "push   bp" \
-    "push   ds" \
-    "mov    ds, ax" \
-    "call   rtc_post" \
-    "pop    ds" \
-    "pop    bp" \
-    modify [ax bx cx dx si di];
-#endif
 
 
 /**
@@ -346,7 +330,7 @@ void show_logo(void)
     uint16_t    old_mode;
 
 
-    // Set PIT to 64hz.
+    // Set PIT to 1ms ticks
     wait_init();
 
     // Get main signature
@@ -538,3 +522,4 @@ void delay_boot(uint16_t secs)
     // Restore PIT ticks
     wait_uninit();
 }
+

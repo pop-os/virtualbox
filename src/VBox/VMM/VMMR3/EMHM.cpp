@@ -41,7 +41,6 @@
 #include <VBox/vmm/hm.h>
 #include "EMInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/gim.h>
 #include <VBox/vmm/cpumdis.h>
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
@@ -115,9 +114,9 @@ VMMR3_INT_DECL(VBOXSTRICTRC) EMR3HmSingleInstruction(PVM pVM, PVMCPU pVCpu, uint
         /*
          * Go execute it.
          */
-        bool fOld = HMSetSingleInstruction(pVM, pVCpu, true);
+        bool fOld = HMSetSingleInstruction(pVCpu, true);
         VBOXSTRICTRC rcStrict = VMMR3HmRunGC(pVM, pVCpu);
-        HMSetSingleInstruction(pVM, pVCpu, fOld);
+        HMSetSingleInstruction(pVCpu, fOld);
         LogFlow(("EMR3HmSingleInstruction: %Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
 
         /*
@@ -184,7 +183,7 @@ static int emR3HmExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcRC)
     Log(("EMINS: %04x:%RGv RSP=%RGv\n", pCtx->cs.Sel, (RTGCPTR)pCtx->rip, (RTGCPTR)pCtx->rsp));
     if (pszPrefix)
     {
-        DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", pszPrefix);
+        DBGFR3_INFO_LOG(pVM, "cpumguest", pszPrefix);
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, pszPrefix);
     }
 #endif

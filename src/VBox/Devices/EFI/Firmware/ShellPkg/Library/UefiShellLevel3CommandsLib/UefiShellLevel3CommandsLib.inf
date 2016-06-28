@@ -2,8 +2,7 @@
 # Provides shell level 3 functions
 # Note that the interactive versions of the time, date, and timezone functions are handled in the level 2 library.
 #
-# Copyright (c) 2013, Hewlett-Packard Development Company, L.P.
-# Copyright (c) 2009-2015, Intel Corporation. All rights reserved. <BR>
+# Copyright (c) 2009-2011, Intel Corporation. All rights reserved. <BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -60,16 +59,12 @@
   PcdLib
   HiiLib
   FileHandleLib
-  HandleParsingLib
 
 [Guids]
-  gEfiFileInfoGuid                                        ## UNDEFINED
-  gShellLevel3HiiGuid                                     ## SOMETIMES_CONSUMES ## HII
+  gEfiFileInfoGuid
+  gShellLevel3HiiGuid
 
 [Pcd.common]
-  gEfiShellPkgTokenSpaceGuid.PcdShellSupportLevel         ## CONSUMES
-  gEfiShellPkgTokenSpaceGuid.PcdShellFileOperationSize    ## SOMETIMES_CONSUMES
-  gEfiShellPkgTokenSpaceGuid.PcdShellSupplier             ## SOMETIMES_CONSUMES
+  gEfiShellPkgTokenSpaceGuid.PcdShellSupportLevel
+  gEfiShellPkgTokenSpaceGuid.PcdShellFileOperationSize
 
-[Protocols]
-  gEfiShellDynamicCommandProtocolGuid                     ## SOMETIMES_CONSUMES

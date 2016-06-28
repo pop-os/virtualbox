@@ -44,7 +44,6 @@
 
 [Sources.ARM]
   strtof.c
-  Ipf/strtold.c
 
 [Sources]
   strtod.c      # Public interfaces

@@ -1,5 +1,5 @@
 ## @file
-# GNU/Linux makefile for 'GenFv' module build.
+# Windows makefile for 'GenFv' module build.
 #
 # Copyright (c) 2007 - 2010, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials

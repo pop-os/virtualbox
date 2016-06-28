@@ -26,7 +26,6 @@
 #include "GuestDirectoryImpl.h"
 #include "GuestFileImpl.h"
 #include "GuestFsObjInfoImpl.h"
-#include "ThreadTask.h"
 
 #include <iprt/isofs.h> /* For UpdateAdditions. */
 
@@ -36,7 +35,7 @@ class Guest;
  * Abstract base class for a lenghtly per-session operation which
  * runs in a Main worker thread.
  */
-class GuestSessionTask : public ThreadTask
+class GuestSessionTask
 {
 public:
 
@@ -49,16 +48,6 @@ public:
     virtual int Run(void) = 0;
     virtual int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress) = 0;
 
-    HRESULT Init(const Utf8Str &strTaskDesc)
-    {
-        HRESULT hr = S_OK;
-        setTaskDesc(strTaskDesc);
-        hr = createAndSetProgressObject();
-        return hr;
-    }
-
-    const ComObjPtr<Progress>& GetProgressObject() const {return mProgress;}
-
 protected:
 
     int getGuestProperty(const ComObjPtr<Guest> &pGuest,
@@ -66,12 +55,7 @@ protected:
     int setProgress(ULONG uPercent);
     int setProgressSuccess(void);
     HRESULT setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg);
-    inline void setTaskDesc(const Utf8Str &strTaskDesc) throw()
-    {
-        mDesc = strTaskDesc;
-    }
 
-    HRESULT createAndSetProgressObject();
 protected:
 
     Utf8Str                 mDesc;
@@ -99,10 +83,6 @@ public:
     int Run(int *pGuestRc);
     int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
     static DECLCALLBACK(int) taskThread(RTTHREAD Thread, void *pvUser);
-    void handler()
-    {
-        int vrc = SessionTaskOpen::taskThread(NULL, this);
-    }
 
 protected:
 
@@ -133,10 +113,6 @@ public:
     int Run(void);
     int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
     static DECLCALLBACK(int) taskThread(RTTHREAD Thread, void *pvUser);
-    void handler()
-    {
-        int vrc = SessionTaskCopyTo::taskThread(NULL, this);
-    }
 
 protected:
 
@@ -165,10 +141,6 @@ public:
     int Run(void);
     int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
     static DECLCALLBACK(int) taskThread(RTTHREAD Thread, void *pvUser);
-    void handler()
-    {
-        int vrc = SessionTaskCopyFrom::taskThread(NULL, this);
-    }
 
 protected:
 
@@ -195,10 +167,6 @@ public:
     int Run(void);
     int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
     static DECLCALLBACK(int) taskThread(RTTHREAD Thread, void *pvUser);
-    void handler()
-    {
-        int vrc = SessionTaskUpdateAdditions::taskThread(NULL, this);
-    }
 
 protected:
 

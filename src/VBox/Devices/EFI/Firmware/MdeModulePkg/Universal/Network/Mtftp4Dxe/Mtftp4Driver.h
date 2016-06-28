@@ -1,7 +1,7 @@
 /** @file
   Mtftp drivers function header.
-
-Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+  
+Copyright (c) 2006 - 2007, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -26,7 +26,6 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 extern EFI_COMPONENT_NAME_PROTOCOL   gMtftp4ComponentName;
 extern EFI_COMPONENT_NAME2_PROTOCOL  gMtftp4ComponentName2;
 extern EFI_DRIVER_BINDING_PROTOCOL   gMtftp4DriverBinding;
-extern EFI_UNICODE_STRING_TABLE      *gMtftp4ControllerNameTable;
 
 /**
   Test whether MTFTP driver support this controller.
@@ -49,8 +48,8 @@ Mtftp4DriverBindingSupported (
   );
 
 /**
-  Start the MTFTP driver on this controller.
-
+  Start the MTFTP driver on this controller. 
+  
   MTFTP driver will install a MTFTP SERVICE BINDING protocol on the supported
   controller, which can be used to create/destroy MTFTP children.
 
@@ -114,14 +113,14 @@ Mtftp4ServiceBindingCreateChild (
   );
 
 /**
-  Destroy one of the service binding's child.
+  Destory one of the service binding's child.
 
   @param  This                   The service binding instance
-  @param  ChildHandle            The child handle to destroy
+  @param  ChildHandle            The child handle to destory
 
   @retval EFI_INVALID_PARAMETER  The parameter is invaid.
-  @retval EFI_UNSUPPORTED        The child may have already been destroyed.
-  @retval EFI_SUCCESS            The child is destroyed and removed from the
+  @retval EFI_UNSUPPORTED        The child may have already been destoried.
+  @retval EFI_SUCCESS            The child is destoried and removed from the
                                  parent's child list.
 
 **/

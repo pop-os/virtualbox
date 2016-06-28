@@ -100,8 +100,6 @@ class org_virtualbox_VBoxUSB : public IOService
     OSDeclareDefaultStructors(org_virtualbox_VBoxUSB);
 
 public:
-    RTR0MEMEF_NEW_AND_DELETE_OPERATORS_IOKIT();
-
     /** @name IOService
      * @{ */
     virtual bool init(OSDictionary *pDictionary = 0);
@@ -112,10 +110,6 @@ public:
     virtual void stop(IOService *pProvider);
     virtual void free();
     /** @} */
-
-private:
-    /** Guard against the parent class growing and us using outdated headers. */
-    uint8_t m_abSafetyPadding[256];
 };
 OSDefineMetaClassAndStructors(org_virtualbox_VBoxUSB, IOService);
 
@@ -128,8 +122,6 @@ class org_virtualbox_VBoxUSBClient : public IOUserClient
     OSDeclareDefaultStructors(org_virtualbox_VBoxUSBClient);
 
 public:
-    RTR0MEMEF_NEW_AND_DELETE_OPERATORS_IOKIT();
-
     /** @name IOService & IOUserClient
      * @{ */
     virtual bool initWithTask(task_t OwningTask, void *pvSecurityId, UInt32 u32Type);
@@ -152,8 +144,6 @@ public:
     static bool isClientTask(task_t ClientTask);
 
 private:
-    /** Guard against the parent class growing and us using outdated headers. */
-    uint8_t m_abSafetyPadding[256];
     /** The service provider. */
     org_virtualbox_VBoxUSB *m_pProvider;
     /** The client task. */
@@ -190,8 +180,6 @@ class org_virtualbox_VBoxUSBDevice : public IOUSBUserClientInit
     OSDeclareDefaultStructors(org_virtualbox_VBoxUSBDevice);
 
 public:
-    RTR0MEMEF_NEW_AND_DELETE_OPERATORS_IOKIT();
-
     /** @name IOService
      * @{ */
     virtual bool init(OSDictionary *pDictionary = 0);
@@ -206,7 +194,7 @@ public:
     static void  scheduleReleaseByOwner(RTPROCESS Owner);
 private:
     /** Padding to guard against parent class expanding (see class remarks). */
-    uint8_t m_abSafetyPadding[256];
+    uint8_t m_abPadding[256];
     /** The interface we're driving (aka. the provider). */
     IOUSBDevice *m_pDevice;
     /** The owner process, meaning the VBoxSVC process. */
@@ -254,8 +242,6 @@ class org_virtualbox_VBoxUSBInterface : public IOUSBUserClientInit
     OSDeclareDefaultStructors(org_virtualbox_VBoxUSBInterface);
 
 public:
-    RTR0MEMEF_NEW_AND_DELETE_OPERATORS_IOKIT();
-
     /** @name IOService
      * @{ */
     virtual bool init(OSDictionary *pDictionary = 0);
@@ -268,8 +254,6 @@ public:
     /** @} */
 
 private:
-    /** Padding to guard against parent class expanding (see class remarks). */
-    uint8_t m_abSafetyPadding[256];
     /** The interface we're driving (aka. the provider). */
     IOUSBInterface *m_pInterface;
     /** Have we opened the device or not? */
@@ -1107,9 +1091,9 @@ org_virtualbox_VBoxUSBDevice::probe(IOService *pProvider, SInt32 *pi32Score)
     /*
      * It matched. Save the owner in the provider registry (hope that works).
      */
-    /*IOService *pRet = IOUSBUserClientInit::probe(pProvider, pi32Score); - call always returns NULL on 10.11+ */
+    IOService *pRet = IOUSBUserClientInit::probe(pProvider, pi32Score);
     /*AssertMsg(pRet == this, ("pRet=%p this=%p *pi32Score=%d \n", pRet, this, pi32Score ? *pi32Score : 0)); - call always returns NULL on 10.11+ */
-    IOService *pRet = this;
+    pRet = this;
     m_Owner = Owner;
     m_uId = uId;
     Log(("%p: m_Owner=%d m_uId=%d\n", this, (int)m_Owner, (int)m_uId));
@@ -1684,8 +1668,8 @@ org_virtualbox_VBoxUSBInterface::probe(IOService *pProvider, SInt32 *pi32Score)
         return NULL;
     }
 
-    /* IOService *pRet = IOUSBUserClientInit::probe(pProvider, pi32Score); - call always returns NULL on 10.11+ */
-    IOService *pRet = this;
+    IOService *pRet = IOUSBUserClientInit::probe(pProvider, pi32Score);
+    pRet = this;
     *pi32Score = _1G;
     Log(("VBoxUSBInterface::probe: returns %p and *pi32Score=%d - hijack it.\n", pRet, *pi32Score));
     return pRet;

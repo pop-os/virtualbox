@@ -25,7 +25,6 @@
 
 #include "Global.h"
 #include "AutoCaller.h"
-#include "ThreadTask.h"
 
 #include <algorithm>        /* For std::find(). */
 
@@ -51,14 +50,13 @@
 /**
  * Base class for a target task.
  */
-class GuestDnDTargetTask : public ThreadTask
+class GuestDnDTargetTask
 {
 public:
 
     GuestDnDTargetTask(GuestDnDTarget *pTarget)
-        : ThreadTask("GenericGuestDnDTargetTask")
-        , mTarget(pTarget)
-        , mRC(VINF_SUCCESS) { }
+        : mTarget(pTarget),
+          mRC(VINF_SUCCESS) { }
 
     virtual ~GuestDnDTargetTask(void) { }
 
@@ -82,15 +80,7 @@ public:
 
     SendDataTask(GuestDnDTarget *pTarget, PSENDDATACTX pCtx)
         : GuestDnDTargetTask(pTarget),
-          mpCtx(pCtx)
-    {
-        m_strTaskName = "dndTgtSndData";
-    }
-
-    void handler()
-    {
-        int vrc = GuestDnDTarget::i_sendDataThread(*m_pThread, this);
-    }
+          mpCtx(pCtx) { }
 
     virtual ~SendDataTask(void)
     {
@@ -574,6 +564,9 @@ DECLCALLBACK(int) GuestDnDTarget::i_sendDataThread(RTTHREAD Thread, void *pvUser
 
     rc = pThis->i_sendData(pTask->getCtx(), RT_INDEFINITE_WAIT /* msTimeout */);
 
+    if (pTask)
+        delete pTask;
+
     AutoWriteLock alock(pThis COMMA_LOCKVAL_SRC_POS);
 
     Assert(pThis->mDataBase.m_cTransfersPending);
@@ -623,64 +616,51 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
     if (FAILED(hr))
         return hr;
 
-    SendDataTask *pTask = NULL;
-    PSENDDATACTX pSendCtx = NULL;
-    RTTHREAD threadSnd;
-    int rc = S_OK;
-
     try
     {
-        //pSendCtx is passed into SendDataTask where one is deleted in destructor
-        pSendCtx = new SENDDATACTX;
+        PSENDDATACTX pSendCtx = new SENDDATACTX;
         RT_BZERO(pSendCtx, sizeof(SENDDATACTX));
 
         pSendCtx->mpTarget      = this;
         pSendCtx->mpResp        = pResp;
         pSendCtx->mScreenID     = aScreenId;
         pSendCtx->mFmtReq       = aFormat;
+
         pSendCtx->mData.getMeta().add(aData);
 
-        /* pTask is responsible for deletion of pSendCtx after creating */
-        pTask = new SendDataTask(this, pSendCtx);
-        if (!pTask->isOk())
+        SendDataTask *pTask = new SendDataTask(this, pSendCtx);
+        AssertReturn(pTask->isOk(), pTask->getRC());
+
+        LogFlowFunc(("Starting thread ...\n"));
+
+        RTTHREAD threadSnd;
+        int rc = RTThreadCreate(&threadSnd, GuestDnDTarget::i_sendDataThread,
+                                (void *)pTask, 0, RTTHREADTYPE_MAIN_WORKER, 0, "dndTgtSndData");
+        if (RT_SUCCESS(rc))
         {
-            delete pTask;
-            LogRel2(("DnD: Could not create SendDataTask object \n"));
-            throw hr = E_FAIL;
+            rc = RTThreadUserWait(threadSnd, 30 * 1000 /* 30s timeout */);
+            if (RT_SUCCESS(rc))
+            {
+                mDataBase.m_cTransfersPending++;
+
+                hr = pResp->queryProgressTo(aProgress.asOutParam());
+                ComAssertComRC(hr);
+
+                /* Note: pTask is now owned by the worker thread. */
+            }
+            else
+                hr = setError(VBOX_E_IPRT_ERROR, tr("Waiting for sending thread failed (%Rrc)"), rc);
         }
+        else
+            hr = setError(VBOX_E_IPRT_ERROR, tr("Starting thread failed (%Rrc)"), rc);
 
-        //this function delete pTask in case of exceptions, so there is no need in the call of delete operator
-        //pSendCtx is deleted in the pTask destructor
-        hr = pTask->createThread(&threadSnd);
-
+        if (FAILED(hr))
+            delete pSendCtx;
     }
     catch(std::bad_alloc &)
     {
         hr = setError(E_OUTOFMEMORY);
     }
-    catch(...)
-    {
-        LogRel2(("DnD: Could not create thread for SendDataTask \n"));
-        hr = E_FAIL;
-    }
-
-    if (SUCCEEDED(hr))
-    {
-        rc = RTThreadUserWait(threadSnd, 30 * 1000 /* 30s timeout */);
-        if (RT_SUCCESS(rc))
-        {
-            mDataBase.m_cTransfersPending++;
-
-            hr = pResp->queryProgressTo(aProgress.asOutParam());
-            ComAssertComRC(hr);
-
-            /* Note: pTask is now owned by the worker thread. */
-        }
-        else
-            hr = setError(VBOX_E_IPRT_ERROR, tr("Waiting for sending thread failed (%Rrc)"), rc);
-    }
-    else
-        hr = setError(VBOX_E_IPRT_ERROR, tr("Starting thread for GuestDnDTarget::i_sendDataThread (%Rrc)"), rc);
 
     LogFlowFunc(("Returning hr=%Rhrc\n", hr));
     return hr;

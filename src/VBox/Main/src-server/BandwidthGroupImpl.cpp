@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,10 +77,10 @@ HRESULT BandwidthGroup::init(BandwidthControl *aParent,
 
     m->bd.allocate();
 
-    m->bd->mData.strName = aName;
-    m->bd->mData.enmType = aType;
+    m->bd->strName = aName;
+    m->bd->enmType = aType;
     m->bd->cReferences = 0;
-    m->bd->mData.cMaxBytesPerSec = aMaxBytesPerSec;
+    m->bd->aMaxBytesPerSec = aMaxBytesPerSec;
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -200,7 +200,7 @@ void BandwidthGroup::uninit()
 HRESULT BandwidthGroup::getName(com::Utf8Str &aName)
 {
     /* mName is constant during life time, no need to lock */
-    aName = m->bd.data()->mData.strName;
+    aName = m->bd.data()->strName;
 
     return S_OK;
 }
@@ -208,7 +208,7 @@ HRESULT BandwidthGroup::getName(com::Utf8Str &aName)
 HRESULT BandwidthGroup::getType(BandwidthGroupType_T *aType)
 {
     /* type is constant during life time, no need to lock */
-    *aType = m->bd->mData.enmType;
+    *aType = m->bd->enmType;
 
     return S_OK;
 }
@@ -226,7 +226,7 @@ HRESULT BandwidthGroup::getMaxBytesPerSec(LONG64 *aMaxBytesPerSec)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aMaxBytesPerSec = m->bd->mData.cMaxBytesPerSec;
+    *aMaxBytesPerSec = m->bd->aMaxBytesPerSec;
 
     return S_OK;
 }
@@ -240,7 +240,7 @@ HRESULT BandwidthGroup::setMaxBytesPerSec(LONG64 aMaxBytesPerSec)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m->bd.backup();
-    m->bd->mData.cMaxBytesPerSec = aMaxBytesPerSec;
+    m->bd->aMaxBytesPerSec = aMaxBytesPerSec;
 
     /* inform direct session if any. */
     ComObjPtr<Machine> pMachine = m->pParent->i_getMachine();

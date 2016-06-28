@@ -1013,7 +1013,7 @@ static int vgsvcVMInfoWinWriteLastInput(PVBOXSERVICEVEPROPCACHE pCache, const ch
             VGSvcVerbose(4, "Getting last input for user '%s' ended with rc=%Rrc\n", pszUser, rc);
 #endif
             int rc2 = RTLocalIpcSessionClose(hSession);
-            if (RT_SUCCESS(rc) && RT_FAILURE(rc2))
+            if (RT_SUCCESS(rc))
                 rc = rc2;
         }
         else

@@ -314,70 +314,64 @@ RTR3DECL(int) RTTestCreateEx(const char *pszTest, uint32_t fFlags, RTTESTLVL enm
                 /*
                  * Any test driver we are connected or should connect to?
                  */
-                if (!(fFlags & RTTEST_C_NO_XML_REPORTING_PIPE))
+                if ((fFlags & RTTEST_C_USE_ENV) && iNativeTestPipe == -1)
                 {
-                    if (   (fFlags & RTTEST_C_USE_ENV)
-                        && iNativeTestPipe == -1)
+                    rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_PIPE", szEnvVal, sizeof(szEnvVal), NULL);
+                    if (RT_SUCCESS(rc))
                     {
-                        rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_PIPE", szEnvVal, sizeof(szEnvVal), NULL);
-                        if (RT_SUCCESS(rc))
-                        {
 #if ARCH_BITS == 64
-                            rc = RTStrToInt64Full(szEnvVal, 0, &iNativeTestPipe);
+                        rc = RTStrToInt64Full(szEnvVal, 0, &iNativeTestPipe);
 #else
-                            rc = RTStrToInt32Full(szEnvVal, 0, &iNativeTestPipe);
+                        rc = RTStrToInt32Full(szEnvVal, 0, &iNativeTestPipe);
 #endif
-                            if (RT_FAILURE(rc))
-                            {
-                                RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTStrToInt32Full(\"%s\") -> %Rrc\n",
-                                             pszTest, szEnvVal, rc);
-                                iNativeTestPipe = -1;
-                            }
-                        }
-                        else if (rc != VERR_ENV_VAR_NOT_FOUND)
-                            RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTEnvGetEx(IPRT_TEST_PIPE) -> %Rrc\n", pszTest, rc);
-                    }
-                    if (iNativeTestPipe != -1)
-                    {
-                        rc = RTPipeFromNative(&pTest->hXmlPipe, iNativeTestPipe, RTPIPE_N_WRITE);
-                        if (RT_SUCCESS(rc))
-                            pTest->fXmlEnabled = true;
-                        else
+                        if (RT_FAILURE(rc))
                         {
-                            RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTPipeFromNative(,%p,WRITE) -> %Rrc\n",
-                                         pszTest, iNativeTestPipe, rc);
-                            pTest->hXmlPipe = NIL_RTPIPE;
+                            RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTStrToInt32Full(\"%s\") -> %Rrc\n",
+                                         pszTest, szEnvVal, rc);
+                            iNativeTestPipe = -1;
                         }
+                    }
+                    else if (rc != VERR_ENV_VAR_NOT_FOUND)
+                        RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTEnvGetEx(IPRT_TEST_PIPE) -> %Rrc\n", pszTest, rc);
+                }
+                if (iNativeTestPipe != -1)
+                {
+                    rc = RTPipeFromNative(&pTest->hXmlPipe, iNativeTestPipe, RTPIPE_N_WRITE);
+                    if (RT_SUCCESS(rc))
+                        pTest->fXmlEnabled = true;
+                    else
+                    {
+                        RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTPipeFromNative(,%p,WRITE) -> %Rrc\n",
+                                     pszTest, iNativeTestPipe, rc);
+                        pTest->hXmlPipe = NIL_RTPIPE;
                     }
                 }
 
                 /*
                  * Any test file we should write the test report to?
                  */
-                if (!(fFlags & RTTEST_C_NO_XML_REPORTING_FILE))
+                if ((fFlags & RTTEST_C_USE_ENV) && pszXmlFile == NULL)
                 {
-                    if ((fFlags & RTTEST_C_USE_ENV) && pszXmlFile == NULL)
+                    rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_FILE", szEnvVal, sizeof(szEnvVal), NULL);
+                    if (RT_SUCCESS(rc))
+                        pszXmlFile = szEnvVal;
+                    else if (rc != VERR_ENV_VAR_NOT_FOUND)
+                        RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTEnvGetEx(IPRT_TEST_MAX_LEVEL) -> %Rrc\n", pszTest, rc);
+                }
+                if (pszXmlFile && *pszXmlFile)
+                {
+                    rc = RTFileOpen(&pTest->hXmlFile, pszXmlFile,
+                                    RTFILE_O_WRITE | RTFILE_O_DENY_WRITE | RTFILE_O_OPEN_CREATE | RTFILE_O_TRUNCATE);
+                    if (RT_SUCCESS(rc))
+                        pTest->fXmlEnabled = true;
+                    else
                     {
-                        rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_FILE", szEnvVal, sizeof(szEnvVal), NULL);
-                        if (RT_SUCCESS(rc))
-                            pszXmlFile = szEnvVal;
-                        else if (rc != VERR_ENV_VAR_NOT_FOUND)
-                            RTStrmPrintf(g_pStdErr, "%s: test file error: RTEnvGetEx(IPRT_TEST_MAX_LEVEL) -> %Rrc\n", pszTest, rc);
-                    }
-                    if (pszXmlFile && *pszXmlFile)
-                    {
-                        rc = RTFileOpen(&pTest->hXmlFile, pszXmlFile,
-                                        RTFILE_O_WRITE | RTFILE_O_DENY_WRITE | RTFILE_O_OPEN_CREATE | RTFILE_O_TRUNCATE);
-                        if (RT_SUCCESS(rc))
-                            pTest->fXmlEnabled = true;
-                        else
-                        {
-                            RTStrmPrintf(g_pStdErr, "%s: test file error: RTFileOpen(,\"%s\",) -> %Rrc\n",
-                                         pszTest, pszXmlFile, rc);
-                            pTest->hXmlFile = NIL_RTFILE;
-                        }
+                        RTStrmPrintf(g_pStdErr, "%s: test file error: RTFileOpen(,\"%s\",) -> %Rrc\n", pszTest, pszXmlFile, rc);
+                        pTest->hXmlFile = NIL_RTFILE;
                     }
                 }
+                else if (rc != VERR_ENV_VAR_NOT_FOUND)
+                    RTStrmPrintf(g_pStdErr, "%s: test file error: RTEnvGetEx(IPRT_TEST_FILE) -> %Rrc\n", pszTest, rc);
 
                 /*
                  * What do we report in the XML stream/file.?
@@ -410,13 +404,6 @@ RTR3DECL(int) RTTestCreateEx(const char *pszTest, uint32_t fFlags, RTTESTLVL enm
 RTR3DECL(int) RTTestCreate(const char *pszTest, PRTTEST phTest)
 {
     return RTTestCreateEx(pszTest, RTTEST_C_USE_ENV, RTTESTLVL_INVALID, -1 /*iNativeTestPipe*/, NULL /*pszXmlFile*/, phTest);
-}
-
-
-RTR3DECL(int) RTTestCreateChild(const char *pszTest, PRTTEST phTest)
-{
-    return RTTestCreateEx(pszTest, RTTEST_C_USE_ENV | RTTEST_C_NO_XML_REPORTING,
-                          RTTESTLVL_INVALID, -1 /*iNativeTestPipe*/, NULL /*pszXmlFile*/, phTest);
 }
 
 
@@ -1552,7 +1539,7 @@ static const char *rtTestUnitName(RTTESTUNIT enmUnit)
         case RTTESTUNIT_PACKETS:                return "packets";
         case RTTESTUNIT_PACKETS_PER_SEC:        return "packets/s";
         case RTTESTUNIT_FRAMES:                 return "frames";
-        case RTTESTUNIT_FRAMES_PER_SEC:         return "frames/s";
+        case RTTESTUNIT_FRAMES_PER_SEC:         return "frames/";
         case RTTESTUNIT_OCCURRENCES:            return "occurrences";
         case RTTESTUNIT_OCCURRENCES_PER_SEC:    return "occurrences/s";
         case RTTESTUNIT_ROUND_TRIP:             return "roundtrips";
@@ -1563,9 +1550,9 @@ static const char *rtTestUnitName(RTTESTUNIT enmUnit)
         case RTTESTUNIT_NS:                     return "ns";
         case RTTESTUNIT_NS_PER_CALL:            return "ns/call";
         case RTTESTUNIT_NS_PER_FRAME:           return "ns/frame";
-        case RTTESTUNIT_NS_PER_OCCURRENCE:      return "ns/occurrence";
+        case RTTESTUNIT_NS_PER_OCCURRENCE:      return "ns/occurrences";
         case RTTESTUNIT_NS_PER_PACKET:          return "ns/packet";
-        case RTTESTUNIT_NS_PER_ROUND_TRIP:      return "ns/roundtrip";
+        case RTTESTUNIT_NS_PER_ROUND_TRIP:      return "ns/roundtrips";
         case RTTESTUNIT_INSTRS:                 return "ins";
         case RTTESTUNIT_INSTRS_PER_SEC:         return "ins/sec";
         case RTTESTUNIT_NONE:                   return "";

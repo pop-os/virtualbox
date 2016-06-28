@@ -24,7 +24,6 @@
 
 /* GUI includes: */
 #include "UIMedium.h"
-#include "QIWithRetranslateUI.h"
 
 /* Forward declarations: */
 class UIThreadPool;
@@ -35,7 +34,7 @@ typedef QMap<QString, CMedium> CMediumMap;
 
 /* Medium-enumerator prototype.
  * Manages access to medium information using thread-pool interface. */
-class UIMediumEnumerator : public QIWithRetranslateUI3<QObject>
+class UIMediumEnumerator : public QObject
 {
     Q_OBJECT;
 
@@ -78,9 +77,6 @@ private slots:
     void sltHandleMediumEnumerationTaskComplete(UITask *pTask);
 
 private:
-
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
 
     /* Helpers: Medium-enumeration stuff: */
     void createMediumEnumerationTask(const UIMedium &medium);

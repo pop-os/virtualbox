@@ -27,7 +27,6 @@
 # include <QCheckBox>
 # include <QPushButton>
 # include <QStyle>
-# include <QMimeData>
 
 /* GUI includes: */
 # include "QIMessageBox.h"
@@ -170,13 +169,13 @@ void QIMessageBox::prepare()
     AssertPtrReturnVoid(pMainLayout);
     {
         /* Configure main-layout: */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         pMainLayout->setContentsMargins(40, 11, 40, 11);
         pMainLayout->setSpacing(15);
-#else /* !VBOX_WS_MAC */
+#else /* !Q_WS_MAC */
         pMainLayout->setContentsMargins(11, 11, 11, 11);
         pMainLayout->setSpacing(10);
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         /* Create top-layout: */
         QHBoxLayout *pTopLayout = new QHBoxLayout;
         AssertPtrReturnVoid(pTopLayout);

@@ -19,42 +19,34 @@
 #define ___UIKeyboardHandler_h___
 
 /* Qt includes: */
-#include <QMap>
 #include <QObject>
+#include <QMap>
 
 /* GUI includes: */
 #include "UIExtraDataDefs.h"
-
-/* Other VBox includes: */
-#include <VBox/com/defs.h>
-
-/* External includes: */
-#ifdef VBOX_WS_MAC
-# include <Carbon/Carbon.h>
+#ifdef Q_WS_MAC
 # include <CoreFoundation/CFBase.h>
-#endif /* VBOX_WS_MAC */
+# include <Carbon/Carbon.h>
+#endif /* Q_WS_MAC */
+
+/* COM includes: */
+#include "COMEnums.h"
+#include "CKeyboard.h"
 
 /* Forward declarations: */
 class QWidget;
-class VBoxGlobalSettings;
-class UIActionPool;
 class UISession;
+class UIActionPool;
 class UIMachineLogic;
 class UIMachineWindow;
 class UIMachineView;
-class CKeyboard;
-#ifdef VBOX_WS_WIN
+class VBoxGlobalSettings;
+#if defined(Q_WS_WIN)
 class WinAltGrMonitor;
-#endif /* VBOX_WS_WIN */
-#ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
-typedef union _XEvent XEvent;
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_X11 */
-#if QT_VERSION >= 0x050000
-class KeyboardHandlerEventFilter;
-#endif /* QT_VERSION >= 0x050000 */
-
+#elif defined(Q_WS_X11)
+typedef union  _XEvent XEvent;
+#endif /* Q_WS_X11 */
+class CKeyboard;
 
 /* Delegate to control VM keyboard functionality: */
 class UIKeyboardHandler : public QObject
@@ -73,15 +65,13 @@ public:
     static void destroy(UIKeyboardHandler *pKeyboardHandler);
 
     /* Prepare/cleanup listeners: */
-    void prepareListener(ulong uScreenId, UIMachineWindow *pMachineWindow);
-    void cleanupListener(ulong uScreenId);
+    void prepareListener(ulong uIndex, UIMachineWindow *pMachineWindow);
+    void cleanupListener(ulong uIndex);
 
     /* Commands to capture/release keyboard: */
-#ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
+#ifdef Q_WS_X11
     bool checkForX11FocusEvents(unsigned long hWindow);
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_X11 */
+#endif
     void captureKeyboard(ulong uScreenId);
     void releaseKeyboard();
     void releaseAllPressedKeys(bool aReleaseHostKey = true);
@@ -91,40 +81,25 @@ public:
 
     /* Some getters required by side-code: */
     bool isHostKeyPressed() const { return m_bIsHostComboPressed; }
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     bool isHostKeyAlone() const { return m_bIsHostComboAlone; }
-    bool isKeyboardGrabbed() const { return m_iKeyboardHookViewIndex != -1; }
-#endif /* VBOX_WS_MAC */
+    bool isKeyboardGrabbed() const { return m_fKeyboardGrabbed; }
+#endif /* Q_WS_MAC */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /* For the debugger. */
     void setDebuggerActive(bool aActive = true);
 #endif
 
-#ifdef VBOX_WS_WIN
-    /** Tells the keyboard event handler to skip host keyboard events.
-      * Used for HID LEDs sync when on Windows host a keyboard event
-      * is generated in order to change corresponding LED. */
-    void winSkipKeyboardEvents(bool fSkip);
-#endif /* VBOX_WS_WIN */
-
-#if QT_VERSION < 0x050000
-# if defined(VBOX_WS_MAC)
-    /** Qt4: Mac: Performs final pre-processing of all the native events. */
-    bool macEventFilter(const void *pvCocoaEvent, EventRef event, ulong uScreenId);
-# elif defined(VBOX_WS_WIN)
-    /** Qt4: Win: Performs final pre-processing of all the native events. */
+    /* External event-filters: */
+#if defined(Q_WS_WIN)
     bool winEventFilter(MSG *pMsg, ulong uScreenId);
-# elif defined(VBOX_WS_X11)
-    /** Qt4: X11: Performs final pre-processing of all the native events. */
+    void winSkipKeyboardEvents(bool fSkip);
+    /** Holds the object monitoring key event stream for problematic AltGr events. */
+    WinAltGrMonitor *m_pAltGrMonitor;
+#elif defined(Q_WS_X11)
     bool x11EventFilter(XEvent *pEvent, ulong uScreenId);
-# endif /* VBOX_WS_X11 */
-#else /* QT_VERSION >= 0x050000 */
-    /** Qt5: Performs pre-processing of all the native events. */
-    bool nativeEventPreprocessor(const QByteArray &eventType, void *pMessage);
-    /** Qt5: Performs post-processing of all the native events. */
-    bool nativeEventPostprocessor(void *pMessage, ulong uScreenId);
-#endif /* QT_VERSION >= 0x050000 */
+#endif
 
 protected slots:
 
@@ -155,24 +130,20 @@ protected:
 
     /* Event handler for registered machine-view(s): */
     bool eventFilter(QObject *pWatchedObject, QEvent *pEvent);
-
-#if defined(VBOX_WS_MAC)
-    /** Mac: Performs initial pre-processing of all the native keyboard events. */
-    static bool macKeyboardProc(const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser);
-    /** Mac: Performs initial pre-processing of all the native keyboard events. */
-    bool macKeyboardEvent(const void *pvCocoaEvent, EventRef inEvent);
-#elif defined(VBOX_WS_WIN)
-    /** Win: Performs initial pre-processing of all the native keyboard events. */
-    static LRESULT CALLBACK winKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
-    /** Win: Performs initial pre-processing of all the native keyboard events. */
-    bool winKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &event);
-#endif /* VBOX_WS_WIN */
+#if defined(Q_WS_WIN)
+    static LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+    bool winLowKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &event);
+#elif defined(Q_WS_MAC)
+    void darwinGrabKeyboardEvents(bool fGrab);
+    bool darwinKeyboardEvent(const void *pvCocoaEvent, EventRef inEvent);
+    static bool darwinEventHandlerProc(const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser);
+#endif
 
     bool keyEventCADHandled(uint8_t uScan);
     bool keyEventHandleNormal(int iKey, uint8_t uScan, int fFlags, LONG *pCodes, uint *puCodesCount);
     bool keyEventHostComboHandled(int iKey, wchar_t *pUniKey, bool isHostComboStateChanged, bool *pfResult);
     void keyEventHandleHostComboRelease(ulong uScreenId);
-    void keyEventReleaseHostComboKeys(const CKeyboard &keyboard);
+    void keyEventReleaseHostComboKeys(CKeyboard keyboard);
     /* Separate function to handle most of existing keyboard-events: */
     bool keyEvent(int iKey, uint8_t uScan, int fFlags, ulong uScreenId, wchar_t *pUniKey = 0);
     bool processHotKey(int iHotKey, wchar_t *pUniKey);
@@ -216,32 +187,22 @@ protected:
      * Currently only affects auto capturing. */
     bool m_fDebuggerActive : 1;
 
-    /** Holds the keyboard hook view index. */
-    int m_iKeyboardHookViewIndex;
-
-#if defined(VBOX_WS_MAC)
-    /** Mac: Holds the current modifiers key mask. */
-    UInt32 m_uDarwinKeyModifiers;
-#elif defined(VBOX_WS_WIN)
-    /** Win: Currently this is used in winKeyboardEvent() only. */
-    bool m_fIsHostkeyInCapture;
-    /** Win: Holds whether the keyboard event filter should ignore keyboard events. */
-    bool m_fSkipKeyboardEvents;
-    /** Win: Holds the keyboard hook instance. */
-    HHOOK m_keyboardHook;
-    /** Win: Holds the object monitoring key event stream for problematic AltGr events. */
-    WinAltGrMonitor *m_pAltGrMonitor;
-    /** Win: Holds the keyboard handler reference to be accessible from the keyboard hook. */
+#if defined(Q_WS_WIN)
+    /* Currently this is used in winLowKeyboardEvent() only: */
+    bool m_bIsHostkeyInCapture;
+    /* Keyboard hook required to capture keyboard event under windows. */
     static UIKeyboardHandler *m_spKeyboardHandler;
-#endif /* VBOX_WS_WIN */
-
-#if QT_VERSION >= 0x050000
-    /** Win: Holds the native event filter instance. */
-    KeyboardHandlerEventFilter *m_pPrivateEventFilter;
-    /** Win: Allows the native event filter to
-      * redirect events directly to nativeEventPreprocessor handler. */
-    friend class KeyboardHandlerEventFilter;
-#endif /* QT_VERSION >= 0x050000 */
+    HHOOK m_keyboardHook;
+    int m_iKeyboardHookViewIndex;
+    /* A flag that used to tell kbd event filter to ignore keyboard events */
+    bool m_fSkipKeyboardEvents;
+#elif defined(Q_WS_MAC)
+    /* The current modifier key mask. Used to figure out which modifier
+     * key was pressed when we get a kEventRawKeyModifiersChanged event. */
+    UInt32 m_darwinKeyModifiers;
+    bool m_fKeyboardGrabbed;
+    int m_iKeyboardGrabViewIndex;
+#endif /* Q_WS_MAC */
 
     ULONG m_cMonitors;
 };

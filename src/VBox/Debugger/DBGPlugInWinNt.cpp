@@ -28,8 +28,9 @@
 #include <iprt/mem.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <iprt/formats/pecoff.h>
-#include <iprt/formats/mz.h>
+
+#include "../Runtime/include/internal/ldrMZ.h"  /* ugly */
+#include "../Runtime/include/internal/ldrPE.h"  /* ugly */
 
 
 /*********************************************************************************************************************************

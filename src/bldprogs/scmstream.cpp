@@ -326,7 +326,6 @@ int ScmStreamWriteToFile(PSCMSTREAM pStream, const char *pszFilenameFmt, ...)
         rc = RTFileWrite(hFile, pStream->pch, pStream->cb, NULL);
         RTFileClose(hFile);
     }
-    va_end(va);
     return rc;
 }
 

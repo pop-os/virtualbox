@@ -35,7 +35,7 @@ protected:
 #endif
     );
     /* Fullscreen machine-view destructor: */
-    virtual ~UIMachineViewFullscreen() {}
+    virtual ~UIMachineViewFullscreen();
 
 private slots:
 
@@ -57,10 +57,8 @@ private:
     //void cleanupFilters() {}
     //void cleanupCommon() {}
 
-    /** Returns whether the guest-screen auto-resize is enabled. */
-    virtual bool isGuestAutoresizeEnabled() const /* override */ { return m_bIsGuestAutoresizeEnabled; }
-    /** Defines whether the guest-screen auto-resize is @a fEnabled. */
-    virtual void setGuestAutoresizeEnabled(bool bEnabled) /* override */;
+    /* Private setters: */
+    void setGuestAutoresizeEnabled(bool bEnabled);
 
     /** Adjusts guest-screen size to correspond current <i>working area</i> size. */
     void adjustGuestScreenSize();

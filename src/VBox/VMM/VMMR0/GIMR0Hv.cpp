@@ -20,13 +20,13 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
-#include <VBox/vmm/gim.h>
-#include <VBox/vmm/tm.h>
 #include "GIMInternal.h"
 #include "GIMHvInternal.h"
-#include <VBox/vmm/vm.h>
 
 #include <VBox/err.h>
+#include <VBox/vmm/gim.h>
+#include <VBox/vmm/tm.h>
+#include <VBox/vmm/vm.h>
 
 #include <iprt/spinlock.h>
 
@@ -136,8 +136,6 @@ VMM_INT_DECL(int) gimR0HvUpdateParavirtTsc(PVM pVM, uint64_t u64Offset)
 
     Assert(pRefTsc->u32TscSequence != 0);
     Assert(pRefTsc->u32TscSequence != UINT32_C(0xffffffff));
-#else
-    NOREF(u64Offset);
 #endif
     return VINF_SUCCESS;
 }

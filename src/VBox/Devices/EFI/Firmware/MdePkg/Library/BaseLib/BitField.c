@@ -1,7 +1,7 @@
 /** @file
   Bit field functions of BaseLib.
 
-  Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -49,8 +49,6 @@ InternalBaseLibBitFieldReadUint (
   in Operand and the value specified by AndData. All other bits in Operand are
   preserved. The new value is returned.
 
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
   @param  EndBit    The ordinal of the most significant bit in the bit field.
@@ -69,14 +67,6 @@ InternalBaseLibBitFieldOrUint (
   )
 {
   //
-  // Higher bits in OrData those are not used must be zero.
-  //
-  // EndBit - StartBit + 1 might be 32 while the result right shifting 32 on a 32bit integer is undefined,
-  // So the logic is updated to right shift (EndBit - StartBit) bits and compare the last bit directly.
-  //
-  ASSERT ((OrData >> (EndBit - StartBit)) == ((OrData >> (EndBit - StartBit)) & 1));
-
-  //
   // ~((UINTN)-2 << EndBit) is a mask in which bit[0] thru bit[EndBit]
   // are 1's while bit[EndBit + 1] thru the most significant bit are 0's.
   //
@@ -90,8 +80,6 @@ InternalBaseLibBitFieldOrUint (
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
   in Operand and the value specified by AndData. All other bits in Operand are
   preserved. The new value is returned.
-
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -110,14 +98,6 @@ InternalBaseLibBitFieldAndUint (
   IN      UINTN                     AndData
   )
 {
-  //
-  // Higher bits in AndData those are not used must be zero.
-  //
-  // EndBit - StartBit + 1 might be 32 while the result right shifting 32 on a 32bit integer is undefined,
-  // So the logic is updated to right shift (EndBit - StartBit) bits and compare the last bit directly.
-  //
-  ASSERT ((AndData >> (EndBit - StartBit)) == ((AndData >> (EndBit - StartBit)) & 1));
-
   //
   // ~((UINTN)-2 << EndBit) is a mask in which bit[0] thru bit[EndBit]
   // are 1's while bit[EndBit + 1] thru the most significant bit are 0's.
@@ -168,7 +148,6 @@ BitFieldRead8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -206,7 +185,6 @@ BitFieldWrite8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -244,7 +222,6 @@ BitFieldOr8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -275,7 +252,7 @@ BitFieldAnd8 (
   bitwise OR, and returns the result.
 
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
-  in Operand and the value specified by AndData, followed by a bitwise
+  in Operand and the value specified by AndData, followed by a bitwise 
   OR with value specified by OrData. All other bits in Operand are
   preserved. The new 8-bit value is returned.
 
@@ -283,8 +260,6 @@ BitFieldAnd8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -360,7 +335,6 @@ BitFieldRead16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -398,7 +372,6 @@ BitFieldWrite16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -436,7 +409,6 @@ BitFieldOr16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -467,7 +439,7 @@ BitFieldAnd16 (
   bitwise OR, and returns the result.
 
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
-  in Operand and the value specified by AndData, followed by a bitwise
+  in Operand and the value specified by AndData, followed by a bitwise 
   OR with value specified by OrData. All other bits in Operand are
   preserved. The new 16-bit value is returned.
 
@@ -475,8 +447,6 @@ BitFieldAnd16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -552,7 +522,6 @@ BitFieldRead32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -590,7 +559,6 @@ BitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -628,7 +596,6 @@ BitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -659,7 +626,7 @@ BitFieldAnd32 (
   bitwise OR, and returns the result.
 
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
-  in Operand and the value specified by AndData, followed by a bitwise
+  in Operand and the value specified by AndData, followed by a bitwise 
   OR with value specified by OrData. All other bits in Operand are
   preserved. The new 32-bit value is returned.
 
@@ -667,8 +634,6 @@ BitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -744,7 +709,6 @@ BitFieldRead64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -782,7 +746,6 @@ BitFieldWrite64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -808,13 +771,6 @@ BitFieldOr64 (
 
   ASSERT (EndBit < 64);
   ASSERT (StartBit <= EndBit);
-  //
-  // Higher bits in OrData those are not used must be zero.
-  //
-  // EndBit - StartBit + 1 might be 64 while the result right shifting 64 on RShiftU64() API is invalid,
-  // So the logic is updated to right shift (EndBit - StartBit) bits and compare the last bit directly.
-  //
-  ASSERT (RShiftU64 (OrData, EndBit - StartBit) == (RShiftU64 (OrData, EndBit - StartBit) & 1));
 
   Value1 = LShiftU64 (OrData, StartBit);
   Value2 = LShiftU64 ((UINT64) - 2, EndBit);
@@ -834,7 +790,6 @@ BitFieldOr64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -857,16 +812,9 @@ BitFieldAnd64 (
 {
   UINT64  Value1;
   UINT64  Value2;
-
+  
   ASSERT (EndBit < 64);
   ASSERT (StartBit <= EndBit);
-  //
-  // Higher bits in AndData those are not used must be zero.
-  //
-  // EndBit - StartBit + 1 might be 64 while the right shifting 64 on RShiftU64() API is invalid,
-  // So the logic is updated to right shift (EndBit - StartBit) bits and compare the last bit directly.
-  //
-  ASSERT (RShiftU64 (AndData, EndBit - StartBit) == (RShiftU64 (AndData, EndBit - StartBit) & 1));
 
   Value1 = LShiftU64 (~AndData, StartBit);
   Value2 = LShiftU64 ((UINT64)-2, EndBit);
@@ -879,7 +827,7 @@ BitFieldAnd64 (
   bitwise OR, and returns the result.
 
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
-  in Operand and the value specified by AndData, followed by a bitwise
+  in Operand and the value specified by AndData, followed by a bitwise 
   OR with value specified by OrData. All other bits in Operand are
   preserved. The new 64-bit value is returned.
 
@@ -887,8 +835,6 @@ BitFieldAnd64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.

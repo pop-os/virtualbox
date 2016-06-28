@@ -73,21 +73,21 @@ private:
     /* Prepare helpers: */
     void prepareActionConnections();
     void prepareMachineWindows();
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     void prepareMenu();
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
     /* Cleanup helpers: */
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     void cleanupMenu();
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     void cleanupMachineWindows();
     void cleanupActionConnections();
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     /** Holds the popup-menu instance. */
     QMenu *m_pPopupMenu;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
     /* Friend classes: */
     friend class UIMachineLogic;

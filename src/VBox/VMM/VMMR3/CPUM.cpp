@@ -29,76 +29,6 @@
  * world switcher (@see pg_vmm).
  *
  * @see grp_cpum
- *
- * @section sec_cpum_fpu        FPU / SSE / AVX / ++ state.
- *
- * TODO: proper write up, currently just some notes.
- *
- * The ring-0 FPU handling per OS:
- *
- *      - 64-bit Windows uses XMM registers in the kernel as part of the calling
- *        convention (Visual C++ doesn't seem to have a way to disable
- *        generating such code either), so CR0.TS/EM are always zero from what I
- *        can tell.  We are also forced to always load/save the guest XMM0-XMM15
- *        registers when entering/leaving guest context.  Interrupt handlers
- *        using FPU/SSE will offically have call save and restore functions
- *        exported by the kernel, if the really really have to use the state.
- *
- *      - 32-bit windows does lazy FPU handling, I think, probably including
- *        lazying saving.  The Windows Internals book states that it's a bad
- *        idea to use the FPU in kernel space. However, it looks like it will
- *        restore the FPU state of the current thread in case of a kernel \#NM.
- *        Interrupt handlers should be same as for 64-bit.
- *
- *      - Darwin allows taking \#NM in kernel space, restoring current thread's
- *        state if I read the code correctly.  It saves the FPU state of the
- *        outgoing thread, and uses CR0.TS to lazily load the state of the
- *        incoming one.  No idea yet how the FPU is treated by interrupt
- *        handlers, i.e. whether they are allowed to disable the state or
- *        something.
- *
- *      - Linux also allows \#NM in kernel space (don't know since when), and
- *        uses CR0.TS for lazy loading.  Saves outgoing thread's state, lazy
- *        loads the incoming unless configured to agressivly load it.  Interrupt
- *        handlers can ask whether they're allowed to use the FPU, and may
- *        freely trash the state if Linux thinks it has saved the thread's state
- *        already.  This is a problem.
- *
- *      - Solaris will, from what I can tell, panic if it gets an \#NM in kernel
- *        context.  When switching threads, the kernel will save the state of
- *        the outgoing thread and lazy load the incoming one using CR0.TS.
- *        There are a few routines in seeblk.s which uses the SSE unit in ring-0
- *        to do stuff, HAT are among the users.  The routines there will
- *        manually clear CR0.TS and save the XMM registers they use only if
- *        CR0.TS was zero upon entry.  They will skip it when not, because as
- *        mentioned above, the FPU state is saved when switching away from a
- *        thread and CR0.TS set to 1, so when CR0.TS is 1 there is nothing to
- *        preserve.  This is a problem if we restore CR0.TS to 1 after loading
- *        the guest state.
- *
- *      - FreeBSD - no idea yet.
- *
- *      - OS/2 does not allow \#NMs in kernel space IIRC.  Does lazy loading,
- *        possibly also lazy saving.  Interrupts must preserve the CR0.TS+EM &
- *        FPU states.
- *
- * Up to r107425 (2016-05-24) we would only temporarily modify CR0.TS/EM while
- * saving and restoring the host and guest states.  The motivation for this
- * change is that we want to be able to emulate SSE instruction in ring-0 (IEM).
- *
- * Starting with that change, we will leave CR0.TS=EM=0 after saving the host
- * state and only restore it once we've restore the host FPU state. This has the
- * accidental side effect of triggering Solaris to preserve XMM registers in
- * sseblk.s. When CR0 was changed by saving the FPU state, CPUM must now inform
- * the VT-x (HMVMX) code about it as it caches the CR0 value in the VMCS.
- *
- *
- * @section sec_cpum_logging        Logging Level Assignments.
- *
- * Following log level assignments:
- *      - Log6 is used for FPU state management.
- *      - Log7 is used for FPU state actualization.
- *
  */
 
 
@@ -898,17 +828,12 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
     /*
      * Register info handlers and registers with the debugger facility.
      */
-    DBGFR3InfoRegisterInternalEx(pVM, "cpum",             "Displays the all the cpu states.",
-                                 &cpumR3InfoAll, DBGFINFO_FLAGS_ALL_EMTS);
-    DBGFR3InfoRegisterInternalEx(pVM, "cpumguest",        "Displays the guest cpu state.",
-                                 &cpumR3InfoGuest, DBGFINFO_FLAGS_ALL_EMTS);
-    DBGFR3InfoRegisterInternalEx(pVM, "cpumhyper",        "Displays the hypervisor cpu state.",
-                                 &cpumR3InfoHyper, DBGFINFO_FLAGS_ALL_EMTS);
-    DBGFR3InfoRegisterInternalEx(pVM, "cpumhost",         "Displays the host cpu state.",
-                                 &cpumR3InfoHost, DBGFINFO_FLAGS_ALL_EMTS);
-    DBGFR3InfoRegisterInternalEx(pVM, "cpumguestinstr",   "Displays the current guest instruction.",
-                                 &cpumR3InfoGuestInstr, DBGFINFO_FLAGS_ALL_EMTS);
-    DBGFR3InfoRegisterInternal(  pVM, "cpuid",            "Displays the guest cpuid leaves.",         &cpumR3CpuIdInfo);
+    DBGFR3InfoRegisterInternal(pVM, "cpum",             "Displays the all the cpu states.",         &cpumR3InfoAll);
+    DBGFR3InfoRegisterInternal(pVM, "cpumguest",        "Displays the guest cpu state.",            &cpumR3InfoGuest);
+    DBGFR3InfoRegisterInternal(pVM, "cpumhyper",        "Displays the hypervisor cpu state.",       &cpumR3InfoHyper);
+    DBGFR3InfoRegisterInternal(pVM, "cpumhost",         "Displays the host cpu state.",             &cpumR3InfoHost);
+    DBGFR3InfoRegisterInternal(pVM, "cpuid",            "Displays the guest cpuid leaves.",         &cpumR3CpuIdInfo);
+    DBGFR3InfoRegisterInternal(pVM, "cpumguestinstr",   "Displays the current guest instruction.",  &cpumR3InfoGuestInstr);
 
     rc = cpumR3DbgInit(pVM);
     if (RT_FAILURE(rc))
@@ -1156,10 +1081,7 @@ VMMR3DECL(void) CPUMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
      * Get the APIC base MSR from the APIC device. For historical reasons (saved state), the APIC base
      * continues to reside in the APIC device and we cache it here in the VCPU for all further accesses.
      */
-    PDMApicGetBaseMsr(pVCpu, &pCtx->msrApicBase, true /* fIgnoreErrors */);
-#ifdef VBOX_WITH_NEW_APIC
-    LogRel(("CPUM: VCPU%3d: Cached APIC base MSR = %#RX64\n", pVCpu->idCpu, pVCpu->cpum.s.Guest.msrApicBase));
-#endif
+    PDMApicGetBase(pVCpu, &pCtx->msrApicBase);
 }
 
 
@@ -1564,12 +1486,12 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
         for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
         {
             PVMCPU pVCpu = &pVM->aCpus[iCpu];
-            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.es.fFlags & ~CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
-            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.cs.fFlags & ~CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
-            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.ss.fFlags & ~CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
-            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.ds.fFlags & ~CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
-            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.fs.fFlags & ~CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
-            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.gs.fFlags & ~CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
+            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.es.fFlags & !CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
+            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.cs.fFlags & !CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
+            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.ss.fFlags & !CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
+            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.ds.fFlags & !CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
+            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.fs.fFlags & !CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
+            AssertLogRelReturn(!(pVCpu->cpum.s.Guest.gs.fFlags & !CPUMSELREG_FLAGS_VALID_MASK), VERR_SSM_UNEXPECTED_DATA);
         }
     }
 
@@ -1600,18 +1522,15 @@ static DECLCALLBACK(int) cpumR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
     }
 
     bool const fSupportsLongMode = VMR3IsLongModeAllowed(pVM);
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        PVMCPU pVCpu = &pVM->aCpus[iCpu];
 
         /* Notify PGM of the NXE states in case they've changed. */
         PGMNotifyNxeChanged(pVCpu, RT_BOOL(pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_NXE));
 
         /* Cache the local APIC base from the APIC device. During init. this is done in CPUMR3ResetCpu(). */
-        PDMApicGetBaseMsr(pVCpu, &pVCpu->cpum.s.Guest.msrApicBase, true /* fIgnoreErrors */);
-#ifdef VBOX_WITH_NEW_APIC
-        LogRel(("CPUM: VCPU%3d: Cached APIC base MSR = %#RX64\n", idCpu, pVCpu->cpum.s.Guest.msrApicBase));
-#endif
+        PDMApicGetBase(pVCpu, &pVCpu->cpum.s.Guest.msrApicBase);
 
         /* During init. this is done in CPUMR3InitCompleted(). */
         if (fSupportsLongMode)
@@ -1849,29 +1768,24 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGF
                     pszPrefix, pFpuCtx->FPUIP, pszPrefix, pFpuCtx->CS,  pszPrefix, pFpuCtx->Rsrvd1,
                     pszPrefix, pFpuCtx->FPUDP, pszPrefix, pFpuCtx->DS,  pszPrefix, pFpuCtx->Rsrvd2
                     );
-                /*
-                 * The FSAVE style memory image contains ST(0)-ST(7) at increasing addresses,
-                 * not (FP)R0-7 as Intel SDM suggests.
-                 */
                 unsigned iShift = (pFpuCtx->FSW >> 11) & 7;
                 for (unsigned iST = 0; iST < RT_ELEMENTS(pFpuCtx->aRegs); iST++)
                 {
                     unsigned iFPR        = (iST + iShift) % RT_ELEMENTS(pFpuCtx->aRegs);
-                    unsigned uTag        = (pFpuCtx->FTW >> (2 * iFPR)) & 3;
-                    char     chSign      = pFpuCtx->aRegs[iST].au16[4] & 0x8000 ? '-' : '+';
-                    unsigned iInteger    = (unsigned)(pFpuCtx->aRegs[iST].au64[0] >> 63);
-                    uint64_t u64Fraction = pFpuCtx->aRegs[iST].au64[0] & UINT64_C(0x7fffffffffffffff);
-                    int      iExponent   = pFpuCtx->aRegs[iST].au16[4] & 0x7fff;
-                    iExponent -= 16383; /* subtract bias */
+                    unsigned uTag        = pFpuCtx->FTW & (1 << iFPR) ? 1 : 0;
+                    char     chSign      = pFpuCtx->aRegs[0].au16[4] & 0x8000 ? '-' : '+';
+                    unsigned iInteger    = (unsigned)(pFpuCtx->aRegs[0].au64[0] >> 63);
+                    uint64_t u64Fraction = pFpuCtx->aRegs[0].au64[0] & UINT64_C(0x7fffffffffffffff);
+                    unsigned uExponent   = pFpuCtx->aRegs[0].au16[4] & 0x7fff;
                     /** @todo This isn't entirenly correct and needs more work! */
                     pHlp->pfnPrintf(pHlp,
-                                    "%sST(%u)=%sFPR%u={%04RX16'%08RX32'%08RX32} t%d %c%u.%022llu * 2 ^ %d (*)",
+                                    "%sST(%u)=%sFPR%u={%04RX16'%08RX32'%08RX32} t%d %c%u.%022llu ^ %u (*)",
                                     pszPrefix, iST, pszPrefix, iFPR,
-                                    pFpuCtx->aRegs[iST].au16[4], pFpuCtx->aRegs[iST].au32[1], pFpuCtx->aRegs[iST].au32[0],
-                                    uTag, chSign, iInteger, u64Fraction, iExponent);
-                    if (pFpuCtx->aRegs[iST].au16[5] || pFpuCtx->aRegs[iST].au16[6] || pFpuCtx->aRegs[iST].au16[7])
+                                    pFpuCtx->aRegs[0].au16[4], pFpuCtx->aRegs[0].au32[1], pFpuCtx->aRegs[0].au32[0],
+                                    uTag, chSign, iInteger, u64Fraction, uExponent);
+                    if (pFpuCtx->aRegs[0].au16[5] || pFpuCtx->aRegs[0].au16[6] || pFpuCtx->aRegs[0].au16[7])
                         pHlp->pfnPrintf(pHlp, " res={%04RX16,%04RX16,%04RX16}\n",
-                                        pFpuCtx->aRegs[iST].au16[5], pFpuCtx->aRegs[iST].au16[6], pFpuCtx->aRegs[iST].au16[7]);
+                                        pFpuCtx->aRegs[0].au16[5], pFpuCtx->aRegs[0].au16[6], pFpuCtx->aRegs[0].au16[7]);
                     else
                         pHlp->pfnPrintf(pHlp, "\n");
                 }
@@ -2074,6 +1988,7 @@ static DECLCALLBACK(void) cpumR3InfoGuest(PVM pVM, PCDBGFINFOHLP pHlp, const cha
     const char *pszComment;
     cpumR3InfoParseArg(pszArgs, &enmType, &pszComment);
 
+    /* @todo SMP support! */
     PVMCPU pVCpu = VMMGetCpu(pVM);
     if (!pVCpu)
         pVCpu = &pVM->aCpus[0];
@@ -2096,6 +2011,7 @@ static DECLCALLBACK(void) cpumR3InfoGuestInstr(PVM pVM, PCDBGFINFOHLP pHlp, cons
 {
     NOREF(pszArgs);
 
+    /** @todo SMP support! */
     PVMCPU pVCpu = VMMGetCpu(pVM);
     if (!pVCpu)
         pVCpu = &pVM->aCpus[0];
@@ -2116,12 +2032,11 @@ static DECLCALLBACK(void) cpumR3InfoGuestInstr(PVM pVM, PCDBGFINFOHLP pHlp, cons
  */
 static DECLCALLBACK(void) cpumR3InfoHyper(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
-    PVMCPU pVCpu = VMMGetCpu(pVM);
-    if (!pVCpu)
-        pVCpu = &pVM->aCpus[0];
-
     CPUMDUMPTYPE enmType;
     const char *pszComment;
+    /* @todo SMP */
+    PVMCPU pVCpu = &pVM->aCpus[0];
+
     cpumR3InfoParseArg(pszArgs, &enmType, &pszComment);
     pHlp->pfnPrintf(pHlp, "Hypervisor CPUM state: %s\n", pszComment);
     cpumR3InfoOne(pVM, &pVCpu->cpum.s.Hyper, CPUMCTX2CORE(&pVCpu->cpum.s.Hyper), pHlp, enmType, ".");
@@ -2143,14 +2058,11 @@ static DECLCALLBACK(void) cpumR3InfoHost(PVM pVM, PCDBGFINFOHLP pHlp, const char
     cpumR3InfoParseArg(pszArgs, &enmType, &pszComment);
     pHlp->pfnPrintf(pHlp, "Host CPUM state: %s\n", pszComment);
 
-    PVMCPU pVCpu = VMMGetCpu(pVM);
-    if (!pVCpu)
-        pVCpu = &pVM->aCpus[0];
-    PCPUMHOSTCTX pCtx = &pVCpu->cpum.s.Host;
-
     /*
      * Format the EFLAGS.
      */
+    /* @todo SMP */
+    PCPUMHOSTCTX pCtx = &pVM->aCpus[0].cpum.s.Host;
 #if HC_ARCH_BITS == 32
     uint32_t efl = pCtx->eflags.u32;
 #else
@@ -2497,48 +2409,28 @@ VMMR3DECL(void) CPUMR3RemLeave(PVMCPU pVCpu, bool fNoOutOfSyncSels)
  *
  * @returns VBox status code.
  * @param   pVM                 The cross context VM structure.
- * @param   enmWhat             Which init phase.
  */
-VMMR3DECL(int) CPUMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+VMMR3DECL(int) CPUMR3InitCompleted(PVM pVM)
 {
-    switch (enmWhat)
+    /*
+     * Figure out if the guest uses 32-bit or 64-bit FPU state at runtime for 64-bit capable VMs.
+     * Only applicable/used on 64-bit hosts, refer CPUMR0A.asm. See @bugref{7138}.
+     */
+    bool const fSupportsLongMode = VMR3IsLongModeAllowed(pVM);
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
-        case VMINITCOMPLETED_RING3:
-        {
-            /*
-             * Figure out if the guest uses 32-bit or 64-bit FPU state at runtime for 64-bit capable VMs.
-             * Only applicable/used on 64-bit hosts, refer CPUMR0A.asm. See @bugref{7138}.
-             */
-            bool const fSupportsLongMode = VMR3IsLongModeAllowed(pVM);
-            for (VMCPUID i = 0; i < pVM->cCpus; i++)
-            {
-                PVMCPU pVCpu = &pVM->aCpus[i];
-                /* While loading a saved-state we fix it up in, cpumR3LoadDone(). */
-                if (fSupportsLongMode)
-                    pVCpu->cpum.s.fUseFlags |= CPUM_USE_SUPPORTS_LONGMODE;
-            }
+        PVMCPU pVCpu = &pVM->aCpus[i];
 
-            cpumR3MsrRegStats(pVM);
-            break;
-        }
+        /* Cache the APIC base (from the APIC device) once it has been initialized. */
+        PDMApicGetBase(pVCpu, &pVCpu->cpum.s.Guest.msrApicBase);
+        Log(("CPUMR3InitCompleted pVM=%p APIC base[%u]=%RX64\n", pVM, (unsigned)i, pVCpu->cpum.s.Guest.msrApicBase));
 
-        case VMINITCOMPLETED_RING0:
-        {
-            /* Cache the APIC base (from the APIC device) once it has been initialized. */
-            for (VMCPUID i = 0; i < pVM->cCpus; i++)
-            {
-                PVMCPU pVCpu = &pVM->aCpus[i];
-                PDMApicGetBaseMsr(pVCpu, &pVCpu->cpum.s.Guest.msrApicBase, true /* fIgnoreErrors */);
-#ifdef VBOX_WITH_NEW_APIC
-                LogRel(("CPUM: VCPU%3d: Cached APIC base MSR = %#RX64\n", i, pVCpu->cpum.s.Guest.msrApicBase));
-#endif
-            }
-            break;
-        }
-
-        default:
-            break;
+        /* While loading a saved-state we fix it up in, cpumR3LoadDone(). */
+        if (fSupportsLongMode)
+            pVCpu->cpum.s.fUseFlags |= CPUM_USE_SUPPORTS_LONGMODE;
     }
+
+    cpumR3MsrRegStats(pVM);
     return VINF_SUCCESS;
 }
 
@@ -2564,7 +2456,7 @@ VMMR3DECL(void) CPUMR3LogCpuIds(PVM pVM)
     LogRel(("************************* CPUID dump ************************\n"));
     DBGFR3Info(pVM->pUVM, "cpuid", "verbose", DBGFR3InfoLogRelHlp());
     LogRel(("\n"));
-    DBGFR3_INFO_LOG_SAFE(pVM, "cpuid", "verbose"); /* macro */
+    DBGFR3_INFO_LOG(pVM, "cpuid", "verbose"); /* macro */
     RTLogRelSetBuffering(fOldBuffered);
     LogRel(("******************** End of CPUID dump **********************\n"));
 }

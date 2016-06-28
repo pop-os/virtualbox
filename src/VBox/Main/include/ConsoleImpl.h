@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2016 Oracle Corporation
+ * Copyright (C) 2005-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -564,9 +564,6 @@ public:
     typedef std::map<Utf8Str, ComPtr<IMediumAttachment> > MediumAttachmentMap;
     typedef std::list <USBStorageDevice> USBStorageDeviceList;
 
-    static DECLCALLBACK(int)    i_powerUpThread(RTTHREAD Thread, void *pvUser);
-    static DECLCALLBACK(int)    i_powerDownThread(RTTHREAD Thread, void *pvUser);
-
 private:
 
     typedef std::list <ComObjPtr<OUSBDevice> > USBDeviceList;
@@ -707,7 +704,7 @@ private:
     HRESULT i_detachUSBDevice(const ComObjPtr<OUSBDevice> &aHostDevice);
 
     static DECLCALLBACK(int) i_usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, PCRTUUID aUuid,
-                                                 const char *aBackend, const char *aAddress, void *pvRemoteBackend,
+                                                 bool aRemote, const char *aAddress, void *pvRemoteBackend,
                                                  USHORT aPortVersion, ULONG aMaskedIfs, const char *pszCaptureFilename);
     static DECLCALLBACK(int) i_usbDetachCallback(Console *that, PUVM pUVM, PCRTUUID aUuid);
 #endif
@@ -742,6 +739,8 @@ private:
     HRESULT                     i_captureUSBDevices(PUVM pUVM);
     void                        i_detachAllUSBDevices(bool aDone);
 
+    static DECLCALLBACK(int)    i_powerUpThread(RTTHREAD Thread, void *pvUser);
+    static DECLCALLBACK(int)    i_powerDownThread(RTTHREAD Thread, void *pvUser);
 
     static DECLCALLBACK(int)    i_vmm2User_SaveState(PCVMM2USERMETHODS pThis, PUVM pUVM);
     static DECLCALLBACK(void)   i_vmm2User_NotifyEmtInit(PCVMM2USERMETHODS pThis, PUVM pUVM, PUVMCPU pUVCpu);
@@ -914,9 +913,7 @@ private:
         cLedSas     = 8,
         iLedUsb     = iLedSas + cLedSas,
         cLedUsb     = 8,
-        iLedNvme    = iLedUsb + cLedUsb,
-        cLedNvme    = 30,
-        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas + cLedUsb + cLedNvme
+        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas + cLedUsb
     };
     DeviceType_T maStorageDevType[cLedStorage];
     PPDMLED      mapStorageLeds[cLedStorage];
@@ -976,7 +973,7 @@ private:
 
     ComPtr<IEventListener> mVmListener;
 
-    friend class VMTask;
+    friend struct VMTask;
     friend class ConsoleVRDPServer;
 };
 

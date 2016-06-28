@@ -2,13 +2,13 @@
   Handles non-volatile variable store garbage collection, using FTW
   (Fault Tolerant Write) protocol.
 
-Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
+Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials 
+are licensed and made available under the terms and conditions of the BSD License 
+which accompanies this distribution.  The full text of the license may be found at 
 http://opensource.org/licenses/bsd-license.php
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS, 
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
@@ -48,8 +48,7 @@ GetLbaAndOffsetByAddress (
 
   *Lba    = (EFI_LBA) (-1);
   *Offset = 0;
-  Fvb = NULL;
-
+  
   //
   // Get the proper FVB protocol.
   //
@@ -99,7 +98,8 @@ GetLbaAndOffsetByAddress (
   VariableBase. Fault Tolerant Write protocol is used for writing.
 
   @param  VariableBase   Base address of variable to write
-  @param  VariableBuffer Point to the variable data buffer.
+  @param  Buffer         Point to the data buffer.
+  @param  BufferSize     The number of bytes of the data Buffer.
 
   @retval EFI_SUCCESS    The function completed successfully.
   @retval EFI_NOT_FOUND  Fail to locate Fault Tolerant Write protocol.
@@ -109,13 +109,15 @@ GetLbaAndOffsetByAddress (
 EFI_STATUS
 FtwVariableSpace (
   IN EFI_PHYSICAL_ADDRESS   VariableBase,
-  IN VARIABLE_STORE_HEADER  *VariableBuffer
+  IN UINT8                  *Buffer,
+  IN UINTN                  BufferSize
   )
 {
   EFI_STATUS                         Status;
   EFI_HANDLE                         FvbHandle;
   EFI_LBA                            VarLba;
   UINTN                              VarOffset;
+  UINT8                              *FtwBuffer;
   UINTN                              FtwBufferSize;
   EFI_FAULT_TOLERANT_WRITE_PROTOCOL  *FtwProtocol;
 
@@ -140,9 +142,17 @@ FtwVariableSpace (
   if (EFI_ERROR (Status)) {
     return EFI_ABORTED;
   }
-
+  //
+  // Prepare for the variable data.
+  //
   FtwBufferSize = ((VARIABLE_STORE_HEADER *) ((UINTN) VariableBase))->Size;
-  ASSERT (FtwBufferSize == VariableBuffer->Size);
+  FtwBuffer     = AllocatePool (FtwBufferSize);
+  if (FtwBuffer == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  SetMem (FtwBuffer, FtwBufferSize, (UINT8) 0xff);
+  CopyMem (FtwBuffer, Buffer, BufferSize);
 
   //
   // FTW write record.
@@ -154,8 +164,9 @@ FtwVariableSpace (
                           FtwBufferSize,  // NumBytes
                           NULL,           // PrivateData NULL
                           FvbHandle,      // Fvb Handle
-                          (VOID *) VariableBuffer // write buffer
+                          FtwBuffer       // write buffer
                           );
 
+  FreePool (FtwBuffer);
   return Status;
 }

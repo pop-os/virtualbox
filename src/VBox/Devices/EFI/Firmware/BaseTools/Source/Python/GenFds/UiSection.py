@@ -1,7 +1,7 @@
 ## @file
 # process UI section generation
 #
-#  Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2007, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -18,10 +18,9 @@
 import Section
 from Ffs import Ffs
 import subprocess
-import Common.LongFilePathOs as os
+import os
 from GenFdsGlobalVariable import GenFdsGlobalVariable
 from CommonDataClass.FdfClass import UiSectionClassObject
-from Common.LongFilePathSupport import OpenLongFilePath as open
 
 ## generate UI section
 #

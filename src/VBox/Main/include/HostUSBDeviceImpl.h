@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,12 +20,15 @@
 
 #include "VirtualBoxBase.h"
 #include "USBDeviceFilterImpl.h"
+/* #include "USBProxyService.h" circular on Host/HostUSBDevice, the includer
+ * must include this. */
+
 #include <VBox/usb.h>
 #include "Logging.h"
 #include "HostUSBDeviceWrap.h"
 
 class SessionMachine;
-class USBProxyBackend;
+class USBProxyService;
 
 /**
  * The unified state machine of HostUSBDevice.
@@ -175,7 +178,7 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init(PUSBDEVICE aUsb, USBProxyBackend *aUSBProxyBackend);
+    HRESULT init(PUSBDEVICE aUsb, USBProxyService *aUSBProxyService);
     void uninit();
 
     // public methods only for internal purposes
@@ -203,8 +206,6 @@ public:
     /** @note Must be called from under the object read lock. */
     PCUSBDEVICE i_getUsbData() const { return mUsb; }
 
-    USBProxyBackend *i_getUsbProxyBackend() const { return mUSBProxyBackend; }
-
     com::Utf8Str i_getName();
 
     HRESULT i_requestCaptureForVM(SessionMachine *aMachine, bool aSetError,
@@ -215,7 +216,7 @@ public:
     bool i_wasActuallyDetached();
     void i_onPhysicalDetached();
 
-    bool i_isMatch(const USBDeviceFilter::BackupableUSBDeviceFilterData &aData);
+    bool i_isMatch(const USBDeviceFilter::Data &aData);
     int i_compare(PCUSBDEVICE aDev2);
     static int i_compare(PCUSBDEVICE aDev1, PCUSBDEVICE aDev2, bool aIsAwaitingReAttach = false);
 
@@ -225,9 +226,6 @@ public:
     static const char *i_stateName(HostUSBDeviceState aState,
                                    HostUSBDeviceState aPendingState = kHostUSBDeviceState_Invalid,
                                    HostUSBDeviceSubState aSubState = kHostUSBDeviceSubState_Default);
-
-    void *i_getBackendUserData() { return m_pvBackendUser; }
-    void i_setBackendUserData(void *pvBackendUser) { m_pvBackendUser = pvBackendUser; }
 
 protected:
 
@@ -261,7 +259,6 @@ private:
     HRESULT getSpeed(USBConnectionSpeed_T *aSpeed);
     HRESULT getRemote(BOOL *aRemote);
     HRESULT getState(USBDeviceState_T *aState);
-    HRESULT getBackend(com::Utf8Str &aBackend);
     HRESULT getDeviceInfo(std::vector<com::Utf8Str> &aInfo);
 
 
@@ -291,8 +288,8 @@ private:
 
     /** The machine the usb device is (being) attached to. */
     ComObjPtr<SessionMachine> mMachine;
-    /** Pointer to the USB Proxy Backend instance. */
-    USBProxyBackend *mUSBProxyBackend;
+    /** Pointer to the USB Proxy Service instance. */
+    USBProxyService *mUSBProxyService;
     /** Pointer to the USB Device structure owned by this device.
      * Only used for host devices. */
     PUSBDEVICE mUsb;
@@ -306,8 +303,26 @@ private:
     const char *mName;
     /** The filename to capture the USB traffic to. */
     com::Utf8Str mCaptureFilename;
-    /** Optional opaque user data assigned by the USB proxy backend owning the device. */
-    void        *m_pvBackendUser;
+
+    friend class USBProxyService;
+#ifdef RT_OS_SOLARIS
+    friend class USBProxyServiceSolaris;
+
+    /** One-shot filter id only for new code */
+    void *mOneShotId;
+#endif
+#ifdef RT_OS_LINUX
+    friend class USBProxyServiceLinux;
+#endif
+#ifdef RT_OS_DARWIN
+    /** One-shot filter id. */
+    void *mOneShotId;
+
+    friend class USBProxyServiceDarwin;
+#endif
+#ifdef RT_OS_FreeBSD
+    friend class USBProxyServiceFreeBSD;
+#endif
 };
 
 #endif // ____H_HOSTUSBDEVICEIMPL

@@ -1861,8 +1861,7 @@ VBoxDbgStatsModel::updateDone(bool a_fSuccess)
     if (m_fUpdateInsertRemove)
     {
         /* emit layoutChanged(); - hrmpf, doesn't work reliably... */
-        beginResetModel();
-        endResetModel();
+        reset();
     }
     else
     {
@@ -2012,8 +2011,7 @@ VBoxDbgStatsModel::setRootNode(PDBGGUISTATSNODE a_pRoot)
     PDBGGUISTATSNODE pOldTree = m_pRoot;
     m_pRoot = a_pRoot;
     destroyTree(pOldTree);
-    beginResetModel();
-    endResetModel();
+    reset();
 }
 
 

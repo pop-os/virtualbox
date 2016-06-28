@@ -46,13 +46,13 @@ UIWizardExportApp::UIWizardExportApp(QWidget *pParent, const QStringList &select
     : UIWizard(pParent, WizardType_ExportAppliance)
     , m_selectedVMNames(selectedVMNames)
 {
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     /* Assign watermark: */
     assignWatermark(":/vmw_ovf_export.png");
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
     /* Assign background image: */
     assignBackground(":/vmw_ovf_export_bg.png");
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 }
 
 bool UIWizardExportApp::exportAppliance()

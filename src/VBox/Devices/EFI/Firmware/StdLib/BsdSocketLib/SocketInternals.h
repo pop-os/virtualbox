@@ -82,7 +82,6 @@ BslFdToSocketProtocol (
 
 **/
 int
-EFIAPI
 BslSocketClose (
   struct __filedes * pDescriptor
   );
@@ -114,7 +113,6 @@ BslSocketCloseWork (
 
  **/
 short
-EFIAPI
 BslSocketPoll (
   IN struct __filedes * pDescriptor,
   IN short Events
@@ -154,7 +152,6 @@ BslSocketProtocolToFd (
 
 **/
 ssize_t
-EFIAPI
 BslSocketRead (
   struct __filedes *pDescriptor,
   off_t * pOffset,
@@ -175,7 +172,6 @@ BslSocketRead (
 
 **/
 ssize_t
-EFIAPI
 BslSocketWrite (
   struct __filedes *pDescriptor,
   off_t * pOffset,

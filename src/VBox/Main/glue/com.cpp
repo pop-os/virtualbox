@@ -55,7 +55,7 @@
 #include <VBox/version.h>
 
 #if !defined(RT_OS_DARWIN) && !defined(RT_OS_WINDOWS)
-char g_szXdgConfigHome[RTPATH_MAX] = "";
+char szXdgConfigHome[RTPATH_MAX] = "";
 #endif
 
 /**
@@ -66,13 +66,13 @@ char g_szXdgConfigHome[RTPATH_MAX] = "";
  * create a folder corresponding to the last in the list (the least
  * legacy) if none do.
  */
-const char * const g_apcszUserHome[] =
+const char *const apcszUserHome[] =
 #ifdef RT_OS_DARWIN
 { "Library/VirtualBox" };
 #elif defined RT_OS_WINDOWS
 { ".VirtualBox" };
 #else
-{ ".VirtualBox", g_szXdgConfigHome };
+{ ".VirtualBox", szXdgConfigHome };
 #endif
 
 #include "Logging.h"
@@ -232,16 +232,25 @@ int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen, bool fCreateDir)
         else
         {
 #if !defined(RT_OS_WINDOWS) && !defined(RT_OS_DARWIN)
-            vrc = RTEnvGetEx(RTENV_DEFAULT, "XDG_CONFIG_HOME", g_szXdgConfigHome, sizeof(g_szXdgConfigHome), NULL);
-            if (RT_SUCCESS(vrc))
-                vrc = RTPathAppend(g_szXdgConfigHome, sizeof(g_szXdgConfigHome), "VirtualBox");
-            AssertMsg(vrc == VERR_ENV_VAR_NOT_FOUND, ("%Rrc\n", vrc));
-            if (RT_FAILURE_NP(vrc))
-                vrc = RTStrCopy(g_szXdgConfigHome, sizeof(g_szXdgConfigHome), ".config/VirtualBox");
-#endif
-            for (unsigned i = 0; i < RT_ELEMENTS(g_apcszUserHome); ++i)
+            const char *pcszConfigHome = RTEnvGet("XDG_CONFIG_HOME");
+            if (pcszConfigHome && pcszConfigHome[0])
             {
-                vrc = composeHomePath(aDir, aDirLen, g_apcszUserHome[i]);
+                vrc = RTStrCopy(szXdgConfigHome,
+                                sizeof(szXdgConfigHome),
+                                pcszConfigHome);
+                if (RT_SUCCESS(vrc))
+                    vrc = RTPathAppend(szXdgConfigHome,
+                                       sizeof(szXdgConfigHome),
+                                       "VirtualBox");
+            }
+            else
+                vrc = RTStrCopy(szXdgConfigHome,
+                                sizeof(szXdgConfigHome),
+                                ".config/VirtualBox");
+#endif
+            for (unsigned i = 0; i < RT_ELEMENTS(apcszUserHome); ++i)
+            {
+                vrc = composeHomePath(aDir, aDirLen, apcszUserHome[i]);
                 if (   RT_SUCCESS(vrc)
                     && RTDirExists(aDir))
                 {

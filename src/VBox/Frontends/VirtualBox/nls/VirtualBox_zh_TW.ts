@@ -76,16 +76,16 @@
         <translation>VirtualBox 核心模組不符合這個 VirtualBox 的版本。 顯然 VirtualBox 的安裝不成功。 請嘗試完整解除安裝並重新安裝 VirtualBox。</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>VirtualBox 核心模組不符合這個 VirtualBox 的版本。 顯然 VirtualBox 的安裝不成功。 執行&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;應能修正問題。 請確認您未混合 VirtualBox 的 OSE 版本與 PUEL 版本。</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>VirtualBox 核心模組不符合這個 VirtualBox 的版本。 顯然 VirtualBox 的安裝不成功。 執行&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;應能修正問題。 請確認您未混合 VirtualBox 的 OSE 版本與 PUEL 版本。</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>這個錯誤代表核心驅動程式無法配置足夠的記憶體或某些對應操作失敗。</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>未載入 VirtualBox Linux 核心驅動程式 (vboxdrv) 或是 /dev/vboxdrv 的權限問題。 請以 root 執行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos; 來重新安裝核心模組。 如果在您的發行中可以使用，您應先安裝 DKMS 套件。 這個套件保留 Linux 核心變更的追蹤並在需要時重新編譯 vboxdrv 核心模組。</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>未載入 VirtualBox Linux 核心驅動程式 (vboxdrv) 或是 /dev/vboxdrv 的權限問題。 請以 root 執行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;來重新安裝核心模組。 如果在您的發行中可以使用，您應先安裝 DKMS 套件。 這個套件保留 Linux 核心變更的追蹤並在需要時重新編譯 vboxdrv 核心模組。</translation>
     </message>
 </context>
 <context>
@@ -2228,14 +2228,6 @@
 <context>
     <name>UIGlobalSettingsProxy</name>
     <message>
-        <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>勾選時，VirtualBox 將使用提供的 Proxy 設定工作，如從網路下載 Guest Additions 或檢查更新。</translation>
-    </message>
-    <message>
-        <source>&amp;Enable Proxy</source>
-        <translation>啟用 Proxy(&amp;E)</translation>
-    </message>
-    <message>
         <source>Ho&amp;st:</source>
         <translation>主機(&amp;S):</translation>
     </message>
@@ -2258,6 +2250,30 @@
     <message>
         <source>Holds the proxy port.</source>
         <translation>保留 Proxy 連接埠。</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>選擇時，VirtualBox 將嘗試自動偵測主機 Proxy 設定來工作，如從網路下載 Guest Additions 或檢查更新。</translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation>自動偵測主機 Proxy 設定(&amp;A)</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>選擇時，VirtualBox 將直接使用 Internet 連線來工作，如從網路下載 Guest Additions 或檢查更新。</translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation>直接連線到 Internet(&amp;D)</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>選擇時，VirtualBox 將使用提供的 Proxy 設定來工作，如從網路下載 Guest Additions 或檢查更新。</translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation>手動 Proxy 組態(&amp;M)</translation>
     </message>
 </context>
 <context>
@@ -5016,7 +5032,7 @@
         <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
         <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
         <translation>
-            <numerusform>&lt;p&gt;%n 以下虛擬機器目前在儲存的狀態: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;如果您繼續匯出機器的執行階段狀態將捨棄。 其它機器將無法變更。&lt;/p&gt;</numerusform>
+            <numerusform>&lt;p&gt;%n 以下虛擬機器目前在儲存的狀態: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;如果您繼續，匯出機器的執行階段狀態將捨棄。 其它機器將不會變更。&lt;/p&gt;</numerusform>
         </translation>
     </message>
     <message>
@@ -5244,6 +5260,14 @@
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>&lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; 的加密密碼無效。</translation>
     </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation>目前連接埠轉送規則無效。 所有主機或客體位址值必須正確或為空。</translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation>目前連接埠轉送規則無效。 沒有客體位址值可能為空。</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniToolBar</name>
@@ -5382,6 +5406,46 @@
     <message>
         <source>Unknown reason</source>
         <translation>不明原因</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation>無法初始化 HTTP 程式庫</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>拒絕連線</translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation>內容移除</translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation>找不到 Proxy</translation>
+    </message>
+    <message>
+        <source>Url not found on the server</source>
+        <translation>在伺服器找不到 Url</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation>Proxy 組態期間</translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation>憑證下載期間</translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation>請求網路期間</translation>
     </message>
 </context>
 <context>
@@ -6601,14 +6665,14 @@
     </message>
 </context>
 <context>
-    <name>UIEmptyFilePathSelector</name>
+    <name>VBoxEmptyFileSelector</name>
     <message>
         <source>Choose...</source>
         <translation>選擇...</translation>
     </message>
 </context>
 <context>
-    <name>UIFilePathSelector</name>
+    <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation>&lt;重設為預設值&gt;</translation>

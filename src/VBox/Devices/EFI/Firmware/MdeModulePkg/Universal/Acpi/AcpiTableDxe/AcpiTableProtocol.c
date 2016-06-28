@@ -1,7 +1,7 @@
 /** @file
   ACPI Table Protocol Implementation
 
-  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -17,9 +17,9 @@
 //
 #include "AcpiTable.h"
 //
-// The maximum number of tables that pre-allocated.
+// The maximum number of tables that pre-allocated. 
 //
-UINTN         mEfiAcpiMaxNumTables = EFI_ACPI_MAX_NUM_TABLES;
+UINTN         mEfiAcpiMaxNumTables = EFI_ACPI_MAX_NUM_TABLES; 
 
 /**
   This function adds an ACPI table to the table list.  It will detect FACS and
@@ -97,6 +97,109 @@ ChecksumCommonTables (
 //
 // Protocol function implementations.
 //
+
+/**
+  This function adds, removes, or updates ACPI tables.  If the address is not
+  null and the handle value is null, the table is added.  If both the address and 
+  handle are not null, the table at handle is updated with the table at address.
+  If the address is null and the handle is not, the table at handle is deleted.
+
+  @param  AcpiTableInstance  Instance of the protocol.
+  @param  Table              Pointer to a table.
+  @param  Checksum           Boolean indicating if the checksum should be calculated.
+  @param  Version            Version(s) to set.
+  @param  Handle             Handle of the table.
+
+  @return EFI_SUCCESS             The function completed successfully.
+  @return EFI_INVALID_PARAMETER   Both the Table and *Handle were NULL.
+  @return EFI_ABORTED             Could not complete the desired request.
+
+**/
+EFI_STATUS
+EFIAPI
+SetAcpiTable (
+  IN EFI_ACPI_TABLE_INSTANCE              *AcpiTableInstance,
+  IN VOID                                 *Table OPTIONAL,
+  IN BOOLEAN                              Checksum,
+  IN EFI_ACPI_TABLE_VERSION               Version,
+  IN OUT UINTN                            *Handle
+  )
+{
+  UINTN                     SavedHandle;
+  EFI_STATUS                Status;
+
+  //
+  // Check for invalid input parameters
+  //
+  ASSERT (Handle);
+
+  //
+  // Initialize locals
+  //
+  //
+  // Determine desired action
+  //
+  if (*Handle == 0) {
+    if (Table == NULL) {
+      //
+      // Invalid parameter combination
+      //
+      return EFI_INVALID_PARAMETER;
+    } else {
+      //
+      // Add table
+      //
+      Status = AddTableToList (AcpiTableInstance, Table, Checksum, Version, Handle);
+    }
+  } else {
+    if (Table != NULL) {
+      //
+      // Update table
+      //
+      //
+      // Delete the table list entry
+      //
+      Status = RemoveTableFromList (AcpiTableInstance, Version, *Handle);
+      if (EFI_ERROR (Status)) {
+        //
+        // Should not get an error here ever, but abort if we do.
+        //
+        return EFI_ABORTED;
+      }
+      //
+      // Set the handle to replace the table at the same handle
+      //
+      SavedHandle                         = AcpiTableInstance->CurrentHandle;
+      AcpiTableInstance->CurrentHandle  = *Handle;
+
+      //
+      // Add the table
+      //
+      Status = AddTableToList (AcpiTableInstance, Table, Checksum, Version, Handle);
+
+      //
+      // Restore the saved current handle
+      //
+      AcpiTableInstance->CurrentHandle = SavedHandle;
+    } else {
+      //
+      // Delete table
+      //
+      Status = RemoveTableFromList (AcpiTableInstance, Version, *Handle);
+    }
+  }
+
+  if (EFI_ERROR (Status)) {
+    //
+    // Should not get an error here ever, but abort if we do.
+    //
+    return EFI_ABORTED;
+  }
+  //
+  // Done
+  //
+  return EFI_SUCCESS;
+}
 
 /**
   This function publishes the specified versions of the ACPI tables by
@@ -196,13 +299,10 @@ PublishTables (
   @param  TableKey             Reurns a key to refer to the ACPI table.
 
   @return EFI_SUCCESS            The table was successfully inserted.
-  @return EFI_INVALID_PARAMETER  Either AcpiTableBuffer is NULL, TableKey is NULL, or AcpiTableBufferSize
+  @return EFI_INVALID_PARAMETER  Either AcpiTableBuffer is NULL, TableKey is NULL, or AcpiTableBufferSize 
                                  and the size field embedded in the ACPI table pointed to by AcpiTableBuffer
                                  are not in sync.
   @return EFI_OUT_OF_RESOURCES   Insufficient resources exist to complete the request.
-  @retval EFI_ACCESS_DENIED      The table signature matches a table already
-                                 present in the system and platform policy
-                                 does not allow duplicate tables of this type.
 
 **/
 EFI_STATUS
@@ -236,7 +336,7 @@ InstallAcpiTable (
   //
   AcpiTableBufferConst = AllocateCopyPool (AcpiTableBufferSize,AcpiTableBuffer);
   *TableKey = 0;
-  Status = AddTableToList (
+  Status = SetAcpiTable (
              AcpiTableInstance,
              AcpiTableBufferConst,
              TRUE,
@@ -250,7 +350,7 @@ InstallAcpiTable (
                );
   }
   FreePool (AcpiTableBufferConst);
-
+  
   //
   // Add a new table successfully, notify registed callback
   //
@@ -296,10 +396,12 @@ UninstallAcpiTable (
   //
   // Uninstall the ACPI table
   //
-  Status = RemoveTableFromList (
+  Status = SetAcpiTable (
              AcpiTableInstance,
+             NULL,
+             FALSE,
              EFI_ACPI_TABLE_VERSION_1_0B | EFI_ACPI_TABLE_VERSION_2_0 | EFI_ACPI_TABLE_VERSION_3_0,
-             TableKey
+             &TableKey
              );
   if (!EFI_ERROR (Status)) {
     Status = PublishTables (
@@ -336,8 +438,8 @@ ReallocateAcpiTableBuffer (
   EFI_ACPI_TABLE_INSTANCE  TempPrivateData;
   EFI_STATUS               Status;
   UINT64                   CurrentData;
-
-  CopyMem (&TempPrivateData, AcpiTableInstance, sizeof (EFI_ACPI_TABLE_INSTANCE));
+   
+  CopyMem (&TempPrivateData, AcpiTableInstance, sizeof (EFI_ACPI_TABLE_INSTANCE)); 
   //
   // Enlarge the max table number from mEfiAcpiMaxNumTables to mEfiAcpiMaxNumTables + EFI_ACPI_MAX_NUM_TABLES
   //
@@ -375,7 +477,7 @@ ReallocateAcpiTableBuffer (
 
   Pointer = (UINT8 *) (UINTN) PageAddress;
   ZeroMem (Pointer, TotalSize);
-
+  
   AcpiTableInstance->Rsdt1 = (EFI_ACPI_DESCRIPTION_HEADER *) Pointer;
   Pointer += (sizeof (EFI_ACPI_DESCRIPTION_HEADER) + NewMaxTableNumber * sizeof (UINT32));
   AcpiTableInstance->Rsdt3 = (EFI_ACPI_DESCRIPTION_HEADER *) Pointer;
@@ -391,12 +493,12 @@ ReallocateAcpiTableBuffer (
   CopyMem (&AcpiTableInstance->Rsdp3->XsdtAddress, &CurrentData, sizeof (UINT64));
 
   //
-  // copy the original Rsdt1, Rsdt3 and Xsdt structure to new buffer
+  // copy the original Rsdt1, Rsdt3 and Xsdt structure to new buffer 
   //
-  CopyMem (AcpiTableInstance->Rsdt1, TempPrivateData.Rsdt1, (sizeof (EFI_ACPI_DESCRIPTION_HEADER) + mEfiAcpiMaxNumTables * sizeof (UINT32)));
-  CopyMem (AcpiTableInstance->Rsdt3, TempPrivateData.Rsdt3, (sizeof (EFI_ACPI_DESCRIPTION_HEADER) + mEfiAcpiMaxNumTables * sizeof (UINT32)));
+  CopyMem (AcpiTableInstance->Rsdt1, TempPrivateData.Rsdt1, (sizeof (EFI_ACPI_DESCRIPTION_HEADER) + mEfiAcpiMaxNumTables * sizeof (UINT32))); 
+  CopyMem (AcpiTableInstance->Rsdt3, TempPrivateData.Rsdt3, (sizeof (EFI_ACPI_DESCRIPTION_HEADER) + mEfiAcpiMaxNumTables * sizeof (UINT32))); 
   CopyMem (AcpiTableInstance->Xsdt, TempPrivateData.Xsdt, (sizeof (EFI_ACPI_DESCRIPTION_HEADER) + mEfiAcpiMaxNumTables * sizeof (UINT64)));
-
+  
   //
   // Calculate orignal ACPI table buffer size
   //
@@ -407,10 +509,10 @@ ReallocateAcpiTableBuffer (
               sizeof (EFI_ACPI_DESCRIPTION_HEADER) +         // for ACPI 2.0/3.0 XSDT
               mEfiAcpiMaxNumTables * sizeof (UINT64);
   gBS->FreePages ((EFI_PHYSICAL_ADDRESS)(UINTN)TempPrivateData.Rsdt1, EFI_SIZE_TO_PAGES (TotalSize));
-
+  
   //
   // Update the Max ACPI table number
-  //
+  // 
   mEfiAcpiMaxNumTables = NewMaxTableNumber;
   return EFI_SUCCESS;
 }
@@ -426,9 +528,8 @@ ReallocateAcpiTableBuffer (
 
   @return EFI_SUCCESS               The function completed successfully.
   @return EFI_OUT_OF_RESOURCES      Could not allocate a required resource.
-  @retval EFI_ACCESS_DENIED         The table signature matches a table already
-                                    present in the system and platform policy
-                                    does not allow duplicate tables of this type.
+  @return EFI_ABORTED               The table is a duplicate of a table that is required
+                                    to be unique.
 
 **/
 EFI_STATUS
@@ -488,7 +589,7 @@ AddTableToList (
   //
   // Allocation memory type depends on the type of the table
   //
-  if ((CurrentTableSignature == EFI_ACPI_2_0_FIRMWARE_ACPI_CONTROL_STRUCTURE_SIGNATURE) ||
+  if ((CurrentTableSignature == EFI_ACPI_2_0_FIRMWARE_ACPI_CONTROL_STRUCTURE_SIGNATURE) || 
       (CurrentTableSignature == EFI_ACPI_4_0_UEFI_ACPI_DATA_TABLE_SIGNATURE)) {
     //
     // Allocate memory for the FACS.  This structure must be aligned
@@ -564,7 +665,7 @@ AddTableToList (
         ) {
       gBS->FreePages (CurrentTableList->PageAddress, CurrentTableList->NumberOfPages);
       gBS->FreePool (CurrentTableList);
-      return EFI_ACCESS_DENIED;
+      return EFI_ABORTED;
     }
     //
     // Add the table to the appropriate table version
@@ -616,19 +717,14 @@ AddTableToList (
 
       //
       // Update pointers in FADT.  If tables don't exist this will put NULL pointers there.
-      // Note: If the FIRMWARE_CTRL is non-zero, then X_FIRMWARE_CTRL must be zero, and
-      // vice-versa.
       //
-      if ((UINT64)(UINTN)AcpiTableInstance->Facs3 < BASE_4GB) {
-        AcpiTableInstance->Fadt3->FirmwareCtrl  = (UINT32) (UINTN) AcpiTableInstance->Facs3;
-      } else {
-        Buffer64 = (UINT64) (UINTN) AcpiTableInstance->Facs3;
-        CopyMem (
-          &AcpiTableInstance->Fadt3->XFirmwareCtrl,
-          &Buffer64,
-          sizeof (UINT64)
-          );
-      }
+      AcpiTableInstance->Fadt3->FirmwareCtrl  = (UINT32) (UINTN) AcpiTableInstance->Facs3;
+      Buffer64 = (UINT64) (UINTN) AcpiTableInstance->Facs3;
+      CopyMem (
+        &AcpiTableInstance->Fadt3->XFirmwareCtrl,
+        &Buffer64,
+        sizeof (UINT64)
+        );
       AcpiTableInstance->Fadt3->Dsdt  = (UINT32) (UINTN) AcpiTableInstance->Dsdt3;
       Buffer64                          = (UINT64) (UINTN) AcpiTableInstance->Dsdt3;
       CopyMem (
@@ -645,7 +741,7 @@ AddTableToList (
         &AcpiTableInstance->Fadt3->Header.OemId,
         6
         );
-
+      
       //
       // RSDT OEM information is updated to match FADT OEM information.
       //
@@ -660,7 +756,7 @@ AddTableToList (
         sizeof (UINT64)
         );
       AcpiTableInstance->Rsdt3->OemRevision = AcpiTableInstance->Fadt3->Header.OemRevision;
-
+      
       //
       // XSDT OEM information is updated to match FADT OEM information.
       //
@@ -675,7 +771,7 @@ AddTableToList (
         sizeof (UINT64)
         );
       AcpiTableInstance->Xsdt->OemRevision = AcpiTableInstance->Fadt3->Header.OemRevision;
-    }
+    }    
     //
     // Checksum the table
     //
@@ -699,7 +795,7 @@ AddTableToList (
         ) {
       gBS->FreePages (CurrentTableList->PageAddress, CurrentTableList->NumberOfPages);
       gBS->FreePool (CurrentTableList);
-      return EFI_ACCESS_DENIED;
+      return EFI_ABORTED;
     }
     //
     // FACS is referenced by FADT and is not part of RSDT
@@ -744,20 +840,13 @@ AddTableToList (
       // If FADT already exists, update table pointers.
       //
       if (AcpiTableInstance->Fadt3 != NULL) {
-        //
-        // Note: If the FIRMWARE_CTRL is non-zero, then X_FIRMWARE_CTRL must be zero, and
-        // vice-versa.
-        //
-        if ((UINT64)(UINTN)AcpiTableInstance->Facs3 < BASE_4GB) {
-          AcpiTableInstance->Fadt3->FirmwareCtrl  = (UINT32) (UINTN) AcpiTableInstance->Facs3;
-        } else {
-          Buffer64 = (UINT64) (UINTN) AcpiTableInstance->Facs3;
-          CopyMem (
-            &AcpiTableInstance->Fadt3->XFirmwareCtrl,
-            &Buffer64,
-            sizeof (UINT64)
-            );
-        }
+        AcpiTableInstance->Fadt3->FirmwareCtrl  = (UINT32) (UINTN) AcpiTableInstance->Facs3;
+        Buffer64 = (UINT64) (UINTN) AcpiTableInstance->Facs3;
+        CopyMem (
+          &AcpiTableInstance->Fadt3->XFirmwareCtrl,
+          &Buffer64,
+          sizeof (UINT64)
+          );
 
         //
         // Checksum FADT table
@@ -783,7 +872,7 @@ AddTableToList (
         ) {
       gBS->FreePages (CurrentTableList->PageAddress, CurrentTableList->NumberOfPages);
       gBS->FreePool (CurrentTableList);
-      return EFI_ACCESS_DENIED;
+      return EFI_ABORTED;
     }
     //
     // DSDT is referenced by FADT and is not part of RSDT
@@ -816,7 +905,7 @@ AddTableToList (
           );
       }
     }
-
+    
     if ((Version & EFI_ACPI_TABLE_VERSION_2_0) != 0 ||
         (Version & EFI_ACPI_TABLE_VERSION_3_0) != 0) {
       //
@@ -846,7 +935,7 @@ AddTableToList (
           Checksum)
           );
       }
-    }
+    }        
     //
     // Checksum the table
     //
@@ -994,7 +1083,7 @@ AddTableToList (
 
   @param  Handle      Table to find.
   @param  TableList   Table list to search
-  @param  Table       Pointer to table found.
+  @param  Table       Pointer to table found. 
 
   @return EFI_SUCCESS    The function completed successfully.
   @return EFI_NOT_FOUND  No table found matching the handle specified.
@@ -1044,7 +1133,7 @@ FindTableByHandle (
   For Acpi 1.0 tables, pass in the Rsdt.
   For Acpi 2.0 tables, pass in both Rsdt and Xsdt.
 
-  @param  Table                 Pointer to table found.
+  @param  Table                 Pointer to table found. 
   @param  NumberOfTableEntries  Current number of table entries in the RSDT/XSDT
   @param  Rsdt                  Pointer to the RSDT to remove from
   @param  Xsdt                  Pointer to the Xsdt to remove from
@@ -1258,11 +1347,11 @@ DeleteTable (
       //
       if (Version & EFI_ACPI_TABLE_VERSION_2_0 & Table->Version) {
         Table->Version = Table->Version &~EFI_ACPI_TABLE_VERSION_2_0;
-      }
+      }      
       if (Version & EFI_ACPI_TABLE_VERSION_3_0 & Table->Version) {
         Table->Version = Table->Version &~EFI_ACPI_TABLE_VERSION_3_0;
       }
-
+      
       //
       // Remove from Rsdt and Xsdt.  We don't care about the return value
       // because it is acceptable for the table to not exist in Rsdt/Xsdt.
@@ -1276,7 +1365,7 @@ DeleteTable (
           AcpiTableInstance->Xsdt
           );
       }
-    }
+    }    
     //
     // Free the table, clean up any dependent tables and our private data pointers.
     //
@@ -1336,7 +1425,7 @@ DeleteTable (
             Checksum)
             );
         }
-      }
+      }    
       break;
 
     case EFI_ACPI_3_0_DIFFERENTIATED_SYSTEM_DESCRIPTION_TABLE_SIGNATURE:
@@ -1361,7 +1450,7 @@ DeleteTable (
         }
       }
 
-
+      
       if ((Version & EFI_ACPI_TABLE_VERSION_2_0) != 0 ||
           (Version & EFI_ACPI_TABLE_VERSION_3_0) != 0) {
         AcpiTableInstance->Dsdt3 = NULL;
@@ -1581,7 +1670,7 @@ ChecksumCommonTables (
     OFFSET_OF (EFI_ACPI_DESCRIPTION_HEADER,
     Checksum)
     );
-
+  
   return EFI_SUCCESS;
 }
 
@@ -1694,13 +1783,13 @@ AcpiTableAcpiTableConstructor (
   //
   CurrentData = EFI_ACPI_1_0_ROOT_SYSTEM_DESCRIPTION_POINTER_SIGNATURE;
   CopyMem (&AcpiTableInstance->Rsdp1->Signature, &CurrentData, sizeof (UINT64));
-  CopyMem (AcpiTableInstance->Rsdp1->OemId, PcdGetPtr (PcdAcpiDefaultOemId), sizeof (AcpiTableInstance->Rsdp1->OemId));
+  CopyMem (AcpiTableInstance->Rsdp1->OemId, EFI_ACPI_OEM_ID, 6);
   AcpiTableInstance->Rsdp1->Reserved    = EFI_ACPI_RESERVED_BYTE;
   AcpiTableInstance->Rsdp1->RsdtAddress = (UINT32) (UINTN) AcpiTableInstance->Rsdt1;
 
   CurrentData = EFI_ACPI_3_0_ROOT_SYSTEM_DESCRIPTION_POINTER_SIGNATURE;
   CopyMem (&AcpiTableInstance->Rsdp3->Signature, &CurrentData, sizeof (UINT64));
-  CopyMem (AcpiTableInstance->Rsdp3->OemId, PcdGetPtr (PcdAcpiDefaultOemId), sizeof (AcpiTableInstance->Rsdp3->OemId));
+  CopyMem (AcpiTableInstance->Rsdp3->OemId, EFI_ACPI_OEM_ID, 6);
   AcpiTableInstance->Rsdp3->Revision    = EFI_ACPI_3_0_ROOT_SYSTEM_DESCRIPTION_POINTER_REVISION;
   AcpiTableInstance->Rsdp3->RsdtAddress = (UINT32) (UINTN) AcpiTableInstance->Rsdt3;
   AcpiTableInstance->Rsdp3->Length      = sizeof (EFI_ACPI_3_0_ROOT_SYSTEM_DESCRIPTION_POINTER);
@@ -1718,12 +1807,12 @@ AcpiTableAcpiTableConstructor (
   AcpiTableInstance->Rsdt1->Signature = EFI_ACPI_1_0_ROOT_SYSTEM_DESCRIPTION_TABLE_SIGNATURE;
   AcpiTableInstance->Rsdt1->Length    = sizeof (EFI_ACPI_DESCRIPTION_HEADER);
   AcpiTableInstance->Rsdt1->Revision  = EFI_ACPI_1_0_ROOT_SYSTEM_DESCRIPTION_TABLE_REVISION;
-  CopyMem (AcpiTableInstance->Rsdt1->OemId, PcdGetPtr (PcdAcpiDefaultOemId), sizeof (AcpiTableInstance->Rsdt1->OemId));
-  CurrentData = PcdGet64 (PcdAcpiDefaultOemTableId);
+  CopyMem (AcpiTableInstance->Rsdt1->OemId, EFI_ACPI_OEM_ID, 6);
+  CurrentData = EFI_ACPI_OEM_TABLE_ID;
   CopyMem (&AcpiTableInstance->Rsdt1->OemTableId, &CurrentData, sizeof (UINT64));
-  AcpiTableInstance->Rsdt1->OemRevision     = PcdGet32 (PcdAcpiDefaultOemRevision);
-  AcpiTableInstance->Rsdt1->CreatorId       = PcdGet32 (PcdAcpiDefaultCreatorId);
-  AcpiTableInstance->Rsdt1->CreatorRevision = PcdGet32 (PcdAcpiDefaultCreatorRevision);
+  AcpiTableInstance->Rsdt1->OemRevision     = EFI_ACPI_OEM_REVISION;
+  AcpiTableInstance->Rsdt1->CreatorId       = EFI_ACPI_CREATOR_ID;
+  AcpiTableInstance->Rsdt1->CreatorRevision = EFI_ACPI_CREATOR_REVISION;
   //
   // We always reserve first one for FADT
   //
@@ -1733,12 +1822,12 @@ AcpiTableAcpiTableConstructor (
   AcpiTableInstance->Rsdt3->Signature       = EFI_ACPI_3_0_ROOT_SYSTEM_DESCRIPTION_TABLE_SIGNATURE;
   AcpiTableInstance->Rsdt3->Length          = sizeof (EFI_ACPI_DESCRIPTION_HEADER);
   AcpiTableInstance->Rsdt3->Revision        = EFI_ACPI_3_0_ROOT_SYSTEM_DESCRIPTION_TABLE_REVISION;
-  CopyMem (AcpiTableInstance->Rsdt3->OemId, PcdGetPtr (PcdAcpiDefaultOemId), sizeof (AcpiTableInstance->Rsdt3->OemId));
-  CurrentData = PcdGet64 (PcdAcpiDefaultOemTableId);
+  CopyMem (AcpiTableInstance->Rsdt3->OemId, EFI_ACPI_OEM_ID, 6);
+  CurrentData = EFI_ACPI_OEM_TABLE_ID;
   CopyMem (&AcpiTableInstance->Rsdt3->OemTableId, &CurrentData, sizeof (UINT64));
-  AcpiTableInstance->Rsdt3->OemRevision     = PcdGet32 (PcdAcpiDefaultOemRevision);
-  AcpiTableInstance->Rsdt3->CreatorId       = PcdGet32 (PcdAcpiDefaultCreatorId);
-  AcpiTableInstance->Rsdt3->CreatorRevision = PcdGet32 (PcdAcpiDefaultCreatorRevision);
+  AcpiTableInstance->Rsdt3->OemRevision     = EFI_ACPI_OEM_REVISION;
+  AcpiTableInstance->Rsdt3->CreatorId       = EFI_ACPI_CREATOR_ID;
+  AcpiTableInstance->Rsdt3->CreatorRevision = EFI_ACPI_CREATOR_REVISION;
   //
   // We always reserve first one for FADT
   //
@@ -1751,12 +1840,12 @@ AcpiTableAcpiTableConstructor (
   AcpiTableInstance->Xsdt->Signature  = EFI_ACPI_3_0_EXTENDED_SYSTEM_DESCRIPTION_TABLE_SIGNATURE;
   AcpiTableInstance->Xsdt->Length     = sizeof (EFI_ACPI_DESCRIPTION_HEADER);
   AcpiTableInstance->Xsdt->Revision   = EFI_ACPI_3_0_EXTENDED_SYSTEM_DESCRIPTION_TABLE_REVISION;
-  CopyMem (AcpiTableInstance->Xsdt->OemId, PcdGetPtr (PcdAcpiDefaultOemId), sizeof (AcpiTableInstance->Xsdt->OemId));
-  CurrentData = PcdGet64 (PcdAcpiDefaultOemTableId);
+  CopyMem (AcpiTableInstance->Xsdt->OemId, EFI_ACPI_OEM_ID, 6);
+  CurrentData = EFI_ACPI_OEM_TABLE_ID;
   CopyMem (&AcpiTableInstance->Xsdt->OemTableId, &CurrentData, sizeof (UINT64));
-  AcpiTableInstance->Xsdt->OemRevision      = PcdGet32 (PcdAcpiDefaultOemRevision);
-  AcpiTableInstance->Xsdt->CreatorId        = PcdGet32 (PcdAcpiDefaultCreatorId);
-  AcpiTableInstance->Xsdt->CreatorRevision  = PcdGet32 (PcdAcpiDefaultCreatorRevision);
+  AcpiTableInstance->Xsdt->OemRevision      = EFI_ACPI_OEM_REVISION;
+  AcpiTableInstance->Xsdt->CreatorId        = EFI_ACPI_CREATOR_ID;
+  AcpiTableInstance->Xsdt->CreatorRevision  = EFI_ACPI_CREATOR_REVISION;
   //
   // We always reserve first one for FADT
   //

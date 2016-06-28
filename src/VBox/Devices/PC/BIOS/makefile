@@ -13,35 +13,27 @@ Q=\"
 !else
 Q="
 !endif
-
-CPU = 386
-
 CFLAGS   = -q -0 -wx -zu -s -oas -d1+ -ms
 CFLAGS32 = -q -wx -zu -s -oas -d1+ -ms -nt=BIOS32 -nd=BIOS32
 
 DEFS = -DVBOX -DVBOX_LANBOOT_SEG=0xE200 -DVBOX_VERSION_STRING=$(Q)0.9$(Q) &
- -DVBOX_WITH_SCSI -DVBOX_BIOS_CPU=80286
+ -DVBOX_WITH_SCSI -DVBOX_WITH_AHCI
 
 AFLAGS = -q -0 -wx
 
-INCLS  = -I$(Q)../../../../../include$(Q) -I$(Q) ../../BiosCommonCode$(Q)
-
-OBJS = 	bios.obj post.obj ata.obj floppy.obj floppyt.obj eltorito.obj &
-	boot.obj keyboard.obj disk.obj serial.obj system.obj invop.obj &
-	timepci.obj logo.obj ps2mouse.obj parallel.obj scsi.obj &
-	apm.obj apm_pm.obj pcibios.obj pciutil.obj vds.obj &
-	print.obj pcibio32.obj pci32.obj orgs.obj
-
-!if $(CPU) > 286
-OBJS += ahci.obj
-DEFS += -DVBOX_WITH_AHCI
-!endif
+INCLS  = -I$(Q)../../../../../include$(Q)
 
 .c.obj : .autodepend
 	wcc -fo=.obj $(CFLAGS) $(DEFS) $(INCLS) $<
 
 .asm.obj : .autodepend
-	wasm -fo=.obj $(AFLAGS) $(DEFS) $(INCLS) $<
+	wasm -fo=.obj $(AFLAGS) $(DEFS) $<
+
+OBJS = 	bios.obj post.obj ata.obj floppy.obj floppyt.obj eltorito.obj &
+	boot.obj keyboard.obj disk.obj serial.obj system.obj invop.obj &
+	timepci.obj logo.obj ps2mouse.obj parallel.obj scsi.obj &
+	ahci.obj apm.obj apm_pm.obj pcibios.obj pciutil.obj vds.obj &
+	print.obj pcibio32.obj pci32.obj orgs.obj
 
 vbxbios.rom : vbxbios.bin
 	biossums $< $@

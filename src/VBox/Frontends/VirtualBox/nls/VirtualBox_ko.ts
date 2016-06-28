@@ -67,12 +67,12 @@
         <translation>VirtualBox를 다시 설치하시면 해결될 수도 있습니다.</translation>
     </message>
     <message>
-        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation type="obsolete">VirtualBox 커널 드라이버에서 충분한 메모리를 할당할 수 없었거나, 일부 매핑 동작이 실패한 것 같습니다.&lt;br /&gt;&lt;br /&gt;리눅스 커널 2.6.29에는 알려진 문제가 있습니다. 리눅스 커널 2.6.29를 사용하신다면, /usr/src/vboxdrv-*/Makefile을 편집하시고, &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;을 추가하십시오. 그 다음 루트 권한으로 이 명령어를 내려서 커널 모듈을 다시 컴파일하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;.</translation>
+        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation type="obsolete">VirtualBox 커널 드라이버에서 충분한 메모리를 할당할 수 없었거나, 일부 매핑 동작이 실패한 것 같습니다.&lt;br /&gt;&lt;br /&gt;리눅스 커널 2.6.29에는 알려진 문제가 있습니다. 리눅스 커널 2.6.29를 사용하신다면, /usr/src/vboxdrv-*/Makefile을 편집하시고, &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;을 추가하십시오. 그 다음 루트 권한으로 이 명령어를 내려서 커널 모듈을 다시 컴파일하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="obsolete">VirtualBox 리눅스 커널 드라이버(vboxdrv)가 불러와지지 않았거나 /dev/vobxdrv에 접근할 수 없습니다. 루트 권한으로 다음 명령어를 실행시켜서 커널 모듈을 다시 설정하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;우분투, 페도라, 맨드리바 사용자들께서는 DKMS 패키지를 설치하는 것을 추천합니다. 이 패키지를 사용하면 리눅스 커널이 바뀌었을 때 자동으로 커널 모듈을 다시 컴파일합니다.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="obsolete">VirtualBox 리눅스 커널 드라이버(vboxdrv)가 불러와지지 않았거나 /dev/vobxdrv에 접근할 수 없습니다. 루트 권한으로 다음 명령어를 실행시켜서 커널 모듈을 다시 설정하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;우분투, 페도라, 맨드리바 사용자들께서는 DKMS 패키지를 설치하는 것을 추천합니다. 이 패키지를 사용하면 리눅스 커널이 바뀌었을 때 자동으로 커널 모듈을 다시 컴파일합니다.</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -99,16 +99,16 @@
         <translation>이 버전의 VirtualBox에서는 현재 설치되어 있는 커널 모듈을 사용할 수 없습니다. VirtualBox 설치 과정이 실패했을 수도 있습니다. 완전히 삭제한 다음 다시 설치해 보십시오.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>이 버전의 VirtualBox에서는 현재 설치되어 있는 커널 모듈을 사용할 수 없습니다. VirtualBox 설치 과정이 실패했을 수도 있습니다. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; 명령을 실행시키면 문제를 해결할 수도 있습니다. VirtualBox OSE 버전과 PUEL 버전을 같이 설치하지 마십시오..</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>이 버전의 VirtualBox에서는 현재 설치되어 있는 커널 모듈을 사용할 수 없습니다. VirtualBox 설치 과정이 실패했을 수도 있습니다. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; 명령을 실행시키면 문제를 해결할 수도 있습니다. VirtualBox OSE 버전과 PUEL 버전을 같이 설치하지 마십시오..</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
-        <translation>이 버전의 VirtualBox에서는 현재 설치되어 있는 커널 모듈을 사용할 수 없습니다. VirtualBox 설치 과정이 실패했을 수도 있습니다. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; 명령을 실행시키면 문제를 해결할 수도 있습니다. VirtualBox OSE 버전과 PUEL 버전을 같이 설치하지 마십시오..</translation>
+        <translation>이 버전의 VirtualBox에서는 현재 설치되어 있는 커널 모듈을 사용할 수 없습니다. VirtualBox 설치 과정이 실패했을 수도 있습니다. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; 명령을 실행시키면 문제를 해결할 수도 있습니다. VirtualBox OSE 버전과 PUEL 버전을 같이 설치하지 마십시오..</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox 리눅스 커널 드라이버(vboxdrv)가 로드되지 않았거나, /dev/vboxdrv 장치 파일에 접근할 수 없습니다. 루트 권한으로 다음 명령을 실행하여 커널 모듈을 다시 설치하십시오:&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; 사용 중인 배포판이 DKMS를 지원한다면 먼저 설치하는 것을 추천합니다. 리눅스 커널 버전 변경을 추적하고 필요한 경우 vboxdrv 커널 모듈을 다시 컴파일합니다.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>VirtualBox 리눅스 커널 드라이버(vboxdrv)가 로드되지 않았거나, /dev/vboxdrv 장치 파일에 접근할 수 없습니다. 루트 권한으로 다음 명령을 실행하여 커널 모듈을 다시 설치하십시오:&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; 사용 중인 배포판이 DKMS를 지원한다면 먼저 설치하는 것을 추천합니다. 리눅스 커널 버전 변경을 추적하고 필요한 경우 vboxdrv 커널 모듈을 다시 컴파일합니다.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -4670,11 +4670,11 @@ p, li { white-space: pre-wrap; }
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>선택하면 VirtualBox 게스트 확장 다운로드 및 업데이트 확인 등 네트워크를 사용하는 작업에 아래 프록시를 사용합니다.</translation>
+        <translation type="obsolete">선택하면 VirtualBox 게스트 확장 다운로드 및 업데이트 확인 등 네트워크를 사용하는 작업에 아래 프록시를 사용합니다.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation>프록시 사용하기(&amp;E)</translation>
+        <translation type="obsolete">프록시 사용하기(&amp;E)</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -4731,6 +4731,30 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Holds the proxy port.</source>
         <translation>프록시 포트를 변경합니다.</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10149,6 +10173,14 @@ p, li { white-space: pre-wrap; }
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>&lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt;의 암호가 잘못되었습니다.</translation>
     </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -10336,6 +10368,46 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Unknown reason</source>
         <translation>알 수 없는 이유</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Url not found on the server</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13301,7 +13373,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>UIEmptyFilePathSelector</name>
+    <name>VBoxEmptyFileSelector</name>
     <message>
         <source>&amp;Choose...</source>
         <translation type="obsolete">선택(&amp;C)...</translation>
@@ -13312,7 +13384,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>UIFilePathSelector</name>
+    <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation>&lt;기본값으로 초기화&gt;</translation>

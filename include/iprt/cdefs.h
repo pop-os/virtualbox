@@ -83,7 +83,6 @@
 # define RT_COMPILER_WITH_80BIT_LONG_DOUBLE
 # define RT_NO_VISIBILITY_HIDDEN
 # define RT_GCC_SUPPORTS_VISIBILITY_HIDDEN
-# define RT_COMPILER_SUPPORTS_VA_ARGS
 # define RT_COMPILER_SUPPORTS_LAMBDA
 #endif /* DOXYGEN_RUNNING */
 
@@ -141,103 +140,6 @@
 # error "Both RT_ARCH_ARM and RT_ARCH_SPARC64 cannot be defined at the same time!"
 #elif defined(RT_ARCH_ARM) && defined(RT_ARCH_SPARC)
 # error "Both RT_ARCH_ARM and RT_ARCH_SPARC cannot be defined at the same time!"
-#endif
-
-/* Final check (PORTME). */
-#if    (defined(RT_ARCH_X86) != 0) \
-     + (defined(RT_ARCH_AMD64) != 0) \
-     + (defined(RT_ARCH_SPARC) != 0) \
-     + (defined(RT_ARCH_SPARC64) != 0) \
-     + (defined(RT_ARCH_ARM) != 0) \
-  != 1
-# error "Exactly one RT_ARCH_XXX macro shall be defined"
-#endif
-
-/** @def RT_GNUC_PREREQ
- * Shorter than fiddling with __GNUC__ and __GNUC_MINOR__.
- *
- * @param   a_MinMajor      Minimum major version
- * @param   a_MinMinor      The minor version number part.
- */
-#define RT_GNUC_PREREQ(a_MinMajor, a_MinMinor)      RT_GNUC_PREREQ_EX(a_MinMajor, a_MinMinor, 0)
-/** @def RT_GNUC_PREREQ_EX
- * Simplified way of checking __GNUC__ and __GNUC_MINOR__ regardless of actual
- * compiler used, returns @a a_OtherRet for other compilers.
- *
- * @param   a_MinMajor      Minimum major version
- * @param   a_MinMinor      The minor version number part.
- * @param   a_OtherRet      What to return for non-GCC compilers.
- */
-#if defined(__GNUC__) && defined(__GNUC_MINOR__)
-# define RT_GNUC_PREREQ_EX(a_MinMajor, a_MinMinor, a_OtherRet) \
-    ((__GNUC__ << 16) + __GNUC_MINOR__ >= ((a_MinMajor) << 16) + (a_MinMinor))
-#else
-# define RT_GNUC_PREREQ_EX(a_MinMajor, a_MinMinor, a_OtherRet) (a_OtherRet)
-#endif
-
-/** @def RT_MSC_PREREQ
- * Convenient way of checking _MSC_VER regardless of actual compiler used
- * (returns false if not MSC).
- *
- * @param   a_MinVer        Preferably a RT_MSC_VER_XXX value.
- */
-#define RT_MSC_PREREQ(a_MinVer)                     RT_MSC_PREREQ_EX(a_MinVer, 0)
-/** @def RT_MSC_PREREQ_EX
- * Convenient way of checking _MSC_VER regardless of actual compiler used,
- * returns @a a_OtherRet for other compilers.
- *
- * @param   a_MinVer        Preferably a RT_MSC_VER_XXX value.
- * @param   a_OtherRet      What to return for non-MSC compilers.
- */
-#if defined(_MSC_VER)
-# define RT_MSC_PREREQ_EX(a_MinVer, a_OtherRet)     ( (_MSC_VER) >= (a_MinVer) )
-#else
-# define RT_MSC_PREREQ_EX(a_MinVer, a_OtherRet)     (a_OtherRet)
-#endif
-/** @name RT_MSC_VER_XXX - _MSC_VER values to use with RT_MSC_PREREQ.
- * @remarks The VCxxx values are derived from the CRT DLLs shipping with the
- *          compilers.
- * @{ */
-#define RT_MSC_VER_VC50     (1100)              /**< Visual C++ 5.0. */
-#define RT_MSC_VER_VC60     (1200)              /**< Visual C++ 6.0. */
-#define RT_MSC_VER_VC70     (1300)              /**< Visual C++ 7.0. */
-#define RT_MSC_VER_VC70     (1300)              /**< Visual C++ 7.0. */
-#define RT_MSC_VER_VS2003   (1310)              /**< Visual Studio 2003, aka Visual C++ 7.1. */
-#define RT_MSC_VER_VC71     RT_MSC_VER_VS2003   /**< Visual C++ 7.1, aka Visual Studio 2003. */
-#define RT_MSC_VER_VS2005   (1400)              /**< Visual Studio 2005. */
-#define RT_MSC_VER_VC80     RT_MSC_VER_VS2005   /**< Visual C++ 8.0, aka Visual Studio 2008. */
-#define RT_MSC_VER_VS2008   (1500)              /**< Visual Studio 2008. */
-#define RT_MSC_VER_VC90     RT_MSC_VER_VS2008   /**< Visual C++ 9.0, aka Visual Studio 2008. */
-#define RT_MSC_VER_VS2010   (1600)              /**< Visual Studio 2010. */
-#define RT_MSC_VER_VC100    RT_MSC_VER_VS2010   /**< Visual C++ 10.0, aka Visual Studio 2010. */
-#define RT_MSC_VER_VS2012   (1700)              /**< Visual Studio 2012. */
-#define RT_MSC_VER_VC110    RT_MSC_VER_VS2012   /**< Visual C++ 11.0, aka Visual Studio 2012. */
-#define RT_MSC_VER_VS2013   (1800)              /**< Visual Studio 2013. */
-#define RT_MSC_VER_VC120    RT_MSC_VER_VS2013   /**< Visual C++ 12.0, aka Visual Studio 2013. */
-#define RT_MSC_VER_VS2015   (1900)              /**< Visual Studio 2015. */
-#define RT_MSC_VER_VC140    RT_MSC_VER_VS2015   /**< Visual C++ 14.0, aka Visual Studio 2015. */
-/** @} */
-
-/** @def RT_CLANG_PREREQ
- * Shorter than fiddling with __clang_major__ and __clang_minor__.
- *
- * @param   a_MinMajor      Minimum major version
- * @param   a_MinMinor      The minor version number part.
- */
-#define RT_CLANG_PREREQ(a_MinMajor, a_MinMinor)      RT_CLANG_PREREQ_EX(a_MinMajor, a_MinMinor, 0)
-/** @def RT_CLANG_PREREQ_EX
- * Simplified way of checking __clang_major__ and __clang_minor__ regardless of
- * actual compiler used, returns @a a_OtherRet for other compilers.
- *
- * @param   a_MinMajor      Minimum major version
- * @param   a_MinMinor      The minor version number part.
- * @param   a_OtherRet      What to return for non-GCC compilers.
- */
-#if defined(__clang_major__) && defined(__clang_minor__)
-# define RT_CLANG_PREREQ_EX(a_MinMajor, a_MinMinor, a_OtherRet) \
-    ((__clang_major__ << 16) + __clang_minor__ >= ((a_MinMajor) << 16) + (a_MinMinor))
-#else
-# define RT_CLANG_PREREQ_EX(a_MinMajor, a_MinMinor, a_OtherRet) (a_OtherRet)
 #endif
 
 
@@ -312,40 +214,9 @@
 #if !defined(ARCH_BITS) || defined(DOXYGEN_RUNNING)
 # if defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC64)
 #  define ARCH_BITS 64
-# elif !defined(__I86__) || !defined(__WATCOMC__)
-#  define ARCH_BITS 32
 # else
-#  define ARCH_BITS 16
+#  define ARCH_BITS 32
 # endif
-#endif
-
-/* ARCH_BITS validation (PORTME). */
-#if ARCH_BITS == 64
- #if defined(RT_ARCH_X86) || defined(RT_ARCH_SPARC) || defined(RT_ARCH_ARM)
- # error "ARCH_BITS=64 but non-64-bit RT_ARCH_XXX defined."
- #endif
- #if !defined(RT_ARCH_AMD64) && !defined(RT_ARCH_SPARC64)
- # error "ARCH_BITS=64 but no 64-bit RT_ARCH_XXX defined."
- #endif
-
-#elif ARCH_BITS == 32
- #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC64)
- # error "ARCH_BITS=32 but non-32-bit RT_ARCH_XXX defined."
- #endif
- #if !defined(RT_ARCH_X86) && !defined(RT_ARCH_SPARC) && !defined(RT_ARCH_ARM)
- # error "ARCH_BITS=32 but no 32-bit RT_ARCH_XXX defined."
- #endif
-
-#elif ARCH_BITS == 16
- #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64) || defined(RT_ARCH_ARM)
- # error "ARCH_BITS=16 but non-16-bit RT_ARCH_XX defined."
- #endif
- #if !defined(RT_ARCH_X86)
- # error "ARCH_BITS=16 but RT_ARCH_X86 isn't defined."
- #endif
-
-#else
-# error "Unsupported ARCH_BITS value!"
 #endif
 
 /** @def HC_ARCH_BITS
@@ -536,8 +407,6 @@
 #  define RT_OPSYS      RT_OPSYS_SOLARIS
 # elif defined(_WIN32) || defined(_WIN64)
 #  define RT_OPSYS      RT_OPSYS_WINDOWS
-# elif defined(MSDOS) || defined(_MSDOS) || defined(DOS16RM) /* OW+MSC || MSC || DMC */
-#  define RT_OPSYS      RT_OPSYS_DOS
 # else
 #  error "Port Me"
 # endif
@@ -990,9 +859,7 @@
 /** @def RT_COMPILER_GROKS_64BIT_BITFIELDS
  * Macro that is defined if the compiler understands 64-bit bitfields. */
 #if !defined(RT_OS_OS2) || (!defined(__IBMC__) && !defined(__IBMCPP__))
-# if !defined(__WATCOMC__) /* watcom compiler doesn't grok it either. */
-#  define RT_COMPILER_GROKS_64BIT_BITFIELDS
-# endif
+# define RT_COMPILER_GROKS_64BIT_BITFIELDS
 #endif
 
 /** @def RT_COMPILER_WITH_80BIT_LONG_DOUBLE
@@ -1105,27 +972,13 @@
 # endif
 #endif
 
-/** @def RT_COMPILER_SUPPORTS_VA_ARGS
- * If the defined, the compiler supports the variadic macro feature (..., __VA_ARGS__). */
-#if defined(_MSC_VER)
-# if _MSC_VER >= 1600 /* Visual C++ v10.0 / 2010 */
-#  define RT_COMPILER_SUPPORTS_VA_ARGS
-# endif
-#elif defined(__GNUC__)
-# if __GNUC__ >= 3 /* not entirely sure when this was added */
-#  define RT_COMPILER_SUPPORTS_VA_ARGS
-# endif
-#endif
-
-
-
 /** @def RTCALL
  * The standard calling convention for the Runtime interfaces.
  *
  * @remarks The regparm(0) in the X86/GNUC variant deals with -mregparm=x use in
  *          the linux kernel and potentially elsewhere (3rd party).
  */
-#if defined(_MSC_VER) || defined(__WATCOMC__)
+#ifdef _MSC_VER
 # define RTCALL                 __cdecl
 #elif defined(RT_OS_OS2)
 # define RTCALL                 __cdecl
@@ -1209,40 +1062,25 @@
  */
 #define DECLASMTYPE(type)       type RTCALL
 
-/** @def DECL_NO_RETURN
+/** @def DECLNORETURN
  * How to declare a function which does not return.
- * @note This macro can be combined with other macros, for example
+ * @note: This macro can be combined with other macros, for example
  * @code
- *   EMR3DECL(DECL_NO_RETURN(void)) foo(void);
+ *   EMR3DECL(DECLNORETURN(void)) foo(void);
  * @endcode
  */
 #ifdef _MSC_VER
-# define DECL_NO_RETURN(type)   __declspec(noreturn) type
+# define DECLNORETURN(type)     __declspec(noreturn) type
 #elif defined(__GNUC__)
-# define DECL_NO_RETURN(type)   __attribute__((noreturn)) type
+# define DECLNORETURN(type)     __attribute__((noreturn)) type
 #else
-# define DECL_NO_RETURN(type)   type
-#endif
-/** @deprecated Use DECL_NO_RETURN instead. */
-#define DECLNORETURN(type) DECL_NO_RETURN(type)
-
-/** @def DECL_RETURNS_TWICE
- * How to declare a function which may return more than once.
- * @note This macro can be combined with other macros, for example
- * @code
- *   EMR3DECL(DECL_RETURNS_TWICE(void)) MySetJmp(void);
- * @endcode
- */
-#if RT_GNUC_PREREQ(4, 1)
-# define DECL_RETURNS_TWICE(type)  __attribute__((returns_twice)) type
-# else
-# define DECL_RETURNS_TWICE(type)   type
+# define DECLNORETURN(type)     type
 #endif
 
 /** @def DECLWEAK
  * How to declare a variable which is not necessarily resolved at
  * runtime.
- * @note This macro can be combined with other macros, for example
+ * @note: This macro can be combined with other macros, for example
  * @code
  *   EMR3DECL(DECLWEAK(int)) foo;
  * @endcode
@@ -1325,9 +1163,9 @@
 #ifdef __GNUC__
 # define DECLINLINE(type) static __inline__ type
 #elif defined(__cplusplus)
-# define DECLINLINE(type) static inline type
+# define DECLINLINE(type) inline type
 #elif defined(_MSC_VER)
-# define DECLINLINE(type) static _inline type
+# define DECLINLINE(type) _inline type
 #elif defined(__IBMC__)
 # define DECLINLINE(type) _Inline type
 #else
@@ -1571,13 +1409,6 @@
 # define RT_UNLIKELY(expr)      (expr)
 #endif
 
-/** @def RT_EXPAND_2
- * Helper for RT_EXPAND. */
-#define RT_EXPAND_2(a_Expr)     a_Expr
-/** @def RT_EXPAND
- * Returns the expanded expression.
- * @param   a_Expr              The expression to expand. */
-#define RT_EXPAND(a_Expr)       RT_EXPAND_2(a_Expr)
 
 /** @def RT_STR
  * Returns the argument as a string constant.
@@ -1600,63 +1431,6 @@
  *
  * @param   str     String litteral to . */
 #define RT_LSTR(str)            RT_LSTR_2(str)
-
-/** @def RT_UNPACK_CALL
- * Unpacks the an argument list inside an extra set of parenthesis and turns it
- * into a call to @a a_Fn.
- *
- * @param   a_Fn        Function/macro to call.
- * @param   a_Args      Parameter list in parenthesis.
- */
-#define RT_UNPACK_CALL(a_Fn, a_Args) a_Fn a_Args
-
-#if defined(RT_COMPILER_SUPPORTS_VA_ARGS) || defined(DOXYGEN_RUNNING)
-
-/** @def RT_UNPACK_ARGS
- * Returns the arguments without parenthesis.
- *
- * @param   ...         Parameter list in parenthesis.
- * @remarks Requires RT_COMPILER_SUPPORTS_VA_ARGS.
- */
-# define RT_UNPACK_ARGS(...)    __VA_ARGS__
-
-/** @def RT_COUNT_VA_ARGS_HLP
- * Helper for RT_COUNT_VA_ARGS that picks out the argument count from
- * RT_COUNT_VA_ARGS_REV_SEQ. */
-# define RT_COUNT_VA_ARGS_HLP( \
-    c69, c68, c67, c66, c65, c64, c63, c62, c61, c60, \
-    c59, c58, c57, c56, c55, c54, c53, c52, c51, c50, \
-    c49, c48, c47, c46, c45, c44, c43, c42, c41, c40, \
-    c39, c38, c37, c36, c35, c34, c33, c32, c31, c30, \
-    c29, c28, c27, c26, c25, c24, c23, c22, c21, c20, \
-    c19, c18, c17, c16, c15, c14, c13, c12, c11, c10, \
-     c9,  c8,  c7,  c6,  c5,  c4,  c3,  c2,  c1, cArgs, ...) cArgs
-/** Argument count sequence. */
-# define RT_COUNT_VA_ARGS_REV_SEQ \
-     69,  68,  67,  66,  65,  64,  63,  62,  61,  60, \
-     59,  58,  57,  56,  55,  54,  53,  52,  51,  50, \
-     49,  48,  47,  46,  45,  44,  43,  42,  41,  40, \
-     39,  38,  37,  36,  35,  34,  33,  32,  31,  30, \
-     29,  28,  27,  26,  25,  24,  23,  22,  21,  20, \
-     19,  18,  17,  16,  15,  14,  13,  12,  11,  10, \
-      9,   8,   7,   6,   5,   4,   3,   2,   1,   0
-/** This is for zero arguments. At least Visual C++ requires it. */
-# define RT_COUNT_VA_ARGS_PREFIX_RT_NOTHING       RT_COUNT_VA_ARGS_REV_SEQ
-/**
- * Counts the number of arguments given to the variadic macro.
- *
- * Max is 69.
- *
- * @returns Number of arguments in the ellipsis
- * @param   ...     Arguments to count.
- * @remarks Requires RT_COMPILER_SUPPORTS_VA_ARGS.
- */
-# define RT_COUNT_VA_ARGS(...) \
-      RT_UNPACK_CALL(RT_COUNT_VA_ARGS_HLP, (RT_COUNT_VA_ARGS_PREFIX_ ## __VA_ARGS__ ## RT_NOTHING, \
-                                            RT_COUNT_VA_ARGS_REV_SEQ))
-
-#endif /* RT_COMPILER_SUPPORTS_VA_ARGS */
-
 
 /** @def RT_CONCAT
  * Concatenate the expanded arguments without any extra spaces in between.
@@ -1690,33 +1464,6 @@
 #define RT_CONCAT4(a,b,c,d)         RT_CONCAT4_HLP(a,b,c,d)
 /** RT_CONCAT4 helper, don't use.  */
 #define RT_CONCAT4_HLP(a,b,c,d)     a##b##c##d
-
-/** @def RT_CONCAT5
- * Concatenate the expanded arguments without any extra spaces in between.
- *
- * @param   a       The 1st part.
- * @param   b       The 2nd part.
- * @param   c       The 3rd part.
- * @param   d       The 4th part.
- * @param   e       The 5th part.
- */
-#define RT_CONCAT5(a,b,c,d,e)         RT_CONCAT5_HLP(a,b,c,d,e)
-/** RT_CONCAT5 helper, don't use.  */
-#define RT_CONCAT5_HLP(a,b,c,d,e)     a##b##c##d##e
-
-/** @def RT_CONCAT6
- * Concatenate the expanded arguments without any extra spaces in between.
- *
- * @param   a       The 1st part.
- * @param   b       The 2nd part.
- * @param   c       The 3rd part.
- * @param   d       The 4th part.
- * @param   e       The 5th part.
- * @param   f       The 6th part.
- */
-#define RT_CONCAT6(a,b,c,d,e,f)       RT_CONCAT6_HLP(a,b,c,d,e,f)
-/** RT_CONCAT6 helper, don't use.  */
-#define RT_CONCAT6_HLP(a,b,c,d,e,f)   a##b##c##d##e##f
 
 /**
  * String constant tuple - string constant, strlen(string constant).
@@ -1752,252 +1499,6 @@
  * @param   bit     The bit number.
  */
 #define RT_BIT_64(bit)                          ( UINT64_C(1) << (bit) )
-
-
-/** @def RT_BF_GET
- * Gets the value of a bit field in an integer value.
- *
- * This requires a couple of macros to be defined for the field:
- *      - \<a_FieldNm\>_SHIFT: The shift count to get to the field.
- *      - \<a_FieldNm\>_MASK:  The field mask.
- *
- * @returns The bit field value.
- * @param   a_uValue        The integer value containing the field.
- * @param   a_FieldNm       The field name prefix for getting at the _SHIFT and
- *                          _MASK macros.
- * @sa      #RT_BF_CLEAR, #RT_BF_SET, #RT_BF_MAKE, #RT_BF_ZMASK
- */
-#define RT_BF_GET(a_uValue, a_FieldNm)          ( ((a_uValue) >> RT_CONCAT(a_FieldNm,_SHIFT)) & RT_BF_ZMASK(a_FieldNm) )
-
-/** @def RT_BF_SET
- * Sets the given bit field in the integer value.
- *
- * This requires a couple of macros to be defined for the field:
- *      - \<a_FieldNm\>_SHIFT: The shift count to get to the field.
- *      - \<a_FieldNm\>_MASK:  The field mask.  Must have the same type as the
- *        integer value!!
- *
- * @returns Integer value with bit field set to @a a_uFieldValue.
- * @param   a_uValue        The integer value containing the field.
- * @param   a_FieldNm       The field name prefix for getting at the _SHIFT and
- *                          _MASK macros.
- * @param   a_uFieldValue   The new field value.
- * @sa      #RT_BF_GET, #RT_BF_CLEAR, #RT_BF_MAKE, #RT_BF_ZMASK
- */
-#define RT_BF_SET(a_uValue, a_FieldNm, a_uFieldValue) ( RT_BF_CLEAR(a_uValue, a_FieldNm) | RT_BF_MAKE(a_FieldNm, a_uFieldValue) )
-
-/** @def RT_BF_CLEAR
- * Clears the given bit field in the integer value.
- *
- * This requires a couple of macros to be defined for the field:
- *      - \<a_FieldNm\>_SHIFT: The shift count to get to the field.
- *      - \<a_FieldNm\>_MASK:  The field mask.  Must have the same type as the
- *        integer value!!
- *
- * @returns Integer value with bit field set to zero.
- * @param   a_uValue        The integer value containing the field.
- * @param   a_FieldNm       The field name prefix for getting at the _SHIFT and
- *                          _MASK macros.
- * @sa      #RT_BF_GET, #RT_BF_SET, #RT_BF_MAKE, #RT_BF_ZMASK
- */
-#define RT_BF_CLEAR(a_uValue, a_FieldNm)        ( (a_uValue) & ~RT_CONCAT(a_FieldNm,_MASK) )
-
-/** @def RT_BF_MAKE
- * Shifts and masks a bit field value into position in the integer value.
- *
- * This requires a couple of macros to be defined for the field:
- *      - \<a_FieldNm\>_SHIFT: The shift count to get to the field.
- *      - \<a_FieldNm\>_MASK:  The field mask.
- *
- * @param   a_FieldNm       The field name prefix for getting at the _SHIFT and
- *                          _MASK macros.
- * @param   a_uFieldValue   The field value that should be masked and shifted
- *                          into position.
- * @sa      #RT_BF_GET, #RT_BF_SET, #RT_BF_CLEAR, #RT_BF_ZMASK
- */
-#define RT_BF_MAKE(a_FieldNm, a_uFieldValue)    ( ((a_uFieldValue) & RT_BF_ZMASK(a_FieldNm) ) << RT_CONCAT(a_FieldNm,_SHIFT) )
-
-/** @def RT_BF_ZMASK
- * Helper for getting the field mask shifted to bit position zero.
- *
- * @param   a_FieldNm       The field name prefix for getting at the _SHIFT and
- *                          _MASK macros.
- * @sa      #RT_BF_GET, #RT_BF_SET, #RT_BF_CLEAR, #RT_BF_MAKE
- */
-#define RT_BF_ZMASK(a_FieldNm)                  ( RT_CONCAT(a_FieldNm,_MASK) >> RT_CONCAT(a_FieldNm,_SHIFT) )
-
-/** Bit field compile time check helper
- * @internal */
-#define RT_BF_CHECK_DO_XOR_MASK(a_uLeft, a_RightPrefix, a_FieldNm)  ((a_uLeft) ^ RT_CONCAT3(a_RightPrefix, a_FieldNm, _MASK))
-/** Bit field compile time check helper
- * @internal */
-#define RT_BF_CHECK_DO_OR_MASK(a_uLeft, a_RightPrefix, a_FieldNm)   ((a_uLeft) | RT_CONCAT3(a_RightPrefix, a_FieldNm, _MASK))
-/** Bit field compile time check helper
- * @internal */
-#define RT_BF_CHECK_DO_1ST_MASK_BIT(a_uLeft, a_RightPrefix, a_FieldNm) \
-    ((a_uLeft) && ( (RT_CONCAT3(a_RightPrefix, a_FieldNm, _MASK) >> RT_CONCAT3(a_RightPrefix, a_FieldNm, _SHIFT)) & 1U ) )
-/** Used to check that a bit field mask does not start too early.
- * @internal */
-#define RT_BF_CHECK_DO_MASK_START(a_uLeft, a_RightPrefix, a_FieldNm) \
-    (   (a_uLeft) \
-     && (   RT_CONCAT3(a_RightPrefix, a_FieldNm, _SHIFT) == 0 \
-         || (  (  (   ((RT_CONCAT3(a_RightPrefix, a_FieldNm, _MASK) >> RT_CONCAT3(a_RightPrefix, a_FieldNm, _SHIFT)) & 1U) \
-                   << RT_CONCAT3(a_RightPrefix, a_FieldNm, _SHIFT)) /* => single bit mask, correct type */ \
-                - 1U) /* => mask of all bits below the field */ \
-             & RT_CONCAT3(a_RightPrefix, a_FieldNm, _MASK)) == 0 ) )
-/** @name Bit field compile time check recursion workers.
- * @internal
- * @{  */
-#define RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix, f1) \
-    a_DoThis(a_uLeft, a_RightPrefix, f1)
-#define RT_BF_CHECK_DO_2(a_DoThis, a_uLeft, a_RightPrefix,                                        f1, f2) \
-    RT_BF_CHECK_DO_1(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2)
-#define RT_BF_CHECK_DO_3(a_DoThis, a_uLeft, a_RightPrefix,                                        f1, f2, f3) \
-    RT_BF_CHECK_DO_2(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3)
-#define RT_BF_CHECK_DO_4(a_DoThis, a_uLeft, a_RightPrefix,                                        f1, f2, f3, f4) \
-    RT_BF_CHECK_DO_3(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4)
-#define RT_BF_CHECK_DO_5(a_DoThis, a_uLeft, a_RightPrefix,                                        f1, f2, f3, f4, f5) \
-    RT_BF_CHECK_DO_4(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5)
-#define RT_BF_CHECK_DO_6(a_DoThis, a_uLeft, a_RightPrefix,                                        f1, f2, f3, f4, f5, f6) \
-    RT_BF_CHECK_DO_5(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6)
-#define RT_BF_CHECK_DO_7(a_DoThis, a_uLeft, a_RightPrefix,                                        f1, f2, f3, f4, f5, f6, f7) \
-    RT_BF_CHECK_DO_6(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7)
-#define RT_BF_CHECK_DO_8(a_DoThis, a_uLeft, a_RightPrefix,                                        f1, f2, f3, f4, f5, f6, f7, f8) \
-    RT_BF_CHECK_DO_7(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8)
-#define RT_BF_CHECK_DO_9(a_DoThis, a_uLeft, a_RightPrefix,                                        f1, f2, f3, f4, f5, f6, f7, f8, f9) \
-    RT_BF_CHECK_DO_8(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9)
-#define RT_BF_CHECK_DO_10(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) \
-    RT_BF_CHECK_DO_9(a_DoThis,  RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10)
-#define RT_BF_CHECK_DO_11(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11) \
-    RT_BF_CHECK_DO_10(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11)
-#define RT_BF_CHECK_DO_12(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12) \
-    RT_BF_CHECK_DO_11(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12)
-#define RT_BF_CHECK_DO_13(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13) \
-    RT_BF_CHECK_DO_12(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13)
-#define RT_BF_CHECK_DO_14(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14) \
-    RT_BF_CHECK_DO_13(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14)
-#define RT_BF_CHECK_DO_15(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15) \
-    RT_BF_CHECK_DO_14(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15)
-#define RT_BF_CHECK_DO_16(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16) \
-    RT_BF_CHECK_DO_15(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16)
-#define RT_BF_CHECK_DO_17(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17) \
-    RT_BF_CHECK_DO_16(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17)
-#define RT_BF_CHECK_DO_18(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18) \
-    RT_BF_CHECK_DO_17(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18)
-#define RT_BF_CHECK_DO_19(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19) \
-    RT_BF_CHECK_DO_18(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19)
-#define RT_BF_CHECK_DO_20(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20) \
-    RT_BF_CHECK_DO_19(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20)
-#define RT_BF_CHECK_DO_21(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21) \
-    RT_BF_CHECK_DO_20(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21)
-#define RT_BF_CHECK_DO_22(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22) \
-    RT_BF_CHECK_DO_21(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22)
-#define RT_BF_CHECK_DO_23(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23) \
-    RT_BF_CHECK_DO_22(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23)
-#define RT_BF_CHECK_DO_24(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24) \
-    RT_BF_CHECK_DO_23(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24)
-#define RT_BF_CHECK_DO_25(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25) \
-    RT_BF_CHECK_DO_24(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25)
-#define RT_BF_CHECK_DO_26(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26) \
-    RT_BF_CHECK_DO_25(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26)
-#define RT_BF_CHECK_DO_27(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27) \
-    RT_BF_CHECK_DO_26(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27)
-#define RT_BF_CHECK_DO_28(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28) \
-    RT_BF_CHECK_DO_27(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28)
-#define RT_BF_CHECK_DO_29(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29) \
-    RT_BF_CHECK_DO_28(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29)
-#define RT_BF_CHECK_DO_30(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30) \
-    RT_BF_CHECK_DO_29(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30)
-#define RT_BF_CHECK_DO_31(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31) \
-    RT_BF_CHECK_DO_30(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31)
-#define RT_BF_CHECK_DO_32(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32) \
-    RT_BF_CHECK_DO_31(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32)
-#define RT_BF_CHECK_DO_33(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33) \
-    RT_BF_CHECK_DO_32(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33)
-#define RT_BF_CHECK_DO_34(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34) \
-    RT_BF_CHECK_DO_33(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34)
-#define RT_BF_CHECK_DO_35(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35) \
-    RT_BF_CHECK_DO_34(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35)
-#define RT_BF_CHECK_DO_36(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36) \
-    RT_BF_CHECK_DO_35(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36)
-#define RT_BF_CHECK_DO_37(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37) \
-    RT_BF_CHECK_DO_36(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37)
-#define RT_BF_CHECK_DO_38(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38) \
-    RT_BF_CHECK_DO_37(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38)
-#define RT_BF_CHECK_DO_39(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39) \
-    RT_BF_CHECK_DO_38(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39)
-#define RT_BF_CHECK_DO_40(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40) \
-    RT_BF_CHECK_DO_39(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40)
-#define RT_BF_CHECK_DO_41(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41) \
-    RT_BF_CHECK_DO_40(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41)
-#define RT_BF_CHECK_DO_42(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42) \
-    RT_BF_CHECK_DO_41(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42)
-#define RT_BF_CHECK_DO_43(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43) \
-    RT_BF_CHECK_DO_42(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43)
-#define RT_BF_CHECK_DO_44(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44) \
-    RT_BF_CHECK_DO_43(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44)
-#define RT_BF_CHECK_DO_45(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45) \
-    RT_BF_CHECK_DO_44(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45)
-#define RT_BF_CHECK_DO_46(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46) \
-    RT_BF_CHECK_DO_45(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46)
-#define RT_BF_CHECK_DO_47(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47) \
-    RT_BF_CHECK_DO_46(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47)
-#define RT_BF_CHECK_DO_48(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48) \
-    RT_BF_CHECK_DO_47(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48)
-#define RT_BF_CHECK_DO_49(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49) \
-    RT_BF_CHECK_DO_48(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49)
-#define RT_BF_CHECK_DO_50(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50) \
-    RT_BF_CHECK_DO_49(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50)
-#define RT_BF_CHECK_DO_51(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51) \
-    RT_BF_CHECK_DO_40(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51)
-#define RT_BF_CHECK_DO_52(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52) \
-    RT_BF_CHECK_DO_51(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52)
-#define RT_BF_CHECK_DO_53(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53) \
-    RT_BF_CHECK_DO_52(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53)
-#define RT_BF_CHECK_DO_54(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54) \
-    RT_BF_CHECK_DO_53(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54)
-#define RT_BF_CHECK_DO_55(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55) \
-    RT_BF_CHECK_DO_54(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55)
-#define RT_BF_CHECK_DO_56(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56) \
-    RT_BF_CHECK_DO_55(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56)
-#define RT_BF_CHECK_DO_57(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57) \
-    RT_BF_CHECK_DO_56(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57)
-#define RT_BF_CHECK_DO_58(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58) \
-    RT_BF_CHECK_DO_57(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58)
-#define RT_BF_CHECK_DO_59(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59) \
-    RT_BF_CHECK_DO_58(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59)
-#define RT_BF_CHECK_DO_60(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60) \
-    RT_BF_CHECK_DO_59(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60)
-#define RT_BF_CHECK_DO_61(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60, f61) \
-    RT_BF_CHECK_DO_60(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60, f61)
-#define RT_BF_CHECK_DO_62(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60, f61, f62) \
-    RT_BF_CHECK_DO_61(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60, f61, f62)
-#define RT_BF_CHECK_DO_63(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60, f61, f62, f63) \
-    RT_BF_CHECK_DO_62(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60, f61, f62, f63)
-#define RT_BF_CHECK_DO_64(a_DoThis, a_uLeft, a_RightPrefix,                                       f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60, f61, f62, f63, f64) \
-    RT_BF_CHECK_DO_63(a_DoThis, RT_BF_CHECK_DO_1(a_DoThis, a_uLeft, a_RightPrefix,f1), a_RightPrefix, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51, f52, f53, f54, f55, f56, f57, f58, f59, f60, f61, f62, f63, f64)
-/** @} */
-
-/** @def RT_BF_ASSERT_COMPILE_CHECKS
- * Emits a series of AssertCompile statements checking that the bit-field
- * declarations doesn't overlap, has holes, and generally makes some sense.
- *
- * This requires variadic macros because its too much to type otherwise.
- */
-#if defined(RT_COMPILER_SUPPORTS_VA_ARGS) || defined(DOXYGEN_RUNNING)
-# define RT_BF_ASSERT_COMPILE_CHECKS(a_Prefix, a_uZero, a_uCovered, a_Fields) \
-    AssertCompile(RT_BF_CHECK_DO_N(RT_BF_CHECK_DO_OR_MASK,     a_uZero, a_Prefix, RT_UNPACK_ARGS a_Fields ) == a_uCovered); \
-    AssertCompile(RT_BF_CHECK_DO_N(RT_BF_CHECK_DO_XOR_MASK, a_uCovered, a_Prefix, RT_UNPACK_ARGS a_Fields ) == 0); \
-    AssertCompile(RT_BF_CHECK_DO_N(RT_BF_CHECK_DO_1ST_MASK_BIT,   true, a_Prefix, RT_UNPACK_ARGS a_Fields ) == true); \
-    AssertCompile(RT_BF_CHECK_DO_N(RT_BF_CHECK_DO_MASK_START,     true, a_Prefix, RT_UNPACK_ARGS a_Fields ) == true)
-/** Bit field compile time check helper
- * @internal */
-# define RT_BF_CHECK_DO_N(a_DoThis, a_uLeft, a_RightPrefix, ...) \
-        RT_UNPACK_CALL(RT_CONCAT(RT_BF_CHECK_DO_, RT_EXPAND(RT_COUNT_VA_ARGS(__VA_ARGS__))), (a_DoThis, a_uLeft, a_RightPrefix, __VA_ARGS__))
-#else
-# define RT_BF_ASSERT_COMPILE_CHECKS(a_Prefix, a_uZero, a_uCovered, a_Fields) AssertCompile(true)
-#endif
-
 
 /** @def RT_ALIGN
  * Align macro.
@@ -2097,7 +1598,7 @@
  * @param   type    Structure type.
  * @param   member  Member.
  */
-#if defined(__cplusplus) && RT_GNUC_PREREQ(4, 4)
+#if defined(__GNUC__) && defined(__cplusplus) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 4))
 # define RT_OFFSETOF(type, member)              ( (int)(uintptr_t)&( ((type *)(void *)0x1000)->member) - 0x1000 )
 #else
 # define RT_OFFSETOF(type, member)              ( (int)(uintptr_t)&( ((type *)(void *)0)->member) )
@@ -2115,7 +1616,7 @@
  * @param   type    Structure type.
  * @param   member  Member.
  */
-#if defined(__cplusplus) && RT_GNUC_PREREQ(4, 4)
+#if defined(__GNUC__) && defined(__cplusplus) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 4))
 # define RT_UOFFSETOF(type, member)             ( (uintptr_t)&( ((type *)(void *)0x1000)->member) - 0x1000 )
 #else
 # define RT_UOFFSETOF(type, member)             ( (uintptr_t)&( ((type *)(void *)0)->member) )
@@ -2728,21 +2229,9 @@
 #define NIL_OFFSET   (~0U)
 
 /** @def NOREF
- * Keeps the compiler from bitching about an unused parameter, local variable,
- * or other stuff, will never use _Pragma are is thus more flexible.
+ * Keeps the compiler from bitching about an unused parameter.
  */
 #define NOREF(var)               (void)(var)
-
-/** @def RT_NOREF_PV
- * Keeps the compiler from bitching about an unused parameter or local variable.
- * This one cannot be used with structure members and such, like for instance
- * AssertRC may end up doing due to its generic nature.
- */
-#if defined(__cplusplus) && RT_CLANG_PREREQ(6, 0)
-# define RT_NOREF_PV(var)       _Pragma(RT_STR(unused(var)))
-#else
-# define RT_NOREF_PV(var)       (void)(var)
-#endif
 
 /** @def RT_BREAKPOINT
  * Emit a debug breakpoint instruction.
@@ -2771,9 +2260,6 @@
 #if defined(__IBMC__) || defined(__IBMCPP__)
 # define RT_BREAKPOINT()        __interrupt(3)
 #endif
-#if defined(__WATCOMC__)
-# define RT_BREAKPOINT()        _asm { int 3 }
-#endif
 #ifndef RT_BREAKPOINT
 # error "This compiler/arch is not supported!"
 #endif
@@ -2796,111 +2282,37 @@
 /** 32 K (Kilo)                   (32 678). */
 #define _32K                    0x00008000
 /** 64 K (Kilo)                   (65 536). */
-#if ARCH_BITS != 16
-# define _64K                   0x00010000
-#else
-# define _64K           UINT32_C(0x00010000)
-#endif
+#define _64K                    0x00010000
 /** 128 K (Kilo)                 (131 072). */
-#if ARCH_BITS != 16
-# define _128K                   0x00020000
-#else
-# define _128K          UINT32_C(0x00020000)
-#endif
+#define _128K                   0x00020000
 /** 256 K (Kilo)                 (262 144). */
-#if ARCH_BITS != 16
-# define _256K                   0x00040000
-#else
-# define _256K          UINT32_C(0x00040000)
-#endif
+#define _256K                   0x00040000
 /** 512 K (Kilo)                 (524 288). */
-#if ARCH_BITS != 16
-# define _512K                   0x00080000
-#else
-# define _512K          UINT32_C(0x00080000)
-#endif
+#define _512K                   0x00080000
 /** 1 M (Mega)                 (1 048 576). */
-#if ARCH_BITS != 16
-# define _1M                     0x00100000
-#else
-# define _1M            UINT32_C(0x00100000)
-#endif
+#define _1M                     0x00100000
 /** 2 M (Mega)                 (2 097 152). */
-#if ARCH_BITS != 16
-# define _2M                     0x00200000
-#else
-# define _2M            UINT32_C(0x00200000)
-#endif
+#define _2M                     0x00200000
 /** 4 M (Mega)                 (4 194 304). */
-#if ARCH_BITS != 16
-# define _4M                     0x00400000
-#else
-# define _4M            UINT32_C(0x00400000)
-#endif
-/** 8 M (Mega)                 (8 388 608). */
-#define _8M             UINT32_C(0x00800000)
-/** 16 M (Mega)               (16 777 216). */
-#define _16M            UINT32_C(0x01000000)
-/** 32 M (Mega)               (33 554 432). */
-#define _32M            UINT32_C(0x02000000)
-/** 64 M (Mega)               (67 108 864). */
-#define _64M            UINT32_C(0x04000000)
-/** 128 M (Mega)             (134 217 728). */
-#define _128M           UINT32_C(0x08000000)
-/** 256 M (Mega)             (268 435 456). */
-#define _256M           UINT32_C(0x10000000)
-/** 512 M (Mega)             (536 870 912). */
-#define _512M           UINT32_C(0x20000000)
+#define _4M                     0x00400000
 /** 1 G (Giga)             (1 073 741 824). (32-bit) */
-#if ARCH_BITS != 16
-# define _1G                     0x40000000
-#else
-# define _1G            UINT32_C(0x40000000)
-#endif
+#define _1G                     0x40000000
 /** 1 G (Giga)             (1 073 741 824). (64-bit) */
-#if ARCH_BITS != 16
-# define _1G64                   0x40000000LL
-#else
-# define _1G64          UINT64_C(0x40000000)
-#endif
+#define _1G64                   0x40000000LL
 /** 2 G (Giga)             (2 147 483 648). (32-bit) */
-#define _2G32           UINT32_C(0x80000000)
+#define _2G32                   0x80000000U
 /** 2 G (Giga)             (2 147 483 648). (64-bit) */
-#if ARCH_BITS != 16
-# define _2G             0x0000000080000000LL
-#else
-# define _2G    UINT64_C(0x0000000080000000)
-#endif
+#define _2G             0x0000000080000000LL
 /** 4 G (Giga)             (4 294 967 296). */
-#if ARCH_BITS != 16
-# define _4G             0x0000000100000000LL
-#else
-# define _4G    UINT64_C(0x0000000100000000)
-#endif
+#define _4G             0x0000000100000000LL
 /** 1 T (Tera)         (1 099 511 627 776). */
-#if ARCH_BITS != 16
-# define _1T             0x0000010000000000LL
-#else
-# define _1T    UINT64_C(0x0000010000000000)
-#endif
+#define _1T             0x0000010000000000LL
 /** 1 P (Peta)     (1 125 899 906 842 624). */
-#if ARCH_BITS != 16
-# define _1P             0x0004000000000000LL
-#else
-# define _1P    UINT64_C(0x0004000000000000)
-#endif
+#define _1P             0x0004000000000000LL
 /** 1 E (Exa)  (1 152 921 504 606 846 976). */
-#if ARCH_BITS != 16
-# define _1E             0x1000000000000000LL
-#else
-# define _1E    UINT64_C(0x1000000000000000)
-#endif
+#define _1E             0x1000000000000000LL
 /** 2 E (Exa)  (2 305 843 009 213 693 952). */
-#if ARCH_BITS != 16
-# define _2E             0x2000000000000000ULL
-#else
-# define _2E    UINT64_C(0x2000000000000000)
-#endif
+#define _2E             0x2000000000000000ULL
 /** @} */
 
 /** @defgroup grp_rt_cdefs_decimal_grouping   Decimal Constant Grouping Macros
@@ -3301,8 +2713,7 @@
  * The ASM* functions will then be implemented in external .asm files.
  */
 #if (defined(_MSC_VER) && defined(RT_ARCH_AMD64)) \
- || (!defined(RT_ARCH_AMD64) && !defined(RT_ARCH_X86)) \
- || defined(__WATCOMC__)
+ || (!defined(RT_ARCH_AMD64) && !defined(RT_ARCH_X86))
 # define RT_INLINE_ASM_EXTERNAL 1
 #else
 # define RT_INLINE_ASM_EXTERNAL 0
@@ -3311,7 +2722,7 @@
 /** @def RT_INLINE_ASM_GNU_STYLE
  * Defined as 1 if the compiler understands GNU style inline assembly.
  */
-#if defined(_MSC_VER) || defined(__WATCOMC__)
+#if defined(_MSC_VER)
 # define RT_INLINE_ASM_GNU_STYLE 0
 #else
 # define RT_INLINE_ASM_GNU_STYLE 1
@@ -3344,16 +2755,6 @@
 # endif
 #elif defined(__GNUC__) && defined(__cplusplus)
 /* 4.5 or later, I think, if in ++11 mode... */
-#endif
-
-/** @def RT_FAR_DATA
- * Set to 1 if we're in 16-bit mode and use far pointers.
- */
-#if ARCH_BITS == 16 && defined(__WATCOMC__) \
-  && (defined(__COMPACT__) || defined(__LARGE__))
-# define RT_FAR_DATA 1
-#else
-# define RT_FAR_DATA 0
 #endif
 
 /** @} */

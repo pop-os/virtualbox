@@ -1,7 +1,7 @@
 /** @file
   UEFI Component Name(2) protocol implementation for IPsec driver.
 
-  Copyright (c) 2009 - 2012, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -172,17 +172,6 @@ GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mIpSecDriverNameTable[] =
   }
 };
 
-GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mIpSecControllerNameTable[] = {
-  {
-    "eng;en",
-    L"IPsec Controller"
-  },
-  {
-    NULL,
-    NULL
-  }
-};
-
 /**
   Retrieves a Unicode string that is the user-readable name of the driver.
 
@@ -317,35 +306,5 @@ IpSecComponentNameGetControllerName (
   OUT CHAR16                       **ControllerName
   )
 {
-  EFI_STATUS Status;
-
-  //
-  // ChildHandle must be NULL for a Device Driver
-  //
-  if (ChildHandle != NULL) {
-    return EFI_UNSUPPORTED;
-  }
-
-  //
-  // Make sure this driver is currently managing ControllerHandle
-  //
-  Status = gBS->OpenProtocol (
-                  ControllerHandle,
-                  &gEfiIpSec2ProtocolGuid,
-                  NULL,
-                  NULL,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_TEST_PROTOCOL
-                  );
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
-
-  return LookupUnicodeString2 (
-           Language,
-           This->SupportedLanguages,
-           mIpSecControllerNameTable,
-           ControllerName,
-           (BOOLEAN) (This == &gIpSecComponentName)
-           );
+  return EFI_UNSUPPORTED;
 }

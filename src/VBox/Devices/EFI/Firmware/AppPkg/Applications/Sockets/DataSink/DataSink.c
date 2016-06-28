@@ -1,7 +1,7 @@
 /** @file
   Data source for network testing.
 
-  Copyright (c) 2011-2012, Intel Corporation
+  Copyright (c) 2011, Intel Corporation
   All rights reserved. This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -28,12 +28,10 @@
 #include <sys/socket.h>
 
 
-#define DATA_SAMPLE_SHIFT           5       ///<  Shift for number of samples
-#define MAX_CONNECTIONS       ( 1 + 16 )    ///<  Maximum number of client connections
-#define RANGE_SWITCH        ( 1024 * 1024 ) ///<  Switch display ranges
-#define DATA_RATE_UPDATE_SHIFT      2       ///<  2n seconds between updates
+#define MAX_CONNECTIONS       ( 1 + 16 )  ///<  Maximum number of client connections
+#define RANGE_SWITCH                2048  ///<  Switch display ranges
+#define DATA_RATE_UPDATE_SHIFT      2     ///<  2n seconds between updates
 #define AVERAGE_SHIFT_COUNT ( 6 - DATA_RATE_UPDATE_SHIFT )  ///<  2n samples in average
-#define DATA_SAMPLES        ( 1 << DATA_SAMPLE_SHIFT )      ///<  Number of samples
 
 #define TPL_DATASINK        TPL_CALLBACK  ///<  Synchronization TPL
 
@@ -41,16 +39,16 @@
 #define DATA_BUFFER_SIZE    (( 65536 / PACKET_SIZE ) * PACKET_SIZE )  ///<  Buffer size in bytes
 
 typedef struct _DT_PORT {
+  UINT64 BytesAverage;
+  UINT64 BytesPrevious;
   UINT64 BytesTotal;
-  struct sockaddr_in6 IpAddress;
-  UINT32 In;
-  UINT32 Samples;
-  UINT64 BytesReceived[ DATA_SAMPLES ];
+  struct sockaddr_in RemoteAddress;
+  UINT64 Samples;
 } DT_PORT;
 
 volatile BOOLEAN bTick;
 BOOLEAN bTimerRunning;
-struct sockaddr_in6 LocalAddress;
+struct sockaddr_in LocalAddress;
 EFI_EVENT pTimer;
 int ListenSocket;
 UINT8 Buffer[ DATA_BUFFER_SIZE ];
@@ -122,7 +120,7 @@ SocketAccept (
   //
   SocketStatus = bind ( ListenSocket,
                         (struct sockaddr *) &LocalAddress,
-                        LocalAddress.sin6_len );
+                        LocalAddress.sin_len );
   if ( 0 == SocketStatus ) {
     //
     //  Start listening on the local socket
@@ -141,7 +139,14 @@ SocketAccept (
       PollFd[ Index ].fd = ListenSocket;
       PollFd[ Index ].events = POLLRDNORM | POLLHUP;
       PollFd[ Index ].revents = 0;
-      ZeroMem ( &Port[ Index ], sizeof ( Port[ Index ]));
+      Port[ Index ].BytesAverage = 0;
+      Port[ Index ].BytesPrevious = 0;
+      Port[ Index ].BytesTotal = 0;
+      Port[ Index ].Samples = 0;
+      Port[ Index ].RemoteAddress.sin_len = 0;
+      Port[ Index ].RemoteAddress.sin_family = 0;
+      Port[ Index ].RemoteAddress.sin_port = 0;
+      Port[ Index ].RemoteAddress.sin_addr.s_addr= 0;
     }
   }
 
@@ -198,14 +203,11 @@ SocketClose (
 /**
   Create the socket
 
-  @param [in] Family    Network family, AF_INET or AF_INET6
-
   @retval  EFI_SUCCESS  The application is running normally
   @retval  Other        The user stopped the application
 **/
 EFI_STATUS
 SocketNew (
-  sa_family_t Family
   )
 {
   EFI_STATUS Status;
@@ -214,10 +216,10 @@ SocketNew (
   //  Get the port number
   //
   ZeroMem ( &LocalAddress, sizeof ( LocalAddress ));
-  LocalAddress.sin6_len = sizeof ( LocalAddress );
-  LocalAddress.sin6_family = Family;
-  LocalAddress.sin6_port = htons ( PcdGet16 ( DataSource_Port ));
-
+  LocalAddress.sin_len = sizeof ( LocalAddress );
+  LocalAddress.sin_family = AF_INET;
+  LocalAddress.sin_port = htons ( PcdGet16 ( DataSource_Port ));
+  
   //
   //  Loop creating the socket
   //
@@ -232,7 +234,7 @@ SocketNew (
     //
     //  Attempt to create the socket
     //
-    ListenSocket = socket ( LocalAddress.sin6_family,
+    ListenSocket = socket ( AF_INET,
                             SOCK_STREAM,
                             IPPROTO_TCP );
     if ( -1 != ListenSocket ) {
@@ -272,11 +274,7 @@ SocketPoll (
   int FdCount;
   nfds_t Index;
   socklen_t LengthInBytes;
-  struct sockaddr_in * pPortIpAddress4;
-  struct sockaddr_in6 * pPortIpAddress6;
-  struct sockaddr_in * pRemoteAddress4;
-  struct sockaddr_in6 * pRemoteAddress6;
-  struct sockaddr_in6 RemoteAddress;
+  struct sockaddr_in RemoteAddress;
   int Socket;
   EFI_STATUS Status;
   EFI_TPL TplPrevious;
@@ -284,8 +282,6 @@ SocketPoll (
   //
   //  Check for control-C
   //
-  pRemoteAddress4 = (struct sockaddr_in *)&RemoteAddress;
-  pRemoteAddress6 = (struct sockaddr_in6 *)&RemoteAddress;
   bListenError = FALSE;
   Status = ControlCCheck ( );
   if ( !EFI_ERROR ( Status )) {
@@ -315,8 +311,6 @@ SocketPoll (
         //
         //  Account for this descriptor
         //
-        pPortIpAddress4 = (struct sockaddr_in *)&Port[ Index ].IpAddress;
-        pPortIpAddress6 = (struct sockaddr_in6 *)&Port[ Index ].IpAddress;
         if ( 0 != PollFd[ Index ].revents ) {
           FdCount -= 1;
         }
@@ -333,38 +327,14 @@ SocketPoll (
                       errno ));
           }
           else {
-            if ( AF_INET == pPortIpAddress4->sin_family ) {
-              DEBUG (( DEBUG_ERROR,
-                        "ERROR - Network closed on socket %d.%d.%d.%d:%d, errno: %d\r\n",
-                        pPortIpAddress4->sin_addr.s_addr & 0xff,
-                        ( pPortIpAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                        ( pPortIpAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                        ( pPortIpAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                        ntohs ( pPortIpAddress4->sin_port ),
-                        errno ));
-            }
-            else {
-              DEBUG (( DEBUG_ERROR,
-                        "ERROR - Network closed on socket [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d, errno: %d\r\n",
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                        pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                        ntohs ( pPortIpAddress6->sin6_port ),
-                        errno ));
-            }
+            DEBUG (( DEBUG_ERROR,
+                      "ERROR - Network closed on socket %d.%d.%d.%d:%d, errno: %d\r\n",
+                      Port[ Index ].RemoteAddress.sin_addr.s_addr & 0xff,
+                      ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                      ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                      ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                      htons ( Port[ Index ].RemoteAddress.sin_port ),
+                      errno ));
 
             //
             //  Close the socket
@@ -372,78 +342,29 @@ SocketPoll (
             CloseStatus = close ( PollFd[ Index ].fd );
             if ( 0 == CloseStatus ) {
               bRemoveSocket = TRUE;
-              if ( AF_INET == pPortIpAddress4->sin_family ) {
-                DEBUG (( DEBUG_INFO,
-                          "0x%08x: Socket closed for %d.%d.%d.%d:%d\r\n",
-                          PollFd[ Index ].fd,
-                          pPortIpAddress4->sin_addr.s_addr & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                          ntohs ( pPortIpAddress4->sin_port )));
-              }
-              else {
-                DEBUG (( DEBUG_INFO,
-                          "0x%08x: Socket closed for [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d\r\n",
-                          PollFd[ Index ].fd,
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                          ntohs ( pPortIpAddress6->sin6_port )));
-              }
+              DEBUG (( DEBUG_INFO,
+                        "0x%08x: Socket closed for %d.%d.%d.%d:%d\r\n",
+                        PollFd[ Index ].fd,
+                        Port[ Index ].RemoteAddress.sin_addr.s_addr & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                        htons ( Port[ Index ].RemoteAddress.sin_port )));
             }
             else {
-              if ( AF_INET == pPortIpAddress4->sin_family ) {
-                DEBUG (( DEBUG_ERROR,
-                          "ERROR - Failed to close socket 0x%08x for %d.%d.%d.%d:%d, errno: %d\r\n",
-                          PollFd[ Index ].fd,
-                          pPortIpAddress4->sin_addr.s_addr & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                          ntohs ( pPortIpAddress4->sin_port ),
-                          errno ));
-              }
-              else {
-                DEBUG (( DEBUG_ERROR,
-                          "ERROR - Failed to close socket 0x%08x for [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d, errno: %d\r\n",
-                          PollFd[ Index ].fd,
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                          ntohs ( pPortIpAddress6->sin6_port ),
-                          errno ));
-              }
+              DEBUG (( DEBUG_ERROR,
+                        "ERROR - Failed to close socket 0x%08x for %d.%d.%d.%d:%d, errno: %d\r\n",
+                        PollFd[ Index ].fd,
+                        Port[ Index ].RemoteAddress.sin_addr.s_addr & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                        htons ( Port[ Index ].RemoteAddress.sin_port ),
+                        errno ));
             }
           }
         }
-
+        
         //
         //  Check for a connection or read data
         //
@@ -478,34 +399,12 @@ SocketPoll (
                 //
                 //  Display the connection
                 //
-                if ( AF_INET == pRemoteAddress4->sin_family ) {
-                  Print ( L"Rejecting connection to remote system %d.%d.%d.%d:%d\r\n",
-                          pRemoteAddress4->sin_addr.s_addr & 0xff,
-                          ( pRemoteAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                          ( pRemoteAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                          ( pRemoteAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                          ntohs ( pRemoteAddress4->sin_port ));
-                }
-                else {
-                  Print ( L"Rejecting connection to remote system [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d\r\n",
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                          ntohs ( pRemoteAddress6->sin6_port ));
-                }
+                Print ( L"Rejecting connection to remote system %d.%d.%d.%d:%d\r\n",
+                        RemoteAddress.sin_addr.s_addr & 0xff,
+                        ( RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                        ( RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                        ( RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                        htons ( RemoteAddress.sin_port ));
 
                 //
                 //  No room for this connection
@@ -514,38 +413,14 @@ SocketPoll (
                 CloseStatus = close ( Socket );
                 if ( 0 == CloseStatus ) {
                   bRemoveSocket = TRUE;
-                  if ( AF_INET == pRemoteAddress4->sin_family ) {
-                    DEBUG (( DEBUG_INFO,
-                              "0x%08x: Socket closed for %d.%d.%d.%d:%d\r\n",
-                              PollFd[ Index ].fd,
-                              pRemoteAddress4->sin_addr.s_addr & 0xff,
-                              ( pRemoteAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                              ( pRemoteAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                              ( pRemoteAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                              ntohs ( pRemoteAddress4->sin_port )));
-                  }
-                  else {
-                    DEBUG (( DEBUG_INFO,
-                              "0x%08x: Socket closed for [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d\r\n",
-                              PollFd[ Index ].fd,
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                              pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                              ntohs ( pRemoteAddress6->sin6_port )));
-                  }
+                  DEBUG (( DEBUG_INFO,
+                            "0x%08x: Socket closed for %d.%d.%d.%d:%d\r\n",
+                            PollFd[ Index ].fd,
+                            RemoteAddress.sin_addr.s_addr & 0xff,
+                            ( RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                            ( RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                            ( RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                            htons ( RemoteAddress.sin_port )));
                 }
                 else {
                   DEBUG (( DEBUG_ERROR,
@@ -564,41 +439,25 @@ SocketPoll (
                 //
                 //  Display the connection
                 //
-                if ( AF_INET == pRemoteAddress4->sin_family ) {
-                  Print ( L"Connected to remote system %d.%d.%d.%d:%d\r\n",
-                          pRemoteAddress4->sin_addr.s_addr & 0xff,
-                          ( pRemoteAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                          ( pRemoteAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                          ( pRemoteAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                          ntohs ( pRemoteAddress4->sin_port ));
-                }
-                else {
-                  Print ( L"Connected to remote system [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d\r\n",
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                          pRemoteAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                          ntohs ( pRemoteAddress6->sin6_port ));
-                }
+                Print ( L"Connected to remote system %d.%d.%d.%d:%d\r\n",
+                        RemoteAddress.sin_addr.s_addr & 0xff,
+                        ( RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                        ( RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                        ( RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                        htons ( RemoteAddress.sin_port ));
 
                 //
                 //  Allocate the client connection
                 //
                 Index = MaxPort++;
-                ZeroMem ( &Port[ Index ], sizeof ( Port[ Index ]));
-                CopyMem ( pPortIpAddress6, pRemoteAddress6, sizeof ( *pRemoteAddress6 ));
+                Port[ Index ].BytesAverage = 0;
+                Port[ Index ].BytesPrevious = 0;
+                Port[ Index ].BytesTotal = 0;
+                Port[ Index ].Samples = 0;
+                Port[ Index ].RemoteAddress.sin_len = RemoteAddress.sin_len;
+                Port[ Index ].RemoteAddress.sin_family = RemoteAddress.sin_family;
+                Port[ Index ].RemoteAddress.sin_port = RemoteAddress.sin_port;
+                Port[ Index ].RemoteAddress.sin_addr = RemoteAddress.sin_addr;
                 PollFd[ Index ].fd = Socket;
                 PollFd[ Index ].events = POLLRDNORM | POLLHUP;
                 PollFd[ Index ].revents = 0;
@@ -616,40 +475,15 @@ SocketPoll (
               //
               //  Display the amount of data received
               //
-              if ( AF_INET == pPortIpAddress4->sin_family ) {
-                DEBUG (( DEBUG_INFO,
-                          "0x%08x: Socket received 0x%08x bytes from %d.%d.%d.%d:%d\r\n",
-                          PollFd[ Index ].fd,
-                          BytesReceived,
-                          pPortIpAddress4->sin_addr.s_addr & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                          ntohs ( pPortIpAddress4->sin_port )));
-              }
-              else {
-                DEBUG (( DEBUG_INFO,
-                          "0x%08x: Socket received 0x%08x bytes from [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d\r\n",
-                          PollFd[ Index ].fd,
-                          BytesReceived,
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                          ntohs ( pPortIpAddress6->sin6_port )));
-              }
+              DEBUG (( DEBUG_INFO,
+                        "0x%08x: Socket received 0x%08x bytes from %d.%d.%d.%d:%d\r\n",
+                        PollFd[ Index ].fd,
+                        BytesReceived,
+                        Port[ Index ].RemoteAddress.sin_addr.s_addr & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                        htons ( Port[ Index ].RemoteAddress.sin_port )));
 
               //
               //  Synchronize with the TimerCallback routine
@@ -670,109 +504,36 @@ SocketPoll (
               //
               //  Close the socket
               //
-              if ( AF_INET == pPortIpAddress4->sin_family ) {
-                DEBUG (( DEBUG_INFO,
-                          "ERROR - Receive failure for %d.%d.%d.%d:%d, errno: %d\r\n",
-                          pPortIpAddress4->sin_addr.s_addr & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                          ( pPortIpAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                          ntohs ( pPortIpAddress4->sin_port ),
-                          errno ));
-              }
-              else {
-                DEBUG (( DEBUG_INFO,
-                          "ERROR - Receive failure for [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d, errno: %d\r\n",
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                          pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                          ntohs ( pPortIpAddress6->sin6_port ),
-                          errno ));
-              }
+              DEBUG (( DEBUG_INFO,
+                        "ERROR - Receive failure for %d.%d.%d.%d:%d, errno: %d\r\n",
+                        Port[ Index ].RemoteAddress.sin_addr.s_addr & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                        ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                        htons ( Port[ Index ].RemoteAddress.sin_port ),
+                        errno ));
               CloseStatus = close ( PollFd[ Index ].fd );
               if ( 0 == CloseStatus ) {
                 bRemoveSocket = TRUE;
-                if ( AF_INET == pPortIpAddress4->sin_family ) {
-                  DEBUG (( DEBUG_INFO,
-                            "0x%08x: Socket closed for %d.%d.%d.%d:%d\r\n",
-                            PollFd[ Index ].fd,
-                            pPortIpAddress4->sin_addr.s_addr & 0xff,
-                            ( pPortIpAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                            ( pPortIpAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                            ( pPortIpAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                            ntohs ( pPortIpAddress4->sin_port )));
-                }
-                else {
-                  DEBUG (( DEBUG_INFO,
-                            "0x%08x: Socket closed for [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d\r\n",
-                            PollFd[ Index ].fd,
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                            ntohs ( pPortIpAddress6->sin6_port )));
-                }
+                DEBUG (( DEBUG_INFO,
+                          "0x%08x: Socket closed for %d.%d.%d.%d:%d\r\n",
+                          PollFd[ Index ].fd,
+                          Port[ Index ].RemoteAddress.sin_addr.s_addr & 0xff,
+                          ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                          ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                          ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                          htons ( Port[ Index ].RemoteAddress.sin_port )));
               }
               else {
-                if ( AF_INET == pPortIpAddress4->sin_family ) {
-                  DEBUG (( DEBUG_ERROR,
-                            "ERROR - Failed to close socket 0x%08x for %d.%d.%d.%d:%d, errno: %d\r\n",
-                            PollFd[ Index ].fd,
-                            pPortIpAddress4->sin_addr.s_addr & 0xff,
-                            ( pPortIpAddress4->sin_addr.s_addr >> 8 ) & 0xff,
-                            ( pPortIpAddress4->sin_addr.s_addr >> 16 ) & 0xff,
-                            ( pPortIpAddress4->sin_addr.s_addr >> 24 ) & 0xff,
-                            ntohs ( pPortIpAddress4->sin_port ),
-                            errno ));
-                }
-                else {
-                  DEBUG (( DEBUG_ERROR,
-                            "ERROR - Failed to close socket 0x%08x for [%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%d, errno: %d\r\n",
-                            PollFd[ Index ].fd,
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 0 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 1 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 2 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 3 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 4 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 5 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 6 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 7 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 8 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 9 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 10 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 11 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 12 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 13 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 14 ],
-                            pPortIpAddress6->sin6_addr.__u6_addr.__u6_addr8[ 15 ],
-                            ntohs ( pPortIpAddress6->sin6_port ),
-                            errno ));
-                }
+                DEBUG (( DEBUG_ERROR,
+                          "ERROR - Failed to close socket 0x%08x for %d.%d.%d.%d:%d, errno: %d\r\n",
+                          PollFd[ Index ].fd,
+                          Port[ Index ].RemoteAddress.sin_addr.s_addr & 0xff,
+                          ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 8 ) & 0xff,
+                          ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 16 ) & 0xff,
+                          ( Port[ Index ].RemoteAddress.sin_addr.s_addr >> 24 ) & 0xff,
+                          htons ( Port[ Index ].RemoteAddress.sin_port ),
+                          errno ));
               }
             }
 
@@ -794,9 +555,14 @@ SocketPoll (
           MaxPort -= 1;
           for ( Entry = Index + 1; MaxPort >= Entry; Entry++ ) {
             EntryPrevious = Entry;
-            CopyMem ( &Port[ EntryPrevious ],
-                      &Port[ Entry ],
-                      sizeof ( Port[ Entry ]));
+            Port[ EntryPrevious ].BytesAverage = Port[ Entry ].BytesAverage;
+            Port[ EntryPrevious ].BytesPrevious = Port[ Entry ].BytesPrevious;
+            Port[ EntryPrevious ].BytesTotal = Port[ Entry ].BytesTotal;
+            Port[ EntryPrevious ].RemoteAddress.sin_len = Port[ Entry ].RemoteAddress.sin_len;
+            Port[ EntryPrevious ].RemoteAddress.sin_family = Port[ Entry ].RemoteAddress.sin_family;
+            Port[ EntryPrevious ].RemoteAddress.sin_port = Port[ Entry ].RemoteAddress.sin_port;
+            Port[ EntryPrevious ].RemoteAddress.sin_addr.s_addr = Port[ Entry ].RemoteAddress.sin_addr.s_addr;
+            Port[ EntryPrevious ].Samples = Port[ Entry ].Samples;
             PollFd[ EntryPrevious ].events = PollFd[ Entry ].events;
             PollFd[ EntryPrevious ].fd = PollFd[ Entry ].fd;
             PollFd[ EntryPrevious ].revents = PollFd[ Entry ].revents;
@@ -834,18 +600,16 @@ SocketPoll (
   @param [in] pContext  Context for this routine
 **/
 VOID
-EFIAPI
 TimerCallback (
   IN EFI_EVENT Event,
   IN VOID * pContext
   )
 {
-  UINT32 Average;
-  UINT64 BitsPerSecond;
+  UINT64 Average;
   UINT64 BytesReceived;
-  UINT32 Count;
+  UINT32 Delta;
+  UINT64 DeltaBytes;
   nfds_t Index;
-  UINT64 TotalBytes;
 
   //
   //  Notify the other code of the timer tick
@@ -863,84 +627,65 @@ TimerCallback (
     if (( ListenSocket != PollFd[ Index ].fd )
       && ( 0 != BytesReceived )) {
       //
-      //  Update the received data samples
+      //  Update the average bytes per second
       //
-      Port[ Index ].BytesTotal = 0;
-      Port[ Index ].BytesReceived [ Port[ Index ].In ] = BytesReceived;
-      Port[ Index ].In += 1;
-      if ( DATA_SAMPLES <= Port[ Index ].In ) {
-        Port[ Index ].In = 0;
-      }
+      DeltaBytes = Port[ Index ].BytesAverage >> AVERAGE_SHIFT_COUNT;
+      Port[ Index ].BytesAverage -= DeltaBytes;
+      DeltaBytes = BytesReceived - Port[ Index ].BytesPrevious;
+      Port[ Index ].BytesPrevious = BytesReceived;
+      Port[ Index ].BytesAverage += DeltaBytes;
 
       //
       //  Separate the samples
       //
-      if ( DATA_SAMPLES == Port[ Index ].Samples ) {
+      if (( 2 << AVERAGE_SHIFT_COUNT ) == Port[ Index ].Samples ) {
         Print ( L"---------- Stable average ----------\r\n" );
       }
       Port[ Index ].Samples += 1;
 
       //
-      //  Compute the data rate
-      //
-      TotalBytes = 0;
-      for ( Count = 0; DATA_SAMPLES > Count; Count++ )
-      {
-          TotalBytes += Port[ Index ].BytesReceived[ Count ];
-      }
-      Average = (UINT32)RShiftU64 ( TotalBytes, DATA_SAMPLE_SHIFT );
-      BitsPerSecond = Average * 8;
-
-      //
       //  Display the data rate
       //
-      if (( RANGE_SWITCH >> 10 ) > Average ) {
-        Print ( L"Ave: %d Bytes/Sec, %Ld Bits/sec\r\n",
-                Average,
-                BitsPerSecond );
+      Delta = (UINT32)( DeltaBytes >> DATA_RATE_UPDATE_SHIFT );
+      Average = Port[ Index ].BytesAverage >> ( AVERAGE_SHIFT_COUNT + DATA_RATE_UPDATE_SHIFT );
+      if ( Average < RANGE_SWITCH ) {
+        Print ( L"%d Bytes/sec, Ave: %d Bytes/Sec\r\n",
+                Delta,
+                (UINT32) Average );
       }
       else {
-        BitsPerSecond /= 1000;
-        if ( RANGE_SWITCH > Average ) {
-          Print ( L"Ave: %d.%03d KiBytes/Sec, %Ld KBits/sec\r\n",
-                  Average >> 10,
-                  (( Average & 0x3ff ) * 1000 ) >> 10,
-                  BitsPerSecond );
+        Average >>= 10;
+        if ( Average < RANGE_SWITCH ) {
+          Print ( L"%d Bytes/sec, Ave: %d KiBytes/Sec\r\n",
+                  Delta,
+                  (UINT32) Average );
         }
         else {
-          BitsPerSecond /= 1000;
           Average >>= 10;
-          if ( RANGE_SWITCH > Average ) {
-            Print ( L"Ave: %d.%03d MiBytes/Sec, %Ld MBits/sec\r\n",
-                    Average >> 10,
-                    (( Average & 0x3ff ) * 1000 ) >> 10,
-                    BitsPerSecond );
+          if ( Average < RANGE_SWITCH ) {
+            Print ( L"%d Bytes/sec, Ave: %d MiBytes/Sec\r\n",
+                    Delta,
+                    (UINT32) Average );
           }
           else {
-            BitsPerSecond /= 1000;
             Average >>= 10;
-            if ( RANGE_SWITCH > Average ) {
-              Print ( L"Ave: %d.%03d GiBytes/Sec, %Ld GBits/sec\r\n",
-                      Average >> 10,
-                      (( Average & 0x3ff ) * 1000 ) >> 10,
-                      BitsPerSecond );
+            if ( Average < RANGE_SWITCH ) {
+              Print ( L"%d Bytes/sec, Ave: %d GiBytes/Sec\r\n",
+                      Delta,
+                      (UINT32) Average );
             }
             else {
-              BitsPerSecond /= 1000;
               Average >>= 10;
-              if ( RANGE_SWITCH > Average ) {
-                Print ( L"Ave: %d.%03d TiBytes/Sec, %Ld TBits/sec\r\n",
-                        Average >> 10,
-                        (( Average & 0x3ff ) * 1000 ) >> 10,
-                        BitsPerSecond );
+              if ( Average < RANGE_SWITCH ) {
+                Print ( L"%d Bytes/sec, Ave: %d TiBytes/Sec\r\n",
+                        Delta,
+                        Average );
               }
               else {
-                BitsPerSecond /= 1000;
                 Average >>= 10;
-                Print ( L"Ave: %d.%03d PiBytes/Sec, %Ld PBits/sec\r\n",
-                        Average >> 10,
-                        (( Average & 0x3ff ) * 1000 ) >> 10,
-                        BitsPerSecond );
+                Print ( L"%d Bytes/sec, Ave: %d PiBytes/Sec\r\n",
+                        Delta,
+                        (UINT32) Average );
               }
             }
           }
@@ -1164,16 +909,10 @@ main (
   IN char **Argv
   )
 {
-  sa_family_t Family;
   EFI_STATUS Status;
 
   DEBUG (( DEBUG_INFO,
             "DataSink starting\r\n" ));
-
-  //
-  //  Determine the family to use
-  //
-  Family = ( 1 < Argc ) ? AF_INET6 : AF_INET;
 
   //
   //  Use for/break instead of goto
@@ -1212,7 +951,7 @@ main (
           //
           break;
         }
-
+      
         //
         //  Wait for a while
         //
@@ -1223,11 +962,11 @@ main (
         //
         break;
       }
-
+      
       //
       //  Wait for the network layer to initialize
       //
-      Status = SocketNew ( Family );
+      Status = SocketNew ( );
       if ( EFI_ERROR ( Status )) {
         continue;
       }
@@ -1248,7 +987,7 @@ main (
       }
 
       //
-      //  Receive data until the connection breaks
+      //  Send data until the connection breaks
       //
       do {
         Status = SocketPoll ( );

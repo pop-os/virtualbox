@@ -67,12 +67,12 @@
         <translation>Попробуйте выполнить повторную установку приложения VirtualBox.</translation>
     </message>
     <message>
-        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation type="obsolete">Данная ошибка означает, что либо драйвер ядра не смог выделить достаточное количество памяти, либо операция выделения памяти завершилась неудачно.&lt;br/&gt;&lt;br/&gt;Подобные проблемы присутствуют в ядре Linux 2.6.29. Если Вы используете ядро данной версии, пожалуйста отредактируйте /usr/src/vboxdrv-*/Makefile, добавив &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. После этого пересоберите ядро запуском&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;от имени администратора.</translation>
+        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation type="obsolete">Данная ошибка означает, что либо драйвер ядра не смог выделить достаточное количество памяти, либо операция выделения памяти завершилась неудачно.&lt;br/&gt;&lt;br/&gt;Подобные проблемы присутствуют в ядре Linux 2.6.29. Если Вы используете ядро данной версии, пожалуйста отредактируйте /usr/src/vboxdrv-*/Makefile, добавив &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. После этого пересоберите ядро запуском&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;от имени администратора.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="obsolete">Драйвер ядра VirtualBox ОС Linux (vboxdrv) вероятно не загружен, либо присутствуют проблемы с правами доступа к /dev/vboxdrv. Переконфигурируйте модуль ядра запуском&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;от имени администратора. Пользователям Ubuntu, Fedora или Mandriva следует сперва установить пакет DKMS. Этот пакет отслеживает изменения ядра Linux и пересобирает модуль ядра vboxdrv в случае необходимости.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="obsolete">Драйвер ядра VirtualBox ОС Linux (vboxdrv) вероятно не загружен, либо присутствуют проблемы с правами доступа к /dev/vboxdrv. Переконфигурируйте модуль ядра запуском&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;от имени администратора. Пользователям Ubuntu, Fedora или Mandriva следует сперва установить пакет DKMS. Этот пакет отслеживает изменения ядра Linux и пересобирает модуль ядра vboxdrv в случае необходимости.</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -99,16 +99,16 @@
         <translation>Модуль ядра VirtualBox не совместим с текущей версией приложения. Возможно установка VirtualBox не была завершена или прошла некорректно. Попробуйте полностью удалить VirtualBox и установить заново.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>Модуль ядра VirtualBox не совместим с текущей версией приложения. Возможно установка VirtualBox не была завершена или прошла некорректно. Запуск&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;должен исправить данную проблему. Убедитесь в том, что не используете платную (PUEL) и бесплатную (OSE) версии VirtualBox одновременно.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>Модуль ядра VirtualBox не совместим с текущей версией приложения. Возможно установка VirtualBox не была завершена или прошла некорректно. Запуск&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;должен исправить данную проблему. Убедитесь в том, что не используете платную (PUEL) и бесплатную (OSE) версии VirtualBox одновременно.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Данная ошибка означает, что либо драйвер ядра не смог выделить достаточное количество памяти, либо некая операция с памятью неудачно завершена.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>Драйвер ядра VirtualBox (vboxdrv) не загружен, либо присутствует проблема с доступом к /dev/vboxdrv. Пожалуйста переустановите драйвер, выполнив &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; от имени администратора. Учтите, что сперва Вам необходимо установить пакет DKMS, если он доступен Вашему дистрибутиву операционной системы. Этот пакет автоматически отслеживает изменения драйверов Linux и обновит драйвер vboxdrv в случае необходимости.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>Драйвер ядра VirtualBox (vboxdrv) не загружен, либо присутствует проблема с доступом к /dev/vboxdrv. Пожалуйста переустановите драйвер, выполнив &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; от имени администратора. Учтите, что сперва Вам необходимо установить пакет DKMS, если он доступен Вашему дистрибутиву операционной системы. Этот пакет автоматически отслеживает изменения драйверов Linux и обновит драйвер vboxdrv в случае необходимости.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -4546,11 +4546,11 @@ p, li { white-space: pre-wrap; }
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Если галочка стоит, VirtualBox будет использовать данные настройки для работы с прокси-сервером в целях загрузки гостевых дополнений и проверки обновлений.</translation>
+        <translation type="obsolete">Если галочка стоит, VirtualBox будет использовать данные настройки для работы с прокси-сервером в целях загрузки гостевых дополнений и проверки обновлений.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation>&amp;Использовать прокси-сервер</translation>
+        <translation type="obsolete">&amp;Использовать прокси-сервер</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -4607,6 +4607,30 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Holds the proxy port.</source>
         <translation>Опредеяет порт прокси-сервера.</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7395,7 +7419,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Encrypted with key:</source>
-        <translation>Шифрован ключом с ИД:</translation>
+        <translation>Шифрован ключём с ИД:</translation>
     </message>
     <message>
         <source>Lists all storage controllers for this machine and the virtual images and host drives attached to them.</source>
@@ -9888,11 +9912,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to set the global VirtualBox extra data for key &lt;i&gt;%1&lt;/i&gt; to value &lt;i&gt;{%2}&lt;/i&gt;.</source>
-        <translation>Не удалось задать глобальной внутренней переменной VirtualBox с ключом &lt;i&gt;%1&lt;/i&gt; значение &lt;i&gt;{%2}&lt;/i&gt;.</translation>
+        <translation>Не удалось задать глобальной внутренней переменной VirtualBox с ключём &lt;i&gt;%1&lt;/i&gt; значение &lt;i&gt;{%2}&lt;/i&gt;.</translation>
     </message>
     <message>
         <source>Failed to set the extra data for key &lt;i&gt;%1&lt;/i&gt; of machine &lt;i&gt;%2&lt;/i&gt; to value &lt;i&gt;{%3}&lt;/i&gt;.</source>
-        <translation>Не удалось задать внутренней переменной машины &lt;i&gt;%2&lt;/i&gt; с ключом &lt;i&gt;%1&lt;/i&gt; значение &lt;i&gt;{%3}&lt;/i&gt;.</translation>
+        <translation>Не удалось задать внутренней переменной машины &lt;i&gt;%2&lt;/i&gt; с ключём &lt;i&gt;%1&lt;/i&gt; значение &lt;i&gt;{%3}&lt;/i&gt;.</translation>
     </message>
     <message>
         <source>Failed to save the settings.</source>
@@ -10009,6 +10033,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>Пароль шифрования дисков &lt;nobr&gt;с идентификатором = &apos;%1&apos;&lt;/nobr&gt; указан неверно.</translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10197,6 +10229,46 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Unknown reason</source>
         <translation>Неизвестная причина</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Url not found on the server</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13190,7 +13262,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>UIEmptyFilePathSelector</name>
+    <name>VBoxEmptyFileSelector</name>
     <message>
         <source>&amp;Choose...</source>
         <translation type="obsolete">&amp;Выбрать...</translation>
@@ -13201,7 +13273,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>UIFilePathSelector</name>
+    <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation>&lt;по умолчанию&gt;</translation>
@@ -15592,7 +15664,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Encrypted with key:</source>
-        <translation>Шифрован ключом с ИД:</translation>
+        <translation>Шифрован ключём с ИД:</translation>
     </message>
 </context>
 <context>

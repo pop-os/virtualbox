@@ -4,7 +4,7 @@
   ALL CODE IN THE SERIALIO STACK MUST BE RE-ENTRANT AND CALLABLE FROM
   INTERRUPT CONTEXT
 
-Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2009, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -33,11 +33,12 @@ DEBUGPORT_DEVICE mDebugPortDevice = {
   DEBUGPORT_DEVICE_SIGNATURE,
   (EFI_HANDLE) 0,
   (EFI_HANDLE) 0,
+  (VOID *) NULL,
   (EFI_DEVICE_PATH_PROTOCOL *) NULL,
   {
     DebugPortReset,
-    DebugPortWrite,
     DebugPortRead,
+    DebugPortWrite,
     DebugPortPoll
   },
   (EFI_HANDLE) 0,
@@ -56,52 +57,72 @@ DEBUGPORT_DEVICE mDebugPortDevice = {
   Records requested settings in DebugPort device structure.
 
 **/
-EFI_DEVICE_PATH_PROTOCOL *
+VOID
 GetDebugPortVariable (
   VOID
   )
 {
   UINTN                     DataSize;
-  EFI_DEVICE_PATH_PROTOCOL  *DebugPortVariable;
   EFI_DEVICE_PATH_PROTOCOL  *DevicePath;
+  EFI_STATUS                Status;
 
-  GetVariable2 (EFI_DEBUGPORT_VARIABLE_NAME, &gEfiDebugPortVariableGuid, (VOID **) &DebugPortVariable, &DataSize);
-  if (DebugPortVariable == NULL) {
-    return NULL;
-  }
+  DataSize = 0;
 
-  DevicePath = DebugPortVariable;
-  while (!IsDevicePathEnd (DevicePath) && !IS_UART_DEVICEPATH (DevicePath)) {
-    DevicePath = NextDevicePathNode (DevicePath);
-  }
+  Status = gRT->GetVariable (
+                  (CHAR16 *) EFI_DEBUGPORT_VARIABLE_NAME,
+                  &gEfiDebugPortVariableGuid,
+                  NULL,
+                  &DataSize,
+                  mDebugPortDevice.DebugPortVariable
+                  );
 
-  if (IsDevicePathEnd (DevicePath)) {
-    FreePool (DebugPortVariable);
-    return NULL;
-  } else {
-    CopyMem (
-      &mDebugPortDevice.BaudRate,
-      &((UART_DEVICE_PATH *) DevicePath)->BaudRate,
-      sizeof (((UART_DEVICE_PATH *) DevicePath)->BaudRate)
-      );
-    mDebugPortDevice.ReceiveFifoDepth = DEBUGPORT_UART_DEFAULT_FIFO_DEPTH;
-    mDebugPortDevice.Timeout          = DEBUGPORT_UART_DEFAULT_TIMEOUT;
-    CopyMem (
-      &mDebugPortDevice.Parity,
-      &((UART_DEVICE_PATH *) DevicePath)->Parity,
-      sizeof (((UART_DEVICE_PATH *) DevicePath)->Parity)
-      );
-    CopyMem (
-      &mDebugPortDevice.DataBits,
-      &((UART_DEVICE_PATH *) DevicePath)->DataBits,
-      sizeof (((UART_DEVICE_PATH *) DevicePath)->DataBits)
-      );
-    CopyMem (
-      &mDebugPortDevice.StopBits,
-      &((UART_DEVICE_PATH *) DevicePath)->StopBits,
-      sizeof (((UART_DEVICE_PATH *) DevicePath)->StopBits)
-      );
-    return DebugPortVariable;
+  if (Status == EFI_BUFFER_TOO_SMALL) {
+    if (mDebugPortDevice.DebugPortVariable != NULL) {
+      FreePool (mDebugPortDevice.DebugPortVariable);
+    }
+
+    mDebugPortDevice.DebugPortVariable = AllocatePool (DataSize);
+    if (mDebugPortDevice.DebugPortVariable != NULL) {
+      gRT->GetVariable (
+            (CHAR16 *) EFI_DEBUGPORT_VARIABLE_NAME,
+            &gEfiDebugPortVariableGuid,
+            NULL,
+            &DataSize,
+            mDebugPortDevice.DebugPortVariable
+            );
+      DevicePath = (EFI_DEVICE_PATH_PROTOCOL *) mDebugPortDevice.DebugPortVariable;
+      while (!IsDevicePathEnd (DevicePath) && !IS_UART_DEVICEPATH (DevicePath)) {
+        DevicePath = NextDevicePathNode (DevicePath);
+      }
+
+      if (IsDevicePathEnd (DevicePath)) {
+        FreePool (mDebugPortDevice.DebugPortVariable);
+        mDebugPortDevice.DebugPortVariable = NULL;
+      } else {
+        CopyMem (
+          &mDebugPortDevice.BaudRate,
+          &((UART_DEVICE_PATH *) DevicePath)->BaudRate,
+          sizeof (((UART_DEVICE_PATH *) DevicePath)->BaudRate)
+          );
+        mDebugPortDevice.ReceiveFifoDepth = DEBUGPORT_UART_DEFAULT_FIFO_DEPTH;
+        mDebugPortDevice.Timeout          = DEBUGPORT_UART_DEFAULT_TIMEOUT;
+        CopyMem (
+          &mDebugPortDevice.Parity,
+          &((UART_DEVICE_PATH *) DevicePath)->Parity,
+          sizeof (((UART_DEVICE_PATH *) DevicePath)->Parity)
+          );
+        CopyMem (
+          &mDebugPortDevice.DataBits,
+          &((UART_DEVICE_PATH *) DevicePath)->DataBits,
+          sizeof (((UART_DEVICE_PATH *) DevicePath)->DataBits)
+          );
+        CopyMem (
+          &mDebugPortDevice.StopBits,
+          &((UART_DEVICE_PATH *) DevicePath)->StopBits,
+          sizeof (((UART_DEVICE_PATH *) DevicePath)->StopBits)
+          );
+      }
+    }
   }
 }
 
@@ -142,7 +163,7 @@ InitializeDebugPortDriver (
              );
   ASSERT_EFI_ERROR (Status);
 
-  return Status;
+  return EFI_SUCCESS;
 }
 
 /**
@@ -175,8 +196,8 @@ DebugPortSupported (
   )
 {
   EFI_STATUS                Status;
-  EFI_DEVICE_PATH_PROTOCOL  *DevicePath;
-  EFI_DEVICE_PATH_PROTOCOL  *DebugPortVariable;
+  EFI_DEVICE_PATH_PROTOCOL  *Dp1;
+  EFI_DEVICE_PATH_PROTOCOL  *Dp2;
   EFI_SERIAL_IO_PROTOCOL    *SerialIo;
   EFI_DEBUGPORT_PROTOCOL    *DebugPortInterface;
   EFI_HANDLE                TempHandle;
@@ -191,19 +212,25 @@ DebugPortSupported (
   //
   // Read DebugPort variable to determine debug port selection and parameters
   //
-  DebugPortVariable = GetDebugPortVariable ();
+  GetDebugPortVariable ();
 
-  if (DebugPortVariable != NULL) {
+  if (mDebugPortDevice.DebugPortVariable != NULL) {
     //
     // There's a DEBUGPORT variable, so do LocateDevicePath and check to see if
     // the closest matching handle matches the controller handle, and if it does,
     // check to see that the remaining device path has the DebugPort GUIDed messaging
     // device path only.  Otherwise, it's a mismatch and EFI_UNSUPPORTED is returned.
     //
-    DevicePath = DebugPortVariable;
+    Dp1 = DuplicateDevicePath ((EFI_DEVICE_PATH_PROTOCOL *) mDebugPortDevice.DebugPortVariable);
+    if (Dp1 == NULL) {
+      return EFI_OUT_OF_RESOURCES;
+    }
+
+    Dp2 = Dp1;
+
     Status = gBS->LocateDevicePath (
                     &gEfiSerialIoProtocolGuid,
-                    &DevicePath,
+                    &Dp2,
                     &TempHandle
                     );
 
@@ -212,18 +239,18 @@ DebugPortSupported (
     }
 
     if (Status == EFI_SUCCESS &&
-        (DevicePath->Type != MESSAGING_DEVICE_PATH ||
-         DevicePath->SubType != MSG_VENDOR_DP ||
-         *((UINT16 *) DevicePath->Length) != sizeof (DEBUGPORT_DEVICE_PATH))) {
+        (Dp2->Type != MESSAGING_DEVICE_PATH ||
+         Dp2->SubType != MSG_VENDOR_DP ||
+         *((UINT16 *) Dp2->Length) != sizeof (DEBUGPORT_DEVICE_PATH))) {
 
       Status = EFI_UNSUPPORTED;
     }
 
-    if (Status == EFI_SUCCESS && !CompareGuid (&gEfiDebugPortDevicePathGuid, (GUID *) (DevicePath + 1))) {
+    if (Status == EFI_SUCCESS && !CompareGuid (&gEfiDebugPortDevicePathGuid, (GUID *) (Dp2 + 1))) {
       Status = EFI_UNSUPPORTED;
     }
 
-    FreePool (DebugPortVariable);
+    FreePool (Dp1);
     if (EFI_ERROR (Status)) {
       return Status;
     }
@@ -241,14 +268,14 @@ DebugPortSupported (
     return Status;
   }
 
-  Status = gBS->CloseProtocol (
-                  ControllerHandle,
-                  &gEfiSerialIoProtocolGuid,
-                  This->DriverBindingHandle,
-                  ControllerHandle
-                  );
+  gBS->CloseProtocol (
+        ControllerHandle,
+        &gEfiSerialIoProtocolGuid,
+        This->DriverBindingHandle,
+        ControllerHandle
+        );
 
-  return Status;
+  return EFI_SUCCESS;
 }
 
 /**
@@ -686,60 +713,16 @@ ImageUnloadHandler (
   EFI_HANDLE ImageHandle
   )
 {
-  EFI_STATUS  Status;
-  VOID        *ComponentName;
-  VOID        *ComponentName2;
-
   if (mDebugPortDevice.SerialIoBinding != NULL) {
     return EFI_ABORTED;
   }
 
   //
-  // Driver is stopped already.
+  // Clean up allocations
   //
-  Status = gBS->HandleProtocol (ImageHandle, &gEfiComponentNameProtocolGuid, &ComponentName);
-  if (EFI_ERROR (Status)) {
-    ComponentName = NULL;
+  if (mDebugPortDevice.DebugPortVariable != NULL) {
+    FreePool (mDebugPortDevice.DebugPortVariable);
   }
 
-  Status = gBS->HandleProtocol (ImageHandle, &gEfiComponentName2ProtocolGuid, &ComponentName2);
-  if (EFI_ERROR (Status)) {
-    ComponentName2 = NULL;
-  }
-
-  if (ComponentName == NULL) {
-    if (ComponentName2 == NULL) {
-      Status = gBS->UninstallMultipleProtocolInterfaces (
-                      ImageHandle,
-                      &gEfiDriverBindingProtocolGuid,  &gDebugPortDriverBinding,
-                      NULL
-                      );
-    } else {
-      Status = gBS->UninstallMultipleProtocolInterfaces (
-                      ImageHandle,
-                      &gEfiDriverBindingProtocolGuid,  &gDebugPortDriverBinding,
-                      &gEfiComponentName2ProtocolGuid, ComponentName2,
-                      NULL
-                      );
-    }
-  } else {
-    if (ComponentName2 == NULL) {
-      Status = gBS->UninstallMultipleProtocolInterfaces (
-                      ImageHandle,
-                      &gEfiDriverBindingProtocolGuid,  &gDebugPortDriverBinding,
-                      &gEfiComponentNameProtocolGuid,  ComponentName,
-                      NULL
-                      );
-    } else {
-      Status = gBS->UninstallMultipleProtocolInterfaces (
-                      ImageHandle,
-                      &gEfiDriverBindingProtocolGuid,  &gDebugPortDriverBinding,
-                      &gEfiComponentNameProtocolGuid,  ComponentName,
-                      &gEfiComponentName2ProtocolGuid, ComponentName2,
-                      NULL
-                      );
-    }
-  }
-
-  return Status;
+  return EFI_SUCCESS;
 }

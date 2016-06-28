@@ -15,16 +15,6 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/** @page pg_rem REM - Recompiled Execution Manager.
- *
- * The recompiled exeuction manager (REM) serves the final fallback for guest
- * execution, after HM / raw-mode and IEM have given up.
- *
- * The REM is qemu with a whole bunch of VBox specific customization for
- * interfacing with PATM, CSAM, PGM and other components.
- *
- * @sa @ref grp_rem
- */
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -49,9 +39,6 @@
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/dbg.h>
-#ifdef VBOX_WITH_NEW_APIC
-# include <VBox/vmm/apic.h>
-#endif
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/csam.h>
@@ -798,7 +785,7 @@ REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
      * pending interrupts and suchlike.
      */
     interrupt_request = pVM->rem.s.Env.interrupt_request;
-    Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER)));
+    Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER  | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER)));
     pVM->rem.s.Env.interrupt_request = 0;
     cpu_single_step(&pVM->rem.s.Env, 1);
 
@@ -938,10 +925,7 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
     if (RT_SUCCESS(rc))
     {
         int interrupt_request = pVM->rem.s.Env.interrupt_request;
-        Assert(!(  interrupt_request
-                 & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER | CPU_INTERRUPT_EXTERNAL_HARD
-                     | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER
-                     | CPU_INTERRUPT_EXTERNAL_DMA)));
+        Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER)));
 #ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
         cpu_single_step(&pVM->rem.s.Env, 0);
 #endif
@@ -1118,7 +1102,7 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
 #else
         pVM->rem.s.Env.interrupt_request = CPU_INTERRUPT_SINGLE_INSTR;
 #endif
-        if (   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
+        if (   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
             || pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ)
             pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
         RTLogPrintf("remR3RunLoggingStep: interrupt_request=%#x halted=%d exception_index=%#x\n",
@@ -2517,15 +2501,9 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
      * (See @remark for why we don't check for other FFs.)
      */
     pVM->rem.s.Env.interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER);
-#ifdef VBOX_WITH_NEW_APIC
-    if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
-        APICUpdatePendingInterrupts(pVCpu);
-#endif
     if (    pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ
         ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
-    {
         pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
-    }
 
     /*
      * We're now in REM mode.
@@ -4080,7 +4058,7 @@ bool remR3DisasInstr(CPUX86State *env, int f32BitCode, char *pszPrefix)
      * Log registers if requested.
      */
     if (fLog2)
-        DBGFR3_INFO_LOG(pVM, env->pVCpu, "cpumguest", pszPrefix);
+        DBGFR3_INFO_LOG(pVM, "cpumguest", pszPrefix);
 
     /*
      * Disassemble to log.
@@ -4511,11 +4489,6 @@ int cpu_get_pic_interrupt(CPUX86State *env)
 {
     uint8_t u8Interrupt;
     int     rc;
-
-#ifdef VBOX_WITH_NEW_APIC
-    if (VMCPU_FF_TEST_AND_CLEAR(env->pVCpu, VMCPU_FF_UPDATE_APIC))
-        APICUpdatePendingInterrupts(env->pVCpu);
-#endif
 
     /* When we fail to forward interrupts directly in raw mode, we fall back to the recompiler.
      * In that case we can't call PDMGetInterrupt anymore, because it has already cleared the interrupt

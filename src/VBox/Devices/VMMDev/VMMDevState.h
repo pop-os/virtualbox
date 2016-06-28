@@ -23,7 +23,6 @@
 #include <VBox/vmm/pdmifs.h>
 #ifndef VBOX_WITHOUT_TESTING_FEATURES
 # include <iprt/test.h>
-# include <VBox/VMMDevTesting.h>
 #endif
 
 #define VMMDEV_WITH_ALT_TIMESYNC
@@ -350,10 +349,6 @@ typedef struct VMMDevState
             uint32_t    u32Unit;
             char        szName[1024 - 8 - 4];
         } Value;
-
-        /** The read back register (VMMDEV_TESTING_MMIO_OFF_READBACK,
-         *  VMMDEV_TESTING_MMIO_OFF_READBACK_R3). */
-        uint8_t         abReadBack[VMMDEV_TESTING_READBACK_SIZE];
     } TestingData;
     /** The XML output file name (can be a named pipe, doesn't matter to us). */
     R3PTRTYPE(char *)       pszTestingXmlOutput;

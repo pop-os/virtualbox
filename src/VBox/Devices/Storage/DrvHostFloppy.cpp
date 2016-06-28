@@ -39,7 +39,6 @@
 #endif /* !RT_OS_WINDOWS nor RT_OS_LINUX nor RT_OS_L4 */
 
 #include <VBox/vmm/pdmdrv.h>
-#include <VBox/vmm/pdmstorageifs.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
 #include <iprt/string.h>
@@ -188,7 +187,7 @@ static DECLCALLBACK(int) drvHostFloppyConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     /*
      * Init instance data.
      */
-    int rc = DRVHostBaseInitData(pDrvIns, pCfg, PDMMEDIATYPE_FLOPPY_1_44);
+    int rc = DRVHostBaseInitData(pDrvIns, pCfg, PDMBLOCKTYPE_FLOPPY_1_44);
     if (RT_SUCCESS(rc))
     {
         /*

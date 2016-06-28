@@ -1,14 +1,21 @@
 /** @file
-These functions assist in parsing and manipulating a Firmware Volume.
 
-Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php
+Copyright (c) 2004 - 2008, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials                          
+are licensed and made available under the terms and conditions of the BSD License         
+which accompanies this distribution.  The full text of the license may be found at        
+http://opensource.org/licenses/bsd-license.php                                            
+                                                                                          
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+Module Name:
+
+  FvLib.c
+
+Abstract:
+
+  These functions assist in parsing and manipulating a Firmware Volume.
 
 **/
 
@@ -44,9 +51,9 @@ Arguments:
 
   Fv            Buffer containing the FV.
   FvLength      Length of the FV
-
+    
 Returns:
-
+ 
   EFI_SUCCESS             Function Completed successfully.
   EFI_INVALID_PARAMETER   A required parameter was NULL.
 
@@ -80,9 +87,9 @@ Arguments:
 
   FvHeader      Pointer to the FV buffer.
   FvLength      Length of the FV
-
+    
 Returns:
-
+ 
   EFI_SUCCESS             Function Completed successfully.
   EFI_INVALID_PARAMETER   A required parameter was NULL.
   EFI_ABORTED             The library needs to be initialized.
@@ -117,16 +124,16 @@ GetNextFile (
 Routine Description:
 
   This function returns the next file.  If the current file is NULL, it returns
-  the first file in the FV.  If the function returns EFI_SUCCESS and the file
+  the first file in the FV.  If the function returns EFI_SUCCESS and the file 
   pointer is NULL, then there are no more files in the FV.
 
 Arguments:
 
   CurrentFile   Pointer to the current file, must be within the current FV.
   NextFile      Pointer to the next file in the FV.
-
+    
 Returns:
-
+ 
   EFI_SUCCESS             Function completed successfully.
   EFI_INVALID_PARAMETER   A required parameter was NULL or is out of range.
   EFI_ABORTED             The library needs to be initialized.
@@ -174,7 +181,7 @@ Returns:
       //
       // Verify file is in this FV.
       //
-      if ((UINTN) CurrentFile + GetFfsFileLength(CurrentFile) > (UINTN) mFvHeader + mFvLength) {
+      if ((UINTN) CurrentFile + GetLength (CurrentFile->Size) > (UINTN) mFvHeader + mFvLength) {
         *NextFile = NULL;
         return EFI_SUCCESS;
       }
@@ -187,20 +194,20 @@ Returns:
   // Verify current file is in range
   //
   if (((UINTN) CurrentFile < (UINTN) mFvHeader + mFvHeader->HeaderLength) ||
-      ((UINTN) CurrentFile + GetFfsFileLength(CurrentFile) > (UINTN) mFvHeader + mFvLength)
+      ((UINTN) CurrentFile + GetLength (CurrentFile->Size) > (UINTN) mFvHeader + mFvLength)
      ) {
     return EFI_INVALID_PARAMETER;
   }
   //
   // Get next file, compensate for 8 byte alignment if necessary.
   //
-  *NextFile = (EFI_FFS_FILE_HEADER *) ((((UINTN) CurrentFile - (UINTN) mFvHeader + GetFfsFileLength(CurrentFile) + 0x07) & (-1 << 3)) + (UINT8 *) mFvHeader);
+  *NextFile = (EFI_FFS_FILE_HEADER *) ((((UINTN) CurrentFile - (UINTN) mFvHeader + GetLength (CurrentFile->Size) + 0x07) & (-1 << 3)) + (UINT8 *) mFvHeader);
 
   //
   // Verify file is in this FV.
   //
-  if (((UINTN) *NextFile + GetFfsHeaderLength(*NextFile) >= (UINTN) mFvHeader + mFvLength) ||
-      ((UINTN) *NextFile + GetFfsFileLength (*NextFile) > (UINTN) mFvHeader + mFvLength)
+  if (((UINTN) *NextFile + sizeof (EFI_FFS_FILE_HEADER) >= (UINTN) mFvHeader + mFvLength) ||
+      ((UINTN) *NextFile + GetLength ((*NextFile)->Size) > (UINTN) mFvHeader + mFvLength)
      ) {
     *NextFile = NULL;
     return EFI_SUCCESS;
@@ -427,11 +434,7 @@ Returns:
   EFI_FILE_SECTION_POINTER  InnerSection;
   EFI_STATUS                Status;
   UINTN                     SectionSize;
-  UINT16                    GuidSecAttr;
-  UINT16                    GuidDataOffset;
 
-  GuidSecAttr = 0;
-  GuidDataOffset = 0;
   CurrentSection = FirstSection;
 
   while ((UINTN) CurrentSection.CommonHeader < (UINTN) SearchEnd) {
@@ -449,21 +452,14 @@ Returns:
     // special processing, go ahead to search the requesting
     // section inside the GUID-defined section.
     //
-    if (CurrentSection.CommonHeader->Type == EFI_SECTION_GUID_DEFINED) {
-      if (GetLength(CurrentSection.CommonHeader->Size) == 0xffffff) {
-        GuidSecAttr = CurrentSection.GuidDefinedSection2->Attributes;
-        GuidDataOffset = CurrentSection.GuidDefinedSection2->DataOffset;
-      } else {
-        GuidSecAttr = CurrentSection.GuidDefinedSection->Attributes;
-        GuidDataOffset = CurrentSection.GuidDefinedSection->DataOffset;
-      }
-    }
     if (SectionType != EFI_SECTION_GUID_DEFINED &&
         CurrentSection.CommonHeader->Type == EFI_SECTION_GUID_DEFINED &&
-        !(GuidSecAttr & EFI_GUIDED_SECTION_PROCESSING_REQUIRED)) {
+        !(CurrentSection.GuidDefinedSection->Attributes & EFI_GUIDED_SECTION_PROCESSING_REQUIRED)) {
       InnerSection.CommonHeader = (EFI_COMMON_SECTION_HEADER *)
-        ((UINTN) CurrentSection.CommonHeader + GuidDataOffset);
-      SectionSize = GetSectionFileLength(CurrentSection.CommonHeader);
+        ((UINTN) CurrentSection.CommonHeader + CurrentSection.GuidDefinedSection->DataOffset);
+      SectionSize = CurrentSection.CommonHeader->Size[0] +
+        (CurrentSection.CommonHeader->Size[1] << 8) + 
+        (CurrentSection.CommonHeader->Size[2] << 16);
       Status = SearchSectionByType (
                  InnerSection,
                  (UINT8 *) ((UINTN) CurrentSection.CommonHeader + SectionSize),
@@ -479,7 +475,7 @@ Returns:
     //
     // Find next section (including compensating for alignment issues.
     //
-    CurrentSection.CommonHeader = (EFI_COMMON_SECTION_HEADER *) ((((UINTN) CurrentSection.CommonHeader) + GetSectionFileLength(CurrentSection.CommonHeader) + 0x03) & (-1 << 2));
+    CurrentSection.CommonHeader = (EFI_COMMON_SECTION_HEADER *) ((((UINTN) CurrentSection.CommonHeader) + GetLength (CurrentSection.CommonHeader->Size) + 0x03) & (-1 << 2));
   }
 
   return EFI_NOT_FOUND;
@@ -496,7 +492,7 @@ GetSectionByType (
 
 Routine Description:
 
-  Find a section in a file by type and instance.  An instance of 1 is the first
+  Find a section in a file by type and instance.  An instance of 1 is the first 
   instance.  The function will return NULL if a matching section cannot be found.
   GUID-defined sections, if special processing is not needed, are handled in a
   depth-first manner.
@@ -542,14 +538,14 @@ Returns:
   //
   // Get the first section
   //
-  CurrentSection.CommonHeader = (EFI_COMMON_SECTION_HEADER *) ((UINTN) File + GetFfsHeaderLength(File));
-
+  CurrentSection.CommonHeader = (EFI_COMMON_SECTION_HEADER *) ((UINTN) File + sizeof (EFI_FFS_FILE_HEADER));
+  
   //
   // Depth-first manner to find section file.
   //
   Status = SearchSectionByType (
              CurrentSection,
-             (UINT8 *) ((UINTN) File + GetFfsFileLength (File)),
+             (UINT8 *) ((UINTN) File + GetLength (File->Size)),
              SectionType,
              &SectionCount,
              Instance,
@@ -643,14 +639,12 @@ Returns:
 {
   BOOLEAN             ErasePolarity;
   EFI_STATUS          Status;
-  EFI_FFS_FILE_HEADER2 BlankHeader;
+  EFI_FFS_FILE_HEADER BlankHeader;
   UINT8               Checksum;
   UINT32              FileLength;
   UINT8               SavedChecksum;
   UINT8               SavedState;
   UINT8               FileGuidString[80];
-  UINT32              FfsHeaderSize;
-
   //
   // Verify library has been initialized.
   //
@@ -671,18 +665,16 @@ Returns:
   if (EFI_ERROR (Status)) {
     return EFI_ABORTED;
   }
-
-  FfsHeaderSize = GetFfsHeaderLength(FfsHeader);
   //
   // Check if we have free space
   //
   if (ErasePolarity) {
-    memset (&BlankHeader, -1, FfsHeaderSize);
+    memset (&BlankHeader, -1, sizeof (EFI_FFS_FILE_HEADER));
   } else {
-    memset (&BlankHeader, 0, FfsHeaderSize);
+    memset (&BlankHeader, 0, sizeof (EFI_FFS_FILE_HEADER));
   }
 
-  if (memcmp (&BlankHeader, FfsHeader, FfsHeaderSize) == 0) {
+  if (memcmp (&BlankHeader, FfsHeader, sizeof (EFI_FFS_FILE_HEADER)) == 0) {
     return EFI_NOT_FOUND;
   }
   //
@@ -697,7 +689,7 @@ Returns:
   FfsHeader->State = 0;
   SavedChecksum = FfsHeader->IntegrityCheck.Checksum.File;
   FfsHeader->IntegrityCheck.Checksum.File = 0;
-  Checksum = CalculateSum8 ((UINT8 *) FfsHeader, FfsHeaderSize);
+  Checksum = CalculateSum8 ((UINT8 *) FfsHeader, sizeof (EFI_FFS_FILE_HEADER));
   FfsHeader->State = SavedState;
   FfsHeader->IntegrityCheck.Checksum.File = SavedChecksum;
   if (Checksum != 0) {
@@ -711,8 +703,8 @@ Returns:
     //
     // Verify file data checksum
     //
-    FileLength          = GetFfsFileLength (FfsHeader);
-    Checksum            = CalculateSum8 ((UINT8 *) ((UINT8 *)FfsHeader + FfsHeaderSize), FileLength - FfsHeaderSize);
+    FileLength          = GetLength (FfsHeader->Size);
+    Checksum            = CalculateSum8 ((UINT8 *) (FfsHeader + 1), FileLength - sizeof (EFI_FFS_FILE_HEADER));
     Checksum            = Checksum + FfsHeader->IntegrityCheck.Checksum.File;
     if (Checksum != 0) {
       Error (NULL, 0, 0006, "invalid FFS file checksum", "Ffs file with Guid %s", FileGuidString);
@@ -730,80 +722,6 @@ Returns:
   }
 
   return EFI_SUCCESS;
-}
-
-UINT32
-GetFfsHeaderLength(
-   IN EFI_FFS_FILE_HEADER *FfsHeader
-   )
-{
-  if (FfsHeader == NULL) {
-    return 0;
-  }
-  if (FfsHeader->Attributes & FFS_ATTRIB_LARGE_FILE) {
-    return sizeof(EFI_FFS_FILE_HEADER2);
-  }
-  return sizeof(EFI_FFS_FILE_HEADER);
-}
-
-UINT32
-GetSectionHeaderLength(
-   IN EFI_COMMON_SECTION_HEADER *SectionHeader
-   )
-{
-  if (SectionHeader == NULL) {
-    return 0;
-  }
-  if (GetLength(SectionHeader->Size) == 0xffffff) {
-    return sizeof(EFI_COMMON_SECTION_HEADER2);
-  }
-  return sizeof(EFI_COMMON_SECTION_HEADER);
-}
-
-UINT32
-GetFfsFileLength (
-  EFI_FFS_FILE_HEADER *FfsHeader
-  )
-/*++
-
-Routine Description:
-
-  Get FFS file length including FFS header.
-
-Arguments:
-
-  FfsHeader   Pointer to EFI_FFS_FILE_HEADER.
-
-Returns:
-
-  UINT32      Length of FFS file header.
-
---*/
-{
-  if (FfsHeader == NULL) {
-    return 0;
-  }
-  if (FfsHeader->Attributes & FFS_ATTRIB_LARGE_FILE) {
-    return ((EFI_FFS_FILE_HEADER2 *)FfsHeader)->ExtendedSize;
-  } else {
-    return GetLength(FfsHeader->Size);
-  }
-}
-
-UINT32
-GetSectionFileLength (
-  EFI_COMMON_SECTION_HEADER *SectionHeader
-  )
-{
-  UINT32 Length;
-  if (SectionHeader == NULL) {
-    return 0;
-  }
-  Length = GetLength(SectionHeader->Size);
-  if (Length == 0xffffff) {
-    Length = ((EFI_COMMON_SECTION_HEADER2 *)SectionHeader)->ExtendedSize;
-  }
-  return Length;
 }
 
 UINT32
@@ -858,7 +776,7 @@ Returns:
   EFI_SUCCESS              The function completed successfully.
   EFI_INVALID_PARAMETER    One of the input parameters was invalid.
   EFI_ABORTED              Operation aborted.
-
+  
 --*/
 {
   EFI_STATUS  Status;
@@ -905,7 +823,7 @@ Routine Description:
   It in no way validate the FFS file.
 
 Arguments:
-
+  
   ErasePolarity The erase polarity for the file state bits.
   FfsHeader     Pointer to a FFS file.
 

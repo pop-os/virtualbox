@@ -185,11 +185,6 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#ifdef VBOX_WITH_NVME_IMPL
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceNVMe);
-    if (RT_FAILURE(rc))
-        return rc;
-#endif
 #ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePciRaw);
     if (RT_FAILURE(rc))
@@ -226,6 +221,9 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvKeyboardQueue);
     if (RT_FAILURE(rc))
         return rc;
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvBlock);
+    if (RT_FAILURE(rc))
+        return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvVD);
     if (RT_FAILURE(rc))
         return rc;
@@ -239,6 +237,12 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 #endif
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvMediaISO);
+    if (RT_FAILURE(rc))
+        return rc;
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvRawImage);
+    if (RT_FAILURE(rc))
+        return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvNAT);
     if (RT_FAILURE(rc))
         return rc;
@@ -293,18 +297,14 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 # endif
-# ifdef VBOX_WITH_OSS
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
     if (RT_FAILURE(rc))
         return rc;
-# endif
 #endif /* RT_OS_LINUX */
 #if defined(RT_OS_FREEBSD)
-# ifdef VBOX_WITH_OSS
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
     if (RT_FAILURE(rc))
         return rc;
-# endif
 #endif
 #if defined(RT_OS_DARWIN)
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostCoreAudio);
@@ -312,11 +312,9 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
         return rc;
 #endif
 #if defined(RT_OS_SOLARIS)
-# ifdef VBOX_WITH_OSS
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
     if (RT_FAILURE(rc))
         return rc;
-# endif
 #endif
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvACPI);
     if (RT_FAILURE(rc))
@@ -338,9 +336,6 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvTCP);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvUDP);
     if (RT_FAILURE(rc))
         return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvRawFile);

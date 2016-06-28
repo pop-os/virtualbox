@@ -36,9 +36,9 @@ enum UIVisualElement
     UIVisualElement_Display               = RT_BIT(9),
     UIVisualElement_VideoCapture          = RT_BIT(10),
     UIVisualElement_FeaturesStuff         = RT_BIT(11),
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     UIVisualElement_MiniToolBar           = RT_BIT(12),
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     UIVisualElement_AllStuff              = 0xFFFF
 };
 

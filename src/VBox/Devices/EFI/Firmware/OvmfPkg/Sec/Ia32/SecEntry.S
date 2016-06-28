@@ -1,7 +1,7 @@
 #      TITLE   SecEntry.asm
 #------------------------------------------------------------------------------
 #*
-#*   Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+#*   Copyright (c) 2006 - 2009, Intel Corporation. All rights reserved.<BR>
 #*   This program and the accompanying materials
 #*   are licensed and made available under the terms and conditions of the BSD License
 #*   which accompanies this distribution.  The full text of the license may be found at
@@ -36,19 +36,15 @@ ASM_GLOBAL ASM_PFX(_ModuleEntryPoint)
 ASM_PFX(_ModuleEntryPoint):
 
     #
-    # Load temporary RAM stack based on PCDs
+    # Load temporary stack top at very low memory.  The C code
+    # can reload to a better address.
     #
-    .set    SEC_TOP_OF_STACK, FixedPcdGet32 (PcdOvmfSecPeiTempRamBase) + \
-                              FixedPcdGet32 (PcdOvmfSecPeiTempRamSize)
-    movl    $SEC_TOP_OF_STACK, %eax
+    movl    $BASE_512KB, %eax 
     movl    %eax, %esp
     nop
 
     #
-    # Setup parameters and call SecCoreStartupWithStack
-    #   [esp]   return address for call
-    #   [esp+4] BootFirmwareVolumePtr
-    #   [esp+8] TopOfCurrentStack
+    # Call into C code
     #
     pushl   %eax
     pushl   %ebp

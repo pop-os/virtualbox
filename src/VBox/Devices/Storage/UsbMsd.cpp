@@ -21,7 +21,6 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP   LOG_GROUP_USB_MSD
 #include <VBox/vmm/pdmusb.h>
-#include <VBox/vmm/pdmstorageifs.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/scsi.h>

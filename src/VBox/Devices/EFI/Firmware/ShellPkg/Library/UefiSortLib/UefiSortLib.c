@@ -17,6 +17,7 @@
 
 #include <Protocol/UnicodeCollation.h>
 #include <Protocol/DevicePath.h>
+#include <Protocol/DevicePathToText.h>
 
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/BaseLib.h>
@@ -24,8 +25,8 @@
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/SortLib.h>
-#include <Library/DevicePathLib.h>
 
+STATIC EFI_DEVICE_PATH_TO_TEXT_PROTOCOL *mDevicePathToText = NULL;
 STATIC EFI_UNICODE_COLLATION_PROTOCOL   *mUnicodeCollation = NULL;
 
 
@@ -223,6 +224,15 @@ DevicePathCompare (
     return 1;
   }
 
+  if (mDevicePathToText == NULL) {
+    Status = gBS->LocateProtocol(
+      &gEfiDevicePathToTextProtocolGuid,
+      NULL,
+      (VOID**)&mDevicePathToText);
+
+    ASSERT_EFI_ERROR(Status);
+  }
+
   if (mUnicodeCollation == NULL) {
     Status = gBS->LocateProtocol(
       &gEfiUnicodeCollation2ProtocolGuid,
@@ -232,12 +242,12 @@ DevicePathCompare (
     ASSERT_EFI_ERROR(Status);
   }
 
-  TextPath1 = ConvertDevicePathToText(
+  TextPath1 = mDevicePathToText->ConvertDevicePathToText(
     DevicePath1,
     FALSE,
     FALSE);
 
-  TextPath2 = ConvertDevicePathToText(
+  TextPath2 = mDevicePathToText->ConvertDevicePathToText(
     DevicePath2,
     FALSE,
     FALSE);

@@ -1,7 +1,10 @@
 ## @file
-#  HII Library implementation using UEFI HII protocols and services.
 #
-#  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+#  Instance of HII Library using DXE protocols and services.
+#
+#  HII Library implementation that uses EFI Hii Database Protocol and EFI Hii String Protocol.
+#
+#  Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -17,7 +20,6 @@
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = UefiHiiLib
-  MODULE_UNI_FILE                = UefiHiiLib.uni
   FILE_GUID                      = 3143687A-7C80-404e-B5FE-2D88980E1B1C
   MODULE_TYPE                    = UEFI_DRIVER
   VERSION_STRING                 = 1.0
@@ -49,5 +51,5 @@
   PrintLib
 
 [Protocols]
-  gEfiFormBrowser2ProtocolGuid ## SOMETIMES_CONSUMES
-  gEfiDevicePathProtocolGuid   ## SOMETIMES_CONSUMES
+  gEfiFormBrowser2ProtocolGuid ## CONSUMES
+  gEfiDevicePathProtocolGuid   ## CONSUMES

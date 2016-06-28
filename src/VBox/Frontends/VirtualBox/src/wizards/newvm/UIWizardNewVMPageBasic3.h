@@ -66,9 +66,6 @@ protected:
     /* Helpers: */
     void ensureNewVirtualDiskDeleted();
 
-    /* Input: */
-    bool m_fRecommendedNoDisk;
-
     /* Variables: */
     CMedium m_virtualDisk;
     QString m_strVirtualDiskId;

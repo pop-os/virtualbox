@@ -183,16 +183,7 @@ RTDECL(int) RTDirFlush(const char *pszPath)
         if (fsync(fd) == 0)
             rc = VINF_SUCCESS;
         else
-        {
-            /* Linux fsync(2) man page documents both errors as an indication
-             * that the file descriptor can't be flushed (seen EINVAL for usual
-             * directories on CIFS). BSD (OS X) fsync(2) documents only the
-             * latter, and Solaris fsync(3C) pretends there is no problem. */
-            if (errno == EROFS || errno == EINVAL)
-                rc = VERR_NOT_SUPPORTED;
-            else
-                rc = RTErrConvertFromErrno(errno);
-        }
+            rc = RTErrConvertFromErrno(errno);
         close(fd);
     }
     else

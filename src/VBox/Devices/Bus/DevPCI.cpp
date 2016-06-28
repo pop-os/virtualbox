@@ -288,9 +288,8 @@ static void pci_update_mappings(PCIDevice *d)
                     /* XXX: as we cannot support really dynamic
                        mappings, we handle specific values as invalid
                        mappings. */
-                    /* Unconditionally exclude I/O-APIC/HPET/ROM. Pessimistic, but better than causing a mess. */
                     if (last_addr <= new_addr || new_addr == 0 ||
-                        (new_addr <= ~0U && last_addr >= 0xfec00000U)) {
+                        last_addr == ~0U) {
                         new_addr = ~0U;
                     }
                 } else {
@@ -298,7 +297,6 @@ static void pci_update_mappings(PCIDevice *d)
                     new_addr = ~0U;
                 }
             }
-            //LogRel(("PCI: config dev %u/%u BAR%i uOld=%#018llx uNew=%#018llx size=%llu\n", d->devfn >> 3, d->devfn & 7, i, r->addr, new_addr, r->size));
             /* now do the real mapping */
             if (new_addr != r->addr) {
                 if (r->addr != ~0U) {
@@ -878,6 +876,7 @@ static const uint8_t pci_irqs[4] = { 11, 9, 11, 9 }; /* bird: added const */
 
 static void pci_set_io_region_addr(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, int region_num, uint32_t addr)
 {
+    uint16_t cmd;
     uint32_t ofs;
 
     if ( region_num == PCI_ROM_SLOT )
@@ -885,11 +884,23 @@ static void pci_set_io_region_addr(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t u
     else
         ofs = 0x10 + region_num * 4;
 
-    Log(("Set region address: %02x:%02x.%d region %d address=%lld\n",
-         uBus, uDevFn >> 3, uDevFn & 7, region_num, addr));
+    /* Read memory type first. */
+    uint8_t uRessourceType = pci_config_readb(pGlobals, uBus, uDevFn, ofs);
+
+    /* Read command register. */
+    cmd = pci_config_readw(pGlobals, uBus, uDevFn, PCI_COMMAND);
+    if ( region_num == PCI_ROM_SLOT )
+        cmd |= 2;
+    else if ((uRessourceType & 0x01) == 1) /* Test if region is I/O space. */
+        cmd |= 1; /* Enable I/O space access. */
+    else /* The region is MMIO. */
+        cmd |= 2; /* Enable MMIO access. */
 
     /* Write address of the device. */
     pci_config_writel(pGlobals, uBus, uDevFn, ofs, addr);
+
+    /* enable memory mappings */
+    pci_config_writew(pGlobals, uBus, uDevFn, PCI_COMMAND, cmd);
 }
 
 static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint8_t cBridgeDepth, uint8_t *paBridgePositions)
@@ -923,9 +934,6 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                     pci_set_io_region_addr(pGlobals, uBus, uDevFn, 1, 0x3f4);
                     pci_set_io_region_addr(pGlobals, uBus, uDevFn, 2, 0x170);
                     pci_set_io_region_addr(pGlobals, uBus, uDevFn, 3, 0x374);
-                    pci_config_writeb(pGlobals, uBus, uDevFn, PCI_COMMAND,
-                                      pci_config_readb(pGlobals, uBus, uDevFn, PCI_COMMAND)
-                                      | PCI_COMMAND_IOACCESS);
                 }
                 break;
             case 0x0300:
@@ -936,11 +944,11 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                 /*
                  * Legacy VGA I/O ports are implicitly decoded by a VGA class device. But
                  * only the framebuffer (i.e., a memory region) is explicitly registered via
-                 * pci_set_io_region_addr, so don't forget to enable I/O decoding.
+                 * pci_set_io_region_addr, so I/O decoding must be enabled manually.
                  */
                 pci_config_writeb(pGlobals, uBus, uDevFn, PCI_COMMAND,
                                   pci_config_readb(pGlobals, uBus, uDevFn, PCI_COMMAND)
-                                  | PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS);
+                                  | 1 /* Enable I/O space access. */);
                 break;
             case 0x0800:
                 /* PIC */
@@ -953,9 +961,6 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                     {
                         /* MPIC & MPIC2 */
                         pci_set_io_region_addr(pGlobals, uBus, uDevFn, 0, 0x80800000 + 0x00040000);
-                        pci_config_writeb(pGlobals, uBus, uDevFn, PCI_COMMAND,
-                                          pci_config_readb(pGlobals, uBus, uDevFn, PCI_COMMAND)
-                                          | PCI_COMMAND_MEMACCESS);
                     }
                 }
                 break;
@@ -965,9 +970,6 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                 {
                     /* macio bridge */
                     pci_set_io_region_addr(pGlobals, uBus, uDevFn, 0, 0x80800000);
-                    pci_config_writeb(pGlobals, uBus, uDevFn, PCI_COMMAND,
-                                      pci_config_readb(pGlobals, uBus, uDevFn, PCI_COMMAND)
-                                      | PCI_COMMAND_MEMACCESS);
                 }
                 break;
             case 0x0604:
@@ -1046,8 +1048,6 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
             default_map:
             {
                 /* default memory mappings */
-                bool fActiveMemRegion = false;
-                bool fActiveIORegion = false;
                 /*
                  * PCI_NUM_REGIONS is 7 because of the rom region but there are only 6 base address register defined by the PCI spec.
                  * Leaving only PCI_NUM_REGIONS would cause reading another and enabling a memory region which does not exist.
@@ -1062,9 +1062,8 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                     u8RessourceType = pci_config_readb(pGlobals, uBus, uDevFn, u32Address);
                     pci_config_writel(pGlobals, uBus, uDevFn, u32Address, UINT32_C(0xffffffff));
                     u32Size = pci_config_readl(pGlobals, uBus, uDevFn, u32Address);
-                    bool fIsPio = ((u8RessourceType & PCI_COMMAND_IOACCESS) == PCI_COMMAND_IOACCESS);
                     /* Clear resource information depending on resource type. */
-                    if (fIsPio) /* I/O */
+                    if ((u8RessourceType & 0x01) == 1) /* I/O */
                         u32Size &= ~(0x01);
                     else                        /* MMIO */
                         u32Size &= ~(0x0f);
@@ -1073,51 +1072,26 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                      * Invert all bits and add 1 to get size of the region.
                      * (From PCI implementation note)
                      */
-                    if (fIsPio && (u32Size & UINT32_C(0xffff0000)) == 0)
+                    if (((u8RessourceType & 0x01) == 1) && (u32Size & UINT32_C(0xffff0000)) == 0)
                         u32Size = (~(u32Size | UINT32_C(0xffff0000))) + 1;
                     else
                         u32Size = (~u32Size) + 1;
 
-                    Log2(("%s: Size of region %u for device %d on bus %d is %u\n", __FUNCTION__, i, uDevFn, uBus, u32Size));
+                    Log(("%s: Size of region %u for device %d on bus %d is %u\n", __FUNCTION__, i, uDevFn, uBus, u32Size));
 
                     if (u32Size)
                     {
-                        if (fIsPio)
+                        if ((u8RessourceType & 0x01) == 1)
                             paddr = &pGlobals->pci_bios_io_addr;
                         else
                             paddr = &pGlobals->pci_bios_mem_addr;
-                        uint32_t uNew = *paddr;
-                        uNew = (uNew + u32Size - 1) & ~(u32Size - 1);
-                        if (fIsPio)
-                            uNew &= UINT32_C(0xffff);
-                        /* Unconditionally exclude I/O-APIC/HPET/ROM. Pessimistic, but better than causing a mess. */
-                        if (!uNew || (uNew <= UINT32_C(0xffffffff) && uNew + u32Size - 1 >= UINT32_C(0xfec00000)))
-                        {
-                            LogRel(("PCI: no space left for BAR%u of device %u/%u/%u (vendor=%#06x device=%#06x)\n",
-                                    i, uBus, uDevFn >> 3, uDevFn & 7, vendor_id, device_id)); /** @todo make this a VM start failure later. */
-                            /* Undo the mapping mess caused by the size probing. */
-                            pci_config_writel(pGlobals, uBus, uDevFn, u32Address, UINT32_C(0));
-                        }
-                        else
-                        {
-                            Log(("%s: Start address of %s region %u is %#x\n", __FUNCTION__, (fIsPio ? "I/O" : "MMIO"), i, uNew));
-                            pci_set_io_region_addr(pGlobals, uBus, uDevFn, i, uNew);
-                            if (fIsPio)
-                                fActiveIORegion = true;
-                            else
-                                fActiveMemRegion = true;
-                            *paddr = uNew + u32Size;
-                            Log2(("%s: New address is %#x\n", __FUNCTION__, *paddr));
-                        }
+                        *paddr = (*paddr + u32Size - 1) & ~(u32Size - 1);
+                        Log(("%s: Start address of %s region %u is %#x\n", __FUNCTION__, ((u8RessourceType & 0x01) == 1 ? "I/O" : "MMIO"), i, *paddr));
+                        pci_set_io_region_addr(pGlobals, uBus, uDevFn, i, *paddr);
+                        *paddr += u32Size;
+                        Log(("%s: New address is %#x\n", __FUNCTION__, *paddr));
                     }
                 }
-
-                /* Update the command word appropriately. */
-                pci_config_writeb(pGlobals, uBus, uDevFn, PCI_COMMAND,
-                                  pci_config_readb(pGlobals, uBus, uDevFn, PCI_COMMAND)
-                                  | (fActiveMemRegion ? PCI_COMMAND_MEMACCESS : 0)
-                                  | (fActiveIORegion ? PCI_COMMAND_IOACCESS : 0));
-
                 break;
             }
         }
@@ -1663,7 +1637,7 @@ static int pciR3RegisterDeviceInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDe
         else
         {
             Assert(!(pBus->iDevSearch % 8));
-            for (iDev = pBus->iDevSearch; iDev < (int)RT_ELEMENTS(pBus->devices)-7; iDev += 8)
+            for (iDev = pBus->iDevSearch; iDev < (int)RT_ELEMENTS(pBus->devices); iDev += 8)
                 if (    !pBus->devices[iDev]
                     &&  !pBus->devices[iDev + 1]
                     &&  !pBus->devices[iDev + 2]
@@ -1715,7 +1689,7 @@ static int pciR3RegisterDeviceInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDe
             }
 
             /* Find free slot for the device(s) we're moving and move them. */
-            for (iDevRel = pBus->iDevSearch; iDevRel < (int)RT_ELEMENTS(pBus->devices)-7; iDevRel += 8)
+            for (iDevRel = pBus->iDevSearch; iDevRel < (int)RT_ELEMENTS(pBus->devices); iDevRel += 8)
             {
                 if (    !pBus->devices[iDevRel]
                     &&  !pBus->devices[iDevRel + 1]

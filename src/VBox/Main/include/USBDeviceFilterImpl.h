@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,6 @@
 #ifndef ____H_USBDEVICEFILTERIMPL
 #define ____H_USBDEVICEFILTERIMPL
 
-#include <VBox/settings.h>
 #include "Matching.h"
 #include <VBox/usbfilter.h>
 #include "USBDeviceFilterWrap.h"
@@ -38,30 +37,31 @@ class ATL_NO_VTABLE USBDeviceFilter :
 {
 public:
 
-    struct BackupableUSBDeviceFilterData
+    struct Data
     {
         typedef matching::Matchable <matching::ParsedBoolFilter> BOOLFilter;
 
-        BackupableUSBDeviceFilterData() : mId (NULL) {}
-        BackupableUSBDeviceFilterData(const BackupableUSBDeviceFilterData &aThat) :
-            mRemote(aThat.mRemote),  mId(aThat.mId)
+        Data() : mActive (FALSE), mMaskedIfs (0), mId (NULL) {}
+        Data (const Data &aThat) : mName (aThat.mName), mActive (aThat.mActive),
+            mRemote (aThat.mRemote), mMaskedIfs (aThat.mMaskedIfs) , mId (aThat.mId)
         {
-            mData.strName = aThat.mData.strName;
-            mData.fActive = aThat.mData.fActive;
-            mData.ulMaskedInterfaces = aThat.mData.ulMaskedInterfaces;
-            USBFilterClone(&mUSBFilter, &aThat.mUSBFilter);
+            USBFilterClone (&mUSBFilter, &aThat.mUSBFilter);
         }
 
+        /** The filter name. */
+        Bstr mName;
+        /** Indicates whether the filter is active or not. */
+        BOOL mActive;
         /** Remote or local matching criterion. */
         BOOLFilter mRemote;
-
         /** The filter data blob. */
         USBFILTER mUSBFilter;
 
+        /** Interface masking bit mask that should be applied to matching devices. */
+        ULONG mMaskedIfs;
+
         /** Arbitrary ID field (not used by the class itself) */
         void *mId;
-
-        settings::USBDeviceFilter mData;
     };
 
     DECLARE_EMPTY_CTOR_DTOR(USBDeviceFilter)
@@ -87,8 +87,8 @@ public:
 
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)
-    void *& i_getId() { return bd->mId; }
-    const BackupableUSBDeviceFilterData& i_getData() { return *bd.data(); }
+    void *& i_getId() { return mData.data()->mId; }
+    const Data& i_getData() { return *mData.data(); }
     ComObjPtr<USBDeviceFilter> i_peer() { return mPeer; }
 
     // tr() wants to belong to a class it seems, thus this one here.
@@ -132,7 +132,7 @@ private:
     USBDeviceFilters * const     mParent;
     USBDeviceFilter  * const     mPeer;
 
-    Backupable<BackupableUSBDeviceFilterData> bd;
+    Backupable<Data> mData;
 
     bool m_fModified;
 
@@ -152,9 +152,9 @@ class ATL_NO_VTABLE HostUSBDeviceFilter :
 {
 public:
 
-    struct BackupableUSBDeviceFilterData : public USBDeviceFilter::BackupableUSBDeviceFilterData
+    struct Data : public USBDeviceFilter::Data
     {
-        BackupableUSBDeviceFilterData() {}
+        Data() {}
     };
 
     DECLARE_EMPTY_CTOR_DTOR (HostUSBDeviceFilter)
@@ -172,9 +172,9 @@ public:
     // (ensure there is a caller and a read lock before calling them!)
     void i_saveSettings(settings::USBDeviceFilter &data);
 
-    void*& i_getId() { return bd.data()->mId; }
+    void*& i_getId() { return mData.data()->mId; }
 
-    const BackupableUSBDeviceFilterData& i_getData() { return *bd.data(); }
+    const Data& i_getData() { return *mData.data(); }
 
     // util::Lockable interface
     RWLockHandle *lockHandle() const;
@@ -214,7 +214,7 @@ private:
 
     Host * const        mParent;
 
-    Backupable<BackupableUSBDeviceFilterData>    bd;
+    Backupable<Data>    mData;
 
     /** Used externally to indicate this filter is in the list
         (not touched by the class itself except that in init()/uninit()) */

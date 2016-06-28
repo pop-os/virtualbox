@@ -560,7 +560,7 @@ void BugReportUsbTreeWin::enumerate()
 
 void createBugReportOsSpecific(BugReport* report, const char *pszHome)
 {
-    WCHAR szWinDir[MAX_PATH];
+    TCHAR szWinDir[MAX_PATH];
 
     int cbNeeded = GetWindowsDirectory(szWinDir, RT_ELEMENTS(szWinDir));
     if (cbNeeded == 0)

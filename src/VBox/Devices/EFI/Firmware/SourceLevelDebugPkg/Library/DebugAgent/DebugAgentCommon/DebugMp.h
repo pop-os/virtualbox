@@ -1,7 +1,7 @@
 /** @file
   Header file for Multi-Processor support.
 
-  Copyright (c) 2010 - 2013, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2010, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -25,7 +25,6 @@ typedef struct {
 typedef struct {
   SPIN_LOCK                 MpContextSpinLock;   ///< Lock for writting MP context
   SPIN_LOCK                 DebugPortSpinLock;   ///< Lock for access debug port
-  SPIN_LOCK                 MailboxSpinLock;     ///< Lock for accessing mail box
   UINT8                     CpuBreakMask[DEBUG_CPU_MAX_COUNT/8];        ///< Bitmask of all breaking CPUs
   UINT8                     CpuStopStatusMask[DEBUG_CPU_MAX_COUNT/8];   ///< Bitmask of CPU stop status
   UINT32                    ViewPointIndex;      ///< Current view point to be debugged
@@ -33,9 +32,10 @@ typedef struct {
   UINT32                    BreakAtCpuIndex;     ///< Processor index value of the current breaking CPU
   UINT32                    DebugTimerInitCount; ///< Record BSP's init timer count
   BOOLEAN                   IpiSentByAp;         ///< TRUR: IPI is sent by AP. TALSE: IPI is sent by BSP
-  BOOLEAN                   RunCommandSet;       ///< TRUE: RUN commmand is executing. FALSE : RUN command has been executed.
+  BOOLEAN                   RunCommandSet;       ///< TRUE: RUN commmand is not executed. FALSE : RUN command is executed.
 } DEBUG_MP_CONTEXT;
 
+extern CONST BOOLEAN               MultiProcessorDebugSupport;
 extern DEBUG_MP_CONTEXT volatile   mDebugMpContext;
 extern DEBUG_CPU_DATA   volatile   mDebugCpuData;
 
@@ -62,28 +62,43 @@ GetProcessorIndex (
   );
 
 /**
-  Acquire a spin lock when Multi-processor supported.
+  Acquire access control on MP context.
 
   It will block in the function if cannot get the access control.
-  If Multi-processor is not supported, return directly.
-
-  @param[in, out] MpSpinLock      A pointer to the spin lock.
 
 **/
 VOID
-AcquireMpSpinLock (
-  IN OUT SPIN_LOCK           *MpSpinLock
+AcquireMpContextControl (
+  VOID
   );
 
 /**
-  Release a spin lock when Multi-processor supported.
-
-  @param[in, out] MpSpinLock      A pointer to the spin lock.
+  Release access control on MP context.
 
 **/
 VOID
-ReleaseMpSpinLock (
-  IN OUT SPIN_LOCK           *MpSpinLock
+ReleaseMpContextControl (
+  VOID
+  );
+
+/**
+  Acquire access control on debug port.
+
+  It will block in the function if cannot get the access control.
+
+**/
+VOID
+AcquireDebugPortControl (
+  VOID
+  );
+
+/**
+  Release access control on debug port.
+
+**/
+VOID
+ReleaseDebugPortControl (
+  VOID
   );
 
 /**
@@ -166,7 +181,7 @@ SetDebugViewPoint (
   );
 
 /**
-  Set the IPI send by BPS/AP flag.
+  Initialize debug timer.
 
   @param[in] IpiSentByApFlag   TRUE means this IPI is sent by AP.
                                FALSE means this IPI is sent by BSP.
@@ -178,7 +193,7 @@ SetIpiSentByApFlag (
   );
 
 /**
-  Check the next pending breaking CPU.
+  Check if any processor breaks.
 
   @retval others      There is at least one processor broken, the minimum
                       index number of Processor returned.
@@ -186,10 +201,10 @@ SetIpiSentByApFlag (
 
 **/
 UINT32
-FindNextPendingBreakCpu (
+FindCpuNotRunning (
   VOID
   );
-
+  
 /**
   Check if all processors are in running status.
 
@@ -200,22 +215,6 @@ FindNextPendingBreakCpu (
 BOOLEAN
 IsAllCpuRunning (
   VOID
-  );
-
-/**
-  Check if the current processor is the first breaking processor.
-
-  If yes, halt other processors.
-
-  @param[in] ProcessorIndex   Processor index value.
-
-  @return TRUE       This processor is the first breaking processor.
-  @return FALSE      This processor is not the first breaking processor.
-
-**/
-BOOLEAN
-IsFirstBreakProcessor (
-  IN UINT32              ProcessorIndex
   );
 
 #endif

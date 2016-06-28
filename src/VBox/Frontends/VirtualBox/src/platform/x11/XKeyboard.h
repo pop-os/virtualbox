@@ -18,15 +18,12 @@
 #ifndef __XKeyboard_h__
 #define __XKeyboard_h__
 
-/* Forward declarations: */
-class QString;
-typedef struct _XDisplay Display;
-
+#include <QString>
 
 // initialize the X keyboard subsystem
-void initMappedX11Keyboard(Display *pDisplay, const QString &remapScancodes);
+void initMappedX11Keyboard(Display *pDisplay, QString remapScancodes);
 // our custom keyboard handler
-unsigned handleXKeyEvent(Display *pDisplay, unsigned int iDetail);
+unsigned handleXKeyEvent(XEvent *event);
 // Called after release logging is started, in case initXKeyboard wishes to log
 // anything
 void doXKeyboardLogging(Display *dpy);

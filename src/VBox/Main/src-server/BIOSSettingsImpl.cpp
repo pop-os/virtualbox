@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -203,7 +203,7 @@ HRESULT BIOSSettings::setLogoFadeIn(BOOL enable)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m->bd.backup();
-    m->bd->fLogoFadeIn = RT_BOOL(enable);
+    m->bd->fLogoFadeIn = !!enable;
 
     alock.release();
     AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
@@ -232,7 +232,7 @@ HRESULT BIOSSettings::setLogoFadeOut(BOOL enable)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m->bd.backup();
-    m->bd->fLogoFadeOut = RT_BOOL(enable);
+    m->bd->fLogoFadeOut = !!enable;
 
     alock.release();
     AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
@@ -348,7 +348,7 @@ HRESULT BIOSSettings::setACPIEnabled(BOOL enable)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m->bd.backup();
-    m->bd->fACPIEnabled = RT_BOOL(enable);
+    m->bd->fACPIEnabled = !!enable;
 
     alock.release();
     AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
@@ -378,36 +378,7 @@ HRESULT BIOSSettings::setIOAPICEnabled(BOOL aIOAPICEnabled)
 
     m->bd.backup();
 
-    m->bd->fIOAPICEnabled = RT_BOOL(aIOAPICEnabled);
-    alock.release();
-    AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
-    m->pMachine->i_setModified(Machine::IsModified_BIOS);
-
-    return S_OK;
-}
-
-
-HRESULT BIOSSettings::getAPICMode(APICMode_T *aAPICMode)
-{
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aAPICMode = m->bd->apicMode;
-
-    return S_OK;
-}
-
-
-HRESULT BIOSSettings::setAPICMode(APICMode_T aAPICMode)
-{
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(m->pMachine);
-    if (FAILED(adep.rc())) return adep.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    m->bd.backup();
-
-    m->bd->apicMode = aAPICMode;
+    m->bd->fIOAPICEnabled = !!aIOAPICEnabled;
     alock.release();
     AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
     m->pMachine->i_setModified(Machine::IsModified_BIOS);
@@ -435,7 +406,7 @@ HRESULT BIOSSettings::setPXEDebugEnabled(BOOL enable)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m->bd.backup();
-    m->bd->fPXEDebugEnabled = RT_BOOL(enable);
+    m->bd->fPXEDebugEnabled = !!enable;
 
     alock.release();
     AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
@@ -505,7 +476,7 @@ HRESULT BIOSSettings::i_loadSettings(const settings::BIOSSettings &data)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     // simply copy
-    m->bd.assignCopy(&data);
+    *m->bd.data() = data;
 
     return S_OK;
 }

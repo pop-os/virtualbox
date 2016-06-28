@@ -24,15 +24,10 @@
 
 #include "MsiCommon.h"
 
+/** @todo: use accessors so that raw PCI devices work correctly with MSI. */
 DECLINLINE(uint16_t) msiGetMessageControl(PPCIDEVICE pDev)
 {
-    uint32_t idxMessageControl = pDev->Int.s.u8MsiCapOffset + VBOX_MSI_CAP_MESSAGE_CONTROL;
-#ifdef IN_RING3
-    if (pciDevIsPassthrough(pDev)) {
-        return pDev->Int.s.pfnConfigRead(pDev, idxMessageControl, 2);
-    }
-#endif
-    return PCIDevGetWord(pDev, idxMessageControl);
+    return PCIDevGetWord(pDev, pDev->Int.s.u8MsiCapOffset + VBOX_MSI_CAP_MESSAGE_CONTROL);
 }
 
 DECLINLINE(bool) msiIs64Bit(PPCIDEVICE pDev)
@@ -43,9 +38,6 @@ DECLINLINE(bool) msiIs64Bit(PPCIDEVICE pDev)
 DECLINLINE(uint32_t*) msiGetMaskBits(PPCIDEVICE pDev)
 {
     uint8_t iOff = msiIs64Bit(pDev) ? VBOX_MSI_CAP_MASK_BITS_64 : VBOX_MSI_CAP_MASK_BITS_32;
-    /* passthrough devices may have no masked/pending support */
-    if (iOff >= pDev->Int.s.u8MsiCapSize)
-        return NULL;
     iOff += pDev->Int.s.u8MsiCapOffset;
     return (uint32_t*)(pDev->config + iOff);
 }
@@ -53,9 +45,6 @@ DECLINLINE(uint32_t*) msiGetMaskBits(PPCIDEVICE pDev)
 DECLINLINE(uint32_t*) msiGetPendingBits(PPCIDEVICE pDev)
 {
     uint8_t iOff = msiIs64Bit(pDev) ? VBOX_MSI_CAP_PENDING_BITS_64 : VBOX_MSI_CAP_PENDING_BITS_32;
-    /* passthrough devices may have no masked/pending support */
-    if (iOff >= pDev->Int.s.u8MsiCapSize)
-        return NULL;
     iOff += pDev->Int.s.u8MsiCapOffset;
     return (uint32_t*)(pDev->config + iOff);
 }
@@ -230,9 +219,8 @@ int MsiInit(PPCIDEVICE pDev, PPDMMSIREG pMsiReg)
     if (pMsiReg->cMsiVectors == 0)
          return VINF_SUCCESS;
 
-    /* XXX: done in pcirawAnalyzePciCaps() */
-    if (pciDevIsPassthrough(pDev))
-        return VINF_SUCCESS;
+    /* We cannot init MSI on raw devices yet. */
+    Assert(!pciDevIsPassthrough(pDev));
 
     uint16_t   cVectors    = pMsiReg->cMsiVectors;
     uint8_t    iCapOffset  = pMsiReg->iMsiCapOffset;
@@ -287,31 +275,18 @@ void MsiNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVe
 {
     AssertMsg(msiIsEnabled(pDev), ("Must be enabled to use that"));
 
-    uint32_t uMask;
-    uint32_t *puPending = msiGetPendingBits(pDev);
-    if (puPending)
-    {
-        uint32_t *puMask = msiGetMaskBits(pDev);
-        AssertPtr(puMask);
-        uMask = *puMask;
-        LogFlow(("MsiNotify: %d pending=%x mask=%x\n", iVector, *puPending, uMask));
-    }
-    else
-    {
-        uMask = 0;
-        LogFlow(("MsiNotify: %d\n", iVector));
-    }
+    uint32_t   uMask = *msiGetMaskBits(pDev);
+    uint32_t*  puPending = msiGetPendingBits(pDev);
+
+    LogFlow(("MsiNotify: %d pending=%x mask=%x\n", iVector, *puPending, uMask));
 
     /* We only trigger MSI on level up */
     if ((iLevel & PDM_IRQ_LEVEL_HIGH) == 0)
     {
         /* @todo: maybe clear pending interrupts on level down? */
 #if 0
-        if (puPending)
-        {
-            *puPending &= ~(1<<iVector);
-            LogFlow(("msi: clear pending %d, now %x\n", iVector, *puPending));
-        }
+        *puPending &= ~(1<<iVector);
+        LogFlow(("msi: clear pending %d, now %x\n", iVector, *puPending));
 #endif
         return;
     }
@@ -326,8 +301,7 @@ void MsiNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVe
     RTGCPHYS   GCAddr = msiGetMsiAddress(pDev);
     uint32_t   u32Value = msiGetMsiData(pDev, iVector);
 
-    if (puPending)
-        *puPending &= ~(1<<iVector);
+    *puPending &= ~(1<<iVector);
 
     Assert(pPciHlp->pfnIoApicSendMsi != NULL);
     pPciHlp->pfnIoApicSendMsi(pDevIns, GCAddr, u32Value, uTagSrc);

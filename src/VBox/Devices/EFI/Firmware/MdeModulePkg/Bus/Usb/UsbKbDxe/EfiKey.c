@@ -2,7 +2,7 @@
   USB Keyboard Driver that manages USB keyboard and produces Simple Text Input
   Protocol and Simple Text Input Ex Protocol.
 
-Copyright (c) 2004 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -244,24 +244,11 @@ USBKeyboardDriverBindingStart (
 
   if (!Found) {
     //
-    // Report Status Code to indicate that there is no USB keyboard
-    //
-    REPORT_STATUS_CODE (
-      EFI_ERROR_CODE | EFI_ERROR_MINOR,
-      (EFI_PERIPHERAL_KEYBOARD | EFI_P_EC_NOT_DETECTED)
-      );
-    //
     // No interrupt endpoint found, then return unsupported.
     //
     Status = EFI_UNSUPPORTED;
     goto ErrorExit;
   }
-
-  REPORT_STATUS_CODE_WITH_DEVICE_PATH (
-    EFI_PROGRESS_CODE,
-    (EFI_PERIPHERAL_KEYBOARD | EFI_P_PC_DETECTED),
-    UsbKeyboardDevice->DevicePath
-    );
 
   UsbKeyboardDevice->Signature                  = USB_KB_DEV_SIGNATURE;
   UsbKeyboardDevice->SimpleInput.Reset          = USBKeyboardReset;
@@ -746,9 +733,9 @@ USBKeyboardWaitForKey (
 
   //
   // Enter critical section
-  //
+  //  
   OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
-
+  
   //
   // WaitforKey doesn't suppor the partial key.
   // Considering if the partial keystroke is enabled, there maybe a partial
@@ -1055,7 +1042,7 @@ USBKeyboardRegisterKeyNotify (
   IN  EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN  EFI_KEY_DATA                       *KeyData,
   IN  EFI_KEY_NOTIFY_FUNCTION            KeyNotificationFunction,
-  OUT VOID                               **NotifyHandle
+  OUT EFI_HANDLE                         *NotifyHandle
   )
 {
   USB_KB_DEV                        *UsbKeyboardDevice;
@@ -1086,7 +1073,7 @@ USBKeyboardRegisterKeyNotify (
                       );
     if (IsKeyRegistered (&CurrentNotify->KeyData, KeyData)) {
       if (CurrentNotify->KeyNotificationFn == KeyNotificationFunction) {
-        *NotifyHandle = CurrentNotify;
+        *NotifyHandle = CurrentNotify->NotifyHandle;
         return EFI_SUCCESS;
       }
     }
@@ -1102,11 +1089,12 @@ USBKeyboardRegisterKeyNotify (
 
   NewNotify->Signature         = USB_KB_CONSOLE_IN_EX_NOTIFY_SIGNATURE;
   NewNotify->KeyNotificationFn = KeyNotificationFunction;
+  NewNotify->NotifyHandle      = (EFI_HANDLE) NewNotify;
   CopyMem (&NewNotify->KeyData, KeyData, sizeof (EFI_KEY_DATA));
   InsertTailList (&UsbKeyboardDevice->NotifyList, &NewNotify->NotifyEntry);
 
 
-  *NotifyHandle = NewNotify;
+  *NotifyHandle = NewNotify->NotifyHandle;
 
   return EFI_SUCCESS;
 
@@ -1126,7 +1114,7 @@ EFI_STATUS
 EFIAPI
 USBKeyboardUnregisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
-  IN VOID                               *NotificationHandle
+  IN EFI_HANDLE                         NotificationHandle
   )
 {
   USB_KB_DEV                        *UsbKeyboardDevice;
@@ -1135,6 +1123,10 @@ USBKeyboardUnregisterKeyNotify (
   LIST_ENTRY                        *NotifyList;
 
   if (NotificationHandle == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (((KEYBOARD_CONSOLE_IN_EX_NOTIFY *) NotificationHandle)->Signature != USB_KB_CONSOLE_IN_EX_NOTIFY_SIGNATURE) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -1153,7 +1145,7 @@ USBKeyboardUnregisterKeyNotify (
                       NotifyEntry,
                       USB_KB_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                       );
-    if (CurrentNotify == NotificationHandle) {
+    if (CurrentNotify->NotifyHandle == NotificationHandle) {
       //
       // Remove the notification function from NotifyList and free resources
       //

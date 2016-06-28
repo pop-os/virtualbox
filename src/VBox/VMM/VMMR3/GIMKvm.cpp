@@ -20,16 +20,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
-#include <VBox/vmm/gim.h>
-#include <VBox/vmm/cpum.h>
-#include <VBox/vmm/hm.h>
-#include <VBox/vmm/pdmapi.h>
-#include <VBox/vmm/ssm.h>
 #include "GIMInternal.h"
-#include <VBox/vmm/vm.h>
-
-#include <VBox/disopcode.h>
-#include <VBox/version.h>
 
 #include <iprt/asm-math.h>
 #include <iprt/assert.h>
@@ -38,6 +29,13 @@
 #include <iprt/mem.h>
 #include <iprt/spinlock.h>
 
+#include <VBox/vmm/cpum.h>
+#include <VBox/disopcode.h>
+#include <VBox/vmm/ssm.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/hm.h>
+#include <VBox/vmm/pdmapi.h>
+#include <VBox/version.h>
 
 
 /*********************************************************************************************************************************
@@ -226,6 +224,21 @@ VMMR3_INT_DECL(int) gimR3KvmTerm(PVM pVM)
 {
     gimR3KvmReset(pVM);
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Applies relocations to data and code managed by this component.
+ *
+ * This function will be called at init and whenever the VMM need to relocate
+ * itself inside the GC.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   offDelta    Relocation delta relative to old location.
+ */
+VMMR3_INT_DECL(void) gimR3KvmRelocate(PVM pVM, RTGCINTPTR offDelta)
+{
+    NOREF(pVM); NOREF(offDelta);
 }
 
 

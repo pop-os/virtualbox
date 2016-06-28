@@ -38,7 +38,7 @@ AesGetContextSize (
   Initializes user-supplied memory as AES context for subsequent use.
 
   This function initializes user-supplied memory pointed by AesContext as AES context.
-  In addition, it sets up all AES key materials for subsequent encryption and decryption
+  In addtion, it sets up all AES key materials for subsequent encryption and decryption
   operations.
   There are 3 options for key length, 128 bits, 192 bits, and 256 bits.
 
@@ -125,7 +125,7 @@ AesEcbEncrypt (
   if (AesContext == NULL || Input == NULL || (InputSize % AES_BLOCK_SIZE) != 0 || Output == NULL) {
     return FALSE;
   }
-
+  
   AesKey = (AES_KEY *) AesContext;
 
   //
@@ -241,11 +241,7 @@ AesCbcEncrypt (
   //
   // Check input parameters.
   //
-  if (AesContext == NULL || Input == NULL || (InputSize % AES_BLOCK_SIZE) != 0) {
-    return FALSE;
-  }
-
-  if (Ivec == NULL || Output == NULL || InputSize > INT_MAX) {
+  if (AesContext == NULL || Input == NULL || (InputSize % AES_BLOCK_SIZE) != 0 || Ivec == NULL || Output == NULL) {
     return FALSE;
   }
 
@@ -303,11 +299,7 @@ AesCbcDecrypt (
   //
   // Check input parameters.
   //
-  if (AesContext == NULL || Input == NULL || (InputSize % AES_BLOCK_SIZE) != 0) {
-    return FALSE;
-  }
-
-  if (Ivec == NULL || Output == NULL || InputSize > INT_MAX) {
+  if (AesContext == NULL || Input == NULL || (InputSize % AES_BLOCK_SIZE) != 0 || Ivec == NULL || Output == NULL) {
     return FALSE;
   }
 

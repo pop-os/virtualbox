@@ -1,6 +1,6 @@
 /** @file
 
-Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -146,11 +146,11 @@ DhcpConfigUdpIo (
 
 
 /**
-  Destroy the DHCP service. The Dhcp4 service may be partly initialized,
+  Destory the DHCP service. The Dhcp4 service may be partly initialized,
   or partly destroyed. If a resource is destroyed, it is marked as so in
   case the destroy failed and being called again later.
 
-  @param[in]  DhcpSb                 The DHCP service instance to destroy.
+  @param[in]  DhcpSb                 The DHCP service instance to destory.
 
   @retval EFI_SUCCESS            Always return success.
 
@@ -212,6 +212,7 @@ Dhcp4CreateService (
 
   DhcpSb->Signature       = DHCP_SERVICE_SIGNATURE;
   DhcpSb->ServiceState    = DHCP_UNCONFIGED;
+  DhcpSb->InDestory       = FALSE;
   DhcpSb->Controller      = Controller;
   DhcpSb->Image           = ImageHandle;
   InitializeListHead (&DhcpSb->Children);
@@ -353,36 +354,6 @@ ON_ERROR:
   return Status;
 }
 
-/**
-  Callback function which provided by user to remove one node in NetDestroyLinkList process.
-
-  @param[in]    Entry           The entry to be removed.
-  @param[in]    Context         Pointer to the callback context corresponds to the Context in NetDestroyLinkList.
-
-  @retval EFI_SUCCESS           The entry has been removed successfully.
-  @retval Others                Fail to remove the entry.
-
-**/
-EFI_STATUS
-EFIAPI
-Dhcp4DestroyChildEntry (
-  IN LIST_ENTRY         *Entry,
-  IN VOID               *Context
-  )
-{
-  DHCP_PROTOCOL                    *Instance;
-  EFI_SERVICE_BINDING_PROTOCOL     *ServiceBinding;
-
-  if (Entry == NULL || Context == NULL) {
-    return EFI_INVALID_PARAMETER;
-  }
-
-  Instance = NET_LIST_USER_STRUCT_S (Entry, DHCP_PROTOCOL, Link, DHCP_PROTOCOL_SIGNATURE);
-  ServiceBinding = (EFI_SERVICE_BINDING_PROTOCOL *) Context;
-
-  return ServiceBinding->DestroyChild (ServiceBinding, Instance->Handle);
-}
-
 
 /**
   Stop this driver on ControllerHandle. This service is called by the
@@ -413,10 +384,10 @@ Dhcp4DriverBindingStop (
 {
   EFI_SERVICE_BINDING_PROTOCOL  *ServiceBinding;
   DHCP_SERVICE                  *DhcpSb;
+  DHCP_PROTOCOL                 *Instance;
   EFI_HANDLE                    NicHandle;
   EFI_STATUS                    Status;
-  LIST_ENTRY                    *List;
-  UINTN                         ListLength;
+  EFI_TPL                       OldTpl;
 
   //
   // DHCP driver opens UDP child, So, the ControllerHandle is the
@@ -425,7 +396,7 @@ Dhcp4DriverBindingStop (
   NicHandle = NetLibGetNicHandle (ControllerHandle, &gEfiUdp4ProtocolGuid);
 
   if (NicHandle == NULL) {
-    return EFI_SUCCESS;
+    return EFI_DEVICE_ERROR;
   }
 
    Status = gBS->OpenProtocol (
@@ -442,31 +413,17 @@ Dhcp4DriverBindingStop (
   }
 
   DhcpSb = DHCP_SERVICE_FROM_THIS (ServiceBinding);
-  if (!IsListEmpty (&DhcpSb->Children)) {
-    //
-    // Destroy all the children instances before destory the service.
-    //
-    List = &DhcpSb->Children;
-    Status = NetDestroyLinkList (
-               List,
-               Dhcp4DestroyChildEntry,
-               ServiceBinding,
-               &ListLength
-               );
-    if (EFI_ERROR (Status) || ListLength != 0) {
-      Status = EFI_DEVICE_ERROR;
-    }
+
+  if (DhcpSb->InDestory) {
+    return EFI_SUCCESS;
   }
 
-  if (NumberOfChildren == 0 && !IsListEmpty (&DhcpSb->Children)) {
-    Status = EFI_DEVICE_ERROR;
-  }
+  OldTpl = gBS->RaiseTPL (TPL_CALLBACK);
 
-  if (NumberOfChildren == 0 && IsListEmpty (&DhcpSb->Children)) {
-    //
-    // Destroy the service itself if no child instance left.
-    //
-    DhcpSb->ServiceState = DHCP_DESTROY;
+  if (NumberOfChildren == 0) {
+
+    DhcpSb->InDestory    = TRUE;
+    DhcpSb->ServiceState = DHCP_DESTORY;
 
     gBS->UninstallProtocolInterface (
            NicHandle,
@@ -476,14 +433,23 @@ Dhcp4DriverBindingStop (
 
     Dhcp4CloseService (DhcpSb);
 
-    if (gDhcpControllerNameTable != NULL) {
-      FreeUnicodeStringTable (gDhcpControllerNameTable);
-      gDhcpControllerNameTable = NULL;
-    }
     FreePool (DhcpSb);
+  } else {
+    //
+    // Don't use NET_LIST_FOR_EACH_SAFE here, Dhcp4ServiceBindingDestoryChild
+    // may cause other child to be deleted.
+    //
+    while (!IsListEmpty (&DhcpSb->Children)) {
+      Instance = NET_LIST_HEAD (&DhcpSb->Children, DHCP_PROTOCOL, Link);
+      ServiceBinding->DestroyChild (ServiceBinding, Instance->Handle);
+    }
 
-    Status = EFI_SUCCESS;
+    if (DhcpSb->NumChildren != 0) {
+      Status = EFI_DEVICE_ERROR;
+    }
   }
+
+  gBS->RestoreTPL (OldTpl);
 
   return Status;
 }
@@ -507,7 +473,7 @@ DhcpInitProtocol (
   InitializeListHead (&Instance->Link);
   Instance->Handle            = NULL;
   Instance->Service           = DhcpSb;
-  Instance->InDestroy         = FALSE;
+  Instance->InDestory         = FALSE;
   Instance->CompletionEvent   = NULL;
   Instance->RenewRebindEvent  = NULL;
   Instance->Token             = NULL;
@@ -674,15 +640,15 @@ Dhcp4ServiceBindingDestroyChild (
   //
   // A child can be destroyed more than once. For example,
   // Dhcp4DriverBindingStop will destroy all of its children.
-  // when caller driver is being stopped, it will destroy the
+  // when caller driver is being stopped, it will destory the
   // dhcp child it opens.
   //
-  if (Instance->InDestroy) {
+  if (Instance->InDestory) {
     return EFI_SUCCESS;
   }
 
   OldTpl = gBS->RaiseTPL (TPL_CALLBACK);
-  Instance->InDestroy = TRUE;
+  Instance->InDestory = TRUE;
 
   //
   // Close the Udp4 protocol.
@@ -697,15 +663,14 @@ Dhcp4ServiceBindingDestroyChild (
   //
   // Uninstall the DHCP4 protocol first to enable a top down destruction.
   //
-  gBS->RestoreTPL (OldTpl);
   Status = gBS->UninstallProtocolInterface (
                   ChildHandle,
                   &gEfiDhcp4ProtocolGuid,
                   Dhcp
                   );
-  OldTpl = gBS->RaiseTPL (TPL_CALLBACK);
+
   if (EFI_ERROR (Status)) {
-    Instance->InDestroy = FALSE;
+    Instance->InDestory = FALSE;
 
     gBS->RestoreTPL (OldTpl);
     return Status;

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107578 $"
+__version__ = "$Revision: 100880 $"
 
 
 # Standard python imports.
@@ -35,8 +35,7 @@ import sys;
 
 # Validation Kit imports.
 from common                             import utils;
-from testmanager.core.base              import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase, \
-                                               TMRowNotFound;
+from testmanager.core.base              import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase;
 from testmanager.core.testcase          import TestCaseData, TestCaseDependencyLogic, TestCaseGlobalRsrcDepLogic;
 
 # Python 3 hacks:
@@ -63,12 +62,9 @@ class TestCaseArgsData(ModelDataBase):
     ksParam_sTestBoxReqExpr    = 'TestCaseArgs_sTestBoxReqExpr';
     ksParam_sBuildReqExpr      = 'TestCaseArgs_sBuildReqExpr';
     ksParam_cGangMembers       = 'TestCaseArgs_cGangMembers';
-    ksParam_sSubName           = 'TestCaseArgs_sSubName';
-
-    kcDbColumns                 = 12;
 
     kasAllowNullAttributes      = [ 'idTestCase', 'idTestCaseArgs', 'tsEffective', 'tsExpire', 'uidAuthor', 'idGenTestCaseArgs',
-                                    'cSecTimeout', 'sTestBoxReqExpr', 'sBuildReqExpr', 'sSubName', ];
+                                    'cSecTimeout', 'sTestBoxReqExpr', 'sBuildReqExpr', ];
 
     def __init__(self):
         ModelDataBase.__init__(self);
@@ -88,7 +84,6 @@ class TestCaseArgsData(ModelDataBase):
         self.sTestBoxReqExpr    = None;
         self.sBuildReqExpr      = None;
         self.cGangMembers       = 1;
-        self.sSubName           = None;
 
     def initFromDbRow(self, aoRow):
         """
@@ -96,7 +91,7 @@ class TestCaseArgsData(ModelDataBase):
         Returns self.  Raises exception if aoRow is None.
         """
         if aoRow is None:
-            raise TMRowNotFound('TestBoxStatus not found.');
+            raise TMExceptionBase('TestBoxStatus not found.');
 
         self.idTestCase         = aoRow[0];
         self.idTestCaseArgs     = aoRow[1];
@@ -109,7 +104,6 @@ class TestCaseArgsData(ModelDataBase):
         self.sTestBoxReqExpr    = aoRow[8];
         self.sBuildReqExpr      = aoRow[9];
         self.cGangMembers       = aoRow[10];
-        self.sSubName           = aoRow[11];
         return self;
 
     def initFromDbWithId(self, oDb, idTestCaseArgs, tsNow = None, sPeriodBack = None):
@@ -123,8 +117,8 @@ class TestCaseArgsData(ModelDataBase):
                                                        , ( idTestCaseArgs,), tsNow, sPeriodBack));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMRowNotFound('idTestCaseArgs=%s not found (tsNow=%s sPeriodBack=%s)'
-                                % (idTestCaseArgs, tsNow, sPeriodBack,));
+            raise TMExceptionBase('idTestCaseArgs=%s not found (tsNow=%s sPeriodBack=%s)'
+                                  % (idTestCaseArgs, tsNow, sPeriodBack,));
         return self.initFromDbRow(aoRow);
 
     def initFromDbWithGenId(self, oDb, idGenTestCaseArgs):
@@ -136,7 +130,7 @@ class TestCaseArgsData(ModelDataBase):
 
     def initFromValues(self, sArgs, cSecTimeout = None, sTestBoxReqExpr = None, sBuildReqExpr = None,  # pylint: disable=R0913
                        cGangMembers = 1, idTestCase = None, idTestCaseArgs = None, tsEffective = None, tsExpire = None,
-                       uidAuthor = None, idGenTestCaseArgs = None, sSubName = None):
+                       uidAuthor = None, idGenTestCaseArgs = None):
         """
         Reinitialize from values.
         Returns self.
@@ -152,7 +146,6 @@ class TestCaseArgsData(ModelDataBase):
         self.sTestBoxReqExpr    = sTestBoxReqExpr;
         self.sBuildReqExpr      = sBuildReqExpr;
         self.cGangMembers       = cGangMembers;
-        self.sSubName           = sSubName;
         return self;
 
     def getAttributeParamNullValues(self, sAttr):
@@ -192,36 +185,32 @@ class TestCaseArgsDataEx(TestCaseArgsData):
     def initFromDbRow(self, aoRow):
         raise TMExceptionBase('Do not call me: %s' % (aoRow,))
 
-    def initFromDbRowEx(self, aoRow, oDb, tsConfigEff = None, tsRsrcEff = None):
+    def initFromDbWithId(self, oDb, idTestCaseArgs, tsNow = None, sPeriodBack = None):
+        _ = oDb; _ = idTestCaseArgs; _ = tsNow; _ = sPeriodBack;
+        raise Exception('Not supported.');
+
+    def initFromDbWithGenId(self, oDb, idGenTestCaseArgs):
+        _ = oDb; _ = idGenTestCaseArgs;
+        raise Exception('Use initFromDbWithGenIdEx...');
+
+    def initFromDbWithGenIdEx(self, oDb, idGenTestCaseArgs, tsConfigEff = None, tsRsrcEff = None):
         """
-        Extended version of initFromDbRow that fills in the rest from the database.
+        Initialize from the database, given the ID of a row.
         """
+
+        oDb.execute('SELECT *, CURRENT_TIMESTAMP FROM TestCaseArgs WHERE idGenTestCaseArgs = %s', (idGenTestCaseArgs,));
+        aoRow = oDb.fetchOne();
         TestCaseArgsData.initFromDbRow(self, aoRow);
 
-        if tsConfigEff is None: tsConfigEff = oDb.getCurrentTimestamp();
-        if tsRsrcEff is None:   tsRsrcEff   = oDb.getCurrentTimestamp();
+        tsNow = aoRow[11];
+        if tsConfigEff is None: tsConfigEff = tsNow;
+        if tsRsrcEff is None:   tsRsrcEff   = tsNow;
 
         self.oTestCase         = TestCaseData().initFromDbWithId(oDb, self.idTestCase, tsConfigEff);
         self.aoTestCasePreReqs = TestCaseDependencyLogic(oDb).getTestCaseDeps(self.idTestCase, tsConfigEff);
         self.aoGlobalRsrc      = TestCaseGlobalRsrcDepLogic(oDb).getTestCaseDeps(self.idTestCase, tsRsrcEff);
 
         return self;
-
-    def initFromDbWithId(self, oDb, idTestCaseArgs, tsNow = None, sPeriodBack = None):
-        _ = oDb; _ = idTestCaseArgs; _ = tsNow; _ = sPeriodBack;
-        raise TMExceptionBase('Not supported.');
-
-    def initFromDbWithGenId(self, oDb, idGenTestCaseArgs):
-        _ = oDb; _ = idGenTestCaseArgs;
-        raise TMExceptionBase('Use initFromDbWithGenIdEx...');
-
-    def initFromDbWithGenIdEx(self, oDb, idGenTestCaseArgs, tsConfigEff = None, tsRsrcEff = None):
-        """
-        Initialize from the database, given the ID of a row.
-        """
-        oDb.execute('SELECT *, CURRENT_TIMESTAMP FROM TestCaseArgs WHERE idGenTestCaseArgs = %s', (idGenTestCaseArgs,));
-        aoRow = oDb.fetchOne();
-        return self.initFromDbRowEx(aoRow, oDb, tsConfigEff, tsRsrcEff);
 
     def convertFromParamNull(self):
         raise TMExceptionBase('Not implemented');
@@ -262,7 +251,6 @@ class TestCaseArgsLogic(ModelLogicBase):
 
     def __init__(self, oDb):
         ModelLogicBase.__init__(self, oDb);
-        self.dCache = None;
 
 
     def areResourcesFree(self, oDataEx):
@@ -351,44 +339,6 @@ class TestCaseArgsLogic(ModelLogicBase):
     def addTestCaseArgs(self, oTestCaseArgsData):
         """Add Test Case Args record into DB"""
         pass
-
-    def cachedLookup(self, idTestCaseArgs):
-        """
-        Looks up the most recent TestCaseArgsDataEx object for idTestCaseArg
-        via in an object cache.
-
-        Returns a shared TestCaseArgDataEx object.  None if not found.
-        Raises exception on DB error.
-        """
-        if self.dCache is None:
-            self.dCache = self._oDb.getCache('TestCaseArgsDataEx');
-        oEntry = self.dCache.get(idTestCaseArgs, None);
-        if oEntry is None:
-            fNeedTsNow = False;
-            self._oDb.execute('SELECT   *\n'
-                              'FROM     TestCaseArgs\n'
-                              'WHERE    idTestCaseArgs = %s\n'
-                              '     AND tsExpire       = \'infinity\'::TIMESTAMP\n'
-                              , (idTestCaseArgs, ));
-            if self._oDb.getRowCount() == 0:
-                # Maybe it was deleted, try get the last entry.
-                self._oDb.execute('SELECT   *\n'
-                                  'FROM     TestCaseArgs\n'
-                                  'WHERE    idTestCaseArgs = %s\n'
-                                  'ORDER BY tsExpire DESC\n'
-                                  'LIMIT 1\n'
-                                  , (idTestCaseArgs, ));
-                fNeedTsNow = True;
-            elif self._oDb.getRowCount() > 1:
-                raise self._oDb.integrityException('%s infinity rows for %s' % (self._oDb.getRowCount(), idTestCaseArgs));
-
-            if self._oDb.getRowCount() == 1:
-                aaoRow = self._oDb.fetchOne();
-                oEntry = TestCaseArgsDataEx();
-                tsNow  = oEntry.initFromDbRow(aaoRow).tsEffective if fNeedTsNow else None;
-                oEntry.initFromDbRowEx(aaoRow, self._oDb, tsNow, tsNow);
-                self.dCache[idTestCaseArgs] = oEntry;
-        return oEntry;
 
 
 #

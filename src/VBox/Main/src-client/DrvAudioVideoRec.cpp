@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2016 Oracle Corporation
+ * Copyright (C) 2014-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,21 +138,21 @@ static int drvAudioVideoRecPcmInitInfo(PDMPCMPROPS * pProps, PPDMAUDIOSTREAMCFG 
 
     switch (as->enmFormat)
     {
-        case PDMAUDIOFMT_S8:
+        case AUD_FMT_S8:
             fSigned = 1;
-        case PDMAUDIOFMT_U8:
+        case AUD_FMT_U8:
             break;
 
-        case PDMAUDIOFMT_S16:
+        case AUD_FMT_S16:
             fSigned = 1;
-        case PDMAUDIOFMT_U16:
+        case AUD_FMT_U16:
             cBits = 16;
             cShift = 1;
             break;
 
-        case PDMAUDIOFMT_S32:
+        case AUD_FMT_S32:
             fSigned = 1;
-        case PDMAUDIOFMT_U32:
+        case AUD_FMT_U32:
             cBits = 32;
             cShift = 2;
             break;
@@ -616,17 +616,14 @@ static DECLCALLBACK(int) drvAudioVideoRecControlIn(PPDMIHOSTAUDIO pInterface, PP
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvAudioVideoRecGetConf(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
+static DECLCALLBACK(int) drvAudioVideoRecGetConf(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pAudioConf)
 {
-    NOREF(pInterface);
-    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
+    LogFlowFunc(("pAudioConf=%p\n", pAudioConf));
 
-    pCfg->cbStreamIn     = sizeof(VIDEORECAUDIOIN);
-    pCfg->cbStreamOut    = sizeof(VIDEORECAUDIOOUT);
-    pCfg->cMaxStreamsIn  = UINT32_MAx;
-    pCfg->cMaxStreamsOut = UINT32_MAX;
-    pCfg->cSources       = 1;
-    pCfg->cSinks         = 1;
+    pAudioConf->cbStreamOut = sizeof(VIDEORECAUDIOOUT);
+    pAudioConf->cbStreamIn = sizeof(VIDEORECAUDIOIN);
+    pAudioConf->cMaxHstStrmsOut = 1;
+    pAudioConf->cMaxHstStrmsIn = 1;
 
     return VINF_SUCCESS;
 }

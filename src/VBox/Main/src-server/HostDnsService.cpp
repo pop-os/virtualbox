@@ -184,11 +184,6 @@ void HostDnsMonitor::releaseMonitorProxy(PCHostDnsMonitorProxy proxy) const
 
 void HostDnsMonitor::shutdown()
 {
-    /** @todo never called.
-     * HostDnsMonitor should be referenced by HostDnsMonitorProxy objects and the Host object
-     * and automatically deleted when not referenced anymore.
-     * Currently HostDnsMonitor can use already deleted m->virtualbox.
-     */
     if (g_monitor)
     {
         delete g_monitor;

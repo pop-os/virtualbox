@@ -23,7 +23,7 @@
 using namespace com;
 
 class ATL_NO_VTABLE VirtualBoxErrorInfo
-    : public ATL::CComObjectRootEx<ATL::CComMultiThreadModel>
+    : public CComObjectRootEx<CComMultiThreadModel>
     , VBOX_SCRIPTABLE_IMPL(IVirtualBoxErrorInfo)
 #ifndef VBOX_WITH_XPCOM /* IErrorInfo doesn't inherit from IDispatch, ugly 3am hack: */
     , public IDispatch

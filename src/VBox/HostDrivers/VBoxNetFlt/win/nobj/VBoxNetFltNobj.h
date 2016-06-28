@@ -4,7 +4,7 @@
  * Used to filter Bridged Networking Driver bindings
  */
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,11 @@
 #define ___VBoxNetFltNobj_h___
 
 #include <windows.h>
+/* atl stuff */
+#include <atlbase.h>
+extern CComModule _Module;
+#include <atlcom.h>
 
-#include "VBox/com/defs.h"
 #include "VBoxNetFltNobjT.h"
 #include "VBoxNetFltNobjRc.h"
 
@@ -30,8 +33,8 @@
  * Needed to make our driver bind to "real" host adapters only
  */
 class ATL_NO_VTABLE VBoxNetFltNobj :
-    public ATL::CComObjectRootEx<ATL::CComMultiThreadModel>,
-    public ATL::CComCoClass<VBoxNetFltNobj, &CLSID_VBoxNetFltNobj>,
+    public CComObjectRootEx<CComObjectThreadModel>,
+    public CComCoClass<VBoxNetFltNobj, &CLSID_VBoxNetFltNobj>,
     public INetCfgComponentControl,
     public INetCfgComponentNotifyBinding
 {
@@ -44,10 +47,7 @@ public:
         COM_INTERFACE_ENTRY(INetCfgComponentNotifyBinding)
     END_COM_MAP()
 
-    // this is a "just in case" conditional, which is not defined
-#ifdef VBOX_FORCE_REGISTER_SERVER
     DECLARE_REGISTRY_RESOURCEID(IDR_VBOXNETFLT_NOBJ)
-#endif
 
     /* INetCfgComponentControl methods */
     STDMETHOD(Initialize)(IN INetCfgComponent *pNetCfgComponent, IN INetCfg *pNetCfg, IN BOOL bInstalling);

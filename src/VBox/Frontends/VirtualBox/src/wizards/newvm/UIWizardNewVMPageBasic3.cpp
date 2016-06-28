@@ -39,7 +39,6 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 UIWizardNewVMPage3::UIWizardNewVMPage3()
-    : m_fRecommendedNoDisk(false)
 {
 }
 
@@ -224,18 +223,8 @@ void UIWizardNewVMPageBasic3::initializePage()
     retranslateUi();
 
     /* Prepare initial choice: */
-    if (field("type").value<CGuestOSType>().GetRecommendedHDD() != 0)
-    {
-        m_pDiskCreate->setFocus();
-        m_pDiskCreate->setChecked(true);
-        m_fRecommendedNoDisk = false;
-    }
-    else
-    {
-        m_pDiskSkip->setFocus();
-        m_pDiskSkip->setChecked(true);
-        m_fRecommendedNoDisk = true;
-    }
+    m_pDiskCreate->setFocus();
+    m_pDiskCreate->setChecked(true);
     m_pDiskSelector->setCurrentIndex(0);
 }
 
@@ -265,9 +254,8 @@ bool UIWizardNewVMPageBasic3::validatePage()
 
     if (m_pDiskSkip->isChecked())
     {
-        /* Ask user about disk-less machine unless that's the recommendation: */
-        if (!m_fRecommendedNoDisk)
-            fResult = msgCenter().confirmHardDisklessMachine(thisImp());
+        /* Ask user about disk-less machine: */
+        fResult = msgCenter().confirmHardDisklessMachine(thisImp());
     }
     else if (m_pDiskCreate->isChecked())
     {

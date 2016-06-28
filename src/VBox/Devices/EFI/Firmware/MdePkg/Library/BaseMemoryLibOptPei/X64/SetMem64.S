@@ -40,7 +40,7 @@ ASM_PFX(InternalMemSetMem64):
     movq    %r8, %rax
     xchgq   %rdx, %rcx
     rep     stosq
-    movq    %rdx, %rax
+    movw    %rdx, %rax
     popq    %rdi
     ret
 

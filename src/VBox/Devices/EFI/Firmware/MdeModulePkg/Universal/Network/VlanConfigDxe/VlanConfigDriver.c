@@ -1,7 +1,7 @@
 /** @file
   The driver binding for VLAN configuration module.
 
-Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2009, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
 of the BSD License which accompanies this distribution.  The full
@@ -275,13 +275,10 @@ VlanConfigDriverBindingStop (
   }
   ASSERT (PrivateData->Signature == VLAN_CONFIG_PRIVATE_DATA_SIGNATURE);
 
-  if (NumberOfChildren != 0) {
-    if (NumberOfChildren != 1 || ChildHandleBuffer[0] != PrivateData->DriverHandle) {
-      return EFI_DEVICE_ERROR;
-    }
-
-    return UninstallVlanConfigForm (PrivateData);
-  }
+  //
+  // Uninstall VLAN configuration Form
+  //
+  UninstallVlanConfigForm (PrivateData);
 
   //
   // Uninstall the private GUID

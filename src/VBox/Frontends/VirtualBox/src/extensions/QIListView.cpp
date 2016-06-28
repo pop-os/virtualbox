@@ -20,20 +20,16 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QtGlobal>
-# ifdef VBOX_WS_MAC
-#  include <QApplication>
+# if MAC_LEOPARD_STYLE
 #  include <QPainter>
-# endif /* VBOX_WS_MAC */
+#  include <QApplication>
+# endif /* MAC_LEOPARD_STYLE */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Qt includes: */
-#ifdef VBOX_WS_MAC
-# if QT_VERSION < 0x050000
-#  include <qmacstyle_mac.h>
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_MAC */
+#if MAC_LEOPARD_STYLE
+# include <qmacstyle_mac.h>
+#endif /* MAC_LEOPARD_STYLE */
 
 /* GUI includes: */
 #include "QIListView.h"
@@ -42,8 +38,8 @@
 QIListView::QIListView (QWidget *aParent /* = 0 */)
     :QListView (aParent)
 {
-#ifdef VBOX_WS_MAC
     /* Track if the application lost the focus */
+#if MAC_LEOPARD_STYLE
     connect (QCoreApplication::instance(), SIGNAL (focusChanged (QWidget *, QWidget *)),
              this, SLOT (focusChanged (QWidget *, QWidget *)));
     /* 1 pixel line frame */
@@ -51,17 +47,15 @@ QIListView::QIListView (QWidget *aParent /* = 0 */)
     setLineWidth (0);
     setFrameShape (QFrame::Box);
     focusChanged (NULL, qApp->focusWidget());
-# if QT_VERSION < 0x050000
     /* Nesty hack to disable the focus rect on the list view. This interface
      * may change at any time! */
     static_cast<QMacStyle *> (style())->setFocusRectPolicy (this, QMacStyle::FocusDisabled);
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_MAC */
+#endif /* MAC_LEOPARD_STYLE */
 }
 
 void QIListView::focusChanged (QWidget * /* aOld */, QWidget *aNow)
 {
-#ifdef VBOX_WS_MAC
+#if MAC_LEOPARD_STYLE
     QColor bgColor (212, 221, 229);
     if (aNow == NULL)
         bgColor.setRgb (232, 232, 232);
@@ -69,9 +63,9 @@ void QIListView::focusChanged (QWidget * /* aOld */, QWidget *aNow)
     pal.setColor (QPalette::Base, bgColor);
     viewport()->setPalette (pal);
     viewport()->setAutoFillBackground(true);
-#else /* !VBOX_WS_MAC */
+#else /* MAC_LEOPARD_STYLE */
     Q_UNUSED (aNow);
-#endif /* !VBOX_WS_MAC */
+#endif /* MAC_LEOPARD_STYLE */
 }
 
 /* QIItemDelegate class */
@@ -79,8 +73,8 @@ void QIListView::focusChanged (QWidget * /* aOld */, QWidget *aNow)
 void QIItemDelegate::drawBackground (QPainter *aPainter, const QStyleOptionViewItem &aOption,
                                      const QModelIndex &aIndex) const
 {
-#ifdef VBOX_WS_MAC
-    Q_UNUSED (aIndex);
+#if MAC_LEOPARD_STYLE
+    NOREF (aIndex);
     /* Macify for Leopard */
     if (aOption.state & QStyle::State_Selected)
     {
@@ -121,8 +115,8 @@ void QIItemDelegate::drawBackground (QPainter *aPainter, const QStyleOptionViewI
             bgColor.setRgb (232, 232, 232);
         aPainter->fillRect(aOption.rect, bgColor);
     }
-#else /* !VBOX_WS_MAC */
+#else /* MAC_LEOPARD_STYLE */
     QItemDelegate::drawBackground (aPainter, aOption, aIndex);
-#endif /* !VBOX_WS_MAC */
+#endif /* MAC_LEOPARD_STYLE */
 }
 

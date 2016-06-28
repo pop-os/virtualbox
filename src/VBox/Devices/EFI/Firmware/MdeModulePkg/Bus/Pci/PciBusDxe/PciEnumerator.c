@@ -1,7 +1,7 @@
 /** @file
   PCI eunmeration implementation on entire PCI bus system for PCI Bus module.
 
-Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -29,6 +29,7 @@ PciEnumerator (
   IN EFI_HANDLE                    Controller
   )
 {
+  EFI_HANDLE                                        Handle;
   EFI_HANDLE                                        HostBridgeHandle;
   EFI_STATUS                                        Status;
   EFI_PCI_HOST_BRIDGE_RESOURCE_ALLOCATION_PROTOCOL  *PciResAlloc;
@@ -81,11 +82,7 @@ PciEnumerator (
   //
   // Notify the pci bus enumeration is about to begin
   //
-  Status = NotifyPhase (PciResAlloc, EfiPciHostBridgeBeginEnumeration);
-
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
+  NotifyPhase (PciResAlloc, EfiPciHostBridgeBeginEnumeration);
 
   //
   // Start the bus allocation phase
@@ -108,11 +105,7 @@ PciEnumerator (
   //
   // Notify the pci bus enumeration is about to complete
   //
-  Status = NotifyPhase (PciResAlloc, EfiPciHostBridgeEndEnumeration);
-
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
+  NotifyPhase (PciResAlloc, EfiPciHostBridgeEndEnumeration);
 
   //
   // Process P2C
@@ -133,8 +126,9 @@ PciEnumerator (
 
   gFullEnumeration = FALSE;
 
+  Handle = NULL;
   Status = gBS->InstallProtocolInterface (
-                  &HostBridgeHandle,
+                  &Handle,
                   &gEfiPciEnumerationCompleteProtocolGuid,
                   EFI_NATIVE_INTERFACE,
                   NULL
@@ -226,7 +220,7 @@ PciRootBridgeEnumerator (
       AddrRangeMin = Configuration1->AddrRangeMin;
       Configuration1->AddrRangeMin = Configuration2->AddrRangeMin;
       Configuration2->AddrRangeMin = AddrRangeMin;
-
+      
       AddrLen = Configuration1->AddrLen;
       Configuration1->AddrLen = Configuration2->AddrLen;
       Configuration2->AddrLen = AddrLen;
@@ -273,7 +267,7 @@ PciRootBridgeEnumerator (
   Status = PciAllocateBusNumber (RootBridgeDev, SubBusNumber, PaddedBusRange, &SubBusNumber);
   if (EFI_ERROR (Status)) {
     return Status;
-  }
+  }  
 
   //
   // Find the bus range which contains the higest bus number, then returns the number of buses
@@ -291,7 +285,7 @@ PciRootBridgeEnumerator (
   Configuration++;
   Desc = Configuration->Desc;
   Configuration->Desc = ACPI_END_TAG_DESCRIPTOR;
-
+  
   //
   // Set bus number
   //
@@ -306,7 +300,7 @@ PciRootBridgeEnumerator (
   //
   Configuration->Desc = Desc;
   (Configuration - 1)->AddrLen = AddrLen;
-
+  
   return Status;
 }
 
@@ -800,6 +794,7 @@ RejectPciDevice (
     if (Temp == PciDevice) {
       InitializePciDevice (Temp);
       RemoveEntryList (CurrentLink);
+      FreePciDevice (Temp);
       return EFI_SUCCESS;
     }
 
@@ -1040,11 +1035,6 @@ PciHostBridgeAdjustAllocation (
     //
     Status = RejectPciDevice (PciResNode->PciDev);
     if (Status == EFI_SUCCESS) {
-      DEBUG ((
-        EFI_D_ERROR,
-        "PciBus: [%02x|%02x|%02x] was rejected due to resource confliction.\n",
-        PciResNode->PciDev->BusNumber, PciResNode->PciDev->DeviceNumber, PciResNode->PciDev->FunctionNumber
-        ));
 
       //
       // Raise the EFI_IOB_EC_RESOURCE_CONFLICT status code
@@ -1847,7 +1837,7 @@ NotifyPhase (
                             Phase,
                             ChipsetEntry
                             );
-  }
+  }  
 
   Status = PciResAlloc->NotifyPhase (
                           PciResAlloc,
@@ -1877,7 +1867,7 @@ NotifyPhase (
                             );
   }
 
-  return Status;
+  return EFI_SUCCESS;
 }
 
 /**
@@ -2078,7 +2068,7 @@ PciHotPlugRequestNotify (
       return EFI_INVALID_PARAMETER;
     }
   }
-
+  
   Status = gBS->OpenProtocol (
                   Controller,
                   &gEfiPciIoProtocolGuid,
@@ -2105,14 +2095,6 @@ PciHotPlugRequestNotify (
   RootBridgeHandle = Temp->Handle;
 
   if (Operation == EfiPciHotPlugRequestAdd) {
-    //
-    // Report Status Code to indicate hot plug happens
-    //
-    REPORT_STATUS_CODE_WITH_DEVICE_PATH (
-      EFI_PROGRESS_CODE,
-      (EFI_IO_BUS_PCI | EFI_IOB_PC_HOTPLUG),
-      Temp->DevicePath
-      );
 
     if (NumberOfChildren != NULL) {
       *NumberOfChildren = 0;

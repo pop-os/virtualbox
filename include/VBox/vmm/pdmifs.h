@@ -1021,6 +1021,360 @@ typedef struct PDMIDISPLAYCONNECTOR
 #define PDMIDISPLAYCONNECTOR_IID                "e883a720-85fb-11e4-a307-0b06689c9661"
 
 
+/** Pointer to a block port interface. */
+typedef struct PDMIBLOCKPORT *PPDMIBLOCKPORT;
+/**
+ * Block notify interface (down).
+ * Pair with PDMIBLOCK.
+ */
+typedef struct PDMIBLOCKPORT
+{
+    /**
+     * Returns the storage controller name, instance and LUN of the attached medium.
+     *
+     * @returns VBox status.
+     * @param   pInterface      Pointer to this interface.
+     * @param   ppcszController Where to store the name of the storage controller.
+     * @param   piInstance      Where to store the instance number of the controller.
+     * @param   piLUN           Where to store the LUN of the attached device.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnQueryDeviceLocation, (PPDMIBLOCKPORT pInterface, const char **ppcszController,
+                                                       uint32_t *piInstance, uint32_t *piLUN));
+
+} PDMIBLOCKPORT;
+/** PDMIBLOCKPORT interface ID. */
+#define PDMIBLOCKPORT_IID                 "bbbed4cf-0862-4ffd-b60c-f7a65ef8e8ff"
+
+
+/**
+ * Callback which provides progress information.
+ *
+ * @return  VBox status code.
+ * @param   pvUser          Opaque user data.
+ * @param   uPercent        Completion percentage.
+ */
+typedef DECLCALLBACK(int) FNSIMPLEPROGRESS(void *pvUser, unsigned uPercentage);
+/** Pointer to FNSIMPLEPROGRESS() */
+typedef FNSIMPLEPROGRESS *PFNSIMPLEPROGRESS;
+
+
+/**
+ * Block drive type.
+ */
+typedef enum PDMBLOCKTYPE
+{
+    /** Error (for the query function). */
+    PDMBLOCKTYPE_ERROR = 1,
+    /** 360KB 5 1/4" floppy drive. */
+    PDMBLOCKTYPE_FLOPPY_360,
+    /** 720KB 3 1/2" floppy drive. */
+    PDMBLOCKTYPE_FLOPPY_720,
+    /** 1.2MB 5 1/4" floppy drive. */
+    PDMBLOCKTYPE_FLOPPY_1_20,
+    /** 1.44MB 3 1/2" floppy drive. */
+    PDMBLOCKTYPE_FLOPPY_1_44,
+    /** 2.88MB 3 1/2" floppy drive. */
+    PDMBLOCKTYPE_FLOPPY_2_88,
+    /** Fake drive that can take up to 15.6 MB images.
+     * C=255, H=2, S=63.  */
+    PDMBLOCKTYPE_FLOPPY_FAKE_15_6,
+    /** Fake drive that can take up to 63.5 MB images.
+     * C=255, H=2, S=255.  */
+    PDMBLOCKTYPE_FLOPPY_FAKE_63_5,
+    /** CDROM drive. */
+    PDMBLOCKTYPE_CDROM,
+    /** DVD drive. */
+    PDMBLOCKTYPE_DVD,
+    /** Hard disk drive. */
+    PDMBLOCKTYPE_HARD_DISK
+} PDMBLOCKTYPE;
+
+/** Check if the given block type is a floppy. */
+#define PDMBLOCKTYPE_IS_FLOPPY(a_enmType) ( (a_enmType) >= PDMBLOCKTYPE_FLOPPY_360 && (a_enmType) <= PDMBLOCKTYPE_FLOPPY_2_88 )
+
+/**
+ * Block raw command data transfer direction.
+ */
+typedef enum PDMBLOCKTXDIR
+{
+    PDMBLOCKTXDIR_NONE = 0,
+    PDMBLOCKTXDIR_FROM_DEVICE,
+    PDMBLOCKTXDIR_TO_DEVICE
+} PDMBLOCKTXDIR;
+
+
+/** Pointer to a block interface. */
+typedef struct PDMIBLOCK *PPDMIBLOCK;
+/**
+ * Block interface (up).
+ * Pair with PDMIBLOCKPORT.
+ */
+typedef struct PDMIBLOCK
+{
+    /**
+     * Read bits.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead));
+
+    /**
+     * Read bits - version for DevPcBios.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     *
+     * @note: Special version of pfnRead which doesn't try to suspend the VM when the DEKs for encrypted disks
+     *        are missing but just returns an error.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnReadPcBios,(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead));
+
+    /**
+     * Write bits.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start writing at. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the write bits.
+     * @param   cbWrite         Number of bytes to write. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMIBLOCK pInterface, uint64_t off, const void *pvBuf, size_t cbWrite));
+
+    /**
+     * Make sure that the bits written are actually on the storage medium.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnFlush,(PPDMIBLOCK pInterface));
+
+    /**
+     * Send a raw command to the underlying device (CDROM).
+     * This method is optional (i.e. the function pointer may be NULL).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pbCmd           Offset to start reading from.
+     * @param   enmTxDir        Direction of transfer.
+     * @param   pvBuf           Pointer tp the transfer buffer.
+     * @param   cbBuf           Size of the transfer buffer.
+     * @param   pbSenseKey      Status of the command (when return value is VERR_DEV_IO_ERROR).
+     * @param   cTimeoutMillies Command timeout in milliseconds.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSendCmd,(PPDMIBLOCK pInterface, const uint8_t *pbCmd, PDMBLOCKTXDIR enmTxDir, void *pvBuf, uint32_t *pcbBuf, uint8_t *pabSense, size_t cbSense, uint32_t cTimeoutMillies));
+
+    /**
+     * Merge medium contents during a live snapshot deletion.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pfnProgress     Function pointer for progress notification.
+     * @param   pvUser          Opaque user data for progress notification.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMerge,(PPDMIBLOCK pInterface, PFNSIMPLEPROGRESS pfnProgress, void *pvUser));
+
+    /**
+     * Check if the media is readonly or not.
+     *
+     * @returns true if readonly.
+     * @returns false if read/write.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsReadOnly,(PPDMIBLOCK pInterface));
+
+    /**
+     * Gets the media size in bytes.
+     *
+     * @returns Media size in bytes.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(uint64_t, pfnGetSize,(PPDMIBLOCK pInterface));
+
+    /**
+     * Gets the media sector size in bytes.
+     *
+     * @returns Media sector size in bytes.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetSectorSize,(PPDMIBLOCK pInterface));
+
+    /**
+     * Gets the block drive type.
+     *
+     * @returns block drive type.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(PDMBLOCKTYPE, pfnGetType,(PPDMIBLOCK pInterface));
+
+    /**
+     * Gets the UUID of the block drive.
+     * Don't return the media UUID if it's removable.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pUuid           Where to store the UUID on success.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnGetUuid,(PPDMIBLOCK pInterface, PRTUUID pUuid));
+
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIBLOCK pInterface, PCRTRANGE paRanges, unsigned cRanges));
+
+    /**
+     * Allocate buffer memory which is suitable for I/O and might have special proerties for secure
+     * environments (non-pageable memory for sensitive data which should not end up on the disk).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   cb              Amount of memory to allocate.
+     * @param   ppvNew          Where to store the pointer to the buffer on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufAlloc, (PPDMIBLOCK pInterface, size_t cb, void **ppvNew));
+
+    /**
+     * Free memory allocated with PDMIBLOCK::pfnIoBufAlloc().
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pv              Pointer to the memory to free.
+     * @param   cb              Amount of bytes given in PDMIBLOCK::pfnIoBufAlloc().
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufFree, (PPDMIBLOCK pInterface, void *pv, size_t cb));
+
+} PDMIBLOCK;
+/** PDMIBLOCK interface ID. */
+#define PDMIBLOCK_IID                           "4e804e8e-3c01-4f20-98d9-a30ece8ec9f5"
+
+
+/** Pointer to a mount interface. */
+typedef struct PDMIMOUNTNOTIFY *PPDMIMOUNTNOTIFY;
+/**
+ * Block interface (up).
+ * Pair with PDMIMOUNT.
+ */
+typedef struct PDMIMOUNTNOTIFY
+{
+    /**
+     * Called when a media is mounted.
+     *
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnMountNotify,(PPDMIMOUNTNOTIFY pInterface));
+
+    /**
+     * Called when a media is unmounted
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnUnmountNotify,(PPDMIMOUNTNOTIFY pInterface));
+} PDMIMOUNTNOTIFY;
+/** PDMIMOUNTNOTIFY interface ID. */
+#define PDMIMOUNTNOTIFY_IID                     "fa143ac9-9fc6-498e-997f-945380a558f9"
+
+
+/** Pointer to mount interface. */
+typedef struct PDMIMOUNT *PPDMIMOUNT;
+/**
+ * Mount interface (down).
+ * Pair with PDMIMOUNTNOTIFY.
+ */
+typedef struct PDMIMOUNT
+{
+    /**
+     * Mount a media.
+     *
+     * This will not unmount any currently mounted media!
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pszFilename     Pointer to filename. If this is NULL it assumed that the caller have
+     *                          constructed a configuration which can be attached to the bottom driver.
+     * @param   pszCoreDriver   Core driver name. NULL will cause autodetection. Ignored if pszFilanem is NULL.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMount,(PPDMIMOUNT pInterface, const char *pszFilename, const char *pszCoreDriver));
+
+    /**
+     * Unmount the media.
+     *
+     * The driver will validate and pass it on. On the rebounce it will decide whether or not to detach it self.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  The emulation thread.
+     * @param   fForce          Force the unmount, even for locked media.
+     * @param   fEject          Eject the medium. Only relevant for host drives.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnUnmount,(PPDMIMOUNT pInterface, bool fForce, bool fEject));
+
+    /**
+     * Checks if a media is mounted.
+     *
+     * @returns true if mounted.
+     * @returns false if not mounted.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsMounted,(PPDMIMOUNT pInterface));
+
+    /**
+     * Locks the media, preventing any unmounting of it.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnLock,(PPDMIMOUNT pInterface));
+
+    /**
+     * Unlocks the media, canceling previous calls to pfnLock().
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnUnlock,(PPDMIMOUNT pInterface));
+
+    /**
+     * Checks if a media is locked.
+     *
+     * @returns true if locked.
+     * @returns false if not locked.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsLocked,(PPDMIMOUNT pInterface));
+} PDMIMOUNT;
+/** PDMIMOUNT interface ID. */
+#define PDMIMOUNT_IID                           "34fc7a4c-623a-4806-a6bf-5be1be33c99f"
+
 /** Pointer to a secret key interface. */
 typedef struct PDMISECKEY *PPDMISECKEY;
 
@@ -1104,6 +1458,539 @@ typedef struct PDMISECKEYHLP
 } PDMISECKEYHLP;
 /** PDMISECKEY interface ID. */
 #define PDMISECKEYHLP_IID                        "7be96168-4156-40ac-86d2-3073bf8b318e"
+
+/**
+ * Media geometry structure.
+ */
+typedef struct PDMMEDIAGEOMETRY
+{
+    /** Number of cylinders. */
+    uint32_t    cCylinders;
+    /** Number of heads. */
+    uint32_t    cHeads;
+    /** Number of sectors. */
+    uint32_t    cSectors;
+} PDMMEDIAGEOMETRY;
+
+/** Pointer to media geometry structure. */
+typedef PDMMEDIAGEOMETRY *PPDMMEDIAGEOMETRY;
+/** Pointer to constant media geometry structure. */
+typedef const PDMMEDIAGEOMETRY *PCPDMMEDIAGEOMETRY;
+
+/** Pointer to a media port interface. */
+typedef struct PDMIMEDIAPORT *PPDMIMEDIAPORT;
+/**
+ * Media port interface (down).
+ */
+typedef struct PDMIMEDIAPORT
+{
+    /**
+     * Returns the storage controller name, instance and LUN of the attached medium.
+     *
+     * @returns VBox status.
+     * @param   pInterface      Pointer to this interface.
+     * @param   ppcszController Where to store the name of the storage controller.
+     * @param   piInstance      Where to store the instance number of the controller.
+     * @param   piLUN           Where to store the LUN of the attached device.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnQueryDeviceLocation, (PPDMIMEDIAPORT pInterface, const char **ppcszController,
+                                                       uint32_t *piInstance, uint32_t *piLUN));
+
+} PDMIMEDIAPORT;
+/** PDMIMEDIAPORT interface ID. */
+#define PDMIMEDIAPORT_IID                           "9f7e8c9e-6d35-4453-bbef-1f78033174d6"
+
+/** Pointer to a media interface. */
+typedef struct PDMIMEDIA *PPDMIMEDIA;
+/**
+ * Media interface (up).
+ * Makes up the foundation for PDMIBLOCK and PDMIBLOCKBIOS.
+ * Pairs with PDMIMEDIAPORT.
+ */
+typedef struct PDMIMEDIA
+{
+    /**
+     * Read bits.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIMEDIA pInterface, uint64_t off, void *pvBuf, size_t cbRead));
+
+    /**
+     * Read bits - version for DevPcBios.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     *
+     * @note: Special version of pfnRead which doesn't try to suspend the VM when the DEKs for encrypted disks
+     *        are missing but just returns an error.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnReadPcBios,(PPDMIMEDIA pInterface, uint64_t off, void *pvBuf, size_t cbRead));
+
+    /**
+     * Write bits.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start writing at. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the write bits.
+     * @param   cbWrite         Number of bytes to write. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMIMEDIA pInterface, uint64_t off, const void *pvBuf, size_t cbWrite));
+
+    /**
+     * Make sure that the bits written are actually on the storage medium.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnFlush,(PPDMIMEDIA pInterface));
+
+    /**
+     * Merge medium contents during a live snapshot deletion. All details
+     * must have been configured through CFGM or this will fail.
+     * This method is optional (i.e. the function pointer may be NULL).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pfnProgress     Function pointer for progress notification.
+     * @param   pvUser          Opaque user data for progress notification.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMerge,(PPDMIMEDIA pInterface, PFNSIMPLEPROGRESS pfnProgress, void *pvUser));
+
+    /**
+     * Sets the secret key retrieval interface to use to get secret keys.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pIfSecKey       The secret key interface to use.
+     *                          Use NULL to clear the currently set interface and clear all secret
+     *                          keys from the user.
+     * @param   pIfSecKeyHlp    The secret key helper interface to use.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetSecKeyIf,(PPDMIMEDIA pInterface, PPDMISECKEY pIfSecKey,
+                                              PPDMISECKEYHLP pIfSecKeyHlp));
+
+    /**
+     * Get the media size in bytes.
+     *
+     * @returns Media size in bytes.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(uint64_t, pfnGetSize,(PPDMIMEDIA pInterface));
+
+    /**
+     * Gets the media sector size in bytes.
+     *
+     * @returns Media sector size in bytes.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetSectorSize,(PPDMIMEDIA pInterface));
+
+    /**
+     * Check if the media is readonly or not.
+     *
+     * @returns true if readonly.
+     * @returns false if read/write.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsReadOnly,(PPDMIMEDIA pInterface));
+
+    /**
+     * Get stored media geometry (physical CHS, PCHS) - BIOS property.
+     * This is an optional feature of a media.
+     *
+     * @returns VBox status code.
+     * @returns VERR_NOT_IMPLEMENTED if the media doesn't support storing the geometry.
+     * @returns VERR_PDM_GEOMETRY_NOT_SET if the geometry hasn't been set using pfnBiosSetPCHSGeometry() yet.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pPCHSGeometry   Pointer to PCHS geometry (cylinders/heads/sectors).
+     * @remark  This has no influence on the read/write operations.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnBiosGetPCHSGeometry,(PPDMIMEDIA pInterface, PPDMMEDIAGEOMETRY pPCHSGeometry));
+
+    /**
+     * Store the media geometry (physical CHS, PCHS) - BIOS property.
+     * This is an optional feature of a media.
+     *
+     * @returns VBox status code.
+     * @returns VERR_NOT_IMPLEMENTED if the media doesn't support storing the geometry.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pPCHSGeometry   Pointer to PCHS geometry (cylinders/heads/sectors).
+     * @remark  This has no influence on the read/write operations.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnBiosSetPCHSGeometry,(PPDMIMEDIA pInterface, PCPDMMEDIAGEOMETRY pPCHSGeometry));
+
+    /**
+     * Get stored media geometry (logical CHS, LCHS) - BIOS property.
+     * This is an optional feature of a media.
+     *
+     * @returns VBox status code.
+     * @returns VERR_NOT_IMPLEMENTED if the media doesn't support storing the geometry.
+     * @returns VERR_PDM_GEOMETRY_NOT_SET if the geometry hasn't been set using pfnBiosSetLCHSGeometry() yet.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pLCHSGeometry   Pointer to LCHS geometry (cylinders/heads/sectors).
+     * @remark  This has no influence on the read/write operations.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnBiosGetLCHSGeometry,(PPDMIMEDIA pInterface, PPDMMEDIAGEOMETRY pLCHSGeometry));
+
+    /**
+     * Store the media geometry (logical CHS, LCHS) - BIOS property.
+     * This is an optional feature of a media.
+     *
+     * @returns VBox status code.
+     * @returns VERR_NOT_IMPLEMENTED if the media doesn't support storing the geometry.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pLCHSGeometry   Pointer to LCHS geometry (cylinders/heads/sectors).
+     * @remark  This has no influence on the read/write operations.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnBiosSetLCHSGeometry,(PPDMIMEDIA pInterface, PCPDMMEDIAGEOMETRY pLCHSGeometry));
+
+    /**
+     * Gets the UUID of the media drive.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pUuid           Where to store the UUID on success.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnGetUuid,(PPDMIMEDIA pInterface, PRTUUID pUuid));
+
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIMEDIA pInterface, PCRTRANGE paRanges, unsigned cRanges));
+
+    /**
+     * Allocate buffer memory which is suitable for I/O and might have special proerties for secure
+     * environments (non-pageable memory for sensitive data which should not end up on the disk).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   cb              Amount of memory to allocate.
+     * @param   ppvNew          Where to store the pointer to the buffer on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufAlloc, (PPDMIMEDIA pInterface, size_t cb, void **ppvNew));
+
+    /**
+     * Free memory allocated with PDMIMEDIA::pfnIoBufAlloc().
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pv              Pointer to the memory to free.
+     * @param   cb              Amount of bytes given in PDMIMEDIA::pfnIoBufAlloc().
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufFree, (PPDMIMEDIA pInterface, void *pv, size_t cb));
+
+} PDMIMEDIA;
+/** PDMIMEDIA interface ID. */
+#define PDMIMEDIA_IID                           "d8997ad8-4dda-4352-aa99-99bf87d54102"
+
+
+/** Pointer to a block BIOS interface. */
+typedef struct PDMIBLOCKBIOS *PPDMIBLOCKBIOS;
+/**
+ * Media BIOS interface (Up / External).
+ * The interface the getting and setting properties which the BIOS/CMOS care about.
+ */
+typedef struct PDMIBLOCKBIOS
+{
+    /**
+     * Get stored media geometry (physical CHS, PCHS) - BIOS property.
+     * This is an optional feature of a media.
+     *
+     * @returns VBox status code.
+     * @returns VERR_NOT_IMPLEMENTED if the media doesn't support storing the geometry.
+     * @returns VERR_PDM_GEOMETRY_NOT_SET if the geometry hasn't been set using pfnSetPCHSGeometry() yet.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pPCHSGeometry   Pointer to PCHS geometry (cylinders/heads/sectors).
+     * @remark  This has no influence on the read/write operations.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnGetPCHSGeometry,(PPDMIBLOCKBIOS pInterface, PPDMMEDIAGEOMETRY pPCHSGeometry));
+
+    /**
+     * Store the media geometry (physical CHS, PCHS) - BIOS property.
+     * This is an optional feature of a media.
+     *
+     * @returns VBox status code.
+     * @returns VERR_NOT_IMPLEMENTED if the media doesn't support storing the geometry.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pPCHSGeometry   Pointer to PCHS geometry (cylinders/heads/sectors).
+     * @remark  This has no influence on the read/write operations.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetPCHSGeometry,(PPDMIBLOCKBIOS pInterface, PCPDMMEDIAGEOMETRY pPCHSGeometry));
+
+    /**
+     * Get stored media geometry (logical CHS, LCHS) - BIOS property.
+     * This is an optional feature of a media.
+     *
+     * @returns VBox status code.
+     * @returns VERR_NOT_IMPLEMENTED if the media doesn't support storing the geometry.
+     * @returns VERR_PDM_GEOMETRY_NOT_SET if the geometry hasn't been set using pfnSetLCHSGeometry() yet.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pLCHSGeometry   Pointer to LCHS geometry (cylinders/heads/sectors).
+     * @remark  This has no influence on the read/write operations.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnGetLCHSGeometry,(PPDMIBLOCKBIOS pInterface, PPDMMEDIAGEOMETRY pLCHSGeometry));
+
+    /**
+     * Store the media geometry (logical CHS, LCHS) - BIOS property.
+     * This is an optional feature of a media.
+     *
+     * @returns VBox status code.
+     * @returns VERR_NOT_IMPLEMENTED if the media doesn't support storing the geometry.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pLCHSGeometry   Pointer to LCHS geometry (cylinders/heads/sectors).
+     * @remark  This has no influence on the read/write operations.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetLCHSGeometry,(PPDMIBLOCKBIOS pInterface, PCPDMMEDIAGEOMETRY pLCHSGeometry));
+
+    /**
+     * Checks if the device should be visible to the BIOS or not.
+     *
+     * @returns true if the device is visible to the BIOS.
+     * @returns false if the device is not visible to the BIOS.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsVisible,(PPDMIBLOCKBIOS pInterface));
+
+    /**
+     * Gets the block drive type.
+     *
+     * @returns block drive type.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(PDMBLOCKTYPE, pfnGetType,(PPDMIBLOCKBIOS pInterface));
+
+} PDMIBLOCKBIOS;
+/** PDMIBLOCKBIOS interface ID. */
+#define PDMIBLOCKBIOS_IID                       "477c3eee-a48d-48a9-82fd-2a54de16b2e9"
+
+
+/** Pointer to a static block core driver interface. */
+typedef struct PDMIMEDIASTATIC *PPDMIMEDIASTATIC;
+/**
+ * Static block core driver interface.
+ */
+typedef struct PDMIMEDIASTATIC
+{
+    /**
+     * Check if the specified file is a format which the core driver can handle.
+     *
+     * @returns true / false accordingly.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pszFilename     Name of the file to probe.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnCanHandle,(PPDMIMEDIASTATIC pInterface, const char *pszFilename));
+} PDMIMEDIASTATIC;
+
+
+
+
+
+/** Pointer to an asynchronous block notify interface. */
+typedef struct PDMIBLOCKASYNCPORT *PPDMIBLOCKASYNCPORT;
+/**
+ * Asynchronous block notify interface (up).
+ * Pair with PDMIBLOCKASYNC.
+ */
+typedef struct PDMIBLOCKASYNCPORT
+{
+    /**
+     * Notify completion of an asynchronous transfer.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pvUser          The user argument given in pfnStartWrite/Read.
+     * @param   rcReq           IPRT Status code of the completed request.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIBLOCKASYNCPORT pInterface, void *pvUser, int rcReq));
+} PDMIBLOCKASYNCPORT;
+/** PDMIBLOCKASYNCPORT interface ID. */
+#define PDMIBLOCKASYNCPORT_IID                  "e3bdc0cb-9d99-41dd-8eec-0dc8cf5b2a92"
+
+
+
+/** Pointer to an asynchronous block interface. */
+typedef struct PDMIBLOCKASYNC *PPDMIBLOCKASYNC;
+/**
+ * Asynchronous block interface (down).
+ * Pair with PDMIBLOCKASYNCPORT.
+ */
+typedef struct PDMIBLOCKASYNC
+{
+    /**
+     * Start reading task.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from.c
+     * @param   paSegs          Pointer to the S/G segment array.
+     * @param   cSegs           Number of entries in the array.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartRead,(PPDMIBLOCKASYNC pInterface, uint64_t off, PCRTSGSEG paSegs, unsigned cSegs, size_t cbRead, void *pvUser));
+
+    /**
+     * Write bits.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start writing at. The offset must be aligned to a sector boundary.
+     * @param   paSegs          Pointer to the S/G segment array.
+     * @param   cSegs           Number of entries in the array.
+     * @param   cbWrite         Number of bytes to write. Must be aligned to a sector boundary.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIBLOCKASYNC pInterface, uint64_t off, PCRTSGSEG paSegs, unsigned cSegs, size_t cbWrite, void *pvUser));
+
+    /**
+     * Flush everything to disk.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIBLOCKASYNC pInterface, void *pvUser));
+
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartDiscard,(PPDMIBLOCKASYNC pInterface, PCRTRANGE paRanges, unsigned cRanges, void *pvUser));
+
+} PDMIBLOCKASYNC;
+/** PDMIBLOCKASYNC interface ID. */
+#define PDMIBLOCKASYNC_IID                      "a921dd96-1748-4ecd-941e-d5f3cd4c8fe4"
+
+
+/** Pointer to an asynchronous notification interface. */
+typedef struct PDMIMEDIAASYNCPORT *PPDMIMEDIAASYNCPORT;
+/**
+ * Asynchronous version of the media interface (up).
+ * Pair with PDMIMEDIAASYNC.
+ */
+typedef struct PDMIMEDIAASYNCPORT
+{
+    /**
+     * Notify completion of a task.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pvUser          The user argument given in pfnStartWrite.
+     * @param   rcReq           IPRT Status code of the completed request.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIMEDIAASYNCPORT pInterface, void *pvUser, int rcReq));
+} PDMIMEDIAASYNCPORT;
+/** PDMIMEDIAASYNCPORT interface ID. */
+#define PDMIMEDIAASYNCPORT_IID                  "22d38853-901f-4a71-9670-4d9da6e82317"
+
+
+/** Pointer to an asynchronous media interface. */
+typedef struct PDMIMEDIAASYNC *PPDMIMEDIAASYNC;
+/**
+ * Asynchronous version of PDMIMEDIA (down).
+ * Pair with PDMIMEDIAASYNCPORT.
+ */
+typedef struct PDMIMEDIAASYNC
+{
+    /**
+     * Start reading task.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. Must be aligned to a sector boundary.
+     * @param   paSegs          Pointer to the S/G segment array.
+     * @param   cSegs           Number of entries in the array.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @param   pvUser          User data.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartRead,(PPDMIMEDIAASYNC pInterface, uint64_t off, PCRTSGSEG paSegs, unsigned cSegs, size_t cbRead, void *pvUser));
+
+    /**
+     * Start writing task.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start writing at. Must be aligned to a sector boundary.
+     * @param   paSegs          Pointer to the S/G segment array.
+     * @param   cSegs           Number of entries in the array.
+     * @param   cbWrite         Number of bytes to write. Must be aligned to a sector boundary.
+     * @param   pvUser          User data.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIMEDIAASYNC pInterface, uint64_t off, PCRTSGSEG paSegs, unsigned cSegs, size_t cbWrite, void *pvUser));
+
+    /**
+     * Flush everything to disk.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIMEDIAASYNC pInterface, void *pvUser));
+
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartDiscard,(PPDMIMEDIAASYNC pInterface, PCRTRANGE paRanges, unsigned cRanges, void *pvUser));
+
+} PDMIMEDIAASYNC;
+/** PDMIMEDIAASYNC interface ID. */
+#define PDMIMEDIAASYNC_IID                      "4be209d3-ccb5-4297-82fe-7d8018bc6ab4"
 
 
 /** Pointer to a char port interface. */
@@ -1479,7 +2366,7 @@ typedef struct PDMIACPIPORT
     DECLR3CALLBACKMEMBER(int, pfnBatteryStatusChangeEvent,(PPDMIACPIPORT pInterface));
 } PDMIACPIPORT;
 /** PDMIACPIPORT interface ID. */
-#define PDMIACPIPORT_IID                        "d64233e3-7bb0-4ef1-a313-2bcfafbe6260"
+#define PDMIACPIPORT_IID                        "974cb8fb-7fda-408c-f9b4-7ff4e3b2a699"
 
 
 /** Pointer to an ACPI connector interface. */
@@ -1513,7 +2400,7 @@ typedef struct PDMIACPICONNECTOR
                                                      PPDMACPIBATSTATE penmBatteryState, uint32_t *pu32PresentRate));
 } PDMIACPICONNECTOR;
 /** PDMIACPICONNECTOR interface ID. */
-#define PDMIACPICONNECTOR_IID                   "19c7de73-5ae0-4841-a106-21825f43b206"
+#define PDMIACPICONNECTOR_IID                   "5f14bf8d-1edf-4e3a-a1e1-cca9fd08e359"
 
 
 /** Pointer to a VMMDevice port interface. */
@@ -2196,6 +3083,136 @@ typedef struct PDMIHGCMCONNECTOR
 # define PDMIHGCMCONNECTOR_IID                  "a1104758-c888-4437-8f2a-7bac17865b5c"
 
 #endif /* VBOX_WITH_HGCM */
+
+/**
+ * Data direction.
+ */
+typedef enum PDMSCSIREQUESTTXDIR
+{
+    PDMSCSIREQUESTTXDIR_UNKNOWN     = 0x00,
+    PDMSCSIREQUESTTXDIR_FROM_DEVICE = 0x01,
+    PDMSCSIREQUESTTXDIR_TO_DEVICE   = 0x02,
+    PDMSCSIREQUESTTXDIR_NONE        = 0x03,
+    PDMSCSIREQUESTTXDIR_32BIT_HACK  = 0x7fffffff
+} PDMSCSIREQUESTTXDIR;
+
+/**
+ * SCSI request structure.
+ */
+typedef struct PDMSCSIREQUEST
+{
+    /** The logical unit. */
+    uint32_t               uLogicalUnit;
+    /** Direction of the data flow. */
+    PDMSCSIREQUESTTXDIR    uDataDirection;
+    /** Size of the SCSI CDB. */
+    uint32_t               cbCDB;
+    /** Pointer to the SCSI CDB. */
+    uint8_t               *pbCDB;
+    /** Overall size of all scatter gather list elements
+     *  for data transfer if any. */
+    uint32_t               cbScatterGather;
+    /** Number of elements in the scatter gather list. */
+    uint32_t               cScatterGatherEntries;
+    /** Pointer to the head of the scatter gather list. */
+    PRTSGSEG               paScatterGatherHead;
+    /** Size of the sense buffer. */
+    uint32_t               cbSenseBuffer;
+    /** Pointer to the sense buffer. *
+     * Current assumption that the sense buffer is not scattered. */
+    uint8_t               *pbSenseBuffer;
+    /** Opaque user data for use by the device. Left untouched by everything else! */
+    void                  *pvUser;
+} PDMSCSIREQUEST, *PPDMSCSIREQUEST;
+/** Pointer to a const SCSI request structure. */
+typedef const PDMSCSIREQUEST *PCSCSIREQUEST;
+
+/** Pointer to a SCSI port interface. */
+typedef struct PDMISCSIPORT *PPDMISCSIPORT;
+/**
+ * SCSI command execution port interface (down).
+ * Pair with PDMISCSICONNECTOR.
+ */
+typedef struct PDMISCSIPORT
+{
+
+    /**
+     * Notify the device on request completion.
+     *
+     * @returns VBox status code.
+     * @param   pInterface    Pointer to this interface.
+     * @param   pSCSIRequest  Pointer to the finished SCSI request.
+     * @param   rcCompletion  SCSI_STATUS_* code for the completed request.
+     * @param   fRedo         Flag whether the request can to be redone
+     *                        when it failed.
+     * @param   rcReq         The status code the request completed with (VERR_*)
+     *                        Should be only used to choose the correct error message
+     *                        displayed to the user if the error can be fixed by him
+     *                        (fRedo is true).
+     */
+     DECLR3CALLBACKMEMBER(int, pfnSCSIRequestCompleted, (PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest,
+                                                         int rcCompletion, bool fRedo, int rcReq));
+
+    /**
+     * Returns the storage controller name, instance and LUN of the attached medium.
+     *
+     * @returns VBox status.
+     * @param   pInterface      Pointer to this interface.
+     * @param   ppcszController Where to store the name of the storage controller.
+     * @param   piInstance      Where to store the instance number of the controller.
+     * @param   piLUN           Where to store the LUN of the attached device.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnQueryDeviceLocation, (PPDMISCSIPORT pInterface, const char **ppcszController,
+                                                       uint32_t *piInstance, uint32_t *piLUN));
+
+} PDMISCSIPORT;
+/** PDMISCSIPORT interface ID. */
+#define PDMISCSIPORT_IID                        "05d9fc3b-e38c-4b30-8344-a323feebcfe5"
+
+/**
+ * LUN type.
+ */
+typedef enum PDMSCSILUNTYPE
+{
+    PDMSCSILUNTYPE_INVALID = 0,
+    PDMSCSILUNTYPE_SBC,         /** Hard disk (SBC) */
+    PDMSCSILUNTYPE_MMC,         /** CD/DVD drive (MMC) */
+    PDMSCSILUNTYPE_SSC,         /** Tape drive (SSC) */
+    PDMSCSILUNTYPE_32BIT_HACK = 0x7fffffff
+} PDMSCSILUNTYPE, *PPDMSCSILUNTYPE;
+
+
+/** Pointer to a SCSI connector interface. */
+typedef struct PDMISCSICONNECTOR *PPDMISCSICONNECTOR;
+/**
+ * SCSI command execution connector interface (up).
+ * Pair with PDMISCSIPORT.
+ */
+typedef struct PDMISCSICONNECTOR
+{
+
+    /**
+     * Submits a SCSI request for execution.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to this interface.
+     * @param   pSCSIRequest    Pointer to the SCSI request to execute.
+     */
+     DECLR3CALLBACKMEMBER(int, pfnSCSIRequestSend, (PPDMISCSICONNECTOR pInterface, PPDMSCSIREQUEST pSCSIRequest));
+
+    /**
+     * Queries the type of the attached LUN.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to this interface.
+     * @param   iLUN            The logical unit number.
+     * @param   pSCSIRequest    Pointer to the LUN to be returned.
+     */
+     DECLR3CALLBACKMEMBER(int, pfnQueryLUNType, (PPDMISCSICONNECTOR pInterface, uint32_t iLun, PPDMSCSILUNTYPE pLUNType));
+
+} PDMISCSICONNECTOR;
+/** PDMISCSICONNECTOR interface ID. */
+#define PDMISCSICONNECTOR_IID                   "94465fbd-a2f2-447e-88c9-7366421bfbfe"
 
 
 /** Pointer to a display VBVA callbacks interface. */

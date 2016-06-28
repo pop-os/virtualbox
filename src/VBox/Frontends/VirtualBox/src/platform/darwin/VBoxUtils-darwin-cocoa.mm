@@ -25,11 +25,6 @@
 #import <AppKit/NSEvent.h>
 #import <AppKit/NSColor.h>
 #import <AppKit/NSFont.h>
-#if QT_VERSION >= 0x050000
-# import <AppKit/NSScreen.h>
-# import <AppKit/NSWindow.h>
-# import <AppKit/NSImageView.h>
-#endif /* QT_VERSION >= 0x050000 */
 
 #import <objc/objc-class.h>
 
@@ -292,13 +287,11 @@ double darwinBackingScaleFactor(NativeNSWindowRef pWindow)
     return 1.0;
 }
 
-#if QT_VERSION < 0x050000
 void darwinSetDockIconMenu(QMenu* pMenu)
 {
     extern void qt_mac_set_dock_menu(QMenu *);
     qt_mac_set_dock_menu(pMenu);
 }
-#endif /* QT_VERSION < 0x050000 */
 
 /**
  * Calls the + (void)setMouseCoalescingEnabled:(BOOL)flag class method.
@@ -677,16 +670,12 @@ static UIResizeProxy *gSharedResizeProxy = nil;
        the shift modifier state during the resize. If it is not available the
        user have to press shift before he start to resize. */
     if ([NSEvent respondsToSelector:@selector(modifierFlags)])
-    {
         if (((int)(intptr_t)[NSEvent performSelector:@selector(modifierFlags)] & NSShiftKeyMask) == NSShiftKeyMask)
             return qtSize;
-    }
     else
-    {
         /* Shift key pressed when this resize event was initiated? */
         if (([pWindow resizeFlags] & NSShiftKeyMask) == NSShiftKeyMask)
             return qtSize;
-    }
     /* The default case is to calculate the aspect radio of the old size and
        used it for the new size. */
     NSSize s = [pWindow frame].size;
@@ -722,11 +711,5 @@ void darwinInstallResizeDelegate(NativeNSWindowRef pWindow)
 void darwinUninstallResizeDelegate(NativeNSWindowRef pWindow)
 {
     [[UIResizeProxy sharedResizeProxy] removeWindow:pWindow];
-}
-
-void* darwinCocoaToCarbonEvent(void *pvCocoaEvent)
-{
-    NSEvent *pEvent = (NSEvent*)pvCocoaEvent;
-    return (void*)[pEvent eventRef];
 }
 

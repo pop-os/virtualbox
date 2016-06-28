@@ -40,11 +40,10 @@ namespace com
  *  Must be called on the main thread, before any COM activity in any thread, and by any thread
  *  willing to perform COM operations.
  *
- *  @param fGui             if call is performed on the GUI thread
- *  @param fAutoRegUpdate   if to do auto MS COM registration updates.
+ *  @param fGui     if call is performed on the GUI thread
  *  @return COM result code
  */
-HRESULT Initialize(bool fGui = false, bool fAutoRegUpdate = true);
+HRESULT Initialize(bool fGui = false);
 
 /**
  *  Shuts down the COM runtime.

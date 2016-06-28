@@ -39,15 +39,7 @@
 /** A dummy name used early during the construction phase to avoid log crashes. */
 static char g_szDummyName[] = "proxy xxxx:yyyy";
 
-/**
- * Array of supported proxy backends.
- */
-static PCUSBPROXYBACK g_aUsbProxies[] =
-{
-    &g_USBProxyDeviceHost,
-    &g_USBProxyDeviceVRDP,
-    &g_USBProxyDeviceUsbIp
-};
+
 
 /* Synchronously obtain a standard USB descriptor for a device, used in order
  * to grab configuration descriptors when we first add the device
@@ -67,20 +59,20 @@ static void *GetStdDescSync(PUSBPROXYDEV pProxyDev, uint8_t iDescType, uint8_t i
         int rc = VINF_SUCCESS;
         VUSBURB Urb;
         AssertCompile(RT_SIZEOFMEMB(VUSBURB, abData) >= _4K);
-        Urb.u32Magic      = VUSBURB_MAGIC;
-        Urb.enmState      = VUSBURBSTATE_IN_FLIGHT;
-        Urb.pszDesc       = (char*)"URB sync";
-        Urb.pHci          = NULL;
-        Urb.paTds         = NULL;
+        Urb.u32Magic = VUSBURB_MAGIC;
+        Urb.enmState = VUSBURBSTATE_IN_FLIGHT;
+        Urb.pszDesc = (char*)"URB sync";
+        memset(&Urb.VUsb, 0, sizeof(Urb.VUsb));
+        memset(&Urb.Hci, 0, sizeof(Urb.Hci));
         Urb.Dev.pvPrivate = NULL;
-        Urb.Dev.pNext     = NULL;
-        Urb.DstAddress    = 0;
-        Urb.EndPt         = 0;
-        Urb.enmType       = VUSBXFERTYPE_MSG;
-        Urb.enmDir        = VUSBDIRECTION_IN;
-        Urb.fShortNotOk   = false;
-        Urb.enmStatus     = VUSBSTATUS_INVALID;
-        Urb.pVUsb         = NULL;
+        Urb.Dev.pNext = NULL;
+        Urb.pUsbIns = pProxyDev->pUsbIns;
+        Urb.DstAddress = 0;
+        Urb.EndPt = 0;
+        Urb.enmType = VUSBXFERTYPE_MSG;
+        Urb.enmDir = VUSBDIRECTION_IN;
+        Urb.fShortNotOk = false;
+        Urb.enmStatus = VUSBSTATUS_INVALID;
         cbHint = RT_MIN(cbHint, sizeof(Urb.abData) - sizeof(VUSBSETUP));
         Urb.cbData = cbHint + sizeof(VUSBSETUP);
 
@@ -877,8 +869,8 @@ static DECLCALLBACK(int) usbProxyConstruct(PPDMUSBINS pUsbIns, int iInstance, PC
     int rc = CFGMR3QueryString(pCfg, "Address", szAddress, sizeof(szAddress));
     AssertRCReturn(rc, rc);
 
-    char szBackend[64];
-    rc = CFGMR3QueryString(pCfg, "Backend", szBackend, sizeof(szBackend));
+    bool fRemote;
+    rc = CFGMR3QueryBool(pCfg, "Remote", &fRemote);
     AssertRCReturn(rc, rc);
 
     void *pvBackend;
@@ -888,18 +880,10 @@ static DECLCALLBACK(int) usbProxyConstruct(PPDMUSBINS pUsbIns, int iInstance, PC
     /*
      * Select backend and open the device.
      */
-    rc = VERR_NOT_FOUND;
-    for (unsigned i = 0; i < RT_ELEMENTS(g_aUsbProxies); i++)
-    {
-        if (!RTStrICmp(szBackend, g_aUsbProxies[i]->pszName))
-        {
-            pThis->pOps = g_aUsbProxies[i];
-            rc = VINF_SUCCESS;
-            break;
-        }
-    }
-    if (RT_FAILURE(rc))
-        return PDMUSB_SET_ERROR(pUsbIns, rc, N_("USBProxy: Failed to find backend"));
+    if (!fRemote)
+        pThis->pOps = &g_USBProxyDeviceHost;
+    else
+        pThis->pOps = &g_USBProxyDeviceVRDP;
 
     pThis->pvInstanceDataR3 = RTMemAllocZ(pThis->pOps->cbBackend);
     if (!pThis->pvInstanceDataR3)
@@ -907,10 +891,7 @@ static DECLCALLBACK(int) usbProxyConstruct(PPDMUSBINS pUsbIns, int iInstance, PC
 
     rc = pThis->pOps->pfnOpen(pThis, szAddress, pvBackend);
     if (RT_FAILURE(rc))
-    {
-        LogRel(("usbProxyConstruct: Failed to open '%s', rc=%Rrc\n", szAddress, rc));
         return rc;
-    }
     pThis->fOpened = true;
 
     /*

@@ -32,7 +32,6 @@
   SmbiosPlatformDxe.h
   SmbiosPlatformDxe.c
   Xen.c
-  Qemu.c
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -46,8 +45,6 @@
   UefiDriverEntryPoint
   DebugLib
   HobLib
-  QemuFwCfgLib
-  MemoryAllocationLib
 
 [Protocols]
   gEfiSmbiosProtocolGuid                      # PROTOCOL ALWAYS_CONSUMED

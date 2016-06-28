@@ -128,10 +128,10 @@ ifeq ($(KBUILD_TARGET).$(VBOX_WITHOUT_COMPILER_REDIST),win.)
  endif
  ifeq ($(VBOX_VCC_CRT_TYPE),d)
   InstallExternalLibs_SOURCES += \
-  	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG)/msvcr$(substr $(VBOX_VCC_TOOL_STEM),4)d.dll) \
-  	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG)/msvcp$(substr $(VBOX_VCC_TOOL_STEM),4)d.dll) \
-  	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG)/msvcr$(substr $(VBOX_VCC_TOOL_STEM),4)d.dll)=>testcase/msvcr$(substr $(VBOX_VCC_TOOL_STEM),4)d.dll \
-  	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG)/msvcp$(substr $(VBOX_VCC_TOOL_STEM),4)d.dll)=>testcase/msvcp$(substr $(VBOX_VCC_TOOL_STEM),4)d.dll
+  	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG)/msvcr$(substr $(VBOX_VCC_TOOL_STEM),4).dll) \
+  	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG)/msvcp$(substr $(VBOX_VCC_TOOL_STEM),4).dll) \
+  	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG)/msvcr$(substr $(VBOX_VCC_TOOL_STEM),4).dll)=>testcase/msvcr$(substr $(VBOX_VCC_TOOL_STEM),4).dll \
+  	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG)/msvcp$(substr $(VBOX_VCC_TOOL_STEM),4).dll)=>testcase/msvcp$(substr $(VBOX_VCC_TOOL_STEM),4).dll
   ifdef VBOX_WITH_32_ON_64_MAIN_API
   InstallExternalLibs_SOURCES += \
   	$(call VBOX_RE_SIGN_DLL_FN,InstallExternalLibs,$(VBOX_PATH_VCC_REDIST_CRT_DBG_X86)/msvcr$(substr $(VBOX_VCC_TOOL_STEM)d,4).dll,x86_)=>x86/msvcr$(substr $(VBOX_VCC_TOOL_STEM),4)d.dll \
@@ -147,151 +147,55 @@ endif
 #       https://developer.apple.com/library/mac/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/FrameworkAnatomy.html
 #       the Info.plist file goes into Resources.
 #
-ifndef VBOX_WITH_QTGUI_V5
- ifeq ($(KBUILD_TARGET),darwin)
-  include $(KBUILD_PATH)/units/qt4.kmk
-  INSTALLS += qt4-bin
-  qt4-bin_MODE = 755
-  qt4-bin_INST = $(INST_VIRTUALBOX)Contents/
-  qt4-bin_SOURCES = $(foreach qtmod,$(VBOX_QT_MOD_NAMES) \
-   ,$(PATH_SDK_QT4_LIB)/$(qtmod).framework/Versions/4/$(qtmod)=>Frameworks/$(qtmod).framework/Versions/4/$(qtmod) \
-    $(PATH_SDK_QT4_LIB)/$(qtmod).framework/Contents/Info.plist=>Frameworks/$(qtmod).framework/Versions/4/Resources/Info.plist \
-      )
-  ifdef VBOX_WITH_COCOA_QT
-   qt4-bin_SOURCES += \
-    $(PATH_SDK_QT4_LIB)/QtGui$(VBOX_QT_INFIX).framework/Versions/4/Resources/qt_menu.nib/classes.nib=>Frameworks/QtGui$(VBOX_QT_INFIX).framework/Versions/4/Resources/qt_menu.nib/classes.nib \
-    $(PATH_SDK_QT4_LIB)/QtGui$(VBOX_QT_INFIX).framework/Versions/4/Resources/qt_menu.nib/info.nib=>Frameworks/QtGui$(VBOX_QT_INFIX).framework/Versions/4/Resources/qt_menu.nib/info.nib \
-    $(PATH_SDK_QT4_LIB)/QtGui$(VBOX_QT_INFIX).framework/Versions/4/Resources/qt_menu.nib/keyedobjects.nib=>Frameworks/QtGui$(VBOX_QT_INFIX).framework/Versions/4/Resources/qt_menu.nib/keyedobjects.nib
-  endif
-  ifneq ($(wildcard $(VBOX_PATH_QT)/plugins/accessible/libqtaccessiblewidgets.dylib),)
-   qt4-bin_SOURCES += \
-    $(VBOX_PATH_QT)/plugins/accessible/libqtaccessiblewidgets.dylib=>MacOS/accessible/libqtaccessiblewidgets.dylib
-  endif
-  qt4-bin_SYMLINKS = $(foreach qtmod, $(VBOX_QT_MOD_NAMES) \
-   ,Frameworks/$(qtmod).framework/Versions/Current=>4 \
-    Frameworks/$(qtmod).framework/$(qtmod)=>Versions/4/$(qtmod) \
-    Frameworks/$(qtmod).framework/Resources=>Versions/4/Resources)
- else
-  if defined(VBOX_WITH_ORACLE_QT) || defined(VBOX_WITH_QT_PAYLOAD)
-   include $(KBUILD_PATH)/units/qt4.kmk
-   ifeq ($(KBUILD_TARGET),win)
-    INSTALLS += qt4-bin
-    qt4-bin_MODE = 755
-    qt4-bin_INST = $(INST_BIN)
-    qt4-bin_SOURCES = \
-     $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(call VBOX_RE_SIGN_DLL_FN,qt4-bin,$(VBOX_PATH_QT_LIB)/$(qtmod)4$(SUFF_DLL))) \
-     $(call VBOX_RE_SIGN_DLL_FN,qt4-bin,$(VBOX_PATH_QT)/plugins/accessible/qtaccessiblewidgets4$(SUFF_DLL))=>accessible/qtaccessiblewidgets4$(SUFF_DLL)
-    ifdef VBOX_WITH_QT_PDBS
-     qt4-bin_SOURCES += \
-      $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(VBOX_PATH_QT_LIB)/$(qtmod)4.pdb) \
-      $(VBOX_PATH_QT)/plugins/accessible/qtaccessiblewidgets4.pdb=>accessible/qtaccessiblewidgets4.pdb
-    endif
-   else
-    INSTALLS += qt4-bin
-    qt4-bin_MODE = 755
-    qt4-bin_INST = $(INST_BIN)
-    qt4-bin_SOURCES = \
-     $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(VBOX_PATH_QT_LIB)/lib$(qtmod)$(SUFF_DLL).4) \
-     $(VBOX_PATH_QT)/plugins/accessible/libqtaccessiblewidgets$(SUFF_DLL)=>accessible/libqtaccessiblewidgets$(SUFF_DLL)
-   endif
-  endif # VBOX_WITH_ORACLE_QT
+ifeq ($(KBUILD_TARGET),darwin)
+ include $(KBUILD_PATH)/units/qt4.kmk
+ INSTALLS += qt4-bin
+ qt4-bin_MODE = 755
+ qt4-bin_INST = $(INST_VIRTUALBOX)Contents/
+ qt4-bin_SOURCES = $(foreach qtmod,$(VBOX_QT4_MOD_NAMES) \
+  	,$(PATH_SDK_QT4_LIB)/$(qtmod).framework/Versions/4/$(qtmod)=>Frameworks/$(qtmod).framework/Versions/4/$(qtmod) \
+  	 $(PATH_SDK_QT4_LIB)/$(qtmod).framework/Contents/Info.plist=>Frameworks/$(qtmod).framework/Versions/4/Resources/Info.plist \
+       )
+ ifdef VBOX_WITH_COCOA_QT
+  qt4-bin_SOURCES += \
+  	$(PATH_SDK_QT4_LIB)/QtGui$(VBOX_QT4_INFIX).framework/Versions/4/Resources/qt_menu.nib/classes.nib=>Frameworks/QtGui$(VBOX_QT4_INFIX).framework/Versions/4/Resources/qt_menu.nib/classes.nib \
+  	$(PATH_SDK_QT4_LIB)/QtGui$(VBOX_QT4_INFIX).framework/Versions/4/Resources/qt_menu.nib/info.nib=>Frameworks/QtGui$(VBOX_QT4_INFIX).framework/Versions/4/Resources/qt_menu.nib/info.nib \
+  	$(PATH_SDK_QT4_LIB)/QtGui$(VBOX_QT4_INFIX).framework/Versions/4/Resources/qt_menu.nib/keyedobjects.nib=>Frameworks/QtGui$(VBOX_QT4_INFIX).framework/Versions/4/Resources/qt_menu.nib/keyedobjects.nib
  endif
-else # VBOX_WITH_QTGUI_V5
- ifeq ($(KBUILD_TARGET),darwin)
-  include $(KBUILD_PATH)/units/qt5.kmk
-  INSTALLS += qt5-bin
-  qt5-bin_MODE = 755
-  qt5-bin_INST = $(INST_VIRTUALBOX)Contents/
-  qt5-bin_SOURCES = $(foreach qtmod,$(VBOX_QT_MOD_NAMES), \
-   $(PATH_SDK_QT5_LIB)/$(qtmod).framework/Versions/5/$(qtmod)=>Frameworks/$(qtmod).framework/Versions/5/$(qtmod) \
-   $(PATH_SDK_QT5_LIB)/$(qtmod).framework/Versions/5/Resources/Info.plist=>Frameworks/$(qtmod).framework/Versions/5/Resources/Info.plist)
-  qt5-bin_SOURCES += \
-   $(PATH_SDK_QT5)/plugins/platforms/libqcocoa$(SUFF_DLL)=>plugins/platforms/libqcocoa$(SUFF_DLL) \
-   $(PATH_SDK_QT5)/plugins/platforms/libqminimal$(SUFF_DLL)=>plugins/platforms/libqminimal$(SUFF_DLL) \
-   $(PATH_SDK_QT5)/plugins/platforms/libqoffscreen$(SUFF_DLL)=>plugins/platforms/libqoffscreen$(SUFF_DLL)
-  qt5-bin_SYMLINKS = $(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
-   Frameworks/$(qtmod).framework/Versions/Current=>5 \
-   Frameworks/$(qtmod).framework/$(qtmod)=>Versions/5/$(qtmod) \
-   Frameworks/$(qtmod).framework/Resources=>Versions/5/Resources)
- else # win x11
-  if defined(VBOX_WITH_ORACLE_QT) || defined(VBOX_WITH_QT_PAYLOAD)
-   include $(KBUILD_PATH)/units/qt5.kmk
-   ifeq ($(KBUILD_TARGET),win)
-    INSTALLS += qt5-bin
-    qt5-bin_MODE = 755
-    qt5-bin_INST = $(INST_BIN)
-    qt5-bin_SOURCES = \
-     $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/bin/$(qtmod)$(SUFF_DLL)))
-    qt5-bin_SOURCES += \
-     $(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qwindows$(SUFF_DLL))=>platforms/qwindows$(SUFF_DLL) \
-     $(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qminimal$(SUFF_DLL))=>platforms/qminimal$(SUFF_DLL) \
-     $(call VBOX_RE_SIGN_DLL_FN,qt5-bin,$(PATH_SDK_QT5)/plugins/platforms/qoffscreen$(SUFF_DLL))=>platforms/qoffscreen$(SUFF_DLL)
-    ifdef VBOX_WITH_QT_PDBS
-     qt5-bin_SOURCES += \
-      $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(wildcard $(PATH_SDK_QT5)/qt*/$(VBOX_PATH_QT_LIB)/$(qtmod).pdb))
-    endif # VBOX_WITH_QT_PDBS
-   else # x11
-    INSTALLS += qt5-bin
-    qt5-bin_MODE = 755
-    qt5-bin_INST = $(INST_BIN)
-    ifdef VBOX_WITH_HARDENING
-     # The wildcards are necessary to install the libs instead of the symlinks
-     qt5-bin_SOURCES = \
-      $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(wildcard $(VBOX_PATH_QT_LIB)/lib$(qtmod).so.*.*.*)=>lib$(qtmod).so.5) \
-      $(foreach lib,$(VBOX_QT_PLUGINS),$(VBOX_PATH_QT)/$(lib)=>$(lib))
-      ifneq ($(KBUILD_TARGET),solaris)
-       qt5-bin_SOURCES += \
-        $(foreach lib,$(VBOX_QT_LEGACY_LIBS),$(wildcard $(VBOX_PATH_QT_LIB)/legacy/$(lib).*.*)=>legacy/$(lib))
-      endif # solaris
-    else # !VBOX_WITH_HARDENING
-     # For non-hardened builds we need to remove the RUNPATH. This stuff is
-     # ugly but we need to prevent kBuild from hard-linking otherwise we
-     # (indirectly) change the binaries in tools
-     qt5-bin_SOURCES = \
-      $(foreach qtmod,$(VBOX_QT_MOD_NAMES),$(qt5-bin_0_OUTDIR)/lib$(qtmod).so.5.5.1=>lib$(qtmod).so.5) \
-      $(foreach lib,$(VBOX_QT_PLUGINS),$(qt5-bin_0_OUTDIR)/$(lib)=>$(lib))
-      ifneq ($(KBUILD_TARGET),solaris)
-       qt5-bin_SOURCES += \
-        $(foreach lib,$(VBOX_QT_LEGACY_LIBS),$(qt5-bin_0_OUTDIR)/$(lib)=>legacy/$(lib))
-      endif # solaris
+ ifneq ($(wildcard $(VBOX_PATH_QT4)/plugins/accessible/libqtaccessiblewidgets.dylib),)
+  qt4-bin_SOURCES += \
+  	$(VBOX_PATH_QT4)/plugins/accessible/libqtaccessiblewidgets.dylib=>MacOS/accessible/libqtaccessiblewidgets.dylib
+ endif
+ qt4-bin_SYMLINKS = $(foreach qtmod, $(VBOX_QT4_MOD_NAMES) \
+ 		,Frameworks/$(qtmod).framework/Versions/Current=>4 \
+		 Frameworks/$(qtmod).framework/$(qtmod)=>Versions/4/$(qtmod) \
+		 Frameworks/$(qtmod).framework/Resources=>Versions/4/Resources)
+else
+ if defined(VBOX_WITH_QT4_SUN) || defined(VBOX_WITH_QT4_PAYLOAD)
+  include $(KBUILD_PATH)/units/qt4.kmk
+  ifeq ($(KBUILD_TARGET),win)
+   INSTALLS += qt4-bin
+   qt4-bin_MODE = 755
+   qt4-bin_INST = $(INST_BIN)
+   qt4-bin_SOURCES = \
+   	$(foreach qtmod,$(VBOX_QT4_MOD_NAMES),$(call VBOX_RE_SIGN_DLL_FN,qt4-bin,$(VBOX_PATH_QT4_LIB)/$(qtmod)4$(SUFF_DLL))) \
+   	$(call VBOX_RE_SIGN_DLL_FN,qt4-bin,$(VBOX_PATH_QT4)/plugins/accessible/qtaccessiblewidgets4$(SUFF_DLL))=>accessible/qtaccessiblewidgets4$(SUFF_DLL)
+   ifdef VBOX_WITH_QT_PDBS
+    qt4-bin_SOURCES += \
+    	$(foreach qtmod,$(VBOX_QT4_MOD_NAMES),$(VBOX_PATH_QT4_LIB)/$(qtmod)4.pdb) \
+    	$(VBOX_PATH_QT4)/plugins/accessible/qtaccessiblewidgets4.pdb=>accessible/qtaccessiblewidgets4.pdb
+   endif
+  else
+   INSTALLS += qt4-bin
+   qt4-bin_MODE = 755
+   qt4-bin_INST = $(INST_BIN)
+   qt4-bin_SOURCES = \
+	$(foreach qtmod,$(VBOX_QT4_MOD_NAMES),$(VBOX_PATH_QT4_LIB)/lib$(qtmod)$(SUFF_DLL).4) \
+ 	$(VBOX_PATH_QT4)/plugins/accessible/libqtaccessiblewidgets$(SUFF_DLL)=>accessible/libqtaccessiblewidgets$(SUFF_DLL)
+  endif
+ endif # VBOX_WITH_QT4_SUN
+endif
 
-$(foreach qtmod,$(VBOX_QT_MOD_NAMES),$$(qt5-bin_0_OUTDIR)/lib$(qtmod).so.5.5.1): \
-	$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT_LIB)/% | $$(qt5-bin_0_OUTDIR)/
-	$(call MSG_INST_FILE,$^,$@)
-	$(QUIET)$(CP) $^ $@
-	$(QUIET)chrpath --delete $@
-      
-      ifneq ($(KBUILD_TARGET),solaris)
-$(foreach lib,$(VBOX_QT_PLUGINS),$$(qt5-bin_0_OUTDIR)/$(lib)): \
-	$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT)/% | $$(qt5-bin_0_OUTDIR)/
-	$(call MSG_INST_FILE,$^,$@)
-	$(QUIET)$(MKDIR) -p $(@D)
-	$(QUIET)$(CP) $^ $@
-	$(QUIET)chrpath --delete $@
-      endif # !solaris
-
-      # @todo For solaris dlopen fails to navigate executable rpath to dependent libraries,
-      #       so add explicit rpath for libqxcb.so, find better solution later.
-      ifeq ($(KBUILD_TARGET),solaris)
-$(foreach lib,$(VBOX_QT_PLUGINS),$$(qt5-bin_0_OUTDIR)/$(lib)): \
-	$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT)/% | $$(qt5-bin_0_OUTDIR)/
-	$(call MSG_INST_FILE,$^,$@)
-	$(QUIET)$(MKDIR) -p $(@D)
-	$(QUIET)$(CP) $^ $@
-	$(QUIET)chrpath --replace "\$$ORIGIN/../../" $@
-      endif # solaris
-
-$(foreach lib,$(VBOX_QT_LEGACY_LIBS),$$(qt5-bin_0_OUTDIR)/$(lib)): \
-	$$(qt5-bin_0_OUTDIR)/% : $(VBOX_PATH_QT_LIB)/legacy/% | $$(qt5-bin_0_OUTDIR)/
-	$(call MSG_INST_FILE,$^,$@)
-	$(QUIET)$(CP) $^ $@
-	$(QUIET)chrpath --delete $@
-
-    endif # !VBOX_WITH_HARDENING
-   endif # x11
-  endif # VBOX_WITH_ORACLE_QT || VBOX_WITH_QT_PAYLOAD
- endif # win x11
-endif # VBOX_WITH_QTGUI_V5
 
 #
 # For building the combined package, just get the additions .ISO
@@ -328,10 +232,19 @@ $$(buildserver-additions_0_OUTDIR)/unpacked.ts +| $(PATH_TARGET)/VBoxGuestAdditi
 	$(APPEND) -t $@ "done"
 
 $$(buildserver-additions_0_OUTDIR)/VBoxGuestAdditions.zip: $(VBOX_SVN_REV_KMK) $(PATH_DEVTOOLS)/bin/additions.sh | $$(dir $$@)
-	$(RM) -f -- "$@" "$@.tmp"
-	$(SHELL) $(PATH_DEVTOOLS)/bin/additions.sh --cmd fetch --filename "$@.tmp"
-	$(MV) -f -- "$@.tmp" "$@"
+	$(RM) -f $@ $@.tmp
+ ifneq ($(KBUILD_HOST),win)
+	$(SHELL) $(PATH_DEVTOOLS)/bin/additions.sh --cmd fetch --filename $@.tmp
+ else
+	$(KMK) --affinity 1 -f $(MAKEFILE) buildserver-additions-affinity-hack
+ endif
+	$(CP) -f $@.tmp $@
+	$(RM) -f $@.tmp
 
+ ifeq ($(KBUILD_HOST),win)
+buildserver-additions-affinity-hack:
+	$(SHELL) $(PATH_DEVTOOLS)/bin/additions.sh --cmd fetch --filename $(buildserver-additions_0_OUTDIR)/VBoxGuestAdditions.zip.tmp
+ endif
 endif # VBOX_WITH_ADDITIONS_FROM_BUILD_SERVER
 
 
@@ -363,10 +276,20 @@ $(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),$(PATH_TARGET)/VirtualBox_$(f).chm $(PA
 	$(APPEND) -t $@ "done"
 
 $$(buildserver-docs_0_OUTDIR)/VBoxDocumentation.zip: $(VBOX_SVN_REV_KMK) $(PATH_DEVTOOLS)/bin/documentation.sh | $$(dir $$@)
-	$(RM) -f -- "$@" "$@.tmp"
-	$(SHELL) $(PATH_DEVTOOLS)/bin/documentation.sh --cmd fetch --filename "$@.tmp"
-	$(MV) -f -- "$@.tmp" "$@"
+	$(RM) -f $@ $@.tmp
+ ifneq ($(KBUILD_HOST),win)
+	$(SHELL) $(PATH_DEVTOOLS)/bin/documentation.sh --cmd fetch --filename $@.tmp
+ else
+	$(KMK) --affinity 1 -f $(MAKEFILE) buildserver-documentation-affinity-hack
+ endif
+	$(CP) -f $@.tmp $@
+	$(RM) -f $@.tmp
+## @todo kBuild: The $(CP)/$(RM) stuff can be replaced by a simple $(TOUCH) once that has been added to kBuild.
 
+ ifeq ($(KBUILD_HOST),win)
+buildserver-documentation-affinity-hack:
+	$(SHELL) $(PATH_DEVTOOLS)/bin/documentation.sh --cmd fetch --filename $(buildserver-docs_0_OUTDIR)/VBoxDocumentation.zip.tmp
+ endif
 endif # VBOX_WITH_DOCS_FROM_BUILD_SERVER
 
 
@@ -378,9 +301,6 @@ endif # VBOX_WITH_DOCS_FROM_BUILD_SERVER
    #
    # Either from the build server.
    #
-   ifndef VBOX_EFI_FIRMWARE_EFI_MODULES_KMK_INCLUDED
-    include $(PATH_ROOT)/src/VBox/Devices/EFI/Firmware/EfiModules.kmk
-   endif
    INSTALLS += buildserver-efifw
    buildserver-efifw_INST = $(INST_BIN)
    buildserver-efifw_MODE = 0644
@@ -391,44 +311,40 @@ endif # VBOX_WITH_DOCS_FROM_BUILD_SERVER
    	$(buildserver-efifw_0_OUTDIR)/unpacked.ts \
    	$(buildserver-efifw_0_OUTDIR)/VBoxEFI32.fd \
    	$(buildserver-efifw_0_OUTDIR)/VBoxEFI64.fd \
+   	$(buildserver-efifw_0_OUTDIR)/FV/VBOX.fd \
+   	$(buildserver-efifw_0_OUTDIR)/FV/VBOX64.fd \
    	$(buildserver-efifw_0_OUTDIR)/VBoxEfiFirmware.zip \
-   	$(buildserver-efifw_0_OUTDIR)/VBoxEfiFirmware.zip.tmp \
-   	$(foreach arch, amd64 x86, $(foreach mod,$(VBOX_EFI_MODULES_FLAT),$$(buildserver-efifw_0_OUTDIR)/$(arch)/$(mod).pdb))
-
-   INSTALLS += buildserver-efifw-dbg-amd64
-   buildserver-efifw-dbg-amd64_INST = $(INST_VBOXDBG_SYMS)amd64/
-   buildserver-efifw-dbg-amd64_MODE = 0644
-   buildserver-efifw-dbg-amd64_SOURCES = \
-   	$(foreach mod,$(VBOX_EFI_MODULES_FLAT),$(buildserver-efifw_0_OUTDIR)/amd64/$(mod).pdb)
-
-   INSTALLS += buildserver-efifw-dbg-x86
-   buildserver-efifw-dbg-x86_INST = $(INST_VBOXDBG_SYMS)x86/
-   buildserver-efifw-dbg-x86_MODE = 0644
-   buildserver-efifw-dbg-x86_SOURCES = \
-   	$(foreach mod,$(VBOX_EFI_MODULES_FLAT),$(buildserver-efifw_0_OUTDIR)/x86/$(mod).pdb)
+   	$(buildserver-efifw_0_OUTDIR)/VBoxEfiFirmware.zip.tmp
 
    $$(buildserver-efifw_0_OUTDIR)/unpacked.ts \
    +| $$(buildserver-efifw_0_OUTDIR)/VBoxEFI32.fd \
-      $$(buildserver-efifw_0_OUTDIR)/VBoxEFI64.fd \
-      $(foreach arch, amd64 x86, $(foreach mod,$(VBOX_EFI_MODULES_FLAT),$$(buildserver-efifw_0_OUTDIR)/$(arch)/$(mod).pdb)): \
+      $$(buildserver-efifw_0_OUTDIR)/VBoxEFI64.fd: \
    		$$(buildserver-efifw_0_OUTDIR)/VBoxEfiFirmware.zip
 	$(call MSG_L1,Unpacking EFI firmware)
 	$(QUIET)$(TOOL_ZIP_UNPACK) $(TOOL_ZIP_UNPACKFLAGS) -o $< -d $(buildserver-efifw_0_OUTDIR)
-	$(foreach arch, amd64 x86, \
-		$(NLTAB) $(QUIET)$(TEST) '!' -d $(dir $@)/$(arch) -- $(MKDIR_EXT) -- $(dir $@)/$(arch) \
-		$(foreach mod,$(VBOX_EFI_MODULES_FLAT) \
-		,$(NLTAB) $(QUIET)$(TEST) '!' -f $(dir $@)/$(arch)/$(mod).pdb -- $(APPEND_EXT) $(dir $@)/$(arch)/$(mod).pdb ))
+	$(TEST_EXT) -f "$(buildserver-efifw_0_OUTDIR)/FV/VBOX.fd"   -- $(MV_EXT) -f -- "$(buildserver-efifw_0_OUTDIR)/FV/VBOX.fd"   "$(buildserver-efifw_0_OUTDIR)/VBoxEFI32.fd"
+	$(TEST_EXT) -f "$(buildserver-efifw_0_OUTDIR)/FV/VBOX64.fd" -- $(MV_EXT) -f -- "$(buildserver-efifw_0_OUTDIR)/FV/VBOX64.fd" "$(buildserver-efifw_0_OUTDIR)/VBoxEFI64.fd"
 	$(APPEND) -t $@ "done"
 
    $$(buildserver-efifw_0_OUTDIR)/VBoxEfiFirmware.zip: \
 		$(VBOX_SVN_REV_KMK) $(PATH_DEVTOOLS)/bin/efi_firmware.sh | $$(dir $$@)
-	$(RM) -f -- "$@" "$@.tmp"
-	$(SHELL) $(PATH_DEVTOOLS)/bin/efi_firmware.sh --cmd fetch --filename "$@.tmp"
-	$(MV) -f -- "$@.tmp" "$@"
+	$(RM) -f $@ $@.tmp
+   ifneq ($(KBUILD_HOST),win)
+	$(SHELL) $(PATH_DEVTOOLS)/bin/efi_firmware.sh --cmd fetch --filename $@.tmp
+   else
+	$(KMK) --affinity 1 -f $(MAKEFILE) buildserver-efifw-affinity-hack
+   endif
+	$(CP) -f $@.tmp $@
+	$(RM) -f $@.tmp
+## @todo kBuild: The $(CP)/$(RM) stuff can be replaced by a simple $(TOUCH) once that has been added to kBuild.
 
+   ifeq ($(KBUILD_HOST),win)
+    buildserver-efifw-affinity-hack:
+	$(SHELL) $(PATH_DEVTOOLS)/bin/efi_firmware.sh --cmd fetch --filename $(buildserver-efifw_0_OUTDIR)/VBoxEfiFirmware.zip.tmp
+   endif
   else # !VBOX_WITH_EFIFW_FROM_BUILD_SERVER
    #
-   # Or from the local copy (no debug).
+   # Or from the local copy
    #
    INSTALLS += local-efifw
    local-efifw_INST = $(INST_BIN)
@@ -746,7 +662,6 @@ VBOX_CORE_DOXYFILE_INPUT_DIRS = \
 	src/VBox/ValidationKit/docs/ \
 	src/VBox/ValidationKit/testdriver/ \
 	src/VBox/ValidationKit/bootsectors/ \
-	src/VBox/ValidationKit/bootsectors/bs3kit/ \
 	src/VBox/ValidationKit/tests/ \
 	src/VBox/ValidationKit/tests/additions/ \
 	src/VBox/ValidationKit/tests/api/ \
@@ -1712,11 +1627,14 @@ efi-fetch:
 	+ $(KMK) -C tools fetch VBOX_ONLY_EXTPACKS=1
 
 efi-build: $(VBOX_VERSION_HEADER)
-	+ $(KMK) -C src/VBox/Devices/EFI/Firmware$(VBOX_EFI_FIRMWARE_SUFFIX)
+	+ $(KMK) -C src/VBox/Devices/EFI/Firmware
 
 efi-packing:
-	+ $(KMK) -C src/VBox/Devices/EFI/Firmware$(VBOX_EFI_FIRMWARE_SUFFIX) $(PATH_STAGE)/VBoxEfiFirmware.zip
-
+	$(REDIRECT) -C "$(PATH_STAGE_BIN)" -- $(TOOL_ZIP_PACK) $(TOOL_ZIP_PACKFLAGS) -9X \
+		../VBoxEfiFirmware.zip \
+		VBoxEFI32.fd \
+		VBoxEFI64.fd
+## @todo zip up debug info as well!
 
 #
 # Generate VirtualBox-x.x.x.tar.bz2 (OSE) tarballs for distribution

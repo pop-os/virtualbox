@@ -66,8 +66,6 @@ typedef enum RTLOGGROUP
     RTLOGGROUP_THREAD,
     RTLOGGROUP_TIME,
     RTLOGGROUP_TIMER,
-    RTLOGGROUP_LOCALIPC,
-    RTLOGGROUP_VFS,
     RTLOGGROUP_ZIP = 31,
     RTLOGGROUP_FIRST_USER = 32
 } RTLOGGROUP;
@@ -101,8 +99,8 @@ typedef enum RTLOGGROUP
     "RT_THREAD",    \
     "RT_TIME",      \
     "RT_TIMER",     \
-    "RT_LOCALIPC", \
-    "RT_VFS", \
+    "RT_15", \
+    "RT_16", \
     "RT_17", \
     "RT_18", \
     "RT_19", \

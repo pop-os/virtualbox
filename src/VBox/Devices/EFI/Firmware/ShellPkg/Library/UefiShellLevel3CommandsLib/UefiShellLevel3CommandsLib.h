@@ -25,6 +25,7 @@
 #include <Protocol/DevicePath.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/UnicodeCollation.h>
+#include <Protocol/DevicePathToText.h>
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>

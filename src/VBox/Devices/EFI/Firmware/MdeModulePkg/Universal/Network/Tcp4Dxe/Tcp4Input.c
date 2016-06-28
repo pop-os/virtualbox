@@ -478,6 +478,7 @@ TcpDeliverData (
         //
         NetbufFree (Nbuf);
         return -1;
+        break;
       default:
         break;
       }
@@ -710,7 +711,6 @@ TcpInput (
   Tcb     = NULL;
 
   Head    = (TCP_HEAD *) NetbufGetByte (Nbuf, 0, NULL);
-  ASSERT (Head != NULL);
   Len     = Nbuf->TotalSize - (Head->HeadLen << 2);
 
   if ((Head->HeadLen < 5) || (Len < 0) ||
@@ -1423,7 +1423,6 @@ TcpIcmpInput (
   BOOLEAN          IcmpErrNotify;
 
   Head = (TCP_HEAD *) NetbufGetByte (Nbuf, 0, NULL);
-  ASSERT (Head != NULL);
   Tcb = TcpLocateTcb (
           Head->DstPort,
           Dst,

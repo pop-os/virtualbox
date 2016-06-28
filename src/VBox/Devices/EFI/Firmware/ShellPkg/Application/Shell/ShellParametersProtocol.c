@@ -2,9 +2,7 @@
   Member functions of EFI_SHELL_PARAMETERS_PROTOCOL and functions for creation,
   manipulation, and initialization of EFI_SHELL_PARAMETERS_PROTOCOL.
 
-  Copyright (C) 2014, Red Hat, Inc.
-  Copyright (c) 2013 Hewlett-Packard Development Company, L.P.
-  Copyright (c) 2009 - 2015, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -15,53 +13,11 @@
 
 **/
 
-#include "Shell.h"
+#include "ShellParametersProtocol.h"
+#include "ConsoleWrappers.h"
 
 /**
-  Return the next parameter's end from a command line string.
-
-  @param[in] String        the string to parse
-**/
-CONST CHAR16*
-EFIAPI
-FindEndOfParameter(
-  IN CONST CHAR16 *String
-  )
-{
-  CONST CHAR16 *First;
-  CONST CHAR16 *CloseQuote;
-
-  First = FindFirstCharacter(String, L" \"", L'^');
-
-  //
-  // nothing, all one parameter remaining
-  //
-  if (*First == CHAR_NULL) {
-    return (First);
-  }
-
-  //
-  // If space before a quote (or neither found, i.e. both CHAR_NULL),
-  // then that's the end.
-  //
-  if (*First == L' ') {
-    return (First);
-  }
-
-  CloseQuote = FindFirstCharacter (First+1, L"\"", L'^');
-
-  //
-  // We did not find a terminator...
-  //
-  if (*CloseQuote == CHAR_NULL) {
-    return (NULL);
-  }
-
-  return (FindEndOfParameter (CloseQuote+1));
-}
-
-/**
-  Return the next parameter from a command line string.
+  return the next parameter from a command line string;
 
   This function moves the next parameter from Walker into TempParameter and moves
   Walker up past that parameter for recursive calling.  When the final parameter
@@ -70,34 +26,25 @@ FindEndOfParameter(
   Temp Parameter must be large enough to hold the parameter before calling this
   function.
 
-  This will also remove all remaining ^ characters after processing.
-
   @param[in, out] Walker        pointer to string of command line.  Adjusted to
                                 reminaing command line on return
   @param[in, out] TempParameter pointer to string of command line item extracted.
-  @param[in]      Length        buffer size of TempParameter.
 
-  @return   EFI_INALID_PARAMETER  A required parameter was NULL or pointed to a NULL or empty string.
-  @return   EFI_NOT_FOUND         A closing " could not be found on the specified string
 **/
-EFI_STATUS
+VOID
 EFIAPI
 GetNextParameter(
-  IN OUT CHAR16   **Walker,
-  IN OUT CHAR16   **TempParameter,
-  IN CONST UINTN  Length
+  CHAR16 **Walker,
+  CHAR16 **TempParameter
   )
 {
-  CONST CHAR16 *NextDelim;
+  CHAR16 *NextDelim;
+  CHAR16 *TempLoc;
 
-  if (Walker           == NULL
-    ||*Walker          == NULL
-    ||TempParameter    == NULL
-    ||*TempParameter   == NULL
-    ){
-    return (EFI_INVALID_PARAMETER);
-  }
-
+  ASSERT(Walker           != NULL);
+  ASSERT(*Walker          != NULL);
+  ASSERT(TempParameter    != NULL);
+  ASSERT(*TempParameter   != NULL);
 
   //
   // make sure we dont have any leading spaces
@@ -110,60 +57,77 @@ GetNextParameter(
   // make sure we still have some params now...
   //
   if (StrLen(*Walker) == 0) {
-DEBUG_CODE_BEGIN();
-    *Walker        = NULL;
-DEBUG_CODE_END();
-    return (EFI_INVALID_PARAMETER);
-  }
-
-  NextDelim = FindEndOfParameter(*Walker);
-
-  if (NextDelim == NULL){
-DEBUG_CODE_BEGIN();
-    *Walker        = NULL;
-DEBUG_CODE_END();
-    return (EFI_NOT_FOUND);
-  }
-
-  StrnCpy(*TempParameter, (*Walker), NextDelim - *Walker);
-
-  //
-  // Add a CHAR_NULL if we didnt get one via the copy
-  //
-  if (*NextDelim != CHAR_NULL) {
-    (*TempParameter)[NextDelim - *Walker] = CHAR_NULL;
+    ASSERT((*Walker)[0] == CHAR_NULL);
+    *Walker = NULL;
+    return;
   }
 
   //
-  // Update Walker for the next iteration through the function
+  // we have a quoted parameter
+  // could be the last parameter, but SHOULD have a trailing quote
   //
-  *Walker = (CHAR16*)NextDelim;
+  if ((*Walker)[0] == L'\"') {
+    NextDelim = NULL;
+    for (TempLoc = *Walker + 1 ; TempLoc != NULL && *TempLoc != CHAR_NULL ; TempLoc++) {
+      if (*TempLoc == L'^' && *(TempLoc+1) == L'\"') {
+        TempLoc++;
+      } else if (*TempLoc == L'\"') {
+        NextDelim = TempLoc;
+        break;
+      }
+    }
 
-  //
-  // Remove any non-escaped quotes in the string
-  // Remove any remaining escape characters in the string
-  //
-  for (NextDelim = FindFirstCharacter(*TempParameter, L"\"^", CHAR_NULL)
-    ; *NextDelim != CHAR_NULL
-    ; NextDelim = FindFirstCharacter(NextDelim, L"\"^", CHAR_NULL)
-    ) {
-    if (*NextDelim == L'^') {
-
+    if (NextDelim - ((*Walker)+1) == 0) {
       //
-      // eliminate the escape ^
+      // found ""
       //
-      CopyMem ((CHAR16*)NextDelim, NextDelim + 1, StrSize (NextDelim + 1));
-      NextDelim++;
-    } else if (*NextDelim == L'\"') {
-
+      StrCpy(*TempParameter, L"");
+      *Walker = NextDelim + 1;
+    } else if (NextDelim != NULL) {
+      StrnCpy(*TempParameter, (*Walker)+1, NextDelim - ((*Walker)+1));
+      *Walker = NextDelim + 1;
+    } else {
       //
-      // eliminate the unescaped quote
+      // last one... someone forgot the training quote!
       //
-      CopyMem ((CHAR16*)NextDelim, NextDelim + 1, StrSize (NextDelim + 1));
+      StrCpy(*TempParameter, *Walker);
+      *Walker = NULL;
+    }
+    for (TempLoc = *TempParameter ; TempLoc != NULL && *TempLoc != CHAR_NULL ; TempLoc++) {
+      if (*TempLoc == L'^' && *(TempLoc+1) == L'\"') {
+        CopyMem(TempLoc, TempLoc+1, StrSize(TempLoc) - sizeof(TempLoc[0]));
+      }
+    }
+  } else {
+    //
+    // we have a regular parameter (no quote) OR
+    // we have the final parameter (no trailing space)
+    //
+    NextDelim = StrStr((*Walker), L" ");
+    if (NextDelim != NULL) {
+      StrnCpy(*TempParameter, *Walker, NextDelim - (*Walker));
+      (*TempParameter)[NextDelim - (*Walker)] = CHAR_NULL;
+      *Walker = NextDelim+1;
+    } else {
+      //
+      // last one.
+      //
+      StrCpy(*TempParameter, *Walker);
+      *Walker = NULL;
+    }
+    for (NextDelim = *TempParameter ; NextDelim != NULL && *NextDelim != CHAR_NULL ; NextDelim++) {
+      if (*NextDelim == L'^' && *(NextDelim+1) == L'^') {
+        CopyMem(NextDelim, NextDelim+1, StrSize(NextDelim) - sizeof(NextDelim[0]));
+      }
+    }
+    while ((*TempParameter)[StrLen(*TempParameter)-1] == L' ') {
+      (*TempParameter)[StrLen(*TempParameter)-1] = CHAR_NULL;
+    }
+    while ((*TempParameter)[0] == L' ') {
+      CopyMem(*TempParameter, (*TempParameter)+1, StrSize(*TempParameter) - sizeof((*TempParameter)[0]));
     }
   }
-
-  return EFI_SUCCESS;
+  return;
 }
 
 /**
@@ -172,9 +136,6 @@ DEBUG_CODE_END();
   This function parses the CommandLine and divides it into standard C style Argc/Argv
   parameters for inclusion in EFI_SHELL_PARAMETERS_PROTOCOL.  this supports space
   delimited and quote surrounded parameter definition.
-
-  All special character processing (alias, environment variable, redirection,
-  etc... must be complete before calling this API.
 
   @param[in] CommandLine         String of command line to parse
   @param[in, out] Argv           pointer to array of strings; one for each parameter
@@ -215,19 +176,22 @@ ParseCommandLineToArgs(
   for ( Count = 0
       , Walker = (CHAR16*)CommandLine
       ; Walker != NULL && *Walker != CHAR_NULL
-      ; Count++
-      ) {
-    if (EFI_ERROR(GetNextParameter(&Walker, &TempParameter, Size))) {
-      break;
-    }
-  }
+      ; GetNextParameter(&Walker, &TempParameter)
+      , Count++
+     );
 
+/*  Count = 0;
+  Walker = (CHAR16*)CommandLine;
+  while(Walker != NULL) {
+    GetNextParameter(&Walker, &TempParameter);
+    Count++;
+  }
+*/
   //
   // lets allocate the pointer array
   //
   (*Argv) = AllocateZeroPool((Count)*sizeof(CHAR16*));
   if (*Argv == NULL) {
-    SHELL_FREE_NON_NULL(TempParameter);
     return (EFI_OUT_OF_RESOURCES);
   }
 
@@ -235,21 +199,14 @@ ParseCommandLineToArgs(
   Walker = (CHAR16*)CommandLine;
   while(Walker != NULL && *Walker != CHAR_NULL) {
     SetMem16(TempParameter, Size, CHAR_NULL);
-    if (EFI_ERROR(GetNextParameter(&Walker, &TempParameter, Size))) {
-      SHELL_FREE_NON_NULL(TempParameter);
-      return (EFI_INVALID_PARAMETER);
-    }
-
-    NewParam = AllocateCopyPool(StrSize(TempParameter), TempParameter);
-    if (NewParam == NULL){
-      SHELL_FREE_NON_NULL(TempParameter);
-      return (EFI_OUT_OF_RESOURCES);
-    }
+    GetNextParameter(&Walker, &TempParameter);
+    NewParam = AllocateZeroPool(StrSize(TempParameter));
+    ASSERT(NewParam != NULL);
+    StrCpy(NewParam, TempParameter);
     ((CHAR16**)(*Argv))[(*Argc)] = NewParam;
     (*Argc)++;
   }
   ASSERT(Count >= (*Argc));
-  SHELL_FREE_NON_NULL(TempParameter);
   return (EFI_SUCCESS);
 }
 
@@ -332,10 +289,10 @@ CreatePopulateInstallShellParametersProtocol (
   //
   // Build the full command line
   //
-  Status = SHELL_GET_ENVIRONMENT_VARIABLE(L"ShellOpt", &Size, FullCommandLine);
+  Status = SHELL_GET_ENVIRONMENT_VARIABLE(L"ShellOpt", &Size, &FullCommandLine);
   if (Status == EFI_BUFFER_TOO_SMALL) {
     FullCommandLine = AllocateZeroPool(Size + LoadedImage->LoadOptionsSize);
-    Status = SHELL_GET_ENVIRONMENT_VARIABLE(L"ShellOpt", &Size, FullCommandLine);
+    Status = SHELL_GET_ENVIRONMENT_VARIABLE(L"ShellOpt", &Size, &FullCommandLine);
   }
   if (Status == EFI_NOT_FOUND) {
     //
@@ -355,7 +312,9 @@ CreatePopulateInstallShellParametersProtocol (
     FullCommandLine = AllocateZeroPool(Size);
   }
   if (FullCommandLine != NULL) {
-    CopyMem (FullCommandLine, LoadedImage->LoadOptions, LoadedImage->LoadOptionsSize);
+    if (LoadedImage->LoadOptionsSize != 0){
+      StrCpy(FullCommandLine, LoadedImage->LoadOptions);
+    }
     //
     // Populate Argc and Argv
     //
@@ -482,7 +441,7 @@ IsUnicodeFile(
   }
   gEfiShellProtocol->SetFilePosition(Handle, OriginalFilePosition);
   gEfiShellProtocol->CloseFile(Handle);
-  return (Status);
+  return (Status);  
 }
 
 /**
@@ -561,15 +520,12 @@ FixFileName (
     Copy = FileName+1;
     if ((TempLocation = StrStr(Copy , L"\"")) != NULL) {
       TempLocation[0] = CHAR_NULL;
-    }
+    }    
   } else {
     Copy = FileName;
-    while(Copy[0] == L' ') {
-      Copy++;
-    }
     if ((TempLocation = StrStr(Copy , L" ")) != NULL) {
       TempLocation[0] = CHAR_NULL;
-    }
+    }    
   }
 
   if (Copy[0] == CHAR_NULL) {
@@ -578,90 +534,6 @@ FixFileName (
 
   return (Copy);
 }
-
-/**
-  Fix a string to only have the environment variable name, removing starting at the first space of whatever is quoted and removing the leading and trailing %.
-
-  @param[in]  FileName    The filename to start with.
-
-  @retval NULL  FileName was invalid.
-  @return       The modified FileName.
-**/
-CHAR16*
-EFIAPI
-FixVarName (
-  IN CHAR16 *FileName
-  )
-{
-  CHAR16  *Copy;
-  CHAR16  *TempLocation;
-
-  Copy = FileName;
-
-  if (FileName[0] == L'%') {
-    Copy = FileName+1;
-    if ((TempLocation = StrStr(Copy , L"%")) != NULL) {
-      TempLocation[0] = CHAR_NULL;
-    }
-  }
-
-  return (FixFileName(Copy));
-}
-
-/**
-  Remove the unicode file tag from the begining of the file buffer since that will not be
-  used by StdIn.
-
-  @param[in]  Handle    Pointer to the handle of the file to be processed.
-
-  @retval EFI_SUCCESS   The unicode file tag has been moved successfully.
-**/
-EFI_STATUS
-EFIAPI
-RemoveFileTag(
-  IN SHELL_FILE_HANDLE *Handle
-  )
-{
-  UINTN             CharSize;
-  CHAR16            CharBuffer;
-
-  CharSize    = sizeof(CHAR16);
-  CharBuffer  = 0;
-  gEfiShellProtocol->ReadFile(*Handle, &CharSize, &CharBuffer);
-  if (CharBuffer != gUnicodeFileTag) {
-    gEfiShellProtocol->SetFilePosition(*Handle, 0);
-  }
-  return (EFI_SUCCESS);
-}
-
-/**
-  Write the unicode file tag to the specified file.
-
-  It is the caller's responsibility to ensure that
-  ShellInfoObject.NewEfiShellProtocol has been initialized before calling this
-  function.
-
-  @param[in] FileHandle  The file to write the unicode file tag to.
-
-  @return  Status code from ShellInfoObject.NewEfiShellProtocol->WriteFile.
-**/
-EFI_STATUS
-WriteFileTag (
-  IN SHELL_FILE_HANDLE FileHandle
-  )
-{
-  CHAR16     FileTag;
-  UINTN      Size;
-  EFI_STATUS Status;
-
-  FileTag = gUnicodeFileTag;
-  Size = sizeof FileTag;
-  Status = ShellInfoObject.NewEfiShellProtocol->WriteFile (FileHandle, &Size,
-                                                  &FileTag);
-  ASSERT (EFI_ERROR (Status) || Size == sizeof FileTag);
-  return Status;
-}
-
 
 /**
   Funcion will replace the current StdIn and StdOut in the ShellParameters protocol
@@ -708,6 +580,7 @@ UpdateStdInStdOutStdErr(
   BOOLEAN           OutAppend;
   BOOLEAN           ErrAppend;
   UINTN             Size;
+  CHAR16            TagBuffer[2];
   SPLIT_LIST        *Split;
   CHAR16            *FirstLocation;
 
@@ -733,8 +606,8 @@ UpdateStdInStdOutStdErr(
   SystemTableInfo->ConInHandle    = gST->ConsoleInHandle;
   SystemTableInfo->ConOut         = gST->ConOut;
   SystemTableInfo->ConOutHandle   = gST->ConsoleOutHandle;
-  SystemTableInfo->ErrOut         = gST->StdErr;
-  SystemTableInfo->ErrOutHandle   = gST->StandardErrorHandle;
+  SystemTableInfo->ConErr         = gST->StdErr;
+  SystemTableInfo->ConErrHandle   = gST->StandardErrorHandle;
   *OldStdIn                       = ShellParameters->StdIn;
   *OldStdOut                      = ShellParameters->StdOut;
   *OldStdErr                      = ShellParameters->StdErr;
@@ -819,7 +692,7 @@ UpdateStdInStdOutStdErr(
     if (StrStr(CommandLineWalker, L" 1>> ") != NULL) {
       Status = EFI_NOT_FOUND;
     }
-  }
+  } 
   if (!EFI_ERROR(Status) && (CommandLineWalker = StrStr(CommandLineCopy, L" >> ")) != NULL) {
     FirstLocation = MIN(CommandLineWalker, FirstLocation);
     SetMem16(CommandLineWalker, 8, L' ');
@@ -846,7 +719,7 @@ UpdateStdInStdOutStdErr(
     if (StrStr(CommandLineWalker, L" >>a ") != NULL) {
       Status = EFI_NOT_FOUND;
     }
-  }
+  } 
   if (!EFI_ERROR(Status) && (CommandLineWalker = StrStr(CommandLineCopy, L" 1>a ")) != NULL) {
     FirstLocation = MIN(CommandLineWalker, FirstLocation);
     SetMem16(CommandLineWalker, 10, L' ');
@@ -860,7 +733,7 @@ UpdateStdInStdOutStdErr(
     if (StrStr(CommandLineWalker, L" 1>a ") != NULL) {
       Status = EFI_NOT_FOUND;
     }
-  }
+  } 
   if (!EFI_ERROR(Status) && (CommandLineWalker = StrStr(CommandLineCopy, L" >a ")) != NULL) {
     FirstLocation = MIN(CommandLineWalker, FirstLocation);
     SetMem16(CommandLineWalker, 8, L' ');
@@ -1012,7 +885,7 @@ UpdateStdInStdOutStdErr(
   //
   // re-populate the string to support any filenames that were in quotes.
   //
-  StrnCpy(CommandLineCopy, NewCommandLine, StrLen(NewCommandLine));
+  StrCpy(CommandLineCopy, NewCommandLine);
 
   if (FirstLocation != CommandLineCopy + StrLen(CommandLineCopy)
     && ((UINTN)(FirstLocation - CommandLineCopy) < StrLen(NewCommandLine))
@@ -1038,17 +911,17 @@ UpdateStdInStdOutStdErr(
       }
     }
     if (StdErrVarName  != NULL) {
-      if ((StdErrVarName     = FixVarName(StdErrVarName)) == NULL) {
+      if ((StdErrVarName     = FixFileName(StdErrVarName)) == NULL) {
         Status = EFI_INVALID_PARAMETER;
       }
     }
     if (StdOutVarName  != NULL) {
-      if ((StdOutVarName     = FixVarName(StdOutVarName)) == NULL) {
+      if ((StdOutVarName     = FixFileName(StdOutVarName)) == NULL) {
         Status = EFI_INVALID_PARAMETER;
       }
     }
     if (StdInVarName   != NULL) {
-      if ((StdInVarName      = FixVarName(StdInVarName)) == NULL) {
+      if ((StdInVarName      = FixFileName(StdInVarName)) == NULL) {
         Status = EFI_INVALID_PARAMETER;
       }
     }
@@ -1088,7 +961,7 @@ UpdateStdInStdOutStdErr(
       //
       // Cant redirect during a reconnect operation.
       //
-      ||(StrStr(NewCommandLine, L"connect -r") != NULL
+      ||(StrStr(NewCommandLine, L"connect -r") != NULL 
          && (StdOutVarName != NULL || StdOutFileName != NULL || StdErrFileName != NULL || StdErrVarName != NULL))
       //
       // Check that filetypes (Unicode/Ascii) do not change during an append
@@ -1119,7 +992,13 @@ UpdateStdInStdOutStdErr(
         }
         Status = ShellOpenFileByName(StdErrFileName, &TempHandle, EFI_FILE_MODE_WRITE|EFI_FILE_MODE_READ|EFI_FILE_MODE_CREATE,0);
         if (!ErrAppend && ErrUnicode && !EFI_ERROR(Status)) {
-          Status = WriteFileTag (TempHandle);
+          //
+          // Write out the gUnicodeFileTag
+          //
+          Size = sizeof(CHAR16);
+          TagBuffer[0] = gUnicodeFileTag;
+          TagBuffer[1] = CHAR_NULL;
+          ShellInfoObject.NewEfiShellProtocol->WriteFile(TempHandle, &Size, TagBuffer);
         }
         if (!ErrUnicode && !EFI_ERROR(Status)) {
           TempHandle = CreateFileInterfaceFile(TempHandle, FALSE);
@@ -1127,7 +1006,7 @@ UpdateStdInStdOutStdErr(
         }
         if (!EFI_ERROR(Status)) {
           ShellParameters->StdErr = TempHandle;
-          gST->StdErr = CreateSimpleTextOutOnFile(TempHandle, &gST->StandardErrorHandle, gST->StdErr);
+          gST->StdErr = CreateSimpleTextOutOnFile(TempHandle, &gST->StandardErrorHandle);
         }
       }
 
@@ -1148,20 +1027,20 @@ UpdateStdInStdOutStdErr(
           if (StrStr(StdOutFileName, L"NUL")==StdOutFileName) {
             //no-op
           } else if (!OutAppend && OutUnicode && !EFI_ERROR(Status)) {
-            Status = WriteFileTag (TempHandle);
+            //
+            // Write out the gUnicodeFileTag
+            //
+            Size = sizeof(CHAR16);
+            TagBuffer[0] = gUnicodeFileTag;
+            TagBuffer[1] = CHAR_NULL;
+            ShellInfoObject.NewEfiShellProtocol->WriteFile(TempHandle, &Size, TagBuffer);
           } else if (OutAppend) {
+            //
+            // Move to end of file
+            //
             Status = ShellInfoObject.NewEfiShellProtocol->GetFileSize(TempHandle, &FileSize);
             if (!EFI_ERROR(Status)) {
-              //
-              // When appending to a new unicode file, write the file tag.
-              // Otherwise (ie. when appending to a new ASCII file, or an
-              // existent file with any encoding), just seek to the end.
-              //
-              Status = (FileSize == 0 && OutUnicode) ?
-                         WriteFileTag (TempHandle) :
-                         ShellInfoObject.NewEfiShellProtocol->SetFilePosition (
-                                                                TempHandle,
-                                                                FileSize);
+              Status = ShellInfoObject.NewEfiShellProtocol->SetFilePosition(TempHandle, FileSize);
             }
           }
           if (!OutUnicode && !EFI_ERROR(Status)) {
@@ -1170,7 +1049,7 @@ UpdateStdInStdOutStdErr(
           }
           if (!EFI_ERROR(Status)) {
             ShellParameters->StdOut = TempHandle;
-            gST->ConOut = CreateSimpleTextOutOnFile(TempHandle, &gST->ConsoleOutHandle, gST->ConOut);
+            gST->ConOut = CreateSimpleTextOutOnFile(TempHandle, &gST->ConsoleOutHandle);
           }
         }
       }
@@ -1188,7 +1067,7 @@ UpdateStdInStdOutStdErr(
         TempHandle = CreateFileInterfaceEnv(StdOutVarName);
         ASSERT(TempHandle != NULL);
         ShellParameters->StdOut = TempHandle;
-        gST->ConOut = CreateSimpleTextOutOnFile(TempHandle, &gST->ConsoleOutHandle, gST->ConOut);
+        gST->ConOut = CreateSimpleTextOutOnFile(TempHandle, &gST->ConsoleOutHandle);
       }
 
       //
@@ -1204,7 +1083,7 @@ UpdateStdInStdOutStdErr(
         TempHandle = CreateFileInterfaceEnv(StdErrVarName);
         ASSERT(TempHandle != NULL);
         ShellParameters->StdErr = TempHandle;
-        gST->StdErr = CreateSimpleTextOutOnFile(TempHandle, &gST->StandardErrorHandle, gST->StdErr);
+        gST->StdErr = CreateSimpleTextOutOnFile(TempHandle, &gST->StandardErrorHandle);
       }
 
       //
@@ -1237,15 +1116,7 @@ UpdateStdInStdOutStdErr(
           &TempHandle,
           EFI_FILE_MODE_READ,
           0);
-        if (InUnicode) {
-          //
-          // Chop off the 0xFEFF if it's there...
-          //
-          RemoveFileTag(&TempHandle);
-        } else if (!EFI_ERROR(Status)) {
-          //
-          // Create the ASCII->Unicode conversion layer
-          //
+        if (!InUnicode && !EFI_ERROR(Status)) {
           TempHandle = CreateFileInterfaceFile(TempHandle, FALSE);
         }
         if (!EFI_ERROR(Status)) {
@@ -1260,15 +1131,8 @@ UpdateStdInStdOutStdErr(
   CalculateEfiHdrCrc(&gST->Hdr);
 
   if (gST->ConIn == NULL ||gST->ConOut == NULL) {
-    Status = EFI_OUT_OF_RESOURCES;
+    return (EFI_OUT_OF_RESOURCES);
   }
-
-  if (Status == EFI_NOT_FOUND) {
-    ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_SHELL_REDUNDA_REDIR), ShellInfoObject.HiiHandle);
-  } else if (EFI_ERROR(Status)) {
-    ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_SHELL_INVALID_REDIR), ShellInfoObject.HiiHandle);
-  }
-
   return (Status);
 }
 
@@ -1294,7 +1158,7 @@ RestoreStdInStdOutStdErr (
 {
   SPLIT_LIST        *Split;
 
-  if (ShellParameters == NULL
+  if (ShellParameters == NULL 
     ||OldStdIn        == NULL
     ||OldStdOut       == NULL
     ||OldStdErr       == NULL
@@ -1333,10 +1197,10 @@ RestoreStdInStdOutStdErr (
     gST->ConOut               = SystemTableInfo->ConOut;
     gST->ConsoleOutHandle     = SystemTableInfo->ConOutHandle;
   }
-  if (gST->StdErr != SystemTableInfo->ErrOut) {
+  if (gST->StdErr != SystemTableInfo->ConErr) {
     CloseSimpleTextOutOnFile(gST->StdErr);
-    gST->StdErr               = SystemTableInfo->ErrOut;
-    gST->StandardErrorHandle  = SystemTableInfo->ErrOutHandle;
+    gST->StdErr               = SystemTableInfo->ConErr;
+    gST->StandardErrorHandle  = SystemTableInfo->ConErrHandle;
   }
 
   CalculateEfiHdrCrc(&gST->Hdr);

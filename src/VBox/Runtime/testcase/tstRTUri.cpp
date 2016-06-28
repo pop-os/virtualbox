@@ -782,7 +782,6 @@ static void tstRTUriFilePathEx(void)
             }
             else
                 RTTestIFailed("#%u: bad testcase; pszCreatedPath is NULL\n", i);
-            RTStrFree(pszPath);
         }
         else if (rc != VERR_PATH_ZERO_LENGTH || RTStrCmp(pszUri, "file://") != 0)
             RTTestIFailed("#%u: '%s'/%#x => %Rrc", i, pszUri, fPathStyle, rc);
@@ -813,7 +812,6 @@ static void tstRTUriFileCreateEx(void)
             }
             else
                 RTTestIFailed("#%u: bad testcase; pszCreatedUri is NULL\n", i);
-            RTStrFree(pszUri);
         }
         else if (rc != VERR_INVALID_POINTER || pszPath != NULL)
             RTTestIFailed("#%u: '%s'/%#x => %Rrc", i, pszPath, fPathStyle, rc);

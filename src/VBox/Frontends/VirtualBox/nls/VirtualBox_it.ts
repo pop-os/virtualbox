@@ -132,24 +132,24 @@
         <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. Potrebbe essere d&apos;aiuto la completa disinstallazione e reinstallazione di VirtualBox.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe risolvere il problema. Assicurati di non mischiare la versione OSE con la versione PUEL di VirtualBox.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe risolvere il problema. Assicurati di non mischiare la versione OSE con la versione PUEL di VirtualBox.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Questo errore significa che il driver del kernel non è stato in grado di allocare memoria sufficiente o che alcune operazioni di mappatura non sono riuscite.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>Il driver del kernel Linux di VirtualBox (vboxdrv) non è stato caricato o esiste un problema di permessi con /dev/vboxdrv. Installa nuovamente il modulo del kernel eseguendo&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Se è disponibile nella tua distribuzione, dovresti installare prima il pacchetto DKMS. Questo pacchetto tiene traccia dei cambiamenti del kernel Linux e ricompila il modulo vboxdrv se necessario.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>Il driver del kernel Linux di VirtualBox (vboxdrv) non è stato caricato o esiste un problema di permessi con /dev/vboxdrv. Installa nuovamente il modulo del kernel eseguendo&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Se è disponibile nella tua distribuzione, dovresti installare prima il pacchetto DKMS. Questo pacchetto tiene traccia dei cambiamenti del kernel Linux e ricompila il modulo vboxdrv se necessario.</translation>
     </message>
     <message>
-        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation type="obsolete">Questo errore indica che il driver del kernel non è in grado di allocare memoria sufficiente o che l&apos;operazione di mappatura non è riuscita.&lt;br/&gt;&lt;br/&gt;Ci sono problemi noti con Linux 2.6.29. Se stai eseguendo questo kernel, modifica /usr/src/vboxdrv-*/Makefile e abilita &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. Ricompila poi il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root.</translation>
+        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation type="obsolete">Questo errore indica che il driver del kernel non è in grado di allocare memoria sufficiente o che l&apos;operazione di mappatura non è riuscita.&lt;br/&gt;&lt;br/&gt;Ci sono problemi noti con Linux 2.6.29. Se stai eseguendo questo kernel, modifica /usr/src/vboxdrv-*/Makefile e abilita &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. Ricompila poi il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="obsolete">Il driver del kernel Linux di VirtualBox (vboxdrv) potrebbe non essere caricato o potrebbe esserci un problema di permessi con /dev/vboxdrv. Riconfigura il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Gli utenti di Ubuntu, Fedora o Mandriva dovrebbero installare prima il pacchetto DKMS. Questo pacchetto tiene traccia delle modifiche del kernel e ricompila il modulo vboxdrv se necessario.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="obsolete">Il driver del kernel Linux di VirtualBox (vboxdrv) potrebbe non essere caricato o potrebbe esserci un problema di permessi con /dev/vboxdrv. Riconfigura il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Gli utenti di Ubuntu, Fedora o Mandriva dovrebbero installare prima il pacchetto DKMS. Questo pacchetto tiene traccia delle modifiche del kernel e ricompila il modulo vboxdrv se necessario.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -5085,11 +5085,11 @@ p, li { white-space: pre-wrap; }
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Se marcata, VirtualBox utilizzerà le impostazioni del proxy fornite per attività come lo scaricamento delle Guest Additions dalla rete o il controllo degli aggiornamenti.</translation>
+        <translation type="obsolete">Se marcata, VirtualBox utilizzerà le impostazioni del proxy fornite per attività come lo scaricamento delle Guest Additions dalla rete o il controllo degli aggiornamenti.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation>A&amp;bilita il proxy</translation>
+        <translation type="obsolete">A&amp;bilita il proxy</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -5146,6 +5146,30 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Holds the proxy port.</source>
         <translation>Mostra la porta del proxy.</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Se selezionata, VirtualBox proverà a rilevare automaticamente le impostazioni del proxy dell&apos;host per operazioni come lo scaricamento delle Guest Additions dalla rete o il controllo degli aggiornamenti.</translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation>Rileva &amp;automaticamente le impostazioni del proxy dell&apos;host</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Se selezionata, VirtualBox utilizzerà una connessione diretta a Internet per operazioni come lo scaricamento delle Guest Additions dalla rete o il controllo degli aggiornamenti.</translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation>Connessione &amp;diretta a Internet</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Se selezionata, VirtualBox utilizzerà le impostazioni del proxy fornite per operazioni come lo scaricamento delle Guest Additions dalla rete o il controllo degli aggiornamenti.</translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation>Configurazione proxy &amp;manuale</translation>
     </message>
 </context>
 <context>
@@ -10857,6 +10881,14 @@ p, li { white-space: pre-wrap; }
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>La password di cifratura per &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; non è valida.</translation>
     </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation>Le regole di inoltro delle porte attuali non sono valide. Il valore dell&apos;indirizzo dell&apos;host o del guest deve essere corretto o vuoto.</translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation>Le regole di inoltro delle porte attuali non sono valide. Nessun valore dell&apos;indirizzo del guest dovrebbe essere vuoto.</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -11094,6 +11126,46 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Unknown reason</source>
         <translation>Motivo sconosciuto</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation>Impossibile inizializzare la libreria HTTP</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>Connessione rifiutata</translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation>Contenuto spostato</translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation>Proxy non trovato</translation>
+    </message>
+    <message>
+        <source>Url not found on the server</source>
+        <translation>URL non trovato sul server</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation>Durante la configurazione del proxy</translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation>Durante lo scaricamento del certificato</translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation>Durante la richiesta della rete</translation>
     </message>
 </context>
 <context>
@@ -14828,7 +14900,7 @@ Versione %1</translation>
     </message>
 </context>
 <context>
-    <name>UIEmptyFilePathSelector</name>
+    <name>VBoxEmptyFileSelector</name>
     <message>
         <source>&amp;Choose...</source>
         <translation type="obsolete">S&amp;cegli...</translation>
@@ -14839,7 +14911,7 @@ Versione %1</translation>
     </message>
 </context>
 <context>
-    <name>UIFilePathSelector</name>
+    <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation>&lt;ripristina valori predefiniti&gt;</translation>

@@ -18,10 +18,6 @@ SECTIONS
     )
     . = ALIGN(0x20);
   }
-  .eh_frame ALIGN(0x20) :
-  {
-    KEEP (*(.eh_frame))
-  }
   .got ALIGN(0x20) :
   {
     *(.got .got.*)

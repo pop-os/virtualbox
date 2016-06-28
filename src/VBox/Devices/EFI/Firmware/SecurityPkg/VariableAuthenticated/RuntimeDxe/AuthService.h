@@ -2,17 +2,7 @@
   The internal header file includes the common header files, defines
   internal structure and functions used by AuthService module.
 
-  Caution: This module requires additional review when modified.
-  This driver will have external input - variable data. It may be input in SMM mode.
-  This external input must be validated carefully to avoid security issue like
-  buffer overflow, integer overflow.
-  Variable attribute should also be checked to avoid authentication bypass.
-     The whole SMM authentication variable design relies on the integrity of flash part and SMM.
-  which is assumed to be protected by platform.  All variable code and metadata in flash/SMM Memory
-  may not be modified without authorization. If platform fails to protect these resources,
-  the authentication service provided in this driver will be broken, and the behavior is undefined.
-
-Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2009 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -46,13 +36,13 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 /// "AuthVarKeyDatabase" variable for the Public Key store.
 ///
 #define AUTHVAR_KEYDB_NAME      L"AuthVarKeyDatabase"
+#define AUTHVAR_KEYDB_NAME_SIZE 38
 
 ///
-/// "certdb" variable stores the signer's certificates for non PK/KEK/DB/DBX
-/// variables with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set.
+/// Max size of public key database, restricted by max individal EFI varible size, exclude variable header and name size.
 ///
-///
-#define EFI_CERT_DB_NAME        L"certdb"
+#define MAX_KEYDB_SIZE  (FixedPcdGet32 (PcdMaxVariableSize) - sizeof (VARIABLE_HEADER) - AUTHVAR_KEYDB_NAME_SIZE)
+#define MAX_KEY_NUM     (MAX_KEYDB_SIZE / EFI_CERT_TYPE_RSA2048_SIZE)
 
 ///
 /// Struct to record signature requirement defined by UEFI spec.
@@ -69,8 +59,7 @@ typedef struct {
 typedef enum {
   AuthVarTypePk,
   AuthVarTypeKek,
-  AuthVarTypePriv,
-  AuthVarTypePayload
+  AuthVarTypePriv
 } AUTHVAR_TYPE;
 
 #pragma pack(1)
@@ -86,13 +75,6 @@ typedef struct {
 
 /**
   Process variable with EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS/EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set.
-
-  Caution: This function may receive untrusted input.
-  This function may be invoked in SMM mode, and datasize and data are external input.
-  This function will do basic validation, before parse the data.
-  This function will parse the authentication carefully to avoid security issues, like
-  buffer overflow, integer overflow.
-  This function will check attribute carefully to avoid authentication bypass.
 
   @param[in]  VariableName                Name of Variable to be found.
   @param[in]  VendorGuid                  Variable vendor GUID.
@@ -167,7 +149,7 @@ CryptLibraryInitialize (
 
   @return EFI_INVALID_PARAMETER           Invalid signature list format.
   @return EFI_SUCCESS                     Passed signature list format check successfully.
-
+  
 **/
 EFI_STATUS
 CheckSignatureListFormat(
@@ -179,13 +161,6 @@ CheckSignatureListFormat(
 
 /**
   Process variable with platform key for verification.
-
-  Caution: This function may receive untrusted input.
-  This function may be invoked in SMM mode, and datasize and data are external input.
-  This function will do basic validation, before parse the data.
-  This function will parse the authentication carefully to avoid security issues, like
-  buffer overflow, integer overflow.
-  This function will check attribute carefully to avoid authentication bypass.
 
   @param[in]  VariableName                Name of Variable to be found.
   @param[in]  VendorGuid                  Variable vendor GUID.
@@ -216,13 +191,6 @@ ProcessVarWithPk (
 /**
   Process variable with key exchange key for verification.
 
-  Caution: This function may receive untrusted input.
-  This function may be invoked in SMM mode, and datasize and data are external input.
-  This function will do basic validation, before parse the data.
-  This function will parse the authentication carefully to avoid security issues, like
-  buffer overflow, integer overflow.
-  This function will check attribute carefully to avoid authentication bypass.
-
   @param[in]  VariableName                Name of Variable to be found.
   @param[in]  VendorGuid                  Variable vendor GUID.
   @param[in]  Data                        Data pointer.
@@ -252,24 +220,20 @@ ProcessVarWithKek (
   will be appended to the original EFI_SIGNATURE_LIST, duplicate EFI_SIGNATURE_DATA
   will be ignored.
 
-  @param[in, out]  Data             Pointer to original EFI_SIGNATURE_LIST.
-  @param[in]       DataSize         Size of Data buffer.
-  @param[in]       FreeBufSize      Size of free data buffer
-  @param[in]       NewData          Pointer to new EFI_SIGNATURE_LIST to be appended.
-  @param[in]       NewDataSize      Size of NewData buffer.
-  @param[out]      MergedBufSize    Size of the merged buffer
+  @param[in, out]  Data            Pointer to original EFI_SIGNATURE_LIST.
+  @param[in]       DataSize        Size of Data buffer.
+  @param[in]       NewData         Pointer to new EFI_SIGNATURE_LIST to be appended.
+  @param[in]       NewDataSize     Size of NewData buffer.
 
-  @return EFI_BUFFER_TOO_SMALL if input Data buffer overflowed
+  @return Size of the merged buffer.
 
 **/
-EFI_STATUS
+UINTN
 AppendSignatureList (
   IN  OUT VOID            *Data,
   IN  UINTN               DataSize,
-  IN  UINTN               FreeBufSize,
   IN  VOID                *NewData,
-  IN  UINTN               NewDataSize,
-  OUT UINTN               *MergedBufSize
+  IN  UINTN               NewDataSize
   );
 
 /**
@@ -292,12 +256,6 @@ CompareTimeStamp (
 
 /**
   Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
-
-  Caution: This function may receive untrusted input.
-  This function may be invoked in SMM mode, and datasize and data are external input.
-  This function will do basic validation, before parse the data.
-  This function will parse the authentication carefully to avoid security issues, like
-  buffer overflow, integer overflow.
 
   @param[in]  VariableName                Name of Variable to be found.
   @param[in]  VendorGuid                  Variable vendor GUID.
@@ -329,10 +287,10 @@ VerifyTimeBasedPayload (
   OUT    BOOLEAN                            *VarDel
   );
 
-extern UINT8  *mPubKeyStore;
-extern UINT8  *mCertDbStore;
+extern UINT8  mPubKeyStore[MAX_KEYDB_SIZE];
 extern UINT32 mPubKeyNumber;
 extern VOID   *mHashCtx;
+extern VOID   *mStorageArea;
 extern UINT8  *mSerializationRuntimeBuffer;
 
 #endif

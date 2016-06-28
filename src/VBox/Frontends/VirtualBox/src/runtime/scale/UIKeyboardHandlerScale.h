@@ -36,10 +36,10 @@ protected:
 
 private:
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     /** General event-filter. */
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
     /* Friend class: */
     friend class UIKeyboardHandler;

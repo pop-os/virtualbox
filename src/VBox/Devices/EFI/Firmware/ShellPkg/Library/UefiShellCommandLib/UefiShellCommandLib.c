@@ -1,8 +1,7 @@
 /** @file
   Provides interface to shell internal functions for shell commands.
 
-  Copyright (c) 2013-2014, Hewlett-Packard Development Company, L.P.<BR>
-  Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -14,6 +13,12 @@
 **/
 
 #include "UefiShellCommandLib.h"
+
+/// The tag for use in identifying UNICODE files.
+/// If the file is UNICODE, the first 16 bits of the file will equal this value.
+enum {
+  gUnicodeFileTag = 0xFEFF
+};
 
 // STATIC local variables
 STATIC SHELL_COMMAND_INTERNAL_LIST_ENTRY  mCommandList;
@@ -31,6 +36,7 @@ STATIC BUFFER_LIST                        mFileHandleList;
 
 // global variables required by library class.
 EFI_UNICODE_COLLATION_PROTOCOL    *gUnicodeCollation            = NULL;
+EFI_DEVICE_PATH_TO_TEXT_PROTOCOL  *gDevPathToText               = NULL;
 SHELL_MAP_LIST                    gShellMapList;
 SHELL_MAP_LIST                    *gShellCurDir                 = NULL;
 
@@ -54,6 +60,12 @@ CommandInit(
   EFI_STATUS Status;
   if (gUnicodeCollation == NULL) {
     Status = gBS->LocateProtocol(&gEfiUnicodeCollation2ProtocolGuid, NULL, (VOID**)&gUnicodeCollation);
+    if (EFI_ERROR(Status)) {
+      return (EFI_DEVICE_ERROR);
+    }
+  }
+  if (gDevPathToText == NULL) {
+    Status = gBS->LocateProtocol(&gEfiDevicePathToTextProtocolGuid, NULL, (VOID**)&gDevPathToText);
     if (EFI_ERROR(Status)) {
       return (EFI_DEVICE_ERROR);
     }
@@ -102,37 +114,6 @@ ShellCommandLibConstructor (
 }
 
 /**
-  Frees list of file handles.
-
-  @param[in] List     The list to free.
-**/
-VOID
-EFIAPI
-FreeFileHandleList (
-  IN BUFFER_LIST *List
-  )
-{
-  BUFFER_LIST               *BufferListEntry;
-
-  if (List == NULL){
-    return;
-  }
-  //
-  // enumerate through the buffer list and free all memory
-  //
-  for ( BufferListEntry = ( BUFFER_LIST *)GetFirstNode(&List->Link)
-      ; !IsListEmpty (&List->Link)
-      ; BufferListEntry = (BUFFER_LIST *)GetFirstNode(&List->Link)
-     ){
-    RemoveEntryList(&BufferListEntry->Link);
-    ASSERT(BufferListEntry->Buffer != NULL);
-    SHELL_FREE_NON_NULL(((SHELL_COMMAND_FILE_HANDLE*)(BufferListEntry->Buffer))->Path);
-    SHELL_FREE_NON_NULL(BufferListEntry->Buffer);
-    SHELL_FREE_NON_NULL(BufferListEntry);
-  }
-}
-
-/**
   Destructor for the library.  free any resources.
 
   @param ImageHandle    the image handle of the process
@@ -148,7 +129,7 @@ ShellCommandLibDestructor (
   )
 {
   SHELL_COMMAND_INTERNAL_LIST_ENTRY *Node;
-  ALIAS_LIST                        *Node2;
+  COMMAND_LIST                      *Node2;
   SCRIPT_FILE_LIST                  *Node3;
   SHELL_MAP_LIST                    *MapNode;
   //
@@ -163,14 +144,13 @@ ShellCommandLibDestructor (
   }
 
   //
-  // enumerate through the alias list and free all memory
+  // enumerate through the init command list and free all memory
   //
   while (!IsListEmpty (&mAliasList.Link)) {
-    Node2 = (ALIAS_LIST *)GetFirstNode(&mAliasList.Link);
+    Node2 = (COMMAND_LIST *)GetFirstNode(&mAliasList.Link);
     RemoveEntryList(&Node2->Link);
     SHELL_FREE_NON_NULL(Node2->CommandString);
-    SHELL_FREE_NON_NULL(Node2->Alias);
-    SHELL_FREE_NON_NULL(Node2);
+    FreePool(Node2);
     DEBUG_CODE(Node2 = NULL;);
   }
 
@@ -201,7 +181,7 @@ ShellCommandLibDestructor (
     }
   }
   if (!IsListEmpty(&mFileHandleList.Link)){
-    FreeFileHandleList(&mFileHandleList);
+    FreeBufferList(&mFileHandleList);
   }
 
   if (mProfileList != NULL) {
@@ -209,86 +189,21 @@ ShellCommandLibDestructor (
   }
 
   gUnicodeCollation            = NULL;
+  gDevPathToText               = NULL;
   gShellCurDir                 = NULL;
 
   return (RETURN_SUCCESS);
 }
 
 /**
-  Find a dynamic command protocol instance given a command name string.
-
-  @param CommandString  the command name string
-
-  @return instance      the command protocol instance, if dynamic command instance found
-  @retval NULL          no dynamic command protocol instance found for name
-**/
-CONST EFI_SHELL_DYNAMIC_COMMAND_PROTOCOL *
-EFIAPI
-ShellCommandFindDynamicCommand (
-  IN CONST CHAR16 *CommandString
-  )
-{
-  EFI_STATUS                          Status;
-  EFI_HANDLE                          *CommandHandleList;
-  EFI_HANDLE                          *NextCommand;
-  EFI_SHELL_DYNAMIC_COMMAND_PROTOCOL  *DynamicCommand;
-
-  CommandHandleList = GetHandleListByProtocol(&gEfiShellDynamicCommandProtocolGuid);
-  if (CommandHandleList == NULL) {
-    //
-    // not found or out of resources
-    //
-    return NULL;
-  }
-
-  for (NextCommand = CommandHandleList; *NextCommand != NULL; NextCommand++) {
-    Status = gBS->HandleProtocol(
-      *NextCommand,
-      &gEfiShellDynamicCommandProtocolGuid,
-      (VOID **)&DynamicCommand
-      );
-
-    if (EFI_ERROR(Status)) {
-      continue;
-    }
-
-    if (gUnicodeCollation->StriColl(
-          gUnicodeCollation,
-          (CHAR16*)CommandString,
-          (CHAR16*)DynamicCommand->CommandName) == 0
-          ){
-        FreePool(CommandHandleList);
-        return (DynamicCommand);
-    }
-  }
-
-  FreePool(CommandHandleList);
-  return (NULL);
-}
-
-/**
-  Checks if a command exists as a dynamic command protocol instance
+  Checks if a command is already on the list.
 
   @param[in] CommandString        The command string to check for on the list.
 **/
 BOOLEAN
 EFIAPI
-ShellCommandDynamicCommandExists (
-  IN CONST CHAR16 *CommandString
-  )
-{
-  return (BOOLEAN) ((ShellCommandFindDynamicCommand(CommandString) != NULL));
-}
-
-/**
-  Checks if a command is already on the internal command list.
-
-  @param[in] CommandString        The command string to check for on the list.
-**/
-BOOLEAN
-EFIAPI
-ShellCommandIsCommandOnInternalList(
-  IN CONST  CHAR16 *CommandString
+ShellCommandIsCommandOnList (
+  IN CONST  CHAR16                      *CommandString
   )
 {
   SHELL_COMMAND_INTERNAL_LIST_ENTRY *Node;
@@ -318,52 +233,7 @@ ShellCommandIsCommandOnInternalList(
 }
 
 /**
-  Checks if a command exists, either internally or through the dynamic command protocol.
-
-  @param[in] CommandString        The command string to check for on the list.
-**/
-BOOLEAN
-EFIAPI
-ShellCommandIsCommandOnList(
-  IN CONST  CHAR16                      *CommandString
-  )
-{
-  if (ShellCommandIsCommandOnInternalList(CommandString)) {
-    return TRUE;
-  }
-
-  return ShellCommandDynamicCommandExists(CommandString);
-}
-
-/**
- Get the help text for a dynamic command.
-
-  @param[in] CommandString        The command name.
-
-  @retval NULL  No help text was found.
-  @return       String of help text. Caller required to free.
-**/
-CHAR16*
-EFIAPI
-ShellCommandGetDynamicCommandHelp(
-  IN CONST  CHAR16                      *CommandString
-  )
-{
-  EFI_SHELL_DYNAMIC_COMMAND_PROTOCOL  *DynamicCommand;
-
-  DynamicCommand = (EFI_SHELL_DYNAMIC_COMMAND_PROTOCOL  *)ShellCommandFindDynamicCommand(CommandString);
-  if (DynamicCommand == NULL) {
-    return (NULL);
-  }
-
-  //
-  // TODO: how to get proper language?
-  //
-  return DynamicCommand->GetHelp(DynamicCommand, "en");
-}
-
-/**
-  Get the help text for an internal command.
+  Get the help text for a command.
 
   @param[in] CommandString        The command name.
 
@@ -372,7 +242,7 @@ ShellCommandGetDynamicCommandHelp(
 **/
 CHAR16*
 EFIAPI
-ShellCommandGetInternalCommandHelp(
+ShellCommandGetCommandHelp (
   IN CONST  CHAR16                      *CommandString
   )
 {
@@ -401,31 +271,6 @@ ShellCommandGetInternalCommandHelp(
   }
   return (NULL);
 }
-
-/**
-  Get the help text for a command.
-
-  @param[in] CommandString        The command name.
-
-  @retval NULL  No help text was found.
-  @return       String of help text.Caller reuiqred to free.
-**/
-CHAR16*
-EFIAPI
-ShellCommandGetCommandHelp (
-  IN CONST  CHAR16                      *CommandString
-  )
-{
-  CHAR16      *HelpStr;
-  HelpStr = ShellCommandGetInternalCommandHelp(CommandString);
-
-  if (HelpStr == NULL) {
-    HelpStr = ShellCommandGetDynamicCommandHelp(CommandString);
-  }
-
-  return HelpStr;
-}
-
 
 /**
   Registers handlers of type SHELL_RUN_COMMAND and
@@ -488,16 +333,6 @@ ShellCommandRegisterCommandName (
   )
 {
   SHELL_COMMAND_INTERNAL_LIST_ENTRY *Node;
-  SHELL_COMMAND_INTERNAL_LIST_ENTRY *Command;
-  SHELL_COMMAND_INTERNAL_LIST_ENTRY *PrevCommand;
-  INTN LexicalMatchValue;
-
-  //
-  // Initialize local variables.
-  //
-  Command = NULL;
-  PrevCommand = NULL;
-  LexicalMatchValue = 0;
 
   //
   // ASSERTs for NULL parameters
@@ -526,8 +361,13 @@ ShellCommandRegisterCommandName (
   //
   Node = AllocateZeroPool(sizeof(SHELL_COMMAND_INTERNAL_LIST_ENTRY));
   ASSERT(Node != NULL);
-  Node->CommandString = AllocateCopyPool(StrSize(CommandString), CommandString);
+  Node->CommandString = AllocateZeroPool(StrSize(CommandString));
   ASSERT(Node->CommandString != NULL);
+
+  //
+  // populate the new struct
+  //
+  StrCpy(Node->CommandString, CommandString);
 
   Node->GetManFileName  = GetManFileName;
   Node->CommandHandler  = CommandHandler;
@@ -551,40 +391,9 @@ ShellCommandRegisterCommandName (
   }
 
   //
-  // Insert a new entry on top of the list
+  // add the new struct to the list
   //
-  InsertHeadList (&mCommandList.Link, &Node->Link);
-
-  //
-  // Move a new registered command to its sorted ordered location in the list
-  //
-  for (Command = (SHELL_COMMAND_INTERNAL_LIST_ENTRY *)GetFirstNode (&mCommandList.Link),
-        PrevCommand = (SHELL_COMMAND_INTERNAL_LIST_ENTRY *)GetFirstNode (&mCommandList.Link)
-        ; !IsNull (&mCommandList.Link, &Command->Link)
-        ; Command = (SHELL_COMMAND_INTERNAL_LIST_ENTRY *)GetNextNode (&mCommandList.Link, &Command->Link)) {
-
-    //
-    // Get Lexical Comparison Value between PrevCommand and Command list entry
-    //
-    LexicalMatchValue = gUnicodeCollation->StriColl (
-                                             gUnicodeCollation,
-                                             PrevCommand->CommandString,
-                                             Command->CommandString
-                                             );
-
-    //
-    // Swap PrevCommand and Command list entry if PrevCommand list entry
-    // is alphabetically greater than Command list entry
-    //
-    if (LexicalMatchValue > 0){
-      Command = (SHELL_COMMAND_INTERNAL_LIST_ENTRY *) SwapListEntries (&PrevCommand->Link, &Command->Link);
-    } else if (LexicalMatchValue < 0) {
-      //
-      // PrevCommand entry is lexically lower than Command entry
-      //
-      break;
-    }
-  }
+  InsertTailList (&mCommandList.Link, &Node->Link);
 
   return (RETURN_SUCCESS);
 }
@@ -636,8 +445,7 @@ ShellCommandRunCommandHandler (
   IN OUT BOOLEAN                *CanAffectLE OPTIONAL
   )
 {
-  SHELL_COMMAND_INTERNAL_LIST_ENTRY   *Node;
-  EFI_SHELL_DYNAMIC_COMMAND_PROTOCOL  *DynamicCommand;
+  SHELL_COMMAND_INTERNAL_LIST_ENTRY *Node;
 
   //
   // assert for NULL parameters
@@ -656,7 +464,7 @@ ShellCommandRunCommandHandler (
           gUnicodeCollation,
           (CHAR16*)CommandString,
           Node->CommandString) == 0
-      ){
+       ){
       if (CanAffectLE != NULL) {
         *CanAffectLE = Node->LastError;
       }
@@ -668,20 +476,6 @@ ShellCommandRunCommandHandler (
       return (RETURN_SUCCESS);
     }
   }
-
-  //
-  // An internal command was not found, try to find a dynamic command
-  //
-  DynamicCommand = (EFI_SHELL_DYNAMIC_COMMAND_PROTOCOL  *)ShellCommandFindDynamicCommand(CommandString);
-  if (DynamicCommand != NULL) {
-    if (RetVal != NULL) {
-      *RetVal = DynamicCommand->Handler(DynamicCommand, gST, gEfiShellParametersProtocol, gEfiShellProtocol);
-    } else {
-      DynamicCommand->Handler(DynamicCommand, gST, gEfiShellParametersProtocol, gEfiShellProtocol);
-    }
-    return (RETURN_SUCCESS);
-  }
-
   return (RETURN_NOT_FOUND);
 }
 
@@ -772,9 +566,6 @@ ShellCommandRegisterAlias (
   )
 {
   ALIAS_LIST *Node;
-  ALIAS_LIST *CommandAlias;
-  ALIAS_LIST *PrevCommandAlias;
-  INTN       LexicalMatchValue;
 
   //
   // Asserts for NULL
@@ -787,42 +578,21 @@ ShellCommandRegisterAlias (
   //
   Node = AllocateZeroPool(sizeof(ALIAS_LIST));
   ASSERT(Node != NULL);
-  Node->CommandString = AllocateCopyPool(StrSize(Command), Command);
-  Node->Alias = AllocateCopyPool(StrSize(Alias), Alias);
+  Node->CommandString = AllocateZeroPool(StrSize(Command));
+  Node->Alias = AllocateZeroPool(StrSize(Alias));
   ASSERT(Node->CommandString != NULL);
   ASSERT(Node->Alias != NULL);
 
-  InsertHeadList (&mAliasList.Link, &Node->Link);
+  //
+  // populate the new struct
+  //
+  StrCpy(Node->CommandString, Command);
+  StrCpy(Node->Alias        , Alias );
 
   //
-  // Move a new pre-defined registered alias to its sorted ordered location in the list
+  // add the new struct to the list
   //
-  for ( CommandAlias = (ALIAS_LIST *)GetFirstNode (&mAliasList.Link),
-         PrevCommandAlias = (ALIAS_LIST *)GetFirstNode (&mAliasList.Link)
-       ; !IsNull (&mAliasList.Link, &CommandAlias->Link)
-       ; CommandAlias = (ALIAS_LIST *) GetNextNode (&mAliasList.Link, &CommandAlias->Link) ) {
-    //
-    // Get Lexical comparison value between PrevCommandAlias and CommandAlias List Entry
-    //
-    LexicalMatchValue = gUnicodeCollation->StriColl (
-                                             gUnicodeCollation,
-                                             PrevCommandAlias->Alias,
-                                             CommandAlias->Alias
-                                             );
-
-    //
-    // Swap PrevCommandAlias and CommandAlias list entry if PrevCommandAlias list entry
-    // is alphabetically greater than CommandAlias list entry
-    //
-    if (LexicalMatchValue > 0) {
-      CommandAlias = (ALIAS_LIST *) SwapListEntries (&PrevCommandAlias->Link, &CommandAlias->Link);
-    } else if (LexicalMatchValue < 0) {
-      //
-      // PrevCommandAlias entry is lexically lower than CommandAlias entry
-      //
-      break;
-    }
-  }
+  InsertTailList (&mAliasList.Link, &Node->Link);
 
   return (RETURN_SUCCESS);
 }
@@ -892,7 +662,7 @@ ShellCommandIsOnAliasList(
 }
 
 /**
-  Function to determine current state of ECHO.  Echo determines if lines from scripts
+  Function to determine current state of ECHO.  Echo determins if lines from scripts
   and ECHO commands are enabled.
 
   @retval TRUE    Echo is currently enabled
@@ -908,7 +678,7 @@ ShellCommandGetEchoState(
 }
 
 /**
-  Function to set current state of ECHO.  Echo determines if lines from scripts
+  Function to set current state of ECHO.  Echo determins if lines from scripts
   and ECHO commands are enabled.
 
   If State is TRUE, Echo will be enabled.
@@ -1165,11 +935,12 @@ ShellCommandAddMapItemAndUpdatePath(
     Status = EFI_OUT_OF_RESOURCES;
   } else {
     MapListNode->Flags = Flags;
-    MapListNode->MapName = AllocateCopyPool(StrSize(Name), Name);
+    MapListNode->MapName = AllocateZeroPool(StrSize(Name));
     MapListNode->DevicePath = DuplicateDevicePath(DevicePath);
     if ((MapListNode->MapName == NULL) || (MapListNode->DevicePath == NULL)){
       Status = EFI_OUT_OF_RESOURCES;
     } else {
+      StrCpy(MapListNode->MapName, Name);
       InsertTailList(&gShellMapList.Link, &MapListNode->Link);
     }
   }
@@ -1371,113 +1142,6 @@ ShellCommandCreateInitialMappingsAndPaths(
 }
 
 /**
-  Add mappings for any devices without one.  Do not change any existing maps.
-
-  @retval EFI_SUCCESS   The operation was successful.
-**/
-EFI_STATUS
-EFIAPI
-ShellCommandUpdateMapping (
-  VOID
-  )
-{
-  EFI_STATUS                Status;
-  EFI_HANDLE                *HandleList;
-  UINTN                     Count;
-  EFI_DEVICE_PATH_PROTOCOL  **DevicePathList;
-  CHAR16                    *NewDefaultName;
-  CHAR16                    *NewConsistName;
-  EFI_DEVICE_PATH_PROTOCOL  **ConsistMappingTable;
-
-  HandleList  = NULL;
-  Status      = EFI_SUCCESS;
-
-  //
-  // remove mappings that represent removed devices.
-  //
-
-  //
-  // Find each handle with Simple File System
-  //
-  HandleList = GetHandleListByProtocol(&gEfiSimpleFileSystemProtocolGuid);
-  if (HandleList != NULL) {
-    //
-    // Do a count of the handles
-    //
-    for (Count = 0 ; HandleList[Count] != NULL ; Count++);
-
-    //
-    // Get all Device Paths
-    //
-    DevicePathList = AllocateZeroPool(sizeof(EFI_DEVICE_PATH_PROTOCOL*) * Count);
-    if (DevicePathList == NULL) {
-      return (EFI_OUT_OF_RESOURCES);
-    }
-
-    for (Count = 0 ; HandleList[Count] != NULL ; Count++) {
-      DevicePathList[Count] = DevicePathFromHandle(HandleList[Count]);
-    }
-
-    //
-    // Sort all DevicePaths
-    //
-    PerformQuickSort(DevicePathList, Count, sizeof(EFI_DEVICE_PATH_PROTOCOL*), DevicePathCompare);
-
-    ShellCommandConsistMappingInitialize(&ConsistMappingTable);
-
-    //
-    // Assign new Mappings to remainders
-    //
-    for (Count = 0 ; !EFI_ERROR(Status) && HandleList[Count] != NULL && !EFI_ERROR(Status); Count++) {
-      //
-      // Skip ones that already have
-      //
-      if (gEfiShellProtocol->GetMapFromDevicePath(&DevicePathList[Count]) != NULL) {
-        continue;
-      }
-      //
-      // Get default name
-      //
-      NewDefaultName = ShellCommandCreateNewMappingName(MappingTypeFileSystem);
-      if (NewDefaultName == NULL) {
-        Status = EFI_OUT_OF_RESOURCES;
-        break;
-      }
-
-      //
-      // Call shell protocol SetMap function now...
-      //
-      Status = gEfiShellProtocol->SetMap(DevicePathList[Count], NewDefaultName);
-
-      if (!EFI_ERROR(Status)) {
-        //
-        // Now do consistent name
-        //
-        NewConsistName = ShellCommandConsistMappingGenMappingName(DevicePathList[Count], ConsistMappingTable);
-        if (NewConsistName != NULL) {
-          Status = gEfiShellProtocol->SetMap(DevicePathList[Count], NewConsistName);
-          FreePool(NewConsistName);
-        }
-      }
-
-      FreePool(NewDefaultName);
-    }
-    ShellCommandConsistMappingUnInitialize(ConsistMappingTable);
-    SHELL_FREE_NON_NULL(HandleList);
-    SHELL_FREE_NON_NULL(DevicePathList);
-
-    HandleList = NULL;
-  } else {
-    Count = (UINTN)-1;
-  }
-  //
-  // Do it all over again for gEfiBlockIoProtocolGuid
-  //
-
-  return (Status);
-}
-
-/**
   Converts a SHELL_FILE_HANDLE to an EFI_FILE_PROTOCOL*.
 
   @param[in] Handle     The SHELL_FILE_HANDLE to convert.
@@ -1519,14 +1183,11 @@ ConvertEfiFileProtocolToShellHandle(
     }
     NewNode             = AllocateZeroPool(sizeof(BUFFER_LIST));
     if (NewNode == NULL) {
-      SHELL_FREE_NON_NULL(Buffer);
       return (NULL);
     }
     Buffer->FileHandle  = (EFI_FILE_PROTOCOL*)Handle;
     Buffer->Path        = StrnCatGrow(&Buffer->Path, NULL, Path, 0);
     if (Buffer->Path == NULL) {
-      SHELL_FREE_NON_NULL(NewNode);
-      SHELL_FREE_NON_NULL(Buffer);
       return (NULL);
     }
     NewNode->Buffer     = Buffer;
@@ -1664,6 +1325,7 @@ FreeBufferList (
       ; BufferListEntry = (BUFFER_LIST *)GetFirstNode(&List->Link)
      ){
     RemoveEntryList(&BufferListEntry->Link);
+    ASSERT(BufferListEntry->Buffer != NULL);
     if (BufferListEntry->Buffer != NULL) {
       FreePool(BufferListEntry->Buffer);
     }

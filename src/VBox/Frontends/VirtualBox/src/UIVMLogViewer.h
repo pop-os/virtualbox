@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIVMLogViewer_h___
-#define ___UIVMLogViewer_h___
+#ifndef __UIVMLogViewer_h__
+#define __UIVMLogViewer_h__
 
 /* Qt includes: */
 #include <QMainWindow>
@@ -24,30 +24,26 @@
 #include <QPair>
 
 /* GUI includes: */
-#include "QIWithRetranslateUI.h"
 #include "UIVMLogViewer.gen.h"
+#include "QIWithRetranslateUI.h"
 
 /* COM includes: */
 #include "COMEnums.h"
 #include "CMachine.h"
 
 /* Forward declarations: */
-class QComboBox;
-class QITabWidget;
 class QPushButton;
 class QTextEdit;
+class QITabWidget;
 class UIVMLogViewer;
-class UIVMLogViewerFilterPanel;
 class UIVMLogViewerSearchPanel;
 
-/* Type definitions: */
+/* Typedefs: */
 typedef QMap<QString, UIVMLogViewer*> VMLogViewerMap;
 typedef QPair<QString, QTextEdit*> LogPage;
 typedef QList<LogPage> LogBook;
-typedef QMap<QTextEdit*, QString> VMLogMap;
 
-/** QMainWindow extension
-  * providing GUI with VirtualBox LogViewer. */
+/* VM Log Viewer window: */
 class UIVMLogViewer : public QIWithRetranslateUI2<QMainWindow>,
                       public Ui::UIVMLogViewer
 {
@@ -55,112 +51,65 @@ class UIVMLogViewer : public QIWithRetranslateUI2<QMainWindow>,
 
 public:
 
-    /** Static method to create/show VM Log Viewer by passing @a pParent to QWidget base-class constructor.
-      * @param  machine  Specifies the machine for which VM Log-Viewer is requested. */
+    /* Static method to create/show VM Log Viewer: */
     static void showLogViewerFor(QWidget *pParent, const CMachine &machine);
 
 protected:
 
-    /** Constructs the VM Log-Viewer by passing @a pParent to QWidget base-class constructor.
-      * @param  flags    Specifies Qt window flags.
-      * @param  machine  Specifies the machine for which VM Log-Viewer is requested. */
+    /* Constructor/destructor: */
     UIVMLogViewer(QWidget *pParent, Qt::WindowFlags flags, const CMachine &machine);
-    /** Destructs the VM Log-Viewer. */
     ~UIVMLogViewer();
 
 private slots:
 
-    /** Handles search action triggering. */
+    /* Button slots: */
     void search();
-    /** Handles refresh action triggering. */
     void refresh();
-    /** Handles close action triggering. */
     bool close();
-    /** Handles save action triggering. */
     void save();
-    /** Handles filter action triggering. */
-    void filter();
 
 private:
 
-    /** @name Prepare/Cleanup
-      * @{ */
-        /** Prepares VM Log-Viewer. */
-        void prepare();
-        /** Prepares widgets. */
-        void prepareWidgets();
-        /** Prepares connections. */
-        void prepareConnections();
-        /** Load settings helper. */
-        void loadSettings();
+    /* Translation stuff: */
+    void retranslateUi();
 
-        /** Save settings helper. */
-        void saveSettings();
-        /** Cleanups VM Log-Viewer. */
-        void cleanup();
-    /** @} */
+    /* Event handlers: */
+    void showEvent(QShowEvent *aEvent);
+    void keyPressEvent(QKeyEvent *pEvent);
 
-    /** @name Event handling stuff.
-      * @{ */
-        /** Handles translation event. */
-        void retranslateUi();
-
-        /** Handles Qt show @a pEvent. */
-        void showEvent(QShowEvent *pEvent);
-        /** Handles Qt key-press @a pEvent. */
-        void keyPressEvent(QKeyEvent *pEvent);
-    /** @} */
-
-    /** Returns the current log-page. */
+    /* Various helpers: */
     QTextEdit* currentLogPage();
-    /** Returns the newly created log-page using @a strPage filename. */
     QTextEdit* createLogPage(const QString &strPage);
-    /** Returns the content of current log-page. */
-    const QString& currentLog();
 
-    /** Holds the list of all VM Log Viewers. */
+    /** Load settings helper. */
+    void loadSettings();
+
+    /** Save settings helper. */
+    void saveSettings();
+
+    /* Array containing all VM Log Viewers: */
     static VMLogViewerMap m_viewers;
 
-    /** Holds whether the dialog is polished. */
+    /* VM Log Viewer variables: */
     bool m_fIsPolished;
-
-    /** Holds the machine instance. */
     CMachine m_machine;
-
-    /** Holds container for log-pages. */
     QITabWidget *m_pViewerContainer;
-
-    /** Holds the instance of search-panel. */
     UIVMLogViewerSearchPanel *m_pSearchPanel;
-
-    /** Holds the list of log-pages. */
     LogBook m_book;
 
-    /** Holds the instance of filter panel. */
-    UIVMLogViewerFilterPanel *m_pFilterPanel;
-
-    /** Holds the list of log-content. */
-    VMLogMap m_logMap;
-
-    /** Holds the current dialog geometry. */
+    /** Current dialog geometry. */
     QRect m_geometry;
 
-    /** Holds the help button instance. */
-    QPushButton *m_pButtonHelp;
-    /** Holds the find button instance. */
-    QPushButton *m_pButtonFind;
-    /** Holds the refresh button instance. */
-    QPushButton *m_pButtonRefresh;
-    /** Holds the close button instance. */
-    QPushButton *m_pButtonClose;
-    /** Holds the save button instance. */
-    QPushButton *m_pButtonSave;
-    /** Holds the filter button instance. */
-    QPushButton *m_pButtonFilter;
+    /* Buttons: */
+    QPushButton *mBtnHelp;
+    QPushButton *mBtnFind;
+    QPushButton *mBtnRefresh;
+    QPushButton *mBtnClose;
+    QPushButton *mBtnSave;
 
+    /* Friends: */
     friend class UIVMLogViewerSearchPanel;
-    friend class UIVMLogViewerFilterPanel;
 };
 
-#endif /* !___UIVMLogViewer_h___ */
+#endif // __UIVMLogViewer_h__
 

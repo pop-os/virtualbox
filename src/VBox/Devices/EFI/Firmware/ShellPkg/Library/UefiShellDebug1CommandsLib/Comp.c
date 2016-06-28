@@ -1,7 +1,7 @@
 /** @file
   Main file for Comp shell Debug1 function.
 
-  Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -50,7 +50,6 @@ ShellCommandRunComp (
   CHAR16              *FileName1;
   CHAR16              *FileName2;
   CONST CHAR16        *TempParam;
-  UINTN               ErrorAddress;
 
   ErrorCount          = 0;
   ShellStatus         = SHELL_SUCCESS;
@@ -137,18 +136,12 @@ ShellCommandRunComp (
           Status = gEfiShellProtocol->ReadFile(FileHandle2, &DataSizeFromFile2, &DataFromFile2);
           ASSERT_EFI_ERROR(Status);
           if (DataFromFile1 != DataFromFile2) {
-            ErrorAddress = LoopVar;
             ADF_File11 = 0;
             ADF_File12 = 0;
             ADF_File13 = 0;
             ADF_File21 = 0;
             ADF_File22 = 0;
             ADF_File23 = 0;
-
-            //
-            // Now check the next 3 bytes if possible.  This will make output
-            // cleaner when there are a sequence of differences.
-            //
             if (LoopVar + 1 < Size1) {
               LoopVar++;
               DataSizeFromFile1 = 1;
@@ -176,10 +169,6 @@ ShellCommandRunComp (
                 }
               }
             }
-
-            //
-            // Print out based on highest of the 4 bytes that are different.
-            //
             if (ADF_File13 != ADF_File23) {
               ShellPrintHiiEx(
                 -1,
@@ -189,11 +178,11 @@ ShellCommandRunComp (
                 gShellDebug1HiiHandle,
                 ++ErrorCount,
                 FileName1,
-                ErrorAddress,
+                LoopVar,
                 DataFromFile1, ADF_File11, ADF_File12, ADF_File13,
                 DataFromFile1, ADF_File11, ADF_File12, ADF_File13,
                 FileName2,
-                ErrorAddress,
+                LoopVar,
                 DataFromFile2, ADF_File21, ADF_File22, ADF_File23,
                 DataFromFile2, ADF_File21, ADF_File22, ADF_File23
                );
@@ -206,11 +195,11 @@ ShellCommandRunComp (
                 gShellDebug1HiiHandle,
                 ++ErrorCount,
                 FileName1,
-                ErrorAddress,
+                LoopVar,
                 DataFromFile1, ADF_File11, ADF_File12,
                 DataFromFile1, ADF_File11, ADF_File12,
                 FileName2,
-                ErrorAddress,
+                LoopVar,
                 DataFromFile2, ADF_File21, ADF_File22,
                 DataFromFile2, ADF_File21, ADF_File22
                );
@@ -223,11 +212,11 @@ ShellCommandRunComp (
                 gShellDebug1HiiHandle,
                 ++ErrorCount,
                 FileName1,
-                ErrorAddress,
+                LoopVar,
                 DataFromFile1, ADF_File11,
                 DataFromFile1, ADF_File11,
                 FileName2,
-                ErrorAddress,
+                LoopVar,
                 DataFromFile2, ADF_File21,
                 DataFromFile2, ADF_File21
                );
@@ -240,11 +229,11 @@ ShellCommandRunComp (
                 gShellDebug1HiiHandle,
                 ++ErrorCount,
                 FileName1,
-                ErrorAddress,
+                LoopVar,
                 DataFromFile1,
                 DataFromFile1,
                 FileName2,
-                ErrorAddress,
+                LoopVar,
                 DataFromFile2,
                 DataFromFile2
                );

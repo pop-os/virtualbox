@@ -44,12 +44,12 @@
     #define __weak_extern(sym)          /* NOTHING */
     #define __weak_reference(sym)       /* NOTHING */
 
-    #if defined(__CC_ARM) || defined(__APPLE__)
-      #define __warn_references(sym,msg)
-    #else
-      #define __warn_references(sym,msg)              \
-              __asm(".stabs \"" msg "\",30,0,0,0");   \
+    #if !defined(__CC_ARM)
+      #define __warn_references(sym,msg)          \
+              __asm(".stabs \"" msg "\",30,0,0,0");       \
               __asm(".stabs \"_" #sym "\",1,0,0,0");
+    #else
+      #define __warn_references(sym,msg)
     #endif
   #endif
 #else   /* __STDC__ */

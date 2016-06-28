@@ -211,7 +211,7 @@ DECLINLINE(void) rtSocketErrorReset(void)
  *
  * @returns iprt status code.
  */
-DECLHIDDEN(int) rtSocketResolverError(void)
+int rtSocketResolverError(void)
 {
 #ifdef RT_OS_WINDOWS
     return RTErrConvertFromWin32(WSAGetLastError());
@@ -399,7 +399,7 @@ DECLINLINE(int) rtSocketSwitchBlockingMode(RTSOCKETINT *pThis, bool fBlocking)
  * @param   ppSocket        Where to return the IPRT socket handle.
  * @param   hNative         The native handle.
  */
-DECLHIDDEN(int) rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE hNative)
+int rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE hNative)
 {
     RTSOCKETINT *pThis = (RTSOCKETINT *)RTMemPoolAlloc(RTMEMPOOL_DEFAULT, sizeof(*pThis));
     if (!pThis)
@@ -416,7 +416,6 @@ DECLHIDDEN(int) rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE h
     pThis->hEvent           = WSA_INVALID_EVENT;
     pThis->fPollEvts        = 0;
     pThis->fSubscribedEvts  = 0;
-    pThis->fEventsSaved     = 0;
 #endif
     *ppSocket = pThis;
     return VINF_SUCCESS;
@@ -444,7 +443,7 @@ RTDECL(int) RTSocketFromNative(PRTSOCKET phSocket, RTHCINTPTR uNative)
  * @param   iType               The socket type (SOCK_XXX).
  * @param   iProtocol           Socket parameter, usually 0.
  */
-DECLHIDDEN(int) rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int iProtocol)
+int rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int iProtocol)
 {
     /*
      * Create the socket.
@@ -1070,60 +1069,6 @@ RTDECL(int) RTSocketWriteTo(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
 }
 
 
-RTDECL(int) RTSocketWriteToNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffer, PCRTNETADDR pAddr)
-{
-    /*
-     * Validate input.
-     */
-    RTSOCKETINT *pThis = hSocket;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
-
-    /* no locking since UDP reads may be done concurrently to writes, and
-     * this is the normal use case of this code. */
-
-    int rc = rtSocketSwitchBlockingMode(pThis, false /* fBlocking */);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /* Figure out destination address. */
-    struct sockaddr *pSA = NULL;
-#ifdef RT_OS_WINDOWS
-    int cbSA = 0;
-#else
-    socklen_t cbSA = 0;
-#endif
-    RTSOCKADDRUNION u;
-    if (pAddr)
-    {
-        rc = rtSocketAddrFromNetAddr(pAddr, &u, sizeof(u), NULL);
-        if (RT_FAILURE(rc))
-            return rc;
-        pSA = &u.Addr;
-        cbSA = sizeof(u);
-    }
-
-    /*
-     * Must write all at once, otherwise it is a failure.
-     */
-#ifdef RT_OS_WINDOWS
-    int     cbNow     = cbBuffer >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbBuffer;
-#else
-    size_t  cbNow     = cbBuffer >= SSIZE_MAX   ? SSIZE_MAX   :      cbBuffer;
-#endif
-    ssize_t cbWritten = sendto(pThis->hNative, (const char *)pvBuffer, cbNow, MSG_NOSIGNAL, pSA, cbSA);
-    if (RT_LIKELY((size_t)cbWritten == cbBuffer && cbWritten >= 0))
-        rc = VINF_SUCCESS;
-    else if (cbWritten < 0)
-        rc = rtSocketError();
-    else
-        rc = VERR_TOO_MUCH_DATA;
-
-    rtSocketUnlock(pThis);
-    return rc;
-}
-
-
 RTDECL(int) RTSocketSgWrite(RTSOCKET hSocket, PCRTSGBUF pSgBuf)
 {
     /*
@@ -1266,26 +1211,15 @@ RTDECL(int) RTSocketReadNB(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, si
         rc = VINF_SUCCESS;
     }
     else
-    {
         rc = rtSocketError();
-        if (rc == VERR_TRY_AGAIN)
-        {
-            *pcbRead = 0;
-            rc = VINF_TRY_AGAIN;
-        }
-    }
 
+    if (rc == VERR_TRY_AGAIN)
+        rc = VINF_TRY_AGAIN;
 #else
     ssize_t cbRead = recv(pThis->hNative, pvBuffer, cbNow, MSG_NOSIGNAL);
     if (cbRead >= 0)
         *pcbRead = cbRead;
-    else if (   errno == EAGAIN
-# ifdef EWOULDBLOCK
-#  if EWOULDBLOCK != EAGAIN
-             || errno == EWOULDBLOCK
-#  endif
-# endif
-             )
+    else if (errno == EAGAIN)
     {
         *pcbRead = 0;
         rc = VINF_TRY_AGAIN;
@@ -1329,25 +1263,15 @@ RTDECL(int) RTSocketWriteNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
         rc = VINF_SUCCESS;
     }
     else
-    {
         rc = rtSocketError();
-        if (rc == VERR_TRY_AGAIN)
-        {
-            *pcbWritten = 0;
-            rc = VINF_TRY_AGAIN;
-        }
-    }
+
+    if (rc == VERR_TRY_AGAIN)
+        rc = VINF_TRY_AGAIN;
 #else
     ssize_t cbWritten = send(pThis->hNative, pvBuffer, cbBuffer, MSG_NOSIGNAL);
     if (cbWritten >= 0)
         *pcbWritten = cbWritten;
-    else if (   errno == EAGAIN
-# ifdef EWOULDBLOCK
-#  if EWOULDBLOCK != EAGAIN
-             || errno == EWOULDBLOCK
-#  endif
-# endif
-            )
+    else if (errno == EAGAIN)
     {
         *pcbWritten = 0;
         rc = VINF_TRY_AGAIN;
@@ -1500,7 +1424,8 @@ RTDECL(int) RTSocketSelectOne(RTSOCKET hSocket, RTMSINTERVAL cMillies)
 }
 
 
-RTDECL(int) RTSocketSelectOneEx(RTSOCKET hSocket, uint32_t fEvents, uint32_t *pfEvents, RTMSINTERVAL cMillies)
+RTDECL(int) RTSocketSelectOneEx(RTSOCKET hSocket, uint32_t fEvents, uint32_t *pfEvents,
+                                RTMSINTERVAL cMillies)
 {
     /*
      * Validate input.
@@ -1661,7 +1586,7 @@ RTDECL(int) RTSocketGetPeerAddress(RTSOCKET hSocket, PRTNETADDR pAddr)
  * @param   hSocket             The socket handle.
  * @param   pAddr               The address to bind to.
  */
-DECLHIDDEN(int) rtSocketBind(RTSOCKET hSocket, PCRTNETADDR pAddr)
+int rtSocketBind(RTSOCKET hSocket, PCRTNETADDR pAddr)
 {
     RTSOCKADDRUNION u;
     int             cbAddr;
@@ -1681,7 +1606,7 @@ DECLHIDDEN(int) rtSocketBind(RTSOCKET hSocket, PCRTNETADDR pAddr)
  *                              friends).
  * @param   cbAddr              The size of the address.
  */
-DECLHIDDEN(int) rtSocketBindRawAddr(RTSOCKET hSocket, void const *pvAddr, size_t cbAddr)
+int rtSocketBindRawAddr(RTSOCKET hSocket, void const *pvAddr, size_t cbAddr)
 {
     /*
      * Validate input.
@@ -1711,7 +1636,7 @@ DECLHIDDEN(int) rtSocketBindRawAddr(RTSOCKET hSocket, void const *pvAddr, size_t
  * @param   hSocket             The socket handle.
  * @param   cMaxPending         The max number of pending connections.
  */
-DECLHIDDEN(int) rtSocketListen(RTSOCKET hSocket, int cMaxPending)
+int rtSocketListen(RTSOCKET hSocket, int cMaxPending)
 {
     /*
      * Validate input.
@@ -1742,7 +1667,7 @@ DECLHIDDEN(int) rtSocketListen(RTSOCKET hSocket, int cMaxPending)
  *                              @a pAddr point to.  On return this contains the
  *                              size of what's stored at @a pAddr.
  */
-DECLHIDDEN(int) rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sockaddr *pAddr, size_t *pcbAddr)
+int rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sockaddr *pAddr, size_t *pcbAddr)
 {
     /*
      * Validate input.
@@ -1801,7 +1726,7 @@ DECLHIDDEN(int) rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sock
  *                              Use RT_TCPCLIENTCONNECT_DEFAULT_WAIT to wait for the default time
  *                              configured on the running system.
  */
-DECLHIDDEN(int) rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr, RTMSINTERVAL cMillies)
+int rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr, RTMSINTERVAL cMillies)
 {
     /*
      * Validate input.
@@ -1891,35 +1816,6 @@ DECLHIDDEN(int) rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr, RTMSINTERVA
 
 
 /**
- * Wrapper around connect, raw address, no timeout.
- *
- * @returns IPRT status code.
- * @param   hSocket             The socket handle.
- * @param   pvAddr              The raw socket address to connect to.
- * @param   cbAddr              The size of the raw address.
- */
-DECLHIDDEN(int) rtSocketConnectRaw(RTSOCKET hSocket, void const *pvAddr, size_t cbAddr)
-{
-    /*
-     * Validate input.
-     */
-    RTSOCKETINT *pThis = hSocket;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
-    AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
-
-    int rc;
-    if (connect(pThis->hNative, (const struct sockaddr *)pvAddr, (int)cbAddr) == 0)
-        rc = VINF_SUCCESS;
-    else
-        rc = rtSocketError();
-
-    rtSocketUnlock(pThis);
-    return rc;
-}
-
-
-/**
  * Wrapper around setsockopt.
  *
  * @returns IPRT status code.
@@ -1929,7 +1825,7 @@ DECLHIDDEN(int) rtSocketConnectRaw(RTSOCKET hSocket, void const *pvAddr, size_t 
  * @param   pvValue             The value buffer.
  * @param   cbValue             The size of the value pointed to by pvValue.
  */
-DECLHIDDEN(int) rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValue, int cbValue)
+int rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValue, int cbValue)
 {
     /*
      * Validate input.
@@ -1957,7 +1853,7 @@ DECLHIDDEN(int) rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void c
  * @param   fEvents             The events we're polling for.
  * @param   phNative            Where to put the primary handle.
  */
-DECLHIDDEN(int) rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PRTHCINTPTR phNative)
+int rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PRTHCINTPTR phNative)
 {
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
@@ -2156,7 +2052,7 @@ static uint32_t rtSocketPollCheck(RTSOCKETINT *pThis, uint32_t fEvents)
  * @remarks There is a potential race wrt duplicate handles when @a fNoWait is
  *          @c true, we don't currently care about that oddity...
  */
-DECLHIDDEN(uint32_t) rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvents, bool fFinalEntry, bool fNoWait)
+uint32_t rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvents, bool fFinalEntry, bool fNoWait)
 {
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, UINT32_MAX);
@@ -2228,7 +2124,7 @@ DECLHIDDEN(uint32_t) rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uin
  *                              set was processed).
  * @param   fHarvestEvents      Set if we should check for pending events.
  */
-DECLHIDDEN(uint32_t) rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry, bool fHarvestEvents)
+uint32_t rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry, bool fHarvestEvents)
 {
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, 0);

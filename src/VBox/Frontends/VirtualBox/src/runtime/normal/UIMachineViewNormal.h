@@ -35,7 +35,7 @@ protected:
 #endif
     );
     /* Normal machine-view destructor: */
-    virtual ~UIMachineViewNormal() {}
+    virtual ~UIMachineViewNormal();
 
 private slots:
 
@@ -57,10 +57,8 @@ private:
     //void cleanupFilters() {}
     //void cleanupCommon() {}
 
-    /** Returns whether the guest-screen auto-resize is enabled. */
-    virtual bool isGuestAutoresizeEnabled() const /* override */ { return m_bIsGuestAutoresizeEnabled; }
-    /** Defines whether the guest-screen auto-resize is @a fEnabled. */
-    virtual void setGuestAutoresizeEnabled(bool bEnabled) /* override */;
+    /* Hidden setters: */
+    void setGuestAutoresizeEnabled(bool bEnabled);
 
     /** Resends guest size-hint. */
     void resendSizeHint();
@@ -69,7 +67,6 @@ private:
     void adjustGuestScreenSize();
 
     /* Private helpers: */
-    QSize sizeHint() const;
     QRect workingArea() const;
     QSize calculateMaxGuestSize() const;
 

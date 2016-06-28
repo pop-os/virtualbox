@@ -86,7 +86,6 @@ EFI_ATA_COLLECTIVE_MODE  gEfiAtaCollectiveModeTemplate = {
   }
 };
 
-#ifdef VBOX
 static EFI_STATUS GetPciIo(EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE hController, EFI_PCI_IO_PROTOCOL **ppPciIo)
 {
     EFI_STATUS Status = EFI_INVALID_PARAMETER;
@@ -107,7 +106,6 @@ static EFI_STATUS GetPciIo(EFI_DRIVER_BINDING_PROTOCOL *This, EFI_HANDLE hContro
     VBoxLogFlowFuncLeaveRC(Status);
     return Status;
 }
-#endif /* VBOX */
 
 /**
   Chipset Ide Driver EntryPoint function. It follows the standard EFI driver model.
@@ -166,14 +164,14 @@ IdeControllerSupported (
   )
 {
   EFI_STATUS                Status;
-  EFI_PCI_IO_PROTOCOL       *PciIo;
   UINT8                     PciClass;
   UINT8                     PciSubClass;
 
   //
   // Attempt to Open PCI I/O Protocol
   //
-#ifndef VBOX
+  EFI_PCI_IO_PROTOCOL       *PciIo;
+#if 0
   Status = gBS->OpenProtocol (
                   Controller,
                   &gEfiPciIoProtocolGuid,
@@ -183,7 +181,7 @@ IdeControllerSupported (
                   EFI_OPEN_PROTOCOL_BY_DRIVER
                   );
 #else
-  Status = GetPciIo(This, Controller, &PciIo);
+    Status = GetPciIo(This, Controller, &PciIo);
 #endif
   if (EFI_ERROR (Status)) {
     return Status;
@@ -218,13 +216,9 @@ IdeControllerSupported (
   //
   // Examine Ide PCI Configuration table fields
   //
-#ifndef VBOX
-  if ((PciClass != PCI_CLASS_MASS_STORAGE) || (PciSubClass != PCI_CLASS_MASS_STORAGE_IDE)) {
-#else
   if (   (PciClass != PCI_CLASS_MASS_STORAGE)
       || (   PciSubClass != PCI_CLASS_MASS_STORAGE_IDE
           && PciSubClass != 0x6 /* SATA */)) {
-#endif
     Status = EFI_UNSUPPORTED;
   }
 
@@ -261,16 +255,15 @@ IdeControllerStart (
   )
 {
   EFI_STATUS           Status;
-#ifndef VBOX
-  EFI_PCI_IO_PROTOCOL  *PciIo;
 
+#if 0
   //
   // Now test and open the EfiPciIoProtocol
   //
   Status = gBS->OpenProtocol (
                   Controller,
                   &gEfiPciIoProtocolGuid,
-                  (VOID **) &PciIo,
+                  (VOID **) &gEfiIdeControllerInit->PciIo,
                   This->DriverBindingHandle,
                   Controller,
                   EFI_OPEN_PROTOCOL_BY_DRIVER
@@ -293,11 +286,12 @@ IdeControllerStart (
   //
   // Install IDE_CONTROLLER_INIT protocol
   //
-  return gBS->InstallMultipleProtocolInterfaces (
+  Status = gBS->InstallMultipleProtocolInterfaces (
                 &Controller,
-                &gEfiIdeControllerInitProtocolGuid, &gEfiIdeControllerInit.Core, /* VBox: We added .Core, probably for warnings. */
+                &gEfiIdeControllerInitProtocolGuid, &gEfiIdeControllerInit.Core,
                 NULL
                 );
+  return Status;
 }
 
 /**
@@ -341,7 +335,7 @@ IdeControllerStop (
   //
   // Make sure the protocol was produced by this driver
   //
-  if ((void *)IdeControllerInit != (void *)&gEfiIdeControllerInit) { /* VBox: Dunno why we're doing the (void *) thing, types should be the same... */
+  if ((void *)IdeControllerInit != (void *)&gEfiIdeControllerInit) {
     return EFI_UNSUPPORTED;
   }
 
@@ -350,7 +344,7 @@ IdeControllerStop (
   //
   Status = gBS->UninstallMultipleProtocolInterfaces (
                   Controller,
-                  &gEfiIdeControllerInitProtocolGuid, &gEfiIdeControllerInit.Core, /* VBox: We added .Core, probably for warnings. */
+                  &gEfiIdeControllerInitProtocolGuid, &gEfiIdeControllerInit.Core,
                   NULL
                   );
   if (EFI_ERROR (Status)) {
@@ -419,12 +413,10 @@ IdeInitGetChannelInfo (
   //
   // Channel number (0 based, either 0 or 1)
   //
-#ifdef VBOX
   VBoxLogFlowFuncEnter();
   VBoxLogFlowFuncMarkVar(Channel, "%d");
   *MaxDevices = 0;
   *Enabled = FALSE;
-#endif
   if (Channel < ICH_IDE_MAX_CHANNEL) {
 #ifdef VBOX
     UINT8 u8Device = 0;

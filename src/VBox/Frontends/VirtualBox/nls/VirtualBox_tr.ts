@@ -132,16 +132,16 @@
         <translation>VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. Lütfen VirtualBox&apos;ı tamamen kaldırmayı ve yeniden yüklemeyi deneyin.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Bu hata kernel sürücüsünün ya yeterli bellek ayıramadığını ya da bazı planlama işleminin başarısız olduğu anlamına gelir.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox Linux kernel sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırıp kernel modülünü yeniden yükleyin. Eğer dağıtımınızda mevcutsa, önce DKMS paketini yüklemelisiniz. Bu paket Linux kernel değişikliklerinin izini tutar ve eğer gerekirse vboxdrv kernel modülünü yeniden derler.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>VirtualBox Linux kernel sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırıp kernel modülünü yeniden yükleyin. Eğer dağıtımınızda mevcutsa, önce DKMS paketini yüklemelisiniz. Bu paket Linux kernel değişikliklerinin izini tutar ve eğer gerekirse vboxdrv kernel modülünü yeniden derler.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -1355,7 +1355,7 @@
     </message>
     <message>
         <source>Discard saved state of selected virtual machines</source>
-        <translation>Seçilen sanal makinelerin kaydedilmiş durumundan vazgeç</translation>
+        <translation>Seçilen sanal makinelerin kaydedildi durumundan vazgeç</translation>
     </message>
     <message>
         <source>Show log files of selected virtual machines</source>
@@ -4023,11 +4023,11 @@
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>İşaretlendiğinde, VirtualBox ağdan Misafir Eklentilerini indirme ya da güncellemeleri kontrol etme gibi görevler için sağlanan proksi ayarlarını kullanacak.</translation>
+        <translation type="obsolete">İşaretlendiğinde, VirtualBox ağdan Misafir Eklentilerini indirme ya da güncellemeleri kontrol etme gibi görevler için sağlanan proksi ayarlarını kullanacak.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation>Proksiyi &amp;etkinleştir</translation>
+        <translation type="obsolete">Proksiyi &amp;etkinleştir</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -4084,6 +4084,30 @@
     <message>
         <source>Holds the proxy port.</source>
         <translation>Proksi bağlantı noktasını tutar.</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Seçildiğinde, VirtualBox ağdan Misafir Eklentilerini indirme ya da güncellemeleri kontrol etme gibi görevler için anamakine proksi ayarlarını otomatik algılamaya çalışacak.</translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation>Anamakine Proksi Ayarlarını Otomatik &amp;Algıla</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Seçildiğinde, VirtualBox ağdan Misafir Eklentilerini indirme ya da güncellemeleri kontrol etme gibi görevler için doğrudan Internet bağlantısı kullanacak.</translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation>Internet&apos;e &amp;Doğrudan Bağlantı</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Seçildiğinde, VirtualBox ağdan Misafir Eklentilerini indirme ya da güncellemeleri kontrol etme gibi görevler için sağlanan proksi ayarlarını kullanacak.</translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation>&amp;Elle Proksi Yapılandırması</translation>
     </message>
 </context>
 <context>
@@ -7505,7 +7529,7 @@
     </message>
     <message>
         <source>Failed to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesinin kaydedilmiş durumundan vazgeçme başarısız.</translation>
+        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesinin kaydedildi durumundan vazgeçme başarısız.</translation>
     </message>
     <message>
         <source>Failed to discard the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
@@ -8699,7 +8723,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to discard the saved state of the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Aşağıdaki sanal makinelerin kaydedilmiş durumundan vazgeçmek istediğinize emin misiniz?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Bu işlem misafir İS&apos;nin uygun bir kapama olmadan makine gücünü kapatmaya veya sıfırlamaya eşdeğerdir.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Aşağıdaki sanal makinelerin kaydedildi durumundan vazgeçmek istediğinize emin misiniz?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Bu işlem misafir İS&apos;nin uygun bir kapama olmadan makine gücünü kapatmaya veya sıfırlamaya eşdeğerdir.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you really want to reset the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
@@ -8885,7 +8909,7 @@
         <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
         <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
         <translation>
-            <numerusform>&lt;p&gt;Şurada belirtilen %n sanal makine şu anda kaydedilmiş durumunda: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Eğer devam ederseniz, dışa aktarılmış makine(ler)in çalışma zamanı durumundan vazgeçilecektir. Diğer makine(ler) değiştirilmeyecektir.&lt;/p&gt;</numerusform>
+            <numerusform>&lt;p&gt;Şurada belirtilen %n sanal makine şu anda kaydedildi durumunda: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Eğer devam ederseniz, dışa aktarılmış makine(lerin)nin çalışma zamanı durumundan vazgeçilecektir. Diğer makine(ler) değiştirilmeyecektir.&lt;/p&gt;</numerusform>
         </translation>
     </message>
     <message>
@@ -9153,6 +9177,14 @@
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>&lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; için şifreleme parolası geçersiz.</translation>
     </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation>Şu anki bağlantı noktası yönlendirme kuralları geçerli değil. Anamakine veya misafir adres değerlerinin tümü doğru olmalı ya da boş olmalıdır.</translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation>Şu anki bağlantı noktası yönlendirme kuralları geçerli değil. Misafir adres değerlerinin hiçbiri boş olmayabilir.</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -9317,6 +9349,46 @@
     <message>
         <source>Unknown reason</source>
         <translation>Bilinmeyen sebep</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation>HTTP kütüphanesi başlatılamıyor</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>Bağlantı reddedildi</translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation>İçerik taşındı</translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation>Proksi bulunamadı</translation>
+    </message>
+    <message>
+        <source>Url not found on the server</source>
+        <translation>URL sunucuda bulunamadı</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation>Proksi yapılandırması sırasında</translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation>Sertifika indirme sırasında</translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation>Ağ isteği sırasında</translation>
     </message>
 </context>
 <context>
@@ -10372,7 +10444,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>&lt;p&gt;Saves the current execution state of the virtual machine to the physical hard disk of the host PC.&lt;/p&gt;&lt;p&gt;Next time this machine is started, it will be restored from the saved state and continue execution from the same place you saved it at, which will let you continue your work immediately.&lt;/p&gt;&lt;p&gt;Note that saving the machine state may take a long time, depending on the guest operating system type and the amount of memory you assigned to the virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal makinenin şu anki çalıştırılma durumunu anamakine PC&apos;nin fiziksel sabit diskine kaydeder.&lt;/p&gt;&lt;p&gt;Bu makine bir dahaki sefere başlatılır, kaydedilmiş durumundan geri yüklenecektir ve çalışmanıza anında devam etmnize izin verecek, kaydettiğiniz aynı yerden çalıştırılmaya devam edecektir.&lt;/p&gt;&lt;p&gt;Makine durumunu kaydetmenin, sanal makine için ayırdığınız bellek miktarına ve misafir işletim sistemi türüne bağlı olarak uzun sürebilieceğini unutmayın.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Sanal makinenin şu anki çalıştırılma durumunu anamakine PC&apos;nin fiziksel sabit diskine kaydeder.&lt;/p&gt;&lt;p&gt;Bu makine bir dahaki sefere başlatılır, kaydedildi durumundan geri yüklenecektir ve çalışmanıza anında devam etmnize izin verecek, kaydettiğiniz aynı yerden çalıştırılmaya devam edecektir.&lt;/p&gt;&lt;p&gt;Makine durumunu kaydetmenin, sanal makine için ayırdığınız bellek miktarına ve misafir işletim sistemi türüne bağlı olarak uzun sürebilieceğini unutmayın.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Save the machine state</source>
@@ -12453,7 +12525,7 @@ Version %1</source>
     </message>
 </context>
 <context>
-    <name>UIEmptyFilePathSelector</name>
+    <name>VBoxEmptyFileSelector</name>
     <message>
         <source>&amp;Choose...</source>
         <translation type="obsolete">&amp;Seçin...</translation>
@@ -12464,7 +12536,7 @@ Version %1</source>
     </message>
 </context>
 <context>
-    <name>UIFilePathSelector</name>
+    <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation>&lt;varsayılana sıfırla&gt;</translation>

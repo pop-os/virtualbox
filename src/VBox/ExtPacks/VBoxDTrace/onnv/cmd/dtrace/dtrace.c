@@ -155,15 +155,9 @@ static int g_pslive;
 static char *g_pname;
 static int g_quiet;
 static int g_flowindent;
-#ifdef VBOX /* Added volatile to signal handler variables. */
-static int volatile g_intr;
-static int volatile g_impatient;
-static int volatile g_newline;
-#else
 static int g_intr;
 static int g_impatient;
 static int g_newline;
-#endif
 static int g_total;
 static int g_cflags;
 static int g_oflags;
@@ -1239,10 +1233,6 @@ intr(int signo)
 
 	if (g_intr++)
 		g_impatient = 1;
-#ifdef _MSC_VER
-	/* Reinstall signal handler. Seems MSVCRT is System V style. */
-	signal(signo, intr);
-#endif
 }
 
 #ifdef VBOX
@@ -1280,7 +1270,7 @@ main(int argc, char *argv[])
 	dtrace_init();
 
 	g_ofp = stdout;
-	g_pname = (char *)RTProcShortName();
+	g_pname = RTProcShortName();
 #endif
 
 	if (argc == 1)

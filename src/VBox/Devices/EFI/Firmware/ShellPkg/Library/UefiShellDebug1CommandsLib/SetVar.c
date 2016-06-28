@@ -1,7 +1,7 @@
 /** @file
   Main file for SetVar shell Debug1 function.
 
-  Copyright (c) 2010 - 2013, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -49,6 +49,7 @@ ShellCommandRunSetVar (
   UINTN               Size;
   UINTN               LoopVar;
   EFI_DEVICE_PATH_PROTOCOL           *DevPath;
+  EFI_DEVICE_PATH_FROM_TEXT_PROTOCOL *DevPathFromText;
 
   ShellStatus         = SHELL_SUCCESS;
   Status              = EFI_SUCCESS;
@@ -139,8 +140,7 @@ ShellCommandRunSetVar (
           Attributes |= EFI_VARIABLE_BOOTSERVICE_ACCESS;
         }
         if (ShellCommandLineGetFlag(Package, L"-rt")) {
-          Attributes |= EFI_VARIABLE_RUNTIME_ACCESS |
-                        EFI_VARIABLE_BOOTSERVICE_ACCESS;
+          Attributes |= EFI_VARIABLE_RUNTIME_ACCESS;
         }
         if (ShellCommandLineGetFlag(Package, L"-nv")) {
           Attributes |= EFI_VARIABLE_NON_VOLATILE;
@@ -177,11 +177,9 @@ ShellCommandRunSetVar (
           if (Status == EFI_BUFFER_TOO_SMALL) {
             Buffer = AllocateZeroPool(Size);
             Status = gRT->GetVariable((CHAR16*)VariableName, &Guid, &Attributes2, &Size, Buffer);
-            if (Buffer != NULL) {
-              FreePool(Buffer);
-            }
+            FreePool(Buffer);
             Attributes = Attributes2;
-          }
+          }          
           //
           // ascii text
           //
@@ -228,7 +226,9 @@ ShellCommandRunSetVar (
           //
           Data++;
           Data++;
-          DevPath = ConvertTextToDevicePath(Data);
+          Status = gBS->LocateProtocol(&gEfiDevicePathFromTextProtocolGuid, NULL, (VOID**)&DevPathFromText);
+          ASSERT_EFI_ERROR(Status);
+          DevPath = DevPathFromText->ConvertTextToDevicePath(Data);
           if (DevPath == NULL) {
             ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_SETVAR_ERROR_DPFT), gShellDebug1HiiHandle, Status);
             ShellStatus = SHELL_INVALID_PARAMETER;

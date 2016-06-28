@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,7 @@ extern DECLSPEC void (SDLCALL *pTTF_Quit)(void);
 class VBoxSDLFBOverlay;
 
 class ATL_NO_VTABLE VBoxSDLFB :
-    public ATL::CComObjectRootEx<ATL::CComMultiThreadModel>,
+    public CComObjectRootEx<CComMultiThreadModel>,
     VBOX_SCRIPTABLE_IMPL(IFramebuffer)
 {
 public:
@@ -66,7 +66,7 @@ public:
     BEGIN_COM_MAP(VBoxSDLFB)
         COM_INTERFACE_ENTRY(IFramebuffer)
         COM_INTERFACE_ENTRY2(IDispatch,IFramebuffer)
-        COM_INTERFACE_ENTRY_AGGREGATE(IID_IMarshal, m_pUnkMarshaler.m_p)
+        COM_INTERFACE_ENTRY_AGGREGATE(IID_IMarshal, m_pUnkMarshaler.p)
     END_COM_MAP()
 
     HRESULT FinalConstruct();
@@ -207,7 +207,7 @@ private:
     bool mfUpdates;
 
 #ifdef RT_OS_WINDOWS
-     ComPtr<IUnknown> m_pUnkMarshaler;
+     CComPtr <IUnknown>   m_pUnkMarshaler;
 #endif
 };
 
@@ -244,6 +244,7 @@ public:
     STDMETHOD(COMSETTER(Visible))(BOOL visible);
     STDMETHOD(COMGETTER(Alpha))(ULONG *alpha);
     STDMETHOD(COMSETTER(Alpha))(ULONG alpha);
+    STDMETHOD(COMGETTER(Address))(ULONG *address);
     STDMETHOD(COMGETTER(BytesPerLine))(ULONG *bytesPerLine);
 
     /* These are not used, or return standard values. */

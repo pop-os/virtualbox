@@ -477,8 +477,7 @@ static const RTGETOPTDEF g_aModifyMediumOptions[] =
     { "-compact",       'c', RTGETOPT_REQ_NOTHING },    // deprecated
     { "compact",        'c', RTGETOPT_REQ_NOTHING },    // deprecated
     { "--resize",       'r', RTGETOPT_REQ_UINT64 },
-    { "--resizebyte",   'R', RTGETOPT_REQ_UINT64 },
-    { "--move",         'm', RTGETOPT_REQ_STRING }
+    { "--resizebyte",   'R', RTGETOPT_REQ_UINT64 }
 };
 
 RTEXITCODE handleModifyMedium(HandlerArg *a)
@@ -501,10 +500,8 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
     bool fModifyProperties = false;
     bool fModifyCompact = false;
     bool fModifyResize = false;
-    bool fModifyLocation = false;
     uint64_t cbResize = 0;
     const char *pszFilenameOrUuid = NULL;
-    const char *pszNewLocation = NULL;
 
     int c;
     RTGETOPTUNION ValueUnion;
@@ -594,12 +591,6 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
                 fModifyResize = true;
                 break;
 
-            case 'm':   // --move
-                /* Get a new location  */
-                pszNewLocation = RTStrDup(ValueUnion.psz);
-                fModifyLocation = true;
-                break;
-
             case VINF_GETOPT_NOT_OPTION:
                 if (!pszFilenameOrUuid)
                     pszFilenameOrUuid = ValueUnion.psz;
@@ -630,7 +621,7 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
     if (!pszFilenameOrUuid)
         return errorSyntax(USAGE_MODIFYMEDIUM, "Medium name or UUID required");
 
-    if (!fModifyMediumType && !fModifyAutoReset && !fModifyProperties && !fModifyCompact && !fModifyResize && !fModifyLocation)
+    if (!fModifyMediumType && !fModifyAutoReset && !fModifyProperties && !fModifyCompact && !fModifyResize)
         return errorSyntax(USAGE_MODIFYMEDIUM, "No operation specified");
 
     /* Always open the medium if necessary, there is no other way. */
@@ -711,28 +702,6 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
             else
                 RTMsgError("Failed to resize medium!");
         }
-    }
-
-    if (fModifyLocation)
-    {
-        do
-        {
-            ComPtr<IProgress> pProgress;
-            Utf8Str strLocation(pszNewLocation);
-            CHECK_ERROR(pMedium, SetLocation(Bstr(pszNewLocation).raw(), pProgress.asOutParam()));
-
-            if (SUCCEEDED(rc) && !pProgress.isNull())
-            {
-                rc = showProgress(pProgress);
-                CHECK_PROGRESS_ERROR(pProgress, ("Failed to move medium"));
-            }
-
-            Bstr uuid;
-            CHECK_ERROR_BREAK(pMedium, COMGETTER(Id)(uuid.asOutParam()));
-
-            RTPrintf("Move medium with UUID %s finished \n", Utf8Str(uuid).c_str());
-        }
-        while (0);
     }
 
     return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;

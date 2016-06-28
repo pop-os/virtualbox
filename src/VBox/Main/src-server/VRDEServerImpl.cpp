@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,6 +88,14 @@ HRESULT VRDEServer::init(Machine *aParent)
     /* mPeer is left null */
 
     mData.allocate();
+
+    mData->mAuthType             = AuthType_Null;
+    mData->mAuthTimeout          = 0;
+    mData->mAuthLibrary.setNull();
+    mData->mEnabled              = FALSE;
+    mData->mAllowMultiConnection = FALSE;
+    mData->mReuseSingleConnection = FALSE;
+    mData->mVrdeExtPack.setNull();
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -197,7 +205,14 @@ HRESULT VRDEServer::i_loadSettings(const settings::VRDESettings &data)
     AssertComRCReturnRC(autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    mData.assignCopy(&data);
+    mData->mEnabled = data.fEnabled;
+    mData->mAuthType = data.authType;
+    mData->mAuthTimeout = data.ulAuthTimeout;
+    mData->mAuthLibrary = data.strAuthLibrary;
+    mData->mAllowMultiConnection = data.fAllowMultiConnection;
+    mData->mReuseSingleConnection = data.fReuseSingleConnection;
+    mData->mVrdeExtPack = data.strVrdeExtPack;
+    mData->mProperties = data.mapProperties;
 
     return S_OK;
 }
@@ -215,7 +230,15 @@ HRESULT VRDEServer::i_saveSettings(settings::VRDESettings &data)
     AssertComRCReturnRC(autoCaller.rc());
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    data = *mData.data();
+
+    data.fEnabled = !!mData->mEnabled;
+    data.authType = mData->mAuthType;
+    data.strAuthLibrary = mData->mAuthLibrary;
+    data.ulAuthTimeout = mData->mAuthTimeout;
+    data.fAllowMultiConnection = !!mData->mAllowMultiConnection;
+    data.fReuseSingleConnection = !!mData->mReuseSingleConnection;
+    data.strVrdeExtPack = mData->mVrdeExtPack;
+    data.mapProperties = mData->mProperties;
 
     return S_OK;
 }
@@ -227,7 +250,7 @@ HRESULT VRDEServer::getEnabled(BOOL *aEnabled)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aEnabled = mData->fEnabled;
+    *aEnabled = mData->mEnabled;
 
     return S_OK;
 }
@@ -242,10 +265,10 @@ HRESULT VRDEServer::setEnabled(BOOL aEnabled)
 
     HRESULT rc = S_OK;
 
-    if (mData->fEnabled != RT_BOOL(aEnabled))
+    if (mData->mEnabled != aEnabled)
     {
         mData.backup();
-        mData->fEnabled = RT_BOOL(aEnabled);
+        mData->mEnabled = aEnabled;
 
         /* leave the lock before informing callbacks */
         alock.release();
@@ -265,7 +288,7 @@ HRESULT VRDEServer::setEnabled(BOOL aEnabled)
             if (SUCCEEDED(adep.rc()))
             {
                 alock.acquire();
-                mData->fEnabled = !RT_BOOL(aEnabled);
+                mData->mEnabled = !RT_BOOL(aEnabled);
                 alock.release();
                 mlock.acquire();
                 mParent->i_setModified(Machine::IsModified_VRDEServer);
@@ -379,14 +402,14 @@ HRESULT VRDEServer::setVRDEProperty(const com::Utf8Str &aKey, const com::Utf8Str
         if (RT_FAILURE(vrc))
             return E_INVALIDARG;
 
-        if (strPorts != mData->mapProperties["TCP/Ports"])
+        if (strPorts != mData->mProperties["TCP/Ports"])
         {
             /* Port value is not verified here because it is up to VRDP transport to
              * use it. Specifying a wrong port number will cause a running server to
              * stop. There is no fool proof here.
              */
             mData.backup();
-            mData->mapProperties["TCP/Ports"] = strPorts;
+            mData->mProperties["TCP/Ports"] = strPorts;
 
             /* leave the lock before informing callbacks */
             alock.release();
@@ -408,16 +431,16 @@ HRESULT VRDEServer::setVRDEProperty(const com::Utf8Str &aKey, const com::Utf8Str
          */
         Utf8Str strOldValue;
 
-        settings::StringsMap::const_iterator it = mData->mapProperties.find(aKey);
-        if (it != mData->mapProperties.end())
+        settings::StringsMap::const_iterator it = mData->mProperties.find(aKey);
+        if (it != mData->mProperties.end())
             strOldValue = it->second;
 
         if (strOldValue != aValue)
         {
             if (aValue.isEmpty())
-                mData->mapProperties.erase(aKey);
+                mData->mProperties.erase(aKey);
             else
-                mData->mapProperties[aKey] = aValue;
+                mData->mProperties[aKey] = aValue;
 
             /* leave the lock before informing callbacks */
             alock.release();
@@ -439,8 +462,8 @@ HRESULT VRDEServer::setVRDEProperty(const com::Utf8Str &aKey, const com::Utf8Str
 HRESULT VRDEServer::getVRDEProperty(const com::Utf8Str &aKey, com::Utf8Str &aValue)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    settings::StringsMap::const_iterator it = mData->mapProperties.find(aKey);
-    if (it != mData->mapProperties.end())
+    settings::StringsMap::const_iterator it = mData->mProperties.find(aKey);
+    if (it != mData->mProperties.end())
         aValue = it->second; // source is a Utf8Str
     else if (aKey == "TCP/Ports")
         aValue = VRDP_DEFAULT_PORT_STR;
@@ -498,7 +521,7 @@ HRESULT VRDEServer::getVRDEProperties(std::vector<com::Utf8Str> &aProperties)
     size_t cProperties = 0;
     aProperties.resize(0);
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (!mData->fEnabled)
+    if (!mData->mEnabled)
     {
         return S_OK;
     }
@@ -584,7 +607,7 @@ HRESULT VRDEServer::getAuthType(AuthType_T *aType)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aType = mData->authType;
+    *aType = mData->mAuthType;
 
     return S_OK;
 }
@@ -597,10 +620,10 @@ HRESULT VRDEServer::setAuthType(AuthType_T aType)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->authType != aType)
+    if (mData->mAuthType != aType)
     {
         mData.backup();
-        mData->authType = aType;
+        mData->mAuthType = aType;
 
         /* leave the lock before informing callbacks */
         alock.release();
@@ -619,7 +642,7 @@ HRESULT VRDEServer::getAuthTimeout(ULONG *aTimeout)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aTimeout = mData->ulAuthTimeout;
+    *aTimeout = mData->mAuthTimeout;
 
     return S_OK;
 }
@@ -633,10 +656,10 @@ HRESULT VRDEServer::setAuthTimeout(ULONG aTimeout)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (aTimeout != mData->ulAuthTimeout)
+    if (aTimeout != mData->mAuthTimeout)
     {
         mData.backup();
-        mData->ulAuthTimeout = aTimeout;
+        mData->mAuthTimeout = aTimeout;
 
         /* leave the lock before informing callbacks */
         alock.release();
@@ -658,7 +681,7 @@ HRESULT VRDEServer::setAuthTimeout(ULONG aTimeout)
 HRESULT VRDEServer::getAuthLibrary(com::Utf8Str &aLibrary)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aLibrary = mData->strAuthLibrary;
+    aLibrary = mData->mAuthLibrary;
     alock.release();
 
     if (aLibrary.isEmpty())
@@ -690,10 +713,10 @@ HRESULT VRDEServer::setAuthLibrary(const com::Utf8Str &aLibrary)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->strAuthLibrary != aLibrary)
+    if (mData->mAuthLibrary != aLibrary)
     {
         mData.backup();
-        mData->strAuthLibrary = aLibrary;
+        mData->mAuthLibrary = aLibrary;
 
         /* leave the lock before informing callbacks */
         alock.release();
@@ -713,7 +736,7 @@ HRESULT VRDEServer::getAllowMultiConnection(BOOL *aAllowMultiConnection)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aAllowMultiConnection = mData->fAllowMultiConnection;
+    *aAllowMultiConnection = mData->mAllowMultiConnection;
 
     return S_OK;
 }
@@ -727,10 +750,10 @@ HRESULT VRDEServer::setAllowMultiConnection(BOOL aAllowMultiConnection)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->fAllowMultiConnection != RT_BOOL(aAllowMultiConnection))
+    if (mData->mAllowMultiConnection != aAllowMultiConnection)
     {
         mData.backup();
-        mData->fAllowMultiConnection = RT_BOOL(aAllowMultiConnection);
+        mData->mAllowMultiConnection = aAllowMultiConnection;
 
         /* leave the lock before informing callbacks */
         alock.release();
@@ -749,7 +772,7 @@ HRESULT VRDEServer::getReuseSingleConnection(BOOL *aReuseSingleConnection)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aReuseSingleConnection = mData->fReuseSingleConnection;
+    *aReuseSingleConnection = mData->mReuseSingleConnection;
 
     return S_OK;
 }
@@ -762,10 +785,10 @@ HRESULT VRDEServer::setReuseSingleConnection(BOOL aReuseSingleConnection)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->fReuseSingleConnection != RT_BOOL(aReuseSingleConnection))
+    if (mData->mReuseSingleConnection != aReuseSingleConnection)
     {
         mData.backup();
-        mData->fReuseSingleConnection = RT_BOOL(aReuseSingleConnection);
+        mData->mReuseSingleConnection = aReuseSingleConnection;
 
         /* leave the lock before informing callbacks */
         alock.release();
@@ -783,7 +806,7 @@ HRESULT VRDEServer::setReuseSingleConnection(BOOL aReuseSingleConnection)
 HRESULT VRDEServer::getVRDEExtPack(com::Utf8Str &aExtPack)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Utf8Str strExtPack = mData->strVrdeExtPack;
+    Utf8Str strExtPack = mData->mVrdeExtPack;
     alock.release();
     HRESULT hrc = S_OK;
 
@@ -853,10 +876,10 @@ HRESULT VRDEServer::setVRDEExtPack(const com::Utf8Str &aExtPack)
              * change event to trigger a VRDE server restart.
              */
              AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-             if (aExtPack != mData->strVrdeExtPack)
+             if (aExtPack != mData->mVrdeExtPack)
              {
                  mData.backup();
-                 mData->strVrdeExtPack = aExtPack;
+                 mData->mVrdeExtPack = aExtPack;
 
                 /* leave the lock before informing callbacks */
                 alock.release();

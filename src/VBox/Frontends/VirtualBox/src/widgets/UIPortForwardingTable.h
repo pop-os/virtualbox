@@ -138,9 +138,6 @@ public:
     /** Returns whether the table data was changed. */
     bool isChanged() const { return m_fIsTableDataChanged; }
 
-    /** Makes sure current editor data committed. */
-    void makeSureEditorDataCommitted();
-
 private slots:
 
     /* Handlers: Table operation stuff: */

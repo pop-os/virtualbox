@@ -48,9 +48,9 @@
 #include <iprt/string.h>
 #include <iprt/process.h>
 #include <iprt/assert.h>
-#include <iprt/system.h>
 #include <iprt/thread.h>
 #include <iprt/uuid.h>
+#include <iprt/system.h>
 #ifdef STANDALONE_TESTCASE
 # include <iprt/initterm.h>
 # include <iprt/stream.h>
@@ -85,14 +85,13 @@
 /** The major darwin version indicating OS X El Captian, used to take care of the USB changes. */
 #define VBOX_OSX_EL_CAPTIAN_VER 15
 
-
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
 /** The IO Master Port. */
 static mach_port_t g_MasterPort = NULL;
 /** Major darwin version as returned by uname -r. */
-static uint32_t g_uMajorDarwin = 0;
+uint32_t g_uMajorDarwin = 0;
 
 
 /**
@@ -108,17 +107,19 @@ static bool darwinOpenMasterPort(void)
         AssertReturn(krc == KERN_SUCCESS, false);
 
         /* Get the darwin version we are running on. */
-        char szVersion[64];
-        int rc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, &szVersion[0], sizeof(szVersion));
+        char aszVersion[16] = { 0 };
+        int rc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, &aszVersion[0], sizeof(aszVersion));
         if (RT_SUCCESS(rc))
         {
-            rc = RTStrToUInt32Ex(&szVersion[0], NULL, 10, &g_uMajorDarwin);
-            AssertLogRelMsg(rc == VINF_SUCCESS || rc == VWRN_TRAILING_CHARS,
-                            ("Failed to convert the major part of the version string '%s' into an integer: %Rrc\n",
-                             szVersion, rc));
+            /* Make sure it is zero terminated (paranoia). */
+            aszVersion[15] = '\0';
+            rc = RTStrToUInt32Ex(&aszVersion[0], NULL, 10, &g_uMajorDarwin);
+            if (   rc != VINF_SUCCESS
+                && rc != VWRN_TRAILING_CHARS)
+                LogRel(("IOKit: Failed to convert the major part of the version string \"%s\" into an integer\n", &aszVersion[0]));
         }
         else
-            AssertLogRelMsgFailed(("Failed to query the OS release version with %Rrc\n", rc));
+            LogRel(("IOKit: Failed to query the OS release version with %Rrc\n", rc));
     }
     return true;
 }
@@ -498,7 +499,7 @@ static void darwinDumpObjInt(io_object_t Object, unsigned cIndents)
     if (krc == KERN_SUCCESS)
     {
         io_object_t Child;
-        while ((Child = IOIteratorNext(Children)) != IO_OBJECT_NULL)
+        while ((Child = IOIteratorNext(Children)))
         {
             darwinDumpObjInt(Child, cIndents + 4);
             IOObjectRelease(Child);
@@ -555,7 +556,7 @@ typedef struct DARWINUSBNOTIFY
 static void darwinDrainIterator(io_iterator_t pIterator)
 {
     io_object_t Object;
-    while ((Object = IOIteratorNext(pIterator)) != IO_OBJECT_NULL)
+    while ((Object = IOIteratorNext(pIterator)))
     {
         DARWIN_IOKIT_DUMP_OBJ(Object);
         IOObjectRelease(Object);
@@ -730,7 +731,7 @@ static io_object_t darwinFindObjectByClass(io_object_t Object, const char *pszCl
     if (krc != KERN_SUCCESS)
         return NULL;
     io_object_t Child;
-    while ((Child = IOIteratorNext(Children)) != IO_OBJECT_NULL)
+    while ((Child = IOIteratorNext(Children)))
     {
         krc = IOObjectGetClass(Child, pszNameBuf);
         if (    krc == KERN_SUCCESS
@@ -788,7 +789,6 @@ static bool darwinIsMassStorageInterfaceInUse(io_object_t MSDObj, io_name_t pszN
     return false;
 }
 
-
 /**
  * Finds the matching IOUSBHostDevice registry entry for the given legacy USB device interface (IOUSBDevice).
  *
@@ -826,7 +826,7 @@ static kern_return_t darwinGetUSBHostDeviceFromLegacyDevice(io_object_t USBDevic
      * Walk the devices and check for the matching alternate registry entry ID.
      */
     io_object_t USBDevice;
-    while ((USBDevice = IOIteratorNext(USBDevices)) != IO_OBJECT_NULL)
+    while ((USBDevice = IOIteratorNext(USBDevices)) != 0)
     {
         DARWIN_IOKIT_DUMP_OBJ(USBDevice);
 
@@ -852,7 +852,6 @@ static kern_return_t darwinGetUSBHostDeviceFromLegacyDevice(io_object_t USBDevic
     return krc;
 }
 
-
 static bool darwinUSBDeviceIsGrabbedDetermineState(PUSBDEVICE pCur, io_object_t USBDevice)
 {
     /*
@@ -868,7 +867,7 @@ static bool darwinUSBDeviceIsGrabbedDetermineState(PUSBDEVICE pCur, io_object_t 
     bool fHaveClient = false;
     RTPROCESS Client = NIL_RTPROCESS;
     io_object_t Interface;
-    while ((Interface = IOIteratorNext(Interfaces)) != IO_OBJECT_NULL)
+    while ((Interface = IOIteratorNext(Interfaces)) != 0)
     {
         io_name_t szName;
         krc = IOObjectGetClass(Interface, szName);
@@ -905,7 +904,6 @@ static bool darwinUSBDeviceIsGrabbedDetermineState(PUSBDEVICE pCur, io_object_t 
     return fHaveOwner;
 }
 
-
 /**
  * Worker for determining the USB device state for devices which are not captured by the VBoxUSB driver
  * Works for both, IOUSBDevice (legacy on release >= El Capitan) and IOUSBHostDevice (available on >= El Capitan).
@@ -929,7 +927,7 @@ static void darwinDetermineUSBDeviceStateWorker(PUSBDEVICE pCur, io_object_t USB
     bool fInUse = false;
     bool fSeizable = true;
     io_object_t Interface;
-    while ((Interface = IOIteratorNext(Interfaces)) != IO_OBJECT_NULL)
+    while ((Interface = IOIteratorNext(Interfaces)) != 0)
     {
         io_name_t szName;
         krc = IOObjectGetClass(Interface, szName);
@@ -948,7 +946,7 @@ static void darwinDetermineUSBDeviceStateWorker(PUSBDEVICE pCur, io_object_t USB
             if (krc == KERN_SUCCESS)
             {
                 io_object_t Child1;
-                while ((Child1 = IOIteratorNext(Children1)) != IO_OBJECT_NULL)
+                while ((Child1 = IOIteratorNext(Children1)) != 0)
                 {
                     krc = IOObjectGetClass(Child1, szName);
                     if (    krc == KERN_SUCCESS
@@ -998,7 +996,6 @@ static void darwinDetermineUSBDeviceStateWorker(PUSBDEVICE pCur, io_object_t USB
                        : USBDEVICESTATE_USED_BY_HOST;
 }
 
-
 /**
  * Worker function for DarwinGetUSBDevices() that tries to figure out
  * what state the device is in and set enmState.
@@ -1033,10 +1030,11 @@ static void darwinDeterminUSBDeviceState(PUSBDEVICE pCur, io_object_t USBDevice,
          */
         if (g_uMajorDarwin >= VBOX_OSX_EL_CAPTIAN_VER)
         {
-            io_object_t IOUSBDeviceNew = IO_OBJECT_NULL;
+            io_object_t IOUSBDeviceNew = 0;
+
             io_object_t krc = darwinGetUSBHostDeviceFromLegacyDevice(USBDevice, &IOUSBDeviceNew);
             if (   krc == KERN_SUCCESS
-                && IOUSBDeviceNew != IO_OBJECT_NULL)
+                && IOUSBDeviceNew != 0)
             {
                 darwinDetermineUSBDeviceStateWorker(pCur, IOUSBDeviceNew);
                 IOObjectRelease(IOUSBDeviceNew);
@@ -1080,7 +1078,7 @@ PUSBDEVICE DarwinGetUSBDevices(void)
     PUSBDEVICE pTail = NULL;
     unsigned i = 0;
     io_object_t USBDevice;
-    while ((USBDevice = IOIteratorNext(USBDevices)) != IO_OBJECT_NULL)
+    while ((USBDevice = IOIteratorNext(USBDevices)) != 0)
     {
         DARWIN_IOKIT_DUMP_OBJ(USBDevice);
 
@@ -1137,7 +1135,7 @@ PUSBDEVICE DarwinGetUSBDevices(void)
                 pCur->bBus = u32LocationId >> 24;
                 darwinDictGetU8(PropsRef, CFSTR("PortNum"), &pCur->bPort); /* Not present in 10.11 beta 3, so ignore failure. (Is set to zero.) */
                 uint8_t bSpeed;
-                AssertBreak(darwinDictGetU8(PropsRef, CFSTR(kUSBDevicePropertySpeed), &bSpeed));
+                AssertBreak(darwinDictGetU8(PropsRef,  CFSTR(kUSBDevicePropertySpeed),  &bSpeed));
                 Assert(bSpeed <= 3);
                 pCur->enmSpeed = bSpeed == 3 ? USBDEVICESPEED_SUPER
                                : bSpeed == 2 ? USBDEVICESPEED_HIGH
@@ -1160,9 +1158,6 @@ PUSBDEVICE DarwinGetUSBDevices(void)
                     &&  pCur->bDeviceProtocol == 1 /* Bluetooth */)
                     pCur->pszProduct = RTStrDup("Bluetooth");
                 darwinDictDupString(PropsRef, CFSTR("USB Serial Number"),   (char **)&pCur->pszSerialNumber);
-
-                pCur->pszBackend = RTStrDup("host");
-                AssertBreak(pCur->pszBackend);
 
 #if 0           /* leave the remainder as zero for now. */
                 /*
@@ -1338,7 +1333,7 @@ int DarwinReEnumerateUSBDevice(PCUSBDEVICE pCur)
 
     unsigned cMatches = 0;
     io_object_t USBDevice;
-    while ((USBDevice = IOIteratorNext(USBDevices)) != IO_OBJECT_NULL)
+    while ((USBDevice = IOIteratorNext(USBDevices)))
     {
         cMatches++;
         CFMutableDictionaryRef PropsRef = 0;
@@ -1480,7 +1475,7 @@ PDARWINDVD DarwinGetDVDDrives(void)
     PDARWINDVD pTail = NULL;
     unsigned i = 0;
     io_object_t DVDService;
-    while ((DVDService = IOIteratorNext(DVDServices)) != IO_OBJECT_NULL)
+    while ((DVDService = IOIteratorNext(DVDServices)) != 0)
     {
         DARWIN_IOKIT_DUMP_OBJ(DVDService);
 
@@ -1636,7 +1631,7 @@ PDARWINETHERNIC DarwinGetEthernetControllers(void)
     PDARWINETHERNIC pHead = NULL;
     PDARWINETHERNIC pTail = NULL;
     io_object_t EtherIfService;
-    while ((EtherIfService = IOIteratorNext(EtherIfServices)) != IO_OBJECT_NULL)
+    while ((EtherIfService = IOIteratorNext(EtherIfServices)) != 0)
     {
         /*
          * Dig up the parent, meaning the IOEthernetController.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2016 Oracle Corporation
+ * Copyright (C) 2004-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -210,18 +210,6 @@ public:
 
     class MaybeQuitEvent : public NativeEvent
     {
-    public:
-        MaybeQuitEvent() :
-            m_fSignal(false)
-        {
-        }
-
-        MaybeQuitEvent(bool fSignal) :
-            m_fSignal(fSignal)
-        {
-        }
-
-    private:
         /* called on the main thread */
         void *handler()
         {
@@ -245,7 +233,7 @@ public:
 
             if (count == 0)
             {
-                if (gAutoShutdown || m_fSignal)
+                if (gAutoShutdown)
                 {
                     Assert(sInstance == NULL);
                     LogFlowFunc(("Terminating the server process...\n"));
@@ -268,8 +256,6 @@ public:
             LogFlowFuncLeave();
             return NULL;
         }
-
-        bool m_fSignal;
     };
 
     static DECLCALLBACK(void) ShutdownTimer(RTTIMERLR hTimerLR, void *pvUser, uint64_t /*iTick*/)
@@ -285,7 +271,7 @@ public:
         AssertReturnVoid(q);
 
         /* post a quit event to the main queue */
-        MaybeQuitEvent *ev = new MaybeQuitEvent(false /* fSignal */);
+        MaybeQuitEvent *ev = new MaybeQuitEvent();
         if (!q->postEvent(ev))
             delete ev;
 
@@ -529,8 +515,7 @@ static void signal_handler(int sig)
         {
             if (gAllowSigUsrQuit)
             {
-                /* terminate the server process if it is idle */
-                VirtualBoxClassFactory::MaybeQuitEvent *ev = new VirtualBoxClassFactory::MaybeQuitEvent(true /* fSignal */);
+                VirtualBoxClassFactory::MaybeQuitEvent *ev = new VirtualBoxClassFactory::MaybeQuitEvent();
                 if (!q->postEvent(ev))
                     delete ev;
             }
@@ -697,11 +682,11 @@ int main(int argc, char **argv)
 
             case 'h':
                 RTPrintf("no help\n");
-                return RTEXITCODE_SYNTAX;
+                return 1;
 
             case 'V':
                 RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
-                return RTEXITCODE_SUCCESS;
+                return 0;
 
             default:
                 return RTGetOptPrintError(vrc, &ValueUnion);
@@ -766,7 +751,7 @@ int main(int argc, char **argv)
         }
     };
 
-    do /* goto avoidance only */
+    do
     {
         rc = com::Initialize();
         if (NS_FAILED(rc))
@@ -930,5 +915,5 @@ int main(int argc, char **argv)
     if (g_pszPidFile)
         RTFileDelete(g_pszPidFile);
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }

@@ -280,7 +280,7 @@ public:
         /* The remainder must be zero padded. */
         if (RT_SUCCESS(rc))
         {
-            if (ASMMemIsZero(pszzBlock, cbBlock))
+            if (ASMMemIsAll8(pszzBlock, cbBlock, 0))
                 return VINF_SUCCESS;
             return VERR_TOO_MUCH_DATA;
         }

@@ -22,20 +22,17 @@
 /* Qt includes: */
 # include <QLayout>
 # include <QMainWindow>
+# include <QWindowsStyle>
 
 /* GUI includes: */
 # include "UIToolBar.h"
-# ifdef VBOX_WS_MAC
+# ifdef Q_WS_MAC
 #  include "VBoxUtils.h"
 # endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
-/* Qt includes: */
-#if QT_VERSION < 0x050000
-# include <QWindowsStyle>
-# include <QCleanlooksStyle>
-#endif /* QT_VERSION < 0x050000 */
+#include <QCleanlooksStyle>
 
 
 UIToolBar::UIToolBar(QWidget *pParent /* = 0 */)
@@ -58,7 +55,7 @@ void UIToolBar::setUseTextLabels(bool fEnable)
         setToolButtonStyle(tbs);
 }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 void UIToolBar::enableMacToolbar()
 {
     /* Depending on parent, enable unified title/tool-bar: */
@@ -84,7 +81,7 @@ void UIToolBar::updateLayout()
     layout()->invalidate();
     layout()->activate();
 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 void UIToolBar::prepare()
 {
@@ -92,17 +89,11 @@ void UIToolBar::prepare()
     setFloatable(false);
     setMovable(false);
 
-#if QT_VERSION < 0x050000
     /* Remove that ugly frame panel around the toolbar.
      * Doing that currently for Cleanlooks & Windows styles. */
-    if (qobject_cast <QWindowsStyle*>(QToolBar::style()) ||
-        qobject_cast <QCleanlooksStyle*>(QToolBar::style()))
+    if (qobject_cast <QCleanlooksStyle*>(QToolBar::style()) ||
+        qobject_cast <QWindowsStyle*>(QToolBar::style()))
         setStyleSheet("QToolBar { border: 0px none black; }");
-#else /* QT_VERSION >= 0x050000 */
-# ifdef VBOX_WS_MAC
-        setStyleSheet("QToolBar { border: 0px none black; }");
-# endif /* VBOX_WS_MAC */
-#endif /* QT_VERSION >= 0x050000 */
 
     /* Configure tool-bar' layout: */
     if (layout())

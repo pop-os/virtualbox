@@ -148,7 +148,6 @@ SRCS += \
 .PATH:	${.CURDIR}/r0drv
 SRCS += \
 	alloc-r0drv.c \
-	alloc-ef-r0drv.c \
 	initterm-r0drv.c \
 	memobj-r0drv.c \
 	powernotification-r0drv.c

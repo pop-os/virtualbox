@@ -1,12 +1,8 @@
 ## @file
-# This module is the Runtime DXE part corresponding to SMM Fault Tolerant Write (FTW) module.
-#
+# This module is the Runtime DXE part corresponding to SMM Fault Tolerant Write (FTW) module. 
 # It installs FTW protocol and works with SMM FTW module together.
-# The FTW protocol will not work after End Of Dxe because it will be not safe to expose
-# the related operations in SMM handler in SMM FTW module. You can use the FTW protocol
-# before End Of Dxe or use FaultTolerantWriteDxe module instead if you really want to.
 #
-# Copyright (c) 2011 - 2014, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2011, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -20,7 +16,6 @@
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = FaultTolerantWriteSmmDxe
-  MODULE_UNI_FILE                = FaultTolerantWriteSmmDxe.uni
   FILE_GUID                      = 98948C4A-70F2-4035-8E9F-5927493CFC07
   MODULE_TYPE                    = DXE_DRIVER
   VERSION_STRING                 = 1.0
@@ -36,29 +31,24 @@
   FaultTolerantWriteSmmDxe.c
   FaultTolerantWriteSmmDxe.h
   FaultTolerantWriteSmmCommon.h
-
+  
 [Packages]
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
 
 [LibraryClasses]
-  BaseLib
+  BaseLib  
   UefiBootServicesTableLib
   DebugLib
   DxeServicesTableLib
   UefiDriverEntryPoint
+  PcdLib  
 
 [Protocols]
-  gEfiFaultTolerantWriteProtocolGuid            ## PRODUCES
-  gEfiSmmCommunicationProtocolGuid              ## CONSUMES
-  ## NOTIFY
-  ## UNDEFINED # Used to do smm communication
-  ## CONSUMES
+  gEfiFaultTolerantWriteProtocolGuid           ## ALWAYS_PRODUCES
+  gEfiSmmCommunicationProtocolGuid
   gEfiSmmFaultTolerantWriteProtocolGuid
-  gEfiFirmwareVolumeBlockProtocolGuid           ## CONSUMES
-
+  gEfiFirmwareVolumeBlockProtocolGuid
+   
 [Depex]
   gEfiSmmCommunicationProtocolGuid
-
-[UserExtensions.TianoCore."ExtraFiles"]
-  FaultTolerantWriteSmmDxeExtra.uni

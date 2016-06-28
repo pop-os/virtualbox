@@ -1,13 +1,6 @@
-/** @file
+/* $NetBSD: gdtoa.h,v 1.6.4.1.4.1 2008/04/08 21:10:55 jdc Exp $ */
 
-  Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
-  This program and the accompanying materials are licensed and made available under
-  the terms and conditions of the BSD License that accompanies this distribution.
-  The full text of the license may be found at
-  http://opensource.org/licenses/bsd-license.
-
-  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+/****************************************************************
 
 The author of this software is David M. Gay.
 
@@ -33,8 +26,6 @@ IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
 ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
-  $NetBSD: gdtoa.h,v 1.6.4.1.4.1 2008/04/08 21:10:55 jdc Exp
-
 ****************************************************************/
 
 /* Please send bug reports to David M. Gay (dmg at acm dot org,
@@ -47,10 +38,10 @@ THIS SOFTWARE.
 #include "arith.h"
 
 #ifndef Long
-#define Long int32_t
+#define Long EFI_LONG_T
 #endif
 #ifndef ULong
-#define ULong uint32_t
+#define ULong EFI_ULONG_T
 #endif
 #ifndef UShort
 #define UShort uint16_t

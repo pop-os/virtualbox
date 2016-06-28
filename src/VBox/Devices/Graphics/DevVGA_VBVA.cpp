@@ -2094,6 +2094,8 @@ void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags)
         || enmVMState == VMSTATE_RUNNING_LS)
     {
         PDMDevHlpPCISetIrq(pDevIns, 0, PDM_IRQ_LEVEL_HIGH);
+        /** see @bugref{8447} */
+        HGSMISetHostGuestFlags(pVGAState->pHGSMI, HGSMIHOSTFLAGS_IRQ | fFlags);
     }
 }
 
@@ -2415,7 +2417,7 @@ static int vbvaHandleQueryModeHints(PVGASTATE pVGAState, const VBVAQUERYMODEHINT
         memcpy(pbHint, &pCtx->aModeHints[iHint],
                RT_MIN(parms.cbHintStructureGuest, sizeof(VBVAMODEHINT)));
         pbHint += parms.cbHintStructureGuest;
-        Assert((uintptr_t)(pbHint - (uint8_t *)pQueryModeHints) <= cbBuffer);
+        Assert(pbHint - (uint8_t *)pQueryModeHints <= cbBuffer);
     }
 
     return VINF_SUCCESS;

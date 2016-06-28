@@ -307,8 +307,17 @@ test_user() {
 # Test if core dumps are enabled. See https://wiki.ubuntu.com/Apport!
 #
 test_coredumps() {
-    # This is a linux hook.
-    return 0;
+    if test "`lsb_release -is`" = "Ubuntu"; then
+        if grep -q "apport" /proc/sys/kernel/core_pattern; then
+            if grep -q "#.*problem_types" /etc/apport/crashdb.conf; then
+                echo "It looks like core dumps are properly configured, good!"
+            else
+                echo "Warning: Core dumps will be not always generated!"
+            fi
+        else
+            echo "Warning: Apport not installed! This package is required for core dump handling!"
+        fi
+    fi
 }
 
 
@@ -408,7 +417,7 @@ do
             exit 0;
             ;;
         -V|--version)
-            echo '$Revision: 107465 $'
+            echo '$Revision: 101095 $'
             exit 0;
             ;;
 
