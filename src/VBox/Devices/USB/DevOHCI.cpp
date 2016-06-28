@@ -3972,6 +3972,15 @@ static void ohciCancelOrphanedURBs(POHCI pThis)
                     if (j > -1)
                         pThis->aInFlight[j].fInactive = false;
                     TdAddr = Td.NextTD & ED_PTR_MASK;
+                    /* See #8125.
+                     * Sometimes the ED is changed by the guest between ohciReadEd above and here.
+                     * Then the code reads TD pointed by the new TailP, which is not allowed.
+                     * Luckily Windows guests have Td.NextTD = 0 in the tail TD.
+                     * Also having a real TD at 0 is very unlikely.
+                     * So do not continue.
+                     */
+                    if (TdAddr == 0)
+                        break;
                     /* Failsafe for temporarily looped lists. */
                     if (++k == 128)
                         break;
@@ -4167,11 +4176,6 @@ static DECLCALLBACK(int) ohciR3ThreadFrame(PPDMDEVINS pDevIns, PPDMTHREAD pThrea
         physReadStatsReset(&physReadStats);
 #endif
 
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
-        ohciPhysReadCacheClear(pThis->pCacheED);
-        ohciPhysReadCacheClear(pThis->pCacheTD);
-#endif
-
         /*
          * Process new frames until we reached the required amount of
          * frames for this service period. We might need to catch up
@@ -4185,6 +4189,12 @@ static DECLCALLBACK(int) ohciR3ThreadFrame(PPDMDEVINS pDevIns, PPDMTHREAD pThrea
         {
             uint64_t tsNanoStart = RTTimeNanoTS();
             LogFlowFunc(("Starting new frame at ts %llu\n", tsNanoStart));
+
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+            /* The cache must be invalidated at the start of each frame. */
+            ohciPhysReadCacheClear(pThis->pCacheED);
+            ohciPhysReadCacheClear(pThis->pCacheTD);
+#endif
 
             /* Frame boundary, so do EOF stuff here. */
             bump_frame_number(pThis);

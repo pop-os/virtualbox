@@ -150,6 +150,10 @@ Controller" */
 #define IOAPIC_RTE_TRIGGER_MODE_EDGE            0
 /** Redirection table entry - Trigger mode level. */
 #define IOAPIC_RTE_TRIGGER_MODE_LEVEL           1
+/** Redirection table entry - Destination mode physical. */
+#define IOAPIC_RTE_DEST_MODE_PHYSICAL           0
+/** Redirection table entry - Destination mode logical. */
+#define IOAPIC_RTE_DEST_MODE_LOGICAL            1
 
 /** Index of indirect registers in the I/O APIC register table. */
 #define IOAPIC_INDIRECT_INDEX_ID                0x0
@@ -359,65 +363,64 @@ DECLINLINE(uint32_t) ioapicGetIndex(PCIOAPIC pThis)
  *
  * @param   pThis       The IOAPIC instance.
  * @param   idxRte      The index of the RTE.
+ *
+ * @remarks It is the responsibility of the caller to verify that an interrupt is
+ *          pending for the pin corresponding to the RTE before calling this
+ *          function.
  */
-static void ioapicSignalIrqForRte(PIOAPIC pThis, uint8_t idxRte)
+static void ioapicSignalIntrForRte(PIOAPIC pThis, uint8_t idxRte)
 {
-    /* Check if there's an interrupt on the corresponding interrupt input pin. */
-    uint32_t const uPinMask = UINT32_C(1) << idxRte;
-    if (pThis->uIrr & uPinMask)
+    /* Ensure the RTE isn't masked. */
+    uint64_t const u64Rte = pThis->au64RedirTable[idxRte];
+    if (!IOAPIC_RTE_IS_MASKED(u64Rte))
     {
-        /* Ensure the RTE isn't masked. */
-        uint64_t const u64Rte = pThis->au64RedirTable[idxRte];
-        if (!IOAPIC_RTE_IS_MASKED(u64Rte))
+        /* We cannot accept another level-triggered interrupt until remote IRR has been cleared. */
+        uint8_t const u8TriggerMode = IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte);
+        if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL)
         {
-            uint32_t const u32TagSrc      = pThis->au32TagSrc[idxRte];
-            uint8_t const  u8Vector       = IOAPIC_RTE_GET_VECTOR(u64Rte);
-            uint8_t const  u8DeliveryMode = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
-            uint8_t const  u8DestMode     = IOAPIC_RTE_GET_DEST_MODE(u64Rte);
-            uint8_t const  u8Polarity     = IOAPIC_RTE_GET_POLARITY(u64Rte);
-            uint8_t const  u8TriggerMode  = IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte);
-            uint8_t const  u8Dest         = IOAPIC_RTE_GET_DEST(u64Rte);
+            uint8_t const u8RemoteIrr = IOAPIC_RTE_GET_REMOTE_IRR(u64Rte);
+            if (u8RemoteIrr)
+                return;
+        }
 
-            /* We cannot accept another level-triggered interrupt until remote IRR has been cleared. */
-            if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL)
-            {
-                uint8_t const u8RemoteIrr = IOAPIC_RTE_GET_REMOTE_IRR(u64Rte);
-                if (u8RemoteIrr)
-                    return;
-            }
+        uint8_t const  u8Vector       = IOAPIC_RTE_GET_VECTOR(u64Rte);
+        uint8_t const  u8DeliveryMode = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
+        uint8_t const  u8DestMode     = IOAPIC_RTE_GET_DEST_MODE(u64Rte);
+        uint8_t const  u8Polarity     = IOAPIC_RTE_GET_POLARITY(u64Rte);
+        uint8_t const  u8Dest         = IOAPIC_RTE_GET_DEST(u64Rte);
+        uint32_t const u32TagSrc      = pThis->au32TagSrc[idxRte];
 
-            /*
-             * Deliver to the local APIC via the system/3-wire-APIC bus.
-             */
-            int rc = pThis->CTX_SUFF(pIoApicHlp)->pfnApicBusDeliver(pThis->CTX_SUFF(pDevIns),
-                                                                    u8Dest,
-                                                                    u8DestMode,
-                                                                    u8DeliveryMode,
-                                                                    u8Vector,
-                                                                    u8Polarity,
-                                                                    u8TriggerMode,
-                                                                    u32TagSrc);
-            /* Can't reschedule to R3. */
-            Assert(rc == VINF_SUCCESS);
+        Log2(("IOAPIC: Signaling %s-triggered interrupt. Dest=%#x DestMode=%s Vector=%#x (%u)",
+              u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_EDGE ? "edge" : "level", u8Dest,
+              u8DestMode == IOAPIC_RTE_DEST_MODE_PHYSICAL ? "physical" : "logical", u8Vector, u8Vector));
 
-            /*
-             * For edge triggered interrupts, we can clear our IRR bit to receive further
-             * edge-triggered interrupts, as the local APIC has accepted the interrupt.
-             */
-            if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_EDGE)
-            {
-                pThis->uIrr &= ~uPinMask;
-                pThis->au32TagSrc[idxRte] = 0;
-            }
-            else
-            {
-                /*
-                 * For level triggered interrupts, we set the remote IRR bit to indicate
-                 * the local APIC has accepted the interrupt.
-                 */
-                Assert(u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL);
-                pThis->au64RedirTable[idxRte] |= IOAPIC_RTE_REMOTE_IRR;
-            }
+        /*
+         * Deliver to the local APIC via the system/3-wire-APIC bus.
+         */
+        int rc = pThis->CTX_SUFF(pIoApicHlp)->pfnApicBusDeliver(pThis->CTX_SUFF(pDevIns),
+                                                                u8Dest,
+                                                                u8DestMode,
+                                                                u8DeliveryMode,
+                                                                u8Vector,
+                                                                u8Polarity,
+                                                                u8TriggerMode,
+                                                                u32TagSrc);
+        /* Can't reschedule to R3. */
+        Assert(rc == VINF_SUCCESS);
+
+        /*
+         * For level-triggered interrupts, we set the remote IRR bit to indicate
+         * the local APIC has accepted the interrupt.
+         *
+         * For edge-triggered interrupts, we should not clear the IRR bit as it
+         * should remain intact to reflect the state of the interrupt line.
+         * The device will explicitly transition to inactive state via the
+         * ioapicSetIrq() callback.
+         */
+        if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL)
+        {
+            Assert(u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL);
+            pThis->au64RedirTable[idxRte] |= IOAPIC_RTE_REMOTE_IRR;
         }
     }
 }
@@ -458,24 +461,31 @@ static void ioapicSetRedirTableEntry(PIOAPIC pThis, uint32_t uIndex, uint32_t uV
                                                             RT_ELEMENTS(pThis->au64RedirTable)));
 
     /*
-     * Write the low or high 32-bit value into the specified 64-bit RTE register.
-     * Update only the valid, writable bits.
+     * Write the low or high 32-bit value into the specified 64-bit RTE register,
+     * update only the valid, writable bits.
+     *
+     * We need to preserve the read-only bits as it can have dire consequences
+     * otherwise, see @bugref{8386#c24}.
      */
     uint64_t const u64Rte = pThis->au64RedirTable[idxRte];
     if (!(uIndex & 1))
     {
-        uint32_t const u32RteNewLo = uValue & RT_LO_U32(IOAPIC_RTE_VALID_WRITE_MASK);
-        uint64_t const u64RteHi    = u64Rte & UINT64_C(0xffffffff00000000);
-        pThis->au64RedirTable[idxRte] = u64RteHi | u32RteNewLo;
+        uint32_t const u32RtePreserveLo = RT_LO_U32(u64Rte) & ~RT_LO_U32(IOAPIC_RTE_VALID_WRITE_MASK);
+        uint32_t const u32RteNewLo      = (uValue & RT_LO_U32(IOAPIC_RTE_VALID_WRITE_MASK)) | u32RtePreserveLo;
+        uint64_t const u64RteHi         = u64Rte & UINT64_C(0xffffffff00000000);
+        pThis->au64RedirTable[idxRte]   = u64RteHi | u32RteNewLo;
     }
     else
     {
-        uint32_t const u32RteLo    = RT_LO_U32(u64Rte);
-        uint64_t const u64RteNewHi = (uint64_t)(uValue & RT_HI_U32(IOAPIC_RTE_VALID_WRITE_MASK)) << 32;
-        pThis->au64RedirTable[idxRte] = u64RteNewHi | u32RteLo;
+        uint32_t const u32RtePreserveHi = RT_HI_U32(u64Rte) & ~RT_HI_U32(IOAPIC_RTE_VALID_WRITE_MASK);
+        uint32_t const u32RteLo         = RT_LO_U32(u64Rte);
+        uint64_t const u64RteNewHi      = ((uint64_t)((uValue & RT_HI_U32(IOAPIC_RTE_VALID_WRITE_MASK)) | u32RtePreserveHi) << 32);
+        pThis->au64RedirTable[idxRte]   = u64RteNewHi | u32RteLo;
     }
 
-    ioapicSignalIrqForRte(pThis, idxRte);
+    uint32_t const uPinMask = UINT32_C(1) << idxRte;
+    if (pThis->uIrr & uPinMask)
+        ioapicSignalIntrForRte(pThis, idxRte);
 
     LogFlow(("IOAPIC: ioapicSetRedirTableEntry: uIndex=%#RX32 idxRte=%u uValue=%#RX32\n", uIndex, idxRte, uValue));
 }
@@ -561,7 +571,10 @@ PDMBOTHCBDECL(void) ioapicSetEoi(PPDMDEVINS pDevIns, uint8_t u8Vector)
         {
             pThis->au64RedirTable[idxRte] &= ~IOAPIC_RTE_REMOTE_IRR;
             Log2(("IOAPIC: ioapicSetEoi: Cleared remote IRR for RTE %u\n", idxRte));
-            ioapicSignalIrqForRte(pThis, idxRte);
+
+            uint32_t const uPinMask = UINT32_C(1) << idxRte;
+            if (pThis->uIrr & uPinMask)
+                ioapicSignalIntrForRte(pThis, idxRte);
         }
     }
 }
@@ -580,59 +593,74 @@ PDMBOTHCBDECL(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint3
 
     if (iIrq >= 0 && iIrq < (int)RT_ELEMENTS(pThis->au64RedirTable))
     {
-        uint8_t  const idxRte = iIrq;
-        uint64_t const u64Rte = pThis->au64RedirTable[idxRte];
-        uint8_t  const u8TriggerMode = IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte);
-        uint32_t const uPinMask = UINT32_C(1) << idxRte;
+        uint8_t  const idxRte        = iIrq;
+        uint32_t const uPinMask      = UINT32_C(1) << idxRte;
+        uint32_t const u32RteLo      = RT_LO_U32(pThis->au64RedirTable[idxRte]);
+        uint8_t  const u8TriggerMode = IOAPIC_RTE_GET_TRIGGER_MODE(u32RteLo);
 
+        bool fActive = RT_BOOL(iLevel & 1);
+        /** @todo Polarity is busted elsewhere, we need to fix that
+         *        first. See @bugref{8386#c7}. */
+#if 0
+        uint8_t const u8Polarity = IOAPIC_RTE_GET_POLARITY(u32RteLo);
+        fActive ^= u8Polarity; */
+#endif
+        if (!fActive)
+        {
+            pThis->uIrr &= ~uPinMask;
+            return;
+        }
+
+        /*
+         * If the device is flip-flopping the interrupt line, there's no need to
+         * set and unset the IRR.
+         */
+        bool const     fFlipFlop = ((iLevel & PDM_IRQ_LEVEL_FLIP_FLOP) == PDM_IRQ_LEVEL_FLIP_FLOP);
+        uint32_t const uPrevIrr  = pThis->uIrr & uPinMask;
         if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_EDGE)
         {
-            /** @todo Consider polarity for edge-triggered interrupts? There
-             *        seems to be a conflict between "The Unabridged Pentium"
-             *        book and the I/O APIC specs. */
-            if (iLevel)
+            /*
+             * For edge-triggered interrupts, we need to act only on an edge transition.
+             * See ICH9 spec. 13.5.7 "REDIR_TBL: Redirection Table (LPC I/F-D31:F0)"
+             */
+            if (!uPrevIrr)
             {
-                pThis->uIrr |= uPinMask;
+                if (!fFlipFlop)
+                    pThis->uIrr |= uPinMask;
+
                 if (!pThis->au32TagSrc[idxRte])
                     pThis->au32TagSrc[idxRte] = uTagSrc;
                 else
                     pThis->au32TagSrc[idxRte] = RT_BIT_32(31);
 
-                ioapicSignalIrqForRte(pThis, idxRte);
+                ioapicSignalIntrForRte(pThis, idxRte);
             }
             else
-                pThis->uIrr &= ~uPinMask;
+                Log2(("IOAPIC: Redundant edge-triggered interrupt %#x (%u)\n", idxRte, idxRte));
         }
         else
         {
             Assert(u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL);
 
-            bool fActive = RT_BOOL(iLevel & 1);
-            /** @todo Polarity is busted elsewhere, we need to fix that
-             *        first. See @bugref{8386#c7}. */
-#if 0
-            uint8_t const u8Polarity = IOAPIC_RTE_GET_POLARITY(u64Rte);
-            fActive ^= u8Polarity; */
-#endif
-
-            if (fActive)
-            {
-                pThis->uIrr |= uPinMask;
-                if (!pThis->au32TagSrc[idxRte])
-                    pThis->au32TagSrc[idxRte] = uTagSrc;
-                else
-                    pThis->au32TagSrc[idxRte] = RT_BIT_32(31);
-
-                ioapicSignalIrqForRte(pThis, idxRte);
-
-                if ((iLevel & PDM_IRQ_LEVEL_FLIP_FLOP) == PDM_IRQ_LEVEL_FLIP_FLOP)
-                {
-                    pThis->uIrr &= ~uPinMask;
-                    pThis->au32TagSrc[idxRte] = 0;
-                }
-            }
+            /*
+             * For level-triggered interrupts, redundant interrupts are not a problem
+             * and will eventually be delivered anyway after an EOI, but our PDM devices
+             * should not typically call us with no change to the level.
+             */
+            if (!uPrevIrr)
+            { /* likely */ }
             else
-                pThis->uIrr &= ~uPinMask;
+                Log2(("IOAPIC: Redundant level-triggered interrupt %#x (%u)\n", idxRte, idxRte));
+
+            if (!fFlipFlop)
+                pThis->uIrr |= uPinMask;
+
+            if (!pThis->au32TagSrc[idxRte])
+                pThis->au32TagSrc[idxRte] = uTagSrc;
+            else
+                pThis->au32TagSrc[idxRte] = RT_BIT_32(31);
+
+            ioapicSignalIntrForRte(pThis, idxRte);
         }
     }
 }

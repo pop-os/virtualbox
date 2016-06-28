@@ -2094,6 +2094,8 @@ void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags)
         || enmVMState == VMSTATE_RUNNING_LS)
     {
         PDMDevHlpPCISetIrq(pDevIns, 0, PDM_IRQ_LEVEL_HIGH);
+        /** see @bugref{8447} */
+        HGSMISetHostGuestFlags(pVGAState->pHGSMI, HGSMIHOSTFLAGS_IRQ | fFlags);
     }
 }
 

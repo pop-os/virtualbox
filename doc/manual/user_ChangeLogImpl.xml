@@ -3,6 +3,54 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.24 (2016-06-28)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: reverted to the old I/O-APIC code for now to fix certain
+          regressions with 5.0.22 (bug #15529). This means that the networking
+          performance with certain guests will drop to the 5.0.20 level
+          (bug #15295). One workaround is to disable GRO for Linux guests.</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: when taking a screenshot, don't save garbage for blanked
+          screens</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: correctly parse resolv.conf file with multiple
+          separators (5.0.22 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a possible corruption of stream optimized
+          VMDK images from VMware when opened in read/write mode for the
+          first time</para>
+      </listitem>
+
+      <listitem>
+        <para>ACPI: notify the guest when the battery / AC state changes instead
+          of relying on guest polling</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed <emphasis>VERR_VMM_SET_JMP_ABORTED_RESUME</emphasis>
+          Guru Meditations on hosts with Linux 4.6 or later (bug #15439)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: make the GUI work on Solaris 10 again (bug #15549)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.22 (2016-06-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

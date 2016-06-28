@@ -2355,9 +2355,18 @@ typedef struct PDMIACPIPORT
      *                          the called function pointer.
      */
     DECLR3CALLBACKMEMBER(int, pfnMonitorHotPlugEvent,(PPDMIACPIPORT pInterface));
+
+    /**
+     * Send a battery status change event.
+     *
+     * @returns VBox status code
+     * @param   pInterface      Pointer to the interface structure containing
+     *                          the called function pointer.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnBatteryStatusChangeEvent,(PPDMIACPIPORT pInterface));
 } PDMIACPIPORT;
 /** PDMIACPIPORT interface ID. */
-#define PDMIACPIPORT_IID                        "d64233e3-7bb0-4ef1-a313-2bcfafbe6260"
+#define PDMIACPIPORT_IID                        "974cb8fb-7fda-408c-f9b4-7ff4e3b2a699"
 
 
 /** Pointer to an ACPI connector interface. */

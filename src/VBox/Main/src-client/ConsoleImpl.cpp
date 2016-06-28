@@ -6969,7 +6969,7 @@ HRESULT Console::i_consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
     char szError[RTPATH_MAX + 128];
     int vrc = com::VBoxLogRelCreate("VM", logFile.c_str(),
                                     RTLOGFLAGS_PREFIX_TIME_PROG | RTLOGFLAGS_RESTRICT_GROUPS,
-                                    "all all.restrict -default.restrict",
+                                    "all all.restrict -default.restrict", // drv_host_audio.e.l.l2.l3 drv_audio.e.l.l2.l3",
                                     "VBOX_RELEASE_LOG", RTLOGDEST_FILE,
                                     32768 /* cMaxEntriesPerGroup */,
                                     0 /* cHistory */, 0 /* uHistoryFileTime */,
