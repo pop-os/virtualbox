@@ -1,3 +1,9 @@
+virtualbox (5.0.24-dfsg-2) unstable; urgency=medium
+
+  * Relax debhelper version, to ease backports.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 30 Jun 2016 10:54:14 +0200
+
 virtualbox (5.0.24-dfsg-1) unstable; urgency=medium
 
   * New upstream release, patch refresh.
