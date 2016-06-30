@@ -189,7 +189,7 @@ override_dh_dkms:
 
 override_dh_strip:
 ifneq (,$(filter $(sname), $(shell dh_listpackages)))
-	dh_strip --dbgsym-migration='$(sname)-dbg'
+	dh_strip --dbgsym-migration='$(sname)-dbg' || dh_strip
 
 	# strip files not handled by dh_strip
 ifeq (,$(filter nostrip,$(DEB_BUILD_OPTIONS)))
