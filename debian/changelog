@@ -2,6 +2,7 @@ virtualbox (5.1.0~BETA3-dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream major release, patch refresh.
   * Update to qt5
+  * Switch to Python3 (Closes: #830878, LP: #1528016)
   * Regenerate manpages
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 30 May 2016 12:30:24 +0200
