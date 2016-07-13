@@ -1,7 +1,7 @@
 /** @file
   Internal file explorer functions for SecureBoot configuration module.
 
-Copyright (c) 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2012 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -65,7 +65,7 @@ StrDuplicate (
 }
 
 /**
-  Helper function called as part of the code needed to allocate 
+  Helper function called as part of the code needed to allocate
   the proper sized buffer for various EFI interfaces.
 
   @param[in, out]   Status          Current status
@@ -122,7 +122,7 @@ GrowBuffer (
 }
 
 /**
-  Append file name to existing file name, and allocate a new buffer 
+  Append file name to existing file name, and allocate a new buffer
   to hold the appended result.
 
   @param[in]  Str1  The existing file name
@@ -149,7 +149,7 @@ AppendFileName (
   Str   = AllocateZeroPool (Size1 + Size2 + sizeof (CHAR16));
   ASSERT (Str != NULL);
 
-  TmpStr = AllocateZeroPool (Size1 + Size2 + sizeof (CHAR16)); 
+  TmpStr = AllocateZeroPool (Size1 + Size2 + sizeof (CHAR16));
   ASSERT (TmpStr != NULL);
 
   StrCat (Str, Str1);
@@ -170,7 +170,7 @@ AppendFileName (
       //
 
       //
-      // Use TmpStr as a backup, as StrCpy in BaseLib does not handle copy of two strings 
+      // Use TmpStr as a backup, as StrCpy in BaseLib does not handle copy of two strings
       // that overlap.
       //
       StrCpy (TmpStr, Ptr + 3);
@@ -182,7 +182,7 @@ AppendFileName (
       //
 
       //
-      // Use TmpStr as a backup, as StrCpy in BaseLib does not handle copy of two strings 
+      // Use TmpStr as a backup, as StrCpy in BaseLib does not handle copy of two strings
       // that overlap.
       //
       StrCpy (TmpStr, Ptr + 2);
@@ -196,7 +196,7 @@ AppendFileName (
   }
 
   FreePool (TmpStr);
-  
+
   return Str;
 }
 
@@ -323,7 +323,7 @@ DestroyMenuEntry (
 
   FileContext = (SECUREBOOT_FILE_CONTEXT *) MenuEntry->FileContext;
 
-  if (!FileContext->IsRoot) {
+  if (!FileContext->IsRoot && FileContext->DevicePath != NULL) {
     FreePool (FileContext->DevicePath);
   } else {
     if (FileContext->FHandle != NULL) {
@@ -340,7 +340,9 @@ DestroyMenuEntry (
 
   FreePool (FileContext);
 
-  FreePool (MenuEntry->DisplayString);
+  if (MenuEntry->DisplayString != NULL) {
+    FreePool (MenuEntry->DisplayString);
+  }
   if (MenuEntry->HelpString != NULL) {
     FreePool (MenuEntry->HelpString);
   }
@@ -352,7 +354,7 @@ DestroyMenuEntry (
   Free resources allocated in Allocate Rountine.
 
   @param[in, out]  MenuOption        Menu to be freed
-  
+
 **/
 VOID
 FreeMenu (
@@ -457,7 +459,7 @@ FileSystemVolumeLabelInfo (
   This function opens a file with the open mode according to the file path. The
   Attributes is valid only for EFI_FILE_MODE_CREATE.
 
-  @param[in, out]  FilePath        On input, the device path to the file.  
+  @param[in, out]  FilePath        On input, the device path to the file.
                                    On output, the remaining device path.
   @param[out]      FileHandle      Pointer to the file handle.
   @param[in]       OpenMode        The mode to open the file with.
@@ -493,7 +495,7 @@ OpenFileByDevicePath(
   EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *EfiSimpleFileSystemProtocol;
   EFI_FILE_PROTOCOL               *Handle1;
   EFI_FILE_PROTOCOL               *Handle2;
-  EFI_HANDLE                      DeviceHandle; 
+  EFI_HANDLE                      DeviceHandle;
 
   if ((FilePath == NULL || FileHandle == NULL)) {
     return EFI_INVALID_PARAMETER;
@@ -814,7 +816,7 @@ FindFileSystem (
   if (NoSimpleFsHandles != 0) {
     FreePool (SimpleFsHandle);
   }
-  
+
   //
   // Remember how many file system options are here
   //
@@ -824,7 +826,7 @@ FindFileSystem (
 
 
 /**
-  Find files under the current directory. All files and sub-directories 
+  Find files under the current directory. All files and sub-directories
   in current directory will be stored in DirectoryMenu for future use.
 
   @param[in] MenuEntry     The Menu Entry.
@@ -890,7 +892,7 @@ FindFiles (
   if (DirInfo == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
-  
+
   //
   // Get all files in current directory
   // Pass 1 to get Directories
@@ -932,7 +934,7 @@ FindFiles (
                                     NewFileContext->FileName
                                     );
       NewMenuEntry->HelpString = NULL;
-      
+
       NewFileContext->IsDir = (BOOLEAN) ((DirInfo->Attribute & EFI_FILE_DIRECTORY) == EFI_FILE_DIRECTORY);
       if (NewFileContext->IsDir) {
         BufferSize = StrLen (DirInfo->FileName) * 2 + 6;
@@ -975,7 +977,7 @@ RefreshUpdateData (
 {
   //
   // Free current updated date
-  //  
+  //
   if (mStartOpCodeHandle != NULL) {
     HiiFreeOpCodeHandle (mStartOpCodeHandle);
   }
@@ -1067,7 +1069,7 @@ UpdateFileExplorePage (
         NewMenuEntry->DisplayStringToken,
         STRING_TOKEN (STR_NULL),
         EFI_IFR_FLAG_CALLBACK,
-        (UINT16) (FILE_OPTION_OFFSET + Index)
+        (UINT16) (FILE_OPTION_GOTO_OFFSET + Index)
         );
     }
   }
@@ -1116,7 +1118,7 @@ UpdateFileExplorer (
     //
     FreeMenu (&FsOptionMenu);
     FindFileSystem ();
-    
+
     CreateMenuStringToken (PrivateData->HiiHandle, &FsOptionMenu);
     UpdateFileExplorePage (PrivateData->HiiHandle, &FsOptionMenu, PrivateData->FeCurrentState);
 
@@ -1160,7 +1162,7 @@ UpdateFileExplorer (
 
       PrivateData->MenuEntry = NewMenuEntry;
       PrivateData->FileContext->FileName = NewFileContext->FileName;
-      
+
       TmpDevicePath = NewFileContext->DevicePath;
       OpenFileByDevicePath (
         &TmpDevicePath,
@@ -1198,7 +1200,7 @@ OnExit:
 }
 
 /**
-  Clean up the dynamic opcode at label and form specified by both LabelId. 
+  Clean up the dynamic opcode at label and form specified by both LabelId.
 
   @param[in] LabelId         It is both the Form ID and Label ID for opcode deletion.
   @param[in] PrivateData     Module private data.

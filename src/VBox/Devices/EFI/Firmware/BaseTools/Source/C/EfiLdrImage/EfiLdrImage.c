@@ -1,28 +1,19 @@
 /** @file
+Creates and EFILDR image.
+This tool combines several PE Image files together using following format denoted as EBNF:
+FILE := EFILDR_HEADER
+        EFILDR_IMAGE +
+        <PeImageFileContent> +
+The order of EFILDR_IMAGE is same as the order of placing PeImageFileContent.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials                          
-are licensed and made available under the terms and conditions of the BSD License         
-which accompanies this distribution.  The full text of the license may be found at        
-http://opensource.org/licenses/bsd-license.php                                            
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
-
-Module Name:
-
-  efildrimage.c
-
-Abstract:
-
-  Creates and EFILDR image.
-  This tool combines several PE Image files together using following format denoted as EBNF:
-  FILE := EFILDR_HEADER
-          EFILDR_IMAGE +
-          <PeImageFileContent> +
-  The order of EFILDR_IMAGE is same as the order of placing PeImageFileContent.
-
-Revision History
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -45,8 +36,8 @@ typedef struct {
   UINT8  FileName[52];
 } EFILDR_IMAGE;
 
-typedef struct {          
-  UINT32       Signature;     
+typedef struct {
+  UINT32       Signature;
   UINT32       HeaderCheckSum;
   UINT32       FileLength;
   UINT32       NumberOfImages;
@@ -83,8 +74,9 @@ Returns:
 
 --*/
 {
-  printf ("%s v%d.%d %s -Utility to break a file into two pieces at the request offset.\n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
-  printf ("Copyright (c) 1999-2010 Intel Corporation. All rights reserved.\n");
+  printf ("%s Version %d.%d %s\n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
+  printf ("Copyright (c) 1999-2014 Intel Corporation. All rights reserved.\n");
+  printf ("\n  The EfiLdrImage tool is used to combine PE files into EFILDR image with Efi loader header.\n");
 }
 
 VOID
@@ -110,7 +102,7 @@ CountVerboseLevel (
     }
     ++(*ReturnValue);
   }
-  
+
   return EFI_SUCCESS;
 }
 
@@ -184,29 +176,29 @@ Returns:
   UINT64        DebugLevel = 0;
   UINT64        VerboseLevel = 0;
   EFI_STATUS Status = EFI_SUCCESS;
-  
+
   SetUtilityName (UTILITY_NAME);
 
   if (argc == 1) {
     Usage();
     return STATUS_ERROR;
   }
-  
+
   argc --;
   argv ++;
 
   if ((stricmp (argv[0], "-h") == 0) || (stricmp (argv[0], "--help") == 0)) {
     Usage();
-    return STATUS_SUCCESS;    
+    return STATUS_SUCCESS;
   }
 
   if (stricmp (argv[0], "--version") == 0) {
     Version();
-    return STATUS_SUCCESS;    
+    return STATUS_SUCCESS;
   }
 
   while (argc > 0) {
-   
+
     if ((stricmp (argv[0], "-o") == 0) || (stricmp (argv[0], "--output") == 0)) {
       OutputFileName = argv[1];
       if (OutputFileName == NULL) {
@@ -215,39 +207,39 @@ Returns:
       }
       argc -= 2;
       argv += 2;
-      continue; 
+      continue;
     }
-    
+
     if ((stricmp (argv[0], "-q") == 0) || (stricmp (argv[0], "--quiet") == 0)) {
       argc --;
       argv ++;
-      continue; 
+      continue;
     }
-    
+
     if ((strlen(argv[0]) >= 2 && argv[0][0] == '-' && (argv[0][1] == 'v' || argv[0][1] == 'V')) || (stricmp (argv[0], "--verbose") == 0)) {
       VerboseLevel = 1;
       if (strlen(argv[0]) > 2) {
         Status = CountVerboseLevel (&argv[0][2], strlen(argv[0]) - 2, &VerboseLevel);
         if (EFI_ERROR (Status)) {
           Error (NULL, 0, 1003, "Invalid option value", argv[0]);
-          return STATUS_ERROR;        
+          return STATUS_ERROR;
         }
       }
-      
+
       argc --;
       argv ++;
-      continue; 
+      continue;
     }
-    
+
     if ((stricmp (argv[0], "-d") == 0) || (stricmp (argv[0], "--debug") == 0)) {
       Status = AsciiStringToUint64 (argv[1], FALSE, &DebugLevel);
       if (EFI_ERROR (Status)) {
         Error (NULL, 0, 1003, "Invalid option value", "%s = %s", argv[0], argv[1]);
-        return STATUS_ERROR;        
+        return STATUS_ERROR;
       }
       argc -= 2;
       argv += 2;
-      continue; 
+      continue;
     }
     //
     // Don't recognize the parameter, should be regarded as the input file name.
@@ -270,7 +262,7 @@ Returns:
     return STATUS_ERROR;
   }
 
-  fpOut = fopen(OutputFileName, "w+b");
+  fpOut = fopen (LongFilePath (OutputFileName), "w+b");
   if (!fpOut) {
     Error (NULL, 0, 0001, "Could not open output file", OutputFileName);
     return STATUS_ERROR;
@@ -294,7 +286,7 @@ Returns:
     //
     // Copy the content of PeImage file to output file
     //
-    fpIn = fopen (InputFileNames[i], "rb");
+    fpIn = fopen (LongFilePath (InputFileNames[i]), "rb");
     if (!fpIn) {
       Error (NULL, 0, 0001, "Could not open input file", InputFileNames[i]);
       fclose (fpOut);

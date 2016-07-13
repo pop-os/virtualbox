@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 108597 $"
 
 
 class WuiHlpGraphDataTable(object): # pylint: disable=R0903
@@ -99,11 +99,11 @@ class WuiHlpGraphDataTableEx(object): # pylint: disable=R0903
 #
 # Dynamically choose implementation.
 #
-if True:
+if True: # pylint: disable=W0125
     from testmanager.webui import wuihlpgraphgooglechart        as GraphImplementation;
 else:
     try:
-        import matplotlib; # pylint: disable=W0611,F0401
+        import matplotlib; # pylint: disable=W0611,F0401,import-error,wrong-import-order
         from testmanager.webui import wuihlpgraphmatplotlib     as GraphImplementation;
     except:
         from testmanager.webui import wuihlpgraphsimple         as GraphImplementation;

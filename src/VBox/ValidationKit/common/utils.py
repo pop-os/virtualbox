@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 108487 $"
 
 
 # Standard Python imports.
@@ -38,13 +38,12 @@ import re;
 import stat;
 import subprocess;
 import sys;
-import tarfile;
 import time;
 import traceback;
 import unittest;
-import zipfile
 
 if sys.platform == 'win32':
+    import ctypes;
     import win32api;            # pylint: disable=F0401
     import win32con;            # pylint: disable=F0401
     import win32console;        # pylint: disable=F0401
@@ -54,7 +53,9 @@ else:
 
 # Python 3 hacks:
 if sys.version_info[0] >= 3:
-    long = int;     # pylint: disable=W0622,C0103
+    unicode = str;  # pylint: disable=redefined-builtin,invalid-name
+    xrange = range; # pylint: disable=redefined-builtin,invalid-name
+    long = int;     # pylint: disable=redefined-builtin,invalid-name
 
 
 #
@@ -210,7 +211,11 @@ def getHostOsVersion():
                      "7": "Lion",
                      "8": "Mountain Lion",
                      "9": "Mavericks",
-                     "10": "Yosemite"}
+                     "10": "Yosemite",
+                     "11": "El Capitan",
+                     "12": "Sierra",
+                     "13": "Unknown 13",
+                     "14": "Unknown 14", }
         sVersion += ' / OS X ' + sOsxVersion + ' (' + codenames[sOsxVersion.split('.')[1]] + ')'
 
     return sVersion;
@@ -293,6 +298,114 @@ def noxcptDeleteFile(sFile, oXcptRet = False):
     return oRet;
 
 
+def dirEnumerateTree(sDir, fnCallback, fIgnoreExceptions = True):
+    # type: (string, (string, stat) -> bool) -> bool
+    """
+    Recursively walks a directory tree, calling fnCallback for each.
+
+    fnCallback takes a full path and stat object (can be None).  It
+    returns a boolean value, False stops walking and returns immediately.
+
+    Returns True or False depending on fnCallback.
+    Returns None fIgnoreExceptions is True and an exception was raised by listdir.
+    """
+    def __worker(sCurDir):
+        """ Worker for """
+        try:
+            asNames = os.listdir(sCurDir);
+        except:
+            if not fIgnoreExceptions:
+                raise;
+            return None;
+        rc = True;
+        for sName in asNames:
+            if sName not in [ '.', '..' ]:
+                sFullName = os.path.join(sCurDir, sName);
+                try:    oStat = os.lstat(sFullName);
+                except: oStat = None;
+                if fnCallback(sFullName, oStat) is False:
+                    return False;
+                if oStat is not None and stat.S_ISDIR(oStat.st_mode):
+                    rc =  __worker(sFullName);
+                    if rc is False:
+                        break;
+        return rc;
+
+    # Ensure unicode path here so listdir also returns unicode on windows.
+    ## @todo figure out unicode stuff on non-windows.
+    if sys.platform == 'win32':
+        sDir = unicode(sDir);
+    return __worker(sDir);
+
+
+
+def formatFileMode(uMode):
+    # type: (int) -> string
+    """
+    Format a st_mode value 'ls -la' fasion.
+    Returns string.
+    """
+    if   stat.S_ISDIR(uMode):   sMode = 'd';
+    elif stat.S_ISREG(uMode):   sMode = '-';
+    elif stat.S_ISLNK(uMode):   sMode = 'l';
+    elif stat.S_ISFIFO(uMode):  sMode = 'p';
+    elif stat.S_ISCHR(uMode):   sMode = 'c';
+    elif stat.S_ISBLK(uMode):   sMode = 'b';
+    elif stat.S_ISSOCK(uMode):  sMode = 's';
+    else:                       sMode = '?';
+    ## @todo sticky bits.
+    sMode += 'r' if uMode & stat.S_IRUSR else '-';
+    sMode += 'w' if uMode & stat.S_IWUSR else '-';
+    sMode += 'x' if uMode & stat.S_IXUSR else '-';
+    sMode += 'r' if uMode & stat.S_IRGRP else '-';
+    sMode += 'w' if uMode & stat.S_IWGRP else '-';
+    sMode += 'x' if uMode & stat.S_IXGRP else '-';
+    sMode += 'r' if uMode & stat.S_IROTH else '-';
+    sMode += 'w' if uMode & stat.S_IWOTH else '-';
+    sMode += 'x' if uMode & stat.S_IXOTH else '-';
+    sMode += ' ';
+    return sMode;
+
+
+def formatFileStat(oStat):
+    # type: (stat) -> string
+    """
+    Format a stat result 'ls -la' fasion (numeric IDs).
+    Returns string.
+    """
+    return '%s %3s %4s %4s %10s %s' \
+          % (formatFileMode(oStat.st_mode), oStat.st_nlink, oStat.st_uid, oStat.st_gid, oStat.st_size,
+             time.strftime('%Y-%m-%d %H:%M', time.localtime(oStat.st_mtime)), );
+
+## Good buffer for file operations.
+g_cbGoodBufferSize = 256*1024;
+
+## The original shutil.copyfileobj.
+g_fnOriginalShCopyFileObj = None;
+
+def __myshutilcopyfileobj(fsrc, fdst, length = g_cbGoodBufferSize):
+    """ shutil.copyfileobj with different length default value (16384 is slow with python 2.7 on windows). """
+    return g_fnOriginalShCopyFileObj(fsrc, fdst, length);
+
+def __installShUtilHacks(shutil):
+    """ Installs the shutil buffer size hacks. """
+    global g_fnOriginalShCopyFileObj;
+    if g_fnOriginalShCopyFileObj is None:
+        g_fnOriginalShCopyFileObj = shutil.copyfileobj;
+        shutil.copyfileobj = __myshutilcopyfileobj;
+    return True;
+
+
+def copyFileSimple(sFileSrc, sFileDst):
+    """
+    Wrapper around shutil.copyfile that simply copies the data of a regular file.
+    Raises exception on failure.
+    Return True for show.
+    """
+    import shutil;
+    __installShUtilHacks(shutil);
+    return shutil.copyfile(sFileSrc, sFileDst);
+
 #
 # SubProcess.
 #
@@ -327,8 +440,8 @@ def processCall(*aPositionalArgs, **dKeywordArgs):
     python versions.
     Returns process exit code (see subprocess.poll).
     """
-    assert dKeywordArgs.get('stdout') == None;
-    assert dKeywordArgs.get('stderr') == None;
+    assert dKeywordArgs.get('stdout') is None;
+    assert dKeywordArgs.get('stderr') is None;
     _processFixPythonInterpreter(aPositionalArgs, dKeywordArgs);
     oProcess = subprocess.Popen(*aPositionalArgs, **dKeywordArgs);
     return oProcess.wait();
@@ -448,7 +561,7 @@ def processInterrupt(uPid):
     """
     if sys.platform == 'win32':
         try:
-            win32console.GenerateConsoleCtrlEvent(win32con.CTRL_BREAK_EVENT, uPid); # pylint
+            win32console.GenerateConsoleCtrlEvent(win32con.CTRL_BREAK_EVENT, uPid);             # pylint: disable=no-member
             fRc = True;
         except:
             fRc = False;
@@ -487,16 +600,16 @@ def processTerminate(uPid):
     fRc = False;
     if sys.platform == 'win32':
         try:
-            hProcess = win32api.OpenProcess(win32con.PROCESS_TERMINATE, False, uPid);
+            hProcess = win32api.OpenProcess(win32con.PROCESS_TERMINATE, False, uPid);           # pylint: disable=no-member
         except:
             pass;
         else:
             try:
-                win32process.TerminateProcess(hProcess, 0x40010004); # DBG_TERMINATE_PROCESS
+                win32process.TerminateProcess(hProcess, 0x40010004); # DBG_TERMINATE_PROCESS    # pylint: disable=no-member
                 fRc = True;
             except:
                 pass;
-            win32api.CloseHandle(hProcess)
+            win32api.CloseHandle(hProcess)                                                      # pylint: disable=no-member
     else:
         try:
             os.kill(uPid, signal.SIGTERM);
@@ -543,11 +656,11 @@ def processExists(uPid):
     if sys.platform == 'win32':
         fRc = False;
         try:
-            hProcess = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION, False, uPid);
+            hProcess = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION, False, uPid);   # pylint: disable=no-member
         except:
             pass;
         else:
-            win32api.CloseHandle(hProcess)
+            win32api.CloseHandle(hProcess);                                                     # pylint: disable=no-member
             fRc = True;
     else:
         try:
@@ -885,28 +998,91 @@ def processCollectCrashInfo(uPid, fnLog, fnCrashFile):
 # Time.
 #
 
+#
+# The following test case shows how time.time() only have ~ms resolution
+# on Windows (tested W10) and why it therefore makes sense to try use
+# performance counters.
+#
+# Note! We cannot use time.clock() as the timestamp must be portable across
+#       processes.  See timeout testcase problem on win hosts (no logs).
+#
+#import sys;
+#import time;
+#from common import utils;
+#
+#atSeries = [];
+#for i in xrange(1,160):
+#    if i == 159: time.sleep(10);
+#    atSeries.append((utils.timestampNano(), long(time.clock() * 1000000000), long(time.time() * 1000000000)));
+#
+#tPrev = atSeries[0]
+#for tCur in atSeries:
+#    print 't1=%+22u, %u' % (tCur[0], tCur[0] - tPrev[0]);
+#    print 't2=%+22u, %u' % (tCur[1], tCur[1] - tPrev[1]);
+#    print 't3=%+22u, %u' % (tCur[2], tCur[2] - tPrev[2]);
+#    print '';
+#    tPrev = tCur
+#
+#print 't1=%u' % (atSeries[-1][0] - atSeries[0][0]);
+#print 't2=%u' % (atSeries[-1][1] - atSeries[0][1]);
+#print 't3=%u' % (atSeries[-1][2] - atSeries[0][2]);
+
+g_fWinUseWinPerfCounter           = sys.platform == 'win32';
+g_fpWinPerfCounterFreq            = None;
+g_oFuncwinQueryPerformanceCounter = None;
+
+def _winInitPerfCounter():
+    """ Initializes the use of performance counters. """
+    global g_fWinUseWinPerfCounter, g_fpWinPerfCounterFreq, g_oFuncwinQueryPerformanceCounter
+
+    uFrequency = ctypes.c_ulonglong(0);
+    if ctypes.windll.kernel32.QueryPerformanceFrequency(ctypes.byref(uFrequency)):
+        if uFrequency.value >= 1000:
+            #print 'uFrequency = %s' % (uFrequency,);
+            #print 'type(uFrequency) = %s' % (type(uFrequency),);
+            g_fpWinPerfCounterFreq = float(uFrequency.value);
+
+            # Check that querying the counter works too.
+            global g_oFuncwinQueryPerformanceCounter
+            g_oFuncwinQueryPerformanceCounter = ctypes.windll.kernel32.QueryPerformanceCounter;
+            uCurValue = ctypes.c_ulonglong(0);
+            if g_oFuncwinQueryPerformanceCounter(ctypes.byref(uCurValue)):
+                if uCurValue.value > 0:
+                    return True;
+    g_fWinUseWinPerfCounter = False;
+    return False;
+
+def _winFloatTime():
+    """ Gets floating point time on windows. """
+    if g_fpWinPerfCounterFreq is not None or _winInitPerfCounter():
+        uCurValue = ctypes.c_ulonglong(0);
+        if g_oFuncwinQueryPerformanceCounter(ctypes.byref(uCurValue)):
+            return float(uCurValue.value) / g_fpWinPerfCounterFreq;
+    return time.time();
+
+
 def timestampNano():
     """
     Gets a nanosecond timestamp.
     """
-    if sys.platform == 'win32':
-        return long(time.clock() * 1000000000);
+    if g_fWinUseWinPerfCounter is True:
+        return long(_winFloatTime() * 1000000000);
     return long(time.time() * 1000000000);
 
 def timestampMilli():
     """
     Gets a millisecond timestamp.
     """
-    if sys.platform == 'win32':
-        return long(time.clock() * 1000);
+    if g_fWinUseWinPerfCounter is True:
+        return long(_winFloatTime() * 1000);
     return long(time.time() * 1000);
 
 def timestampSecond():
     """
     Gets a second timestamp.
     """
-    if sys.platform == 'win32':
-        return long(time.clock());
+    if g_fWinUseWinPerfCounter is True:
+        return long(_winFloatTime());
     return long(time.time());
 
 def getTimePrefix():
@@ -1370,62 +1546,186 @@ def chmodPlusX(sFile):
     return True;
 
 
-def unpackFile(sArchive, sDstDir, fnLog, fnError = None):
+def unpackZipFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
+    # type: (string, string, (string) -> None, (string) -> None, (string) -> bool) -> list[string]
+    """
+    Worker for unpackFile that deals with ZIP files, same function signature.
+    """
+    import zipfile
+    if fnError is None:
+        fnError = fnLog;
+
+    fnLog('Unzipping "%s" to "%s"...' % (sArchive, sDstDir));
+
+    # Open it.
+    try: oZipFile = zipfile.ZipFile(sArchive, 'r')
+    except Exception as oXcpt:
+        fnError('Error opening "%s" for unpacking into "%s": %s' % (sArchive, sDstDir, oXcpt,));
+        return None;
+
+    # Extract all members.
+    asMembers = [];
+    try:
+        for sMember in oZipFile.namelist():
+            if fnFilter is None  or  fnFilter(sMember) is not False:
+                if sMember.endswith('/'):
+                    os.makedirs(os.path.join(sDstDir, sMember.replace('/', os.path.sep)), 0x1fd); # octal: 0775 (python 3/2)
+                else:
+                    oZipFile.extract(sMember, sDstDir);
+                asMembers.append(os.path.join(sDstDir, sMember.replace('/', os.path.sep)));
+    except Exception as oXcpt:
+        fnError('Error unpacking "%s" into "%s": %s' % (sArchive, sDstDir, oXcpt));
+        asMembers = None;
+
+    # close it.
+    try: oZipFile.close();
+    except Exception as oXcpt:
+        fnError('Error closing "%s" after unpacking into "%s": %s' % (sArchive, sDstDir, oXcpt));
+        asMembers = None;
+
+    return asMembers;
+
+
+## Set if we've replaced tarfile.copyfileobj with __mytarfilecopyfileobj already.
+g_fTarCopyFileObjOverriddend = False;
+
+def __mytarfilecopyfileobj(src, dst, length = None, exception = OSError):
+    """ tarfile.copyfileobj with different buffer size (16384 is slow on windows). """
+    if length is None:
+        __myshutilcopyfileobj(src, dst, g_cbGoodBufferSize);
+    elif length > 0:
+        cFull, cbRemainder = divmod(length, g_cbGoodBufferSize);
+        for _ in xrange(cFull):
+            abBuffer = src.read(g_cbGoodBufferSize);
+            dst.write(abBuffer);
+            if len(abBuffer) != g_cbGoodBufferSize:
+                raise exception('unexpected end of source file');
+        if cbRemainder > 0:
+            abBuffer = src.read(cbRemainder);
+            dst.write(abBuffer);
+            if len(abBuffer) != cbRemainder:
+                raise exception('unexpected end of source file');
+
+
+def unpackTarFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
+    # type: (string, string, (string) -> None, (string) -> None, (string) -> bool) -> list[string]
+    """
+    Worker for unpackFile that deals with tarballs, same function signature.
+    """
+    import shutil;
+    import tarfile;
+    if fnError is None:
+        fnError = fnLog;
+
+    fnLog('Untarring "%s" to "%s"...' % (sArchive, sDstDir));
+
+    #
+    # Default buffer sizes of 16384 bytes is causing too many syscalls on Windows.
+    # 60%+ speedup for python 2.7 and 50%+ speedup for python 3.5, both on windows with PDBs.
+    # 20%+ speedup for python 2.7 and 15%+ speedup for python 3.5, both on windows skipping PDBs.
+    #
+    if True is True:
+        __installShUtilHacks(shutil);
+        global g_fTarCopyFileObjOverriddend;
+        if g_fTarCopyFileObjOverriddend is False:
+            g_fTarCopyFileObjOverriddend = True;
+            tarfile.copyfileobj = __mytarfilecopyfileobj;
+
+    #
+    # Open it.
+    #
+    # Note! We not using 'r:*' because we cannot allow seeking compressed files!
+    #       That's how we got a 13 min unpack time for VBoxAll on windows (hardlinked pdb).
+    #
+    try: oTarFile = tarfile.open(sArchive, 'r|*', bufsize = g_cbGoodBufferSize);
+    except Exception as oXcpt:
+        fnError('Error opening "%s" for unpacking into "%s": %s' % (sArchive, sDstDir, oXcpt,));
+        return None;
+
+    # Extract all members.
+    asMembers = [];
+    try:
+        for oTarInfo in oTarFile:
+            try:
+                if fnFilter is None  or  fnFilter(oTarInfo.name) is not False:
+                    if oTarInfo.islnk():
+                        # Links are trouble, especially on Windows.  We must avoid the falling that will end up seeking
+                        # in the compressed tar stream.  So, fall back on shutil.copy2 instead.
+                        sLinkFile     = os.path.join(sDstDir, oTarInfo.name.rstrip('/').replace('/', os.path.sep));
+                        sLinkTarget   = os.path.join(sDstDir, oTarInfo.linkname.rstrip('/').replace('/', os.path.sep));
+                        sParentDir    = os.path.dirname(sLinkFile);
+                        try:    os.unlink(sLinkFile);
+                        except: pass;
+                        if sParentDir is not ''  and  not os.path.exists(sParentDir):
+                            os.makedirs(sParentDir);
+                        try:    os.link(sLinkTarget, sLinkFile);
+                        except: shutil.copy2(sLinkTarget, sLinkFile);
+                    else:
+                        if oTarInfo.isdir():
+                            # Just make sure the user (we) got full access to dirs.  Don't bother getting it 100% right.
+                            oTarInfo.mode |= 0x1c0; # (octal: 0700)
+                        oTarFile.extract(oTarInfo, sDstDir);
+                    asMembers.append(os.path.join(sDstDir, oTarInfo.name.replace('/', os.path.sep)));
+            except Exception as oXcpt:
+                fnError('Error unpacking "%s" member "%s" into "%s": %s' % (sArchive, oTarInfo.name, sDstDir, oXcpt));
+                for sAttr in [ 'name', 'linkname', 'type', 'mode', 'size', 'mtime', 'uid', 'uname', 'gid', 'gname' ]:
+                    fnError('Info: %8s=%s' % (sAttr, getattr(oTarInfo, sAttr),));
+                for sFn in [ 'isdir', 'isfile', 'islnk', 'issym' ]:
+                    fnError('Info: %8s=%s' % (sFn, getattr(oTarInfo, sFn)(),));
+                asMembers = None;
+                break;
+    except Exception as oXcpt:
+        fnError('Error unpacking "%s" into "%s": %s' % (sArchive, sDstDir, oXcpt));
+        asMembers = None;
+
+    #
+    # Finally, close it.
+    #
+    try: oTarFile.close();
+    except Exception as oXcpt:
+        fnError('Error closing "%s" after unpacking into "%s": %s' % (sArchive, sDstDir, oXcpt));
+        asMembers = None;
+
+    return asMembers;
+
+
+def unpackFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
+    # type: (string, string, (string) -> None, (string) -> None, (string) -> bool) -> list[string]
     """
     Unpacks the given file if it has a know archive extension, otherwise do
     nothing.
+
+    fnLog & fnError both take a string parameter.
+
+    fnFilter takes a member name (string) and returns True if it's included
+    and False if excluded.
 
     Returns list of the extracted files (full path) on success.
     Returns empty list if not a supported archive format.
     Returns None on failure.  Raises no exceptions.
     """
-    if fnError is None:
-        fnError = fnLog;
-
-    asMembers = [];
-
     sBaseNameLower = os.path.basename(sArchive).lower();
-    if sBaseNameLower.endswith('.zip'):
-        fnLog('Unzipping "%s" to "%s"...' % (sArchive, sDstDir));
-        try:
-            oZipFile = zipfile.ZipFile(sArchive, 'r')
-            asMembers = oZipFile.namelist();
-            for sMember in asMembers:
-                if sMember.endswith('/'):
-                    os.makedirs(os.path.join(sDstDir, sMember.replace('/', os.path.sep)), 0775);
-                else:
-                    oZipFile.extract(sMember, sDstDir);
-            oZipFile.close();
-        except Exception, oXcpt:
-            fnError('Error unpacking "%s" into "%s": %s' % (sArchive, sDstDir, oXcpt));
-            return None;
 
-    elif sBaseNameLower.endswith('.tar') \
+    #
+    # Zip file?
+    #
+    if sBaseNameLower.endswith('.zip'):
+        return unpackZipFile(sArchive, sDstDir, fnLog, fnError, fnFilter);
+
+    #
+    # Tarball?
+    #
+    if   sBaseNameLower.endswith('.tar') \
       or sBaseNameLower.endswith('.tar.gz') \
       or sBaseNameLower.endswith('.tgz') \
       or sBaseNameLower.endswith('.tar.bz2'):
-        fnLog('Untarring "%s" to "%s"...' % (sArchive, sDstDir));
-        try:
-            oTarFile = tarfile.open(sArchive, 'r:*');
-            asMembers = [oTarInfo.name for oTarInfo in oTarFile.getmembers()];
-            oTarFile.extractall(sDstDir);
-            oTarFile.close();
-        except Exception, oXcpt:
-            fnError('Error unpacking "%s" into "%s": %s' % (sArchive, sDstDir, oXcpt));
-            return None;
-
-    else:
-        fnLog('Not unpacking "%s".' % (sArchive,));
-        return [];
+        return unpackTarFile(sArchive, sDstDir, fnLog, fnError, fnFilter);
 
     #
-    # Change asMembers to local slashes and prefix with path.
+    # Cannot classify it from the name, so just return that to the caller.
     #
-    asMembersRet = [];
-    for sMember in asMembers:
-        asMembersRet.append(os.path.join(sDstDir, sMember.replace('/', os.path.sep)));
-
-    return asMembersRet;
+    fnLog('Not unpacking "%s".' % (sArchive,));
+    return [];
 
 
 def getDiskUsage(sPath):
@@ -1435,7 +1735,6 @@ def getDiskUsage(sPath):
     Returns partition free space value in MB.
     """
     if platform.system() == 'Windows':
-        import ctypes
         oCTypeFreeSpace = ctypes.c_ulonglong(0);
         ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(sPath), None, None,
                                                    ctypes.pointer(oCTypeFreeSpace));

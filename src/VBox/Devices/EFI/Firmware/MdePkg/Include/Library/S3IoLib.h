@@ -1,9 +1,9 @@
 /** @file
   I/O and MMIO Library Services that do I/O and also enable the I/O operation
   to be replayed during an S3 resume. This library class maps directly on top
-  of the IoLib class. 
+  of the IoLib class.
 
-  Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions
@@ -117,7 +117,7 @@ S3IoAnd8 (
 
 /**
   Reads an 8-bit I/O port, performs a bitwise AND followed by a bitwise
-  inclusive OR, writes the result back to the 8-bit I/O port, and saves 
+  inclusive OR, writes the result back to the 8-bit I/O port, and saves
   the value in the S3 script to be replayed on S3 resume.
 
   Reads the 8-bit I/O port specified by Port, performs a bitwise AND between
@@ -179,13 +179,14 @@ S3IoBitFieldRead8 (
 
   Writes Value to the bit field of the I/O register. The bit field is specified
   by the StartBit and the EndBit. All other bits in the destination I/O
-  register are preserved. The value written to the I/O port is returned. 
+  register are preserved. The value written to the I/O port is returned.
   Remaining bits in Value are stripped.
 
   If 8-bit I/O port operations are not supported, then ASSERT().
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -208,7 +209,7 @@ S3IoBitFieldWrite8 (
 
 /**
   Reads a bit field in an 8-bit port, performs a bitwise OR, writes the
-  result back to the bit field in the 8-bit port, and saves the value in the 
+  result back to the bit field in the 8-bit port, and saves the value in the
   S3 script to be replayed on S3 resume.
 
   Reads the 8-bit I/O port specified by Port, performs a bitwise OR
@@ -221,6 +222,7 @@ S3IoBitFieldWrite8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -243,7 +245,7 @@ S3IoBitFieldOr8 (
 
 /**
   Reads a bit field in an 8-bit port, performs a bitwise AND, writes the
-  result back to the bit field in the 8-bit port, and saves the value in the 
+  result back to the bit field in the 8-bit port, and saves the value in the
   S3 script to be replayed on S3 resume.
 
   Reads the 8-bit I/O port specified by Port, performs a bitwise AND between
@@ -256,6 +258,7 @@ S3IoBitFieldOr8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -292,6 +295,8 @@ S3IoBitFieldAnd8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -360,7 +365,7 @@ S3IoWrite16 (
 
 /**
   Reads a 16-bit I/O port, performs a bitwise OR, writes the
-  result back to the 16-bit I/O port, and saves the value in the S3 script to 
+  result back to the 16-bit I/O port, and saves the value in the S3 script to
   be replayed on S3 resume.
 
   Reads the 16-bit I/O port specified by Port, performs a bitwise OR
@@ -469,7 +474,7 @@ S3IoBitFieldRead16 (
   );
 
 /**
-  Writes a bit field to an I/O register, and saves the value in the S3 script 
+  Writes a bit field to an I/O register, and saves the value in the S3 script
   to be replayed on S3 resume.
 
   Writes Value to the bit field of the I/O register. The bit field is specified
@@ -481,6 +486,7 @@ S3IoBitFieldRead16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -503,7 +509,7 @@ S3IoBitFieldWrite16 (
 
 /**
   Reads a bit field in a 16-bit port, performs a bitwise OR, writes the
-  result back to the bit field in the 16-bit port, and saves the value in the 
+  result back to the bit field in the 16-bit port, and saves the value in the
   S3 script to be replayed on S3 resume.
 
   Reads the 16-bit I/O port specified by Port, performs a bitwise OR
@@ -516,6 +522,7 @@ S3IoBitFieldWrite16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -538,7 +545,7 @@ S3IoBitFieldOr16 (
 
 /**
   Reads a bit field in a 16-bit port, performs a bitwise AND, writes the
-  result back to the bit field in the 16-bit port, and saves the value in the 
+  result back to the bit field in the 16-bit port, and saves the value in the
   S3 script to be replayed on S3 resume.
 
   Reads the 16-bit I/O port specified by Port, performs a bitwise AND between
@@ -551,6 +558,7 @@ S3IoBitFieldOr16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -574,7 +582,7 @@ S3IoBitFieldAnd16 (
 /**
   Reads a bit field in a 16-bit port, performs a bitwise AND followed by a
   bitwise OR, writes the result back to the bit field in the
-  16-bit port, and saves the value in the S3 script to be replayed on S3 
+  16-bit port, and saves the value in the S3 script to be replayed on S3
   resume.
 
   Reads the 16-bit I/O port specified by Port, performs a bitwise AND followed
@@ -588,6 +596,8 @@ S3IoBitFieldAnd16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -656,7 +666,7 @@ S3IoWrite32 (
 
 /**
   Reads a 32-bit I/O port, performs a bitwise OR, writes the
-  result back to the 32-bit I/O port, and saves the value in the S3 script to 
+  result back to the 32-bit I/O port, and saves the value in the S3 script to
   be replayed on S3 resume.
 
   Reads the 32-bit I/O port specified by Port, performs a bitwise OR
@@ -708,7 +718,7 @@ S3IoAnd32 (
 
 /**
   Reads a 32-bit I/O port, performs a bitwise AND followed by a bitwise
-  inclusive OR, writes the result back to the 32-bit I/O port, and saves 
+  inclusive OR, writes the result back to the 32-bit I/O port, and saves
   the value in the S3 script to be replayed on S3 resume.
 
   Reads the 32-bit I/O port specified by Port, performs a bitwise AND between
@@ -777,6 +787,7 @@ S3IoBitFieldRead32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -799,7 +810,7 @@ S3IoBitFieldWrite32 (
 
 /**
   Reads a bit field in a 32-bit port, performs a bitwise OR, writes the
-  result back to the bit field in the 32-bit port, and saves the value in the 
+  result back to the bit field in the 32-bit port, and saves the value in the
   S3 script to be replayed on S3 resume.
 
   Reads the 32-bit I/O port specified by Port, performs a bitwise OR
@@ -812,6 +823,7 @@ S3IoBitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -834,7 +846,7 @@ S3IoBitFieldOr32 (
 
 /**
   Reads a bit field in a 32-bit port, performs a bitwise AND, writes the
-  result back to the bit field in the 32-bit port, and saves the value in the 
+  result back to the bit field in the 32-bit port, and saves the value in the
   S3 script to be replayed on S3 resume.
 
   Reads the 32-bit I/O port specified by Port, performs a bitwise AND between
@@ -847,6 +859,7 @@ S3IoBitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -870,7 +883,7 @@ S3IoBitFieldAnd32 (
 /**
   Reads a bit field in a 32-bit port, performs a bitwise AND followed by a
   bitwise OR, writes the result back to the bit field in the
-  32-bit port, and saves the value in the S3 script to be replayed on S3 
+  32-bit port, and saves the value in the S3 script to be replayed on S3
   resume.
 
   Reads the 32-bit I/O port specified by Port, performs a bitwise AND followed
@@ -884,6 +897,8 @@ S3IoBitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -952,7 +967,7 @@ S3IoWrite64 (
 
 /**
   Reads a 64-bit I/O port, performs a bitwise OR, writes the
-  result back to the 64-bit I/O port, and saves the value in the S3 script to 
+  result back to the 64-bit I/O port, and saves the value in the S3 script to
   be replayed on S3 resume.
 
   Reads the 64-bit I/O port specified by Port, performs a bitwise OR
@@ -1073,6 +1088,7 @@ S3IoBitFieldRead64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1095,7 +1111,7 @@ S3IoBitFieldWrite64 (
 
 /**
   Reads a bit field in a 64-bit port, performs a bitwise OR, writes the
-  result back to the bit field in the 64-bit port, and saves the value in the 
+  result back to the bit field in the 64-bit port, and saves the value in the
   S3 script to be replayed on S3 resume.
 
   Reads the 64-bit I/O port specified by Port, performs a bitwise OR
@@ -1108,6 +1124,7 @@ S3IoBitFieldWrite64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1130,7 +1147,7 @@ S3IoBitFieldOr64 (
 
 /**
   Reads a bit field in a 64-bit port, performs a bitwise AND, writes the
-  result back to the bit field in the 64-bit port, and saves the value in the 
+  result back to the bit field in the 64-bit port, and saves the value in the
   S3 script to be replayed on S3 resume.
 
   Reads the 64-bit I/O port specified by Port, performs a bitwise AND between
@@ -1143,6 +1160,7 @@ S3IoBitFieldOr64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1166,7 +1184,7 @@ S3IoBitFieldAnd64 (
 /**
   Reads a bit field in a 64-bit port, performs a bitwise AND followed by a
   bitwise OR, writes the result back to the bit field in the
-  64-bit port, and saves the value in the S3 script to be replayed on S3 
+  64-bit port, and saves the value in the S3 script to be replayed on S3
   resume.
 
   Reads the 64-bit I/O port specified by Port, performs a bitwise AND followed
@@ -1180,6 +1198,8 @@ S3IoBitFieldAnd64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Port       The I/O port to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1203,7 +1223,7 @@ S3IoBitFieldAndThenOr64 (
   );
 
 /**
-  Reads an 8-bit MMIO register, and saves the value in the S3 script to be 
+  Reads an 8-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Reads the 8-bit MMIO register specified by Address. The 8-bit read value is
@@ -1224,7 +1244,7 @@ S3MmioRead8 (
   );
 
 /**
-  Writes an 8-bit MMIO register, and saves the value in the S3 script to be 
+  Writes an 8-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Writes the 8-bit MMIO register specified by Address with the value specified
@@ -1248,7 +1268,7 @@ S3MmioWrite8 (
 
 /**
   Reads an 8-bit MMIO register, performs a bitwise OR, writes the
-  result back to the 8-bit MMIO register, and saves the value in the S3 script 
+  result back to the 8-bit MMIO register, and saves the value in the S3 script
   to be replayed on S3 resume.
 
   Reads the 8-bit MMIO register specified by Address, performs a bitwise
@@ -1274,7 +1294,7 @@ S3MmioOr8 (
 
 /**
   Reads an 8-bit MMIO register, performs a bitwise AND, writes the result
-  back to the 8-bit MMIO register, and saves the value in the S3 script to be 
+  back to the 8-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Reads the 8-bit MMIO register specified by Address, performs a bitwise AND
@@ -1300,7 +1320,7 @@ S3MmioAnd8 (
 
 /**
   Reads an 8-bit MMIO register, performs a bitwise AND followed by a bitwise
-  inclusive OR, writes the result back to the 8-bit MMIO register, and saves 
+  inclusive OR, writes the result back to the 8-bit MMIO register, and saves
   the value in the S3 script to be replayed on S3 resume.
 
   Reads the 8-bit MMIO register specified by Address, performs a bitwise AND
@@ -1368,6 +1388,7 @@ S3MmioBitFieldRead8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1389,7 +1410,7 @@ S3MmioBitFieldWrite8 (
   );
 
 /**
-  Reads a bit field in an 8-bit MMIO register, performs a bitwise OR, 
+  Reads a bit field in an 8-bit MMIO register, performs a bitwise OR,
   writes the result back to the bit field in the 8-bit MMIO register, and saves
   the value in the S3 script to be replayed on S3 resume.
 
@@ -1404,6 +1425,7 @@ S3MmioBitFieldWrite8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1440,6 +1462,7 @@ S3MmioBitFieldOr8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1477,6 +1500,8 @@ S3MmioBitFieldAnd8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1546,7 +1571,7 @@ S3MmioWrite16 (
 
 /**
   Reads a 16-bit MMIO register, performs a bitwise OR, writes the
-  result back to the 16-bit MMIO register, and saves the value in the S3 script 
+  result back to the 16-bit MMIO register, and saves the value in the S3 script
   to be replayed on S3 resume.
 
   Reads the 16-bit MMIO register specified by Address, performs a bitwise
@@ -1572,7 +1597,7 @@ S3MmioOr16 (
 
 /**
   Reads a 16-bit MMIO register, performs a bitwise AND, writes the result
-  back to the 16-bit MMIO register, and saves the value in the S3 script to be 
+  back to the 16-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Reads the 16-bit MMIO register specified by Address, performs a bitwise AND
@@ -1598,7 +1623,7 @@ S3MmioAnd16 (
 
 /**
   Reads a 16-bit MMIO register, performs a bitwise AND followed by a bitwise
-  inclusive OR, writes the result back to the 16-bit MMIO register, and 
+  inclusive OR, writes the result back to the 16-bit MMIO register, and
   saves the value in the S3 script to be replayed on S3 resume.
 
   Reads the 16-bit MMIO register specified by Address, performs a bitwise AND
@@ -1666,6 +1691,7 @@ S3MmioBitFieldRead16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1687,8 +1713,8 @@ S3MmioBitFieldWrite16 (
   );
 
 /**
-  Reads a bit field in a 16-bit MMIO register, performs a bitwise OR, 
-  writes the result back to the bit field in the 16-bit MMIO register, and 
+  Reads a bit field in a 16-bit MMIO register, performs a bitwise OR,
+  writes the result back to the bit field in the 16-bit MMIO register, and
   saves the value in the S3 script to be replayed on S3 resume.
 
   Reads the 16-bit MMIO register specified by Address, performs a bitwise
@@ -1702,6 +1728,7 @@ S3MmioBitFieldWrite16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1724,7 +1751,7 @@ S3MmioBitFieldOr16 (
 
 /**
   Reads a bit field in a 16-bit MMIO register, performs a bitwise AND, and
-  writes the result back to the bit field in the 16-bit MMIO register and 
+  writes the result back to the bit field in the 16-bit MMIO register and
   saves the value in the S3 script to be replayed on S3 resume.
 
   Reads the 16-bit MMIO register specified by Address, performs a bitwise AND
@@ -1738,6 +1765,7 @@ S3MmioBitFieldOr16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1775,6 +1803,8 @@ S3MmioBitFieldAnd16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1798,7 +1828,7 @@ S3MmioBitFieldAndThenOr16 (
   );
 
 /**
-  Reads a 32-bit MMIO register saves the value in the S3 script to be 
+  Reads a 32-bit MMIO register saves the value in the S3 script to be
   replayed on S3 resume.
 
   Reads the 32-bit MMIO register specified by Address. The 32-bit read value is
@@ -1819,7 +1849,7 @@ S3MmioRead32 (
   );
 
 /**
-  Writes a 32-bit MMIO register, and saves the value in the S3 script to be 
+  Writes a 32-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Writes the 32-bit MMIO register specified by Address with the value specified
@@ -1843,7 +1873,7 @@ S3MmioWrite32 (
 
 /**
   Reads a 32-bit MMIO register, performs a bitwise OR, writes the
-  result back to the 32-bit MMIO register, and saves the value in the S3 script 
+  result back to the 32-bit MMIO register, and saves the value in the S3 script
   to be replayed on S3 resume.
 
   Reads the 32-bit MMIO register specified by Address, performs a bitwise
@@ -1869,7 +1899,7 @@ S3MmioOr32 (
 
 /**
   Reads a 32-bit MMIO register, performs a bitwise AND, writes the result
-  back to the 32-bit MMIO register, and saves the value in the S3 script to be 
+  back to the 32-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Reads the 32-bit MMIO register specified by Address, performs a bitwise AND
@@ -1895,7 +1925,7 @@ S3MmioAnd32 (
 
 /**
   Reads a 32-bit MMIO register, performs a bitwise AND followed by a bitwise
-  inclusive OR, writes the result back to the 32-bit MMIO register, and 
+  inclusive OR, writes the result back to the 32-bit MMIO register, and
   saves the value in the S3 script to be replayed on S3 resume.
 
   Reads the 32-bit MMIO register specified by Address, performs a bitwise AND
@@ -1923,7 +1953,7 @@ S3MmioAndThenOr32 (
   );
 
 /**
-  Reads a bit field of a MMIO register, and saves the value in the S3 script 
+  Reads a bit field of a MMIO register, and saves the value in the S3 script
   to be replayed on S3 resume.
 
   Reads the bit field in a 32-bit MMIO register. The bit field is specified by
@@ -1952,7 +1982,7 @@ S3MmioBitFieldRead32 (
   );
 
 /**
-  Writes a bit field to a MMIO register, and saves the value in the S3 script 
+  Writes a bit field to a MMIO register, and saves the value in the S3 script
   to be replayed on S3 resume.
 
   Writes Value to the bit field of the MMIO register. The bit field is
@@ -1963,6 +1993,7 @@ S3MmioBitFieldRead32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -1984,8 +2015,8 @@ S3MmioBitFieldWrite32 (
   );
 
 /**
-  Reads a bit field in a 32-bit MMIO register, performs a bitwise OR, 
-  writes the result back to the bit field in the 32-bit MMIO register, and 
+  Reads a bit field in a 32-bit MMIO register, performs a bitwise OR,
+  writes the result back to the bit field in the 32-bit MMIO register, and
   saves the value in the S3 script to be replayed on S3 resume.
 
   Reads the 32-bit MMIO register specified by Address, performs a bitwise
@@ -1999,6 +2030,7 @@ S3MmioBitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -2021,7 +2053,7 @@ S3MmioBitFieldOr32 (
 
 /**
   Reads a bit field in a 32-bit MMIO register, performs a bitwise AND, and
-  writes the result back to the bit field in the 32-bit MMIO register and 
+  writes the result back to the bit field in the 32-bit MMIO register and
   saves the value in the S3 script to be replayed on S3 resume.
 
   Reads the 32-bit MMIO register specified by Address, performs a bitwise AND
@@ -2035,6 +2067,7 @@ S3MmioBitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -2072,6 +2105,8 @@ S3MmioBitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -2095,7 +2130,7 @@ S3MmioBitFieldAndThenOr32 (
   );
 
 /**
-  Reads a 64-bit MMIO register, and saves the value in the S3 script to be 
+  Reads a 64-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Reads the 64-bit MMIO register specified by Address. The 64-bit read value is
@@ -2116,7 +2151,7 @@ S3MmioRead64 (
   );
 
 /**
-  Writes a 64-bit MMIO register, and saves the value in the S3 script to be 
+  Writes a 64-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Writes the 64-bit MMIO register specified by Address with the value specified
@@ -2140,7 +2175,7 @@ S3MmioWrite64 (
 
 /**
   Reads a 64-bit MMIO register, performs a bitwise OR, writes the
-  result back to the 64-bit MMIO register, and saves the value in the S3 script 
+  result back to the 64-bit MMIO register, and saves the value in the S3 script
   to be replayed on S3 resume.
 
   Reads the 64-bit MMIO register specified by Address, performs a bitwise
@@ -2166,7 +2201,7 @@ S3MmioOr64 (
 
 /**
   Reads a 64-bit MMIO register, performs a bitwise AND, writes the result
-  back to the 64-bit MMIO register, and saves the value in the S3 script to be 
+  back to the 64-bit MMIO register, and saves the value in the S3 script to be
   replayed on S3 resume.
 
   Reads the 64-bit MMIO register specified by Address, performs a bitwise AND
@@ -2192,7 +2227,7 @@ S3MmioAnd64 (
 
 /**
   Reads a 64-bit MMIO register, performs a bitwise AND followed by a bitwise
-  inclusive OR, writes the result back to the 64-bit MMIO register, and 
+  inclusive OR, writes the result back to the 64-bit MMIO register, and
   saves the value in the S3 script to be replayed on S3 resume.
 
   Reads the 64-bit MMIO register specified by Address, performs a bitwise AND
@@ -2260,6 +2295,7 @@ S3MmioBitFieldRead64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -2281,8 +2317,8 @@ S3MmioBitFieldWrite64 (
   );
 
 /**
-  Reads a bit field in a 64-bit MMIO register, performs a bitwise OR, 
-  writes the result back to the bit field in the 64-bit MMIO register, and 
+  Reads a bit field in a 64-bit MMIO register, performs a bitwise OR,
+  writes the result back to the bit field in the 64-bit MMIO register, and
   saves the value in the S3 script to be replayed on S3 resume.
 
   Reads the 64-bit MMIO register specified by Address, performs a bitwise
@@ -2296,6 +2332,7 @@ S3MmioBitFieldWrite64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -2332,6 +2369,7 @@ S3MmioBitFieldOr64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -2369,6 +2407,8 @@ S3MmioBitFieldAnd64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param[in]  Address    The MMIO register to write.
   @param[in]  StartBit   The ordinal of the least significant bit in the bit field.
@@ -2395,11 +2435,11 @@ S3MmioBitFieldAndThenOr64 (
   Copies data from MMIO region to system memory by using 8-bit access,
   and saves the value in the S3 script to be replayed on S3 resume.
 
-  Copy data from MMIO region specified by starting address StartAddress 
-  to system memory specified by Buffer by using 8-bit access. The total 
+  Copy data from MMIO region specified by starting address StartAddress
+  to system memory specified by Buffer by using 8-bit access. The total
   number of bytes to be copied is specified by Length. Buffer is returned.
-  
-  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT(). 
+
+  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT().
   If Length is greater than (MAX_ADDRESS - Buffer + 1), then ASSERT().
 
 
@@ -2422,13 +2462,13 @@ S3MmioReadBuffer8 (
   Copies data from MMIO region to system memory by using 16-bit access,
   and saves the value in the S3 script to be replayed on S3 resume.
 
-  Copy data from MMIO region specified by starting address StartAddress 
-  to system memory specified by Buffer by using 16-bit access. The total 
+  Copy data from MMIO region specified by starting address StartAddress
+  to system memory specified by Buffer by using 16-bit access. The total
   number of bytes to be copied is specified by Length. Buffer is returned.
-  
+
   If StartAddress is not aligned on a 16-bit boundary, then ASSERT().
 
-  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT(). 
+  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT().
   If Length is greater than (MAX_ADDRESS - Buffer + 1), then ASSERT().
 
   If Length is not aligned on a 16-bit boundary, then ASSERT().
@@ -2453,13 +2493,13 @@ S3MmioReadBuffer16 (
   Copies data from MMIO region to system memory by using 32-bit access,
   and saves the value in the S3 script to be replayed on S3 resume.
 
-  Copy data from MMIO region specified by starting address StartAddress 
-  to system memory specified by Buffer by using 32-bit access. The total 
+  Copy data from MMIO region specified by starting address StartAddress
+  to system memory specified by Buffer by using 32-bit access. The total
   number of byte to be copied is specified by Length. Buffer is returned.
-  
+
   If StartAddress is not aligned on a 32-bit boundary, then ASSERT().
 
-  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT(). 
+  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT().
   If Length is greater than (MAX_ADDRESS - Buffer + 1), then ASSERT().
 
   If Length is not aligned on a 32-bit boundary, then ASSERT().
@@ -2484,13 +2524,13 @@ S3MmioReadBuffer32 (
   Copies data from MMIO region to system memory by using 64-bit access,
   and saves the value in the S3 script to be replayed on S3 resume.
 
-  Copy data from MMIO region specified by starting address StartAddress 
-  to system memory specified by Buffer by using 64-bit access. The total 
+  Copy data from MMIO region specified by starting address StartAddress
+  to system memory specified by Buffer by using 64-bit access. The total
   number of byte to be copied is specified by Length. Buffer is returned.
-  
+
   If StartAddress is not aligned on a 64-bit boundary, then ASSERT().
 
-  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT(). 
+  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT().
   If Length is greater than (MAX_ADDRESS - Buffer + 1), then ASSERT().
 
   If Length is not aligned on a 64-bit boundary, then ASSERT().
@@ -2515,11 +2555,11 @@ S3MmioReadBuffer64 (
   Copies data from system memory to MMIO region by using 8-bit access,
   and saves the value in the S3 script to be replayed on S3 resume.
 
-  Copy data from system memory specified by Buffer to MMIO region specified 
-  by starting address StartAddress by using 8-bit access. The total number 
+  Copy data from system memory specified by Buffer to MMIO region specified
+  by starting address StartAddress by using 8-bit access. The total number
   of byte to be copied is specified by Length. Buffer is returned.
-  
-  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT(). 
+
+  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT().
   If Length is greater than (MAX_ADDRESS -Buffer + 1), then ASSERT().
 
 
@@ -2542,13 +2582,13 @@ S3MmioWriteBuffer8 (
   Copies data from system memory to MMIO region by using 16-bit access,
   and saves the value in the S3 script to be replayed on S3 resume.
 
-  Copy data from system memory specified by Buffer to MMIO region specified 
-  by starting address StartAddress by using 16-bit access. The total number 
+  Copy data from system memory specified by Buffer to MMIO region specified
+  by starting address StartAddress by using 16-bit access. The total number
   of bytes to be copied is specified by Length. Buffer is returned.
-  
+
   If StartAddress is not aligned on a 16-bit boundary, then ASSERT().
 
-  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT(). 
+  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT().
   If Length is greater than (MAX_ADDRESS -Buffer + 1), then ASSERT().
 
   If Length is not aligned on a 16-bit boundary, then ASSERT().
@@ -2574,13 +2614,13 @@ S3MmioWriteBuffer16 (
   Copies data from system memory to MMIO region by using 32-bit access,
   and saves the value in the S3 script to be replayed on S3 resume.
 
-  Copy data from system memory specified by Buffer to MMIO region specified 
-  by starting address StartAddress by using 32-bit access. The total number 
+  Copy data from system memory specified by Buffer to MMIO region specified
+  by starting address StartAddress by using 32-bit access. The total number
   of bytes to be copied is specified by Length. Buffer is returned.
-  
+
   If StartAddress is not aligned on a 32-bit boundary, then ASSERT().
 
-  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT(). 
+  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT().
   If Length is greater than (MAX_ADDRESS -Buffer + 1), then ASSERT().
 
   If Length is not aligned on a 32-bit boundary, then ASSERT().
@@ -2603,16 +2643,16 @@ S3MmioWriteBuffer32 (
   );
 
 /**
-  Copies data from system memory to MMIO region by using 64-bit access, 
+  Copies data from system memory to MMIO region by using 64-bit access,
   and saves the value in the S3 script to be replayed on S3 resume.
 
-  Copy data from system memory specified by Buffer to MMIO region specified 
-  by starting address StartAddress by using 64-bit access. The total number 
+  Copy data from system memory specified by Buffer to MMIO region specified
+  by starting address StartAddress by using 64-bit access. The total number
   of bytes to be copied is specified by Length. Buffer is returned.
-  
+
   If StartAddress is not aligned on a 64-bit boundary, then ASSERT().
 
-  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT(). 
+  If Length is greater than (MAX_ADDRESS - StartAddress + 1), then ASSERT().
   If Length is greater than (MAX_ADDRESS -Buffer + 1), then ASSERT().
 
   If Length is not aligned on a 64-bit boundary, then ASSERT().

@@ -242,6 +242,36 @@ protected:
     }
 };
 
+class UIActionSimplePerformDetach : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimplePerformDetach(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/vm_create_shortcut_16px.png", ":/vm_create_shortcut_disabled_16px.png") {}
+
+protected:
+
+    /** Returns action extra-data ID. */
+    virtual int extraDataID() const { return UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach; }
+    /** Returns action extra-data key. */
+    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach); }
+    /** Returns whether action is allowed. */
+    virtual bool isAllowed() const { return actionPool()->toRuntime()->isAllowedInMenuMachine(UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach); }
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("DetachUI");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Detach GUI"));
+        setStatusTip(QApplication::translate("UIActionPool", "Detach the GUI from headless VM"));
+    }
+};
+
 class UIActionSimplePerformSaveState : public UIActionSimple
 {
     Q_OBJECT;
@@ -297,11 +327,11 @@ protected:
 
     QKeySequence defaultShortcut(UIActionPoolType) const
     {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         return QKeySequence("U");
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
         return QKeySequence("H");
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     }
 
     void retranslateUi()
@@ -1063,7 +1093,7 @@ protected:
     }
 };
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 class UIActionSimplePerformTypeCABS : public UIActionSimple
 {
     Q_OBJECT;
@@ -1098,7 +1128,7 @@ protected:
         setStatusTip(QApplication::translate("UIActionPool", "Send the %1 sequence to the virtual machine").arg("Ctrl-Alt-Backspace"));
     }
 };
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
 class UIActionSimplePerformTypeCtrlBreak : public UIActionSimple
 {
@@ -1860,7 +1890,7 @@ protected:
         setName(QApplication::translate("UIActionPool", "Disable Dock Icon Overlay"));
     }
 };
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 UIActionPoolRuntime::UIActionPoolRuntime(bool fTemporary /* = false */)
     : UIActionPool(UIActionPoolType_Runtime, fTemporary)
@@ -2073,6 +2103,7 @@ void UIActionPoolRuntime::preparePool()
     m_pool[UIActionIndexRT_M_Machine_S_ShowInformation] = new UIActionSimpleShowInformationDialog(this);
     m_pool[UIActionIndexRT_M_Machine_T_Pause] = new UIActionTogglePause(this);
     m_pool[UIActionIndexRT_M_Machine_S_Reset] = new UIActionSimplePerformReset(this);
+    m_pool[UIActionIndexRT_M_Machine_S_Detach] = new UIActionSimplePerformDetach(this);
     m_pool[UIActionIndexRT_M_Machine_S_SaveState] = new UIActionSimplePerformSaveState(this);
     m_pool[UIActionIndexRT_M_Machine_S_Shutdown] = new UIActionSimplePerformShutdown(this);
     m_pool[UIActionIndexRT_M_Machine_S_PowerOff] = new UIActionSimplePerformPowerOff(this);
@@ -2108,9 +2139,9 @@ void UIActionPoolRuntime::preparePool()
     m_pool[UIActionIndexRT_M_Input_M_Keyboard] = new UIActionMenuKeyboard(this);
     m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_Settings] = new UIActionSimpleKeyboardSettings(this);
     m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_TypeCAD] = new UIActionSimplePerformTypeCAD(this);
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_TypeCABS] = new UIActionSimplePerformTypeCABS(this);
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
     m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_TypeCtrlBreak] = new UIActionSimplePerformTypeCtrlBreak(this);
     m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_TypeInsert] = new UIActionSimplePerformTypeInsert(this);
     m_pool[UIActionIndexRT_M_Input_M_Mouse] = new UIActionMenuMouse(this);
@@ -2142,14 +2173,14 @@ void UIActionPoolRuntime::preparePool()
     m_pool[UIActionIndexRT_M_Debug_S_ShowLogDialog] = new UIActionSimpleShowLogDialog(this);
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* 'Dock' actions: */
     m_pool[UIActionIndexRT_M_Dock] = new UIActionMenuDock(this);
     m_pool[UIActionIndexRT_M_Dock_M_DockSettings] = new UIActionMenuDockSettings(this);
     m_pool[UIActionIndexRT_M_Dock_M_DockSettings_T_PreviewMonitor] = new UIActionToggleDockPreviewMonitor(this);
     m_pool[UIActionIndexRT_M_Dock_M_DockSettings_T_DisableMonitor] = new UIActionToggleDockDisableMonitor(this);
     m_pool[UIActionIndexRT_M_Dock_M_DockSettings_T_DisableOverlay] = new UIActionToggleDockIconDisableOverlay(this);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Prepare update-handlers for known menus: */
     m_menuUpdateHandlers[UIActionIndexRT_M_Machine].ptfr =                 &UIActionPoolRuntime::updateMenuMachine;
@@ -2204,9 +2235,9 @@ void UIActionPoolRuntime::updateConfiguration()
 #ifdef VBOX_WITH_DEBUGGER_GUI
     m_restrictedActionsMenuDebug[UIActionRestrictionLevel_Base] =       gEDataManager->restrictedRuntimeMenuDebuggerActionTypes(strMachineID);
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     m_restrictedActionsMenuWindow[UIActionRestrictionLevel_Base] =      gEDataManager->restrictedRuntimeMenuWindowActionTypes(strMachineID);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     m_restrictedActionsMenuHelp[UIActionRestrictionLevel_Base] =        gEDataManager->restrictedRuntimeMenuHelpActionTypes(strMachineID);
 
     /* Recache visual state action restrictions: */
@@ -2252,7 +2283,11 @@ void UIActionPoolRuntime::updateConfiguration()
     }
 
     /* Recache extension-pack related action restrictions: */
+#if VBOX_WITH_EXTPACK
     CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+#else
+    CExtPack extPack;
+#endif
     bool fExtensionPackOperationsAllowed = !extPack.isNull() && extPack.GetUsable();
     if (!fExtensionPackOperationsAllowed)
     {
@@ -2371,6 +2406,8 @@ void UIActionPoolRuntime::updateMenuMachine()
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_T_Pause)) || fSeparator;
     /* 'Reset' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_S_Reset)) || fSeparator;
+    /* 'Detach' action: */
+    fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_S_Detach)) || fSeparator;
     /* 'SaveState' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_S_SaveState)) || fSeparator;
     /* 'Shutdown' action: */
@@ -2574,10 +2611,10 @@ void UIActionPoolRuntime::updateMenuViewMenuBar()
 
     /* 'Menu Bar Settings' action: */
     addAction(pMenu, action(UIActionIndexRT_M_View_M_MenuBar_S_Settings));
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /* 'Toggle Menu Bar' action: */
     addAction(pMenu, action(UIActionIndexRT_M_View_M_MenuBar_T_Visibility));
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /* Mark menu as valid: */
     m_invalidations.remove(UIActionIndexRT_M_View_M_MenuBar);
@@ -2822,10 +2859,10 @@ void UIActionPoolRuntime::updateMenuInputKeyboard()
 
     /* 'Type CAD' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCAD)) || fSeparator;
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     /* 'Type CABS' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCABS)) || fSeparator;
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
     /* 'Type Ctrl-Break' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCtrlBreak)) || fSeparator;
     /* 'Type Insert' action: */

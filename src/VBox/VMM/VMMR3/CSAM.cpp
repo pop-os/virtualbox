@@ -15,6 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/** @page pg_csam   CSAM - Code Scanning Analysis Manager
+ *
+ * The CSAM is responsible for scanning and marking guest OS kernel code paths
+ * to making safe raw-mode execution possible.
+ *
+ * It works tightly with the @ref pg_patm "patch manager" to patch code
+ * sequences that we could otherwise not execute in raw-mode.
+ *
+ * @sa @ref grp_csam
+ */
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -1761,11 +1771,16 @@ uint64_t csamR3CalcPageHash(PVM pVM, RTRCPTR pInstr)
     Assert((pInstr & PAGE_OFFSET_MASK) == 0);
 
     rc = PGMPhysSimpleReadGCPtr(pVCpu, &val[0], pInstr, sizeof(val[0]));
-    AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
-    if (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT)
+    if (RT_SUCCESS(rc))
+    { /* likely */ }
+    else
     {
-        Log(("csamR3CalcPageHash: page %RRv not present!!\n", pInstr));
-        return ~0ULL;
+        if (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT || rc == VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS)
+        {
+            Log(("csamR3CalcPageHash: page %RRv not present/invalid!!\n", pInstr));
+            return ~0ULL;
+        }
+        AssertMsgFailed(("rc = %Rrc %RRv\n", rc, pInstr));
     }
 
     rc = PGMPhysSimpleReadGCPtr(pVCpu, &val[1], pInstr+1024, sizeof(val[0]));

@@ -27,6 +27,10 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* TEMPORARY! */
+#if defined(_MSC_VER) && !defined(RT_ARCH_AMD64)
+# pragma optimize("g", off)
+#endif
 
 /* Namespaces: */
 using namespace UIExtraDataDefs;
@@ -45,11 +49,11 @@ protected:
 
     void retranslateUi()
     {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         setName(QApplication::translate("UIActionPool", "&File", "Mac OS X version"));
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
         setName(QApplication::translate("UIActionPool", "&File", "Non Mac OS X version"));
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     }
 };
 
@@ -137,7 +141,7 @@ protected:
     }
 };
 
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
 class UIActionSimpleExtraDataManagerWindow : public UIActionSimple
 {
     Q_OBJECT;
@@ -165,7 +169,7 @@ protected:
         setStatusTip(QApplication::translate("UIActionPool", "Display the Extra Data Manager window"));
     }
 };
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
 class UIActionSimpleExit : public UIActionSimple
 {
@@ -830,10 +834,10 @@ protected:
 
     void retranslateUi()
     {
-#if defined(Q_WS_MAC)
+#if defined(VBOX_WS_MAC)
         setName(QApplication::translate("UIActionPool", "S&how in Finder"));
         setStatusTip(QApplication::translate("UIActionPool", "Show the VirtualBox Machine Definition files in Finder"));
-#elif defined(Q_WS_WIN)
+#elif defined(VBOX_WS_WIN)
         setName(QApplication::translate("UIActionPool", "S&how in Explorer"));
         setStatusTip(QApplication::translate("UIActionPool", "Show the VirtualBox Machine Definition files in Explorer"));
 #else
@@ -861,7 +865,7 @@ protected:
 
     void retranslateUi()
     {
-#if defined(Q_WS_MAC)
+#if defined(VBOX_WS_MAC)
         setName(QApplication::translate("UIActionPool", "Cr&eate Alias on Desktop"));
         setStatusTip(QApplication::translate("UIActionPool", "Create alias files to the VirtualBox Machine Definition files on your desktop"));
 #else
@@ -909,6 +913,29 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Close"));
+    }
+};
+
+class UIActionSimpleDetach : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleDetach(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/vm_create_shortcut_16px.png", ":/vm_create_shortcut_disabled_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("DetachUIVM");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Detach GUI"));
+        setStatusTip(QApplication::translate("UIActionPool", "Detach the GUI from headless VM"));
     }
 };
 
@@ -1009,9 +1036,9 @@ void UIActionPoolSelector::preparePool()
     m_pool[UIActionIndexST_M_File_S_ShowMediumManager] = new UIActionSimpleMediumManagerDialog(this);
     m_pool[UIActionIndexST_M_File_S_ImportAppliance] = new UIActionSimpleImportApplianceWizard(this);
     m_pool[UIActionIndexST_M_File_S_ExportAppliance] = new UIActionSimpleExportApplianceWizard(this);
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     m_pool[UIActionIndexST_M_File_S_ShowExtraDataManager] = new UIActionSimpleExtraDataManagerWindow(this);
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
     m_pool[UIActionIndexST_M_File_S_Close] = new UIActionSimpleExit(this);
 
     /* 'Group' actions: */
@@ -1027,6 +1054,7 @@ void UIActionPoolSelector::preparePool()
     m_pool[UIActionIndexST_M_Group_T_Pause] = new UIActionToggleCommonPauseAndResume(this);
     m_pool[UIActionIndexST_M_Group_S_Reset] = new UIActionSimpleCommonReset(this);
     m_pool[UIActionIndexST_M_Group_M_Close] = new UIActionMenuClose(this);
+    m_pool[UIActionIndexST_M_Group_M_Close_S_Detach] = new UIActionSimpleDetach(this);
     m_pool[UIActionIndexST_M_Group_M_Close_S_SaveState] = new UIActionSimpleSave(this);
     m_pool[UIActionIndexST_M_Group_M_Close_S_Shutdown] = new UIActionSimpleACPIShutdown(this);
     m_pool[UIActionIndexST_M_Group_M_Close_S_PowerOff] = new UIActionSimplePowerOff(this);
@@ -1052,6 +1080,7 @@ void UIActionPoolSelector::preparePool()
     m_pool[UIActionIndexST_M_Machine_T_Pause] = new UIActionToggleCommonPauseAndResume(this);
     m_pool[UIActionIndexST_M_Machine_S_Reset] = new UIActionSimpleCommonReset(this);
     m_pool[UIActionIndexST_M_Machine_M_Close] = new UIActionMenuClose(this);
+    m_pool[UIActionIndexST_M_Machine_M_Close_S_Detach] = new UIActionSimpleDetach(this);
     m_pool[UIActionIndexST_M_Machine_M_Close_S_SaveState] = new UIActionSimpleSave(this);
     m_pool[UIActionIndexST_M_Machine_M_Close_S_Shutdown] = new UIActionSimpleACPIShutdown(this);
     m_pool[UIActionIndexST_M_Machine_M_Close_S_PowerOff] = new UIActionSimplePowerOff(this);

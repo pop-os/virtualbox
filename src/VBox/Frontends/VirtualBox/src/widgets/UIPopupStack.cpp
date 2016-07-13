@@ -186,18 +186,18 @@ void UIPopupStack::prepare()
 {
     /* Configure background: */
     setAutoFillBackground(false);
-#if defined(Q_WS_WIN) || defined (Q_WS_MAC)
+#if defined(VBOX_WS_WIN) || defined (VBOX_WS_MAC)
     /* Using Qt API to enable translucent background for the Win/Mac host.
      * - Under x11 host Qt 4.8.3 has it broken wih KDE 4.9 for now: */
     setAttribute(Qt::WA_TranslucentBackground);
-#endif /* Q_WS_WIN || Q_WS_MAC */
+#endif /* VBOX_WS_WIN || VBOX_WS_MAC */
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Do not hide popup-stack
      * and actually the seamless machine-window too
      * due to Qt bug on window deactivation... */
     setAttribute(Qt::WA_MacAlwaysShowToolWindow);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Prepare content: */
     prepareContent();
@@ -313,11 +313,14 @@ void UIPopupStack::propagateWidth()
 int UIPopupStack::parentMenuBarHeight(QWidget *pParent)
 {
     /* Menu-bar can exist only on QMainWindow sub-class: */
-    if (QMainWindow *pMainWindow = qobject_cast<QMainWindow*>(pParent))
+    if (pParent)
     {
-        /* Search for existing menu-bar child: */
-        if (QMenuBar *pMenuBar = pMainWindow->findChild<QMenuBar*>())
-            return pMenuBar->height();
+        if (QMainWindow *pMainWindow = qobject_cast<QMainWindow*>(pParent))
+        {
+            /* Search for existing menu-bar child: */
+            if (QMenuBar *pMenuBar = pMainWindow->findChild<QMenuBar*>())
+                return pMenuBar->height();
+        }
     }
     /* Zero by default: */
     return 0;
@@ -327,11 +330,14 @@ int UIPopupStack::parentMenuBarHeight(QWidget *pParent)
 int UIPopupStack::parentStatusBarHeight(QWidget *pParent)
 {
     /* Status-bar can exist only on QMainWindow sub-class: */
-    if (QMainWindow *pMainWindow = qobject_cast<QMainWindow*>(pParent))
+    if (pParent)
     {
-        /* Search for existing status-bar child: */
-        if (QStatusBar *pStatusBar = pMainWindow->findChild<QStatusBar*>())
-            return pStatusBar->height();
+        if (QMainWindow *pMainWindow = qobject_cast<QMainWindow*>(pParent))
+        {
+            /* Search for existing status-bar child: */
+            if (QStatusBar *pStatusBar = pMainWindow->findChild<QStatusBar*>())
+                return pStatusBar->height();
+        }
     }
     /* Zero by default: */
     return 0;

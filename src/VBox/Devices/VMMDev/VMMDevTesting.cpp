@@ -53,39 +53,69 @@ PDMBOTHCBDECL(int) vmmdevTestingMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGC
 {
     switch (GCPhysAddr)
     {
+        case VMMDEV_TESTING_MMIO_NOP_R3:
+#ifndef IN_RING3
+            return VINF_IOM_R3_MMIO_WRITE;
+#endif
         case VMMDEV_TESTING_MMIO_NOP:
-            switch (cb)
-            {
-                case 8:
-                case 4:
-                case 2:
-                case 1:
-                    break;
-                default:
-                    AssertFailed();
-                    return VERR_INTERNAL_ERROR_5;
-            }
             return VINF_SUCCESS;
 
-        case VMMDEV_TESTING_MMIO_NOP_R3:
-            switch (cb)
-            {
-                case 8:
-                case 4:
-                case 2:
-                case 1:
-#ifndef IN_RING3
-                    return VINF_IOM_R3_MMIO_READ_WRITE;
-#else
-                    return VINF_SUCCESS;
-#endif
-                default:
-                    AssertFailed();
-                    return VERR_INTERNAL_ERROR_5;
-            }
-
         default:
+        {
+            /*
+             * Readback register (64 bytes wide).
+             */
+            uint32_t off = GCPhysAddr - VMMDEV_TESTING_MMIO_BASE;
+            if (   (   off      >= VMMDEV_TESTING_MMIO_OFF_READBACK
+                    && off + cb <= VMMDEV_TESTING_MMIO_OFF_READBACK + VMMDEV_TESTING_READBACK_SIZE)
+#ifndef IN_RING3
+                || (   off      >= VMMDEV_TESTING_MMIO_OFF_READBACK_R3
+                    && off + cb <= VMMDEV_TESTING_MMIO_OFF_READBACK_R3 + VMMDEV_TESTING_READBACK_SIZE)
+#endif
+                    )
+            {
+                VMMDevState *pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
+                off &= VMMDEV_TESTING_READBACK_SIZE - 1;
+                switch (cb)
+                {
+                    case 8: *(uint64_t *)&pThis->TestingData.abReadBack[off] = *(uint64_t const *)pv; break;
+                    case 4: *(uint32_t *)&pThis->TestingData.abReadBack[off] = *(uint32_t const *)pv; break;
+                    case 2: *(uint16_t *)&pThis->TestingData.abReadBack[off] = *(uint16_t const *)pv; break;
+                    case 1: *(uint8_t  *)&pThis->TestingData.abReadBack[off] = *(uint8_t  const *)pv; break;
+                    default: memcpy(&pThis->TestingData.abReadBack[off], pv, cb); break;
+                }
+                return VINF_SUCCESS;
+            }
+#ifndef IN_RING3
+            if (   off      >= VMMDEV_TESTING_MMIO_OFF_READBACK_R3
+                && off + cb <= VMMDEV_TESTING_MMIO_OFF_READBACK_R3 + 64)
+                return VINF_IOM_R3_MMIO_WRITE;
+#endif
+
             break;
+        }
+
+        /*
+         * Odd NOP accesses.
+         */
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 1:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 2:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 3:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 4:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 5:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 6:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 7:
+#ifndef IN_RING3
+            return VINF_IOM_R3_MMIO_WRITE;
+#endif
+        case VMMDEV_TESTING_MMIO_NOP    + 1:
+        case VMMDEV_TESTING_MMIO_NOP    + 2:
+        case VMMDEV_TESTING_MMIO_NOP    + 3:
+        case VMMDEV_TESTING_MMIO_NOP    + 4:
+        case VMMDEV_TESTING_MMIO_NOP    + 5:
+        case VMMDEV_TESTING_MMIO_NOP    + 6:
+        case VMMDEV_TESTING_MMIO_NOP    + 7:
+            return VINF_SUCCESS;
     }
     return VINF_SUCCESS;
 }
@@ -100,14 +130,7 @@ PDMBOTHCBDECL(int) vmmdevTestingMmioRead(PPDMDEVINS pDevIns, void *pvUser, RTGCP
     {
         case VMMDEV_TESTING_MMIO_NOP_R3:
 #ifndef IN_RING3
-            switch (cb)
-            {
-                case 8:
-                case 4:
-                case 2:
-                case 1:
-                    return VINF_IOM_R3_MMIO_READ;
-            }
+            return VINF_IOM_R3_MMIO_READ;
 #endif
             /* fall thru. */
         case VMMDEV_TESTING_MMIO_NOP:
@@ -131,8 +154,78 @@ PDMBOTHCBDECL(int) vmmdevTestingMmioRead(PPDMDEVINS pDevIns, void *pvUser, RTGCP
             }
             return VINF_SUCCESS;
 
+
         default:
+        {
+            /*
+             * Readback register (64 bytes wide).
+             */
+            uint32_t off = GCPhysAddr - VMMDEV_TESTING_MMIO_BASE;
+            if (   (   off      >= VMMDEV_TESTING_MMIO_OFF_READBACK
+                    && off + cb <= VMMDEV_TESTING_MMIO_OFF_READBACK + 64)
+#ifndef IN_RING3
+                || (   off      >= VMMDEV_TESTING_MMIO_OFF_READBACK_R3
+                    && off + cb <= VMMDEV_TESTING_MMIO_OFF_READBACK_R3 + 64)
+#endif
+                    )
+            {
+                VMMDevState *pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
+                off &= 0x3f;
+                switch (cb)
+                {
+                    case 8: *(uint64_t *)pv = *(uint64_t const *)&pThis->TestingData.abReadBack[off]; break;
+                    case 4: *(uint32_t *)pv = *(uint32_t const *)&pThis->TestingData.abReadBack[off]; break;
+                    case 2: *(uint16_t *)pv = *(uint16_t const *)&pThis->TestingData.abReadBack[off]; break;
+                    case 1: *(uint8_t  *)pv = *(uint8_t  const *)&pThis->TestingData.abReadBack[off]; break;
+                    default: memcpy(pv, &pThis->TestingData.abReadBack[off], cb); break;
+                }
+                return VINF_SUCCESS;
+            }
+#ifndef IN_RING3
+            if (   off      >= VMMDEV_TESTING_MMIO_OFF_READBACK_R3
+                && off + cb <= VMMDEV_TESTING_MMIO_OFF_READBACK_R3 + 64)
+                return VINF_IOM_R3_MMIO_READ;
+#endif
             break;
+        }
+
+        /*
+         * Odd NOP accesses (for 16-bit code mainly).
+         */
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 1:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 2:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 3:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 4:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 5:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 6:
+        case VMMDEV_TESTING_MMIO_NOP_R3 + 7:
+#ifndef IN_RING3
+            return VINF_IOM_R3_MMIO_READ;
+#endif
+        case VMMDEV_TESTING_MMIO_NOP    + 1:
+        case VMMDEV_TESTING_MMIO_NOP    + 2:
+        case VMMDEV_TESTING_MMIO_NOP    + 3:
+        case VMMDEV_TESTING_MMIO_NOP    + 4:
+        case VMMDEV_TESTING_MMIO_NOP    + 5:
+        case VMMDEV_TESTING_MMIO_NOP    + 6:
+        case VMMDEV_TESTING_MMIO_NOP    + 7:
+        {
+            static uint8_t const s_abNopValue[8] =
+            {
+                 VMMDEV_TESTING_NOP_RET        & 0xff,
+                (VMMDEV_TESTING_NOP_RET >>  8) & 0xff,
+                (VMMDEV_TESTING_NOP_RET >> 16) & 0xff,
+                (VMMDEV_TESTING_NOP_RET >> 24) & 0xff,
+                VMMDEV_TESTING_NOP_RET        & 0xff,
+                (VMMDEV_TESTING_NOP_RET >>  8) & 0xff,
+                (VMMDEV_TESTING_NOP_RET >> 16) & 0xff,
+                (VMMDEV_TESTING_NOP_RET >> 24) & 0xff,
+            };
+
+            memset(pv, 0xff, cb);
+            memcpy(pv, &s_abNopValue[GCPhysAddr & 7], RT_MIN(8 - (GCPhysAddr & 7), cb));
+            return VINF_SUCCESS;
+        }
     }
 
     return VINF_IOM_MMIO_UNUSED_FF;
@@ -239,9 +332,15 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
             break;
 
         /*
-         * The command port (DWORD write only).
+         * The command port (DWORD and WORD write only).
+         * (We have to allow WORD writes for 286, 186 and 8086 execution modes.)
          */
         case VMMDEV_TESTING_IOPORT_CMD:
+            if (cb == 2)
+            {
+                u32 |= VMMDEV_TESTING_CMD_MAGIC_HI_WORD;
+                cb = 4;
+            }
             if (cb == 4)
             {
                 pThis->u32TestingCmd  = u32;
@@ -264,6 +363,7 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                 case VMMDEV_TESTING_CMD_SUB_NEW:
                 case VMMDEV_TESTING_CMD_FAILED:
                 case VMMDEV_TESTING_CMD_SKIPPED:
+                case VMMDEV_TESTING_CMD_PRINT:
                     if (   off < sizeof(pThis->TestingData.String.sz) - 1
                         && cb == 1)
                     {
@@ -306,6 +406,11 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                                     }
                                     VMMDEV_TESTING_OUTPUT(("testing: SKIPPED '%s'\n", pThis->TestingData.String.sz));
                                     break;
+                                case VMMDEV_TESTING_CMD_PRINT:
+                                    if (pThis->hTestingTest != NIL_RTTEST && off)
+                                        RTTestPrintf(pThis->hTestingTest, RTTESTLVL_ALWAYS, "%s", pThis->TestingData.String.sz);
+                                    VMMDEV_TESTING_OUTPUT(("testing: '%s'\n", pThis->TestingData.String.sz));
+                                    break;
                             }
 #else
                             return VINF_IOM_R3_IOPORT_WRITE;
@@ -317,6 +422,25 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 
                 case VMMDEV_TESTING_CMD_TERM:
                 case VMMDEV_TESTING_CMD_SUB_DONE:
+                    if (cb == 2)
+                    {
+                        if (off == 0)
+                        {
+                            pThis->TestingData.Error.c = u32;
+                            pThis->offTestingData = 2;
+                            break;
+                        }
+                        if (off == 2)
+                        {
+                            u32 <<= 16;
+                            u32  |= pThis->TestingData.Error.c & UINT16_MAX;
+                            cb    = 4;
+                            off   = 0;
+                        }
+                        else
+                            break;
+                    }
+
                     if (   off == 0
                         && cb  == 4)
                     {
@@ -365,6 +489,26 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                         pThis->offTestingData = off + 4;
                         return VINF_SUCCESS;
                     }
+                    if (cb == 2)
+                    {
+                        if (off == 0)
+                            pThis->TestingData.Value.u64Value.Words.w0 = (uint16_t)u32;
+                        else if (off == 2)
+                            pThis->TestingData.Value.u64Value.Words.w1 = (uint16_t)u32;
+                        else if (off == 4)
+                            pThis->TestingData.Value.u64Value.Words.w2 = (uint16_t)u32;
+                        else if (off == 6)
+                            pThis->TestingData.Value.u64Value.Words.w3 = (uint16_t)u32;
+                        else if (off == 8)
+                            pThis->TestingData.Value.u32Unit = (uint16_t)u32;
+                        else if (off == 10)
+                            pThis->TestingData.Value.u32Unit = u32 << 16;
+                        else
+                            break;
+                        pThis->offTestingData = off + 2;
+                        return VINF_SUCCESS;
+                    }
+
                     if (   off >= 12
                         && cb  == 1
                         && off - 12 < sizeof(pThis->TestingData.Value.szName) - 1)
@@ -404,7 +548,7 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 
 
                 /*
-                 * RTTestValue with the return from DBGFR3RegNmQuery.
+                 * RTTestValue with the output from DBGFR3RegNmQuery.
                  */
                 case VMMDEV_TESTING_CMD_VALUE_REG:
                 {
@@ -423,7 +567,6 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                         return VINF_SUCCESS;
                     }
                     break;
-
                 }
 
                 default:

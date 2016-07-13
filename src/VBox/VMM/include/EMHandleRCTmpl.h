@@ -231,6 +231,35 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             rc = emR3ExecuteInstruction(pVM, pVCpu, "MSR");
             break;
 
+        /*
+         * GIM hypercall.
+         */
+        case VINF_GIM_R3_HYPERCALL:
+        {
+            /** @todo IEM/REM need to handle VMCALL/VMMCALL, see
+             *        @bugref{7270#c168}. */
+            uint8_t cbInstr = 0;
+            VBOXSTRICTRC rcStrict = GIMExecHypercallInstr(pVCpu, pCtx, &cbInstr);
+            if (rcStrict == VINF_SUCCESS)
+            {
+                Assert(cbInstr);
+                pCtx->rip += cbInstr;
+                /* Update interrupt inhibition. */
+                if (   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
+                    && pCtx->rip != EMGetInhibitInterruptsPC(pVCpu))
+                    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+                rc = VINF_SUCCESS;
+            }
+            else if (rcStrict == VINF_GIM_HYPERCALL_CONTINUING)
+                rc = VINF_SUCCESS;
+            else
+            {
+                Assert(rcStrict != VINF_GIM_R3_HYPERCALL);
+                rc = VBOXSTRICTRC_VAL(rcStrict);
+            }
+            break;
+        }
+
 #ifdef EMHANDLERC_WITH_HM
         /*
          * (MM)IO intensive code block detected; fall back to the recompiler for better performance
@@ -333,6 +362,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VINF_EM_DBG_HYPER_STEPPED:
         case VINF_EM_DBG_HYPER_ASSERTION:
         case VINF_EM_DBG_STOP:
+        case VINF_EM_DBG_EVENT:
             break;
 
         /*
@@ -374,6 +404,16 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VERR_SVM_UNABLE_TO_START_VM:
             break;
 #endif
+
+        /*
+         * These two should be handled via the force flag already, but just in
+         * case they end up here deal with it.
+         */
+        case VINF_IOM_R3_IOPORT_COMMIT_WRITE:
+        case VINF_IOM_R3_MMIO_COMMIT_WRITE:
+            AssertFailed();
+            rc = VBOXSTRICTRC_TODO(IOMR3ProcessForceFlag(pVM, pVCpu, rc));
+            break;
 
         /*
          * Anything which is not known to us means an internal error

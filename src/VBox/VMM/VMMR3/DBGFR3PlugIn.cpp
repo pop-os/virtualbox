@@ -226,7 +226,7 @@ static int dbgfR3PlugInTryLoad(PDBGFPLUGIN pPlugIn, const char *pszModule, PRTER
         rc = RTLdrGetSymbol(pPlugIn->hLdrMod, DBGF_PLUG_IN_ENTRYPOINT, (void **)&pPlugIn->pfnEntry);
         if (RT_SUCCESS(rc))
         {
-            LogRel(("DBGF: Loaded Plug-In '%s' (%s).\n", pPlugIn->szName, pszModule));
+            LogRel(("DBGF: Loaded Plug-In '%s' (%s)\n", pPlugIn->szName, pszModule));
             return VINF_SUCCESS;
         }
 
@@ -543,6 +543,7 @@ VMMR3DECL(int) DBGFR3PlugInUnload(PUVM pUVM, const char *pszName)
         pPlugIn->pfnEntry = NULL;
         pPlugIn->hLdrMod  = NIL_RTLDRMOD;
         MMR3HeapFree(pPlugIn->pNext);
+        rc = VINF_SUCCESS;
     }
     else
         rc = VERR_NOT_FOUND;

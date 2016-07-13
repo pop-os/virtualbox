@@ -51,11 +51,11 @@ static bool vboxUsbRtCtxSetOwner(PVBOXUSBDEV_EXT pDevExt, PFILE_OBJECT pFObj)
     bool bRc = ASMAtomicCmpXchgPtr(&pDevExt->Rt.pOwner, pFObj, NULL);
     if (bRc)
     {
-        Log((__FUNCTION__": pDevExt (0x%x) Owner(0x%x) acquired\n", pFObj));
+        LogFunc(("pDevExt (0x%x) Owner(0x%x) acquired\n", pFObj));
     }
     else
     {
-        Log((__FUNCTION__": pDevExt (0x%x) Owner(0x%x) FAILED!!\n", pFObj));
+        LogFunc(("pDevExt (0x%x) Owner(0x%x) FAILED!!\n", pFObj));
     }
     return bRc;
 }
@@ -65,11 +65,11 @@ static bool vboxUsbRtCtxReleaseOwner(PVBOXUSBDEV_EXT pDevExt, PFILE_OBJECT pFObj
     bool bRc = ASMAtomicCmpXchgPtr(&pDevExt->Rt.pOwner, NULL, pFObj);
     if (bRc)
     {
-        Log((__FUNCTION__": pDevExt (0x%x) Owner(0x%x) released\n", pFObj));
+        LogFunc(("pDevExt (0x%x) Owner(0x%x) released\n", pFObj));
     }
     else
     {
-        Log((__FUNCTION__": pDevExt (0x%x) Owner(0x%x) release: is NOT an owner\n", pFObj));
+        LogFunc(("pDevExt (0x%x) Owner(0x%x) release: is NOT an owner\n", pFObj));
     }
     return bRc;
 }
@@ -238,7 +238,7 @@ static void vboxUsbRtFreeInterfaces(PVBOXUSBDEV_EXT pDevExt, BOOLEAN fAbortPipes
             {
                 if (fAbortPipes)
                 {
-                    for(j=0; j<pDevExt->Rt.pVBIfaceInfo[i].pInterfaceInfo->NumberOfPipes; j++)
+                    for (j=0; j<pDevExt->Rt.pVBIfaceInfo[i].pInterfaceInfo->NumberOfPipes; j++)
                     {
                         Log(("Aborting Pipe %d handle %x address %x\n", j,
                                  pDevExt->Rt.pVBIfaceInfo[i].pInterfaceInfo->Pipes[j].PipeHandle,
@@ -562,7 +562,7 @@ static NTSTATUS vboxUsbRtSetConfig(PVBOXUSBDEV_EXT pDevExt, uint8_t uConfigurati
     if (!uConfiguration)
     {
         pUrb = VBoxUsbToolUrbAllocZ(URB_FUNCTION_SELECT_CONFIGURATION, sizeof (struct _URB_SELECT_CONFIGURATION));
-        if(!pUrb)
+        if (!pUrb)
         {
             AssertMsgFailed((__FUNCTION__": VBoxUsbToolUrbAlloc failed\n"));
             return STATUS_INSUFFICIENT_RESOURCES;
@@ -573,7 +573,7 @@ static NTSTATUS vboxUsbRtSetConfig(PVBOXUSBDEV_EXT pDevExt, uint8_t uConfigurati
         pUrb->UrbSelectConfiguration.ConfigurationDescriptor = NULL;
 
         Status = VBoxUsbToolUrbPost(pDevExt->pLowerDO, pUrb, RT_INDEFINITE_WAIT);
-        if(NT_SUCCESS(Status) && USBD_SUCCESS(pUrb->UrbHeader.Status))
+        if (NT_SUCCESS(Status) && USBD_SUCCESS(pUrb->UrbHeader.Status))
         {
             pDevExt->Rt.hConfiguration = pUrb->UrbSelectConfiguration.ConfigurationHandle;
             pDevExt->Rt.uConfigValue = uConfiguration;
@@ -768,81 +768,88 @@ static NTSTATUS vboxUsbRtSetInterface(PVBOXUSBDEV_EXT pDevExt, uint32_t Interfac
     USHORT uUrbSize = GET_SELECT_INTERFACE_REQUEST_SIZE(pIfDr->bNumEndpoints);
     ULONG uTotalIfaceInfoLength = GET_USBD_INTERFACE_SIZE(pIfDr->bNumEndpoints);
     NTSTATUS Status = STATUS_SUCCESS;
-    PURB pUrb = VBoxUsbToolUrbAllocZ(0, uUrbSize);
-    if (!pUrb)
-    {
-        AssertMsgFailed((__FUNCTION__": VBoxUsbToolUrbAlloc failed\n"));
-        return STATUS_NO_MEMORY;
-    }
+    PURB pUrb;
+    PUSBD_INTERFACE_INFORMATION pNewIFInfo;
+    VBOXUSB_PIPE_INFO *pNewPipeInfo;
 
-    /*
-     * Free old interface and pipe info, allocate new again
-     */
     if (pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo)
     {
         /* Clear pipes associated with the interface, else Windows may hang. */
-        for(ULONG i = 0; i < pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo->NumberOfPipes; i++)
-        {
+        for (ULONG i = 0; i < pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo->NumberOfPipes; i++)
             VBoxUsbToolPipeClear(pDevExt->pLowerDO, pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo->Pipes[i].PipeHandle, FALSE);
+    }
+
+    do {
+        /* First allocate all the structures we'll need. */
+        pUrb = VBoxUsbToolUrbAllocZ(0, uUrbSize);
+        if (!pUrb)
+        {
+            AssertMsgFailed((__FUNCTION__": VBoxUsbToolUrbAllocZ failed\n"));
+            Status = STATUS_NO_MEMORY;
+            break;
         }
-        vboxUsbMemFree(pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo);
-    }
 
-    if (pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo)
-    {
-        vboxUsbMemFree(pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo);
-    }
+        pNewIFInfo = (PUSBD_INTERFACE_INFORMATION)vboxUsbMemAlloc(uTotalIfaceInfoLength);
+        if (!pNewIFInfo)
+        {
+            AssertMsgFailed((__FUNCTION__": Failed allocating interface storage\n"));
+            Status = STATUS_NO_MEMORY;
+            break;
+        }
 
-    pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo = (PUSBD_INTERFACE_INFORMATION)vboxUsbMemAlloc(uTotalIfaceInfoLength);
-    if (pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo)
-    {
         if (pIfDr->bNumEndpoints > 0)
         {
-            pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo = (VBOXUSB_PIPE_INFO*)vboxUsbMemAlloc(pIfDr->bNumEndpoints * sizeof(VBOXUSB_PIPE_INFO));
-            if (!pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo)
+            pNewPipeInfo = (VBOXUSB_PIPE_INFO *)vboxUsbMemAlloc(pIfDr->bNumEndpoints * sizeof(VBOXUSB_PIPE_INFO));
+            if (!pNewPipeInfo)
             {
-                AssertMsgFailed(("VBoxUSBSetInterface: ExAllocatePool failed!\n"));
+                AssertMsgFailed((__FUNCTION__": Failed allocating pipe info storage\n"));
                 Status = STATUS_NO_MEMORY;
+                break;
+            }
+        }
+        else
+            pNewPipeInfo = NULL;
+
+        /* Now that we have all the bits, select the interface. */
+        UsbBuildSelectInterfaceRequest(pUrb, uUrbSize, pDevExt->Rt.hConfiguration, InterfaceNumber, AlternateSetting);
+        pUrb->UrbSelectInterface.Interface.Length = GET_USBD_INTERFACE_SIZE(pIfDr->bNumEndpoints);
+
+        Status = VBoxUsbToolUrbPost(pDevExt->pLowerDO, pUrb, RT_INDEFINITE_WAIT);
+        if (NT_SUCCESS(Status) && USBD_SUCCESS(pUrb->UrbHeader.Status))
+        {
+            /* Free the old memory and put new in. */
+            if (pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo)
+                vboxUsbMemFree(pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo);
+            pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo = pNewIFInfo;
+            if (pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo)
+                vboxUsbMemFree(pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo);
+            pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo = pNewPipeInfo;
+            pNewPipeInfo = NULL; pNewIFInfo = NULL; /* Don't try to free it again. */
+
+            USBD_INTERFACE_INFORMATION *pIfInfo = &pUrb->UrbSelectInterface.Interface;
+            memcpy(pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo, pIfInfo, GET_USBD_INTERFACE_SIZE(pIfDr->bNumEndpoints));
+
+            Assert(pIfInfo->NumberOfPipes == pIfDr->bNumEndpoints);
+            for (ULONG i = 0; i < pIfInfo->NumberOfPipes; i++)
+            {
+                pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo[i].EndpointAddress = pIfInfo->Pipes[i].EndpointAddress;
+                pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo[i].NextScheduledFrame = 0;
             }
         }
         else
         {
-            pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo = NULL;
+            AssertMsgFailed((__FUNCTION__": VBoxUsbToolUrbPost failed Status (0x%x) usb Status (0x%x)\n", Status, pUrb->UrbHeader.Status));
         }
+    } while (0);
 
-        if (NT_SUCCESS(Status))
-        {
-            UsbBuildSelectInterfaceRequest(pUrb, uUrbSize, pDevExt->Rt.hConfiguration, InterfaceNumber, AlternateSetting);
-            pUrb->UrbSelectInterface.Interface.Length = GET_USBD_INTERFACE_SIZE(pIfDr->bNumEndpoints);
-
-            Status = VBoxUsbToolUrbPost(pDevExt->pLowerDO, pUrb, RT_INDEFINITE_WAIT);
-            if (NT_SUCCESS(Status) && USBD_SUCCESS(pUrb->UrbHeader.Status))
-            {
-                USBD_INTERFACE_INFORMATION *pIfInfo = &pUrb->UrbSelectInterface.Interface;
-                memcpy(pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo, pIfInfo, GET_USBD_INTERFACE_SIZE(pIfDr->bNumEndpoints));
-
-                Assert(pIfInfo->NumberOfPipes == pIfDr->bNumEndpoints);
-                for(ULONG i = 0; i < pIfInfo->NumberOfPipes; i++)
-                {
-                    pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo[i].EndpointAddress = pIfInfo->Pipes[i].EndpointAddress;
-                    pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pPipeInfo[i].NextScheduledFrame = 0;
-                }
-            }
-            else
-            {
-                AssertMsgFailed((__FUNCTION__": VBoxUsbToolUrbPost failed Status (0x%x) usb Status (0x%x)\n", Status, pUrb->UrbHeader.Status));
-            }
-        }
-
-    }
-    else
-    {
-        AssertMsgFailed(("VBoxUSBSetInterface: ExAllocatePool failed!\n"));
-        Status = STATUS_NO_MEMORY;
-    }
-
-    VBoxUsbToolUrbFree(pUrb);
-
+    /* Clean up. */
+    if (pUrb) 
+        VBoxUsbToolUrbFree(pUrb);
+    if (pNewIFInfo)
+        vboxUsbMemFree(pNewIFInfo);
+    if (pNewPipeInfo)
+        vboxUsbMemFree(pNewPipeInfo);
+    
     return Status;
 }
 
@@ -889,6 +896,11 @@ static NTSTATUS vboxUsbRtDispatchUsbSelectInterface(PVBOXUSBDEV_EXT pDevExt, PIR
 
 static HANDLE vboxUsbRtGetPipeHandle(PVBOXUSBDEV_EXT pDevExt, uint32_t EndPointAddress)
 {
+    if (EndPointAddress == 0)
+    {
+        return pDevExt->Rt.hPipe0;
+    }
+
     for (ULONG i = 0; i < pDevExt->Rt.uNumInterfaces; i++)
     {
         for (ULONG j = 0; j < pDevExt->Rt.pVBIfaceInfo[i].pInterfaceInfo->NumberOfPipes; j++)
@@ -1068,17 +1080,25 @@ static NTSTATUS vboxUsbRtUrbSendCompletion(PDEVICE_OBJECT pDevObj, IRP *pIrp, vo
 
         switch(pContext->ulTransferType)
         {
-            case USBSUP_TRANSFER_TYPE_CTRL:
             case USBSUP_TRANSFER_TYPE_MSG:
                 pUrbInfo->len = pUrb->UrbControlTransfer.TransferBufferLength;
-                if (pContext->ulTransferType == USBSUP_TRANSFER_TYPE_MSG)
+                /* QUSB_TRANSFER_TYPE_MSG is a control transfer, but it is special
+                 * the first 8 bytes of the buffer is the setup packet so the real
+                 * data length is therefore urb->len - 8
+                 */
+                pUrbInfo->len += sizeof (pUrb->UrbControlTransfer.SetupPacket);
+
+                /* If a control URB was successfully completed on the default control
+                 * pipe, stash away the handle. When submitting the URB, we don't need 
+                 * to know (and initially don't have) the handle. If we want to abort 
+                 * the default control pipe, we *have* to have a handle. This is how we 
+                 * find out what the handle is. 
+                 */
+                if (!pUrbInfo->ep && (pDevExt->Rt.hPipe0 == NULL))
                 {
-                    /* QUSB_TRANSFER_TYPE_MSG is a control transfer, but it is special
-                     * the first 8 bytes of the buffer is the setup packet so the real
-                     * data length is therefore urb->len - 8
-                     */
-                    pUrbInfo->len += sizeof (pUrb->UrbControlTransfer.SetupPacket);
+                    pDevExt->Rt.hPipe0 = pUrb->UrbControlTransfer.PipeHandle;
                 }
+
                 break;
             case USBSUP_TRANSFER_TYPE_ISOC:
                 pUrbInfo->len = pUrb->UrbIsochronousTransfer.TransferBufferLength;
@@ -1106,13 +1126,12 @@ static NTSTATUS vboxUsbRtUrbSendCompletion(PDEVICE_OBJECT pDevObj, IRP *pIrp, vo
     {
         pUrbInfo->len = 0;
 
-        Log((__FUNCTION__": URB failed Status (0x%x) urb Status (0x%x)\n", Status, pUrb->UrbHeader.Status));
+        LogFunc(("URB failed Status (0x%x) urb Status (0x%x)\n", Status, pUrb->UrbHeader.Status));
 #ifdef DEBUG
         switch(pContext->ulTransferType)
         {
-            case USBSUP_TRANSFER_TYPE_CTRL:
             case USBSUP_TRANSFER_TYPE_MSG:
-                LogRel(("Ctrl/Msg length=%d\n", pUrb->UrbControlTransfer.TransferBufferLength));
+                LogRel(("Msg (CTRL) length=%d\n", pUrb->UrbControlTransfer.TransferBufferLength));
                 break;
             case USBSUP_TRANSFER_TYPE_ISOC:
                 LogRel(("ISOC length=%d\n", pUrb->UrbIsochronousTransfer.TransferBufferLength));
@@ -1264,7 +1283,6 @@ static NTSTATUS vboxUsbRtUrbSend(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp, PUSBSUP_URB
 
         switch (pUrbInfo->type)
         {
-            case USBSUP_TRANSFER_TYPE_CTRL:
             case USBSUP_TRANSFER_TYPE_MSG:
             {
                 pUrb->UrbHeader.Function = URB_FUNCTION_CONTROL_TRANSFER;
@@ -1277,29 +1295,21 @@ static NTSTATUS vboxUsbRtUrbSend(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp, PUSBSUP_URB
                 if (!hPipe)
                     pUrb->UrbControlTransfer.TransferFlags |= USBD_DEFAULT_PIPE_TRANSFER;
 
-                if (pUrbInfo->type == USBSUP_TRANSFER_TYPE_MSG)
-                {
-                   /* QUSB_TRANSFER_TYPE_MSG is a control transfer, but it is special
-                    * the first 8 bytes of the buffer is the setup packet so the real
-                    * data length is therefore pUrb->len - 8
-                    */
-                    PVBOXUSB_SETUP pSetup = (PVBOXUSB_SETUP)pUrb->UrbControlTransfer.SetupPacket;
-                    memcpy(pUrb->UrbControlTransfer.SetupPacket, pBuffer, min(sizeof (pUrb->UrbControlTransfer.SetupPacket), pUrbInfo->len));
+                /* QUSB_TRANSFER_TYPE_MSG is a control transfer, but it is special
+                 * the first 8 bytes of the buffer is the setup packet so the real
+                 * data length is therefore pUrb->len - 8
+                 */
+                PVBOXUSB_SETUP pSetup = (PVBOXUSB_SETUP)pUrb->UrbControlTransfer.SetupPacket;
+                memcpy(pUrb->UrbControlTransfer.SetupPacket, pBuffer, min(sizeof (pUrb->UrbControlTransfer.SetupPacket), pUrbInfo->len));
 
-                    if (pUrb->UrbControlTransfer.TransferBufferLength <= sizeof (pUrb->UrbControlTransfer.SetupPacket))
-                        pUrb->UrbControlTransfer.TransferBufferLength = 0;
-                    else
-                        pUrb->UrbControlTransfer.TransferBufferLength -= sizeof (pUrb->UrbControlTransfer.SetupPacket);
-
-                    pUrb->UrbControlTransfer.TransferBuffer = (uint8_t *)pBuffer + sizeof(pUrb->UrbControlTransfer.SetupPacket);
-                    pUrb->UrbControlTransfer.TransferBufferMDL = 0;
-                    pUrb->UrbControlTransfer.TransferFlags |= USBD_SHORT_TRANSFER_OK;
-                }
+                if (pUrb->UrbControlTransfer.TransferBufferLength <= sizeof (pUrb->UrbControlTransfer.SetupPacket))
+                    pUrb->UrbControlTransfer.TransferBufferLength = 0;
                 else
-                {
-                    pUrb->UrbControlTransfer.TransferBuffer = 0;
-                    pUrb->UrbControlTransfer.TransferBufferMDL = pMdlBuf;
-                }
+                    pUrb->UrbControlTransfer.TransferBufferLength -= sizeof (pUrb->UrbControlTransfer.SetupPacket);
+
+                pUrb->UrbControlTransfer.TransferBuffer = (uint8_t *)pBuffer + sizeof(pUrb->UrbControlTransfer.SetupPacket);
+                pUrb->UrbControlTransfer.TransferBufferMDL = 0;
+                pUrb->UrbControlTransfer.TransferFlags |= USBD_SHORT_TRANSFER_OK;
                 break;
             }
             case USBSUP_TRANSFER_TYPE_ISOC:

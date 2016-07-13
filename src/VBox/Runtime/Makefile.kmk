@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -122,6 +122,8 @@ OTHER_CLEAN += \
 	$(IPRT_OUT_DIR)/errmsgcomdata.h \
 	$(IPRT_OUT_DIR)/errmsgvboxcomdata.h \
 	$(IPRT_OUT_DIR)/errmsgvboxcomdata.h.ts \
+	$(IPRT_OUT_DIR)/odi2name.h \
+	$(IPRT_OUT_DIR)/odi2name.h.ts \
 	$(IPRT_OUT_DIR)/Doxyfile.iprt \
 	$(IPRT_OUT_DIR)/Doxyfile.iprt.dep \
 	$(IPRT_OUT_DIR)/docs.iprt
@@ -147,6 +149,25 @@ common/misc/buildconfig.cpp_DEFS = \
 	IPRT_BLDCFG_TYPE=\"$(KBUILD_TYPE)\"
 
 #
+# OID to C table conversion program.
+#
+BLDPROGS += oiddb2c
+oiddb2c_TEMPLATE = VBoxBldProg
+oiddb2c_SOURCES = common/asn1/oiddb2c.cpp
+common/asn1/asn1-dump.cpp_DEPS = $(IPRT_OUT_DIR)/oiddb.h
+common/asn1/asn1-dump.cpp_INCS = $(IPRT_OUT_DIR)
+
+$(IPRT_OUT_DIR)/oiddb.h.ts +| $(IPRT_OUT_DIR)/oiddb.h: \
+		$(VBOX_PATH_RUNTIME_SRC)/common/asn1/oiddb.cfg \
+               $(VBOX_EXTRA_OID_CFG_FILES) \
+               $$(oiddb2c_1_TARGET) \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,,$@,$(filter %.xidl,$^))
+	$(QUIET)$(oiddb2c_1_TARGET) "$@" $(filter %.cfg,$^)
+	$(QUIET)$(CP) --changed -fv "$@" "$(IPRT_OUT_DIR)/oiddb.h"
+
+
+#
 # Unicode Specification reader used to regenerate unidata-*.cpp.
 #
 uniread_TEMPLATE = VBoxBldProg
@@ -161,10 +182,7 @@ RuntimeWin64ASM_SOURCES = \
 	win/amd64/ASMAtomicBitTestAndToggle.asm \
 	win/amd64/ASMAtomicBitToggle.asm \
 	win/amd64/ASMAtomicReadU64.asm \
-	win/amd64/ASMAtomicXchgU16.asm \
 	win/amd64/ASMAtomicXchgU8.asm \
-	win/amd64/ASMBitFirstClear.asm \
-	win/amd64/ASMBitFirstSet.asm \
 	win/amd64/ASMGetCS.asm \
 	win/amd64/ASMGetDS.asm \
 	win/amd64/ASMGetES.asm \
@@ -181,6 +199,12 @@ RuntimeWin64ASM_SOURCES = \
 	win/amd64/ASMGetDR6.asm \
 	win/amd64/ASMGetDR7.asm \
 	common/asm/ASMAtomicCmpXchgU8.asm \
+	common/asm/ASMAtomicCmpXchgU16.asm \
+	common/asm/ASMAtomicXchgU16.asm \
+	common/asm/ASMBitFirstClear.asm \
+	common/asm/ASMBitFirstSet.asm \
+	common/asm/ASMBitNextClear.asm \
+	common/asm/ASMBitNextSet.asm \
 	common/asm/ASMMultU32ByU32DivByU32.asm \
 	common/asm/ASMMultU64ByU32DivByU32.asm \
 	common/asm/ASMCpuId_Idx_ECX.asm \
@@ -199,6 +223,8 @@ RuntimeWin64ASM_SOURCES = \
 #
 RuntimeWin32ASM_SOURCES = \
 	common/asm/ASMAtomicCmpXchgU8.asm \
+	common/asm/ASMAtomicCmpXchgU16.asm \
+	common/asm/ASMAtomicXchgU16.asm \
 	common/asm/ASMMultU32ByU32DivByU32.asm \
 	common/asm/ASMMultU64ByU32DivByU32.asm \
 	common/asm/ASMCpuId_Idx_ECX.asm \
@@ -210,6 +236,7 @@ RuntimeWin32ASM_SOURCES = \
 if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
 RuntimeNoCrt_SOURCES = \
 	common/misc/setjmp.asm \
+	common/string/bzero.asm \
 	common/string/memchr.asm \
 	common/string/memcmp.asm \
 	common/string/memcpy.asm \
@@ -327,9 +354,9 @@ RuntimeR3_SOURCES       = \
 	common/checksum/sha512str.cpp \
 	common/checksum/sha512t224str.cpp \
 	common/checksum/sha512t256str.cpp \
-	common/checksum/x509.cpp \
 	common/crypto/digest-core.cpp \
 	common/crypto/digest-builtin.cpp \
+	common/crypto/digest-vfs.cpp \
 	common/crypto/iprt-openssl.cpp \
 	common/crypto/rsa-asn1-decoder.cpp \
 	common/crypto/rsa-core.cpp \
@@ -371,6 +398,7 @@ RuntimeR3_SOURCES       = \
 	common/crypto/RTCrStoreCertAddFromJavaKeyStore.cpp \
 	common/crypto/RTCrStoreCertAddWantedFromFishingExpedition.cpp \
 	common/crypto/RTCrStoreCertExportAsPem.cpp \
+	common/crypto/RTCrStoreCreateSnapshotOfUserAndSystemTrustedCAsAndCerts.cpp \
 	common/dbg/dbg.cpp \
 	common/dbg/dbgas.cpp \
 	common/dbg/dbgcfg.cpp \
@@ -421,7 +449,6 @@ RuntimeR3_SOURCES       = \
 	common/misc/RTFileOpenF.cpp \
 	common/misc/RTFileOpenV.cpp \
 	common/misc/RTMemWipeThoroughly.cpp \
-	common/misc/RTSystemIsInsideVM-amd64-x86.cpp \
 	common/misc/assert.cpp \
 	common/misc/buildconfig.cpp \
 	common/misc/cidr.cpp \
@@ -431,6 +458,7 @@ RuntimeR3_SOURCES       = \
 	common/misc/handletable.cpp \
 	common/misc/handletablectx.cpp \
 	common/misc/handletablesimple.cpp \
+	common/misc/json.cpp \
 	common/misc/lockvalidator.cpp \
 	common/misc/message.cpp \
 	common/misc/once.cpp \
@@ -502,6 +530,8 @@ RuntimeR3_SOURCES       = \
 	common/string/RTStrNLen.cpp \
 	common/string/RTStrNLenEx.cpp \
 	common/string/RTStrPrintHexBytes.cpp \
+	common/string/RTStrStartsWith.cpp \
+	common/string/RTStrIStartsWith.cpp \
 	common/string/RTStrStr.cpp \
 	common/string/RTUtf16Copy.cpp \
 	common/string/RTUtf16CopyAscii.cpp \
@@ -570,6 +600,7 @@ RuntimeR3_SOURCES       = \
 	common/vfs/vfsiosmisc.cpp \
 	common/vfs/vfsmemory.cpp \
 	common/vfs/vfsmisc.cpp \
+	common/vfs/vfsreadahead.cpp \
 	common/vfs/vfsstdfile.cpp \
 	common/vfs/vfsstdpipe.cpp \
 	common/zip/tar.cpp \
@@ -635,14 +666,18 @@ RuntimeR3_SOURCES       = \
 #endif
 
 RuntimeR3_SOURCES.x86 += \
-	generic/RTMpGetDescription-generic.cpp
+	generic/RTMpGetDescription-generic.cpp \
+	common/misc/RTSystemIsInsideVM-amd64-x86.cpp
 RuntimeR3_SOURCES.amd64 += \
-	generic/RTMpGetDescription-generic.cpp
+	generic/RTMpGetDescription-generic.cpp \
+	common/misc/RTSystemIsInsideVM-amd64-x86.cpp
 RuntimeR3_SOURCES.sparc32 += \
 	generic/RTMpGetDescription-generic-stub.cpp \
+	generic/RTSystemIsInsideVM-generic.cpp \
 	common/asm/asm-fake.cpp
 RuntimeR3_SOURCES.sparc64 += \
 	generic/RTMpGetDescription-generic-stub.cpp \
+	generic/RTSystemIsInsideVM-generic.cpp \
 	common/asm/asm-fake.cpp
 
 ifdef IPRT_WITH_LZJB
@@ -658,12 +693,16 @@ RuntimeR3_SOURCES.x86 += \
 	common/asm/ASMAtomicUoIncU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm \
 	common/asm/ASMGetXcr0.asm \
 	common/asm/ASMSetXcr0.asm \
 	common/asm/ASMXSave.asm \
 	common/asm/ASMXRstor.asm \
+	common/asm/ASMSerializeInstruction-cpuid.asm \
+	common/asm/ASMSerializeInstruction-iret.asm \
+	common/asm/ASMSerializeInstruction-rdtscp.asm \
 	common/math/bignum-amd64-x86.asm
 RuntimeR3_SOURCES.amd64 += \
 	common/asm/ASMCpuIdExSlow.asm \
@@ -673,12 +712,16 @@ RuntimeR3_SOURCES.amd64 += \
 	common/asm/ASMAtomicUoIncU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm \
 	common/asm/ASMGetXcr0.asm \
 	common/asm/ASMSetXcr0.asm \
 	common/asm/ASMXSave.asm \
 	common/asm/ASMXRstor.asm \
+	common/asm/ASMSerializeInstruction-cpuid.asm \
+	common/asm/ASMSerializeInstruction-iret.asm \
+	common/asm/ASMSerializeInstruction-rdtscp.asm \
 	common/math/bignum-amd64-x86.asm \
 	common/math/RTUInt128MulByU64.asm
 
@@ -709,6 +752,12 @@ RuntimeR3_SOURCES += \
 	$(if $(VBOX_WITH_DBUS),VBox/dbus.cpp,)
 endif
 
+if1of ($(KBUILD_TARGET_ARCH), sparc32 sparc64)
+RuntimeR3_SOURCES := \
+	$(filter-out common/misc/zero.asm, $(RuntimeR3_SOURCES)) \
+	common/misc/zero.cpp
+endif
+
 VBOX_WITH_NT_DIRENUM = 1
 RuntimeR3_SOURCES.win = \
 	common/dbg/dbgmoddbghelp.cpp \
@@ -717,6 +766,7 @@ RuntimeR3_SOURCES.win = \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileExists-generic.cpp \
+	generic/RTFileSetAllocationSize-generic.cpp \
 	generic/RTMpGetCurFrequency-generic.cpp \
 	generic/RTMpGetMaxFrequency-generic.cpp \
 	generic/RTPathAbs-generic.cpp \
@@ -815,6 +865,7 @@ RuntimeR3_SOURCES.linux = \
 	r3/linux/sysfs.cpp \
 	r3/linux/time-linux.cpp \
 	r3/linux/thread-affinity-linux.cpp \
+	r3/linux/RTFileSetAllocationSize-linux.cpp \
 	r3/linux/RTProcIsRunningByName-linux.cpp \
 	r3/linux/RTSystemQueryDmiString-linux.cpp \
 	r3/linux/RTSystemShutdown-linux.cpp \
@@ -837,6 +888,7 @@ RuntimeR3_SOURCES.linux = \
 	r3/posix/fs2-posix.cpp \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
+	r3/posix/localipc-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
 	r3/posix/pathhost-posix.cpp \
@@ -882,6 +934,7 @@ RuntimeR3_SOURCES.os2   = \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
+	generic/RTFileSetAllocationSize-generic.cpp \
 	generic/RTLogWriteDebugger-generic.cpp \
 	generic/RTPathAbs-generic.cpp \
 	generic/RTPathGetCurrentOnDrive-generic.cpp \
@@ -936,6 +989,7 @@ RuntimeR3_SOURCES.os2   = \
 	r3/posix/fs2-posix.cpp \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
+	r3/posix/localipc-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
 	r3/posix/pathhost-posix.cpp \
@@ -956,6 +1010,7 @@ RuntimeR3_SOURCES.darwin = \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
+	generic/RTFileSetAllocationSize-generic.cpp \
 	generic/RTLogWriteDebugger-generic.cpp \
 	generic/RTPathAbs-generic.cpp \
 	generic/RTPathGetCurrentOnDrive-generic.cpp \
@@ -1002,6 +1057,7 @@ RuntimeR3_SOURCES.darwin = \
 	r3/posix/fs2-posix.cpp \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
+	r3/posix/localipc-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
@@ -1028,6 +1084,7 @@ RuntimeR3_SOURCES.freebsd = \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
+	generic/RTFileSetAllocationSize-generic.cpp \
 	generic/RTLogWriteDebugger-generic.cpp \
 	generic/RTPathAbs-generic.cpp \
 	generic/RTPathGetCurrentOnDrive-generic.cpp \
@@ -1072,6 +1129,7 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/posix/fs2-posix.cpp \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
+	r3/posix/localipc-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
@@ -1119,6 +1177,7 @@ RuntimeR3_SOURCES.solaris = \
 	generic/RTThreadGetNativeState-generic.cpp \
 	r3/generic/allocex-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
+	r3/posix/RTFileSetAllocationSize-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
 	r3/posix/RTMemProtect-posix.cpp \
 	r3/posix/RTPathUserHome-posix.cpp \
@@ -1135,6 +1194,7 @@ RuntimeR3_SOURCES.solaris = \
 	r3/posix/fs2-posix.cpp \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
+	r3/posix/localipc-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
@@ -1179,6 +1239,7 @@ RuntimeR3_SOURCES.haiku = \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
+	generic/RTFileSetAllocationSize-generic.cpp \
 	generic/RTLogWriteDebugger-generic.cpp \
 	generic/RTPathAbs-generic.cpp \
 	generic/RTPathGetCurrentOnDrive-generic.cpp \
@@ -1218,6 +1279,7 @@ RuntimeR3_SOURCES.haiku = \
 	r3/posix/fs2-posix.cpp \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
+	r3/posix/localipc-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
@@ -1255,6 +1317,7 @@ RuntimeBldProg_BLD_TRG_CPU     := $(KBUILD_HOST_CPU)
 RuntimeBldProg_DEFS            := $(filter-out IN_SUP_R3 IN_SUP, $(RuntimeR3_DEFS)) IPRT_WITHOUT_LDR_VERIFY RT_NO_GIP
 RuntimeBldProg_SOURCES          = $(filter-out \
 	r3/xml.cpp \
+       common/misc/buildconfig.cpp \
 	common/zip/xarvfs.cpp \
 	, $(RuntimeR3_SOURCES))
 if "$(KBUILD_TARGET)" == "win" && "$(KBUILD_HOST)" != "win"
@@ -1282,7 +1345,6 @@ RuntimeGuestR3_SOURCES                  := $(filter-out \
 	common/time/timesupref.cpp \
 	common/time/timesupA.asm \
 	common/time/timesup.cpp \
-	common/checksum/x509.cpp \
 	generic/RTLogWriteUser-generic.cpp \
 	r3/xml.cpp \
 	common/zip/xarvfs.cpp \
@@ -1356,6 +1418,9 @@ endif
 ifdef RTALLOC_REPLACE_MALLOC
  VBoxRT_DEFS                  += RTALLOC_REPLACE_MALLOC
 endif
+ifdef VBOX_WITH_DTRACE_R3
+ VBoxRT_DEFS                  += IPRT_WITH_DTRACE IPRT_DTRACE_INCLUDE=\"dtrace/iprt.h\"
+endif
 VBoxRT_DEFS.$(KBUILD_TYPE)    := $(RuntimeR3_DEFS.$(KBUILD_TYPE))
 VBoxRT_SOURCES                := \
 	VBox/VBoxRTDeps.cpp \
@@ -1368,6 +1433,10 @@ ifdef VBOX_WITH_LIBCURL
  VBoxRT_SOURCES               += \
  	common/misc/s3.cpp \
  	generic/http-curl.cpp
+endif
+ifdef VBOX_WITH_DTRACE_R3
+ VBoxRT_SOURCES               += \
+  	iprt.d
 endif
 VBoxRT_SOURCES.$(KBUILD_TARGET) = $(RuntimeR3_SOURCES.$(KBUILD_TARGET))
 VBoxRT_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) := $(RuntimeR3_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
@@ -1696,8 +1765,12 @@ RuntimeR0_DEFS          = IN_RT_R0 RT_WITH_VBOX
 ifn1of ($(KBUILD_TARGET_ARCH), amd64 x86)
  RuntimeR0_DEFS        += RT_NO_GIP
 endif
+if defined(VBOX_WITH_DTRACE_R0) && !defined(VBOX_ONLY_VALIDATIONKIT)
+ RuntimeR0_DEFS        += IPRT_WITH_DTRACE IPRT_DTRACE_PREFIX=VBOXVMM_ IPRT_DTRACE_INCLUDE=\"dtrace/VBoxVMM.h\"
+endif
 RuntimeR0_INCS          = include
 RuntimeR0_SOURCES      := \
+	$(if $(VBOX_ONLY_VALIDATIONKIT),,../VMM/VBoxVMM.d) \
 	common/log/logellipsis.cpp \
 	common/log/logrelellipsis.cpp \
 	common/log/logcom.cpp \
@@ -1782,6 +1855,7 @@ RuntimeR0_SOURCES.x86 += \
 	common/asm/ASMAtomicUoIncU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMGetXcr0.asm \
 	common/asm/ASMSetXcr0.asm \
 	common/asm/ASMXSave.asm \
@@ -1796,6 +1870,7 @@ RuntimeR0_SOURCES.amd64 += \
 	common/asm/ASMAtomicUoIncU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMGetXcr0.asm \
 	common/asm/ASMSetXcr0.asm \
 	common/asm/ASMXSave.asm \
@@ -1949,11 +2024,13 @@ RuntimeR0Drv_SOURCES    = \
 	VBox/log-vbox.cpp \
 
 RuntimeR0Drv_SOURCES.amd64 = \
+	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm \
 	common/math/bignum-amd64-x86.asm \
 	common/math/RTUInt128MulByU64.asm
 RuntimeR0Drv_SOURCES.x86   = \
+	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm \
 	common/math/bignum-amd64-x86.asm
@@ -2101,6 +2178,7 @@ RuntimeR0Drv_SOURCES.win = \
 	nt/RTNtPathExpand8dot3Path.cpp \
 	nt/RTNtPathFindPossible8dot3Name.cpp \
 	r0drv/generic/threadctxhooks-r0drv-generic.cpp \
+	r0drv/alloc-ef-r0drv.cpp \
 	r0drv/memobj-r0drv.cpp \
 	r0drv/mpnotification-r0drv.c \
 	r0drv/powernotification-r0drv.c \
@@ -2162,6 +2240,7 @@ RuntimeR0Drv_SOURCES.darwin = \
 	r0drv/darwin/thread2-r0drv-darwin.cpp \
 	r0drv/darwin/threadpreempt-r0drv-darwin.cpp \
 	r0drv/darwin/time-r0drv-darwin.cpp \
+	r0drv/alloc-ef-r0drv.cpp \
 	r0drv/memobj-r0drv.cpp \
 	r0drv/powernotification-r0drv.c
 
@@ -2258,6 +2337,7 @@ RuntimeR0Drv_SOURCES.freebsd = \
 	r0drv/freebsd/time-r0drv-freebsd.c \
 	r0drv/freebsd/mp-r0drv-freebsd.c \
 	generic/timer-generic.cpp \
+	r0drv/alloc-ef-r0drv.cpp \
 	r0drv/memobj-r0drv.cpp \
 	r0drv/powernotification-r0drv.c
 
@@ -2366,6 +2446,7 @@ ifdef VBOX_WITH_RAW_MODE
  RuntimeRC_DEFS          = IN_RT_RC RT_WITH_VBOX IN_SUP_RC IN_VMM_RC
  RuntimeRC_INCS          = include
  RuntimeRC_SOURCES      := \
+	common/asm/ASMMemFirstMismatchingU8.asm \
 	common/asm/ASMGetXcr0.asm \
 	common/asm/ASMSetXcr0.asm \
 	common/asm/ASMXSave.asm \
@@ -2795,7 +2876,7 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
  else
 # Generate a SED script from mangling.h that checks for known symbols.
 	$(QUIET)$(SED) \
-		-e '/# *define.*RT_MANGLER/!d' \
+		-e '/^# *define.*RT_MANGLER/!d' \
 		-e 's/^.*RT_MANGLER(\([^)][^)]*\)).*$(DOLLAR)/\/^\1$(DOLLAR)\/b ok/' \
 		$(PATH_ROOT)/include/iprt/mangling.h \
 		--output "$@"
@@ -2832,6 +2913,7 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 			-e 's/^[[:digit:]]\+ \+//' \
 			\
 			-e '/^nocrt_/d' \
+			-e '/^bzero/d' \
 			-e '/^memchr/d' \
 			-e '/^memcmp/d' \
 			-e '/^memcpy/d' \
@@ -2861,6 +2943,13 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 			\
 			-e '/^_Z[[:digit:]]\+dbus/d' \
 			-e '/^_Z13RTDBusLoadLibv/d' \
+                       \
+			-e '/^g_[ac]VTG/d' \
+			-e '/^g_VTGObjHeader/d' \
+			-e '/^g_VTGProbeData/d' \
+			-e '/^VTGProbeStub/d' \
+			-e '/^g_achVTGStringTable/d' \
+			-e '/^g_acVTGProbeEnabled/d' \
 			\
 			-e '/^VBoxHost_/d'\
 			-e '/^VBoxGuest_/d'\
@@ -2895,6 +2984,13 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 			-e '/^g_VM/d',) \
 			$(if-expr "$(KBUILD_TARGET)" == "linux", \
 			-e '/^g_kLdrRdrFileOps/d',) \
+                       \
+			-e '/^g_[ac]VTG/d' \
+			-e '/^g_VTGObjHeader/d' \
+			-e '/^g_VTGProbeData/d' \
+			-e '/^VTGProbeStub/d' \
+			-e '/^g_achVTGStringTable/d' \
+			-e '/^g_acVTGProbeEnabled/d' \
 			\
 			-e '/^RTDBusLoadLib/d' \
 			\
@@ -2914,6 +3010,7 @@ ntBldSymDb_TEMPLATE = VBoxAdvBldProg
 ntBldSymDb_INCS = .
 ntBldSymDb_SOURCES = r0drv/nt/ntBldSymDb.cpp
 endif
+
 
 #
 # Generate the rules (we're the to sub-makefile).

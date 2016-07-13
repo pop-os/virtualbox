@@ -1,7 +1,7 @@
 /** @file
   Utility functions used by the Dp application.
 
-  Copyright (c) 2009 - 2012, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -31,7 +31,6 @@
 #include <Protocol/DriverBinding.h>
 #include <Protocol/ComponentName2.h>
 #include <Protocol/DevicePath.h>
-#include <Protocol/DevicePathToText.h>
 
 #include <Guid/Performance.h>
 
@@ -55,24 +54,24 @@ SafeFreePool (
   }
 }
 
-/** 
+/**
   Calculate an event's duration in timer ticks.
-  
+
   Given the count direction and the event's start and end timer values,
   calculate the duration of the event in timer ticks.  Information for
   the current measurement is pointed to by the parameter.
-  
+
   If the measurement's start time is 1, it indicates that the developer
   is indicating that the measurement began at the release of reset.
   The start time is adjusted to the timer's starting count before performing
   the elapsed time calculation.
-  
+
   The calculated duration, in ticks, is the absolute difference between
   the measurement's ending and starting counts.
-  
+
   @param Measurement   Pointer to a MEASUREMENT_RECORD structure containing
                        data for the current measurement.
-  
+
   @return              The 64-bit duration of the event.
 **/
 UINT64
@@ -107,14 +106,14 @@ GetDuration (
   return Duration;
 }
 
-/** 
+/**
   Determine whether the Measurement record is for an EFI Phase.
-  
+
   The Token and Module members of the measurement record are checked.
   Module must be empty and Token must be one of SEC, PEI, DXE, BDS, or SHELL.
-  
+
   @param[in]  Measurement A pointer to the Measurement record to test.
-  
+
   @retval     TRUE        The measurement record is for an EFI Phase.
   @retval     FALSE       The measurement record is NOT for an EFI Phase.
 **/
@@ -134,17 +133,17 @@ IsPhase(
   return RetVal;
 }
 
-/** 
+/**
   Get the file name portion of the Pdb File Name.
-  
+
   The portion of the Pdb File Name between the last backslash and
   either a following period or the end of the string is converted
   to Unicode and copied into UnicodeBuffer.  The name is truncated,
   if necessary, to ensure that UnicodeBuffer is not overrun.
-  
+
   @param[in]  PdbFileName     Pdb file name.
   @param[out] UnicodeBuffer   The resultant Unicode File Name.
-  
+
 **/
 VOID
 GetShortPdbFileName (
@@ -187,7 +186,7 @@ GetShortPdbFileName (
   }
 }
 
-/** 
+/**
   Get a human readable name for an image handle.
   The following methods will be tried orderly:
     1. Image PDB
@@ -219,8 +218,11 @@ GetNameFromHandle (
   CHAR16                      *NameString;
   UINTN                       StringSize;
   CHAR8                       *PlatformLanguage;
+  CHAR8                       *BestLanguage;
   EFI_COMPONENT_NAME2_PROTOCOL      *ComponentName2;
-  EFI_DEVICE_PATH_TO_TEXT_PROTOCOL  *DevicePathToText;
+
+  BestLanguage     = NULL;
+  PlatformLanguage = NULL;
 
   //
   // Method 1: Get the name string from image PDB
@@ -270,14 +272,24 @@ GetNameFromHandle (
     //
     // Get the current platform language setting
     //
-    PlatformLanguage = GetEfiGlobalVariable (L"PlatformLang");
+    GetEfiGlobalVariable2 (L"PlatformLang", (VOID**)&PlatformLanguage, NULL);
+
+    BestLanguage = GetBestLanguage(
+                     ComponentName2->SupportedLanguages,
+                     FALSE,
+                     PlatformLanguage,
+                     ComponentName2->SupportedLanguages,
+                     NULL
+                     );
+
+    SafeFreePool (PlatformLanguage);
     Status = ComponentName2->GetDriverName (
                                ComponentName2,
-                               PlatformLanguage != NULL ? PlatformLanguage : "en-US",
+                               BestLanguage,
                                &StringPtr
                                );
+    SafeFreePool (BestLanguage);
     if (!EFI_ERROR (Status)) {
-      SafeFreePool (PlatformLanguage);
       StrnCpy (mGaugeString, StringPtr, DP_GAUGE_STRING_LENGTH);
       mGaugeString[DP_GAUGE_STRING_LENGTH] = 0;
       return;
@@ -289,7 +301,7 @@ GetNameFromHandle (
                   &gEfiLoadedImageDevicePathProtocolGuid,
                   (VOID **) &LoadedImageDevicePath
                   );
-  if (!EFI_ERROR (Status)) {
+  if (!EFI_ERROR (Status) && (LoadedImageDevicePath != NULL)) {
     DevicePath = LoadedImageDevicePath;
 
     //
@@ -336,19 +348,12 @@ GetNameFromHandle (
       //
       // Method 5: Get the name string from image DevicePath
       //
-      Status = gBS->LocateProtocol (
-                      &gEfiDevicePathToTextProtocolGuid,
-                      NULL,
-                      (VOID **) &DevicePathToText
-                      );
-      if (!EFI_ERROR (Status)) {
-        NameString = DevicePathToText->ConvertDevicePathToText (LoadedImageDevicePath, TRUE, FALSE);
-        if (NameString != NULL) {
-          StrnCpy (mGaugeString, NameString, DP_GAUGE_STRING_LENGTH);
-          mGaugeString[DP_GAUGE_STRING_LENGTH] = 0;
-          FreePool (NameString);
-          return;
-        }
+      NameString = ConvertDevicePathToText (LoadedImageDevicePath, TRUE, FALSE);
+      if (NameString != NULL) {
+        StrnCpy (mGaugeString, NameString, DP_GAUGE_STRING_LENGTH);
+        mGaugeString[DP_GAUGE_STRING_LENGTH] = 0;
+        FreePool (NameString);
+        return;
       }
     }
   }
@@ -363,17 +368,17 @@ GetNameFromHandle (
   return;
 }
 
-/** 
+/**
   Calculate the Duration in microseconds.
-  
+
   Duration is multiplied by 1000, instead of Frequency being divided by 1000 or
   multiplying the result by 1000, in order to maintain precision.  Since Duration is
   a 64-bit value, multiplying it by 1000 is unlikely to produce an overflow.
-  
+
   The time is calculated as (Duration * 1000) / Timer_Frequency.
-  
+
   @param[in]  Duration   The event duration in timer ticks.
-  
+
   @return     A 64-bit value which is the Elapsed time in microseconds.
 **/
 UINT64
@@ -387,16 +392,17 @@ DurationInMicroSeconds (
   return DivU64x32 (Temp, TimerInfo.Frequency);
 }
 
-/** 
+/**
   Formatted Print using a Hii Token to reference the localized format string.
-  
+
   @param[in]  Token   A HII token associated with a localized Unicode string.
   @param[in]  ...     The variable argument list.
-  
+
   @return             The number of characters converted by UnicodeVSPrint().
-  
+
 **/
 UINTN
+EFIAPI
 PrintToken (
   IN UINT16           Token,
   ...
@@ -422,7 +428,7 @@ PrintToken (
 
   Return = UnicodeVSPrint (mPrintTokenBuffer, BufferSize, StringPtr, Marker);
   VA_END (Marker);
-  
+
   if (Return > 0 && gST->ConOut != NULL) {
     gST->ConOut->OutputString (gST->ConOut, mPrintTokenBuffer);
   }
@@ -430,16 +436,16 @@ PrintToken (
   return Return;
 }
 
-/** 
+/**
   Get index of Measurement Record's match in the CumData array.
-  
+
   If the Measurement's Token value matches a Token in one of the CumData
   records, the index of the matching record is returned.  The returned
   index is a signed value so that negative values can indicate that
   the Measurement didn't match any entry in the CumData array.
-  
+
   @param[in]  Measurement A pointer to a Measurement Record to match against the CumData array.
-  
+
   @retval     <0    Token is not in the CumData array.
   @retval     >=0   Return value is the index into CumData where Token is found.
 **/

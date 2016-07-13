@@ -28,6 +28,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP RTLOGGROUP_CRYPTO
 #include "internal/iprt.h"
 #include <iprt/crypto/x509.h>
 
@@ -37,6 +38,7 @@
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/list.h>
+#include <iprt/log.h>
 #include <iprt/time.h>
 #include <iprt/crypto/pkcs7.h> /* PCRTCRPKCS7SETOFCERTS */
 #include <iprt/crypto/store.h>
@@ -461,7 +463,8 @@ RTDECL(int) RTCrX509CertPathsSetValidTime(RTCRX509CERTPATHS hCertPaths, PCRTTIME
     PRTCRX509CERTPATHSINT pThis = hCertPaths;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTCRX509CERTPATHSINT_MAGIC, VERR_INVALID_HANDLE);
-    AssertReturn(pThis->pRoot == NULL, VERR_WRONG_ORDER);
+
+    /* Allow this after building paths, as it's only used during verification. */
 
     if (pTime)
     {
@@ -480,7 +483,8 @@ RTDECL(int) RTCrX509CertPathsSetValidTimeSpec(RTCRX509CERTPATHS hCertPaths, PCRT
     PRTCRX509CERTPATHSINT pThis = hCertPaths;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTCRX509CERTPATHSINT_MAGIC, VERR_INVALID_HANDLE);
-    AssertReturn(pThis->pRoot == NULL, VERR_WRONG_ORDER);
+
+    /* Allow this after building paths, as it's only used during verification. */
 
     if (pTimeSpec)
     {
@@ -919,6 +923,11 @@ RTDECL(int) RTCrX509CertPathsBuild(RTCRX509CERTPATHS hCertPaths, PRTERRINFO pErr
                 else
                     pCur = rtCrX509CertPathsAddLeaf(pThis, pCur);
             }
+            if (pCur)
+                Log2(("RTCrX509CertPathsBuild: pCur=%p fLeaf=%d pParent=%p pNext=%p pPrev=%p\n",
+                      pCur, pCur->fLeaf, pCur->pParent,
+                      pCur->pParent ? RTListGetNext(&pCur->pParent->ChildListOrLeafEntry, pCur, RTCRX509CERTPATHNODE, SiblingEntry) : NULL,
+                      pCur->pParent ? RTListGetPrev(&pCur->pParent->ChildListOrLeafEntry, pCur, RTCRX509CERTPATHNODE, SiblingEntry) : NULL));
         } while (pCur);
 
         pThis->pErrInfo = NULL;
@@ -1998,7 +2007,8 @@ static bool rtCrX509CpvCheckBasicCertInfo(PRTCRX509CERTPATHSINT pThis, PRTCRX509
      * 6.1.3.a.2 - Verify that the certificate is valid at the specified time.
      */
     AssertCompile(sizeof(pThis->szTmp) >= 36 * 3);
-    if (!RTCrX509Validity_IsValidAtTimeSpec(&pNode->pCert->TbsCertificate.Validity, &pThis->ValidTime))
+    if (   (pThis->fFlags & RTCRX509CERTPATHSINT_F_VALID_TIME)
+        && !RTCrX509Validity_IsValidAtTimeSpec(&pNode->pCert->TbsCertificate.Validity, &pThis->ValidTime))
         return rtCrX509CpvFailed(pThis, VERR_CR_X509_CPV_NOT_VALID_AT_TIME,
                                  "Certificate is not valid (ValidTime=%s Validity=[%s...%s])",
                                  RTTimeSpecToString(&pThis->ValidTime, &pThis->szTmp[0], 36),

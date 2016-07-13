@@ -55,14 +55,6 @@ UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
 #endif
                     )
 {
-    /* Resend the last resize hint: */
-    resendSizeHint();
-}
-
-UIMachineViewScale::~UIMachineViewScale()
-{
-    /* Cleanup frame buffer: */
-    cleanupFrameBuffer();
 }
 
 void UIMachineViewScale::sltPerformGuestScale()

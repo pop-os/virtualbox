@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -613,9 +613,6 @@ static int vgsvcGstCtrlProcessProcLoop(PVBOXSERVICECTRLPROCESS pProcess)
         if (fProcessAlive)
         {
             rc2 = RTProcWaitNoResume(pProcess->hProcess, RTPROCWAIT_FLAGS_NOBLOCK, &ProcessStatus);
-#if 0
-            VGSvcVerbose(4, "[PID %RU32]: RTProcWaitNoResume=%Rrc\n", pProcess->uPID, rc2);
-#endif
             if (RT_SUCCESS_NP(rc2))
             {
                 fProcessAlive = false;
@@ -649,6 +646,7 @@ static int vgsvcGstCtrlProcessProcLoop(PVBOXSERVICECTRLPROCESS pProcess)
                     && pProcess->hPipeStdErrR == NIL_RTPIPE)
                )
             {
+                VGSvcVerbose(3, "[PID %RU32]: RTProcWaitNoResume=%Rrc\n", pProcess->uPID, rc2);
                 break;
             }
         }
@@ -1305,7 +1303,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
     }
 #endif /* RT_OS_WINDOWS */
 
-#ifdef VBOXSERVICE_TOOLBOX
+#ifdef VBOX_WITH_VBOXSERVICE_TOOLBOX
     if (RTStrStr(pszExec, "vbox_") == pszExec)
     {
         /* We want to use the internal toolbox (all internal
@@ -1319,7 +1317,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
          * Do the environment variables expansion on executable and arguments.
          */
         rc = vgsvcGstCtrlProcessResolveExecutable(pszExec, szExecExp, sizeof(szExecExp));
-#ifdef VBOXSERVICE_TOOLBOX
+#ifdef VBOX_WITH_VBOXSERVICE_TOOLBOX
     }
 #endif
     if (RT_SUCCESS(rc))
@@ -1342,8 +1340,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
             {
                 if (fFlags & EXECUTEPROCESSFLAG_HIDDEN)
                     uProcFlags |= RTPROC_FLAGS_HIDDEN;
-                /** @todo Rename to EXECUTEPROCESSFLAG_PROFILE in next API change. */
-                if (!(fFlags & EXECUTEPROCESSFLAG_NO_PROFILE))
+                if (!(fFlags & EXECUTEPROCESSFLAG_PROFILE))
                     uProcFlags |= RTPROC_FLAGS_PROFILE;
                 if (fFlags & EXECUTEPROCESSFLAG_UNQUOTED_ARGS)
                     uProcFlags |= RTPROC_FLAGS_UNQUOTED_ARGS;

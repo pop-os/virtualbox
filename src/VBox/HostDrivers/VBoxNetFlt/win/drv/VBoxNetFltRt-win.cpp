@@ -118,7 +118,7 @@ VBOXNETFLTGLOBALS_WIN g_VBoxNetFltGlobalsWin = {0};
 
 static int vboxNetFltWinAttachToInterface(PVBOXNETFLTINS pThis, void * pContext, bool fRediscovery);
 static int vboxNetFltWinConnectIt(PVBOXNETFLTINS pThis);
-static int vboxNetFltWinTryFiniIdc();
+static int vboxNetFltWinFiniIdc();
 static void vboxNetFltWinFiniNetFltBase();
 static int vboxNetFltWinInitNetFltBase();
 static int vboxNetFltWinFiniNetFlt();
@@ -1507,7 +1507,7 @@ DECLHIDDEN(PNDIS_PACKET) vboxNetFltWinNdisPacketFromSG(PVBOXNETFLTINS pNetFlt, P
     PNDIS_PACKET pPacket;
 
     Assert(pSG->aSegs[0].pv);
-    Assert(pSG->cbTotal >= sizeof(VBOXNETFLT_PACKET_ETHEADER_SIZE));
+    Assert(pSG->cbTotal >= VBOXNETFLT_PACKET_ETHEADER_SIZE);
 
 /** @todo Hrmpf, how can we fix this assumption?  I fear this'll cause data
  *        corruption and maybe even BSODs ... */
@@ -1664,15 +1664,15 @@ DECLHIDDEN(VOID) vboxNetFltWinUnload(IN PDRIVER_OBJECT DriverObject)
     int rc;
     UNREFERENCED_PARAMETER(DriverObject);
 
-    LogFlow((__FUNCTION__" ==> DO (0x%x)\n", DriverObject));
+    LogFlowFunc(("ENTER: DO (0x%x)\n", DriverObject));
 
-    rc = vboxNetFltWinTryFiniIdc();
+    rc = vboxNetFltWinFiniIdc();
     if (RT_FAILURE(rc))
     {
         /* TODO: we can not prevent driver unload here */
         AssertFailed();
 
-        Log((__FUNCTION__": vboxNetFltWinTryFiniIdc - failed, busy.\n"));
+        LogFlowFunc(("vboxNetFltWinFiniIdc - failed, busy.\n"));
     }
 
     vboxNetFltWinJobFiniQueue(&g_VBoxJobQueue);
@@ -1686,7 +1686,7 @@ DECLHIDDEN(VOID) vboxNetFltWinUnload(IN PDRIVER_OBJECT DriverObject)
     NdisFreeSpinLock(&g_VBoxNetFltGlobalsWin.lockFilters);
 #endif /* VBOXNETADP */
 
-    LogFlow((__FUNCTION__" <== DO (0x%x)\n", DriverObject));
+    LogFlow(("LEAVE: DO (0x%x)\n", DriverObject));
 
     vboxNetFltWinFiniNetFltBase();
     /* don't use logging or any RT after de-init */
@@ -1925,7 +1925,7 @@ DECLHIDDEN(VOID) vboxNetFltWinPtFiniWinIf(PVBOXNETFLTWIN pWinIf)
     int rc;
 #endif
 
-    LogFlow(("==>"__FUNCTION__" : pWinIf 0x%p\n", pWinIf));
+    LogFlowFunc(("ENTER: pWinIf 0x%p\n", pWinIf));
 
     Assert(KeGetCurrentIrql() == PASSIVE_LEVEL);
 #ifndef VBOXNETADP
@@ -1947,7 +1947,7 @@ DECLHIDDEN(VOID) vboxNetFltWinPtFiniWinIf(PVBOXNETFLTWIN pWinIf)
     NdisFreeBufferPool(pWinIf->hRecvBufferPool);
     NdisFreePacketPool(pWinIf->hRecvPacketPool);
 
-    LogFlow(("<=="__FUNCTION__" : pWinIf 0x%p\n", pWinIf));
+    LogFlowFunc(("LEAVE: pWinIf 0x%p\n", pWinIf));
 }
 
 #ifndef VBOXNETADP
@@ -1962,7 +1962,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtInitWinIf(PVBOXNETFLTWIN pWinIf)
 #endif
     BOOLEAN bCallFiniOnFail = FALSE;
 
-    LogFlow(("==>"__FUNCTION__": pWinIf 0x%p\n", pWinIf));
+    LogFlowFunc(("ENTER: pWinIf 0x%p\n", pWinIf));
 
     Assert(KeGetCurrentIrql() == PASSIVE_LEVEL);
 
@@ -2041,7 +2041,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtInitWinIf(PVBOXNETFLTWIN pWinIf)
         NdisFreePacketPool(pWinIf->hRecvPacketPool);
     }
 
-    LogFlow(("<=="__FUNCTION__": pWinIf 0x%p, Status 0x%x\n", pWinIf, Status));
+    LogFlowFunc(("LEAVE: pWinIf 0x%p, Status 0x%x\n", pWinIf, Status));
 
     return Status;
 }
@@ -2449,15 +2449,39 @@ static void vboxNetFltWinFiniNetFltBase()
     } while (0);
 }
 
-static int vboxNetFltWinTryFiniIdc()
+/*
+ * Defines max timeout for waiting for driver unloading
+ * (3000 * 100 ms = 5 minutes)
+ */
+#define MAX_UNLOAD_PROBES 3000
+
+static int vboxNetFltWinFiniIdc()
 {
     int rc;
+    int i;
 
     vboxNetFltWinStopInitIdcProbing();
 
     if (g_bVBoxIdcInitialized)
     {
-        rc = vboxNetFltTryDeleteIdc(&g_VBoxNetFltGlobals);
+         for (i = 0; (rc = vboxNetFltTryDeleteIdc(&g_VBoxNetFltGlobals)) == VERR_WRONG_ORDER
+            && i < MAX_UNLOAD_PROBES; i++)
+        {
+            RTThreadSleep(100);
+        }
+        if (i == MAX_UNLOAD_PROBES)
+        {
+            // seems something hungs in driver
+            LogFlow(("vboxNetFltWinFiniIdc - Can't delete Idc. pInH=%p cFRefs=%d fIDcOpen=%s",
+                        g_VBoxNetFltGlobals.pInstanceHead, g_VBoxNetFltGlobals.cFactoryRefs,
+                        g_VBoxNetFltGlobals.fIDCOpen ? "true" : "false"));
+            LogFlow(("vboxNetFltWinFiniIdc g_VBoxNetFltGlobalsWin cDvRefs=%d hDev=%x pDev=%p Mp=%x \n",
+                        g_VBoxNetFltGlobalsWin.cDeviceRefs, g_VBoxNetFltGlobalsWin.hDevice,
+                        g_VBoxNetFltGlobalsWin.pDevObj, g_VBoxNetFltGlobalsWin.Mp.hMiniport));
+            Assert(i == MAX_UNLOAD_PROBES);
+            return VERR_WRONG_ORDER;
+        }
+
         if (RT_SUCCESS(rc))
         {
             g_bVBoxIdcInitialized = false;
@@ -2473,7 +2497,7 @@ static int vboxNetFltWinTryFiniIdc()
 
 static int vboxNetFltWinFiniNetFlt()
 {
-    int rc = vboxNetFltWinTryFiniIdc();
+    int rc = vboxNetFltWinFiniIdc();
     if (RT_SUCCESS(rc))
     {
         vboxNetFltWinFiniNetFltBase();
@@ -2661,7 +2685,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinDetachFromInterface(PVBOXNETFLTINS pNetFlt,
 {
     NDIS_STATUS Status;
     int rc;
-    LogFlow((__FUNCTION__": pThis=%0xp\n", pNetFlt));
+    LogFlowFunc(("ENTER: pThis=%0xp\n", pNetFlt));
 
     Assert(KeGetCurrentIrql() < DISPATCH_LEVEL);
     Assert(pNetFlt);
@@ -2721,6 +2745,8 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinDetachFromInterface(PVBOXNETFLTINS pNetFlt,
 
     /* release for the retain we made before waining on the mutex */
     vboxNetFltRelease(pNetFlt, false);
+    
+    LogFlowFunc(("LEAVE: Status 0x%x\n", Status));
 
     return Status;
 }

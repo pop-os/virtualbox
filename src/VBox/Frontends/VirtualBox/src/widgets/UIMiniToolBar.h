@@ -65,6 +65,9 @@ signals:
 
 public:
 
+    /** Proposes default set of window flags for particular platform. */
+    static Qt::WindowFlags defaultWindowFlags();
+
     /** Constructor, passes @a pParent to the QWidget constructor.
       * @param geometryType determines the geometry type,
       * @param alignment    determines the alignment type,
@@ -111,6 +114,13 @@ private slots:
     /** Notifies listeners about we stole window activation. */
     void sltNotifyAboutWindowActivationStolen() { emit sigNotifyAboutWindowActivationStolen(); }
 
+    /** Hides window. */
+    void sltHide();
+    /** Shows and adjusts window according to parent. */
+    void sltShow();
+    /** Adjusts window according to parent. */
+    void sltAdjust();
+
 private:
 
     /** Prepare routine. */
@@ -142,6 +152,9 @@ private:
     /** Returns internal widget position when it's shown. */
     QPoint shownToolbarPosition() const { return m_shownToolbarPosition; }
 
+    /** Returns whether the parent is currently minimized. */
+    bool isParentMinimized() const;
+
     /** Holds the geometry type. */
     const GeometryType m_geometryType;
     /** Holds the alignment type. */
@@ -169,6 +182,12 @@ private:
     QPoint m_shownToolbarPosition;
     /** Holds the animation framework object. */
     UIAnimation *m_pAnimation;
+
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /** Holds whether the parent is currently minimized.
+      * Used to restore full-screen state when the parent restored again. */
+    bool m_fIsParentMinimized;
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 };
 
 #endif /* !___UIMiniToolBar_h___ */

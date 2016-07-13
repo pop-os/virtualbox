@@ -48,7 +48,7 @@
 # include <iprt/crypto/x509.h>
 #endif
 #include <iprt/formats/codeview.h>
-#include "internal/ldrPE.h"
+#include <iprt/formats/pecoff.h>
 #include "internal/ldr.h"
 
 
@@ -527,9 +527,14 @@ static int rtldrPEGetBitsNoImportsNorFixups(PRTLDRMODPE pModPe, void *pvBits)
          */
         PIMAGE_SECTION_HEADER pSH = pModPe->paSections;
         for (unsigned cLeft = pModPe->cSections; cLeft > 0; cLeft--, pSH++)
-            if (pSH->SizeOfRawData && pSH->Misc.VirtualSize)
+            if (   pSH->SizeOfRawData
+                && pSH->Misc.VirtualSize
+                && !(pSH->Characteristics & IMAGE_SCN_TYPE_NOLOAD))
             {
-                rc = pReader->pfnRead(pReader, (uint8_t *)pvBits + pSH->VirtualAddress, pSH->SizeOfRawData, pSH->PointerToRawData);
+                uint32_t const cbToRead = RT_MIN(pSH->SizeOfRawData, pModPe->cbImage - pSH->VirtualAddress);
+                Assert(pSH->VirtualAddress <= pModPe->cbImage);
+
+                rc = pReader->pfnRead(pReader, (uint8_t *)pvBits + pSH->VirtualAddress, cbToRead, pSH->PointerToRawData);
                 if (RT_FAILURE(rc))
                 {
                     Log(("rtldrPE: %s: Reading %#x bytes at offset %#x failed, %Rrc - section #%d '%.*s'!!!\n",
@@ -599,6 +604,20 @@ static DECLCALLBACK(int) rtldrPEGetBits(PRTLDRMODINTERNAL pMod, void *pvBits, RT
     }
     return rc;
 }
+
+
+/* The image_thunk_data32/64 structures are not very helpful except for getting RSI. keep them around till all the code has been converted. */
+typedef struct _IMAGE_THUNK_DATA32
+{
+    union
+    {
+        uint32_t  ForwarderString;
+        uint32_t  Function;
+        uint32_t  Ordinal;
+        uint32_t  AddressOfData;
+    } u1;
+} IMAGE_THUNK_DATA32;
+typedef IMAGE_THUNK_DATA32 *PIMAGE_THUNK_DATA32;
 
 
 /** @copydoc RTLDROPSPE::pfnResolveImports */
@@ -676,6 +695,20 @@ static DECLCALLBACK(int) rtldrPEResolveImports32(PRTLDRMODPE pModPe, const void 
 
     return rc;
 }
+
+
+/* The image_thunk_data32/64 structures are not very helpful except for getting RSI. keep them around till all the code has been converted. */
+typedef struct _IMAGE_THUNK_DATA64
+{
+    union
+    {
+        uint64_t  ForwarderString;
+        uint64_t  Function;
+        uint64_t  Ordinal;
+        uint64_t  AddressOfData;
+    } u1;
+} IMAGE_THUNK_DATA64;
+typedef IMAGE_THUNK_DATA64 *PIMAGE_THUNK_DATA64;
 
 
 /** @copydoc RTLDROPSPE::pfnResolveImports */
@@ -1624,7 +1657,7 @@ static DECLCALLBACK(int) rtldrPE_EnumSegments(PRTLDRMODINTERNAL pMod, PFNRTLDREN
         }
         else
         {
-            SegInfo.LinkAddress = pSh->VirtualAddress + pModPe->uImageBase ;
+            SegInfo.LinkAddress = pSh->VirtualAddress + pModPe->uImageBase;
             SegInfo.RVA         = pSh->VirtualAddress;
             SegInfo.cbMapped    = RT_ALIGN(SegInfo.cb, SegInfo.Alignment);
             if (i + 1 < pModPe->cSections && !(pSh[1].Characteristics & IMAGE_SCN_TYPE_NOLOAD))
@@ -2604,7 +2637,7 @@ static int rtldrPE_VerifyAllPageHashes(PRTLDRMODPE pModPe, PCRTCRSPCSERIALIZEDOB
     /*
      * Check that the last table entry has a hash value of zero.
      */
-    if (ASMMemIsAll8(pbHashTab + 4, cbHash, 0) != NULL)
+    if (!ASMMemIsZero(pbHashTab + 4, cbHash))
         return RTErrInfoSetF(pErrInfo, VERR_LDRVI_PAGE_HASH_TAB_TOO_LONG,
                              "Maltform final page hash table entry: #%u %#010x %.*Rhxs",
                              cPages - 1, RT_MAKE_U32_FROM_U8(pbHashTab[0], pbHashTab[1], pbHashTab[2], pbHashTab[3]),
@@ -2963,6 +2996,44 @@ static void rtldrPEConvert32BitLoadConfigTo64Bit(PIMAGE_LOAD_CONFIG_DIRECTORY64 
     /* the rest is equal. */
     Assert(     RT_OFFSETOF(IMAGE_LOAD_CONFIG_DIRECTORY32, DeCommitFreeBlockThreshold)
            ==   RT_OFFSETOF(IMAGE_LOAD_CONFIG_DIRECTORY64, DeCommitFreeBlockThreshold));
+}
+
+
+/**
+ * Translate the PE/COFF machine name to a string.
+ *
+ * @returns Name string (read-only).
+ * @param   uMachine            The PE/COFF machine.
+ */
+static const char *rtldrPEGetArchName(uint16_t uMachine)
+{
+    switch (uMachine)
+    {
+        case IMAGE_FILE_MACHINE_I386:           return "X86_32";
+        case IMAGE_FILE_MACHINE_AMD64:          return "AMD64";
+
+        case IMAGE_FILE_MACHINE_UNKNOWN:        return "UNKNOWN";
+        case IMAGE_FILE_MACHINE_AM33:           return "AM33";
+        case IMAGE_FILE_MACHINE_ARM:            return "ARM";
+        case IMAGE_FILE_MACHINE_THUMB:          return "THUMB";
+        case IMAGE_FILE_MACHINE_ARMNT:          return "ARMNT";
+        case IMAGE_FILE_MACHINE_ARM64:          return "ARM64";
+        case IMAGE_FILE_MACHINE_EBC:            return "EBC";
+        case IMAGE_FILE_MACHINE_IA64:           return "IA64";
+        case IMAGE_FILE_MACHINE_M32R:           return "M32R";
+        case IMAGE_FILE_MACHINE_MIPS16:         return "MIPS16";
+        case IMAGE_FILE_MACHINE_MIPSFPU:        return "MIPSFPU";
+        case IMAGE_FILE_MACHINE_MIPSFPU16:      return "MIPSFPU16";
+        case IMAGE_FILE_MACHINE_WCEMIPSV2:      return "WCEMIPSV2";
+        case IMAGE_FILE_MACHINE_POWERPC:        return "POWERPC";
+        case IMAGE_FILE_MACHINE_POWERPCFP:      return "POWERPCFP";
+        case IMAGE_FILE_MACHINE_R4000:          return "R4000";
+        case IMAGE_FILE_MACHINE_SH3:            return "SH3";
+        case IMAGE_FILE_MACHINE_SH3DSP:         return "SH3DSP";
+        case IMAGE_FILE_MACHINE_SH4:            return "SH4";
+        case IMAGE_FILE_MACHINE_SH5:            return "SH5";
+        default:                                return "UnknownMachine";
+    }
 }
 
 
@@ -3680,18 +3751,6 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
 
     return VINF_SUCCESS;
 }
-
-
-static const char *rtldrPEGetArchName(uint16_t uMachine)
-{
-    switch (uMachine)
-    {
-        case IMAGE_FILE_MACHINE_I386:   return "X86_32";
-        case IMAGE_FILE_MACHINE_AMD64:  return "AMD64";
-        default:                        return "Unknown";
-    }
-}
-
 
 
 /**

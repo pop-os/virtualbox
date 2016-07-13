@@ -146,7 +146,6 @@ VMMR0_INT_DECL(int) CPUMR0ModuleTerm(void)
 static DECLCALLBACK(void) cpumR0CheckCpuid(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
     PVM     pVM   = (PVM)pvUser1;
-    PCPUM   pCPUM = &pVM->cpum.s;
 
     NOREF(idCpu); NOREF(pvUser2);
     for (uint32_t i = 0; i < RT_ELEMENTS(g_aCpuidUnifyBits); i++)
@@ -327,12 +326,12 @@ VMMR0_INT_DECL(int) CPUMR0InitVM(PVM pVM)
  * @returns VBox status code.
  * @retval VINF_SUCCESS           if the guest FPU state is loaded.
  * @retval VINF_EM_RAW_GUEST_TRAP if it is a guest trap.
+ * @retval VINF_CPUM_HOST_CR0_MODIFIED if we modified the host CR0.
  *
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pCtx        Pointer to the guest-CPU context.
  */
-VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu)
 {
     Assert(pVM->cpum.s.HostFeatures.fFxSaveRstor);
     Assert(ASMGetCR4() & X86_CR4_OSFXSR);
@@ -340,8 +339,8 @@ VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     /* If the FPU state has already been loaded, then it's a guest trap. */
     if (CPUMIsGuestFPUStateActive(pVCpu))
     {
-        Assert(    ((pCtx->cr0 & (X86_CR0_MP | X86_CR0_EM | X86_CR0_TS)) == (X86_CR0_MP | X86_CR0_TS))
-               ||  ((pCtx->cr0 & (X86_CR0_MP | X86_CR0_EM | X86_CR0_TS)) == (X86_CR0_MP | X86_CR0_TS | X86_CR0_EM)));
+        Assert(    ((pVCpu->cpum.s.Guest.cr0 & (X86_CR0_MP | X86_CR0_EM | X86_CR0_TS)) == (X86_CR0_MP | X86_CR0_TS))
+               ||  ((pVCpu->cpum.s.Guest.cr0 & (X86_CR0_MP | X86_CR0_EM | X86_CR0_TS)) == (X86_CR0_MP | X86_CR0_TS | X86_CR0_EM)));
         return VINF_EM_RAW_GUEST_TRAP;
     }
 
@@ -370,7 +369,7 @@ VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
      *   1 |  1 |  1 | #NM      | #NM  :: Go to guest taking trap there.
      */
 
-    switch (pCtx->cr0 & (X86_CR0_MP | X86_CR0_EM | X86_CR0_TS))
+    switch (pVCpu->cpum.s.Guest.cr0 & (X86_CR0_MP | X86_CR0_EM | X86_CR0_TS))
     {
         case X86_CR0_MP | X86_CR0_TS:
         case X86_CR0_MP | X86_CR0_TS | X86_CR0_EM:
@@ -379,138 +378,133 @@ VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
             break;
     }
 
-    return CPUMR0LoadGuestFPU(pVM, pVCpu, pCtx);
+    return CPUMR0LoadGuestFPU(pVM, pVCpu);
 }
 
 
 /**
- * Saves the host-FPU/XMM state and loads the guest-FPU state into the CPU.
+ * Saves the host-FPU/XMM state (if necessary) and (always) loads the guest-FPU
+ * state into the CPU.
  *
- * @returns VBox status code.
+ * @returns VINF_SUCCESS on success, host CR0 unmodified.
+ * @returns VINF_CPUM_HOST_CR0_MODIFIED on success when the host CR0 was
+ *          modified and VT-x needs to update the value in the VMCS.
  *
  * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pCtx    Pointer to the guest-CPU context.
  */
-VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu)
 {
+    int rc = VINF_SUCCESS;
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-    if (CPUMIsGuestInLongModeEx(pCtx))
-    {
-        Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_SYNC_FPU_STATE));
+    Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST));
+    Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_SYNC_FPU_STATE));
 
-        /* Save the host state and record the fact (CPUM_USED_FPU | CPUM_USED_FPU_SINCE_REM). */
-        cpumR0SaveHostFPUState(&pVCpu->cpum.s);
+#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
+    if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.s.Guest))
+    {
+        Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE));
+
+        /* Save the host state if necessary. */
+        if (!(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_HOST))
+            rc = cpumRZSaveHostFPUState(&pVCpu->cpum.s);
 
         /* Restore the state on entry as we need to be in 64-bit mode to access the full state. */
         pVCpu->cpum.s.fUseFlags |= CPUM_SYNC_FPU_STATE;
+
+        Assert(   (pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM))
+               ==                            (CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM));
     }
     else
 #endif
     {
-        NOREF(pCtx);
-        Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE));
-        /** @todo Move the FFXR handling down into
-         *        cpumR0SaveHostRestoreGuestFPUState to optimize the
-         *        VBOX_WITH_KERNEL_USING_XMM handling. */
-        /* Clear MSR_K6_EFER_FFXSR or else we'll be unable to save/restore the XMM state with fxsave/fxrstor. */
-        uint64_t uHostEfer    = 0;
-        bool     fRestoreEfer = false;
-        if (pVM->cpum.s.HostFeatures.fLeakyFxSR)
+        if (!pVM->cpum.s.HostFeatures.fLeakyFxSR)
         {
+            Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE));
+            rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
+        }
+        else
+        {
+            Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE) || (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_HOST));
             /** @todo r=ramshankar: Can't we used a cached value here
              *        instead of reading the MSR? host EFER doesn't usually
              *        change. */
-            uHostEfer = ASMRdMsr(MSR_K6_EFER);
-            if (uHostEfer & MSR_K6_EFER_FFXSR)
+            uint64_t uHostEfer = ASMRdMsr(MSR_K6_EFER);
+            if (!(uHostEfer & MSR_K6_EFER_FFXSR))
+                rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
+            else
             {
-                ASMWrMsr(MSR_K6_EFER, uHostEfer & ~MSR_K6_EFER_FFXSR);
+                RTCCUINTREG const uSavedFlags = ASMIntDisableFlags();
                 pVCpu->cpum.s.fUseFlags |= CPUM_USED_MANUAL_XMM_RESTORE;
-                fRestoreEfer = true;
+                ASMWrMsr(MSR_K6_EFER, uHostEfer & ~MSR_K6_EFER_FFXSR);
+                rc = cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
+                ASMWrMsr(MSR_K6_EFER, uHostEfer | MSR_K6_EFER_FFXSR);
+                ASMSetFlags(uSavedFlags);
             }
         }
-
-        /* Do the job and record that we've switched FPU state. */
-        cpumR0SaveHostRestoreGuestFPUState(&pVCpu->cpum.s);
-
-        /* Restore EFER. */
-        if (fRestoreEfer)
-            ASMWrMsr(MSR_K6_EFER, uHostEfer);
+        Assert(   (pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM))
+               ==                            (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_USED_FPU_SINCE_REM));
     }
-
-    Assert((pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU | CPUM_USED_FPU_SINCE_REM)) == (CPUM_USED_FPU | CPUM_USED_FPU_SINCE_REM));
-    return VINF_SUCCESS;
+    return rc;
 }
 
 
 /**
- * Save guest FPU/XMM state
+ * Saves the guest FPU/XMM state if needed, restores the host FPU/XMM state as
+ * needed.
  *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
+ * @returns true if we saved the guest state.
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pCtx        Pointer to the guest CPU context.
  */
-VMMR0_INT_DECL(int) CPUMR0SaveGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+VMMR0_INT_DECL(bool) CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu)
 {
-    Assert(pVM->cpum.s.HostFeatures.fFxSaveRstor);
+    bool fSavedGuest;
+    Assert(pVCpu->CTX_SUFF(pVM)->cpum.s.HostFeatures.fFxSaveRstor);
     Assert(ASMGetCR4() & X86_CR4_OSFXSR);
-    AssertReturn((pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU), VINF_SUCCESS);
-    NOREF(pVM); NOREF(pCtx);
-
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-    if (CPUMIsGuestInLongModeEx(pCtx))
+    if (pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST))
     {
-        if (!(pVCpu->cpum.s.fUseFlags & CPUM_SYNC_FPU_STATE))
+        fSavedGuest = RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST);
+#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
+        if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.s.Guest))
         {
-            HMR0SaveFPUState(pVM, pVCpu, pCtx);
+            if (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST)
+            {
+                Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_SYNC_FPU_STATE));
+                HMR0SaveFPUState(pVCpu->CTX_SUFF(pVM), pVCpu, &pVCpu->cpum.s.Guest);
+            }
+            else
+                pVCpu->cpum.s.fUseFlags &= ~CPUM_SYNC_FPU_STATE;
             cpumR0RestoreHostFPUState(&pVCpu->cpum.s);
         }
-        /* else nothing to do; we didn't perform a world switch */
-    }
-    else
+        else
 #endif
-    {
-#ifdef VBOX_WITH_KERNEL_USING_XMM
-        /*
-         * We've already saved the XMM registers in the assembly wrapper, so
-         * we have to save them before saving the entire FPU state and put them
-         * back afterwards.
-         */
-        /** @todo This could be skipped if MSR_K6_EFER_FFXSR is set, but
-         *        I'm not able to test such an optimization tonight.
-         *        We could just all this in assembly. */
-        uint128_t aGuestXmmRegs[16];
-        memcpy(&aGuestXmmRegs[0], &pVCpu->cpum.s.Guest.CTX_SUFF(pXState)->x87.aXMM[0], sizeof(aGuestXmmRegs));
-#endif
-
-        /* Clear MSR_K6_EFER_FFXSR or else we'll be unable to save/restore the XMM state with fxsave/fxrstor. */
-        uint64_t uHostEfer    = 0;
-        bool     fRestoreEfer = false;
-        if (pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE)
         {
-            uHostEfer = ASMRdMsr(MSR_K6_EFER);
-            if (uHostEfer & MSR_K6_EFER_FFXSR)
+            if (!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE))
+                cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
+            else
             {
-                ASMWrMsr(MSR_K6_EFER, uHostEfer & ~MSR_K6_EFER_FFXSR);
-                fRestoreEfer = true;
+                /* Temporarily clear MSR_K6_EFER_FFXSR or else we'll be unable to
+                   save/restore the XMM state with fxsave/fxrstor. */
+                uint64_t uHostEfer = ASMRdMsr(MSR_K6_EFER);
+                if (uHostEfer & MSR_K6_EFER_FFXSR)
+                {
+                    RTCCUINTREG const uSavedFlags = ASMIntDisableFlags();
+                    ASMWrMsr(MSR_K6_EFER, uHostEfer & ~MSR_K6_EFER_FFXSR);
+                    cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
+                    ASMWrMsr(MSR_K6_EFER, uHostEfer | MSR_K6_EFER_FFXSR);
+                    ASMSetFlags(uSavedFlags);
+                }
+                else
+                    cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
+                pVCpu->cpum.s.fUseFlags &= ~CPUM_USED_MANUAL_XMM_RESTORE;
             }
         }
-
-        cpumR0SaveGuestRestoreHostFPUState(&pVCpu->cpum.s);
-
-        /* Restore EFER MSR */
-        if (fRestoreEfer)
-            ASMWrMsr(MSR_K6_EFER, uHostEfer | MSR_K6_EFER_FFXSR);
-
-#ifdef VBOX_WITH_KERNEL_USING_XMM
-        memcpy(&pVCpu->cpum.s.Guest.CTX_SUFF(pXState)->x87.aXMM[0], &aGuestXmmRegs[0], sizeof(aGuestXmmRegs));
-#endif
     }
-
-    pVCpu->cpum.s.fUseFlags &= ~(CPUM_USED_FPU | CPUM_SYNC_FPU_STATE | CPUM_USED_MANUAL_XMM_RESTORE);
-    return VINF_SUCCESS;
+    else
+        fSavedGuest = false;
+    Assert(!(  pVCpu->cpum.s.fUseFlags
+             & (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST | CPUM_SYNC_FPU_STATE | CPUM_USED_MANUAL_XMM_RESTORE)));
+    return fSavedGuest;
 }
 
 

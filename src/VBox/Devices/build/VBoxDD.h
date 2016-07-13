@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,6 +78,9 @@ extern const PDMDEVREG g_DevicePciIch9Bridge;
 extern const PDMDEVREG g_DeviceLsiLogicSCSI;
 extern const PDMDEVREG g_DeviceLsiLogicSAS;
 #endif
+#ifdef VBOX_WITH_NVME_IMPL
+extern const PDMDEVREG g_DeviceNVMe;
+#endif
 #ifdef VBOX_WITH_EFI
 extern const PDMDEVREG g_DeviceEFI;
 #endif
@@ -91,13 +94,10 @@ extern const PDMDEVREG g_DeviceVirtualKD;
 
 extern const PDMDRVREG g_DrvMouseQueue;
 extern const PDMDRVREG g_DrvKeyboardQueue;
-extern const PDMDRVREG g_DrvBlock;
 extern const PDMDRVREG g_DrvVBoxHDD;
 extern const PDMDRVREG g_DrvVD;
 extern const PDMDRVREG g_DrvHostDVD;
 extern const PDMDRVREG g_DrvHostFloppy;
-extern const PDMDRVREG g_DrvMediaISO;
-extern const PDMDRVREG g_DrvRawImage;
 extern const PDMDRVREG g_DrvISCSI;
 extern const PDMDRVREG g_DrvISCSITransportTcp;
 #if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
@@ -121,20 +121,17 @@ extern const PDMDRVREG g_DrvHostNullAudio;
 #if defined(RT_OS_WINDOWS)
 extern const PDMDRVREG g_DrvHostDSound;
 #endif
-#if defined(RT_OS_LINUX)
-extern const PDMDRVREG g_DrvHostPulseAudio;
-extern const PDMDRVREG g_DrvHostALSAAudio;
+#ifdef VBOX_WITH_OSS
 extern const PDMDRVREG g_DrvHostOSSAudio;
+#endif
+#ifdef VBOX_WITH_ALSA
+extern const PDMDRVREG g_DrvHostALSAAudio;
+#endif
+#ifdef VBOX_WITH_PULSE
+extern const PDMDRVREG g_DrvHostPulseAudio;
 #endif
 #if defined(RT_OS_DARWIN)
 extern const PDMDRVREG g_DrvHostCoreAudio;
-#endif
-#if defined(RT_OS_SOLARIS)
-extern const PDMDRVREG g_DrvHostOSSAudio;
-extern const PDMDRVREG g_DrvHostSolAudio;
-#endif
-#if defined(RT_OS_FREEBSD)
-extern const PDMDRVREG g_DrvHostOSSAudio;
 #endif
 extern const PDMDRVREG g_DrvACPI;
 extern const PDMDRVREG g_DrvAcpiCpu;
@@ -145,6 +142,7 @@ extern const PDMDRVREG g_DrvHostWebcam;
 extern const PDMDRVREG g_DrvChar;
 extern const PDMDRVREG g_DrvNamedPipe;
 extern const PDMDRVREG g_DrvTCP;
+extern const PDMDRVREG g_DrvUDP;
 extern const PDMDRVREG g_DrvRawFile;
 extern const PDMDRVREG g_DrvHostParallel;
 extern const PDMDRVREG g_DrvHostSerial;

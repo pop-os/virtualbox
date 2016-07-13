@@ -1,21 +1,14 @@
 /** @file
+Header file for helper functions useful for parsing INF files.
 
-Copyright (c) 2004 - 2008, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials                          
-are licensed and made available under the terms and conditions of the BSD License         
-which accompanies this distribution.  The full text of the license may be found at        
-http://opensource.org/licenses/bsd-license.php                                            
-                                                                                          
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php
 
-Module Name:
-
-  ParseInf.h
-
-Abstract:
-
-  Header file for helper functions useful for parsing INF files.
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -26,10 +19,6 @@ Abstract:
 #include <stdlib.h>
 #include <Common/UefiBaseTypes.h>
 #include <MemoryFile.h>
-
-#ifndef _MAX_PATH
-#define _MAX_PATH 500
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,16 +39,16 @@ ReadLine (
 Routine Description:
 
   This function reads a line, stripping any comments.
-  The function reads a string from the input stream argument and stores it in 
-  the input string. ReadLine reads characters from the current file position 
-  to and including the first newline character, to the end of the stream, or 
-  until the number of characters read is equal to MaxLength - 1, whichever 
-  comes first.  The newline character, if read, is replaced with a \0. 
+  The function reads a string from the input stream argument and stores it in
+  the input string. ReadLine reads characters from the current file position
+  to and including the first newline character, to the end of the stream, or
+  until the number of characters read is equal to MaxLength - 1, whichever
+  comes first.  The newline character, if read, is replaced with a \0.
 
 Arguments:
 
   InputFile     Memory file image.
-  InputBuffer   Buffer to read into, must be _MAX_PATH size.
+  InputBuffer   Buffer to read into, must be MaxLength size.
   MaxLength     The maximum size of the input buffer.
 
 Returns:
@@ -115,7 +104,7 @@ Arguments:
   Section   The section to search for, a string within [].
   Token     The token to search for, e.g. EFI_PEIM_RECOVERY, followed by an = in the INF file.
   Instance  The instance of the token to search for.  Zero is the first instance.
-  Value     The string that holds the value following the =.  Must be _MAX_PATH in size.
+  Value     The string that holds the value following the =.  Must be MAX_LONG_FILE_PATH in size.
 
 Returns:
 
@@ -135,17 +124,17 @@ StringToGuid (
 
 /*++
 
-Routine Description: 
+Routine Description:
 
-  Converts a string to an EFI_GUID.  The string must be in the 
+  Converts a string to an EFI_GUID.  The string must be in the
   xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx format.
 
-Arguments:  
+Arguments:
 
   GuidBuffer      - pointer to destination Guid
   AsciiGuidBuffer - pointer to ascii string
 
-Returns:  
+Returns:
 
   EFI_ABORTED    Could not convert the string
   EFI_SUCCESS    The string was successfully converted
@@ -163,9 +152,9 @@ AsciiStringToUint64 (
 
 Routine Description:
 
-  Converts a null terminated ascii string that represents a number into a 
-  UINT64 value.  A hex number may be preceeded by a 0x, but may not be 
-  succeeded by an h.  A number without 0x or 0X is considered to be base 10 
+  Converts a null terminated ascii string that represents a number into a
+  UINT64 value.  A hex number may be preceeded by a 0x, but may not be
+  succeeded by an h.  A number without 0x or 0X is considered to be base 10
   unless the IsHex input is true.
 
 Arguments:
@@ -196,7 +185,7 @@ Routine Description:
 Arguments:
 
   InputFile     Stream pointer.
-  InputBuffer   Buffer to read into, must be _MAX_PATH size.
+  InputBuffer   Buffer to read into, must be MAX_LONG_FILE_PATH size.
 
 Returns:
 

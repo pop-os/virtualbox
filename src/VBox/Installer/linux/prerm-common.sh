@@ -14,6 +14,7 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
 
 # Put bits of the pre-uninstallation here which should work the same for all of
 # the Linux installers.  We do not use special helpers (e.g. dh_* on Debian),
@@ -28,40 +29,18 @@
 # stopped (installers may show an error themselves or just pass on standard
 # error).
 
-# This is GNU-specific, sorry Solaris.
-MY_PATH="$(dirname $(readlink -f -- "${0}"))/"
+# The below is GNU-specific.  See VBox.sh for the longer Solaris/OS X version.
+TARGET=`readlink -e -- "${0}"` || exit 1
+MY_PATH="${TARGET%/[!/]*}"
 cd "${MY_PATH}"
 . "./routines.sh"
 
-DO_DKMS=
-VERSION=
-while true
-do
-    test -z "${1}" && break
-    case "${1}" in
-        --dkms)
-            DO_DKMS=true
-            shift
-            VERSION="${1}"
-            if test -z "${VERSION}"; then
-                echo "--dkms requires a version"
-                exit 1
-            fi
-            ;;
-        *)
-            echo "Bad argument ${1}" >&2
-            exit 1
-            ;;
-    esac
-    shift
-done
-
 # Stop the ballon control service
-stop_init_script vboxballoonctrl-service 2>/dev/null
+stop_init_script vboxballoonctrl-service >/dev/null 2>&1
 # Stop the autostart service
-stop_init_script vboxautostart-service 2>/dev/null
+stop_init_script vboxautostart-service >/dev/null 2>&1
 # Stop the web service
-stop_init_script vboxweb-service 2>/dev/null
+stop_init_script vboxweb-service >/dev/null 2>&1
 # Do this check here after we terminated the web service: check whether VBoxSVC
 # is running and exit if it can't be stopped.
 check_running
@@ -75,20 +54,24 @@ delrunlevel vboxautostart-service
 remove_init_script vboxautostart-service
 delrunlevel vboxweb-service
 remove_init_script vboxweb-service
-DKMS=`which dkms 2>/dev/null`
-if test "$DO_DKMS" = true && test -n "$DKMS"; then
-  $DKMS remove -m vboxhost -v "${VERSION}" --all > /dev/null 2>&1
-  $DKMS remove -m vboxdrv -v "${VERSION}" --all > /dev/null 2>&1
-  $DKMS remove -m vboxnetflt -v "${VERSION}" --all > /dev/null 2>&1
-  $DKMS remove -m vboxnetadp -v "${VERSION}" --all > /dev/null 2>&1
-fi
 # Stop kernel module and uninstall runlevel script
-stop_init_script vboxdrv 2>/dev/null
+stop_init_script vboxdrv >/dev/null 2>&1
 delrunlevel vboxdrv
 remove_init_script vboxdrv
+# And do final clean-up
+"${MY_PATH}/vboxdrv.sh" cleanup >/dev/null  # Do not silence errors for now
 # Stop host networking and uninstall runlevel script (obsolete)
-stop_init_script vboxnet 2>/dev/null
-delrunlevel vboxnet 2>/dev/null
-remove_init_script vboxnet 2>/dev/null
+stop_init_script vboxnet >/dev/null 2>&1
+delrunlevel vboxnet >/dev/null 2>&1
+remove_init_script vboxnet >/dev/null 2>&1
 rm -f /sbin/vboxconfig
+# Remove any generated modules
+if [ -z "$VBOX_DONT_REMOVE_OLD_MODULES" ]; then
+    for folder in /lib/modules/*/misc /lib/modules/*/kernel/misc; do
+        ## @todo not duplicate the names all over the place.
+        for file in vboxdrv.ko vboxnetflt.ko vboxnetadp.ko vboxpci.ko; do
+            test -f "${folder}/${file}" && rm -f "${folder}/${file}"
+        done
+    done
+fi
 exit 0

@@ -49,6 +49,32 @@ typedef struct DBGCBP
 typedef DBGCBP *PDBGCBP;
 
 
+typedef enum DBGCEVTSTATE
+{
+    kDbgcEvtState_Invalid = 0,
+    kDbgcEvtState_Disabled,
+    kDbgcEvtState_Enabled,
+    kDbgcEvtState_Notify
+} DBGCEVTSTATE;
+
+/**
+ * Debugger console per event configuration.
+ */
+typedef struct DBGCEVTCFG
+{
+    /** The event state. */
+    DBGCEVTSTATE    enmState;
+    /** The size of the command. */
+    size_t          cchCmd;
+    /** The command to execute when the event occurs. */
+    char            szCmd[1];
+} DBGCEVTCFG;
+/** Pointer to a event configuration. */
+typedef DBGCEVTCFG *PDBGCEVTCFG;
+/** Pointer to a const event configuration. */
+typedef DBGCEVTCFG const *PCDBGCEVTCFG;
+
+
 /**
  * Named variable.
  *
@@ -101,7 +127,7 @@ typedef struct DBGC
     /** Pointer to the commands for the current debugger emulation. */
     PCDBGCCMD           paEmulationCmds;
     /** The number of commands paEmulationCmds points to. */
-    unsigned            cEmulationCmds;
+    uint32_t            cEmulationCmds;
     /** Pointer to the functions for the current debugger emulation. */
     PCDBGCFUNC          paEmulationFuncs;
     /** The number of functions paEmulationFuncs points to. */
@@ -139,6 +165,13 @@ typedef struct DBGC
 
     /** The list of breakpoints. (singly linked) */
     PDBGCBP             pFirstBp;
+
+    /** Software interrupt events. */
+    PDBGCEVTCFG         apSoftInts[256];
+    /** Hardware interrupt events. */
+    PDBGCEVTCFG         apHardInts[256];
+    /** Selectable events (first few entries are unused). */
+    PDBGCEVTCFG         apEventCfgs[DBGFEVENT_END];
 
     /** Save search pattern. */
     uint8_t             abSearch[256];
@@ -188,6 +221,13 @@ typedef struct DBGC
     /** rc from the last command. */
     int                 rcCmd;
     /** @} */
+
+    /** The command history file (not yet implemented). */
+    char               *pszHistoryFile;
+    /** The global debugger init script. */
+    char               *pszGlobalInitScript;
+    /** The per VM debugger init script. */
+    char               *pszLocalInitScript;
 } DBGC;
 /** Pointer to debugger console instance data. */
 typedef DBGC *PDBGC;
@@ -346,6 +386,44 @@ typedef struct DBGCSYM
 } DBGCSYM;
 
 
+/** Selectable debug event kind. */
+typedef enum
+{
+    kDbgcSxEventKind_Plain,
+    kDbgcSxEventKind_Interrupt
+} DBGCSXEVENTKIND;
+
+/**
+ * Selectable debug event name / type lookup table entry.
+ *
+ * This also contains the default setting and an alternative name.
+ */
+typedef struct DBGCSXEVT
+{
+    /** The event type. */
+    DBGFEVENTTYPE   enmType;
+    /** The event name. */
+    const char     *pszName;
+    /** Alternative event name (optional). */
+    const char     *pszAltNm;
+    /** The kind of event. */
+    DBGCSXEVENTKIND enmKind;
+    /** The default state. */
+    DBGCEVTSTATE    enmDefault;
+    /** Flags, DBGCSXEVT_F_XXX. */
+    uint32_t        fFlags;
+    /** Description for use when reporting the event, optional. */
+    const char     *pszDesc;
+} DBGCSXEVT;
+/** Pointer to a constant selectable debug event descriptor. */
+typedef DBGCSXEVT const *PCDBGCSXEVT;
+
+/** @name DBGCSXEVT_F_XXX
+ * @{ */
+#define DBGCSXEVT_F_TAKE_ARG        RT_BIT_32(0)
+/** @} */
+
+
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
@@ -358,6 +436,7 @@ int     dbgcBpExec(PDBGC pDbgc, RTUINT iBp);
 void    dbgcEvalInit(void);
 int     dbgcEvalSub(PDBGC pDbgc, char *pszExpr, size_t cchExpr, DBGCVARCAT enmCategory, PDBGCVAR pResult);
 int     dbgcEvalCommand(PDBGC pDbgc, char *pszCmd, size_t cchCmd, bool fNoExecute);
+int     dbgcEvalScript(PDBGC pDbgc, const char *pszFilename, bool fAnnounce);
 
 int     dbgcSymbolGet(PDBGC pDbgc, const char *pszSymbol, DBGCVARTYPE enmType, PDBGCVAR pResult);
 PCDBGCSYM   dbgcLookupRegisterSymbol(PDBGC pDbgc, const char *pszSymbol);
@@ -372,6 +451,10 @@ DECLCALLBACK(int) dbgcOpAddrPhys(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat,
 DECLCALLBACK(int) dbgcOpAddrHostPhys(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
 
 void    dbgcInitCmdHlp(PDBGC pDbgc);
+
+void    dbgcEventInit(PDBGC pDbgc);
+void    dbgcEventTerm(PDBGC pDbgc);
+
 
 /* For tstDBGCParser: */
 int     dbgcCreate(PDBGC *ppDbgc, PDBGCBACK pBack, unsigned fFlags);
@@ -393,6 +476,8 @@ extern const DBGCFUNC   g_aFuncsCodeView[];
 extern const uint32_t   g_cFuncsCodeView;
 extern const DBGCOP     g_aDbgcOps[];
 extern const uint32_t   g_cDbgcOps;
+extern const DBGCSXEVT  g_aDbgcSxEvents[];
+extern const uint32_t   g_cDbgcSxEvents;
 
 
 /*******************************************************************************

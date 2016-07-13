@@ -23,7 +23,7 @@
 using namespace com;
 
 class ATL_NO_VTABLE VirtualBoxErrorInfo
-    : public CComObjectRootEx<CComMultiThreadModel>
+    : public ATL::CComObjectRootEx<ATL::CComMultiThreadModel>
     , VBOX_SCRIPTABLE_IMPL(IVirtualBoxErrorInfo)
 #ifndef VBOX_WITH_XPCOM /* IErrorInfo doesn't inherit from IDispatch, ugly 3am hack: */
     , public IDispatch
@@ -108,6 +108,7 @@ public:
         : m_resultCode(S_OK),
           m_resultDetail(0)
     {}
+    virtual ~VirtualBoxErrorInfo() {}
 
     // public initializer/uninitializer for internal purposes only
     HRESULT init(HRESULT aResultCode,

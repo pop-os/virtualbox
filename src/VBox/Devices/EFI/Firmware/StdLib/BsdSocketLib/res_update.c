@@ -1,7 +1,3 @@
-#if !defined(lint) && !defined(SABER)
-static char rcsid[] = "$Id: res_update.c $";
-#endif /* not lint */
-
 /*
  * Copyright (c) 1996 by Internet Software Consortium.
  *

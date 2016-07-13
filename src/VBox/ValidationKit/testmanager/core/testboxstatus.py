@@ -26,14 +26,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107843 $"
 
 
 # Standard python imports.
 import unittest;
 
 # Validation Kit imports.
-from testmanager.core.base      import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase;
+from testmanager.core.base      import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMTooManyRows, TMRowNotFound;
 from testmanager.core.testbox   import TestBoxData;
 
 
@@ -61,6 +61,7 @@ class TestBoxStatusData(ModelDataBase):
     ksParam_tsUpdated           = 'TestBoxStatus_tsUpdated';
     ksParam_enmState            = 'TestBoxStatus_enmState';
     ksParam_idTestSet           = 'TestBoxStatus_idTestSet';
+    ksParam_iWorkItem           = 'TestBoxStatus_iWorkItem';
 
     kasAllowNullAttributes      = ['idTestSet', ];
     kasValidValues_enmState     = \
@@ -70,6 +71,8 @@ class TestBoxStatusData(ModelDataBase):
         ksTestBoxState_Rebooting,               ksTestBoxState_Upgrading,   ksTestBoxState_UpgradingAndRebooting,
         ksTestBoxState_DoingSpecialCmd,
     ];
+
+    kcDbColumns                 = 6;
 
     def __init__(self):
         ModelDataBase.__init__(self);
@@ -83,6 +86,7 @@ class TestBoxStatusData(ModelDataBase):
         self.tsUpdated           = None;
         self.enmState            = self.ksTestBoxState_Idle;
         self.idTestSet           = None;
+        self.iWorkItem           = None;
 
     def initFromDbRow(self, aoRow):
         """
@@ -91,13 +95,14 @@ class TestBoxStatusData(ModelDataBase):
         """
 
         if aoRow is None:
-            raise TMExceptionBase('TestBoxStatus not found.');
+            raise TMRowNotFound('TestBoxStatus not found.');
 
         self.idTestBox           = aoRow[0];
         self.idGenTestBox        = aoRow[1];
         self.tsUpdated           = aoRow[2];
         self.enmState            = aoRow[3];
         self.idTestSet           = aoRow[4];
+        self.iWorkItem           = aoRow[5];
         return self;
 
     def initFromDbWithId(self, oDb, idTestBox):
@@ -159,25 +164,27 @@ class TestBoxStatusLogic(ModelLogicBase):
         Returns (TestBoxStatusData, TestBoxData) on success, (None, None) if
         not found.  May throw an exception on database error.
         """
-        self._oDb.execute('SELECT   *\n'
-                          'FROM     TestBoxStatuses, TestBoxes\n'
-                          'WHERE    TestBoxStatuses.idTestBox = %s\n'
-                          '     AND TestBoxes.idTestBox  = %s\n'
-                          '     AND TestBoxes.tsExpire   = \'infinity\'::timestamp\n'
-                          '     AND TestBoxes.uuidSystem = %s\n'
-                          '     AND TestBoxes.ip         = %s\n'
-                          , (idTestBox,
-                             idTestBox,
-                             sTestBoxUuid,
-                             sTestBoxAddr,
-                          ));
+        self._oDb.execute('SELECT   TestBoxStatuses.*,\n'
+                          '         TestBoxesWithStrings.*\n'
+                          'FROM     TestBoxStatuses,\n'
+                          '         TestBoxesWithStrings\n'
+                          'WHERE    TestBoxStatuses.idTestBox       = %s\n'
+                          '     AND TestBoxesWithStrings.idTestBox  = %s\n'
+                          '     AND TestBoxesWithStrings.tsExpire   = \'infinity\'::TIMESTAMP\n'
+                          '     AND TestBoxesWithStrings.uuidSystem = %s\n'
+                          '     AND TestBoxesWithStrings.ip         = %s\n'
+                          , ( idTestBox,
+                              idTestBox,
+                              sTestBoxUuid,
+                              sTestBoxAddr,) );
         cRows = self._oDb.getRowCount();
         if cRows != 1:
             if cRows != 0:
-                raise TMExceptionBase('tryFetchStatusForCommandReq got %s rows for idTestBox=%s' % (cRows, idTestBox));
+                raise TMTooManyRows('tryFetchStatusForCommandReq got %s rows for idTestBox=%s' % (cRows, idTestBox));
             return (None, None);
         aoRow = self._oDb.fetchOne();
-        return (TestBoxStatusData().initFromDbRow(aoRow[0:5]), TestBoxData().initFromDbRow(aoRow[5:]));
+        return (TestBoxStatusData().initFromDbRow(aoRow[:TestBoxStatusData.kcDbColumns]),
+                TestBoxData().initFromDbRow(aoRow[TestBoxStatusData.kcDbColumns:]));
 
 
     def insertIdleStatus(self, idTestBox, idGenTestBox, fCommit = False):
@@ -188,12 +195,14 @@ class TestBoxStatusLogic(ModelLogicBase):
                           '         idTestBox,\n'
                           '         idGenTestBox,\n'
                           '         enmState,\n'
-                          '         idTestSet)\n'
+                          '         idTestSet,\n'
+                          '         iWorkItem)\n'
                           'VALUES ( %s,\n'
                           '         %s,\n'
                           '         \'idle\'::TestBoxState_T,\n'
-                          '         NULL)\n',
-                          (idTestBox, idGenTestBox) );
+                          '         NULL,\n'
+                          '         0)\n'
+                          , (idTestBox, idGenTestBox) );
         self._oDb.maybeCommit(fCommit);
         return True;
 
@@ -232,6 +241,17 @@ class TestBoxStatusLogic(ModelLogicBase):
                           '                       FROM   TestSets\n'
                           '                       WHERE  idTestSetGangLeader = %s)\n'
                           , (sNewState, idTestSetGangLeader,) );
+        self._oDb.maybeCommit(fCommit);
+        return True;
+
+    def updateWorkItem(self, idTestBox, iWorkItem, fCommit = False):
+        """
+        Updates the testbox state.
+        """
+        self._oDb.execute('UPDATE   TestBoxStatuses\n'
+                          'SET      iWorkItem = %s\n'
+                          'WHERE    idTestBox = %s\n'
+                          , ( iWorkItem, idTestBox,));
         self._oDb.maybeCommit(fCommit);
         return True;
 

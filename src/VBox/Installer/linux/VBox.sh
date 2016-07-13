@@ -16,18 +16,40 @@
 #
 
 PATH="/usr/bin:/bin:/usr/sbin:/sbin"
-CONFIG="/etc/vbox/vbox.cfg"
 
-test -r "${CONFIG}" &&
-    . "${CONFIG}"
-test -z "${INSTALL_DIR}" &&
-    if test -f /usr/lib/virtualbox/VirtualBox &&
-        test -x /usr/lib/virtualbox/VirtualBox; then
-        INSTALL_DIR=/usr/lib/virtualbox
-    else
-        echo "Could not find VirtualBox installation. Please reinstall."
-        exit 1
-    fi
+# The below is GNU-specific.  See slightly further down for a version which
+# works on Solaris and OS X.
+TARGET=`readlink -e -- "${0}"` || exit 1
+MY_DIR="${TARGET%/[!/]*}"
+
+# (
+#     path="${0}"
+#     while test -n "${path}"; do
+#         # Make sure we have at least one slash and no leading dash.
+#         expr "${path}" : / > /dev/null || path="./${path}"
+#         # Filter out bad characters in the path name.
+#         expr "${path}" : ".*[*?<>\\]" > /dev/null && exit 1
+#         # Catch embedded new-lines and non-existing (or path-relative) files.
+#         # $0 should always be absolute when scripts are invoked through "#!".
+#         test "`ls -l -d "${path}" 2> /dev/null | wc -l`" -eq 1 || exit 1
+#         # Change to the folder containing the file to resolve relative links.
+#         folder=`expr "${path}" : "\(.*/\)[^/][^/]*/*$"` || exit 1
+#         path=`expr "x\`ls -l -d "${path}"\`" : "[^>]* -> \(.*\)"`
+#         cd "${folder}"
+#         # If the last path was not a link then we are in the target folder.
+#         test -n "${path}" || pwd
+#     done
+# )
+
+if test -f /usr/lib/virtualbox/VirtualBox &&
+    test -x /usr/lib/virtualbox/VirtualBox; then
+    INSTALL_DIR=/usr/lib/virtualbox
+elif test -f "${MY_DIR}/VirtualBox" && test -x "${MY_DIR}/VirtualBox"; then
+    INSTALL_DIR="${MY_DIR}"
+else
+    echo "Could not find VirtualBox installation. Please reinstall."
+    exit 1
+fi
 
 # Note: This script must not fail if the module was not successfully installed
 #       because the user might not want to run a VM but only change VM params!
@@ -40,7 +62,7 @@ WARNING: The vboxdrv kernel module is not loaded. Either there is no module
          available for the current kernel (`uname -r`) or it failed to
          load. Please recompile the kernel module and install it by
 
-           sudo /sbin/rcvboxdrv setup
+           sudo /sbin/vboxconfig
 
          You will not be able to start VMs until this problem is fixed.
 EOF
@@ -48,7 +70,7 @@ elif [ ! -c /dev/vboxdrv ]; then
     cat << EOF
 WARNING: The character device /dev/vboxdrv does not exist. Try
 
-           sudo /sbin/rcvboxdrv setup
+           sudo /sbin/vboxconfig
 
          and if that is not successful, try to re-install the package.
 
@@ -102,6 +124,9 @@ case "$APP" in
         ;;
     VBoxBalloonCtrl|vboxballoonctrl)
         exec "$INSTALL_DIR/VBoxBalloonCtrl" "$@"
+        ;;
+    VBoxBugReport|vboxbugreport)
+        exec "$INSTALL_DIR/VBoxBugReport" "$@"
         ;;
     VBoxDTrace|vboxdtrace)
         exec "$INSTALL_DIR/VBoxDTrace" "$@"

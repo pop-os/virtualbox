@@ -467,7 +467,10 @@ PFNRT g_apfnVBoxDrvIPRTDeps[] =
     (PFNRT)RTRandBytes,
     /* VBoxUSB */
     (PFNRT)RTPathStripFilename,
+    (PFNRT)RTHandleTableAlloc,
+#if !defined(RT_OS_FREEBSD)
     (PFNRT)RTStrPurgeEncoding,
+#endif
     NULL
 };
 #endif  /* RT_OS_DARWIN || RT_OS_SOLARIS || RT_OS_SOLARIS */
@@ -578,7 +581,7 @@ int VBOXCALL supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession)
                             g_aFunctions[3].pfn = (void *)0x88;                 /* SUPR0Abs64bitKernelDS - KERNEL64_SS, seg.h */
                         }
                         else
-                            g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[4].pfn = (void *)0;
+                            g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[3].pfn = (void *)0;
                         g_aFunctions[4].pfn = (void *)0x08;                     /* SUPR0AbsKernelCS - KERNEL_CS, seg.h */
                         g_aFunctions[5].pfn = (void *)0x10;                     /* SUPR0AbsKernelSS - KERNEL_DS, seg.h */
                         g_aFunctions[6].pfn = (void *)0x10;                     /* SUPR0AbsKernelDS - KERNEL_DS, seg.h */
@@ -605,7 +608,7 @@ int VBOXCALL supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession)
                         g_aFunctions[2].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0Abs64bitKernelSS */
                         g_aFunctions[3].pfn = (void *)(uintptr_t)ASMGetDS();    /* SUPR0Abs64bitKernelDS */
 # else
-                        g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[4].pfn = (void *)0;
+                        g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[3].pfn = (void *)0;
 # endif
                         g_aFunctions[4].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0AbsKernelCS */
                         g_aFunctions[5].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0AbsKernelSS */
@@ -4650,7 +4653,7 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     pReq->u.Out.pvImageBase   = pImage->pvImage;
     pReq->u.Out.fNeedsLoading = true;
     pReq->u.Out.fNativeLoader = pImage->fNative;
-    supdrvOSLdrNotifyOpened(pDevExt, pImage);
+    supdrvOSLdrNotifyOpened(pDevExt, pImage, pReq->u.In.szFilename);
 
     supdrvLdrUnlock(pDevExt);
     SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
@@ -5399,9 +5402,11 @@ static void supdrvLdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
     /* Inform the tracing component. */
     supdrvTracerModuleUnloading(pDevExt, pImage);
 
-    /* do native unload if appropriate. */
+    /* Do native unload if appropriate, then inform the native code about the
+       unloading (mainly for non-native loading case). */
     if (pImage->fNative)
         supdrvOSLdrUnload(pDevExt, pImage);
+    supdrvOSLdrNotifyUnloaded(pDevExt, pImage);
 
     /* free the image */
     pImage->cUsage  = 0;

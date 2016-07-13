@@ -29,15 +29,22 @@
 # include <QToolButton>
 # include <QStateMachine>
 # include <QPainter>
-# ifdef Q_WS_X11
-#  include <QX11Info>
-# endif /* Q_WS_X11 */
+# include <QDesktopWidget>
+# ifdef VBOX_WS_WIN
+#  include <QWindow>
+# endif /* VBOX_WS_WIN */
+# if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#  include <QWindowStateChangeEvent>
+# endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
 /* GUI includes: */
 # include "UIMiniToolBar.h"
 # include "UIAnimationFramework.h"
 # include "UIIconPool.h"
 # include "VBoxGlobal.h"
+# ifdef VBOX_WS_X11
+#  include "UIExtraDataManager.h"
+# endif /* VBOX_WS_X11 */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -274,12 +281,12 @@ void UIMiniToolBarPrivate::prepare()
     setIconSize(QSize(iIconMetric, iIconMetric));
 
     /* Left margin: */
-#ifdef Q_WS_X11
-    if (QX11Info::isCompositingManagerRunning())
+#ifdef VBOX_WS_X11
+    if (vboxGlobal().isCompositingManagerRunning())
         m_spacings << widgetForAction(addWidget(new QWidget));
-#else /* !Q_WS_X11 */
+#else /* !VBOX_WS_X11 */
     m_spacings << widgetForAction(addWidget(new QWidget));
-#endif /* !Q_WS_X11 */
+#endif /* !VBOX_WS_X11 */
 
     /* Prepare push-pin: */
     m_pAutoHideAction = new QAction(this);
@@ -329,12 +336,12 @@ void UIMiniToolBarPrivate::prepare()
     addAction(m_pCloseAction);
 
     /* Right margin: */
-#ifdef Q_WS_X11
-    if (QX11Info::isCompositingManagerRunning())
+#ifdef VBOX_WS_X11
+    if (vboxGlobal().isCompositingManagerRunning())
         m_spacings << widgetForAction(addWidget(new QWidget));
-#else /* !Q_WS_X11 */
+#else /* !VBOX_WS_X11 */
     m_spacings << widgetForAction(addWidget(new QWidget));
-#endif /* !Q_WS_X11 */
+#endif /* !VBOX_WS_X11 */
 
     /* Resize to sizehint: */
     resize(sizeHint());
@@ -342,10 +349,10 @@ void UIMiniToolBarPrivate::prepare()
 
 void UIMiniToolBarPrivate::rebuildShape()
 {
-#ifdef Q_WS_X11
-    if (!QX11Info::isCompositingManagerRunning())
+#ifdef VBOX_WS_X11
+    if (!vboxGlobal().isCompositingManagerRunning())
         return;
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
     /* Rebuild shape: */
     QPainterPath shape;
@@ -382,11 +389,28 @@ void UIMiniToolBarPrivate::rebuildShape()
     update();
 }
 
+/* static */
+Qt::WindowFlags UIMiniToolBar::defaultWindowFlags()
+{
+#ifdef VBOX_WS_X11
+    /* Depending on current WM: */
+    switch (vboxGlobal().typeOfWindowManager())
+    {
+        /* Frameless top-level window for Unity, issues with tool window there.. */
+        case X11WMType_Compiz: return Qt::Window | Qt::FramelessWindowHint;
+        default: break;
+    }
+#endif /* VBOX_WS_X11 */
+
+    /* Frameless tool window by default: */
+    return Qt::Tool | Qt::FramelessWindowHint;
+}
+
 UIMiniToolBar::UIMiniToolBar(QWidget *pParent,
                              GeometryType geometryType,
                              Qt::Alignment alignment,
                              bool fAutoHide /* = true */)
-    : QWidget(pParent, Qt::Tool | Qt::FramelessWindowHint)
+    : QWidget(pParent, defaultWindowFlags())
     /* Variables: General stuff: */
     , m_geometryType(geometryType)
     , m_alignment(alignment)
@@ -400,6 +424,9 @@ UIMiniToolBar::UIMiniToolBar(QWidget *pParent,
     , m_pHoverEnterTimer(0)
     , m_pHoverLeaveTimer(0)
     , m_pAnimation(0)
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    , m_fIsParentMinimized(false)
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 {
     /* Prepare: */
     prepare();
@@ -498,10 +525,10 @@ void UIMiniToolBar::adjustGeometry()
     else
         m_pEmbeddedToolbar->move(m_hiddenToolbarPosition);
 
-#ifdef Q_WS_X11
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     /* Adjust window mask: */
     setMask(m_pEmbeddedToolbar->geometry());
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
     /* Simulate toolbar auto-hiding: */
     simulateToolbarAutoHiding();
@@ -535,26 +562,163 @@ void UIMiniToolBar::sltHoverLeave()
     if (m_fHovered)
     {
         m_fHovered = false;
-        emit sigHoverLeave();
+        if (m_fAutoHide)
+            emit sigHoverLeave();
     }
+}
+
+void UIMiniToolBar::sltHide()
+{
+    LogRel2(("GUI: UIMiniToolBar::sltHide\n"));
+
+#if defined(VBOX_WS_MAC)
+
+    // Nothing
+
+#elif defined(VBOX_WS_WIN)
+
+    /* Reset window state to NONE and hide it: */
+    setWindowState(Qt::WindowNoState);
+    hide();
+
+#elif defined(VBOX_WS_X11)
+
+    /* Just hide window: */
+    hide();
+
+#else
+
+# warning "port me"
+
+#endif
+}
+
+void UIMiniToolBar::sltShow()
+{
+    LogRel2(("GUI: UIMiniToolBar::sltShow\n"));
+
+#if defined(VBOX_WS_MAC)
+
+    // Nothing
+
+#elif defined(VBOX_WS_WIN)
+
+    /* Adjust window: */
+    sltAdjust();
+    /* Show window in necessary mode: */
+    switch (m_geometryType)
+    {
+        case GeometryType_Available: show(); break;
+        case GeometryType_Full:      showFullScreen(); break;
+    }
+
+#elif defined(VBOX_WS_X11)
+
+    /* Show window in necessary mode: */
+    switch (m_geometryType)
+    {
+        case GeometryType_Available: show(); break;
+        case GeometryType_Full:      showFullScreen(); break;
+    }
+    /* Adjust window: */
+    sltAdjust();
+
+#else
+
+# warning "port me"
+
+#endif
+}
+
+void UIMiniToolBar::sltAdjust()
+{
+    LogRel2(("GUI: UIMiniToolBar::sltAdjust\n"));
+
+    /* Get corresponding host-screen: */
+    const int iHostScreen = QApplication::desktop()->screenNumber(parentWidget());
+    Q_UNUSED(iHostScreen);
+    /* And corresponding working area: */
+    QRect workingArea;
+    switch (m_geometryType)
+    {
+        case GeometryType_Available: workingArea = vboxGlobal().availableGeometry(iHostScreen); break;
+        case GeometryType_Full:      workingArea = vboxGlobal().screenGeometry(iHostScreen); break;
+    }
+    Q_UNUSED(workingArea);
+
+#if defined(VBOX_WS_MAC)
+
+    // Nothing
+
+#elif defined(VBOX_WS_WIN)
+
+    switch (m_geometryType)
+    {
+        case GeometryType_Available:
+        {
+            /* Set appropriate window geometry: */
+            resize(workingArea.size());
+            move(workingArea.topLeft());
+            break;
+        }
+        case GeometryType_Full:
+        {
+# if QT_VERSION >= 0x050000
+            /* Map window onto required screen: */
+            Assert(iHostScreen < qApp->screens().size());
+            windowHandle()->setScreen(qApp->screens().at(iHostScreen));
+# endif /* QT_VERSION >= 0x050000 */
+            /* Set appropriate window size: */
+            resize(workingArea.size());
+# if QT_VERSION < 0x050000
+            /* Move window onto required screen: */
+            move(workingArea.topLeft());
+# endif /* QT_VERSION < 0x050000 */
+            break;
+        }
+    }
+
+#elif defined(VBOX_WS_X11)
+
+    /* Determine whether we should use the native full-screen mode: */
+    const bool fUseNativeFullScreen = VBoxGlobal::supportsFullScreenMonitorsProtocolX11() &&
+                                      !gEDataManager->legacyFullscreenModeRequested();
+    if (fUseNativeFullScreen)
+    {
+        /* Tell recent window managers which host-screen this window should be mapped to: */
+        VBoxGlobal::setFullScreenMonitorX11(this, iHostScreen);
+    }
+
+    /* Set appropriate window geometry: */
+    resize(workingArea.size());
+    move(workingArea.topLeft());
+
+    /* Re-apply the full-screen state lost on above move(): */
+    setWindowState(Qt::WindowFullScreen);
+
+#else
+
+# warning "port me"
+
+#endif
 }
 
 void UIMiniToolBar::prepare()
 {
-    /* Install own event-filter
-     * to handle window activation stealing: */
+    /* Install event-filters: */
     installEventFilter(this);
+    parent()->installEventFilter(this);
 
-#if   defined(Q_WS_WIN)
+#if   defined(VBOX_WS_WIN)
     /* No background until first paint-event: */
     setAttribute(Qt::WA_NoSystemBackground);
     /* Enable translucency through Qt API: */
     setAttribute(Qt::WA_TranslucentBackground);
-#elif defined(Q_WS_X11)
+#elif defined(VBOX_WS_X11)
     /* Enable translucency through Qt API if supported: */
-    if (QX11Info::isCompositingManagerRunning())
+    if (vboxGlobal().isCompositingManagerRunning())
         setAttribute(Qt::WA_TranslucentBackground);
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
     /* Make sure we have no focus: */
     setFocusPolicy(Qt::NoFocus);
@@ -607,7 +771,7 @@ void UIMiniToolBar::prepare()
     m_pHoverEnterTimer = new QTimer(this);
     {
         m_pHoverEnterTimer->setSingleShot(true);
-        m_pHoverEnterTimer->setInterval(50);
+        m_pHoverEnterTimer->setInterval(500);
         connect(m_pHoverEnterTimer, SIGNAL(timeout()), this, SLOT(sltHoverEnter()));
     }
     m_pHoverLeaveTimer = new QTimer(this);
@@ -652,7 +816,7 @@ void UIMiniToolBar::enterEvent(QEvent*)
         m_pHoverLeaveTimer->stop();
 
     /* Start the hover-enter timer: */
-    if (m_fAutoHide && m_pHoverEnterTimer)
+    if (m_pHoverEnterTimer)
         m_pHoverEnterTimer->start();
 }
 
@@ -678,9 +842,9 @@ bool UIMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
     /* Detect if we have window activation stolen: */
     if (pWatched == this && pEvent->type() == QEvent::WindowActivate)
     {
-#if   defined(Q_WS_WIN)
+#if   defined(VBOX_WS_WIN)
         emit sigNotifyAboutWindowActivationStolen();
-#elif defined(Q_WS_X11)
+#elif defined(VBOX_WS_X11)
         switch (vboxGlobal().typeOfWindowManager())
         {
             case X11WMType_GNOMEShell:
@@ -700,7 +864,118 @@ bool UIMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
                 break;
             }
         }
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
+    }
+
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /* If that's window event: */
+    if (pWatched == this)
+    {
+        switch (pEvent->type())
+        {
+            case QEvent::WindowStateChange:
+            {
+                /* Watch for window state changes: */
+                QWindowStateChangeEvent *pChangeEvent = static_cast<QWindowStateChangeEvent*>(pEvent);
+                LogRel2(("GUI: UIMiniToolBar::eventFilter: Window state changed from %d to %d\n",
+                         (int)pChangeEvent->oldState(), (int)windowState()));
+                if (   windowState() != Qt::WindowMinimized
+                    && pChangeEvent->oldState() == Qt::WindowMinimized)
+                {
+                    /* Asynchronously call for sltShow(): */
+                    LogRel2(("GUI: UIMiniToolBar::eventFilter: Window restored\n"));
+                    QMetaObject::invokeMethod(this, "sltShow", Qt::QueuedConnection);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
+    /* If that's parent window event: */
+    if (pWatched == parent())
+    {
+        switch (pEvent->type())
+        {
+            case QEvent::Hide:
+            {
+                /* Skip if parent or we are minimized: */
+                if (   isParentMinimized()
+                    || isMinimized())
+                    break;
+
+                /* Asynchronously call for sltHide(): */
+                LogRel2(("GUI: UIMiniToolBar::eventFilter: Parent hide event\n"));
+                QMetaObject::invokeMethod(this, "sltHide", Qt::QueuedConnection);
+                break;
+            }
+            case QEvent::Show:
+            {
+                /* Skip if parent or we are minimized: */
+                if (   isParentMinimized()
+                    || isMinimized())
+                    break;
+
+                /* Asynchronously call for sltShow(): */
+                LogRel2(("GUI: UIMiniToolBar::eventFilter: Parent show event\n"));
+                QMetaObject::invokeMethod(this, "sltShow", Qt::QueuedConnection);
+                break;
+            }
+            case QEvent::Move:
+            case QEvent::Resize:
+            {
+                /* Skip if parent or we are invisible: */
+                if (   !parentWidget()->isVisible()
+                    || !isVisible())
+                    break;
+                /* Skip if parent or we are minimized: */
+                if (   isParentMinimized()
+                    || isMinimized())
+                    break;
+
+#if   defined(VBOX_WS_MAC)
+                // Nothing
+#elif defined(VBOX_WS_WIN)
+                /* Asynchronously call for sltShow() to adjust and expose both: */
+                LogRel2(("GUI: UIMiniToolBar::eventFilter: Parent move/resize event\n"));
+                QMetaObject::invokeMethod(this, "sltShow", Qt::QueuedConnection);
+#elif defined(VBOX_WS_X11)
+                /* Asynchronously call for just sltAdjust() because it's enough: */
+                LogRel2(("GUI: UIMiniToolBar::eventFilter: Parent move/resize event\n"));
+                QMetaObject::invokeMethod(this, "sltAdjust", Qt::QueuedConnection);
+#else
+# warning "port me"
+#endif
+                break;
+            }
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+            case QEvent::WindowStateChange:
+            {
+                /* Watch for parent window state changes: */
+                QWindowStateChangeEvent *pChangeEvent = static_cast<QWindowStateChangeEvent*>(pEvent);
+                LogRel2(("GUI: UIMiniToolBar::eventFilter: Parent window state changed from %d to %d\n",
+                         (int)pChangeEvent->oldState(), (int)parentWidget()->windowState()));
+                if (parentWidget()->windowState() & Qt::WindowMinimized)
+                {
+                    /* Mark parent window minimized, isMinimized() is not enough due to Qt5vsX11 fight: */
+                    LogRel2(("GUI: UIMiniToolBar::eventFilter: Parent window minimized\n"));
+                    m_fIsParentMinimized = true;
+                }
+                else
+                if (parentWidget()->windowState() == Qt::WindowFullScreen)
+                {
+                    /* Mark parent window non-minimized, isMinimized() is not enough due to Qt5vsX11 fight: */
+                    LogRel2(("GUI: UIMiniToolBar::eventFilter: Parent window is full-screen\n"));
+                    m_fIsParentMinimized = false;
+                }
+                break;
+            }
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+            default:
+                break;
+        }
     }
 
     /* Call to base-class: */
@@ -727,10 +1002,10 @@ void UIMiniToolBar::setToolbarPosition(QPoint point)
     AssertPtrReturnVoid(m_pEmbeddedToolbar);
     m_pEmbeddedToolbar->move(point);
 
-#ifdef Q_WS_X11
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     /* Update window mask: */
     setMask(m_pEmbeddedToolbar->geometry());
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 }
 
 QPoint UIMiniToolBar::toolbarPosition() const
@@ -738,6 +1013,15 @@ QPoint UIMiniToolBar::toolbarPosition() const
     /* Return position: */
     AssertPtrReturn(m_pEmbeddedToolbar, QPoint());
     return m_pEmbeddedToolbar->pos();
+}
+
+bool UIMiniToolBar::isParentMinimized() const
+{
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    return m_fIsParentMinimized;
+#else /* !VBOX_WS_X11 || QT_VERSION < 0x050000 */
+    return parentWidget()->isMinimized();
+#endif /* !VBOX_WS_X11 || QT_VERSION < 0x050000 */
 }
 
 #include "UIMiniToolBar.moc"

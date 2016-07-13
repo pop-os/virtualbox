@@ -238,7 +238,7 @@ PRTSTREAM BugReportFile::getStream(void)
 
 
 BugReportCommand::BugReportCommand(const char *pszTitle, const char *pszExec, ...)
-    : BugReportItem(pszTitle)
+    : BugReportItem(pszTitle), m_Strm(NULL)
 {
     unsigned cArgs = 0;
     m_papszArgs[cArgs++] = RTStrDup(pszExec);
@@ -249,7 +249,10 @@ BugReportCommand::BugReportCommand(const char *pszTitle, const char *pszExec, ..
     do
     {
         if (cArgs >= RT_ELEMENTS(m_papszArgs))
+        {
+            va_end(va);
             throw RTCError(com::Utf8StrFmt("Too many arguments (%u > %u)\n", cArgs+1, RT_ELEMENTS(m_papszArgs)));
+        }
         pszArg = va_arg(va, const char *);
         m_papszArgs[cArgs++] = pszArg ? RTStrDup(pszArg) : NULL;
     } while (pszArg);
@@ -569,17 +572,20 @@ int main(int argc, char *argv[])
 
         do
         {
+            ComPtr<IVirtualBoxClient> virtualBoxClient;
             ComPtr<IVirtualBox> virtualBox;
             ComPtr<ISession> session;
 
-            hr = virtualBox.createLocalObject(CLSID_VirtualBox);
+            hr = virtualBoxClient.createLocalObject(CLSID_VirtualBoxClient);
+            if (SUCCEEDED(hr))
+                hr = virtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
             if (FAILED(hr))
-                RTStrmPrintf(g_pStdErr, "WARNING: failed to create the VirtualBox object (hr=0x%x)\n", hr);
+                RTStrmPrintf(g_pStdErr, "WARNING: Failed to create the VirtualBox object (hr=0x%x)\n", hr);
             else
             {
                 hr = session.createInprocObject(CLSID_Session);
                 if (FAILED(hr))
-                    RTStrmPrintf(g_pStdErr, "WARNING: failed to create a session object (hr=0x%x)\n", hr);
+                    RTStrmPrintf(g_pStdErr, "WARNING: Failed to create a session object (hr=0x%x)\n", hr);
             }
 
             if (SUCCEEDED(hr))
@@ -612,14 +618,41 @@ int main(int argc, char *argv[])
         }
         while(0);
 
+        RTTIMESPEC  TimeSpec;
+        RTTIME      Time;
+        RTTimeExplode(&Time, RTTimeNow(&TimeSpec));
+        RTCStringFmt strOutFile("%04d-%02d-%02d-%02d-%02d-%02d-bugreport.%s",
+                                Time.i32Year, Time.u8Month, Time.u8MonthDay,
+                                Time.u8Hour, Time.u8Minute, Time.u8Second,
+                                fTextOutput ? "txt" : "tgz");
+        RTCString strFallbackOutFile;
+        if (!pszOutputFile)
+        {
+            RTFILE tmp;
+            pszOutputFile = strOutFile.c_str();
+            int rc = RTFileOpen(&tmp, pszOutputFile, RTFILE_O_WRITE | RTFILE_O_CREATE | RTFILE_O_DENY_WRITE);
+            if (rc == VERR_ACCESS_DENIED)
+            {
+                char szUserHome[RTPATH_MAX];
+                handleRtError(RTPathUserHome(szUserHome, sizeof(szUserHome)), "Failed to obtain home directory");
+                strFallbackOutFile.printf("%s/%s", szUserHome, strOutFile.c_str());
+                pszOutputFile = strFallbackOutFile.c_str();
+            }
+            else if (RT_SUCCESS(rc))
+            {
+                RTFileClose(tmp);
+                RTFileDelete(pszOutputFile);
+            }
+        }
         BugReport *pReport;
         if (fTextOutput)
-            pReport = new BugReportText(pszOutputFile ? pszOutputFile : "bugreport.txt");
+            pReport = new BugReportText(pszOutputFile);
         else
-            pReport = new BugReportTarGzip(pszOutputFile ? pszOutputFile : "bugreport.tgz");
+            pReport = new BugReportTarGzip(pszOutputFile);
         createBugReport(pReport, homeDir, list);
         pReport->process();
         pReport->complete();
+        RTPrintf("Report was written to '%s'\n", pszOutputFile);
         delete pReport;
     }
     catch (RTCError &e)

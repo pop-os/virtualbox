@@ -1,16 +1,16 @@
 /** @file
-  The variable data structures are related to EDKII-specific 
+  The variable data structures are related to EDKII-specific
   implementation of UEFI authenticated variables.
-  AuthenticatedVariableFormat.h defines variable data headers 
+  AuthenticatedVariableFormat.h defines variable data headers
   and variable storage region headers.
 
-Copyright (c) 2009 - 2012, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials 
-are licensed and made available under the terms and conditions of the BSD License 
-which accompanies this distribution.  The full text of the license may be found at 
+Copyright (c) 2009 - 2013, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
 http://opensource.org/licenses/bsd-license.php
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS, 
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
@@ -27,15 +27,18 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 extern EFI_GUID gEfiAuthenticatedVariableGuid;
 extern EFI_GUID gEfiSecureBootEnableDisableGuid;
+extern EFI_GUID gEfiCertDbGuid;
+extern EFI_GUID gEfiCustomModeEnableGuid;
+extern EFI_GUID gEfiVendorKeysNvGuid;
 
 ///
-/// "SecureBootEnable" variable for the Secure boot feature enable/disable.
+/// "SecureBootEnable" variable for the Secure Boot feature enable/disable.
+/// This variable is used for allowing a physically present user to disable
+/// Secure Boot via firmware setup without the possession of PKpriv.
 ///
 #define EFI_SECURE_BOOT_ENABLE_NAME      L"SecureBootEnable"
 #define SECURE_BOOT_ENABLE               1
 #define SECURE_BOOT_DISABLE              0
-
-extern EFI_GUID gEfiCustomModeEnableGuid;
 
 ///
 ///  "CustomMode" variable for two Secure Boot modes feature: "Custom" and "Standard".
@@ -50,13 +53,14 @@ extern EFI_GUID gEfiCustomModeEnableGuid;
 #define STANDARD_SECURE_BOOT_MODE     0
 
 ///
-/// "certdb" variable stores the signer's certificates for non PK/KEK/DB/DBX
-/// variables with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set.
-/// 
+///  "VendorKeysNv" variable to record the out of band secure boot keys modification.
+///  This variable is a read-only NV varaible that indicates whether someone other than
+///  the platform vendor has used a mechanism not defined by the UEFI Specification to
+///  transition the system to setup mode or to update secure boot keys.
 ///
-#define EFI_CERT_DB_NAME L"certdb"
-
-extern EFI_GUID gEfiCertDbGuid;
+#define EFI_VENDOR_KEYS_NV_VARIABLE_NAME       L"VendorKeysNv"
+#define VENDOR_KEYS_VALID             1
+#define VENDOR_KEYS_MODIFIED          0
 
 ///
 /// Alignment of variable name and data, according to the architecture:
@@ -113,7 +117,7 @@ typedef struct {
   ///
   EFI_GUID  Signature;
   ///
-  /// Size of entire variable store, 
+  /// Size of entire variable store,
   /// including size of variable store header but not including the size of FvHeader.
   ///
   UINT32  Size;
@@ -164,7 +168,7 @@ typedef struct {
   ///
   UINT64      MonotonicCount;
   ///
-  /// Associated TimeStamp value against replay attack. 
+  /// Associated TimeStamp value against replay attack.
   ///
   EFI_TIME    TimeStamp;
   ///
@@ -192,12 +196,12 @@ typedef struct _VARIABLE_INFO_ENTRY  VARIABLE_INFO_ENTRY;
 ///
 /// This structure contains the variable list that is put in EFI system table.
 /// The variable driver collects all variables that were used at boot service time and produces this list.
-/// This is an optional feature to dump all used variables in shell environment. 
+/// This is an optional feature to dump all used variables in shell environment.
 ///
 struct _VARIABLE_INFO_ENTRY {
   VARIABLE_INFO_ENTRY *Next;       ///< Pointer to next entry.
   EFI_GUID            VendorGuid;  ///< Guid of Variable.
-  CHAR16              *Name;       ///< Name of Variable. 
+  CHAR16              *Name;       ///< Name of Variable.
   UINT32              Attributes;  ///< Attributes of variable defined in UEFI spec.
   UINT32              ReadCount;   ///< Number of times to read this variable.
   UINT32              WriteCount;  ///< Number of times to write this variable.

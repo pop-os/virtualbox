@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,21 +40,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
-#include <VBox/log.h>
-#include "DrvAudio.h"
-#include "AudioMixBuffer.h"
-
-#include "VBoxDD.h"
-
 #include <iprt/alloc.h>
 #include <iprt/uuid.h> /* For PDMIBASE_2_PDMDRV. */
+
+#define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
+#include <VBox/log.h>
 #include <VBox/vmm/pdmaudioifs.h>
+
+#include "DrvAudio.h"
+#include "AudioMixBuffer.h"
+#include "VBoxDD.h"
+
 
 typedef struct NULLAUDIOSTREAMOUT
 {
     /** Note: Always must come first! */
-    PDMAUDIOHSTSTRMOUT streamOut;
+    PDMAUDIOSTREAM     Stream;
     uint64_t           u64TicksLast;
     uint64_t           csPlayBuffer;
     uint8_t           *pu8PlayBuffer;
@@ -63,7 +64,7 @@ typedef struct NULLAUDIOSTREAMOUT
 typedef struct NULLAUDIOSTREAMIN
 {
     /** Note: Always must come first! */
-    PDMAUDIOHSTSTRMIN  streamIn;
+    PDMAUDIOSTREAM     Stream;
 } NULLAUDIOSTREAMIN, *PNULLAUDIOSTREAMIN;
 
 /**
@@ -81,16 +82,20 @@ typedef struct DRVHOSTNULLAUDIO
 /*******************************************PDM_AUDIO_DRIVER******************************/
 
 
-static DECLCALLBACK(int) drvHostNullAudioGetConf(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
+static DECLCALLBACK(int) drvHostNullAudioGetConfig(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
 {
     NOREF(pInterface);
     AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
-    pCfg->cbStreamOut = sizeof(NULLAUDIOSTREAMOUT);
-    pCfg->cbStreamIn  = sizeof(NULLAUDIOSTREAMIN);
+    pCfg->cbStreamOut    = sizeof(NULLAUDIOSTREAMOUT);
+    pCfg->cbStreamIn     = sizeof(NULLAUDIOSTREAMIN);
 
-    pCfg->cMaxHstStrmsOut = 1; /* Output */
-    pCfg->cMaxHstStrmsIn  = 2; /* Line input + microphone input. */
+    /* The NULL backend has exactly one input source and one output sink. */
+    pCfg->cSources       = 1;
+    pCfg->cSinks         = 1;
+
+    pCfg->cMaxStreamsOut = 1; /* Output */
+    pCfg->cMaxStreamsIn  = 2; /* Line input + microphone input. */
 
     return VINF_SUCCESS;
 }
@@ -99,94 +104,86 @@ static DECLCALLBACK(int) drvHostNullAudioInit(PPDMIHOSTAUDIO pInterface)
 {
     NOREF(pInterface);
 
+    LogFlowFuncLeaveRC(VINF_SUCCESS);
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvHostNullAudioInitIn(PPDMIHOSTAUDIO pInterface,
-                                                PPDMAUDIOHSTSTRMIN pHstStrmIn, PPDMAUDIOSTREAMCFG pCfg,
-                                                PDMAUDIORECSOURCE enmRecSource,
-                                                uint32_t *pcSamples)
+static int nullCreateStreamIn(PPDMIHOSTAUDIO pInterface,
+                              PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg, uint32_t *pcSamples)
 {
     NOREF(pInterface);
-    NOREF(enmRecSource);
 
     /* Just adopt the wanted stream configuration. */
-    int rc = DrvAudioStreamCfgToProps(pCfg, &pHstStrmIn->Props);
+    int rc = DrvAudioHlpStreamCfgToProps(pCfg, &pStream->Props);
     if (RT_SUCCESS(rc))
     {
         if (pcSamples)
             *pcSamples = _1K;
     }
 
-    return VINF_SUCCESS;
+    LogFlowFuncLeaveRC(rc);
+    return rc;
 }
 
-static DECLCALLBACK(int) drvHostNullAudioInitOut(PPDMIHOSTAUDIO pInterface,
-                                                 PPDMAUDIOHSTSTRMOUT pHstStrmOut, PPDMAUDIOSTREAMCFG pCfg,
-                                                 uint32_t *pcSamples)
+static int nullCreateStreamOut(PPDMIHOSTAUDIO pInterface,
+                               PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg,
+                               uint32_t *pcSamples)
 {
     NOREF(pInterface);
 
     /* Just adopt the wanted stream configuration. */
-    int rc = DrvAudioStreamCfgToProps(pCfg, &pHstStrmOut->Props);
+    int rc = DrvAudioHlpStreamCfgToProps(pCfg, &pStream->Props);
     if (RT_SUCCESS(rc))
     {
-        PNULLAUDIOSTREAMOUT pNullStrmOut = (PNULLAUDIOSTREAMOUT)pHstStrmOut;
-        pNullStrmOut->u64TicksLast  = 0;
-        pNullStrmOut->csPlayBuffer  = _1K;
-        pNullStrmOut->pu8PlayBuffer = (uint8_t *)RTMemAlloc(_1K << pHstStrmOut->Props.cShift);
-        if (pNullStrmOut->pu8PlayBuffer)
+        PNULLAUDIOSTREAMOUT pNullStream = (PNULLAUDIOSTREAMOUT)pStream;
+        pNullStream->u64TicksLast  = 0;
+        pNullStream->csPlayBuffer  = _1K;
+        pNullStream->pu8PlayBuffer = (uint8_t *)RTMemAlloc(_1K << pStream->Props.cShift);
+        if (pNullStream->pu8PlayBuffer)
         {
             if (pcSamples)
-                *pcSamples = pNullStrmOut->csPlayBuffer;
+                *pcSamples = pNullStream->csPlayBuffer;
         }
         else
-        {
             rc = VERR_NO_MEMORY;
-        }
     }
 
+    LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-static DECLCALLBACK(bool) drvHostNullAudioIsEnabled(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
-{
-    NOREF(pInterface);
-    NOREF(enmDir);
-    return true; /* Always all enabled. */
-}
-
-static DECLCALLBACK(int) drvHostNullAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut,
-                                                 uint32_t *pcSamplesPlayed)
+static DECLCALLBACK(int) drvHostNullAudioStreamPlay(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
+                                                    uint32_t *pcSamplesPlayed)
 {
     PDRVHOSTNULLAUDIO pDrv = RT_FROM_MEMBER(pInterface, DRVHOSTNULLAUDIO, IHostAudio);
-    PNULLAUDIOSTREAMOUT pNullStrmOut = (PNULLAUDIOSTREAMOUT)pHstStrmOut;
+    PNULLAUDIOSTREAMOUT pNullStream = (PNULLAUDIOSTREAMOUT)pStream;
 
     /* Consume as many samples as would be played at the current frequency since last call. */
-    uint32_t csLive          = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+    uint32_t cLive           = AudioMixBufLive(&pStream->MixBuf);
+
     uint64_t u64TicksNow     = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
-    uint64_t u64TicksElapsed = u64TicksNow  - pNullStrmOut->u64TicksLast;
+    uint64_t u64TicksElapsed = u64TicksNow  - pNullStream->u64TicksLast;
     uint64_t u64TicksFreq    = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);
 
     /* Remember when samples were consumed. */
-    pNullStrmOut->u64TicksLast = u64TicksNow;
+    pNullStream->u64TicksLast = u64TicksNow;
 
     /*
      * Minimize the rounding error by adding 0.5: samples = int((u64TicksElapsed * samplesFreq) / u64TicksFreq + 0.5).
      * If rounding is not taken into account then the playback rate will be consistently lower that expected.
      */
-    uint64_t cSamplesPlayed = (2 * u64TicksElapsed * pHstStrmOut->Props.uHz + u64TicksFreq) / u64TicksFreq / 2;
+    uint64_t cSamplesPlayed = (2 * u64TicksElapsed * pStream->Props.uHz + u64TicksFreq) / u64TicksFreq / 2;
 
     /* Don't play more than available. */
-    if (cSamplesPlayed > csLive)
-        cSamplesPlayed = csLive;
+    if (cSamplesPlayed > cLive)
+        cSamplesPlayed = cLive;
 
-    cSamplesPlayed = RT_MIN(cSamplesPlayed, pNullStrmOut->csPlayBuffer);
+    cSamplesPlayed = RT_MIN(cSamplesPlayed, pNullStream->csPlayBuffer);
 
     uint32_t csRead = 0;
-    AudioMixBufReadCirc(&pHstStrmOut->MixBuf, pNullStrmOut->pu8PlayBuffer,
-                        AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cSamplesPlayed), &csRead);
-    AudioMixBufFinish(&pHstStrmOut->MixBuf, csRead);
+    AudioMixBufReadCirc(&pStream->MixBuf, pNullStream->pu8PlayBuffer,
+                        AUDIOMIXBUF_S2B(&pStream->MixBuf, cSamplesPlayed), &csRead);
+    AudioMixBufFinish(&pStream->MixBuf, csRead);
 
     if (pcSamplesPlayed)
         *pcSamplesPlayed = csRead;
@@ -194,8 +191,8 @@ static DECLCALLBACK(int) drvHostNullAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvHostNullAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn,
-                                                   uint32_t *pcSamplesCaptured)
+static DECLCALLBACK(int) drvHostNullAudioStreamCapture(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
+                                                       uint32_t *pcSamplesCaptured)
 {
     /* Never capture anything. */
     if (pcSamplesCaptured)
@@ -204,39 +201,91 @@ static DECLCALLBACK(int) drvHostNullAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvHostNullAudioControlIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn,
-                                                   PDMAUDIOSTREAMCMD enmStreamCmd)
+static int nullDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
 {
-    NOREF(pInterface);
-    NOREF(pHstStrmIn);
-    NOREF(enmStreamCmd);
-
+    LogFlowFuncLeaveRC(VINF_SUCCESS);
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvHostNullAudioControlOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut,
-                                                    PDMAUDIOSTREAMCMD enmStreamCmd)
+static int nullDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
 {
-    NOREF(pInterface);
-    NOREF(pHstStrmOut);
-    NOREF(enmStreamCmd);
+    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
 
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) drvHostNullAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn)
-{
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) drvHostNullAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut)
-{
-    PNULLAUDIOSTREAMOUT pNullStrmOut = (PNULLAUDIOSTREAMOUT)pHstStrmOut;
-    if (   pNullStrmOut
-        && pNullStrmOut->pu8PlayBuffer)
+    PNULLAUDIOSTREAMOUT pNullStream = (PNULLAUDIOSTREAMOUT)pStream;
+    if (   pNullStream
+        && pNullStream->pu8PlayBuffer)
     {
-        RTMemFree(pNullStrmOut->pu8PlayBuffer);
+        RTMemFree(pNullStream->pu8PlayBuffer);
+        pNullStream->pu8PlayBuffer = NULL;
     }
+
+    LogFlowFuncLeaveRC(VINF_SUCCESS);
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(PDMAUDIOBACKENDSTS) drvHostNullAudioGetStatus(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
+{
+    AssertPtrReturn(pInterface, PDMAUDIOBACKENDSTS_UNKNOWN);
+
+    return PDMAUDIOBACKENDSTS_RUNNING;
+}
+
+static DECLCALLBACK(int) drvHostNullAudioStreamCreate(PPDMIHOSTAUDIO pInterface,
+                                                      PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg, uint32_t *pcSamples)
+{
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfg,       VERR_INVALID_POINTER);
+
+    int rc;
+    if (pCfg->enmDir == PDMAUDIODIR_IN)
+        rc = nullCreateStreamIn(pInterface,  pStream, pCfg, pcSamples);
+    else
+        rc = nullCreateStreamOut(pInterface, pStream, pCfg, pcSamples);
+
+    LogFlowFunc(("%s: rc=%Rrc\n", pStream->szName, rc));
+    return rc;
+}
+
+static DECLCALLBACK(int) drvHostNullAudioStreamDestroy(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+{
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+
+    int rc;
+    if (pStream->enmDir == PDMAUDIODIR_IN)
+        rc = nullDestroyStreamIn(pInterface,  pStream);
+    else
+        rc = nullDestroyStreamOut(pInterface, pStream);
+
+    return rc;
+}
+
+static DECLCALLBACK(int) drvHostNullAudioStreamControl(PPDMIHOSTAUDIO pInterface,
+                                                       PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd)
+{
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+
+    Assert(pStream->enmCtx == PDMAUDIOSTREAMCTX_HOST);
+
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostNullAudioStreamGetStatus(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+{
+    NOREF(pInterface);
+    NOREF(pStream);
+
+    return (  PDMAUDIOSTRMSTS_FLAG_INITIALIZED | PDMAUDIOSTRMSTS_FLAG_ENABLED
+            | PDMAUDIOSTRMSTS_FLAG_DATA_READABLE | PDMAUDIOSTRMSTS_FLAG_DATA_WRITABLE);
+}
+
+static DECLCALLBACK(int) drvHostNullAudioStreamIterate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+{
+    NOREF(pInterface);
+    NOREF(pStream);
+
     return VINF_SUCCESS;
 }
 

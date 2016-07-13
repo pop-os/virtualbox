@@ -265,6 +265,11 @@ typedef struct HMGLOBALCPUINFO
     RTCPUID             idCpu;
     /** The VM_HSAVE_AREA (AMD-V) / VMXON region (Intel) memory backing. */
     RTR0MEMOBJ          hMemObj;
+    /** The physical address of the first page in hMemObj (it's a
+     *  physcially contigous allocation if it spans multiple pages). */
+    RTHCPHYS            HCPhysMemObj;
+    /** The address of the memory (for pfnEnable). */
+    void               *pvMemObj;
     /** Current ASID (AMD-V) / VPID (Intel). */
     uint32_t            uCurrentAsid;
     /** TLB flush count. */
@@ -285,9 +290,8 @@ typedef enum
 {
     HMPENDINGIO_INVALID = 0,
     HMPENDINGIO_PORT_READ,
-    HMPENDINGIO_PORT_WRITE,
-    HMPENDINGIO_STRING_READ,
-    HMPENDINGIO_STRING_WRITE,
+    /* not implemented: HMPENDINGIO_STRING_READ, */
+    /* not implemented: HMPENDINGIO_STRING_WRITE, */
     /** The usual 32-bit paranoia. */
     HMPENDINGIO_32BIT_HACK   = 0x7fffffff
 } HMPENDINGIO;
@@ -331,6 +335,41 @@ typedef struct
 /** Pointer to HMTPRPATCH. */
 typedef HMTPRPATCH *PHMTPRPATCH;
 
+
+/**
+ * Makes a HMEXITSTAT::uKey value from a program counter and an exit code.
+ *
+ * @returns 64-bit key
+ * @param   a_uPC           The RIP + CS.BASE value of the exit.
+ * @param   a_uExit         The exit code.
+ * @todo    Add CPL?
+ */
+#define HMEXITSTAT_MAKE_KEY(a_uPC, a_uExit) (((a_uPC) & UINT64_C(0x0000ffffffffffff)) | (uint64_t)(a_uExit) << 48)
+
+typedef struct HMEXITINFO
+{
+    /** See HMEXITSTAT_MAKE_KEY(). */
+    uint64_t                uKey;
+    /** Number of recent hits (depreciates with time). */
+    uint32_t volatile       cHits;
+    /** The age + lock. */
+    uint16_t volatile       uAge;
+    /** Action or action table index. */
+    uint16_t                iAction;
+} HMEXITINFO;
+AssertCompileSize(HMEXITINFO, 16); /* Lots of these guys, so don't add any unnecessary stuff! */
+
+typedef struct HMEXITHISTORY
+{
+    /** The exit timestamp. */
+    uint64_t                uTscExit;
+    /** The index of the corresponding HMEXITINFO entry.
+     * UINT32_MAX if none (too many collisions, race, whatever). */
+    uint32_t                iExitInfo;
+    /** Figure out later, needed for padding now. */
+    uint32_t                uSomeClueOrSomething;
+} HMEXITHISTORY;
+
 /**
  * Switcher function, HC to the special 64-bit RC.
  *
@@ -366,7 +405,13 @@ typedef struct HM
     bool                        fGlobalInit;
     /** Set when TPR patching is active. */
     bool                        fTPRPatchingActive;
-    bool                        u8Alignment[3];
+    /** Set when the debug facility has breakpoints/events enabled that requires
+     *  us to use the debug execution loop in ring-0. */
+    bool                        fUseDebugLoop;
+    /** Set if hardware APIC virtualization is enabled. */
+    bool                        fVirtApicRegs;
+    /** Set if posted interrupt processing is enabled. */
+    bool                        fPostedIntrs;
 
     /** Host kernel flags that HM might need to know (SUPKERNELFEATURES_XXX). */
     uint32_t                    fHostKernelFeatures;
@@ -431,7 +476,13 @@ typedef struct HM
 
         /** Internal Id of which flush-handler to use for tagged-TLB entries. */
         uint32_t                    uFlushTaggedTlb;
+
+        /** Pause-loop exiting (PLE) gap in ticks. */
+        uint32_t                    cPleGapTicks;
+        /** Pause-loop exiting (PLE) window in ticks. */
+        uint32_t                    cPleWindowTicks;
         uint32_t                    u32Alignment0;
+
         /** Host CR4 value (set by ring-0 VMX init) */
         uint64_t                    u64HostCr4;
         /** Host SMM monitor control (set by ring-0 VMX init) */
@@ -442,7 +493,7 @@ typedef struct HM
         bool                        fSupportsVmcsEfer;
         uint8_t                     u8Alignment2[7];
 
-        /** VMX MSR values */
+        /** VMX MSR values. */
         VMXMSRS                     Msrs;
 
         /** Flush types for invept & invvpid; they depend on capabilities. */
@@ -480,6 +531,12 @@ typedef struct HM
         uint32_t                    u32Rev;
         /** SVM feature bits from cpuid 0x8000000a */
         uint32_t                    u32Features;
+
+        /** Pause filter counter. */
+        uint16_t                    cPauseFilter;
+        /** Pause filter treshold in ticks. */
+        uint16_t                    cPauseFilterThresholdTicks;
+        uint32_t                    u32Alignment0;
     } svm;
 
     /**
@@ -505,7 +562,8 @@ typedef struct HM
 
     STAMCOUNTER             StatTprPatchSuccess;
     STAMCOUNTER             StatTprPatchFailure;
-    STAMCOUNTER             StatTprReplaceSuccess;
+    STAMCOUNTER             StatTprReplaceSuccessCr8;
+    STAMCOUNTER             StatTprReplaceSuccessVmc;
     STAMCOUNTER             StatTprReplaceFailure;
 } HM;
 /** Pointer to HM VM instance data. */
@@ -578,7 +636,16 @@ typedef struct VMCSCACHE
 typedef VMCSCACHE *PVMCSCACHE;
 AssertCompileSizeAlignment(VMCSCACHE, 8);
 
-/** VMX StartVM function. */
+/**
+ * VMX StartVM function.
+ *
+ * @returns VBox status code (no informational stuff).
+ * @param   fResume     Whether to use VMRESUME (true) or VMLAUNCH (false).
+ * @param   pCtx        The CPU register context.
+ * @param   pCache      The VMCS cache.
+ * @param   pVM         Pointer to the cross context VM structure.
+ * @param   pVCpu       Pointer to the cross context per-CPU structure.
+ */
 typedef DECLCALLBACK(int) FNHMVMXSTARTVM(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache, PVM pVM, PVMCPU pVCpu);
 /** Pointer to a VMX StartVM function. */
 typedef R0PTRTYPE(FNHMVMXSTARTVM *) PFNHMVMXSTARTVM;
@@ -602,10 +669,6 @@ typedef struct HMCPU
     bool                        fActive;
     /** Set when the TLB has been checked until we return from the world switch. */
     volatile bool               fCheckedTLBFlush;
-    /** Whether we're executing a single instruction. */
-    bool                        fSingleInstruction;
-    /** Set if we need to clear the trap flag because of single stepping. */
-    bool                        fClearTrapFlag;
     /** Whether we've completed the inner HM leave function. */
     bool                        fLeaveDone;
     /** Whether we're using the hyper DR7 or guest DR7. */
@@ -616,11 +679,24 @@ typedef struct HMCPU
      * code execution. */
     bool                        fLoadSaveGuestXcr0;
 
+    /** Whether we should use the debug loop because of single stepping or special
+     *  debug breakpoints / events are armed. */
+    bool                        fUseDebugLoop;
+    /** Whether we are currently executing in the debug loop.
+     *  Mainly for assertions. */
+    bool                        fUsingDebugLoop;
+    /** Set if we using the debug loop and wish to intercept RDTSC. */
+    bool                        fDebugWantRdTscExit;
+    /** Whether we're executing a single instruction. */
+    bool                        fSingleInstruction;
+    /** Set if we need to clear the trap flag because of single stepping. */
+    bool                        fClearTrapFlag;
+
     /** Whether \#UD needs to be intercepted (required by certain GIM providers). */
     bool                        fGIMTrapXcptUD;
     /** Whether paravirt. hypercalls are enabled. */
     bool                        fHypercallsEnabled;
-    uint8_t                     u8Alignment0[5];
+    uint8_t                     u8Alignment0[2];
 
     /** World switch exit counter. */
     volatile uint32_t           cWorldSwitchExits;
@@ -767,7 +843,10 @@ typedef struct HMCPU
 
         /** Set if guest was executing in real mode (extra checks). */
         bool                        fWasInRealMode;
-        uint8_t                     u8Alignment1[7];
+        /** Set if guest switched to 64-bit mode on a 32-bit host. */
+        bool                        fSwitchedTo64on32;
+
+        uint8_t                     u8Alignment1[6];
     } vmx;
 
     struct
@@ -828,6 +907,7 @@ typedef struct HMCPU
         uint64_t                cr0;
     } EmulateIoBlock;
 
+    /* */
     struct
     {
         /** Pending IO operation type. */
@@ -886,6 +966,7 @@ typedef struct HMCPU
     STAMCOUNTER             StatInjectInterrupt;
     STAMCOUNTER             StatInjectXcpt;
     STAMCOUNTER             StatInjectPendingReflect;
+    STAMCOUNTER             StatInjectPendingInterpret;
 
     STAMCOUNTER             StatExitAll;
     STAMCOUNTER             StatExitShadowNM;
@@ -961,6 +1042,7 @@ typedef struct HMCPU
     STAMCOUNTER             StatTlbShootdown;
     STAMCOUNTER             StatTlbShootdownFlush;
 
+    STAMCOUNTER             StatSwitchTprMaskedIrq;
     STAMCOUNTER             StatSwitchGuestIrq;
     STAMCOUNTER             StatSwitchHmToR3FF;
     STAMCOUNTER             StatSwitchExitToR3;
@@ -1016,6 +1098,9 @@ AssertCompileMemberAlignment(HMCPU, Event, 8);
 
 
 #ifdef IN_RING0
+/** @todo r=bird: s/[[:space:]]HM/ hm/ - internal functions starts with a
+ *        lower cased prefix.  HMInternal.h is an internal header, so
+ *        everything here must be internal. */
 VMMR0DECL(PHMGLOBALCPUINFO) HMR0GetCurrentCpu(void);
 VMMR0DECL(PHMGLOBALCPUINFO) HMR0GetCurrentCpuEx(RTCPUID idCpu);
 

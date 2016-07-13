@@ -1,4 +1,4 @@
-/* $Id: kPrf2Read.cpp 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kPrf2Read.cpp 77 2016-06-22 17:03:55Z bird $ */
 /** @file
  * kProfiler Mark 2 - The reader and producer of statistics.
  */
@@ -220,7 +220,7 @@ static bool kPrfIsValidate(PCKPRFHDR pHdr, KU32 cb, FILE *pOut)
         if (pHdr->Hdr32.cb##MemBaseName > (pHdr->Hdr32.cFormatBits == 32 ? cb32 : cb64)) \
         { \
             fprintf(pOut, "cb" #MemBaseName " was expected to be %#x but is %#x. Probably a format change, rebuild.\n", \
-                    (pHdr->Hdr32.cFormatBits == 32 ? cb32 : cb64), pHdr->Hdr32.cb##MemBaseName); \
+                    (unsigned)(pHdr->Hdr32.cFormatBits == 32 ? cb32 : cb64), pHdr->Hdr32.cb##MemBaseName); \
             return false; \
         }\
     } while (0)

@@ -8,7 +8,7 @@ TestBox Script - main().
 
 __copyright__ = \
 """
-Copyright (C) 2012-2015 Oracle Corporation
+Copyright (C) 2012-2016 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 102049 $"
+__version__ = "$Revision: 108543 $"
 
 
 # Standard python imports.
@@ -182,7 +182,7 @@ class TestBoxScript(object):
             if self._ddSignOnParams[sItem][self.FN] is not None:
                 self._ddSignOnParams[sItem][self.VALUE] = self._ddSignOnParams[sItem][self.FN]()
 
-        testboxcommons.log('Starting Test Box script (%s)' % __version__)
+        testboxcommons.log('Starting Test Box script (%s)' % (self._getScriptRev(),));
         testboxcommons.log('Test Manager URL: %s' % self._oOptions.sTestManagerUrl,)
         testboxcommons.log('Scratch root path: %s' % self._oOptions.sScratchRoot,)
         for sItem in self._ddSignOnParams:
@@ -589,7 +589,13 @@ class TestBoxScript(object):
         """
         The script (subversion) revision number.
         """
-        return __version__[11:-1].strip();
+        sRev = '@VBOX_SVN_REV@';
+        sRev = sRev.strip();            # just in case...
+        try:
+            _ = int(sRev);
+        except:
+            return __version__[11:-1].strip();
+        return sRev;
 
     def _getPythonHexVersion(self):
         """
@@ -655,7 +661,7 @@ class TestBoxScript(object):
         """
         return self._sTestBoxName;
 
-    def reinitScratch(self, fnLog = testboxcommons.log, fUseTheForce = None):
+    def _reinitScratch(self, fnLog, fUseTheForce):
         """
         Wipes the scratch directories and re-initializes them.
 
@@ -712,6 +718,12 @@ class TestBoxScript(object):
                     fnLog('Error deleting "%s": %s' % (sFullName, oXcpt));
                     oRc.fRc = False;
 
+        # Display files left behind.
+        def dirEnumCallback(sName, oStat):
+            """ callback for dirEnumerateTree """
+            fnLog(u'%s %s' % (utils.formatFileStat(oStat) if oStat is not None else '????????????', sName));
+        utils.dirEnumerateTree(self._oOptions.sScratchRoot, dirEnumCallback);
+
         #
         # Re-create the directories.
         #
@@ -728,6 +740,30 @@ class TestBoxScript(object):
         else:
             self._cReinitScratchErrors += 1;
         return oRc.fRc;
+
+    def reinitScratch(self, fnLog = testboxcommons.log, fUseTheForce = None, cRetries = 0, cMsDelay = 5000):
+        """
+        Wipes the scratch directories and re-initializes them.
+
+        Will retry according to the cRetries and cMsDelay parameters.  Windows
+        forces us to apply this hack as it ships with services asynchronously
+        scanning files after they execute, thus racing us cleaning up after a
+        test.  On testboxwin3 we had frequent trouble with aelupsvc.dll keeping
+        vts_rm.exe kind of open, somehow preventing us from removing the
+        directory containing it, despite not issuing any errors deleting the
+        file itself.  The service is called "Application Experience", which
+        feels like a weird joke here.
+
+        No exceptions raise, returns success indicator instead.
+        """
+        fRc = self._reinitScratch(fnLog, fUseTheForce)
+        while fRc is False and cRetries > 0:
+            time.sleep(cMsDelay / 1000.0);
+            fnLog('reinitScratch: Retrying...');
+            fRc = self._reinitScratch(fnLog, fUseTheForce)
+            cRetries -= 1;
+        return fRc;
+
 
     def _doSignOn(self):
         """
@@ -778,7 +814,7 @@ class TestBoxScript(object):
                            % (self._idTestBox, self._sTestBoxName));
 
         # Set up the scratch area.
-        self.reinitScratch(fUseTheForce = self._fFirstSignOn);
+        self.reinitScratch(fUseTheForce = self._fFirstSignOn, cRetries = 2);
 
         self._fFirstSignOn = False;
         return True;
@@ -843,7 +879,7 @@ class TestBoxScript(object):
                 oConnection.close();
 
             # Automatically reboot if scratch init fails.
-            if self._cReinitScratchErrors > 8 and self.reinitScratch() is False:
+            if self._cReinitScratchErrors > 8 and self.reinitScratch(cRetries = 3) is False:
                 testboxcommons.log('Scratch does not initialize cleanly after %d attempts, rebooting...'
                                    % ( self._cReinitScratchErrors, ));
                 self._oCommand.doReboot();
@@ -996,4 +1032,5 @@ class TestBoxScript(object):
 
 if __name__ == '__main__':
     sys.exit(TestBoxScript.main());
+
 

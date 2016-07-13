@@ -27,6 +27,7 @@
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include "../include/IEMInternal.h"
+#include <VBox/vmm/vm.h>
 
 
 /*********************************************************************************************************************************
@@ -72,13 +73,17 @@ uint128_t           g_u128Zero;
 /** @name Other stubs.
  * @{   */
 
-typedef VBOXSTRICTRC (* PFNIEMOP)(PIEMCPU pIemCpu);
+typedef VBOXSTRICTRC (* PFNIEMOP)(PVMCPU pVCpu);
 #define FNIEMOP_DEF(a_Name) \
-    static VBOXSTRICTRC a_Name(PIEMCPU pIemCpu) RT_NO_THROW_DEF
+    static VBOXSTRICTRC a_Name(PVMCPU pVCpu) RT_NO_THROW_DEF
 #define FNIEMOP_DEF_1(a_Name, a_Type0, a_Name0) \
-    static VBOXSTRICTRC a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0) RT_NO_THROW_DEF
+    static VBOXSTRICTRC a_Name(PVMCPU pVCpu, a_Type0 a_Name0) RT_NO_THROW_DEF
 #define FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1) \
-    static VBOXSTRICTRC a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0, a_Type1 a_Name1) RT_NO_THROW_DEF
+    static VBOXSTRICTRC a_Name(PVMCPU pVCpu, a_Type0 a_Name0, a_Type1 a_Name1) RT_NO_THROW_DEF
+
+typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPU pVCpu, uint8_t bRm);
+#define FNIEMOPRM_DEF(a_Name) \
+    static VBOXSTRICTRC a_Name(PVMCPU pVCpu, uint8_t bRm) RT_NO_THROW_DEF
 
 #define IEM_NOT_REACHED_DEFAULT_CASE_RET()                  default: return VERR_IPE_NOT_REACHED_DEFAULT_CASE
 #define IEM_RETURN_ASPECT_NOT_IMPLEMENTED()                 return IEM_RETURN_ASPECT_NOT_IMPLEMENTED
@@ -99,8 +104,14 @@ typedef VBOXSTRICTRC (* PFNIEMOP)(PIEMCPU pIemCpu);
 #define IEM_OPCODE_GET_NEXT_S32(a_pi32)                     do { *(a_pi32) = g_bRandom; CHK_PTYPE(int32_t  *, a_pi32); } while (0)
 #define IEM_OPCODE_GET_NEXT_S32_SX_U64(a_pu64)              do { *(a_pu64) = g_bRandom; CHK_PTYPE(uint64_t *, a_pu64); } while (0)
 #define IEM_OPCODE_GET_NEXT_U64(a_pu64)                     do { *(a_pu64) = g_bRandom; CHK_PTYPE(uint64_t *, a_pu64); } while (0)
+#define IEMOP_HLP_MIN_186()                                 do { } while (0)
+#define IEMOP_HLP_MIN_286()                                 do { } while (0)
+#define IEMOP_HLP_MIN_386()                                 do { } while (0)
+#define IEMOP_HLP_MIN_386_EX(a_fTrue)                       do { } while (0)
+#define IEMOP_HLP_MIN_486()                                 do { } while (0)
+#define IEMOP_HLP_MIN_586()                                 do { } while (0)
+#define IEMOP_HLP_MIN_686()                                 do { } while (0)
 #define IEMOP_HLP_NO_REAL_OR_V86_MODE()                     do { } while (0)
-#define IEMOP_HLP_NO_LOCK_PREFIX()                          do { } while (0)
 #define IEMOP_HLP_NO_64BIT()                                do { } while (0)
 #define IEMOP_HLP_ONLY_64BIT()                              do { } while (0)
 #define IEMOP_HLP_64BIT_OP_SIZE()                           do { } while (0)
@@ -132,19 +143,19 @@ typedef VBOXSTRICTRC (* PFNIEMOP)(PIEMCPU pIemCpu);
     typedef int ignore_semicolon
 
 
-#define FNIEMOP_CALL(a_pfn)                                 (a_pfn)(pIemCpu)
-#define FNIEMOP_CALL_1(a_pfn, a0)                           (a_pfn)(pIemCpu, a0)
-#define FNIEMOP_CALL_2(a_pfn, a0, a1)                       (a_pfn)(pIemCpu, a0, a1)
+#define FNIEMOP_CALL(a_pfn)                                 (a_pfn)(pVCpu)
+#define FNIEMOP_CALL_1(a_pfn, a0)                           (a_pfn)(pVCpu, a0)
+#define FNIEMOP_CALL_2(a_pfn, a0, a1)                       (a_pfn)(pVCpu, a0, a1)
 
-#define IEM_IS_REAL_OR_V86_MODE(a_pIemCpu)                  (g_fRandom)
-#define IEM_IS_LONG_MODE(a_pIemCpu)                         (g_fRandom)
-#define IEM_IS_REAL_MODE(a_pIemCpu)                         (g_fRandom)
-#define IEM_IS_GUEST_CPU_AMD(a_pIemCpu)                     (g_fRandom)
-#define IEM_IS_GUEST_CPU_INTEL(a_pIemCpu)                   (g_fRandom)
-#define IEM_GET_GUEST_CPU_FEATURES(a_pIemCpu)               ((PCCPUMFEATURES)(uintptr_t)42)
-#define IEM_GET_HOST_CPU_FEATURES(a_pIemCpu)                ((PCCPUMFEATURES)(uintptr_t)88)
+#define IEM_IS_REAL_OR_V86_MODE(a_pVCpu)                    (g_fRandom)
+#define IEM_IS_LONG_MODE(a_pVCpu)                           (g_fRandom)
+#define IEM_IS_REAL_MODE(a_pVCpu)                           (g_fRandom)
+#define IEM_IS_GUEST_CPU_AMD(a_pVCpu)                       (g_fRandom)
+#define IEM_IS_GUEST_CPU_INTEL(a_pVCpu)                     (g_fRandom)
+#define IEM_GET_GUEST_CPU_FEATURES(a_pVCpu)                 ((PCCPUMFEATURES)(uintptr_t)42)
+#define IEM_GET_HOST_CPU_FEATURES(a_pVCpu)                  ((PCCPUMFEATURES)(uintptr_t)88)
 
-#define iemRecalEffOpSize(a_pIemCpu)                        do { } while (0)
+#define iemRecalEffOpSize(a_pVCpu)                          do { } while (0)
 
 IEMOPBINSIZES g_iemAImpl_add;
 IEMOPBINSIZES g_iemAImpl_adc;
@@ -320,6 +331,7 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_MAYBE_RAISE_FPU_XCPT()                   do {} while (0)
 #define IEM_MC_MAYBE_RAISE_MMX_RELATED_XCPT()           do {} while (0)
 #define IEM_MC_MAYBE_RAISE_MMX_RELATED_XCPT_CHECK_SSE_OR_MMXEXT() do {} while (0)
+#define IEM_MC_MAYBE_RAISE_SSE_RELATED_XCPT()           do {} while (0)
 #define IEM_MC_MAYBE_RAISE_SSE2_RELATED_XCPT()          do {} while (0)
 #define IEM_MC_RAISE_GP0_IF_CPL_NOT_ZERO()              do {} while (0)
 
@@ -392,8 +404,8 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_FETCH_TR_U64(a_u64Dst)                   do { (a_u64Dst) = 0; CHK_TYPE(uint64_t, a_u64Dst); } while (0)
 #define IEM_MC_FETCH_EFLAGS(a_EFlags)                   do { (a_EFlags) = 0; CHK_TYPE(uint32_t, a_EFlags); } while (0)
 #define IEM_MC_FETCH_EFLAGS_U8(a_EFlags)                do { (a_EFlags) = 0; CHK_TYPE(uint8_t,  a_EFlags); } while (0)
-#define IEM_MC_FETCH_FSW(a_u16Fsw)                      do { (a_u16Fsw) = 0; CHK_TYPE(uint16_t, a_u16Fsw); } while (0)
-#define IEM_MC_FETCH_FCW(a_u16Fcw)                      do { (a_u16Fcw) = 0; CHK_TYPE(uint16_t, a_u16Fcw); } while (0)
+#define IEM_MC_FETCH_FSW(a_u16Fsw)                      do { (a_u16Fsw) = 0; CHK_TYPE(uint16_t, a_u16Fsw); (void)fFpuRead; } while (0)
+#define IEM_MC_FETCH_FCW(a_u16Fcw)                      do { (a_u16Fcw) = 0; CHK_TYPE(uint16_t, a_u16Fcw); (void)fFpuRead; } while (0)
 #define IEM_MC_STORE_GREG_U8(a_iGReg, a_u8Value)        do { CHK_TYPE(uint8_t, a_u8Value); } while (0)
 #define IEM_MC_STORE_GREG_U16(a_iGReg, a_u16Value)      do { CHK_TYPE(uint16_t, a_u16Value); } while (0)
 #define IEM_MC_STORE_GREG_U32(a_iGReg, a_u32Value)      do {  } while (0)
@@ -419,6 +431,7 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_SUB_GREG_U16(a_iGReg, a_u16Value)        do { CHK_CONST(uint16_t, a_u16Value); } while (0)
 #define IEM_MC_SUB_GREG_U32(a_iGReg, a_u32Value)        do { CHK_CONST(uint32_t, a_u32Value); } while (0)
 #define IEM_MC_SUB_GREG_U64(a_iGReg, a_u64Value)        do { CHK_CONST(uint64_t, a_u64Value); } while (0)
+#define IEM_MC_SUB_LOCAL_U16(a_u16Value, a_u16Const)    do { CHK_CONST(uint16_t, a_u16Const); } while (0)
 
 #define IEM_MC_AND_GREG_U8(a_iGReg, a_u8Value)          do { CHK_CONST(uint8_t,  a_u8Value);  } while (0)
 #define IEM_MC_AND_GREG_U16(a_iGReg, a_u16Value)        do { CHK_CONST(uint16_t, a_u16Value); } while (0)
@@ -429,17 +442,10 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_OR_GREG_U32(a_iGReg, a_u32Value)         do { CHK_CONST(uint32_t, a_u32Value); } while (0)
 #define IEM_MC_OR_GREG_U64(a_iGReg, a_u64Value)         do { CHK_CONST(uint64_t, a_u64Value); } while (0)
 
-#ifdef _MSC_VER
-#define IEM_MC_ADD_GREG_U8_TO_LOCAL(a_u16Value, a_iGReg)   do { (a_u8Value)  += 1; /*CHK_CONST(uint8_t,  a_u8Value); */ } while (0)
-#define IEM_MC_ADD_GREG_U16_TO_LOCAL(a_u16Value, a_iGReg)  do { (a_u16Value) += 1; /*CHK_CONST(uint16_t, a_u16Value);*/ } while (0)
-#define IEM_MC_ADD_GREG_U32_TO_LOCAL(a_u32Value, a_iGReg)  do { (a_u32Value) += 1; /*CHK_CONST(uint32_t, a_u32Value);*/ } while (0)
-#define IEM_MC_ADD_GREG_U64_TO_LOCAL(a_u64Value, a_iGReg)  do { (a_u64Value) += 1; /*CHK_CONST(uint64_t, a_u64Value);*/ } while (0)
-#else
-#define IEM_MC_ADD_GREG_U8_TO_LOCAL(a_u16Value, a_iGReg)   do { (a_u8Value)  += 1; CHK_CONST(uint8_t,  a_u8Value);  } while (0)
-#define IEM_MC_ADD_GREG_U16_TO_LOCAL(a_u16Value, a_iGReg)  do { (a_u16Value) += 1; CHK_CONST(uint16_t, a_u16Value); } while (0)
-#define IEM_MC_ADD_GREG_U32_TO_LOCAL(a_u32Value, a_iGReg)  do { (a_u32Value) += 1; CHK_CONST(uint32_t, a_u32Value); } while (0)
-#define IEM_MC_ADD_GREG_U64_TO_LOCAL(a_u64Value, a_iGReg)  do { (a_u64Value) += 1; CHK_CONST(uint64_t, a_u64Value); } while (0)
-#endif
+#define IEM_MC_ADD_GREG_U8_TO_LOCAL(a_u16Value, a_iGReg)   do { (a_u8Value)  += 1; CHK_TYPE(uint8_t,  a_u8Value);  } while (0)
+#define IEM_MC_ADD_GREG_U16_TO_LOCAL(a_u16Value, a_iGReg)  do { (a_u16Value) += 1; CHK_TYPE(uint16_t, a_u16Value); } while (0)
+#define IEM_MC_ADD_GREG_U32_TO_LOCAL(a_u32Value, a_iGReg)  do { (a_u32Value) += 1; CHK_TYPE(uint32_t, a_u32Value); } while (0)
+#define IEM_MC_ADD_GREG_U64_TO_LOCAL(a_u64Value, a_iGReg)  do { (a_u64Value) += 1; CHK_TYPE(uint64_t, a_u64Value); } while (0)
 #define IEM_MC_ADD_LOCAL_S16_TO_EFF_ADDR(a_EffAddr, a_i16) do { (a_EffAddr) += (a_i16); CHK_GCPTR(a_EffAddr); } while (0)
 #define IEM_MC_ADD_LOCAL_S32_TO_EFF_ADDR(a_EffAddr, a_i32) do { (a_EffAddr) += (a_i32); CHK_GCPTR(a_EffAddr); } while (0)
 #define IEM_MC_ADD_LOCAL_S64_TO_EFF_ADDR(a_EffAddr, a_i64) do { (a_EffAddr) += (a_i64); CHK_GCPTR(a_EffAddr); } while (0)
@@ -451,6 +457,7 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_AND_ARG_U32(a_u32Arg, a_u32Mask)         do { (a_u32Arg)   &= (a_u32Mask); CHK_TYPE(uint32_t, a_u32Arg);   CHK_CONST(uint32_t, a_u32Mask); } while (0)
 #define IEM_MC_AND_ARG_U64(a_u64Arg, a_u64Mask)         do { (a_u64Arg)   &= (a_u64Mask); CHK_TYPE(uint64_t, a_u64Arg);   CHK_CONST(uint64_t, a_u64Mask); } while (0)
 #define IEM_MC_OR_LOCAL_U8(a_u8Local, a_u8Mask)         do { (a_u8Local)  |= (a_u8Mask);  CHK_TYPE(uint8_t,  a_u8Local);  CHK_CONST(uint8_t,  a_u8Mask);  } while (0)
+#define IEM_MC_OR_LOCAL_U16(a_u16Local, a_u16Mask)      do { (a_u16Local) |= (a_u16Mask); CHK_TYPE(uint16_t, a_u16Local); CHK_CONST(uint16_t, a_u16Mask); } while (0)
 #define IEM_MC_OR_LOCAL_U32(a_u32Local, a_u32Mask)      do { (a_u32Local) |= (a_u32Mask); CHK_TYPE(uint32_t, a_u32Local); CHK_CONST(uint32_t, a_u32Mask); } while (0)
 #define IEM_MC_SAR_LOCAL_S16(a_i16Local, a_cShift)      do { (a_i16Local) >>= (a_cShift); CHK_TYPE(int16_t, a_i16Local);  CHK_CONST(uint8_t,  a_cShift);  } while (0)
 #define IEM_MC_SAR_LOCAL_S32(a_i32Local, a_cShift)      do { (a_i32Local) >>= (a_cShift); CHK_TYPE(int32_t, a_i32Local);  CHK_CONST(uint8_t,  a_cShift);  } while (0)
@@ -466,23 +473,25 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_CLEAR_FSW_EX()                           do { } while (0)
 
 
-#define IEM_MC_FETCH_MREG_U64(a_u64Value, a_iMReg)          do { (a_u64Value) = 0; CHK_TYPE(uint64_t, a_u64Value); } while (0)
-#define IEM_MC_FETCH_MREG_U32(a_u32Value, a_iMReg)          do { (a_u32Value) = 0; CHK_TYPE(uint32_t, a_u32Value); } while (0)
-#define IEM_MC_STORE_MREG_U64(a_iMReg, a_u64Value)          do { CHK_TYPE(uint64_t, a_u64Value); } while (0)
-#define IEM_MC_STORE_MREG_U32_ZX_U64(a_iMReg, a_u32Value)   do { CHK_TYPE(uint32_t, a_u32Value); } while (0)
-#define IEM_MC_REF_MREG_U64(a_pu64Dst, a_iMReg)             do { (a_pu64Dst) = (uint64_t *)((uintptr_t)0); CHK_PTYPE(uint64_t *, a_pu64Dst); } while (0)
-#define IEM_MC_REF_MREG_U64_CONST(a_pu64Dst, a_iMReg)       do { (a_pu64Dst) = (uint64_t const *)((uintptr_t)0); CHK_PTYPE(uint64_t const *, a_pu64Dst); } while (0)
-#define IEM_MC_REF_MREG_U32_CONST(a_pu32Dst, a_iMReg)       do { (a_pu32Dst) = (uint32_t const *)((uintptr_t)0); CHK_PTYPE(uint32_t const *, a_pu32Dst); } while (0)
+#define IEM_MC_FETCH_MREG_U64(a_u64Value, a_iMReg)          do { (a_u64Value) = 0; CHK_TYPE(uint64_t, a_u64Value); (void)fFpuRead; } while (0)
+#define IEM_MC_FETCH_MREG_U32(a_u32Value, a_iMReg)          do { (a_u32Value) = 0; CHK_TYPE(uint32_t, a_u32Value); (void)fFpuRead; } while (0)
+#define IEM_MC_STORE_MREG_U64(a_iMReg, a_u64Value)          do { CHK_TYPE(uint64_t, a_u64Value); (void)fFpuWrite; } while (0)
+#define IEM_MC_STORE_MREG_U32_ZX_U64(a_iMReg, a_u32Value)   do { CHK_TYPE(uint32_t, a_u32Value); (void)fFpuWrite; } while (0)
+#define IEM_MC_REF_MREG_U64(a_pu64Dst, a_iMReg)             do { (a_pu64Dst) = (uint64_t *)((uintptr_t)0); CHK_PTYPE(uint64_t *, a_pu64Dst);             (void)fFpuWrite; } while (0)
+#define IEM_MC_REF_MREG_U64_CONST(a_pu64Dst, a_iMReg)       do { (a_pu64Dst) = (uint64_t const *)((uintptr_t)0); CHK_PTYPE(uint64_t const *, a_pu64Dst); (void)fFpuWrite; } while (0)
+#define IEM_MC_REF_MREG_U32_CONST(a_pu32Dst, a_iMReg)       do { (a_pu32Dst) = (uint32_t const *)((uintptr_t)0); CHK_PTYPE(uint32_t const *, a_pu32Dst); (void)fFpuWrite; } while (0)
 
-#define IEM_MC_FETCH_XREG_U128(a_u128Value, a_iXReg)        do { (a_u128Value) = g_u128Zero; CHK_TYPE(uint128_t, a_u128Value); } while (0)
-#define IEM_MC_FETCH_XREG_U64(a_u64Value, a_iXReg)          do { (a_u64Value) = 0; CHK_TYPE(uint64_t, a_u64Value); } while (0)
-#define IEM_MC_FETCH_XREG_U32(a_u32Value, a_iXReg)          do { (a_u32Value) = 0; CHK_TYPE(uint32_t, a_u32Value); } while (0)
-#define IEM_MC_STORE_XREG_U128(a_iXReg, a_u128Value)        do { CHK_TYPE(uint128_t, a_u128Value); } while (0)
-#define IEM_MC_STORE_XREG_U64_ZX_U128(a_iXReg, a_u64Value)  do { CHK_TYPE(uint64_t, a_u64Value); } while (0)
-#define IEM_MC_STORE_XREG_U32_ZX_U128(a_iXReg, a_u32Value)  do { CHK_TYPE(uint32_t, a_u32Value); } while (0)
-#define IEM_MC_REF_XREG_U128(a_pu128Dst, a_iXReg)           do { (a_pu128Dst) = (uint128_t *)((uintptr_t)0);        CHK_PTYPE(uint128_t *, a_pu128Dst); } while (0)
-#define IEM_MC_REF_XREG_U128_CONST(a_pu128Dst, a_iXReg)     do { (a_pu128Dst) = (uint128_t const *)((uintptr_t)0);  CHK_PTYPE(uint128_t const *, a_pu128Dst); } while (0)
-#define IEM_MC_REF_XREG_U64_CONST(a_pu64Dst, a_iXReg)       do { (a_pu64Dst)  = (uint64_t const *)((uintptr_t)0);   CHK_PTYPE(uint64_t const *, a_pu64Dst); } while (0)
+#define IEM_MC_FETCH_XREG_U128(a_u128Value, a_iXReg)        do { (a_u128Value) = g_u128Zero; CHK_TYPE(uint128_t, a_u128Value); (void)fSseRead;  } while (0)
+#define IEM_MC_FETCH_XREG_U64(a_u64Value, a_iXReg)          do { (a_u64Value) = 0; CHK_TYPE(uint64_t, a_u64Value); (void)fSseRead; } while (0)
+#define IEM_MC_FETCH_XREG_U32(a_u32Value, a_iXReg)          do { (a_u32Value) = 0; CHK_TYPE(uint32_t, a_u32Value); (void)fSseRead; } while (0)
+#define IEM_MC_STORE_XREG_U128(a_iXReg, a_u128Value)        do { CHK_TYPE(uint128_t, a_u128Value); (void)fSseWrite; } while (0)
+#define IEM_MC_STORE_XREG_U64(a_iXReg, a_u64Value)          do { CHK_TYPE(uint64_t,  a_u64Value);  (void)fSseWrite; } while (0)
+#define IEM_MC_STORE_XREG_U64_ZX_U128(a_iXReg, a_u64Value)  do { CHK_TYPE(uint64_t,  a_u64Value);  (void)fSseWrite; } while (0)
+#define IEM_MC_STORE_XREG_U32_ZX_U128(a_iXReg, a_u32Value)  do { CHK_TYPE(uint32_t,  a_u32Value);  (void)fSseWrite; } while (0)
+#define IEM_MC_REF_XREG_U128(a_pu128Dst, a_iXReg)           do { (a_pu128Dst) = (uint128_t *)((uintptr_t)0);        CHK_PTYPE(uint128_t *, a_pu128Dst);       (void)fSseWrite; } while (0)
+#define IEM_MC_REF_XREG_U128_CONST(a_pu128Dst, a_iXReg)     do { (a_pu128Dst) = (uint128_t const *)((uintptr_t)0);  CHK_PTYPE(uint128_t const *, a_pu128Dst); (void)fSseWrite; } while (0)
+#define IEM_MC_REF_XREG_U64_CONST(a_pu64Dst, a_iXReg)       do { (a_pu64Dst)  = (uint64_t const *)((uintptr_t)0);   CHK_PTYPE(uint64_t const *, a_pu64Dst);   (void)fSseWrite; } while (0)
+#define IEM_MC_COPY_XREG_U128(a_iXRegDst, a_iXRegSrc)       do { (void)fSseWrite; } while (0)
 
 #define IEM_MC_FETCH_MEM_U8(a_u8Dst, a_iSeg, a_GCPtrMem)                do { CHK_GCPTR(a_GCPtrMem); } while (0)
 #define IEM_MC_FETCH_MEM16_U8(a_u8Dst, a_iSeg, a_GCPtrMem16)            do { CHK_TYPE(uint16_t, a_GCPtrMem16); } while (0)
@@ -548,7 +557,7 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_POP_U16(a_pu16Value)                                     do {} while (0)
 #define IEM_MC_POP_U32(a_pu32Value)                                     do {} while (0)
 #define IEM_MC_POP_U64(a_pu64Value)                                     do {} while (0)
-#define IEM_MC_MEM_MAP(a_pMem, a_fAccess, a_iSeg, a_GCPtrMem, a_iArg)   do { NOREF(a_fAccess); } while (0)
+#define IEM_MC_MEM_MAP(a_pMem, a_fAccess, a_iSeg, a_GCPtrMem, a_iArg)   do {} while (0)
 #define IEM_MC_MEM_MAP_EX(a_pvMem, a_fAccess, a_cbMem, a_iSeg, a_GCPtrMem, a_iArg)  do {} while (0)
 #define IEM_MC_MEM_COMMIT_AND_UNMAP(a_pvMem, a_fAccess)                             do {} while (0)
 #define IEM_MC_MEM_COMMIT_AND_UNMAP_FOR_FPU_STORE(a_pvMem, a_fAccess, a_u16FSW)     do {} while (0)
@@ -583,48 +592,54 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_DEFER_TO_CIMPL_3(a_pfnCImpl, a0, a1, a2)                 (VINF_SUCCESS)
 
 #define IEM_MC_CALL_FPU_AIMPL_1(a_pfnAImpl, a0) \
-    do { CHK_CALL_ARG(a0, 0);  } while (0)
+    do { (void)fFpuHost; (void)fFpuWrite; CHK_CALL_ARG(a0, 0);  } while (0)
 #define IEM_MC_CALL_FPU_AIMPL_2(a_pfnAImpl, a0, a1) \
-    do { CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); } while (0)
+    do { (void)fFpuHost; (void)fFpuWrite; CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); } while (0)
 #define IEM_MC_CALL_FPU_AIMPL_3(a_pfnAImpl, a0, a1, a2) \
-    do { CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); CHK_CALL_ARG(a2, 2); } while (0)
-#define IEM_MC_SET_FPU_RESULT(a_FpuData, a_FSW, a_pr80Value)            do { } while (0)
-#define IEM_MC_PUSH_FPU_RESULT(a_FpuData)                               do { } while (0)
-#define IEM_MC_PUSH_FPU_RESULT_MEM_OP(a_FpuData, a_iEffSeg, a_GCPtrEff) do { } while (0)
-#define IEM_MC_PUSH_FPU_RESULT_TWO(a_FpuDataTwo)                        do { } while (0)
-#define IEM_MC_STORE_FPU_RESULT(a_FpuData, a_iStReg)                    do { } while (0)
-#define IEM_MC_STORE_FPU_RESULT_THEN_POP(a_FpuData, a_iStReg)           do { } while (0)
-#define IEM_MC_STORE_FPU_RESULT_MEM_OP(a_FpuData, a_iStReg, a_iEffSeg, a_GCPtrEff)              do { } while (0)
-#define IEM_MC_STORE_FPU_RESULT_MEM_OP_THEN_POP(a_FpuData, a_iStReg, a_iEffSeg, a_GCPtrEff)     do { } while (0)
-#define IEM_MC_FPU_STACK_UNDERFLOW(a_iStReg)                                                    do { } while (0)
-#define IEM_MC_FPU_STACK_UNDERFLOW_MEM_OP(a_iStReg, a_iEffSeg, a_GCPtrEff)                      do { } while (0)
-#define IEM_MC_FPU_STACK_UNDERFLOW_THEN_POP(a_iStReg)                                           do { } while (0)
-#define IEM_MC_FPU_STACK_UNDERFLOW_MEM_OP_THEN_POP(a_iStReg, a_iEffSeg, a_GCPtrEff)             do { } while (0)
-#define IEM_MC_FPU_STACK_UNDERFLOW_THEN_POP_POP()                                               do { } while (0)
-#define IEM_MC_FPU_STACK_PUSH_UNDERFLOW()                                                       do { } while (0)
-#define IEM_MC_FPU_STACK_PUSH_UNDERFLOW_TWO()                                                   do { } while (0)
-#define IEM_MC_FPU_STACK_PUSH_OVERFLOW()                                                        do { } while (0)
-#define IEM_MC_FPU_STACK_PUSH_OVERFLOW_MEM_OP(a_iEffSeg, a_GCPtrEff)                            do { } while (0)
-#define IEM_MC_UPDATE_FPU_OPCODE_IP()                                                           do { } while (0)
-#define IEM_MC_FPU_STACK_DEC_TOP()                                                              do { } while (0)
-#define IEM_MC_FPU_STACK_INC_TOP()                                                              do { } while (0)
-#define IEM_MC_FPU_STACK_FREE(a_iStReg)                                                         do { } while (0)
-#define IEM_MC_UPDATE_FSW(a_u16FSW)                                                             do { } while (0)
-#define IEM_MC_UPDATE_FSW_CONST(a_u16FSW)                                                       do { } while (0)
-#define IEM_MC_UPDATE_FSW_WITH_MEM_OP(a_u16FSW, a_iEffSeg, a_GCPtrEff)                          do { } while (0)
-#define IEM_MC_UPDATE_FSW_THEN_POP(a_u16FSW)                                                    do { } while (0)
-#define IEM_MC_UPDATE_FSW_WITH_MEM_OP_THEN_POP(a_u16FSW, a_iEffSeg, a_GCPtrEff)                 do { } while (0)
-#define IEM_MC_UPDATE_FSW_THEN_POP_POP(a_u16FSW)                                                do { } while (0)
-#define IEM_MC_USED_FPU()                                                                       do { } while (0)
+    do { (void)fFpuHost; (void)fFpuWrite; CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); CHK_CALL_ARG(a2, 2); } while (0)
+#define IEM_MC_SET_FPU_RESULT(a_FpuData, a_FSW, a_pr80Value)            do { (void)fFpuWrite; } while (0)
+#define IEM_MC_PUSH_FPU_RESULT(a_FpuData)                               do { (void)fFpuWrite; } while (0)
+#define IEM_MC_PUSH_FPU_RESULT_MEM_OP(a_FpuData, a_iEffSeg, a_GCPtrEff) do { (void)fFpuWrite; } while (0)
+#define IEM_MC_PUSH_FPU_RESULT_TWO(a_FpuDataTwo)                        do { (void)fFpuWrite; } while (0)
+#define IEM_MC_STORE_FPU_RESULT(a_FpuData, a_iStReg)                    do { (void)fFpuWrite; } while (0)
+#define IEM_MC_STORE_FPU_RESULT_THEN_POP(a_FpuData, a_iStReg)           do { (void)fFpuWrite; } while (0)
+#define IEM_MC_STORE_FPU_RESULT_MEM_OP(a_FpuData, a_iStReg, a_iEffSeg, a_GCPtrEff)              do { (void)fFpuWrite; } while (0)
+#define IEM_MC_STORE_FPU_RESULT_MEM_OP_THEN_POP(a_FpuData, a_iStReg, a_iEffSeg, a_GCPtrEff)     do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_UNDERFLOW(a_iStReg)                                                    do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_UNDERFLOW_MEM_OP(a_iStReg, a_iEffSeg, a_GCPtrEff)                      do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_UNDERFLOW_THEN_POP(a_iStReg)                                           do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_UNDERFLOW_MEM_OP_THEN_POP(a_iStReg, a_iEffSeg, a_GCPtrEff)             do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_UNDERFLOW_THEN_POP_POP()                                               do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_PUSH_UNDERFLOW()                                                       do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_PUSH_UNDERFLOW_TWO()                                                   do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_PUSH_OVERFLOW()                                                        do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_PUSH_OVERFLOW_MEM_OP(a_iEffSeg, a_GCPtrEff)                            do { (void)fFpuWrite; } while (0)
+#define IEM_MC_UPDATE_FPU_OPCODE_IP()                                                           do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_DEC_TOP()                                                              do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_INC_TOP()                                                              do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_STACK_FREE(a_iStReg)                                                         do { (void)fFpuWrite; } while (0)
+#define IEM_MC_UPDATE_FSW(a_u16FSW)                                                             do { (void)fFpuWrite; } while (0)
+#define IEM_MC_UPDATE_FSW_CONST(a_u16FSW)                                                       do { (void)fFpuWrite; } while (0)
+#define IEM_MC_UPDATE_FSW_WITH_MEM_OP(a_u16FSW, a_iEffSeg, a_GCPtrEff)                          do { (void)fFpuWrite; } while (0)
+#define IEM_MC_UPDATE_FSW_THEN_POP(a_u16FSW)                                                    do { (void)fFpuWrite; } while (0)
+#define IEM_MC_UPDATE_FSW_WITH_MEM_OP_THEN_POP(a_u16FSW, a_iEffSeg, a_GCPtrEff)                 do { (void)fFpuWrite; } while (0)
+#define IEM_MC_UPDATE_FSW_THEN_POP_POP(a_u16FSW)                                                do { (void)fFpuWrite; } while (0)
+#define IEM_MC_PREPARE_FPU_USAGE() \
+    const int fFpuRead = 1, fFpuWrite = 1, fFpuHost = 1, fSseRead = 1, fSseWrite = 1, fSseHost = 1
+#define IEM_MC_ACTUALIZE_FPU_STATE_FOR_READ()   const int fFpuRead = 1, fSseRead = 1
+#define IEM_MC_ACTUALIZE_FPU_STATE_FOR_CHANGE() const int fFpuRead = 1, fFpuWrite = 1, fSseRead = 1, fSseWrite = 1
+#define IEM_MC_PREPARE_SSE_USAGE()              const int fSseRead = 1, fSseWrite = 1, fSseHost = 1
+#define IEM_MC_ACTUALIZE_SSE_STATE_FOR_READ()   const int fSseRead = 1
+#define IEM_MC_ACTUALIZE_SSE_STATE_FOR_CHANGE() const int fSseRead = 1, fSseWrite = 1
 
 #define IEM_MC_CALL_MMX_AIMPL_2(a_pfnAImpl, a0, a1) \
-    do { CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); } while (0)
+    do { (void)fFpuHost; (void)fFpuWrite; CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); } while (0)
 #define IEM_MC_CALL_MMX_AIMPL_3(a_pfnAImpl, a0, a1, a2) \
-    do { CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); CHK_CALL_ARG(a2, 2);} while (0)
+    do { (void)fFpuHost; (void)fFpuWrite; CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); CHK_CALL_ARG(a2, 2);} while (0)
 #define IEM_MC_CALL_SSE_AIMPL_2(a_pfnAImpl, a0, a1) \
-    do { CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); } while (0)
+    do { (void)fSseHost; (void)fSseWrite; CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); } while (0)
 #define IEM_MC_CALL_SSE_AIMPL_3(a_pfnAImpl, a0, a1, a2) \
-    do { CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); CHK_CALL_ARG(a2, 2);} while (0)
+    do { (void)fSseHost; (void)fSseWrite; CHK_CALL_ARG(a0, 0); CHK_CALL_ARG(a1, 1); CHK_CALL_ARG(a2, 2);} while (0)
 
 #define IEM_MC_IF_EFL_BIT_SET(a_fBit)                                   if (g_fRandom) {
 #define IEM_MC_IF_EFL_BIT_NOT_SET(a_fBit)                               if (g_fRandom) {
@@ -645,19 +660,19 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_IF_RCX_IS_NZ_AND_EFL_BIT_NOT_SET(a_fBit)                 if (g_fRandom) {
 #define IEM_MC_IF_LOCAL_IS_Z(a_Local)                                   if ((a_Local) == 0) {
 #define IEM_MC_IF_GREG_BIT_SET(a_iGReg, a_iBitNo)                       if (g_fRandom) {
-#define IEM_MC_IF_FPUREG_NOT_EMPTY(a_iSt)                               if (g_fRandom) {
-#define IEM_MC_IF_FPUREG_IS_EMPTY(a_iSt)                                if (g_fRandom) {
+#define IEM_MC_IF_FPUREG_NOT_EMPTY(a_iSt)                               if (g_fRandom != fFpuRead) {
+#define IEM_MC_IF_FPUREG_IS_EMPTY(a_iSt)                                if (g_fRandom != fFpuRead) {
 #define IEM_MC_IF_FPUREG_NOT_EMPTY_REF_R80(a_pr80Dst, a_iSt) \
     a_pr80Dst = NULL; \
-    if (g_fRandom) {
+    if (g_fRandom != fFpuRead) {
 #define IEM_MC_IF_TWO_FPUREGS_NOT_EMPTY_REF_R80(p0, i0, p1, i1) \
     p0 = NULL; \
     p1 = NULL; \
-    if (g_fRandom) {
+    if (g_fRandom != fFpuRead) {
 #define IEM_MC_IF_TWO_FPUREGS_NOT_EMPTY_REF_R80_FIRST(p0, i0, i1) \
     p0 = NULL; \
-    if (g_fRandom) {
-#define IEM_MC_IF_FCW_IM()                                              if (g_fRandom) {
+    if (g_fRandom != fFpuRead) {
+#define IEM_MC_IF_FCW_IM()                                              if (g_fRandom != fFpuRead) {
 #define IEM_MC_ELSE()                                                   } else {
 #define IEM_MC_ENDIF()                                                  } do {} while (0)
 

@@ -26,15 +26,15 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 101458 $"
+__version__ = "$Revision: 107838 $"
 
 
 # Standard python imports.
 import datetime;
 import os;
+import sys;
 import psycopg2;
 import psycopg2.extensions;
-import sys;
 
 # Validation Kit imports.
 from common                             import utils, webutils;
@@ -80,18 +80,32 @@ def dbTimestampToZuluDatetime(oValue):
     """
     tsValue = dbTimestampToDatetime(oValue);
 
+    class UTC(datetime.tzinfo):
+        """UTC TZ Info Class"""
+        def utcoffset(self, _):
+            return datetime.timedelta(0);
+        def tzname(self, _):
+            return "UTC";
+        def dst(self, _):
+            return datetime.timedelta(0);
     if tsValue.tzinfo is not None:
-        class UTC(datetime.tzinfo):
-            """UTC TZ Info Class"""
-            def utcoffset(self, _):
-                return datetime.timedelta(0);
-            def tzname(self, _):
-                return "UTC";
-            def dst(self, _):
-                return datetime.timedelta(0);
         tsValue = tsValue.astimezone(UTC());
-
+    else:
+        tsValue = tsValue.replace(tzinfo=UTC());
     return tsValue;
+
+def dbTimestampPythonNow():
+    """
+    Gets the current python timestamp in a database compatible way.
+    """
+    return dbTimestampToZuluDatetime(datetime.datetime.utcnow());
+
+def dbTimestampMinusOneTick(oValue):
+    """
+    Returns a new timestamp that's one tick before the given one.
+    """
+    oValue = dbTimestampToZuluDatetime(oValue);
+    return oValue - datetime.timedelta(microseconds = 1);
 
 def isDbInterval(oValue):
     """
@@ -153,6 +167,10 @@ class TMDatabaseCursor(object):
         if sys.version_info[0] >= 3 and not isinstance(oRet, str):
             oRet = oRet.decode('utf-8');
         return oRet;
+
+    def copyExpert(self, sSqlCopyStmt, oFile, cbBuf = 8192):
+        """ See TMDatabaseConnection.copyExpert()"""
+        return self._oCursor.copy_expert(sSqlCopyStmt, oFile, cbBuf);
 
     @staticmethod
     def isTsInfinity(tsValue):
@@ -216,6 +234,9 @@ class TMDatabaseConnection(object):
 
         if oSrvGlue is not None:
             oSrvGlue.registerDebugInfoCallback(self.debugInfoCallback);
+
+        # Object caches (used by database logic classes).
+        self.ddCaches = dict();
 
     def isAutoCommitting(self):
         """ Work around missing autocommit attribute in older versions."""
@@ -317,15 +338,18 @@ class TMDatabaseConnection(object):
         Mostly a wrapper around the psycopg2 cursor method with the same name,
         but collect data for traceback.
         """
-        if aoArgs is None:
-            aoArgs = list();
+        if aoArgs is not None:
+            sBound = oCursor.mogrify(unicode(sOperation), aoArgs);
+        elif sOperation.find('%') < 0:
+            sBound = oCursor.mogrify(unicode(sOperation), list());
+        else:
+            sBound = unicode(sOperation);
 
-        sBound = oCursor.mogrify(unicode(sOperation), aoArgs);
         if sys.version_info[0] >= 3 and not isinstance(sBound, str):
             sBound = sBound.decode('utf-8');
 
         aasExplain = None;
-        if self._oExplainCursor is not None:
+        if self._oExplainCursor is not None and not sBound.startswith('DROP'):
             try:
                 if config.g_kfWebUiSqlTraceExplainTiming:
                     self._oExplainCursor.execute('EXPLAIN (ANALYZE, BUFFERS, COSTS, VERBOSE, TIMING) ' + sBound);
@@ -481,6 +505,10 @@ class TMDatabaseConnection(object):
             oRet = oRet.decode('utf-8');
         return oRet;
 
+    def copyExpert(self, sSqlCopyStmt, oFile, cbBuf = 8192):
+        """ Wrapper around Psycopg2.cursor.copy_expert. """
+        return self._oCursor.copy_expert(sSqlCopyStmt, oFile, cbBuf);
+
     def getCurrentTimestamps(self):
         """
         Returns the current timestamp and the current timestamp minus one tick.
@@ -519,6 +547,18 @@ class TMDatabaseConnection(object):
         """
         oCursor = self._oConn.cursor();
         return TMDatabaseCursor(self, oCursor);
+
+    #
+    # Cache support.
+    #
+    def getCache(self, sType):
+        """ Returns the cache dictionary for this data type. """
+        dRet = self.ddCaches.get(sType, None);
+        if dRet is None:
+            dRet = dict();
+            self.ddCaches[sType] = dRet;
+        return dRet;
+
 
     #
     # Utilities.

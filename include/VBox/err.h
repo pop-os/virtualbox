@@ -117,6 +117,8 @@
  * EM will first send this to the debugger, and if the issue isn't
  * resolved there it will enter guru meditation. */
 #define VINF_EM_DBG_HYPER_ASSERTION         1103
+/** Generic debug event, suspend the VM for debugging. */
+#define VINF_EM_DBG_EVENT                   1104
 /** Indicating that the VM should be suspended for debugging because
  * the developer wants to inspect the VM state. */
 #define VINF_EM_DBG_STOP                    1105
@@ -641,6 +643,8 @@
 #define VERR_CPUM_INVALID_XSAVE_HDR             (-1764)
 /** The loaded XCR0 register value is not valid. */
 #define VERR_CPUM_INVALID_XCR0                  (-1765)
+/** Indicates that we modified the host CR0 (FPU related). */
+#define VINF_CPUM_HOST_CR0_MODIFIED             (1766)
 /** @} */
 
 
@@ -1106,12 +1110,20 @@
 #define VINF_IOM_R3_IOPORT_READ             2620
 /** Reason for leaving RZ: I/O port write. */
 #define VINF_IOM_R3_IOPORT_WRITE            2621
+/** Reason for leaving RZ: Pending I/O port write.  Since there is also
+ * VMCPU_FF_IOM for this condition, it's ok to drop this status code for
+ * some other VINF_EM_XXX statuses. */
+#define VINF_IOM_R3_IOPORT_COMMIT_WRITE     2622
 /** Reason for leaving RZ: MMIO read. */
 #define VINF_IOM_R3_MMIO_READ               2623
 /** Reason for leaving RZ: MMIO write. */
 #define VINF_IOM_R3_MMIO_WRITE              2624
 /** Reason for leaving RZ: MMIO read/write. */
 #define VINF_IOM_R3_MMIO_READ_WRITE         2625
+/** Reason for leaving RZ: Pending MMIO write.   Since there is also
+ * VMCPU_FF_IOM for this condition, it's ok to drop this status code for
+ * some other VINF_EM_XXX statuses. */
+#define VINF_IOM_R3_MMIO_COMMIT_WRITE       2626
 
 /** IOMGCIOPortHandler was given an unexpected opcode. */
 #define VERR_IOM_IOPORT_UNKNOWN_OPCODE      (-2630)
@@ -1129,6 +1141,8 @@
 #define VERR_IOM_MMIO_IPE_3                 (-2636)
 /** Got into a part of IOM that is not used when HM (VT-x/AMD-V) is enabled. */
 #define VERR_IOM_HM_IPE                     (-2637)
+/** Internal processing error while merging status codes. */
+#define VERR_IOM_FF_STATUS_IPE              (-2638)
 /** @} */
 
 
@@ -1459,6 +1473,20 @@
 #define VERR_PDM_NOT_PCI_BUS_MASTER                 (-2891)
 /** Got into a part of PDM that is not used when HM (VT-x/AMD-V) is enabled. */
 #define VERR_PDM_HM_IPE                             (-2892)
+/** The I/O request was canceled. */
+#define VERR_PDM_MEDIAEX_IOREQ_CANCELED             (-2893)
+/** There is not enough room to store the data. */
+#define VERR_PDM_MEDIAEX_IOBUF_OVERFLOW             (-2894)
+/** There is not enough data to satisfy the request. */
+#define VERR_PDM_MEDIAEX_IOBUF_UNDERRUN             (-2895)
+/** The I/O request ID is already existing. */
+#define VERR_PDM_MEDIAEX_IOREQID_CONFLICT           (-2896)
+/** The I/O request ID was not found. */
+#define VERR_PDM_MEDIAEX_IOREQID_NOT_FOUND          (-2897)
+/** The I/O request is in progress. */
+#define VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS          2898
+/** The I/O request is in an invalid state for this operation. */
+#define VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE        (-2899)
 /** @} */
 
 
@@ -2676,6 +2704,20 @@
 #define VERR_GIM_DEVICE_NOT_REGISTERED              (-6310)
 /** Hypercall cannot be enabled/performed due to access/permissions/CPL. */
 #define VERR_GIM_HYPERCALL_ACCESS_DENIED            (-6311)
+/** Failed to read to a memory region while performing a hypercall. */
+#define VERR_GIM_HYPERCALL_MEMORY_READ_FAILED       (-6312)
+/** Failed to write to a memory region while performing a hypercall. */
+#define VERR_GIM_HYPERCALL_MEMORY_WRITE_FAILED      (-6313)
+/** Generic hypercall operation failure. */
+#define VERR_GIM_HYPERCALL_FAILED                   (-6314)
+/** No debug connection configured. */
+#define VERR_GIM_NO_DEBUG_CONNECTION                (-6315)
+/** Return to ring-3 to perform the hypercall there. */
+#define VINF_GIM_R3_HYPERCALL                       6316
+/** Continuing hypercall at the same RIP, continue guest execution. */
+#define VINF_GIM_HYPERCALL_CONTINUING               6317
+/** Instruction that triggers the hypercall is invalid/unrecognized. */
+#define VERR_GIM_INVALID_HYPERCALL_INSTR            (-6318)
 /** @} */
 
 
@@ -2706,8 +2748,25 @@
  *  reachable, audio hardware is not available or similar.  We should use the
  *  NULL audio driver. */
 #define VERR_AUDIO_BACKEND_INIT_FAILED              (-6600)
+/** No free input streams.  */
+#define VERR_AUDIO_NO_FREE_INPUT_STREAMS            (-6601)
+/** No free output streams.  */
+#define VERR_AUDIO_NO_FREE_OUTPUT_STREAMS           (-6602)
+/** Pending stream disable operation in progress.  */
+#define VERR_AUDIO_STREAM_PENDING_DISABLE           (-6603)
 /** @} */
 
+
+/** @name APIC Status Codes
+ * @{
+ */
+/** No pending interrupt. */
+#define VERR_APIC_INTR_NOT_PENDING                  (-6700)
+/** Pending interrupt is masked by TPR. */
+#define VERR_APIC_INTR_MASKED_BY_TPR                (-6701)
+/** APIC did not accept the interrupt. */
+#define VERR_APIC_INTR_DISCARDED                    (-6702)
+/** @} */
 
 /* SED-END */
 

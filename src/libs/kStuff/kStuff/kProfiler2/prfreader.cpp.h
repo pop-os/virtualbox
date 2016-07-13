@@ -1,4 +1,4 @@
-/* $Id: prfreader.cpp.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: prfreader.cpp.h 77 2016-06-22 17:03:55Z bird $ */
 /** @file
  * kProfiler Mark 2 - Reader Code Template.
  */
@@ -63,7 +63,7 @@ static bool KPRF_NAME(IsValid)(KPRF_TYPE(PC,HDR) pHdr, KU32 cb, FILE *pOut)
         if (strlen(pCur->szPath) != pCur->cchPath)
         {
             fprintf(pOut, "The module segment record at 0x%x has an invalid path length 0x%x it the actual length is 0x%x\n",
-                    pCur->cchPath, strlen(pCur->szPath));
+                    off, pCur->cchPath, strlen(pCur->szPath));
             return false;
         }
 
@@ -1227,7 +1227,7 @@ static void KPRF_NAME(HtmlWriteSortedFunctions)(KPRF_TYPE(P,REPORT) pReport, FIL
             {
                 fprintf(pOut,
                         "    <td><a href=\"#Func-%u\">",
-                        pReportFunc - pReport->paFunctions);
+                        (unsigned)(uintptr_t)(pReportFunc - pReport->paFunctions));
                 if (pReportFunc->pSym)
                     fprintf(pOut, "%s</a></td>\n", pReportFunc->pSym->szName);
                 else
@@ -1558,7 +1558,7 @@ static int KPRF_NAME(WriteHtmlReport)(KPRF_TYPE(P,REPORT) pReport, FILE *pOut)
         fprintf(pOut,
                 "<a name=\"Mod-%u\">\n"
                 "<tr><td class=\"BlankRow\" colspan=7><a name=\"Module-%u\">&nbsp;</a></td></tr>\n",
-                iMod);
+                iMod, iMod);
         KPRF_NAME(HtmlWriteRowU32)(pOut, "Module No.", iMod, NULL);
         KPRF_NAME(HtmlWriteRowString)(pOut, "Name", "Name", "%s", pMod->pFirstSeg->pModSeg->szPath);
 

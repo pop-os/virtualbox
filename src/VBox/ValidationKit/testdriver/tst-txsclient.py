@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 108240 $"
 
 # Standard python imports.
 import os
@@ -64,7 +64,7 @@ def stringRes(rc, sExpect):
     return 'FAILED';
 
 def main(asArgs): # pylint: disable=C0111,R0914,R0915
-    cMsTimeout      = 30*1000;
+    cMsTimeout      = long(30*1000);
     sAddress        = 'localhost';
     uPort           = None;
     fReversedSetup  = False;

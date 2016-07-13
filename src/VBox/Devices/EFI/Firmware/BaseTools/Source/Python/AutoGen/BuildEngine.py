@@ -1,7 +1,7 @@
 ## @file
 # The engine for building files
 #
-# Copyright (c) 2007, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
 # which accompanies this distribution.  The full text of the license may be found at
@@ -14,10 +14,11 @@
 ##
 # Import Modules
 #
-import os
+import Common.LongFilePathOs as os
 import re
 import copy
 import string
+from Common.LongFilePathSupport import OpenLongFilePath as open
 
 from Common.GlobalData import *
 from Common.BuildToolError import *
@@ -369,7 +370,7 @@ class BuildRule:
             # Clean up the line and replace path separator with native one
             Line = self.RuleContent[Index].strip().replace(self._PATH_SEP, os.path.sep)
             self.RuleContent[Index] = Line
-            
+
             # find the build_rule_version
             if Line and Line[0] == "#" and Line.find(TAB_BUILD_RULE_VERSION) <> -1:
                 if Line.find("=") <> -1 and Line.find("=") < (len(Line)-1) and (Line[(Line.find("=") + 1):]).split():

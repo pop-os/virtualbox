@@ -39,7 +39,7 @@ HEFI_EDITOR_DISK_IMAGE            HDiskImageConst = {
 
 /**
   Initialization function for HDiskImage.
- 
+
   @retval EFI_SUCCESS     The operation was successful.
   @retval EFI_LOAD_ERROR  A load error occured.
 **/
@@ -59,7 +59,7 @@ HDiskImageInit (
 }
 
 /**
-  Backup function for HDiskImage. Only a few fields need to be backup.   
+  Backup function for HDiskImage. Only a few fields need to be backup.
   This is for making the Disk buffer refresh as few as possible.
 
   @retval EFI_SUCCESS           The operation was successful.
@@ -159,7 +159,7 @@ HDiskImageSetDiskNameOffsetSize (
   @retval EFI_SUCCESS           The operation was successful.
   @retval EFI_OUT_OF_RESOURCES  A memory allocation failed.
   @retval EFI_LOAD_ERROR        A load error occured.
-  @retval EFI_INVALID_PARAMETER A parameter was invalid.  
+  @retval EFI_INVALID_PARAMETER A parameter was invalid.
 **/
 EFI_STATUS
 HDiskImageRead (
@@ -181,11 +181,7 @@ HDiskImageRead (
   UINTN                           Bytes;
 
   HEFI_EDITOR_LINE                *Line;
-  UINT64                          ByteOffset;
 
-  EDIT_FILE_TYPE                  BufferTypeBackup;
-
-  BufferTypeBackup        = HBufferImage.BufferType;
   HBufferImage.BufferType = FileTypeDiskBuffer;
 
   DevicePath              = gEfiShellProtocol->GetDevicePathFromMap(DeviceName);
@@ -225,8 +221,6 @@ HDiskImageRead (
     StatusBarSetStatusString (L"Read Disk Failed");
     return EFI_OUT_OF_RESOURCES;
   }
-
-  ByteOffset = MultU64x32 (Offset, BlkIo->Media->BlockSize);
 
   //
   // read from disk
@@ -337,7 +331,7 @@ HDiskImageRead (
   @retval EFI_SUCCESS           The operation was successful.
   @retval EFI_OUT_OF_RESOURCES  A memory allocation failed.
   @retval EFI_LOAD_ERROR        A load error occured.
-  @retval EFI_INVALID_PARAMETER A parameter was invalid.  
+  @retval EFI_INVALID_PARAMETER A parameter was invalid.
 **/
 EFI_STATUS
 HDiskImageSave (
@@ -355,10 +349,6 @@ HDiskImageSave (
   VOID                            *Buffer;
   UINTN                           Bytes;
 
-  UINT64                          ByteOffset;
-
-  EDIT_FILE_TYPE                  BufferTypeBackup;
-
   //
   // if not modified, directly return
   //
@@ -366,7 +356,6 @@ HDiskImageSave (
     return EFI_SUCCESS;
   }
 
-  BufferTypeBackup        = HBufferImage.BufferType;
   HBufferImage.BufferType = FileTypeDiskBuffer;
 
   DevicePath              = gEfiShellProtocol->GetDevicePathFromMap(DeviceName);
@@ -405,8 +394,6 @@ HDiskImageSave (
     FreePool (Buffer);
     return Status;
   }
-
-  ByteOffset = MultU64x32 (Offset, BlkIo->Media->BlockSize);
 
   //
   // write the buffer to disk

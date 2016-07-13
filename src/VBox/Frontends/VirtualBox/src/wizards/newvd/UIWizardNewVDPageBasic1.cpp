@@ -40,7 +40,7 @@ UIWizardNewVDPage1::UIWizardNewVDPage1()
 {
 }
 
-void UIWizardNewVDPage1::addFormatButton(QWidget *pParent, QVBoxLayout *pFormatLayout, CMediumFormat medFormat)
+void UIWizardNewVDPage1::addFormatButton(QWidget *pParent, QVBoxLayout *pFormatLayout, CMediumFormat medFormat, bool fPreferred /* = false */)
 {
     /* Check that medium format supports creation: */
     ULONG uFormatCapabilities = 0;
@@ -62,10 +62,20 @@ void UIWizardNewVDPage1::addFormatButton(QWidget *pParent, QVBoxLayout *pFormatL
 
     /* Create/add corresponding radio-button: */
     QRadioButton *pFormatButton = new QRadioButton(pParent);
-    pFormatLayout->addWidget(pFormatButton);
-    m_formats << medFormat;
-    m_formatNames << medFormat.GetName();
-    m_pFormatButtonGroup->addButton(pFormatButton, m_formatNames.size() - 1);
+    AssertPtrReturnVoid(pFormatButton);
+    {
+        /* Make the preferred button font bold: */
+        if (fPreferred)
+        {
+            QFont font = pFormatButton->font();
+            font.setBold(true);
+            pFormatButton->setFont(font);
+        }
+        pFormatLayout->addWidget(pFormatButton);
+        m_formats << medFormat;
+        m_formatNames << medFormat.GetName();
+        m_pFormatButtonGroup->addButton(pFormatButton, m_formatNames.size() - 1);
+    }
 }
 
 CMediumFormat UIWizardNewVDPage1::mediumFormat() const
@@ -93,25 +103,35 @@ UIWizardNewVDPageBasic1::UIWizardNewVDPageBasic1()
         {
             m_pFormatButtonGroup = new QButtonGroup(this);
             {
-                CSystemProperties systemProperties = vboxGlobal().virtualBox().GetSystemProperties();
-                const QVector<CMediumFormat> &medFormats = systemProperties.GetMediumFormats();
-                for (int i = 0; i < medFormats.size(); ++i)
+                /* Enumerate medium formats in special order: */
+                CSystemProperties properties = vboxGlobal().virtualBox().GetSystemProperties();
+                const QVector<CMediumFormat> &formats = properties.GetMediumFormats();
+                QMap<QString, CMediumFormat> vdi, preferred;
+                foreach (const CMediumFormat &format, formats)
                 {
-                    const CMediumFormat &medFormat = medFormats[i];
-                    if (medFormat.GetName() == "VDI")
-                        addFormatButton(this, pFormatLayout, medFormat);
+                    /* VDI goes first: */
+                    if (format.GetName() == "VDI")
+                        vdi[format.GetId()] = format;
+                    else
+                    {
+                        const QVector<KMediumFormatCapabilities> &capabilities = format.GetCapabilities();
+                        /* Then preferred: */
+                        if (capabilities.contains(KMediumFormatCapabilities_Preferred))
+                            preferred[format.GetId()] = format;
+                    }
                 }
-                for (int i = 0; i < medFormats.size(); ++i)
+
+                /* Create buttons for VDI and preferred: */
+                foreach (const QString &strId, vdi.keys())
+                    addFormatButton(this, pFormatLayout, vdi.value(strId));
+                foreach (const QString &strId, preferred.keys())
+                    addFormatButton(this, pFormatLayout, preferred.value(strId));
+
+                if (!m_pFormatButtonGroup->buttons().isEmpty())
                 {
-                    const CMediumFormat &medFormat = medFormats[i];
-                    if (medFormat.GetName() != "VDI")
-                        addFormatButton(this, pFormatLayout, medFormat);
+                    m_pFormatButtonGroup->button(0)->click();
+                    m_pFormatButtonGroup->button(0)->setFocus();
                 }
-            }
-            if (!m_pFormatButtonGroup->buttons().isEmpty())
-            {
-                m_pFormatButtonGroup->button(0)->click();
-                m_pFormatButtonGroup->button(0)->setFocus();
             }
         }
         pMainLayout->addWidget(m_pLabel);
@@ -120,7 +140,7 @@ UIWizardNewVDPageBasic1::UIWizardNewVDPageBasic1()
     }
 
     /* Setup connections: */
-    connect(m_pFormatButtonGroup, SIGNAL(buttonClicked(QAbstractButton*)), this, SIGNAL(completeChanged()));
+    connect(m_pFormatButtonGroup, SIGNAL(buttonClicked(QAbstractButton *)), this, SIGNAL(completeChanged()));
 
     /* Register classes: */
     qRegisterMetaType<CMediumFormat>();

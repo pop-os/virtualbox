@@ -60,6 +60,18 @@ typedef struct RTCRDIGESTDESC
     uint32_t            uReserved;
 
     /**
+     * Allocates the digest data.
+     */
+    DECLCALLBACKMEMBER(void *, pfnNew)(void);
+    
+    /**
+     * Frees the digest data.
+     *
+     * @param   pvState     The opaque message digest state.
+     */
+    DECLCALLBACKMEMBER(void, pfnFree)(void *pvState);
+
+    /**
      * Updates the digest with more data.
      *
      * @param   pvState     The opaque message digest state.
@@ -173,6 +185,7 @@ RTDECL(int) RTCrDigestReset(RTCRDIGEST hDigest);
 RTDECL(uint32_t) RTCrDigestRetain(RTCRDIGEST hDigest);
 RTDECL(uint32_t) RTCrDigestRelease(RTCRDIGEST hDigest);
 RTDECL(int) RTCrDigestUpdate(RTCRDIGEST hDigest, void const *pvData, size_t cbData);
+RTDECL(int) RTCrDigestUpdateFromVfsFile(RTCRDIGEST hDigest, RTVFSFILE hVfsFile, bool fRewindFile);
 RTDECL(int) RTCrDigestFinal(RTCRDIGEST hDigest, void *pvHash, size_t cbHash);
 RTDECL(bool) RTCrDigestMatch(RTCRDIGEST hDigest, void const *pvHash, size_t cbHash);
 RTDECL(uint8_t const *) RTCrDigestGetHash(RTCRDIGEST hDigest);
@@ -180,6 +193,16 @@ RTDECL(uint32_t) RTCrDigestGetHashSize(RTCRDIGEST hDigest);
 RTDECL(uint64_t) RTCrDigestGetConsumedSize(RTCRDIGEST hDigest);
 RTDECL(bool) RTCrDigestIsFinalized(RTCRDIGEST hDigest);
 RTDECL(RTDIGESTTYPE) RTCrDigestGetType(RTCRDIGEST hDigest);
+RTDECL(const char *) RTCrDigestGetAlgorithmOid(RTCRDIGEST hDigest);
+
+
+/**
+ * Translates an IPRT digest type value to an OID.
+ *
+ * @returns Dotted OID string on success, NULL if not translatable.
+ * @param       enmDigestType       The IPRT digest type value to convert.
+ */
+RTDECL(const char *) RTCrDigestTypeToAlgorithmOid(RTDIGESTTYPE enmDigestType);
 
 /** @} */
 

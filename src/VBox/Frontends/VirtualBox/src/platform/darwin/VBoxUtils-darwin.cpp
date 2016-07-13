@@ -29,6 +29,9 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QContextMenuEvent>
+#if QT_VERSION >= 0x050000
+# include <QtMac>
+#endif /* QT_VERSION >= 0x050000 */
 
 #include <Carbon/Carbon.h>
 
@@ -75,12 +78,8 @@ void darwinLabelWindow(QWidget *pWidget, QPixmap *pPixmap, bool fCenter)
 
 void darwinSetHidesAllTitleButtons(QWidget *pWidget)
 {
-#ifdef QT_MAC_USE_COCOA
     /* Currently only necessary in the Cocoa version */
     ::darwinSetHidesAllTitleButtonsImpl(::darwinToNativeWindow(pWidget));
-#else /* QT_MAC_USE_COCOA */
-    NOREF(pWidget);
-#endif /* !QT_MAC_USE_COCOA */
 }
 
 void darwinSetShowsWindowTransparent(QWidget *pWidget, bool fEnabled)
@@ -110,21 +109,13 @@ void darwinTest(QWidget *pWidget1, QWidget *pWidget2, int h)
 
 void darwinWindowInvalidateShape(QWidget *pWidget)
 {
-#ifdef QT_MAC_USE_COCOA
     /* Here a simple update is enough! */
     pWidget->update();
-#else /* QT_MAC_USE_COCOA */
-    ::darwinWindowInvalidateShapeImpl(::darwinToNativeWindow(pWidget));
-#endif /* QT_MAC_USE_COCOA */
 }
-;
+
 void darwinWindowInvalidateShadow(QWidget *pWidget)
 {
-#ifdef QT_MAC_USE_COCOA
     ::darwinWindowInvalidateShadowImpl(::darwinToNativeWindow(pWidget));
-#else /* QT_MAC_USE_COCOA */
-    NOREF(pWidget);
-#endif /* QT_MAC_USE_COCOA */
 }
 
 void darwinSetShowsResizeIndicator(QWidget *pWidget, bool fEnabled)
@@ -134,13 +125,8 @@ void darwinSetShowsResizeIndicator(QWidget *pWidget, bool fEnabled)
 
 bool darwinIsWindowMaximized(QWidget *pWidget)
 {
-#ifdef QT_MAC_USE_COCOA
     /* Currently only necessary in the Cocoa version */
     return ::darwinIsWindowMaximized(::darwinToNativeWindow(pWidget));
-#else /* QT_MAC_USE_COCOA */
-    NOREF(pWidget);
-    return false;
-#endif /* !QT_MAC_USE_COCOA */
 }
 
 void darwinMinaturizeWindow(QWidget *pWidget)
@@ -228,12 +214,8 @@ void darwinDisableIconsInMenus(void)
 
 int darwinWindowToolBarHeight(QWidget *pWidget)
 {
-#ifndef QT_MAC_USE_COCOA
-    return ::darwinWindowToolBarHeight(::darwinToNativeWindow(pWidget));
-#else /* QT_MAC_USE_COCOA */
     NOREF(pWidget);
     return 0;
-#endif /* QT_MAC_USE_COCOA */
 }
 
 bool darwinIsToolbarVisible(QToolBar *pToolBar)
@@ -259,11 +241,6 @@ uint64_t darwinGetCurrentProcessId()
     if (::GetCurrentProcess(&psn) == 0)
         processId = RT_MAKE_U64(psn.lowLongOfPSN, psn.highLongOfPSN);
     return processId;
-}
-
-CGContextRef darwinToCGContextRef(QWidget *pWidget)
-{
-    return static_cast<CGContext *>(pWidget->macCGHandle());
 }
 
 /* Proxy icon creation */
@@ -312,7 +289,7 @@ CGImageRef darwinToCGImageRef(const QImage *pImage)
     Assert(!imageCopy->isNull());
 
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGDataProviderRef dp = CGDataProviderCreateWithData(imageCopy, pImage->bits(), pImage->numBytes(), darwinDataProviderReleaseQImage);
+    CGDataProviderRef dp = CGDataProviderCreateWithData(imageCopy, pImage->bits(), pImage->byteCount(), darwinDataProviderReleaseQImage);
 
     CGBitmapInfo bmpInfo = kCGImageAlphaFirst | kCGBitmapByteOrder32Host;
     CGImageRef ir = CGImageCreate(imageCopy->width(), imageCopy->height(), 8, 32, imageCopy->bytesPerLine(), cs,
@@ -351,7 +328,11 @@ CGImageRef darwinToCGImageRef(const QPixmap *pPixmap)
                                               cs,
                                               kCGImageAlphaPremultipliedFirst);
     /* Get the CGImageRef from Qt */
+#if QT_VERSION < 0x050000
     CGImageRef qtPixmap = pPixmap->toMacCGImageRef();
+#else /* QT_VERSION >= 0x050000 */
+    CGImageRef qtPixmap = QtMac::toCGImageRef(*pPixmap);
+#endif /* QT_VERSION >= 0x050000 */
     /* Draw the image from Qt & convert the context back to a new CGImageRef. */
     CGContextDrawImage(ctx, CGRectMake(0, 0, pPixmap->width(), pPixmap->height()), qtPixmap);
     CGImageRef newImage = CGBitmapContextCreateImage(ctx);

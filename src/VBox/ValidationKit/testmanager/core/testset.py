@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107845 $"
 
 
 # Standard python imports.
@@ -37,7 +37,9 @@ import unittest;
 # Validation Kit imports.
 from common                         import utils;
 from testmanager                    import config;
-from testmanager.core.base          import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase;
+from testmanager.core               import db;
+from testmanager.core.base          import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase,  \
+                                           TMExceptionBase, TMTooManyRows, TMRowNotFound;
 from testmanager.core.testbox       import TestBoxData;
 from testmanager.core.testresults   import TestResultFileDataEx;
 
@@ -76,6 +78,7 @@ class TestSetData(ModelDataBase):
     ksParam_idBuildTestSuite    = 'TestSet_idBuildTestSuite';
     ksParam_idGenTestBox        = 'TestSet_idGenTestBox';
     ksParam_idTestBox           = 'TestSet_idTestBox';
+    ksParam_idSchedGroup        = 'TestSet_idSchedGroup';
     ksParam_idTestGroup         = 'TestSet_idTestGroup';
     ksParam_idGenTestCase       = 'TestSet_idGenTestCase';
     ksParam_idTestCase          = 'TestSet_idTestCase';
@@ -86,7 +89,7 @@ class TestSetData(ModelDataBase):
     ksParam_iGangMemberNo       = 'TestSet_iGangMemberNo';
     ksParam_idTestSetGangLeader = 'TestSet_idTestSetGangLeader';
 
-    kasAllowNullAttributes      = ['tsDone', 'idBuildTestSuite', 'idTestSetGangLeader' ];
+    kasAllowNullAttributes      = [ 'tsDone', 'idBuildTestSuite', 'idTestSetGangLeader' ];
     kasValidValues_enmStatus    = [
         ksTestStatus_Running,
         ksTestStatus_Success,
@@ -100,6 +103,8 @@ class TestSetData(ModelDataBase):
     kiMin_iGangMemberNo         = 0;
     kiMax_iGangMemberNo         = 1023;
 
+
+    kcDbColumns                 = 20;
 
     def __init__(self):
         ModelDataBase.__init__(self);
@@ -118,6 +123,7 @@ class TestSetData(ModelDataBase):
         self.idBuildTestSuite       = None;
         self.idGenTestBox           = None;
         self.idTestBox              = None;
+        self.idSchedGroup           = None;
         self.idTestGroup            = None;
         self.idGenTestCase          = None;
         self.idTestCase             = None;
@@ -135,7 +141,7 @@ class TestSetData(ModelDataBase):
         """
 
         if aoRow is None:
-            raise TMExceptionBase('TestSet not found.');
+            raise TMRowNotFound('TestSet not found.');
 
         self.idTestSet              = aoRow[0];
         self.tsConfig               = aoRow[1];
@@ -147,15 +153,16 @@ class TestSetData(ModelDataBase):
         self.idBuildTestSuite       = aoRow[7];
         self.idGenTestBox           = aoRow[8];
         self.idTestBox              = aoRow[9];
-        self.idTestGroup            = aoRow[10];
-        self.idGenTestCase          = aoRow[11];
-        self.idTestCase             = aoRow[12];
-        self.idGenTestCaseArgs      = aoRow[13];
-        self.idTestCaseArgs         = aoRow[14];
-        self.idTestResult           = aoRow[15];
-        self.sBaseFilename          = aoRow[16];
-        self.iGangMemberNo          = aoRow[17];
-        self.idTestSetGangLeader    = aoRow[18];
+        self.idSchedGroup           = aoRow[10];
+        self.idTestGroup            = aoRow[11];
+        self.idGenTestCase          = aoRow[12];
+        self.idTestCase             = aoRow[13];
+        self.idGenTestCaseArgs      = aoRow[14];
+        self.idTestCaseArgs         = aoRow[15];
+        self.idTestResult           = aoRow[16];
+        self.sBaseFilename          = aoRow[17];
+        self.iGangMemberNo          = aoRow[18];
+        self.idTestSetGangLeader    = aoRow[19];
         return self;
 
 
@@ -169,7 +176,7 @@ class TestSetData(ModelDataBase):
                     , (idTestSet, ) );
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMExceptionBase('idTestSet=%s not found' % (idTestSet,));
+            raise TMRowNotFound('idTestSet=%s not found' % (idTestSet,));
         return self.initFromDbRow(aoRow);
 
 
@@ -205,7 +212,7 @@ class TestSetData(ModelDataBase):
                         return (None, 'File "%s" not found. [%s, %s]' % (sFilename, sFile1, sFile2,), None);
                     return (None, 'Error opening "%s" inside "%s": %s' % (sFilename, sFile2, oXcpt2), None);
                 except Exception as oXcpt3:
-                    return (None, 'Aa! Megami-sama! %s; %s; %s' % (oXcpt1, oXcpt2, oXcpt3,), None);
+                    return (None, 'OMG! %s; %s; %s' % (oXcpt1, oXcpt2, oXcpt3,), None);
         return (None, 'Code not reachable!', None);
 
     def createFile(self, sFilename, sMode = 'wb'):
@@ -226,6 +233,72 @@ class TestSetData(ModelDataBase):
         except Exception as oXcpt1:
             return str(oXcpt1);
         return oFile;
+
+    @staticmethod
+    def findLogOffsetForTimestamp(sLogContent, tsTimestamp, offStart = 0, fAfter = False):
+        """
+        Log parsing utility function for finding the offset for the given timestamp.
+
+        We ASSUME the log lines are prefixed with UTC timestamps on the format
+        '09:43:55.789353'.
+
+        Return index into the sLogContent string, 0 if not found.
+        """
+        # Turn tsTimestamp into a string compatible with what we expect to find in the log.
+        oTsZulu   = db.dbTimestampToZuluDatetime(tsTimestamp);
+        sWantedTs = oTsZulu.strftime('%H:%M:%S.%f');
+        assert len(sWantedTs) == 15;
+
+        # Now loop thru the string, line by line.
+        offRet  = offStart;
+        off     = offStart;
+        while True:
+            sThisTs = sLogContent[off : off + 15];
+            if    len(sThisTs) >= 15 \
+              and sThisTs[2]  == ':' \
+              and sThisTs[5]  == ':' \
+              and sThisTs[8]  == '.' \
+              and sThisTs[14] in '0123456789':
+                if sThisTs < sWantedTs:
+                    offRet = off;
+                elif sThisTs == sWantedTs:
+                    if not fAfter:
+                        return off;
+                    offRet = off;
+                else:
+                    if fAfter:
+                        offRet = off;
+                    break;
+
+            # next line.
+            off = sLogContent.find('\n', off);
+            if off < 0:
+                if fAfter:
+                    offRet = len(sLogContent);
+                break;
+            off += 1;
+
+        return offRet;
+
+    @staticmethod
+    def extractLogSection(sLogContent, tsStart, tsLast):
+        """
+        Returns log section from tsStart to tsLast (or all if we cannot make sense of it).
+        """
+        offStart = TestSetData.findLogOffsetForTimestamp(sLogContent, tsStart);
+        offEnd   = TestSetData.findLogOffsetForTimestamp(sLogContent, tsLast, offStart, fAfter = True);
+        return sLogContent[offStart : offEnd];
+
+    @staticmethod
+    def extractLogSectionElapsed(sLogContent, tsStart, tsElapsed):
+        """
+        Returns log section from tsStart and tsElapsed forward (or all if we cannot make sense of it).
+        """
+        tsStart = db.dbTimestampToZuluDatetime(tsStart);
+        tsLast  = tsStart + tsElapsed;
+        return TestSetData.extractLogSection(sLogContent, tsStart, tsLast);
+
+
 
 class TestSetLogic(ModelLogicBase):
     """
@@ -312,9 +385,9 @@ class TestSetLogic(ModelLogicBase):
                                   '         cErrors   = cErrors + 1\n'
                                   'WHERE    idTestResult = %s\n'
                                   , (aoRow[0],));
-                self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idStrMsg, enmLevel)\n'
-                                  'VALUES ( %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
-                                  , (aoRow[0], idStr,));
+                self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idTestSet, idStrMsg, enmLevel)\n'
+                                  'VALUES ( %s, %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
+                                  , (aoRow[0], idTestSet, idStr,));
 
         #
         # If it's a success result, check it against error counters.
@@ -374,7 +447,7 @@ class TestSetLogic(ModelLogicBase):
         self._oDb.maybeCommit(fCommit);
         return oData.idTestSetGangLeader;
 
-    def completeAsAbandond(self, idTestSet, fCommit = False):
+    def completeAsAbandoned(self, idTestSet, fCommit = False):
         """
         Completes the testset as abandoned if necessary.
 
@@ -407,9 +480,9 @@ class TestSetLogic(ModelLogicBase):
                               , (idTestSet,));
 
             idStr = self.strTabString('The test was abandond by the testbox', fCommit = fCommit);
-            self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idStrMsg, enmLevel)\n'
-                              'VALUES ( %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
-                              , (oData.idTestResult, idStr,));
+            self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idTestSet, idStrMsg, enmLevel)\n'
+                              'VALUES ( %s, %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
+                              , (oData.idTestResult, idTestSet, idStr,));
 
         #
         # Complete the testset.
@@ -450,9 +523,9 @@ class TestSetLogic(ModelLogicBase):
                           , (idTestSet,));
 
         idStr = self.strTabString('Gang gathering timed out', fCommit = fCommit);
-        self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idStrMsg, enmLevel)\n'
-                          'VALUES ( %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
-                          , (oData.idTestResult, idStr,));
+        self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idTestSet, idStrMsg, enmLevel)\n'
+                          'VALUES ( %s, %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
+                          , (oData.idTestResult, idTestSet, idStr,));
 
         self._oDb.execute('UPDATE   TestSets\n'
                           'SET      enmStatus = \'failure\',\n'
@@ -513,7 +586,7 @@ class TestSetLogic(ModelLogicBase):
                           'FROM     TestResults\n'
                           'WHERE    idTestSet = %s\n'
                           '     AND enmStatus = \'running\'::TestStatus_T\n'
-                          'ORDER BY idTestResult\n'
+                          'ORDER BY idTestResult DESC\n'
                           'LIMIT    1\n'
                           % ( oTestSet.idTestSet, ));
         if self._oDb.getRowCount() < 1:
@@ -533,9 +606,11 @@ class TestSetLogic(ModelLogicBase):
             if sName is None:
                 raise TMExceptionBase('Failed to find unique name for %s.' % (sOrgName,));
 
-        self._oDb.execute('INSERT INTO TestResultFiles(idTestResult, idStrFile, idStrDescription, idStrKind, idStrMime)\n'
-                          'VALUES (%s, %s, %s, %s, %s)\n'
+        self._oDb.execute('INSERT INTO TestResultFiles(idTestResult, idTestSet, idStrFile, idStrDescription,\n'
+                          '                            idStrKind, idStrMime)\n'
+                          'VALUES (%s, %s, %s, %s, %s, %s)\n'
                           , ( idTestResult,
+                              oTestSet.idTestSet,
                               self.strTabString(sName),
                               self.strTabString(sDesc),
                               self.strTabString(sKind),
@@ -552,12 +627,13 @@ class TestSetLogic(ModelLogicBase):
         """
         Returns an array of TestBoxData object representing the gang for the given testset.
         """
-        self._oDb.execute('SELECT   TestBoxes.*\n'
-                          'FROM     TestBoxes, TestSets\n'
+        self._oDb.execute('SELECT   TestBoxesWithStrings.*\n'
+                          'FROM     TestBoxesWithStrings,\n'
+                          '         TestSets'
                           'WHERE    TestSets.idTestSetGangLeader = %s\n'
-                          '     AND TestSets.idGenTestBox        = TestBoxes.idGenTestBox\n'
+                          '     AND TestSets.idGenTestBox        = TestBoxesWithStrings.idGenTestBox\n'
                           'ORDER BY iGangMemberNo ASC\n'
-                          , (idTestSetGangLeader,));
+                          , ( idTestSetGangLeader,));
         aaoRows = self._oDb.fetchAll();
         aoTestBoxes = [];
         for aoRow in aaoRows:
@@ -604,7 +680,7 @@ class TestSetLogic(ModelLogicBase):
 
         aRows = self._oDb.fetchAll()
         if len(aRows) not in (0, 1):
-            raise TMExceptionBase('Found more than one test sets with the same credentials. Database structure is corrupted.')
+            raise TMTooManyRows('Found more than one test sets with the same credentials. Database structure is corrupted.')
         try:
             return TestSetData().initFromDbRow(aRows[0])
         except IndexError:
@@ -633,6 +709,100 @@ class TestSetLogic(ModelLogicBase):
         for aoRow in self._oDb.fetchAll():
             aoRet.append(TestSetData().initFromDbRow(aoRow));
         return aoRet;
+
+    def isTestBoxExecutingToRapidly(self, idTestBox):
+        """
+        Checks whether the specified test box is executing tests too rapidly.
+
+        The parameters defining too rapid execution are defined in config.py.
+
+        Returns True if it does, False if it doesn't.
+        May raise database problems.
+        """
+
+        self._oDb.execute('(\n'
+                          'SELECT   tsCreated\n'
+                          'FROM     TestSets\n'
+                          'WHERE    idTestBox = %s\n'
+                          '     AND tsCreated >= (CURRENT_TIMESTAMP - interval \'%s seconds\')\n'
+                          ') UNION (\n'
+                          'SELECT   tsCreated\n'
+                          'FROM     TestSets\n'
+                          'WHERE    idTestBox = %s\n'
+                          '     AND tsCreated >= (CURRENT_TIMESTAMP - interval \'%s seconds\')\n'
+                          '     AND enmStatus >= \'failure\'\n'
+                          ')'
+                          , ( idTestBox, config.g_kcSecMinSinceLastTask,
+                              idTestBox, config.g_kcSecMinSinceLastFailedTask, ));
+        return self._oDb.getRowCount() > 0;
+
+
+    #
+    # The virtual test sheriff interface.
+    #
+
+    def fetchBadTestBoxIds(self, cHoursBack = 2, tsNow = None):
+        """
+        Fetches a list of test box IDs which returned bad-testbox statuses in the
+        given period (tsDone).
+        """
+        if tsNow is None:
+            tsNow = self._oDb.getCurrentTimestamp();
+        self._oDb.execute('SELECT DISTINCT idTestBox\n'
+                          'FROM   TestSets\n'
+                          'WHERE  TestSets.enmStatus = \'bad-testbox\'\n'
+                          '   AND tsDone           <= %s\n'
+                          '   AND tsDone            > (%s - interval \'%s hours\')\n'
+                          , ( tsNow, tsNow, cHoursBack,));
+        return [aoRow[0] for aoRow in self._oDb.fetchAll()];
+
+    def fetchSetsForTestBox(self, idTestBox, cHoursBack = 2, tsNow = None):
+        """
+        Fetches the TestSet rows for idTestBox for the given period (tsDone), w/o running ones.
+
+        Returns list of TestSetData sorted by tsDone in descending order.
+        """
+        if tsNow is None:
+            tsNow = self._oDb.getCurrentTimestamp();
+        self._oDb.execute('SELECT *\n'
+                          'FROM   TestSets\n'
+                          'WHERE  TestSets.idTestBox = %s\n'
+                          '   AND tsDone IS NOT NULL\n'
+                          '   AND tsDone           <= %s\n'
+                          '   AND tsDone            > (%s - interval \'%s hours\')\n'
+                          'ORDER by tsDone DESC\n'
+                          , ( idTestBox, tsNow, tsNow, cHoursBack,));
+        return self._dbRowsToModelDataList(TestSetData);
+
+    def fetchFailedSetsWithoutReason(self, cHoursBack = 2, tsNow = None):
+        """
+        Fetches the TestSet failure rows without any currently (CURRENT_TIMESTAMP
+        not tsNow) assigned failure reason.
+
+        Returns list of TestSetData sorted by tsDone in descending order.
+
+        Note! Includes bad-testbox sets too as it can be useful to analyze these
+              too even if we normally count them in the 'skipped' category.
+        """
+        if tsNow is None:
+            tsNow = self._oDb.getCurrentTimestamp();
+        self._oDb.execute('SELECT TestSets.*\n'
+                          'FROM   TestSets\n'
+                          '       LEFT OUTER JOIN TestResultFailures\n'
+                          '                    ON TestResultFailures.idTestSet = TestSets.idTestSet\n'
+                          '                   AND TestResultFailures.tsExpire  = \'infinity\'::TIMESTAMP\n'
+                          'WHERE  TestSets.tsDone IS NOT NULL\n'
+                          '   AND TestSets.enmStatus        IN ( %s, %s, %s, %s )\n'
+                          '   AND TestSets.tsDone           <= %s\n'
+                          '   AND TestSets.tsDone            > (%s - interval \'%s hours\')\n'
+                          '   AND TestResultFailures.idTestSet IS NULL\n'
+                          'ORDER by tsDone DESC\n'
+                          , ( TestSetData.ksTestStatus_Failure, TestSetData.ksTestStatus_TimedOut,
+                              TestSetData.ksTestStatus_Rebooted, TestSetData.ksTestStatus_BadTestBox,
+                              tsNow,
+                              tsNow, cHoursBack,));
+        return self._dbRowsToModelDataList(TestSetData);
+
 
 
 #

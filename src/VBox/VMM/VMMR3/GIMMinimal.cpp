@@ -20,17 +20,17 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
+#include <VBox/vmm/gim.h>
+#include <VBox/vmm/cpum.h>
+#include <VBox/vmm/tm.h>
+#include <VBox/vmm/pdmapi.h>
 #include "GIMInternal.h"
+#include <VBox/vmm/vm.h>
 
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
-
-#include <VBox/vmm/cpum.h>
-#include <VBox/vmm/vm.h>
-#include <VBox/vmm/tm.h>
-#include <VBox/vmm/pdmapi.h>
 
 
 /*********************************************************************************************************************************
@@ -51,7 +51,7 @@ VMMR3_INT_DECL(int) gimR3MinimalInit(PVM pVM)
     /*
      * Enable the Hypervisor Present.
      */
-    CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_HVP);
+    CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_HVP);
 
     return VINF_SUCCESS;
 }
@@ -67,7 +67,7 @@ VMMR3_INT_DECL(int) gimR3MinimalInit(PVM pVM)
 VMMR3_INT_DECL(int) gimR3MinimalInitCompleted(PVM pVM)
 {
     /*
-     * Expose a generic hypervisor-agnostic leaf (originally defined VMware).
+     * Expose a generic hypervisor-agnostic leaf (originally defined by VMware).
      * The leaves range from  0x40000010 to 0x400000FF.
      *
      * This is done in the init. completed routine as we need PDM to be
@@ -120,20 +120,5 @@ VMMR3_INT_DECL(int) gimR3MinimalInitCompleted(PVM pVM)
         LogRel(("GIM: Minimal: failed to get hypervisor leaf 0x40000000.\n"));
 
     return VINF_SUCCESS;
-}
-
-
-/**
- * Applies relocations to data and code managed by this component.
- *
- * This function will be called at init and whenever the VMM need to relocate
- * itself inside the GC.
- *
- * @param   pVM         The cross context VM structure.
- * @param   offDelta    Relocation delta relative to old location.
- */
-VMMR3_INT_DECL(void) gimR3MinimalRelocate(PVM pVM, RTGCINTPTR offDelta)
-{
-    NOREF(pVM); NOREF(offDelta);
 }
 

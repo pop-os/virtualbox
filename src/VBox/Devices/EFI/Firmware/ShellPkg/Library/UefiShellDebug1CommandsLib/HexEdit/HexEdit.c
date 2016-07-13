@@ -1,6 +1,6 @@
 /** @file
   Main entry point of editor
-  
+
   Copyright (c) 2005 - 2011, Intel Corporation. All rights reserved. <BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -43,25 +43,19 @@ ShellCommandRunHexEdit (
   CHAR16                  *ProblemParam;
   SHELL_STATUS            ShellStatus;
   LIST_ENTRY              *Package;
-  CONST CHAR16            *Cwd;
   CHAR16                  *NewName;
-  CHAR16                  *Spot;
   CONST CHAR16            *Name;
   UINTN                   Offset;
   UINTN                   Size;
-  UINT64                  LastOffset;
   EDIT_FILE_TYPE          WhatToDo;
 
   Buffer      = NULL;
   ShellStatus = SHELL_SUCCESS;
   NewName         = NULL;
-  Cwd         = NULL;
   Buffer      = NULL;
   Name        = NULL;
-  Spot        = NULL;
   Offset      = 0;
   Size        = 0;
-  LastOffset  = 0;
   WhatToDo    = FileTypeNone;
 
   //

@@ -37,7 +37,6 @@ RT_C_DECLS_BEGIN
 
 /**
  * GIM VM Instance data.
- * Changes to this must checked against the padding of the gim union in VM!
  */
 typedef struct GIM
 {
@@ -51,40 +50,31 @@ typedef struct GIM
     /** Alignment padding. */
     uint32_t                        u32Padding;
 
-    /** Pointer to the GIM device - ring-3 context. */
+    /** Pointer to the GIM device - R3 ptr. */
     R3PTRTYPE(PPDMDEVINS)            pDevInsR3;
-#if 0
-    /** Pointer to the provider's ring-3 hypercall handler. */
-    R3PTRTYPE(PFNGIMHYPERCALL)       pfnHypercallR3;
-    /** Pointer to the provider's ring-0 hypercall handler. */
-    R0PTRTYPE(PFNGIMHYPERCALL)       pfnHypercallR0;
-    /** Pointer to the provider's raw-mode context hypercall handler. */
-    RCPTRTYPE(PFNGIMHYPERCALL)       pfnHypercallRC;
+    /** The debug struct - R3 ptr. */
+    R3PTRTYPE(PGIMDEBUG)             pDbgR3;
 
-    /** Pointer to the provider's ring-3 MSR-read handler. */
-    R3PTRTYPE(PFNGIMRDMSR)           pfnReadMsrR3;
-    /** Pointer to the provider's ring-0 MSR-read handler. */
-    R0PTRTYPE(PFNGIMRDMSR)           pfnReadMsrR0;
-    /** Pointer to the provider's raw-mode context MSR-read handler. */
-    RCPTRTYPE(PFNGIMRDMSR)           pfnReadMsrRC;
-
-    /** Pointer to the provider's ring-3 MSR-read handler. */
-    R3PTRTYPE(PFNGIMWDMSR)           pfnWriteMsrR3;
-    /** Pointer to the provider's ring-0 MSR-read handler. */
-    R0PTRTYPE(PFNGIMWDMSR)           pfnWriteMsrRR0;
-    /** Pointer to the provider's raw-mode context MSR-read handler. */
-    RCPTRTYPE(PFNGIMWDMSR)           pfnWriteMsrRRC;
-#endif
-
+    /** The provider specific data. */
     union
     {
         GIMHV  Hv;
         GIMKVM Kvm;
     } u;
+
+    /** Number of hypercalls initiated. */
+    STAMCOUNTER                      StatHypercalls;
+    /** Debug packets sent. */
+    STAMCOUNTER                      StatDbgXmit;
+    /** Debug bytes sent. */
+    STAMCOUNTER                      StatDbgXmitBytes;
+    /** Debug packets received. */
+    STAMCOUNTER                      StatDbgRecv;
+    /** Debug bytes received. */
+    STAMCOUNTER                      StatDbgRecvBytes;
 } GIM;
 /** Pointer to GIM VM instance data. */
 typedef GIM *PGIM;
-
 
 /**
  * GIM VMCPU Instance data.
@@ -94,16 +84,32 @@ typedef struct GIMCPU
     union
     {
         GIMKVMCPU KvmCpu;
+        GIMHVCPU  HvCpu;
     } u;
 } GIMCPU;
 /** Pointer to GIM VMCPU instance data. */
 typedef GIMCPU *PGIMCPU;
 
+/**
+ * Callback when a debug buffer read has completed and before signaling
+ * the next read.
+ *
+ * @param   pVM             The cross context VM structure.
+ */
+typedef DECLCALLBACK(void) FNGIMDEBUGBUFREADCOMPLETED(PVM pVM);
+/** Pointer to GIM debug buffer read completion callback. */
+typedef FNGIMDEBUGBUFREADCOMPLETED *PFNGIMDEBUGBUFREADCOMPLETED;
+
 #ifdef IN_RING3
-VMMR3_INT_DECL(int)           GIMR3Mmio2Unmap(PVM pVM, PGIMMMIO2REGION pRegion);
-VMMR3_INT_DECL(int)           GIMR3Mmio2Map(PVM pVM, PGIMMMIO2REGION pRegion, RTGCPHYS GCPhysRegion);
-VMMR3_INT_DECL(int)           GIMR3Mmio2HandlerPhysicalRegister(PVM pVM, PGIMMMIO2REGION pRegion);
-VMMR3_INT_DECL(int)           GIMR3Mmio2HandlerPhysicalDeregister(PVM pVM, PGIMMMIO2REGION pRegion);
+#if 0
+VMMR3_INT_DECL(int)           gimR3Mmio2Unmap(PVM pVM, PGIMMMIO2REGION pRegion);
+VMMR3_INT_DECL(int)           gimR3Mmio2Map(PVM pVM, PGIMMMIO2REGION pRegion, RTGCPHYS GCPhysRegion);
+VMMR3_INT_DECL(int)           gimR3Mmio2HandlerPhysicalRegister(PVM pVM, PGIMMMIO2REGION pRegion);
+VMMR3_INT_DECL(int)           gimR3Mmio2HandlerPhysicalDeregister(PVM pVM, PGIMMMIO2REGION pRegion);
+#endif
+
+VMMR3_INT_DECL(int)           gimR3DebugRead(PVM pVM, void *pvRead, size_t *pcbRead, PFNGIMDEBUGBUFREADCOMPLETED pfnReadComplete);
+VMMR3_INT_DECL(int)           gimR3DebugWrite(PVM pVM, void *pvWrite, size_t *pcbWrite);
 #endif /* IN_RING3 */
 
 /** @} */

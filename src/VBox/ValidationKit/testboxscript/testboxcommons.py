@@ -29,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 108245 $"
 
 
 # Standard python imports.
@@ -66,7 +66,7 @@ def log2(sMessage, sCaller = None, sTsPrf = None):
     """
     Debug logging, will later be disabled by default.
     """
-    if True:
+    if True is True:
         if sTsPrf is None: sTsPrf = utils.getTimePrefix();
         print('[%s] %s' % (sTsPrf, sMessage,));
         sys.stdout.flush()

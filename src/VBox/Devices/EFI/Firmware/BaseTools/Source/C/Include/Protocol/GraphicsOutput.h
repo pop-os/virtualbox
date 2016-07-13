@@ -3,17 +3,15 @@
 
   Abstraction of a very simple graphics device.
 
-  Copyright (c) 2006 - 2008, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials are licensed and made available
   under the terms and conditions of the BSD License which accompanies this
-  distribution.  The full text of the license may be found at:
+  distribution.  The full text of the license may be found at
     http://opensource.org/licenses/bsd-license.php
 
   THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
   WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-  File Name: GraphicsOutput.h
 
 **/
 
@@ -110,7 +108,7 @@ typedef union {
 typedef enum {
   EfiBltVideoFill,
   EfiBltVideoToBltBuffer,
-  EfiBltBufferToVideo, 
+  EfiBltBufferToVideo,
   EfiBltVideoToVideo,
   EfiGraphicsOutputBltOperationMax
 } EFI_GRAPHICS_OUTPUT_BLT_OPERATION;
@@ -118,28 +116,28 @@ typedef enum {
 /**
   The following table defines actions for BltOperations:
 
-  <B>EfiBltVideoFill</B> - Write data from the  BltBuffer pixel (SourceX, SourceY) 
-  directly to every pixel of the video display rectangle 
-  (DestinationX, DestinationY) (DestinationX + Width, DestinationY + Height). 
+  <B>EfiBltVideoFill</B> - Write data from the  BltBuffer pixel (SourceX, SourceY)
+  directly to every pixel of the video display rectangle
+  (DestinationX, DestinationY) (DestinationX + Width, DestinationY + Height).
   Only one pixel will be used from the BltBuffer. Delta is NOT used.
 
-  <B>EfiBltVideoToBltBuffer</B> - Read data from the video display rectangle 
-  (SourceX, SourceY) (SourceX + Width, SourceY + Height) and place it in 
-  the BltBuffer rectangle (DestinationX, DestinationY ) 
-  (DestinationX + Width, DestinationY + Height). If DestinationX or 
-  DestinationY is not zero then Delta must be set to the length in bytes 
+  <B>EfiBltVideoToBltBuffer</B> - Read data from the video display rectangle
+  (SourceX, SourceY) (SourceX + Width, SourceY + Height) and place it in
+  the BltBuffer rectangle (DestinationX, DestinationY )
+  (DestinationX + Width, DestinationY + Height). If DestinationX or
+  DestinationY is not zero then Delta must be set to the length in bytes
   of a row in the BltBuffer.
 
-  <B>EfiBltBufferToVideo</B> - Write data from the  BltBuffer rectangle 
-  (SourceX, SourceY) (SourceX + Width, SourceY + Height) directly to the 
-  video display rectangle (DestinationX, DestinationY) 
-  (DestinationX + Width, DestinationY + Height). If SourceX or SourceY is 
-  not zero then Delta must be set to the length in bytes of a row in the 
+  <B>EfiBltBufferToVideo</B> - Write data from the  BltBuffer rectangle
+  (SourceX, SourceY) (SourceX + Width, SourceY + Height) directly to the
+  video display rectangle (DestinationX, DestinationY)
+  (DestinationX + Width, DestinationY + Height). If SourceX or SourceY is
+  not zero then Delta must be set to the length in bytes of a row in the
   BltBuffer.
 
   <B>EfiBltVideoToVideo</B> - Copy from the video display rectangle (SourceX, SourceY)
-  (SourceX + Width, SourceY + Height) .to the video display rectangle 
-  (DestinationX, DestinationY) (DestinationX + Width, DestinationY + Height). 
+  (SourceX + Width, SourceY + Height) .to the video display rectangle
+  (DestinationX, DestinationY) (DestinationX + Width, DestinationY + Height).
   The BltBuffer and Delta  are not used in this mode.
 
   @param  This         Protocol instance pointer.

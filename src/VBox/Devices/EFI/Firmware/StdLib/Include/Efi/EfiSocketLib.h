@@ -24,9 +24,13 @@
 #include <Library/UefiLib.h>
 
 #include <Protocol/EfiSocket.h>
+#include <Protocol/Ip4Config.h>
+#include <Protocol/Ip6Config.h>
 #include <Protocol/ServiceBinding.h>
 #include <Protocol/Tcp4.h>
+#include <Protocol/Tcp6.h>
 #include <Protocol/Udp4.h>
+#include <Protocol/Udp6.h>
 
 #include <sys/time.h>
 
@@ -113,18 +117,12 @@
 **/
 #define RAISE_TPL(PreviousTpl, tpl)     \
   VERIFY_TPL ( tpl );                   \
-  PreviousTpl = gBS->RaiseTPL ( tpl );  \
-  DEBUG (( DEBUG_TPL | DEBUG_TPL,       \
-          "%d: TPL\r\n",                \
-          tpl ))
+  PreviousTpl = gBS->RaiseTPL ( tpl );
 
 /**
   Restore the TPL to the previous value
 **/
 #define RESTORE_TPL(tpl)            \
-  DEBUG (( DEBUG_TPL | DEBUG_TPL,   \
-          "%d: TPL\r\n",            \
-          tpl ));                   \
   gBS->RestoreTPL ( tpl )
 
 //------------------------------------------------------------------------------
@@ -154,8 +152,11 @@ typedef struct {
 //------------------------------------------------------------------------------
 
 extern CONST EFI_GUID mEslIp4ServiceGuid;   ///<  Tag GUID for the IPv4 layer
+extern CONST EFI_GUID mEslIp6ServiceGuid;   ///<  Tag GUID for the IPv6 layer
 extern CONST EFI_GUID mEslTcp4ServiceGuid;  ///<  Tag GUID for the TCPv4 layer
+extern CONST EFI_GUID mEslTcp6ServiceGuid;  ///<  Tag GUID for the TCPv6 layer
 extern CONST EFI_GUID mEslUdp4ServiceGuid;  ///<  Tag GUID for the UDPv4 layer
+extern CONST EFI_GUID mEslUdp6ServiceGuid;  ///<  Tag GUID for the UDPv6 layer
 
 //------------------------------------------------------------------------------
 // Data
@@ -179,7 +180,7 @@ extern CONST UINTN cEslSocketBindingEntries;        ///<  Number of network serv
 
   @param [in] pThis        Pointer to the EFI_SERVICE_BINDING_PROTOCOL instance.
   @param [in] pChildHandle Pointer to the handle of the child to create. If it is NULL,
-                           then a new handle is created. If it is a pointer to an existing UEFI handle, 
+                           then a new handle is created. If it is a pointer to an existing UEFI handle,
                            then the protocol is added to the existing UEFI handle.
 
   @retval EFI_SUCCESS           The protocol was added to ChildHandle.
@@ -198,7 +199,7 @@ EslDxeCreateChild (
 
 /**
   Destroys a child handle with a protocol installed on it.
-  
+
   When the socket application is linked against UseSocketDxe, the ::close
   routine indirectly calls this routine in SocketDxe to undo the operations
   done by the ::EslDxeCreateChild routine.  This routine removes the socket
@@ -435,15 +436,15 @@ EslSocketCloseStart (
   connection with the specified remote system.  This routine
   is designed to be polled by the connect routine for completion
   of the network connection.
-  
+
   @param [in] pSocketProtocol Address of an ::EFI_SOCKET_PROTOCOL structure.
 
   @param [in] pSockAddr       Network address of the remote system.
-    
+
   @param [in] SockAddrLength  Length in bytes of the network address.
-  
+
   @param [out] pErrno   Address to receive the errno value upon completion.
-  
+
   @retval EFI_SUCCESS   The connection was successfully established.
   @retval EFI_NOT_READY The connection is in progress, call this routine again.
   @retval Others        The connection attempt failed.
@@ -467,7 +468,7 @@ EslSocketConnect (
   address associated with the local host connection point.
 
   @param [in] pSocketProtocol Address of an ::EFI_SOCKET_PROTOCOL structure.
-  
+
   @param [out] pAddress       Network address to receive the local system address
 
   @param [in,out] pAddressLength  Length of the local network address structure
@@ -495,7 +496,7 @@ EslSocketGetLocalAddress (
   address of the remote connection point.
 
   @param [in] pSocketProtocol Address of an ::EFI_SOCKET_PROTOCOL structure.
-  
+
   @param [out] pAddress       Network address to receive the remote system address
 
   @param [in,out] pAddressLength  Length of the remote network address structure
@@ -648,13 +649,13 @@ EslSocketPoll (
   ::recv and ::read are layered on top of ::recvfrom.
 
   @param [in] pSocketProtocol Address of an ::EFI_SOCKET_PROTOCOL structure.
-  
+
   @param [in] Flags           Message control flags
-  
+
   @param [in] BufferLength    Length of the the buffer
-  
+
   @param [in] pBuffer         Address of a buffer to receive the data.
-  
+
   @param [in] pDataLength     Number of received data bytes in the buffer.
 
   @param [out] pAddress       Network address to receive the remote system address
@@ -688,9 +689,9 @@ EslSocketReceive (
   operations on the socket.
 
   @param [in] pSocketProtocol Address of an ::EFI_SOCKET_PROTOCOL structure.
-  
+
   @param [in] How             Which operations to stop
-  
+
   @param [out] pErrno         Address to receive the errno value upon completion.
 
   @retval EFI_SUCCESS - Socket operations successfully shutdown
@@ -716,13 +717,13 @@ EslSocketShutdown (
   system.  Note that ::send and ::write are layered on top of ::sendto.
 
   @param [in] pSocketProtocol Address of an ::EFI_SOCKET_PROTOCOL structure.
-  
+
   @param [in] Flags           Message control flags
-  
+
   @param [in] BufferLength    Length of the the buffer
-  
+
   @param [in] pBuffer         Address of a buffer containing the data to send
-  
+
   @param [in] pDataLength     Address to receive the number of data bytes sent
 
   @param [in] pAddress        Network address of the remote system address

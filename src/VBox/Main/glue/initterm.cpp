@@ -18,6 +18,7 @@
 
 #if !defined(VBOX_WITH_XPCOM)
 
+# include <iprt/nt/nt-and-windows.h>
 # include <objbase.h>
 
 #else /* !defined(VBOX_WITH_XPCOM) */
@@ -45,6 +46,7 @@
 
 #include <iprt/asm.h>
 #include <iprt/env.h>
+#include <iprt/ldr.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
@@ -236,11 +238,61 @@ static uint32_t gCOMMainInitCount = 0;
  *
  * @return S_OK on success and a COM result code in case of failure.
  */
-HRESULT Initialize(bool fGui)
+HRESULT Initialize(bool fGui /*= false*/, bool fAutoRegUpdate /*= true*/)
 {
     HRESULT rc = E_FAIL;
+    NOREF(fAutoRegUpdate);
 
 #if !defined(VBOX_WITH_XPCOM)
+
+# ifdef VBOX_WITH_AUTO_COM_REG_UPDATE
+    /*
+     * First time we're called in a process, we refresh the VBox COM
+     * registrations.   Use a global mutex to prevent updating when there are
+     * API users already active, as that could lead to a bit of a mess.
+     */
+    if (   fAutoRegUpdate
+        && gCOMMainThread == NIL_RTTHREAD)
+    {
+        SetLastError(ERROR_SUCCESS);
+        HANDLE hLeakIt = CreateMutexW(NULL/*pSecAttr*/, FALSE, L"Global\\VirtualBoxComLazyRegistrationMutant");
+        DWORD  dwErr   = GetLastError();
+        AssertMsg(dwErr == ERROR_SUCCESS || dwErr == ERROR_ALREADY_EXISTS, ("%u\n", dwErr));
+        if (dwErr == ERROR_SUCCESS)
+        {
+            char szPath[RTPATH_MAX];
+            int vrc = RTPathAppPrivateArch(szPath, sizeof(szPath));
+            if (RT_SUCCESS(vrc))
+#  ifndef VBOX_IN_32_ON_64_MAIN_API
+                vrc = RTPathAppend(szPath, sizeof(szPath),
+                                      RT_MAKE_U64(((PKUSER_SHARED_DATA)MM_SHARED_USER_DATA_VA)->NtMinorVersion,
+                                                  ((PKUSER_SHARED_DATA)MM_SHARED_USER_DATA_VA)->NtMajorVersion)
+                                   >= RT_MAKE_U64(1/*Lo*/,6/*Hi*/)
+                                   ? "VBoxProxyStub.dll" : "VBoxProxyStubLegacy.dll");
+#  else
+                vrc = RTPathAppend(szPath, sizeof(szPath), "x86\\VBoxProxyStub-x86.dll");
+#  endif
+            if (RT_SUCCESS(vrc))
+            {
+                RTLDRMOD hMod;
+                vrc = RTLdrLoad(szPath, &hMod);
+                if (RT_SUCCESS(vrc))
+                {
+                    union
+                    {
+                        void *pv;
+                        DECLCALLBACKMEMBER(uint32_t, pfnRegUpdate)(void);
+                    } u;
+                    vrc = RTLdrGetSymbol(hMod, "VbpsUpdateRegistrations", &u.pv);
+                    if (RT_SUCCESS(vrc))
+                        u.pfnRegUpdate();
+                    /* Just keep it loaded. */
+                }
+            }
+        }
+        Assert(hLeakIt != NULL); NOREF(hLeakIt);
+    }
+# endif
 
     /*
      * We initialize COM in GUI thread in STA, to be compliant with QT and

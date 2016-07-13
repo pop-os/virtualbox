@@ -27,12 +27,12 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 102048 $"
+__version__ = "$Revision: 108705 $"
 
 
 # Standard Python imports.
-import array;
 import os;
+import socket;
 import sys;
 import StringIO;
 
@@ -43,10 +43,15 @@ g_ksValidationKitDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 sys.path.append(g_ksValidationKitDir);
 
 # Validation Kit imports.
+from common     import constants;
+from common     import utils;
 from testdriver import reporter;
 from testdriver import base;
 from testdriver import vbox;
 from testdriver import vboxcon;
+
+import remoteexecutor;
+import storagecfg;
 
 def _ControllerTypeToName(eControllerType):
     """ Translate a controller type to a name. """
@@ -58,177 +63,168 @@ def _ControllerTypeToName(eControllerType):
         sType = "SAS Controller";
     elif eControllerType == vboxcon.StorageControllerType_LsiLogic or eControllerType == vboxcon.StorageControllerType_BusLogic:
         sType = "SCSI Controller";
+    elif eControllerType == vboxcon.StorageControllerType_NVMe:
+        sType = "NVMe Controller";
     else:
         sType = "Storage Controller";
     return sType;
 
-class IozoneStdOutWrapper(object):
-    """ Parser for iozone standard output """
-    def __init__(self):
-        self.fpInitWriter    = 0.0;
-        self.fpRewriter      = 0.0;
-        self.fpReader        = 0.0;
-        self.fpRereader      = 0.0;
-        self.fpReverseReader = 0.0;
-        self.fpStrideReader  = 0.0;
-        self.fpRandomReader  = 0.0;
-        self.fpMixedWorkload = 0.0;
-        self.fpRandomWriter  = 0.0;
-        self.fpPWrite        = 0.0;
-        self.fpPRead         = 0.0;
+class FioTest(object):
+    """
+    Flexible I/O tester testcase.
+    """
 
-    def read(self, cb):
-        """file.read"""
-        _ = cb;
-        return "";
+    kdHostIoEngine = {
+        'solaris': ('solarisaio', False),
+        'linux':   ('libaio', True)
+    };
 
-    def write(self, sText):
-        """iozone stdout write"""
-        if isinstance(sText, array.array):
+    def __init__(self, oExecutor, dCfg = None):
+        self.oExecutor  = oExecutor;
+        self.sCfgFileId = None;
+        self.dCfg       = dCfg;
+
+    def prepare(self, cMsTimeout = 30000):
+        """ Prepares the testcase """
+
+        sTargetOs = self.dCfg.get('TargetOs', 'linux');
+        sIoEngine, fDirectIo = self.kdHostIoEngine.get(sTargetOs);
+        if sIoEngine is None:
+            return False;
+
+        cfgBuf = StringIO.StringIO();
+        cfgBuf.write('[global]\n');
+        cfgBuf.write('bs=' + self.dCfg.get('RecordSize', '4k') + '\n');
+        cfgBuf.write('ioengine=' + sIoEngine + '\n');
+        cfgBuf.write('iodepth=' + self.dCfg.get('QueueDepth', '32') + '\n');
+        cfgBuf.write('size=' + self.dCfg.get('TestsetSize', '2g') + '\n');
+        if fDirectIo:
+            cfgBuf.write('direct=1\n');
+        else:
+            cfgBuf.write('direct=0\n');
+        cfgBuf.write('directory=' + self.dCfg.get('FilePath', '/mnt') + '\n');
+
+        cfgBuf.write('[seq-write]\n');
+        cfgBuf.write('rw=write\n');
+        cfgBuf.write('stonewall\n');
+
+        cfgBuf.write('[rand-write]\n');
+        cfgBuf.write('rw=randwrite\n');
+        cfgBuf.write('stonewall\n');
+
+        cfgBuf.write('[seq-read]\n');
+        cfgBuf.write('rw=read\n');
+        cfgBuf.write('stonewall\n');
+
+        cfgBuf.write('[rand-read]\n');
+        cfgBuf.write('rw=randread\n');
+        cfgBuf.write('stonewall\n');
+
+        self.sCfgFileId = self.oExecutor.copyString(cfgBuf.getvalue(), 'aio-test', cMsTimeout);
+        return self.sCfgFileId is not None;
+
+    def run(self, cMsTimeout = 30000):
+        """ Runs the testcase """
+        _ = cMsTimeout
+        fRc, sOutput = self.oExecutor.execBinary('fio', (self.sCfgFileId,));
+        # @todo: Parse output.
+        _ = sOutput;
+        return fRc;
+
+    def cleanup(self):
+        """ Cleans up any leftovers from the testcase. """
+
+    def reportResult(self):
+        """
+        Reports the test results to the test manager.
+        """
+        return True;
+
+class IozoneTest(object):
+    """
+    I/O zone testcase.
+    """
+    def __init__(self, oExecutor, dCfg = None):
+        self.oExecutor = oExecutor;
+        self.sResult = None;
+        self.lstTests = [ ('initial writers', 'FirstWrite'),
+                          ('rewriters',       'Rewrite'),
+                          ('re-readers',      'ReRead'),
+                          ('stride readers',  'StrideRead'),
+                          ('reverse readers', 'ReverseRead'),
+                          ('random readers',  'RandomRead'),
+                          ('mixed workload',  'MixedWorkload'),
+                          ('random writers',  'RandomWrite'),
+                          ('pwrite writers',  'PWrite'),
+                          ('pread readers',   'PRead'),
+                          ('readers',         'FirstRead')];
+        self.sRecordSize  = dCfg.get('RecordSize',  '4k');
+        self.sTestsetSize = dCfg.get('TestsetSize', '2g');
+        self.sQueueDepth  = dCfg.get('QueueDepth',  '32');
+        self.sFilePath    = dCfg.get('FilePath',    '/mnt/iozone');
+        self.fDirectIo    = True;
+
+        sTargetOs = dCfg.get('TargetOs');
+        if sTargetOs == 'solaris':
+            self.fDirectIo = False;
+
+    def prepare(self, cMsTimeout = 30000):
+        """ Prepares the testcase """
+        _ = cMsTimeout;
+        return True; # Nothing to do.
+
+    def run(self, cMsTimeout = 30000):
+        """ Runs the testcase """
+        tupArgs = ('-r', self.sRecordSize, '-s', self.sTestsetSize, \
+                   '-t', '1', '-T', '-F', self.sFilePath + '/iozone.tmp');
+        if self.fDirectIo:
+            tupArgs += ('-I',);
+        fRc, sOutput = self.oExecutor.execBinary('iozone', tupArgs);
+        if fRc:
+            self.sResult = sOutput;
+
+        _ = cMsTimeout;
+        return fRc;
+
+    def cleanup(self):
+        """ Cleans up any leftovers from the testcase. """
+        return True;
+
+    def reportResult(self):
+        """
+        Reports the test results to the test manager.
+        """
+
+        fRc = True;
+        if self.sResult is not None:
             try:
-                sText = sText.tostring();
-            except:
-                pass;
-        try:
-            asLines = sText.splitlines();
-            for sLine in asLines:
-                sLine = sLine.strip();
-                if sLine.startswith('Children') is True:
-                    # Extract the value
-                    idxValue = sLine.rfind('=');
-                    if idxValue is -1:
-                        raise Exception('IozoneStdOutWrapper: Invalid state');
+                asLines = self.sResult.splitlines();
+                for sLine in asLines:
+                    sLine = sLine.strip();
+                    if sLine.startswith('Children') is True:
+                        # Extract the value
+                        idxValue = sLine.rfind('=');
+                        if idxValue is -1:
+                            raise Exception('IozoneTest: Invalid state');
 
-                    idxValue += 1;
-                    while sLine[idxValue] == ' ':
                         idxValue += 1;
+                        while sLine[idxValue] == ' ':
+                            idxValue += 1;
 
-                    idxValueEnd = idxValue;
-                    while sLine[idxValueEnd] == '.' or sLine[idxValueEnd].isdigit():
-                        idxValueEnd += 1;
+                        idxValueEnd = idxValue;
+                        while sLine[idxValueEnd] == '.' or sLine[idxValueEnd].isdigit():
+                            idxValueEnd += 1;
 
-                    fpValue = float(sLine[idxValue:idxValueEnd]);
-
-                    if sLine.rfind('initial writers') is not -1:
-                        self.fpInitWriter = fpValue;
-                    elif sLine.rfind('rewriters') is not -1:
-                        self.fpRewriter = fpValue;
-                    elif sLine.rfind('re-readers') is not -1:
-                        self.fpRereader = fpValue;
-                    elif sLine.rfind('reverse readers') is not -1:
-                        self.fpReverseReader = fpValue;
-                    elif sLine.rfind('stride readers') is not -1:
-                        self.fpStrideReader = fpValue;
-                    elif sLine.rfind('random readers') is not -1:
-                        self.fpRandomReader = fpValue;
-                    elif sLine.rfind('mixed workload') is not -1:
-                        self.fpMixedWorkload = fpValue;
-                    elif sLine.rfind('random writers') is not -1:
-                        self.fpRandomWriter = fpValue;
-                    elif sLine.rfind('pwrite writers') is not -1:
-                        self.fpPWrite = fpValue;
-                    elif sLine.rfind('pread readers') is not -1:
-                        self.fpPRead = fpValue;
-                    elif sLine.rfind('readers') is not -1:
-                        self.fpReader = fpValue;
-                    else:
-                        reporter.log('Unknown test returned %s' % sLine);
-        except:
-            pass;
-        return None;
-
-    def getInitWriter(self):
-        """Get value for initial writers"""
-        return self.fpInitWriter;
-
-    def getRewriter(self):
-        """Get value for re-writers"""
-        return self.fpRewriter;
-
-    def getReader(self):
-        """Get value for initial readers"""
-        return self.fpReader;
-
-    def getRereader(self):
-        """Get value for re-writers"""
-        return self.fpRereader;
-
-    def getReverseReader(self):
-        """Get value for reverse readers"""
-        return self.fpReverseReader;
-
-    def getStrideReader(self):
-        """Get value for stride readers"""
-        return self.fpStrideReader;
-
-    def getRandomReader(self):
-        """Get value for random readers"""
-        return self.fpRandomReader;
-
-    def getMixedWorkload(self):
-        """Get value for mixed workload"""
-        return self.fpMixedWorkload;
-
-    def getRandomWriter(self):
-        """Get value for random writers"""
-        return self.fpRandomWriter;
-
-    def getPWrite(self):
-        """Get value for pwrite writers"""
-        return self.fpPWrite;
-
-    def getPRead(self):
-        """Get value for pread readers"""
-        return self.fpPRead;
-
-class FioWrapper(object):
-    """ Fio stdout parser and config file creator """
-    def __init__(self, sRecordSize, sTestsetSize, sQueueDepth, sPath):
-
-        self.configBuf = StringIO.StringIO();
-        self.configBuf.write('[global]\n');
-        self.configBuf.write('bs=' + sRecordSize + '\n');
-        self.configBuf.write('ioengine=libaio\n');
-        self.configBuf.write('iodepth=' + sQueueDepth + '\n');
-        self.configBuf.write('size=' + sTestsetSize + '\n');
-        self.configBuf.write('direct=1\n');
-        self.configBuf.write('directory=' + sPath + '\n');
-
-        self.configBuf.write('[seq-write]\n');
-        self.configBuf.write('rw=write\n');
-        self.configBuf.write('stonewall\n');
-
-        self.configBuf.write('[rand-write]\n');
-        self.configBuf.write('rw=randwrite\n');
-        self.configBuf.write('stonewall\n');
-
-        self.configBuf.write('[seq-read]\n');
-        self.configBuf.write('rw=read\n');
-        self.configBuf.write('stonewall\n');
-
-        self.configBuf.write('[rand-read]\n');
-        self.configBuf.write('rw=randread\n');
-        self.configBuf.write('stonewall\n');
-        return;
-
-    def getConfig(self):
-        """fio stdin feeder, gives the config file based on the given config values"""
-        return self.configBuf.getvalue();
-
-    def write(self, sText):
-        """fio stdout write"""
-        if isinstance(sText, array.array):
-            try:
-                sText = sText.tostring();
+                        for sNeedle, sTestVal in self.lstTests:
+                            if sLine.rfind(sNeedle) is not -1:
+                                reporter.testValue(sTestVal, sLine[idxValue:idxValueEnd],
+                                                   constants.valueunit.g_asNames[constants.valueunit.KILOBYTES_PER_SEC]);
             except:
-                pass;
-        try:
-            asLines = sText.splitlines();
-            for sLine in asLines:
-                reporter.log(sLine);
-        except:
-            pass;
-        return None;
+                fRc = False;
+        else:
+            fRc = False;
+
+        return fRc;
 
 
 class tdStorageBenchmark(vbox.TestDriver):                                      # pylint: disable=R0902
@@ -236,32 +232,36 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
     Storage benchmark.
     """
 
+    # Global storage configs for the testbox
+    kdStorageCfgs = {
+        'testboxstor1.de.oracle.com': r'c[3-9]t\dd0\Z',
+        'adaris': [ '/dev/sda' ]
+    };
+
     def __init__(self):
         vbox.TestDriver.__init__(self);
         self.asRsrcs           = None;
         self.oGuestToGuestVM   = None;
         self.oGuestToGuestSess = None;
         self.oGuestToGuestTxs  = None;
-        self.asTestVMsDef      = ['tst-debian'];
+        self.asTestVMsDef      = ['tst-storage'];
         self.asTestVMs         = self.asTestVMsDef;
         self.asSkipVMs         = [];
         self.asVirtModesDef    = ['hwvirt', 'hwvirt-np', 'raw',]
         self.asVirtModes       = self.asVirtModesDef
         self.acCpusDef         = [1, 2,]
         self.acCpus            = self.acCpusDef;
-        self.asStorageCtrlsDef = ['AHCI', 'IDE', 'LsiLogicSAS', 'LsiLogic', 'BusLogic'];
+        self.asStorageCtrlsDef = ['AHCI', 'IDE', 'LsiLogicSAS', 'LsiLogic', 'BusLogic', 'NVMe'];
         self.asStorageCtrls    = self.asStorageCtrlsDef;
         self.asDiskFormatsDef  = ['VDI', 'VMDK', 'VHD', 'QED', 'Parallels', 'QCOW', 'iSCSI'];
         self.asDiskFormats     = self.asDiskFormatsDef;
         self.asTestsDef        = ['iozone', 'fio'];
         self.asTests           = self.asTestsDef;
-        self.asDirsDef         = ['/run/media/alexander/OWCSSD/alexander', \
-                                  '/run/media/alexander/CrucialSSD/alexander', \
-                                  '/run/media/alexander/HardDisk/alexander', \
-                                  '/home/alexander'];
-        self.asDirs            = self.asDirsDef;
-        self.asIscsiTargetsDef = ['aurora|iqn.2011-03.home.aurora:aurora.storagebench|1'];
+        self.asIscsiTargetsDef = [ ]; # @todo: Configure one target for basic iSCSI testing
         self.asIscsiTargets    = self.asIscsiTargetsDef;
+        self.fTestHost         = False;
+        self.fUseScratch       = False;
+        self.oStorCfg          = None;
 
     #
     # Overridden methods.
@@ -278,8 +278,6 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
         reporter.log('      Default: %s' % (':'.join(self.asStorageCtrls)));
         reporter.log('  --disk-formats  <type1[:type2[:...]]>');
         reporter.log('      Default: %s' % (':'.join(self.asDiskFormats)));
-        reporter.log('  --disk-dirs     <path1[:path2[:...]]>');
-        reporter.log('      Default: %s' % (':'.join(self.asDirs)));
         reporter.log('  --iscsi-targets     <target1[:target2[:...]]>');
         reporter.log('      Default: %s' % (':'.join(self.asIscsiTargets)));
         reporter.log('  --tests         <test1[:test2[:...]]>');
@@ -290,6 +288,12 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
         reporter.log('      Default: %s  (all)' % (':'.join(self.asTestVMsDef)));
         reporter.log('  --skip-vms      <vm1[:vm2[:...]]>');
         reporter.log('      Skip the specified VMs when testing.');
+        reporter.log('  --test-host');
+        reporter.log('      Do all configured tests on the host first and report the results');
+        reporter.log('      to get a baseline');
+        reporter.log('  --use-scratch');
+        reporter.log('      Use the scratch directory for testing instead of setting up');
+        reporter.log('      fresh volumes on dedicated disks (for development)');
         return rc;
 
     def parseOption(self, asArgs, iArg):                                        # pylint: disable=R0912,R0915
@@ -319,10 +323,6 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
             iArg += 1;
             if iArg >= len(asArgs): raise base.InvalidOption('The "--disk-formats" takes a colon separated list of disk formats');
             self.asDiskFormats = asArgs[iArg].split(':');
-        elif asArgs[iArg] == '--disk-dirs':
-            iArg += 1;
-            if iArg >= len(asArgs): raise base.InvalidOption('The "--disk-dirs" takes a colon separated list of directories');
-            self.asDirs = asArgs[iArg].split(':');
         elif asArgs[iArg] == '--iscsi-targets':
             iArg += 1;
             if iArg >= len(asArgs):
@@ -347,6 +347,10 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
             for s in self.asSkipVMs:
                 if s not in self.asTestVMsDef:
                     reporter.log('warning: The "--test-vms" value "%s" does not specify any of our test VMs.' % (s));
+        elif asArgs[iArg] == '--test-host':
+            self.fTestHost = True;
+        elif asArgs[iArg] == '--use-scratch':
+            self.fUseScratch = True;
         else:
             return vbox.TestDriver.parseOption(self, asArgs, iArg);
         return iArg + 1;
@@ -363,8 +367,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
         # Construct the resource list the first time it's queried.
         if self.asRsrcs is None:
             self.asRsrcs = [];
-            if 'tst-debian' in self.asTestVMs:
-                self.asRsrcs.append('4.2/storage/debian.vdi');
+            if 'tst-storage' in self.asTestVMs:
+                self.asRsrcs.append('5.0/storage/tst-storage.vdi');
 
         return self.asRsrcs;
 
@@ -379,8 +383,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
         #
 
         # Linux VMs
-        if 'tst-debian' in self.asTestVMs:
-            oVM = self.createTestVM('tst-debian', 1, '4.2/storage/debian.vdi', sKind = 'Debian_64', fIoApic = True, \
+        if 'tst-storage' in self.asTestVMs:
+            oVM = self.createTestVM('tst-storage', 1, '5.0/storage/tst-storage.vdi', sKind = 'ArchLinux_64', fIoApic = True, \
                                     eNic0AttachType = vboxcon.NetworkAttachmentType_NAT, \
                                     eNic0Type = vboxcon.NetworkAdapterType_Am79C973);
             if oVM is None:
@@ -400,61 +404,94 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
     # Test execution helpers.
     #
 
-    def test1RunTestProgs(self, oSession, oTxsSession, fRc, sTestName):
+    def prepareStorage(self, oStorCfg):
         """
-        Runs all the test programs on the test machine.
+        Prepares the host storage for disk images or direct testing on the host.
         """
-        reporter.testStart(sTestName);
+        # Create a basic pool with the default configuration.
+        sMountPoint = None;
+        fRc, sPoolId = oStorCfg.createStoragePool();
+        if fRc:
+            fRc, sMountPoint = oStorCfg.createVolume(sPoolId);
+            if not fRc:
+                sMountPoint = None;
+                oStorCfg.cleanup();
 
-        # Prepare test disk, just create filesystem without partition
-        reporter.testStart('mkfs.ext4');
-        fRc = self.txsRunTest(oTxsSession, 'Create FS', 60000,
-                              '/sbin/mkfs.ext4',
-                              ('mkfs.ext4', '-F', '/dev/vboxtest'));
+        return sMountPoint;
+
+    def cleanupStorage(self, oStorCfg):
+        """
+        Cleans up any created storage space for a test.
+        """
+        return oStorCfg.cleanup();
+
+    def getGuestDisk(self, oSession, oTxsSession, eStorageController):
+        """
+        Gets the path of the disk in the guest to use for testing.
+        """
+        lstDisks = None;
+
+        # The naming scheme for NVMe is different and we don't have
+        # to query the guest for unformatted disks here because the disk with the OS
+        # is not attached to a NVMe controller.
+        if eStorageController == vboxcon.StorageControllerType_NVMe:
+            lstDisks = [ '/dev/nvme0n1' ];
+        else:
+            # Find a unformatted disk (no partition).
+            # @todo: This is a hack because LIST and STAT are not yet implemented
+            #        in TXS (get to this eventually)
+            lstBlkDev = [ '/dev/sda', '/dev/sdb' ];
+            for sBlkDev in lstBlkDev:
+                fRc = oTxsSession.syncExec('/usr/bin/ls', ('ls', sBlkDev + '1'));
+                if not fRc:
+                    lstDisks = [ sBlkDev ];
+                    break;
+
+        _ = oSession;
+        return lstDisks;
+
+    def testBenchmark(self, sTargetOs, sBenchmark, sMountpoint, oExecutor):
+        """
+        Runs the given benchmark on the test host.
+        """
+        # Create a basic config
+        dCfg = {
+            'RecordSize':  '64k',
+            'TestsetSize': '100m',
+            'QueueDepth':  '32',
+            'FilePath': sMountpoint,
+            'TargetOs': sTargetOs
+        };
+
+        oTst = None;
+        if sBenchmark == 'iozone':
+            oTst = IozoneTest(oExecutor, dCfg);
+        elif sBenchmark == 'fio':
+            oTst = FioTest(oExecutor, dCfg); # pylint: disable=R0204
+
+        if oTst is not None:
+            reporter.testStart(sBenchmark);
+            fRc = oTst.prepare();
+            if fRc:
+                fRc = oTst.run();
+                if fRc:
+                    fRc = oTst.reportResult();
+                else:
+                    reporter.testFailure('Running the testcase failed');
+            else:
+                reporter.testFailure('Preparing the testcase failed');
+
+        oTst.cleanup();
         reporter.testDone();
 
-        reporter.testStart('mount');
-        fRc = self.txsRunTest(oTxsSession, 'Mount FS', 30000,
-                              '/bin/mount',
-                              ('mount', '/dev/vboxtest', '/mnt'));
-        reporter.testDone();
-
-        reporter.testStart('iozone');
-        if fRc and 'iozone' in self.asTests:
-            oStdOut = IozoneStdOutWrapper();
-            fRc = self.txsRunTestRedirectStd(oTxsSession, '2G', 3600000,
-                                             '/usr/bin/iozone',
-                                             ('iozone', '-r', '64k', '-s', '2g', '-t', '1', '-T', '-I',
-                                              '-H', '32','-F', '/mnt/iozone'),
-                                             (), '', '/dev/null', oStdOut, '/dev/null', '/dev/null');
-            if fRc is True:
-                reporter.log("Initial writer: " + str(oStdOut.getInitWriter()));
-                reporter.log("Rewriter:       " + str(oStdOut.getRewriter()));
-                reporter.log("Initial reader: " + str(oStdOut.getReader()));
-                reporter.log("Re-reader:      " + str(oStdOut.getRereader()));
-                reporter.log("Reverse reader: " + str(oStdOut.getReverseReader()));
-                reporter.log("Stride reader:  " + str(oStdOut.getStrideReader()));
-                reporter.log("Random reader:  " + str(oStdOut.getRandomReader()));
-                reporter.log("Mixed Workload: " + str(oStdOut.getMixedWorkload()));
-                reporter.log("Random writer:  " + str(oStdOut.getRandomWriter()));
-                reporter.log("pwrite Writer:  " + str(oStdOut.getPWrite()));
-                reporter.log("pread Reader:   " + str(oStdOut.getPRead()));
-            reporter.testDone();
-        else:
-            reporter.testDone(fSkipped = True);
-
-        reporter.testStart('fio');
-        if fRc and 'fio' in self.asTests:
-            oFioWrapper = FioWrapper('64k', '2g', '32', '/mnt');
-            fRc = self.txsUploadString(oSession, oTxsSession, oFioWrapper.getConfig(), '${SCRATCH}/aio-test');
-            fRc = fRc and self.txsRunTestRedirectStd(oTxsSession, '2G', 3600000,
-                                                     '/usr/bin/fio', ('fio', '${SCRATCH}/aio-test'),
-                                                     (), '', '/dev/null', oFioWrapper, '/dev/null', '/dev/null');
-        else:
-            reporter.testDone(fSkipped = True);
-
-        reporter.testDone(not fRc);
         return fRc;
+
+    def testBenchmarks(self, sTargetOs, sMountPoint, oExecutor):
+        """
+        Runs all the configured benchmarks on the target.
+        """
+        for sTest in self.asTests:
+            self.testBenchmark(sTargetOs, sTest, sMountPoint, oExecutor);
 
     def test1OneCfg(self, sVmName, eStorageController, sDiskFormat, sDiskPath, cCpus, fHwVirt, fNestedPaging):
         """
@@ -472,6 +509,11 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
             # Attach HD
             fRc = oSession.ensureControllerAttached(_ControllerTypeToName(eStorageController));
             fRc = fRc and oSession.setStorageControllerType(eStorageController, _ControllerTypeToName(eStorageController));
+
+            iDevice = 0;
+            if eStorageController == vboxcon.StorageControllerType_PIIX3 or \
+               eStorageController == vboxcon.StorageControllerType_PIIX4:
+                iDevice = 1; # Master is for the OS.
 
             if sDiskFormat == "iSCSI":
                 listNames = [];
@@ -494,10 +536,10 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                     try:
                         if oSession.fpApiVer >= 4.0:
                             oSession.o.machine.attachDevice(_ControllerTypeToName(eStorageController), \
-                                                            1, 0, vboxcon.DeviceType_HardDisk, oHd);
+                                                            0, iDevice, vboxcon.DeviceType_HardDisk, oHd);
                         else:
                             oSession.o.machine.attachDevice(_ControllerTypeToName(eStorageController), \
-                                                            1, 0, vboxcon.DeviceType_HardDisk, oHd.id);
+                                                            0, iDevice, vboxcon.DeviceType_HardDisk, oHd.id);
                     except:
                         reporter.errorXcpt('attachDevice("%s",%s,%s,HardDisk,"%s") failed on "%s"' \
                                            % (_ControllerTypeToName(eStorageController), 1, 0, oHd.id, oSession.sName) );
@@ -506,7 +548,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                         reporter.log('attached "%s" to %s' % (sDiskPath, oSession.sName));
             else:
                 fRc = fRc and oSession.createAndAttachHd(sDiskPath, sDiskFormat, _ControllerTypeToName(eStorageController), \
-                                                         cb = 10*1024*1024*1024, iPort = 1, fImmutable = False);
+                                                         cb = 300*1024*1024*1024, iPort = 0, iDevice = iDevice, \
+                                                         fImmutable = False);
             fRc = fRc and oSession.enableVirtEx(fHwVirt);
             fRc = fRc and oSession.enableNestedPaging(fNestedPaging);
             fRc = fRc and oSession.setCpuCount(cCpus);
@@ -526,7 +569,18 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 # Fudge factor - Allow the guest to finish starting up.
                 self.sleep(5);
 
-                self.test1RunTestProgs(oSession, oTxsSession, fRc, 'Disk benchmark');
+                # Prepare the storage on the guest
+                lstBinaryPaths = ['/bin', '/sbin', '/usr/bin', '/usr/sbin' ];
+                oExecVm = remoteexecutor.RemoteExecutor(oTxsSession, lstBinaryPaths, '${SCRATCH}');
+                oStorCfgVm = storagecfg.StorageCfg(oExecVm, 'linux', self.getGuestDisk(oSession, oTxsSession, \
+                                                                                       eStorageController));
+
+                sMountPoint = self.prepareStorage(oStorCfgVm);
+                if sMountPoint is not None:
+                    self.testBenchmarks('linux', sMountPoint, oExecVm);
+                    self.cleanupStorage(oStorCfgVm);
+                else:
+                    reporter.testFailure('Failed to prepare storage for the guest benchmark');
 
                 # cleanup.
                 self.removeTask(oTxsSession);
@@ -536,7 +590,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 oSession = self.openSession(oVM);
                 if oSession is not None:
                     try:
-                        oSession.o.machine.detachDevice(_ControllerTypeToName(eStorageController), 1, 0);
+                        oSession.o.machine.detachDevice(_ControllerTypeToName(eStorageController), 0, iDevice);
 
                         # Remove storage controller if it is not an IDE controller.
                         if     eStorageController is not vboxcon.StorageControllerType_PIIX3 \
@@ -556,9 +610,9 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 fRc = False;
         return fRc;
 
-    def test1OneVM(self, sVmName):
+    def testBenchmarkOneVM(self, sVmName):
         """
-        Runs one VM thru the various configurations.
+        Runs one VM thru the various benchmark configurations.
         """
         reporter.testStart(sVmName);
         fRc = True;
@@ -575,6 +629,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 eStorageCtrl = vboxcon.StorageControllerType_LsiLogic;
             elif sStorageCtrl == 'BusLogic':
                 eStorageCtrl = vboxcon.StorageControllerType_BusLogic;
+            elif sStorageCtrl == 'NVMe':
+                eStorageCtrl = vboxcon.StorageControllerType_NVMe;
             else:
                 eStorageCtrl = None;
 
@@ -584,15 +640,27 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 if sDiskFormat == "iSCSI":
                     asPaths = self.asIscsiTargets;
                 else:
-                    asPaths = self.asDirs;
+                    if self.fUseScratch:
+                        asPaths = [ self.sScratchPath ];
+                    else:
+                        # Create a new default storage config on the host
+                        sMountPoint = self.prepareStorage(self.oStorCfg);
+                        if sMountPoint is not None:
+                            # Create a directory where every normal user can write to.
+                            self.oStorCfg.mkDirOnVolume(sMountPoint, 'test', 0777);
+                            asPaths = [ sMountPoint + '/test' ];
+                        else:
+                            asPaths = [];
+                            fRc = False;
+                            reporter.testFailure('Failed to prepare storage for VM');
 
-                for sDir in asPaths:
-                    reporter.testStart('%s' % (sDir));
+                for sPath in asPaths:
+                    reporter.testStart('%s' % (sPath));
 
                     if sDiskFormat == "iSCSI":
-                        sPath = sDir;
+                        sPath = sPath;
                     else:
-                        sPath = sDir + "/test.disk";
+                        sPath = sPath + "/test.disk";
 
                     for cCpus in self.acCpus:
                         if cCpus == 1:  reporter.testStart('1 cpu');
@@ -615,6 +683,11 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
 
                         reporter.testDone();
                     reporter.testDone();
+
+                # Cleanup storage area
+                if sDiskFormat != 'iSCSI' and not self.fUseScratch:
+                    self.cleanupStorage(self.oStorCfg);
+
                 reporter.testDone();
             reporter.testDone();
         reporter.testDone();
@@ -625,17 +698,41 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
         Executes test #1.
         """
 
-        # Loop thru the test VMs.
-        for sVM in self.asTestVMs:
-            # run test on the VM.
-            if not self.test1OneVM(sVM):
-                fRc = False;
-            else:
-                fRc = True;
+        fRc = True;
+        oDiskCfg = self.kdStorageCfgs.get(socket.gethostname().lower());
+
+        # Test the host first if requested
+        if oDiskCfg is not None:
+            lstBinaryPaths = ['/bin', '/sbin', '/usr/bin', '/usr/sbin', \
+                              '/opt/csw/bin', '/usr/ccs/bin', '/usr/sfw/bin'];
+            oExecutor = remoteexecutor.RemoteExecutor(None, lstBinaryPaths, self.sScratchPath);
+            self.oStorCfg = storagecfg.StorageCfg(oExecutor, utils.getHostOs(), oDiskCfg);
+
+            if self.fTestHost:
+                reporter.testStart('Host');
+                if self.fUseScratch:
+                    sMountPoint = self.sScratchPath;
+                else:
+                    sMountPoint = self.prepareStorage(self.oStorCfg);
+                if sMountPoint is not None:
+                    fRc = self.testBenchmarks(utils.getHostOs(), sMountPoint, oExecutor);
+                    self.cleanupStorage(self.oStorCfg);
+                else:
+                    reporter.testFailure('Failed to prepare host storage');
+                reporter.testDone();
+
+            if fRc:
+                # Loop thru the test VMs.
+                for sVM in self.asTestVMs:
+                    # run test on the VM.
+                    if not self.testBenchmarkOneVM(sVM):
+                        fRc = False;
+                    else:
+                        fRc = True;
+        else:
+            fRc = False;
 
         return fRc;
-
-
 
 if __name__ == '__main__':
     sys.exit(tdStorageBenchmark().main(sys.argv));

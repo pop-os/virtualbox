@@ -431,8 +431,32 @@ typedef struct VDINTERFACEIO
      * @param   pvUser          The opaque data passed on container creation.
      * @param   pStorage        The opaque storage handle to close.
      * @param   cbSize          The new size of the image.
+     *
+     * @note Depending on the host the underlying storage (backing file, etc.)
+     *       might not have all required storage allocated (sparse file) which
+     *       can delay writes or fail with a not enough free space error if there
+     *       is not enough space on the storage medium when writing to the range for
+     *       the first time.
+     *       Use VDINTERFACEIO::pfnSetAllocationSize to make sure the storage is
+     *       really alloacted.
      */
     DECLR3CALLBACKMEMBER(int, pfnSetSize, (void *pvUser, void *pStorage, uint64_t cbSize));
+
+    /**
+     * Sets the size of the opened storage backend making sure the given size
+     * is really allocated.
+     *
+     * @return VBox status code.
+     * @retval VERR_NOT_SUPPORTED if the implementer of the interface doesn't support
+     *         this method.
+     * @param  pvUser          The opaque data passed on container creation.
+     * @param  pStorage        The storage handle.
+     * @param  cbSize          The new size of the image.
+     * @param  fFlags          Flags for controlling the allocation strategy.
+     *                         Reserved for future use, MBZ.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetAllocationSize, (void *pvUser, void *pStorage,
+                                                     uint64_t cbSize, uint32_t fFlags));
 
     /**
      * Synchronous write callback.
@@ -644,6 +668,29 @@ VBOXDDU_DECL(int) VDIfCreateVfsStream(PVDINTERFACEIO pVDIfsIo, void *pvStorage, 
  * @param   phVfsFile       Where to return the VFS file handle on success.
  */
 VBOXDDU_DECL(int) VDIfCreateVfsFile(PVDINTERFACEIO pVDIfs, struct VDINTERFACEIOINT *pVDIfsInt, void *pvStorage, uint32_t fFlags, PRTVFSFILE phVfsFile);
+
+/**
+ * Creates an VD I/O interface wrapper around an IPRT VFS I/O stream.
+ *
+ * @return  VBox status code.
+ * @param   hVfsIos         The IPRT VFS I/O stream handle. The handle will be
+ *                          retained by the returned I/O interface (released on
+ *                          close or destruction).
+ * @param   fAccessMode     The access mode (RTFILE_O_ACCESS_MASK) to accept.
+ * @param   ppIoIf          Where to return the pointer to the VD I/O interface.
+ *                          This must be passed to VDIfDestroyFromVfsStream().
+ */
+VBOXDDU_DECL(int) VDIfCreateFromVfsStream(RTVFSIOSTREAM hVfsIos, uint32_t fAccessMode, PVDINTERFACEIO *ppIoIf);
+
+/**
+ * Destroys the VD I/O interface returned by VDIfCreateFromVfsStream.
+ *
+ * @returns VBox status code.
+ * @param   pIoIf           The I/O interface pointer returned by
+ *                          VDIfCreateFromVfsStream.  NULL will be quietly
+ *                          ignored.
+ */
+VBOXDDU_DECL(int) VDIfDestroyFromVfsStream(PVDINTERFACEIO pIoIf);
 
 
 /**

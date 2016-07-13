@@ -3,20 +3,18 @@
   IFR is primarily consumed by the EFI presentation engine, and produced by EFI
   internal application and drivers as well as all add-in card option-ROM drivers
 
-  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+  @par Revision Reference:
+  These definitions are from UEFI2.1.
+
+  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials are licensed and made available
   under the terms and conditions of the BSD License which accompanies this
-  distribution.  The full text of the license may be found at:
+  distribution.  The full text of the license may be found at
     http://opensource.org/licenses/bsd-license.php
 
   THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
   WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-  File Name: UefiInternalFormRepresentation.h
-
-  @par Revision Reference:
-  These definitions are from UEFI2.1.
 
 **/
 
@@ -56,27 +54,27 @@ typedef struct {
 } EFI_HII_PACKAGE_LIST_HEADER;
 
 /**
-    
-  Each package starts with a header, as defined above, which  
-  indicates the size and type of the package. When added to a  
-  pointer pointing to the start of the header, Length points at  
-  the next package. The package lists form a package list when  
-  concatenated together and terminated with an  
-  EFI_HII_PACKAGE_HEADER with a Type of EFI_HII_PACKAGE_END. The  
-  type EFI_HII_PACKAGE_TYPE_GUID is used for vendor-defined HII  
-  packages, whose contents are determined by the Guid. The range  
-  of package types starting with EFI_HII_PACKAGE_TYPE_SYSTEM_BEGIN  
-  through EFI_HII_PACKAGE_TYPE_SYSTEM_END are reserved for system  
-  firmware implementers.  
-  
+
+  Each package starts with a header, as defined above, which
+  indicates the size and type of the package. When added to a
+  pointer pointing to the start of the header, Length points at
+  the next package. The package lists form a package list when
+  concatenated together and terminated with an
+  EFI_HII_PACKAGE_HEADER with a Type of EFI_HII_PACKAGE_END. The
+  type EFI_HII_PACKAGE_TYPE_GUID is used for vendor-defined HII
+  packages, whose contents are determined by the Guid. The range
+  of package types starting with EFI_HII_PACKAGE_TYPE_SYSTEM_BEGIN
+  through EFI_HII_PACKAGE_TYPE_SYSTEM_END are reserved for system
+  firmware implementers.
+
   @param Length The size of the package in bytes.
-  
+
   @param Type   The package type. See EFI_HII_PACKAGE_TYPE_x,
                 below.
-  
+
   @param Data   The package data, the format of which is
                 determined by Type.
-  
+
 **/
 typedef struct {
   UINT32  Length:24;
@@ -86,7 +84,7 @@ typedef struct {
 
 //
 // EFI_HII_PACKAGE_TYPE_x.
-// 
+//
 #define EFI_HII_PACKAGE_TYPE_ALL             0x00
 #define EFI_HII_PACKAGE_TYPE_GUID            0x01
 #define EFI_HII_PACKAGE_FORM                 0x02
@@ -222,7 +220,7 @@ typedef struct _EFI_HII_GIBT_GLYPH_BLOCK {
 typedef struct _EFI_HII_GIBT_GLYPHS_BLOCK {
   EFI_HII_GLYPH_BLOCK    Header;
   EFI_HII_GLYPH_INFO     Cell;
-  UINT16                 Count;  
+  UINT16                 Count;
   UINT8                  BitmapData[1]; // the number of bytes per bitmap can be calculated by ((Cell.Width+7)/8)*Cell.Height
 } EFI_HII_GIBT_GLYPHS_BLOCK;
 
@@ -691,6 +689,7 @@ typedef union {
 #define EFI_IFR_SECURITY_OP            0x60
 #define EFI_IFR_MODAL_TAG_OP           0x61
 #define EFI_IFR_REFRESH_ID_OP          0x62
+#define EFI_IFR_WARNING_IF_OP          0x63
 
 
 typedef struct _EFI_IFR_OP_HEADER {
@@ -783,9 +782,9 @@ typedef struct _EFI_IFR_IMAGE {
   EFI_IMAGE_ID             Id;
 } EFI_IFR_IMAGE;
 
-typedef struct _EFI_IFR_MODAL {
+typedef struct _EFI_IFR_MODAL_TAG {
   EFI_IFR_OP_HEADER        Header;
-} EFI_IFR_MODAL;
+} EFI_IFR_MODAL_TAG;
 
 typedef struct _EFI_IFR_LOCKED {
   EFI_IFR_OP_HEADER        Header;
@@ -802,6 +801,12 @@ typedef struct _EFI_IFR_DEFAULT {
   UINT8                    Type;
   EFI_IFR_TYPE_VALUE       Value;
 } EFI_IFR_DEFAULT;
+
+typedef struct _EFI_IFR_DEFAULT_2 {
+  EFI_IFR_OP_HEADER        Header;
+  UINT16                   DefaultId;
+  UINT8                    Type;
+} EFI_IFR_DEFAULT_2;
 
 typedef struct _EFI_IFR_VALUE {
   EFI_IFR_OP_HEADER        Header;
@@ -1008,6 +1013,12 @@ typedef struct _EFI_IFR_NO_SUBMIT_IF {
   EFI_IFR_OP_HEADER        Header;
   EFI_STRING_ID            Error;
 } EFI_IFR_NO_SUBMIT_IF;
+
+typedef struct _EFI_IFR_WARNING_IF {
+  EFI_IFR_OP_HEADER        Header;
+  EFI_STRING_ID            Warning;
+  UINT8                    TimeOut;
+} EFI_IFR_WARNING_IF;
 
 typedef struct _EFI_IFR_REFRESH {
   EFI_IFR_OP_HEADER        Header;
@@ -1326,12 +1337,12 @@ typedef struct _EFI_IFR_SECURITY {
 
 typedef struct _EFI_IFR_FORM_MAP_METHOD {
   ///
-  /// The string identifier which provides the human-readable name of 
+  /// The string identifier which provides the human-readable name of
   /// the configuration method for this standards map form.
   ///
   EFI_STRING_ID            MethodTitle;
   ///
-  /// Identifier which uniquely specifies the configuration methods 
+  /// Identifier which uniquely specifies the configuration methods
   /// associated with this standards map form.
   ///
   EFI_GUID                 MethodIdentifier;
@@ -1339,8 +1350,8 @@ typedef struct _EFI_IFR_FORM_MAP_METHOD {
 
 typedef struct _EFI_IFR_FORM_MAP {
   ///
-  /// The sequence that defines the type of opcode as well as the length 
-  /// of the opcode being defined. Header.OpCode = EFI_IFR_FORM_MAP_OP. 
+  /// The sequence that defines the type of opcode as well as the length
+  /// of the opcode being defined. Header.OpCode = EFI_IFR_FORM_MAP_OP.
   ///
   EFI_IFR_OP_HEADER        Header;
   ///
@@ -1355,13 +1366,13 @@ typedef struct _EFI_IFR_FORM_MAP {
 
 typedef struct _EFI_IFR_SET {
   ///
-  /// The sequence that defines the type of opcode as well as the length 
-  /// of the opcode being defined. Header.OpCode = EFI_IFR_SET_OP. 
+  /// The sequence that defines the type of opcode as well as the length
+  /// of the opcode being defined. Header.OpCode = EFI_IFR_SET_OP.
   ///
   EFI_IFR_OP_HEADER  Header;
   ///
-  /// Specifies the identifier of a previously declared variable store to 
-  /// use when storing the question's value. 
+  /// Specifies the identifier of a previously declared variable store to
+  /// use when storing the question's value.
   ///
   EFI_VARSTORE_ID    VarStoreId;
   union {
@@ -1375,20 +1386,20 @@ typedef struct _EFI_IFR_SET {
     UINT16           VarOffset;
   }                  VarStoreInfo;
   ///
-  /// Specifies the type used for storage. 
+  /// Specifies the type used for storage.
   ///
   UINT8              VarStoreType;
 } EFI_IFR_SET;
 
 typedef struct _EFI_IFR_GET {
   ///
-  /// The sequence that defines the type of opcode as well as the length 
-  /// of the opcode being defined. Header.OpCode = EFI_IFR_GET_OP. 
+  /// The sequence that defines the type of opcode as well as the length
+  /// of the opcode being defined. Header.OpCode = EFI_IFR_GET_OP.
   ///
   EFI_IFR_OP_HEADER  Header;
   ///
-  /// Specifies the identifier of a previously declared variable store to 
-  /// use when retrieving the value. 
+  /// Specifies the identifier of a previously declared variable store to
+  /// use when retrieving the value.
   ///
   EFI_VARSTORE_ID    VarStoreId;
   union {
@@ -1402,7 +1413,7 @@ typedef struct _EFI_IFR_GET {
     UINT16           VarOffset;
   }                  VarStoreInfo;
   ///
-  /// Specifies the type used for storage. 
+  /// Specifies the type used for storage.
   ///
   UINT8              VarStoreType;
 } EFI_IFR_GET;
@@ -1422,9 +1433,9 @@ typedef struct _EFI_IFR_MAP {
 // Keyboard Package
 //
 
-typedef enum {    
+typedef enum {
   EfiKeyLCtrl,
-  EfiKeyA0, 
+  EfiKeyA0,
   EfiKeyLAlt,
   EfiKeySpaceBar,
   EfiKeyA2,
@@ -1541,7 +1552,7 @@ typedef struct {
 } EFI_KEY_DESCRIPTOR;
 
 //
-// A key which is affected by all the standard shift modifiers.  
+// A key which is affected by all the standard shift modifiers.
 // Most keys would be expected to have this bit active.
 //
 #define EFI_AFFECTED_BY_STANDARD_SHIFT       0x0001
@@ -1643,7 +1654,7 @@ typedef struct {
 // token usages.
 //
 //
-// STRING_TOKEN is not defined in UEFI specification. But it is placed 
+// STRING_TOKEN is not defined in UEFI specification. But it is placed
 // here for the easy access by C files and VFR source files.
 //
 #define STRING_TOKEN(t) t

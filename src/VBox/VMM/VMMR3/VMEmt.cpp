@@ -152,7 +152,8 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
              * We check for state changes in addition to status codes when
              * servicing requests. (Look after the ifs.)
              */
-            PVM pVM = pUVM->pVM;
+            PVM    pVM   = pUVM->pVM;
+            PVMCPU pVCpu = pUVCpu->pVCpu;
             enmBefore = pVM->enmVMState;
             if (pUVM->vm.s.fTerminateEMT)
             {
@@ -181,12 +182,13 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
                 rc = VMR3ReqProcessU(pUVM, pUVCpu->idCpu, false /*fPriorityOnly*/);
                 Log(("vmR3EmulationThread: Req (cpu=%u) rc=%Rrc, VM state %s -> %s\n", pUVCpu->idCpu, rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
-            else if (VM_FF_IS_SET(pVM, VM_FF_DBGF))
+            else if (   VM_FF_IS_SET(pVM, VM_FF_DBGF)
+                     || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_DBGF))
             {
                 /*
                  * Service the debugger request.
                  */
-                rc = DBGFR3VMMForcedAction(pVM);
+                rc = DBGFR3VMMForcedAction(pVM, pVCpu);
                 Log(("vmR3EmulationThread: Dbg rc=%Rrc, VM state %s -> %s\n", rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
             else if (VM_FF_TEST_AND_CLEAR(pVM, VM_FF_RESET))
@@ -194,7 +196,7 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
                 /*
                  * Service a delayed reset request.
                  */
-                rc = VMR3Reset(pVM->pUVM);
+                rc = VBOXSTRICTRC_VAL(VMR3ResetFF(pVM));
                 VM_FF_CLEAR(pVM, VM_FF_RESET);
                 Log(("vmR3EmulationThread: Reset rc=%Rrc, VM state %s -> %s\n", rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
@@ -234,8 +236,6 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
             {
                 rc = EMR3ExecuteVM(pVM, pVCpu);
                 Log(("vmR3EmulationThread: EMR3ExecuteVM() -> rc=%Rrc, enmVMState=%d\n", rc, pVM->enmVMState));
-                if (EMGetState(pVCpu) == EMSTATE_GURU_MEDITATION)
-                    vmR3SetGuruMeditation(pVM);
             }
         }
 
@@ -1057,7 +1057,7 @@ VMMR3_INT_DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts
      */
     const uint32_t fMask = !fIgnoreInterrupts
         ? VMCPU_FF_EXTERNAL_HALTED_MASK
-        : VMCPU_FF_EXTERNAL_HALTED_MASK & ~(VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC);
+        : VMCPU_FF_EXTERNAL_HALTED_MASK & ~(VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC);
     if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
         ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
     {

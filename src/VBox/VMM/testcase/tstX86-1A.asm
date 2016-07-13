@@ -147,6 +147,7 @@ g_u32Two:       dw 2
 
 ;;
 ; The last global data item. We build this as we write the code.
+        align   8
 GLOBALNAME g_aTrapInfo
 
 

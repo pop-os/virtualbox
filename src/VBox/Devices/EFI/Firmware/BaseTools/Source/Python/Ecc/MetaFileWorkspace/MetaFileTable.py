@@ -25,7 +25,7 @@ from CommonDataClass.DataClass import MODEL_FILE_DSC, MODEL_FILE_DEC, MODEL_FILE
                                       MODEL_FILE_OTHERS
 
 class MetaFileTable(Table):
-    ## Constructor 
+    ## Constructor
     def __init__(self, Cursor, MetaFile, FileType, TableName, Temporary = False):
         self.MetaFile = MetaFile
         self.TblFile = EccGlobalData.gDb.TblFile
@@ -51,6 +51,7 @@ class ModuleTable(MetaFileTable):
         Value1 TEXT NOT NULL,
         Value2 TEXT,
         Value3 TEXT,
+        Usage  TEXT,
         Scope1 TEXT,
         Scope2 TEXT,
         BelongsToItem REAL NOT NULL,
@@ -84,36 +85,37 @@ class ModuleTable(MetaFileTable):
     # @param Enabled:        If this item enabled
     #
     def Insert(self, Model, Value1, Value2, Value3, Scope1='COMMON', Scope2='COMMON',
-               BelongsToItem=-1, BelongsToFile = -1, StartLine=-1, StartColumn=-1, EndLine=-1, EndColumn=-1, Enabled=0):
-        (Value1, Value2, Value3, Scope1, Scope2) = ConvertToSqlString((Value1, Value2, Value3, Scope1, Scope2))
+               BelongsToItem=-1, BelongsToFile = -1, StartLine=-1, StartColumn=-1, EndLine=-1, EndColumn=-1, Enabled=0, Usage=''):
+        (Value1, Value2, Value3, Usage, Scope1, Scope2) = ConvertToSqlString((Value1, Value2, Value3, Usage, Scope1, Scope2))
         return Table.Insert(
-                        self, 
-                        Model, 
-                        Value1, 
-                        Value2, 
-                        Value3, 
-                        Scope1, 
+                        self,
+                        Model,
+                        Value1,
+                        Value2,
+                        Value3,
+                        Usage,
+                        Scope1,
                         Scope2,
                         BelongsToItem,
-                        BelongsToFile, 
-                        StartLine, 
-                        StartColumn, 
-                        EndLine, 
-                        EndColumn, 
+                        BelongsToFile,
+                        StartLine,
+                        StartColumn,
+                        EndLine,
+                        EndColumn,
                         Enabled
                         )
 
     ## Query table
     #
-    # @param    Model:      The Model of Record 
-    # @param    Arch:       The Arch attribute of Record 
-    # @param    Platform    The Platform attribute of Record 
+    # @param    Model:      The Model of Record
+    # @param    Arch:       The Arch attribute of Record
+    # @param    Platform    The Platform attribute of Record
     #
-    # @retval:       A recordSet of all found records 
+    # @retval:       A recordSet of all found records
     #
     def Query(self, Model, Arch=None, Platform=None):
         ConditionString = "Model=%s AND Enabled>=0" % Model
-        ValueString = "Value1,Value2,Value3,Scope1,Scope2,ID,StartLine"
+        ValueString = "Value1,Value2,Value3,Usage,Scope1,Scope2,ID,StartLine"
 
         if Arch != None and Arch != 'COMMON':
             ConditionString += " AND (Scope1='%s' OR Scope1='COMMON')" % Arch
@@ -169,28 +171,28 @@ class PackageTable(MetaFileTable):
                BelongsToItem=-1, BelongsToFile = -1, StartLine=-1, StartColumn=-1, EndLine=-1, EndColumn=-1, Enabled=0):
         (Value1, Value2, Value3, Scope1, Scope2) = ConvertToSqlString((Value1, Value2, Value3, Scope1, Scope2))
         return Table.Insert(
-                        self, 
-                        Model, 
-                        Value1, 
-                        Value2, 
-                        Value3, 
-                        Scope1, 
+                        self,
+                        Model,
+                        Value1,
+                        Value2,
+                        Value3,
+                        Scope1,
                         Scope2,
                         BelongsToItem,
-                        BelongsToFile, 
-                        StartLine, 
-                        StartColumn, 
-                        EndLine, 
-                        EndColumn, 
+                        BelongsToFile,
+                        StartLine,
+                        StartColumn,
+                        EndLine,
+                        EndColumn,
                         Enabled
                         )
 
     ## Query table
     #
-    # @param    Model:  The Model of Record 
-    # @param    Arch:   The Arch attribute of Record 
+    # @param    Model:  The Model of Record
+    # @param    Arch:   The Arch attribute of Record
     #
-    # @retval:       A recordSet of all found records 
+    # @retval:       A recordSet of all found records
     #
     def Query(self, Model, Arch=None):
         ConditionString = "Model=%s AND Enabled>=0" % Model
@@ -250,32 +252,32 @@ class PlatformTable(MetaFileTable):
                FromItem=-1, StartLine=-1, StartColumn=-1, EndLine=-1, EndColumn=-1, Enabled=1):
         (Value1, Value2, Value3, Scope1, Scope2) = ConvertToSqlString((Value1, Value2, Value3, Scope1, Scope2))
         return Table.Insert(
-                        self, 
-                        Model, 
-                        Value1, 
-                        Value2, 
-                        Value3, 
-                        Scope1, 
+                        self,
+                        Model,
+                        Value1,
+                        Value2,
+                        Value3,
+                        Scope1,
                         Scope2,
-                        BelongsToItem, 
+                        BelongsToItem,
                         BelongsToFile,
                         FromItem,
-                        StartLine, 
-                        StartColumn, 
-                        EndLine, 
-                        EndColumn, 
+                        StartLine,
+                        StartColumn,
+                        EndLine,
+                        EndColumn,
                         Enabled
                         )
 
     ## Query table
     #
-    # @param Model:          The Model of Record 
+    # @param Model:          The Model of Record
     # @param Scope1:         Arch of a Dsc item
     # @param Scope2:         Module type of a Dsc item
     # @param BelongsToItem:  The item belongs to which another item
     # @param FromItem:       The item belongs to which dsc file
     #
-    # @retval:       A recordSet of all found records 
+    # @retval:       A recordSet of all found records
     #
     def Query(self, Model, Scope1=None, Scope2=None, BelongsToItem=None, FromItem=None):
         ConditionString = "Model=%s AND Enabled>0" % Model

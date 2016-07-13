@@ -1,7 +1,7 @@
 /** @file
   EFI PCI IO protocol functions implementation for PCI Bus module.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -85,7 +85,7 @@ PciIoVerifyBarAccess (
   IN UINT64                          *Offset
   )
 {
-  if (Width < 0 || Width >= EfiPciIoWidthMaximum) {
+  if ((UINT32)Width >= EfiPciIoWidthMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -146,7 +146,7 @@ PciIoVerifyConfigAccess (
 {
   UINT64  ExtendOffset;
 
-  if (Width < 0 || Width >= EfiPciIoWidthMaximum) {
+  if ((UINT32)Width >= EfiPciIoWidthMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -215,7 +215,7 @@ PciIoPollMem (
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
-  if (Width < 0 || Width >= EfiPciIoWidthMaximum) {
+  if ((UINT32)Width >= EfiPciIoWidthMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -230,7 +230,7 @@ PciIoPollMem (
 
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((Offset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Status  = PciIoMemRead (This, Width, BarIndex, Offset, 1, Result);
@@ -260,7 +260,7 @@ PciIoPollMem (
       } while (TRUE);
     }
   }
-  
+
   Status = PciIoDevice->PciRootBridgeIo->PollMem (
                                            PciIoDevice->PciRootBridgeIo,
                                            (EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH) Width,
@@ -322,7 +322,7 @@ PciIoPollIo (
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
-  if (Width < 0 || Width > EfiPciIoWidthUint64) {
+  if ((UINT32)Width > EfiPciIoWidthUint64) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -333,7 +333,7 @@ PciIoPollIo (
 
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((Offset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Status  = PciIoIoRead (This, Width, BarIndex, Offset, 1, Result);
@@ -363,7 +363,7 @@ PciIoPollIo (
       } while (TRUE);
     }
   }
-  
+
   Status = PciIoDevice->PciRootBridgeIo->PollIo (
                                            PciIoDevice->PciRootBridgeIo,
                                            (EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH) Width,
@@ -421,7 +421,7 @@ PciIoMemRead (
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
-  if (Width < 0 || Width >= EfiPciIoWidthMaximum) {
+  if ((UINT32)Width >= EfiPciIoWidthMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -436,14 +436,14 @@ PciIoMemRead (
 
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((Offset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Count *=  (UINTN)(1 << (Width & 0x03));
       Width = (EFI_PCI_IO_PROTOCOL_WIDTH) (Width & (~0x03));
     }
-  }  
-  
+  }
+
 
   Status = PciIoDevice->PciRootBridgeIo->Mem.Read (
                                               PciIoDevice->PciRootBridgeIo,
@@ -500,7 +500,7 @@ PciIoMemWrite (
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
-  if (Width < 0 || Width >= EfiPciIoWidthMaximum) {
+  if ((UINT32)Width >= EfiPciIoWidthMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -515,7 +515,7 @@ PciIoMemWrite (
 
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((Offset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Count *=  (UINTN)(1 << (Width & 0x03));
@@ -578,7 +578,7 @@ PciIoIoRead (
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
-  if (Width < 0 || Width >= EfiPciIoWidthMaximum) {
+  if ((UINT32)Width >= EfiPciIoWidthMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -593,13 +593,13 @@ PciIoIoRead (
 
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((Offset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Count *=  (UINTN)(1 << (Width & 0x03));
       Width = (EFI_PCI_IO_PROTOCOL_WIDTH) (Width & (~0x03));
     }
-  }    
+  }
 
   Status = PciIoDevice->PciRootBridgeIo->Io.Read (
                                               PciIoDevice->PciRootBridgeIo,
@@ -656,7 +656,7 @@ PciIoIoWrite (
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
-  if (Width < 0 || Width >= EfiPciIoWidthMaximum) {
+  if ((UINT32)Width >= EfiPciIoWidthMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -671,13 +671,13 @@ PciIoIoWrite (
 
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((Offset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Count *=  (UINTN)(1 << (Width & 0x03));
       Width = (EFI_PCI_IO_PROTOCOL_WIDTH) (Width & (~0x03));
     }
-  }  
+  }
 
   Status = PciIoDevice->PciRootBridgeIo->Io.Write (
                                               PciIoDevice->PciRootBridgeIo,
@@ -737,16 +737,16 @@ PciIoConfigRead (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  
+
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((Offset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Count *=  (UINTN)(1 << (Width & 0x03));
       Width = (EFI_PCI_IO_PROTOCOL_WIDTH) (Width & (~0x03));
     }
-  }    
+  }
 
   Status = PciIoDevice->PciRootBridgeIo->Pci.Read (
                                                PciIoDevice->PciRootBridgeIo,
@@ -809,14 +809,14 @@ PciIoConfigWrite (
 
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((Offset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Count *=  (UINTN)(1 << (Width & 0x03));
       Width = (EFI_PCI_IO_PROTOCOL_WIDTH) (Width & (~0x03));
     }
-  }  
-  
+  }
+
   Status = PciIoDevice->PciRootBridgeIo->Pci.Write (
                                               PciIoDevice->PciRootBridgeIo,
                                               (EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_WIDTH) Width,
@@ -881,7 +881,7 @@ PciIoCopyMem (
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
-  if (Width < 0 || Width >= EfiPciIoWidthMaximum) {
+  if ((UINT32)Width >= EfiPciIoWidthMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -908,13 +908,13 @@ PciIoCopyMem (
 
   //
   // If request is not aligned, then convert request to EfiPciIoWithXXXUint8
-  //  
+  //
   if (FeaturePcdGet (PcdUnalignedPciIoEnable)) {
     if ((SrcOffset & ((1 << (Width & 0x03)) - 1)) != 0 || (DestOffset & ((1 << (Width & 0x03)) - 1)) != 0) {
       Count *=  (UINTN)(1 << (Width & 0x03));
       Width = (EFI_PCI_IO_PROTOCOL_WIDTH) (Width & (~0x03));
     }
-  }  
+  }
 
   Status = PciIoDevice->PciRootBridgeIo->CopyMem (
                                           PciIoDevice->PciRootBridgeIo,
@@ -970,7 +970,7 @@ PciIoMap (
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
-  if (Operation < 0 || Operation >= EfiPciIoOperationMaximum) {
+  if ((UINT32)Operation >= EfiPciIoOperationMaximum) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -1448,7 +1448,7 @@ SupportPaletteSnoopAttributes (
     //
     if (Operation == EfiPciIoAttributeOperationEnable) {
       PCI_DISABLE_COMMAND_REGISTER (Temp, EFI_PCI_COMMAND_VGA_PALETTE_SNOOP);
-      Temp->Attributes &= (~EFI_PCI_COMMAND_VGA_PALETTE_SNOOP);
+      Temp->Attributes &= (~(UINT64)EFI_PCI_COMMAND_VGA_PALETTE_SNOOP);
     } else {
       return EFI_UNSUPPORTED;
     }
@@ -1779,14 +1779,10 @@ PciIoGetBarAttributes (
   OUT VOID                           **Resources OPTIONAL
   )
 {
-
   UINT8                             *Configuration;
-  UINT8                             NumConfig;
   PCI_IO_DEVICE                     *PciIoDevice;
-  EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR *Ptr;
-  EFI_ACPI_END_TAG_DESCRIPTOR       *PtrEnd;
-
-  NumConfig   = 0;
+  EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR *AddressSpace;
+  EFI_ACPI_END_TAG_DESCRIPTOR       *End;
 
   PciIoDevice = PCI_IO_DEVICE_FROM_PCI_IO_THIS (This);
 
@@ -1794,7 +1790,7 @@ PciIoGetBarAttributes (
     return EFI_INVALID_PARAMETER;
   }
 
-  if (BarIndex >= PCI_MAX_BAR) {
+  if ((BarIndex >= PCI_MAX_BAR) || (PciIoDevice->PciBar[BarIndex].BarType == PciBarTypeUnknown)) {
     return EFI_UNSUPPORTED;
   }
 
@@ -1807,102 +1803,93 @@ PciIoGetBarAttributes (
   }
 
   if (Resources != NULL) {
-
-    if (PciIoDevice->PciBar[BarIndex].BarType != PciBarTypeUnknown) {
-      NumConfig = 1;
-    }
-
-    Configuration = AllocateZeroPool (sizeof (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR) * NumConfig + sizeof (EFI_ACPI_END_TAG_DESCRIPTOR));
+    Configuration = AllocateZeroPool (sizeof (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR) + sizeof (EFI_ACPI_END_TAG_DESCRIPTOR));
     if (Configuration == NULL) {
       return EFI_OUT_OF_RESOURCES;
     }
 
-    Ptr = (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR *) Configuration;
+    AddressSpace = (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR *) Configuration;
 
-    if (NumConfig == 1) {
-      Ptr->Desc         = ACPI_ADDRESS_SPACE_DESCRIPTOR;
-      Ptr->Len          = (UINT16) (sizeof (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR) - 3);
+    AddressSpace->Desc         = ACPI_ADDRESS_SPACE_DESCRIPTOR;
+    AddressSpace->Len          = (UINT16) (sizeof (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR) - 3);
 
-      Ptr->AddrRangeMin = PciIoDevice->PciBar[BarIndex].BaseAddress;
-      Ptr->AddrLen      = PciIoDevice->PciBar[BarIndex].Length;
-      Ptr->AddrRangeMax = PciIoDevice->PciBar[BarIndex].Alignment;
+    AddressSpace->AddrRangeMin = PciIoDevice->PciBar[BarIndex].BaseAddress;
+    AddressSpace->AddrLen      = PciIoDevice->PciBar[BarIndex].Length;
+    AddressSpace->AddrRangeMax = PciIoDevice->PciBar[BarIndex].Alignment;
 
-      switch (PciIoDevice->PciBar[BarIndex].BarType) {
-      case PciBarTypeIo16:
-      case PciBarTypeIo32:
-        //
-        // Io
-        //
-        Ptr->ResType = ACPI_ADDRESS_SPACE_TYPE_IO;
-        break;
+    switch (PciIoDevice->PciBar[BarIndex].BarType) {
+    case PciBarTypeIo16:
+    case PciBarTypeIo32:
+      //
+      // Io
+      //
+      AddressSpace->ResType = ACPI_ADDRESS_SPACE_TYPE_IO;
+      break;
 
-      case PciBarTypeMem32:
-        //
-        // Mem
-        //
-        Ptr->ResType = ACPI_ADDRESS_SPACE_TYPE_MEM;
-        //
-        // 32 bit
-        //
-        Ptr->AddrSpaceGranularity = 32;
-        break;
+    case PciBarTypeMem32:
+      //
+      // Mem
+      //
+      AddressSpace->ResType = ACPI_ADDRESS_SPACE_TYPE_MEM;
+      //
+      // 32 bit
+      //
+      AddressSpace->AddrSpaceGranularity = 32;
+      break;
 
-      case PciBarTypePMem32:
-        //
-        // Mem
-        //
-        Ptr->ResType = ACPI_ADDRESS_SPACE_TYPE_MEM;
-        //
-        // prefechable
-        //
-        Ptr->SpecificFlag = 0x6;
-        //
-        // 32 bit
-        //
-        Ptr->AddrSpaceGranularity = 32;
-        break;
+    case PciBarTypePMem32:
+      //
+      // Mem
+      //
+      AddressSpace->ResType = ACPI_ADDRESS_SPACE_TYPE_MEM;
+      //
+      // prefechable
+      //
+      AddressSpace->SpecificFlag = 0x6;
+      //
+      // 32 bit
+      //
+      AddressSpace->AddrSpaceGranularity = 32;
+      break;
 
-      case PciBarTypeMem64:
-        //
-        // Mem
-        //
-        Ptr->ResType = ACPI_ADDRESS_SPACE_TYPE_MEM;
-        //
-        // 64 bit
-        //
-        Ptr->AddrSpaceGranularity = 64;
-        break;
+    case PciBarTypeMem64:
+      //
+      // Mem
+      //
+      AddressSpace->ResType = ACPI_ADDRESS_SPACE_TYPE_MEM;
+      //
+      // 64 bit
+      //
+      AddressSpace->AddrSpaceGranularity = 64;
+      break;
 
-      case PciBarTypePMem64:
-        //
-        // Mem
-        //
-        Ptr->ResType = ACPI_ADDRESS_SPACE_TYPE_MEM;
-        //
-        // prefechable
-        //
-        Ptr->SpecificFlag = 0x6;
-        //
-        // 64 bit
-        //
-        Ptr->AddrSpaceGranularity = 64;
-        break;
+    case PciBarTypePMem64:
+      //
+      // Mem
+      //
+      AddressSpace->ResType = ACPI_ADDRESS_SPACE_TYPE_MEM;
+      //
+      // prefechable
+      //
+      AddressSpace->SpecificFlag = 0x6;
+      //
+      // 64 bit
+      //
+      AddressSpace->AddrSpaceGranularity = 64;
+      break;
 
-      default:
-        break;
-      }
-
-      Ptr = (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR *) ((UINT8 *) Ptr + sizeof (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR));
+    default:
+      break;
     }
 
     //
     // put the checksum
     //
-    PtrEnd            = (EFI_ACPI_END_TAG_DESCRIPTOR *) ((UINT8 *) Ptr);
-    PtrEnd->Desc      = ACPI_END_TAG_DESCRIPTOR;
-    PtrEnd->Checksum  = 0;
+    End           = (EFI_ACPI_END_TAG_DESCRIPTOR *) (AddressSpace + 1);
+    End->Desc     = ACPI_END_TAG_DESCRIPTOR;
+    End->Checksum = 0;
 
-    *Resources        = Configuration;
+    *Resources    = Configuration;
   }
 
   return EFI_SUCCESS;

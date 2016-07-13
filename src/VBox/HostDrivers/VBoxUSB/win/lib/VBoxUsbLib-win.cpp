@@ -301,6 +301,12 @@ static int usbLibDevPopulate(PUSBDEVICE pDev, PUSB_NODE_CONNECTION_INFORMATION_E
     int rc = RTStrAPrintf((char **)&pDev->pszAddress, "%s", lpszDrvKeyName);
     if (rc < 0)
         return VERR_NO_MEMORY;
+    pDev->pszBackend = RTStrDup("host");
+    if (!pDev->pszBackend)
+    {
+        RTStrFree((char *)pDev->pszAddress);
+        return VERR_NO_STR_MEMORY;
+    }
     pDev->pszHubName = RTStrDup(lpszHubName);
     pDev->bNumConfigurations = 0;
     pDev->u64SerialHash = 0;
@@ -482,7 +488,7 @@ static int usbLibDevCfgDrGet(HANDLE hHub, ULONG iPort, ULONG iDr, PUSB_CONFIGURA
                                 &cbReturned, NULL))
     {
         DWORD winEr = GetLastError();
-        LogRel((__FUNCTION__": DeviceIoControl 1 fail winEr (%d)\n", winEr));
+        LogRelFunc(("DeviceIoControl 1 fail winEr (%d)\n", winEr));
 #ifdef VBOX_WITH_ANNOYING_USB_ASSERTIONS
         AssertFailed();
 #endif
@@ -519,7 +525,7 @@ static int usbLibDevCfgDrGet(HANDLE hHub, ULONG iPort, ULONG iDr, PUSB_CONFIGURA
                                     &cbReturned, NULL))
         {
             DWORD winEr = GetLastError();
-            LogRel((__FUNCTION__": DeviceIoControl 2 fail winEr (%d)\n", winEr));
+            LogRelFunc(("DeviceIoControl 2 fail winEr (%d)\n", winEr));
 #ifdef VBOX_WITH_ANNOYING_USB_ASSERTIONS
             AssertFailed();
 #endif
@@ -1222,8 +1228,11 @@ static LRESULT CALLBACK usbLibWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
                 usbLibOnDeviceChange();
             }
             break;
-        case WM_DESTROY:
-            return 0;
+         case WM_DESTROY:
+            {
+                PostQuitMessage(0);
+                return 0;
+            }
     }
     return DefWindowProc (hwnd, uMsg, wParam, lParam);
 }
@@ -1276,16 +1285,13 @@ static DWORD WINAPI usbLibMsgThreadProc(__in LPVOID lpParameter)
          * The message pump.
          */
         MSG msg;
-        while (GetMessage(&msg, NULL, 0, 0))
+        BOOL fRet;
+        while ((fRet = GetMessage(&msg, NULL, 0, 0)) > 0)
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-
-        /*
-         * Clean up.
-         */
-        DestroyWindow(g_VBoxUsbGlobal.hWnd);
+        Assert(fRet >= 0);
     }
 
     if (atomWindowClass != NULL)
@@ -1355,7 +1361,7 @@ USBLIB_DECL(int) USBLibInit(void)
                     if (g_VBoxUsbGlobal.hMonitor == INVALID_HANDLE_VALUE)
                     {
                         DWORD winEr = GetLastError();
-                        LogRel((__FUNCTION__": CreateFile failed winEr(%d)\n", winEr));
+                        LogRelFunc(("CreateFile failed winEr(%d)\n", winEr));
                         rc = VERR_FILE_NOT_FOUND;
                     }
                 }
@@ -1476,7 +1482,7 @@ USBLIB_DECL(int) USBLibInit(void)
                     }
                     else
                     {
-                        LogRel((__FUNCTION__": USB Monitor driver version mismatch! driver=%u.%u library=%u.%u\n",
+                        LogRelFunc(("USB Monitor driver version mismatch! driver=%u.%u library=%u.%u\n",
                                 Version.u32Major, Version.u32Minor, USBMON_MAJOR_VERSION, USBMON_MINOR_VERSION));
 #ifdef VBOX_WITH_ANNOYING_USB_ASSERTIONS
                         AssertFailed();
@@ -1496,7 +1502,7 @@ USBLIB_DECL(int) USBLibInit(void)
             }
             else
             {
-                LogRel((__FUNCTION__": USB Service not found\n"));
+                LogRelFunc(("USB Service not found\n"));
 #ifdef VBOX_WITH_ANNOYING_USB_ASSERTIONS
                 AssertFailed();
 #endif
@@ -1547,7 +1553,7 @@ USBLIB_DECL(int) USBLibTerm(void)
 
     BOOL bRc;
 #ifdef VBOX_USB_USE_DEVICE_NOTIFICATION
-    bRc = PostMessage(g_VBoxUsbGlobal.hWnd, WM_QUIT, 0, 0);
+    bRc = PostMessage(g_VBoxUsbGlobal.hWnd, WM_CLOSE, 0, 0);
     AssertMsg(bRc, ("PostMessage for hWnd failed winEr(%d)\n", GetLastError()));
 
     if (g_VBoxUsbGlobal.hThread != NULL)

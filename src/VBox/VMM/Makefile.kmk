@@ -39,7 +39,7 @@ endif
 # Globals
 #
 
-## DEFS variable that is picked up by all three VMM targets.
+## DEFS variable that is picked up by all three VMM targets (R0, R3, RC).
 # Can be prepended to by setting it in LocalConfig.kmk
 VMM_COMMON_DEFS ?= VBOX_IN_VMM
 ifdef VBOX_WITH_2ND_IEM_STEP
@@ -86,6 +86,9 @@ ifdef VBOXSTRICTRC_STRICT_ENABLED
 endif
 ifeq ($(KBUILD_TARGET),amd64)
  VMM_COMMON_DEFS += VBOX_WITH_MORE_RING0_MEM_MAPPINGS
+endif
+ifdef VBOX_WITH_NEW_APIC
+ VMM_COMMON_DEFS += VBOX_WITH_NEW_APIC
 endif
 ifdef VBOX_WITH_NEW_IOAPIC
  VMM_COMMON_DEFS += VBOX_WITH_NEW_IOAPIC
@@ -160,6 +163,7 @@ VBoxVMM_SOURCES  = \
 	VMMR3/DBGFReg.cpp \
 	VMMR3/DBGFStack.cpp \
 	VMMR3/DBGFR3Trace.cpp \
+	VMMR3/DBGFR3Type.cpp \
 	VMMR3/EM.cpp \
 	VMMR3/EMR3Dbg.cpp \
 	$(if $(VBOX_WITH_RAW_MODE),VMMR3/EMRaw.cpp) \
@@ -241,7 +245,6 @@ VBoxVMM_SOURCES  = \
 	VMMAll/PGMAllMap.cpp \
 	VMMAll/PGMAllPhys.cpp \
 	VMMAll/PGMAllPool.cpp \
-	VMMAll/REMAll.cpp \
 	VMMAll/SELMAll.cpp \
 	VMMAll/EMAll.cpp \
 	VMMAll/EMAllA.asm \
@@ -276,7 +279,15 @@ ifdef VBOX_WITH_NETSHAPER
  	VMMR3/PDMNetShaper.cpp \
  	VMMAll/PDMAllNetShaper.cpp
 endif
-
+ifdef VBOX_WITH_NEW_APIC
+ VBoxVMM_SOURCES += \
+ 	VMMR3/APIC.cpp \
+ 	VMMAll/APICAll.cpp
+endif
+ifdef VBOX_WITH_REM
+ VBoxVMM_SOURCES += \
+	VMMAll/REMAll.cpp
+endif
 ifdef VBOX_WITH_RAW_MODE
  VBoxVMM_SOURCES.x86 += \
  	VMMSwitcher/32BitTo32Bit.asm \
@@ -321,6 +332,11 @@ VMMR3/SSM.cpp_DEFS +=	\
 #VBoxVMM_LIBS += aio
 # endif
 #endif
+
+if "$(USERNAME)" == "bird" && "$(KBUILD_TARGET)" == "win"
+ VBoxVMM_VMMAll/IEMAll.cpp_CXXFLAGS = /FAcs /Fa$(subst /,\\,$(outbase).cod)
+ VBoxVMM_VMMAll/PDMAllCritSect.cpp_CXXFLAGS = /FAcs /Fa$(subst /,\\,$(outbase).cod)
+endif
 
 $(call VBOX_SET_VER_INFO_DLL,VBoxVMM,VirtualBox VMM) # Version info / description.
 
@@ -472,6 +488,8 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  	VMMRC/CSAMRC.cpp \
  	VMMRC/PATMRC.cpp \
  	,) \
+ 	VMMRZ/CPUMRZ.cpp \
+ 	VMMRZ/CPUMRZA.asm \
  	VMMRZ/DBGFRZ.cpp \
  	VMMRZ/PGMRZDynMap.cpp \
  	VMMRZ/VMMRZ.cpp \
@@ -501,7 +519,6 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  	VMMAll/PGMAllMap.cpp \
  	VMMAll/PGMAllPhys.cpp \
  	VMMAll/PGMAllPool.cpp \
- 	VMMAll/REMAll.cpp \
  	VMMAll/SELMAll.cpp \
  	VMMAll/TMAll.cpp \
  	VMMAll/TMAllCpu.cpp \
@@ -521,6 +538,14 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  ifeq ($(VBOX_LDR_FMT32),lx)
   VMMRC_SOURCES += $(VMMRCImp_0_OUTDIR)/VMMRC.def
  endif
+ ifdef VBOX_WITH_NEW_APIC
+  VMMRC_SOURCES += \
+  	VMMAll/APICAll.cpp
+ endif 
+ ifdef VBOX_WITH_REM
+  VMMRC_SOURCES += \
+  	VMMAll/REMAll.cpp
+ endif
 
  # the very last one.
  VMMRC_SOURCES += VMMRC/VMMRC99.asm
@@ -528,6 +553,10 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  VMMRC/VMMRCDeps.cpp_CXXFLAGS.win = -Oi- -TC ## @todo rename VMMRCDeps.cpp to .c
 
  $(call VBOX_SET_VER_INFO_RC,VMMRC,VirtualBox VMM - raw-mode context parts) # Version info / description.
+
+ if "$(USERNAME)" == "bird" && "$(KBUILD_TARGET)" == "win"
+  VMMRC_VMMAll/IEMAll.cpp_CXXFLAGS = /FAcs /Fa$(subst /,\\,$(outbase).cod)
+ endif
 endif # VBOX_WITH_RAW_MODE && !VBOX_ONLY_EXTPACKS
 
 
@@ -554,8 +583,15 @@ ifndef VBOX_ONLY_EXTPACKS
  ifdef VBOX_WITH_VMM_R0_SWITCH_STACK
   VMMR0_DEFS    += VMM_R0_SWITCH_STACK
  endif
+ if1of ($(KBUILD_TARGET), darwin linux win)
+  VMMR0_DEFS    += VMM_R0_TOUCH_FPU
+ endif
  VMMR0_DEFS.darwin = VMM_R0_SWITCH_STACK
  VMMR0_DEFS.win.amd64  = VBOX_WITH_KERNEL_USING_XMM
+
+ ifeq ($(VBOX_LDR_FMT),elf)
+  VMMR0_CXXFLAGS += $(filter-out -Wno-unused,$(TEMPLATE_VBoxR0_CXXFLAGS)) -Wunused-variable -Wno-unused-parameter
+ endif
 
  VMMR0_INCS      = \
  	include \
@@ -581,6 +617,8 @@ ifndef VBOX_ONLY_EXTPACKS
  	VMMR0/TRPMR0.cpp \
  	VMMR0/TRPMR0A.asm \
  	VMMR0/VMMR0.cpp \
+ 	VMMRZ/CPUMRZ.cpp \
+ 	VMMRZ/CPUMRZA.asm \
  	VMMRZ/DBGFRZ.cpp \
  	VMMRZ/VMMRZ.cpp \
  	VMMAll/CPUMAllRegs.cpp \
@@ -612,7 +650,6 @@ ifndef VBOX_ONLY_EXTPACKS
  	VMMAll/PGMAllMap.cpp \
  	VMMAll/PGMAllPhys.cpp \
  	VMMAll/PGMAllPool.cpp \
- 	VMMAll/REMAll.cpp \
  	VMMAll/SELMAll.cpp \
  	VMMAll/TMAll.cpp \
  	VMMAll/TMAllCpu.cpp \
@@ -634,6 +671,14 @@ ifndef VBOX_ONLY_EXTPACKS
   VMMR0_SOURCES += \
  	VMMAll/PDMAllNetShaper.cpp
  endif
+ ifdef VBOX_WITH_NEW_APIC
+  VMMR0_SOURCES += \
+ 	VMMAll/APICAll.cpp
+ endif
+ ifdef VBOX_WITH_REM
+  VMMR0_SOURCES += \
+  	VMMAll/REMAll.cpp
+ endif
  VMMR0_SOURCES.amd64 = \
  	VMMR0/VMMR0JmpA-amd64.asm
  VMMR0_SOURCES.x86 = \
@@ -649,7 +694,12 @@ ifndef VBOX_ONLY_EXTPACKS
  endif
 
  $(call VBOX_SET_VER_INFO_R0,VMMR0,VirtualBox VMM - ring-0 context parts) # Version info / description.
+
+ if "$(USERNAME)" == "bird" && "$(KBUILD_TARGET)" == "win"
+  VMMR0_VMMAll/IEMAll.cpp_CXXFLAGS = /FAcs /Fa$(subst /,\\,$(outbase).cod)
+ endif
 endif # !VBOX_ONLY_EXTPACKS
+
 
 
 ifndef VBOX_ONLY_EXTPACKS
@@ -680,6 +730,7 @@ if !defined(VBOX_ONLY_EXTPACKS) \
  	dtrace/lib/$(KBUILD_TARGET_ARCH)/vbox-arch-types.d \
  	$(VMMLibDTrace_0_OUTDIR)/vm.d \
  	$(VMMLibDTrace_0_OUTDIR)/cpumctx.d \
+ 	$(VMMLibDTrace_0_OUTDIR)/cpum.d \
  	$(VMMLibDTrace_0_OUTDIR)/CPUMInternal.d \
  	$(VMMLibDTrace_0_OUTDIR)/x86.d \
 
@@ -715,6 +766,7 @@ if !defined(VBOX_ONLY_EXTPACKS) \
  endef
  $(evalcall2 def_vmm_lib_dtrace_preprocess,vm.d,$(PATH_ROOT)/include/VBox/vmm/vm.h)
  $(evalcall2 def_vmm_lib_dtrace_preprocess,cpumctx.d,$(PATH_ROOT)/include/VBox/vmm/cpumctx.h)
+ $(evalcall2 def_vmm_lib_dtrace_preprocess,cpum.d,$(PATH_ROOT)/include/VBox/vmm/cpum.h)
  $(evalcall2 def_vmm_lib_dtrace_preprocess,CPUMInternal.d,$(PATH_SUB_CURRENT)/include/CPUMInternal.h)
  $(evalcall2 def_vmm_lib_dtrace_preprocess,x86.d,$(PATH_ROOT)/include/iprt/x86.h)
 
@@ -731,27 +783,28 @@ VMMAll/VMMAll.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
 # Disable annoying warnings about array subscript above array bounds in aPages[]
 #
 ifneq ($(KBUILD_TARGET),win)
- VMMR3/PGMPool.cpp_CXXFLAGS     = $(VBOX_GCC_Wno-array_bounds)
- VMMAll/PGMAllPool.cpp_CXXFLAGS = $(VBOX_GCC_Wno-array_bounds)
- VMMAll/PGMAll.cpp_CXXFLAGS     = -Wno-unused-function
- VMMAll/IEMAll.cpp_CXXFLAGS     = -Wno-unused-parameter
+ VMMR3/PGMPool.cpp_CXXFLAGS       = $(VBOX_GCC_Wno-array_bounds)
+ VMMAll/PGMAllPool.cpp_CXXFLAGS   = $(VBOX_GCC_Wno-array_bounds)
+ VMMAll/PGMAll.cpp_CXXFLAGS       = -Wno-unused-function
+ VMMAll/IEMAll.cpp_CXXFLAGS       = -Wno-unused-function
+ VMMR0/GMMR0.cpp_CXXFLAGS         = -Wno-unused-value
 endif
 
 #
 # Always optimize the interpreter.
 #
-ifn1of ($(USERNAME),bird)
-if1of ($(KBUILD_TARGET), win)
- # -noover is recognized despite the statement saying otherwise. It silences these warnings:
- # cl : Command line warning D9025 : overriding '/Od' with '/O2'
- # cl : Command line warning D9025 : overriding '/Oy-' with '/Oy'
- VMMAll/IEMAll.cpp_CXXFLAGS += -noover -O2xy
-else
- VMMAll/IEMAll.cpp_CXXFLAGS += -O2
- #VMMAll/IEMAll.cpp_CXXFLAGS += -fno-align-functions -fno-align-jumps -fno-align-loops # Saves a few of percents, not worth it.
- #VMMAll/IEMAll.cpp_CXXFLAGS += -fno-reorder-blocks    # Saves one or two percent ... never mind.
- VMMAll/IEMAll.cpp_CXXFLAGS += -fomit-frame-pointer # Omitting the frame pointer results in larger code, but it might be worth it. (esp addressing vs ebp?)
-endif
+if $(USERNAME) != "bird" || "$(KBUILD_TYPE)" == "release" #|| "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.amd64"
+ if1of ($(KBUILD_TARGET), win)
+  # -noover is recognized despite the statement saying otherwise. It silences these warnings:
+  # cl : Command line warning D9025 : overriding '/Od' with '/O2'
+  # cl : Command line warning D9025 : overriding '/Oy-' with '/Oy'
+  VMMAll/IEMAll.cpp_CXXFLAGS += -noover -O2xy
+ else
+  VMMAll/IEMAll.cpp_CXXFLAGS += -O2
+  #VMMAll/IEMAll.cpp_CXXFLAGS += -fno-align-functions -fno-align-jumps -fno-align-loops # Saves a few of percents, not worth it.
+  #VMMAll/IEMAll.cpp_CXXFLAGS += -fno-reorder-blocks    # Saves one or two percent ... never mind.
+  VMMAll/IEMAll.cpp_CXXFLAGS += -fomit-frame-pointer # Omitting the frame pointer results in larger code, but it might be worth it. (esp addressing vs ebp?)
+ endif
 endif # bird wants good stacks
 
 

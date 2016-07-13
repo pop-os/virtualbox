@@ -21,10 +21,10 @@
 /* GUI includes: */
 #include "UIMachineWindow.h"
 
-#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
 /* Forward declarations: */
 class UIMiniToolBar;
-#endif /* Q_WS_WIN || Q_WS_X11 */
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
 /** UIMachineWindow reimplementation,
   * providing GUI with machine-window for the seamless mode. */
@@ -39,27 +39,27 @@ protected:
 
 private slots:
 
-#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     /** Handles machine state change event. */
     void sltMachineStateChanged();
 
     /** Revokes window activation. */
     void sltRevokeWindowActivation();
-#endif /* Q_WS_WIN || Q_WS_X11 */
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
 private:
 
     /** Prepare visual-state routine. */
     void prepareVisualState();
-#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     /** Prepare mini-toolbar routine. */
     void prepareMiniToolbar();
-#endif /* Q_WS_WIN || Q_WS_X11 */
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
-#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     /** Cleanup mini-toolbar routine. */
     void cleanupMiniToolbar();
-#endif /* Q_WS_WIN || Q_WS_X11 */
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
     /** Cleanup visual-state routine. */
     void cleanupVisualState();
 
@@ -68,25 +68,27 @@ private:
     /** Updates visibility according to visual-state. */
     void showInNecessaryMode();
 
-#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     /** Common update routine. */
     void updateAppearanceOf(int iElement);
-#endif /* Q_WS_WIN || Q_WS_X11 */
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
-#if defined(VBOX_WITH_TRANSLUCENT_SEAMLESS) && defined(Q_WS_WIN)
-    /** Windows: Translucency stuff workaround. */
+#ifdef VBOX_WS_WIN
+# if QT_VERSION >= 0x050000
+    /** Win: Handles show @a pEvent. */
     void showEvent(QShowEvent *pEvent);
-#endif /* VBOX_WITH_TRANSLUCENT_SEAMLESS && Q_WS_WIN */
+# endif /* QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_WIN */
 
 #ifdef VBOX_WITH_MASKED_SEAMLESS
     /** Assigns guest seamless mask. */
     void setMask(const QRegion &maskGuest);
 #endif /* VBOX_WITH_MASKED_SEAMLESS */
 
-#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     /** Holds the mini-toolbar instance. */
     UIMiniToolBar *m_pMiniToolBar;
-#endif /* Q_WS_WIN || Q_WS_X11 */
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
 #ifdef VBOX_WITH_MASKED_SEAMLESS
     /** Holds the full seamless mask. */
@@ -94,6 +96,10 @@ private:
     /** Holds the guest seamless mask. */
     QRegion m_maskGuest;
 #endif /* VBOX_WITH_MASKED_SEAMLESS */
+
+    /** Holds whether the window was minimized before became hidden.
+      * Used to restore minimized state when the window shown again. */
+    bool m_fWasMinimized;
 
     /** Factory support. */
     friend class UIMachineWindow;

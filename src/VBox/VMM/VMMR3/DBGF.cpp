@@ -279,6 +279,13 @@ VMMR3_INT_DECL(void) DBGFR3PowerOff(PVM pVM)
                         LogFlow(("DBGFR3PowerOff: VMR3ReqProcess -> %Rrc\n", rc));
                         cPollHack = 1;
                     }
+                    /* Need to handle rendezvous too, for generic debug event management. */
+                    else if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+                    {
+                        rc = VMMR3EmtRendezvousFF(pVM, pVCpu);
+                        AssertLogRel(rc == VINF_SUCCESS);
+                        cPollHack = 1;
+                    }
                     else if (cPollHack < 120)
                         cPollHack++;
 
@@ -319,9 +326,12 @@ VMMR3_INT_DECL(void) DBGFR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  *
  * @returns True is a debugger have attached.
  * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context per CPU structure.
  * @param   enmEvent    Event.
+ *
+ * @thread  EMT(pVCpu)
  */
-bool dbgfR3WaitForAttach(PVM pVM, DBGFEVENTTYPE enmEvent)
+bool dbgfR3WaitForAttach(PVM pVM, PVMCPU pVCpu, DBGFEVENTTYPE enmEvent)
 {
     /*
      * First a message.
@@ -351,6 +361,20 @@ bool dbgfR3WaitForAttach(PVM pVM, DBGFEVENTTYPE enmEvent)
             return true;
         }
 
+        /* Process priority stuff. */
+        if (   VM_FF_IS_PENDING(pVM, VM_FF_REQUEST)
+            || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
+        {
+            int rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY, true /*fPriorityOnly*/);
+            if (rc == VINF_SUCCESS)
+                rc = VMR3ReqProcessU(pVM->pUVM, pVCpu->idCpu, true /*fPriorityOnly*/);
+            if (rc != VINF_SUCCESS)
+            {
+                RTStrmPrintf(g_pStdErr, "[rcReq=%Rrc, ignored!]", rc);
+                RTStrmFlush(g_pStdErr);
+            }
+        }
+
         /* next */
         if (!(cWait % 10))
         {
@@ -369,22 +393,24 @@ bool dbgfR3WaitForAttach(PVM pVM, DBGFEVENTTYPE enmEvent)
 
 /**
  * Forced action callback.
- * The VMM will call this from it's main loop when VM_FF_DBGF is set.
  *
- * The function checks and executes pending commands from the debugger.
+ * The VMM will call this from it's main loop when either VM_FF_DBGF or
+ * VMCPU_FF_DBGF are set.
+ *
+ * The function checks for and executes pending commands from the debugger.
+ * Then it checks for pending debug events and serves these.
  *
  * @returns VINF_SUCCESS normally.
  * @returns VERR_DBGF_RAISE_FATAL_ERROR to pretend a fatal error happened.
  * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context per CPU structure.
  */
-VMMR3_INT_DECL(int) DBGFR3VMMForcedAction(PVM pVM)
+VMMR3_INT_DECL(int) DBGFR3VMMForcedAction(PVM pVM, PVMCPU pVCpu)
 {
-    int rc = VINF_SUCCESS;
+    VBOXSTRICTRC rcStrict = VINF_SUCCESS;
 
     if (VM_FF_TEST_AND_CLEAR(pVM, VM_FF_DBGF))
     {
-        PVMCPU pVCpu = VMMGetCpu(pVM);
-
         /*
          * Command pending? Process it.
          */
@@ -393,12 +419,30 @@ VMMR3_INT_DECL(int) DBGFR3VMMForcedAction(PVM pVM)
             bool            fResumeExecution;
             DBGFCMDDATA     CmdData = pVM->dbgf.s.VMMCmdData;
             DBGFCMD         enmCmd = dbgfR3SetCmd(pVM, DBGFCMD_NO_COMMAND);
-            rc = dbgfR3VMMCmd(pVM, enmCmd, &CmdData, &fResumeExecution);
+            rcStrict = dbgfR3VMMCmd(pVM, enmCmd, &CmdData, &fResumeExecution);
             if (!fResumeExecution)
-                rc = dbgfR3VMMWait(pVM);
+                rcStrict = dbgfR3VMMWait(pVM);
         }
     }
-    return rc;
+
+    /*
+     * Dispatch pending events.
+     */
+    if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_DBGF))
+    {
+        if (   pVCpu->dbgf.s.cEvents > 0
+            && pVCpu->dbgf.s.aEvents[pVCpu->dbgf.s.cEvents - 1].enmState == DBGFEVENTSTATE_CURRENT)
+        {
+            VBOXSTRICTRC rcStrict2 = DBGFR3EventHandlePending(pVM, pVCpu);
+            if (   rcStrict2 != VINF_SUCCESS
+                && (   rcStrict == VINF_SUCCESS
+                    || RT_FAILURE(rcStrict2)
+                    || rcStrict2 < rcStrict) ) /** @todo oversimplified? */
+                rcStrict = rcStrict2;
+        }
+    }
+
+    return VBOXSTRICTRC_TODO(rcStrict);
 }
 
 
@@ -473,7 +517,7 @@ static int dbgfR3EventPrologue(PVM pVM, DBGFEVENTTYPE enmEvent)
      * Check if a debugger is attached.
      */
     if (    !pVM->dbgf.s.fAttached
-        &&  !dbgfR3WaitForAttach(pVM, enmEvent))
+        &&  !dbgfR3WaitForAttach(pVM, pVCpu, enmEvent))
     {
         Log(("DBGFR3VMMEventSrc: enmEvent=%d - debugger not attached\n", enmEvent));
         return VERR_DBGF_NOT_ATTACHED;
@@ -512,6 +556,49 @@ static int dbgfR3SendEvent(PVM pVM)
     pVM->dbgf.s.fStoppedInHyper = false;
     /** @todo sync VMM -> REM after exitting the debugger. everything may change while in the debugger! */
     return rc;
+}
+
+
+/**
+ * Processes a pending event on the current CPU.
+ *
+ * This is called by EM in response to VINF_EM_DBG_EVENT.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context per CPU structure.
+ *
+ * @thread  EMT(pVCpu)
+ */
+VMMR3_INT_DECL(VBOXSTRICTRC) DBGFR3EventHandlePending(PVM pVM, PVMCPU pVCpu)
+{
+    VMCPU_ASSERT_EMT(pVCpu);
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_DBGF);
+
+    /*
+     * Check that we've got an event first.
+     */
+    AssertReturn(pVCpu->dbgf.s.cEvents > 0, VINF_SUCCESS);
+    AssertReturn(pVCpu->dbgf.s.aEvents[pVCpu->dbgf.s.cEvents - 1].enmState == DBGFEVENTSTATE_CURRENT, VINF_SUCCESS);
+    PDBGFEVENT pEvent = &pVCpu->dbgf.s.aEvents[pVCpu->dbgf.s.cEvents - 1].Event;
+
+    /*
+     * Make sure we've got a debugger and is allowed to speak to it.
+     */
+    int rc = dbgfR3EventPrologue(pVM, pEvent->enmType);
+    if (RT_FAILURE(rc))
+    {
+        /** @todo drop them events?   */
+        return rc;
+    }
+
+/** @todo SMP + debugger speaker logic  */
+    /*
+     * Copy the event over and mark it as ignore.
+     */
+    pVM->dbgf.s.DbgEvent = *pEvent;
+    pVCpu->dbgf.s.aEvents[pVCpu->dbgf.s.cEvents - 1].enmState = DBGFEVENTSTATE_IGNORE;
+    return dbgfR3SendEvent(pVM);
 }
 
 
@@ -667,7 +754,7 @@ VMMR3_INT_DECL(int) DBGFR3EventBreakpoint(PVM pVM, DBGFEVENTTYPE enmEvent)
 #endif
         for (size_t i = 0; i < RT_ELEMENTS(pVM->dbgf.s.aBreakpoints); i++)
             if (    pVM->dbgf.s.aBreakpoints[i].enmType == DBGFBPTYPE_REM
-                &&  pVM->dbgf.s.aBreakpoints[i].GCPtr == eip)
+                &&  pVM->dbgf.s.aBreakpoints[i].u.Rem.GCPtr == eip)
             {
                 pVM->dbgf.s.DbgEvent.u.Bp.iBp = pVM->dbgf.s.aBreakpoints[i].iBp;
                 break;
@@ -747,6 +834,7 @@ static int dbgfR3VMMWait(PVM pVM)
                     case VINF_EM_DBG_STEPPED:
                     case VINF_EM_DBG_STEP:
                     case VINF_EM_DBG_STOP:
+                    case VINF_EM_DBG_EVENT:
                         AssertMsgFailed(("rc=%Rrc\n", rc));
                         break;
 
@@ -941,9 +1029,12 @@ VMMR3DECL(int) DBGFR3Attach(PUVM pUVM)
 
     /*
      * Call the VM, use EMT for serialization.
+     *
+     * Using a priority call here so we can actually attach a debugger during
+     * the countdown in dbgfR3WaitForAttach.
      */
     /** @todo SMP */
-    return VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)dbgfR3Attach, 1, pVM);
+    return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)dbgfR3Attach, 1, pVM);
 }
 
 
@@ -1170,7 +1261,10 @@ VMMR3DECL(int) DBGFR3Resume(PUVM pUVM)
     PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     AssertReturn(pVM->dbgf.s.fAttached, VERR_DBGF_NOT_ATTACHED);
-    AssertReturn(RTSemPongIsSpeaker(&pVM->dbgf.s.PingPong), VERR_SEM_OUT_OF_TURN);
+    if (RT_LIKELY(RTSemPongIsSpeaker(&pVM->dbgf.s.PingPong)))
+    { /* likely */ }
+    else
+        return VERR_SEM_OUT_OF_TURN;
 
     /*
      * Send the ping back to the emulation thread telling it to run.
@@ -1201,9 +1295,12 @@ VMMR3DECL(int) DBGFR3Step(PUVM pUVM, VMCPUID idCpu)
     UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
     PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(pVM->dbgf.s.fAttached, VERR_DBGF_NOT_ATTACHED);
-    AssertReturn(RTSemPongIsSpeaker(&pVM->dbgf.s.PingPong), VERR_SEM_OUT_OF_TURN);
     AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
+    AssertReturn(pVM->dbgf.s.fAttached, VERR_DBGF_NOT_ATTACHED);
+    if (RT_LIKELY(RTSemPongIsSpeaker(&pVM->dbgf.s.PingPong)))
+    { /* likely */ }
+    else
+        return VERR_SEM_OUT_OF_TURN;
 
     /*
      * Send the ping back to the emulation thread telling it to run.
@@ -1214,6 +1311,412 @@ VMMR3DECL(int) DBGFR3Step(PUVM pUVM, VMCPUID idCpu)
     AssertRC(rc);
     return rc;
 }
+
+
+
+/**
+ * dbgfR3EventConfigEx argument packet.
+ */
+typedef struct DBGFR3EVENTCONFIGEXARGS
+{
+    PCDBGFEVENTCONFIG   paConfigs;
+    size_t              cConfigs;
+    int                 rc;
+} DBGFR3EVENTCONFIGEXARGS;
+/** Pointer to a dbgfR3EventConfigEx argument packet. */
+typedef DBGFR3EVENTCONFIGEXARGS *PDBGFR3EVENTCONFIGEXARGS;
+
+
+/**
+ * @callback_method_impl{FNVMMEMTRENDEZVOUS, Worker for DBGFR3EventConfigEx.}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) dbgfR3EventConfigEx(PVM pVM, PVMCPU pVCpu, void *pvUser)
+{
+    if (pVCpu->idCpu == 0)
+    {
+        PDBGFR3EVENTCONFIGEXARGS        pArgs = (PDBGFR3EVENTCONFIGEXARGS)pvUser;
+        DBGFEVENTCONFIG volatile const *paConfigs = pArgs->paConfigs;
+        size_t                          cConfigs  = pArgs->cConfigs;
+
+        /*
+         * Apply the changes.
+         */
+        unsigned cChanges = 0;
+        for (uint32_t i = 0; i < cConfigs; i++)
+        {
+            DBGFEVENTTYPE enmType = paConfigs[i].enmType;
+            AssertReturn(enmType >= DBGFEVENT_FIRST_SELECTABLE && enmType < DBGFEVENT_END, VERR_INVALID_PARAMETER);
+            if (paConfigs[i].fEnabled)
+                cChanges += ASMAtomicBitTestAndSet(&pVM->dbgf.s.bmSelectedEvents, enmType) == false;
+            else
+                cChanges += ASMAtomicBitTestAndClear(&pVM->dbgf.s.bmSelectedEvents, enmType) == true;
+        }
+
+        /*
+         * Inform HM about changes.
+         */
+        if (cChanges > 0 && HMIsEnabled(pVM))
+        {
+            HMR3NotifyDebugEventChanged(pVM);
+            HMR3NotifyDebugEventChangedPerCpu(pVM, pVCpu);
+        }
+    }
+    else if (HMIsEnabled(pVM))
+        HMR3NotifyDebugEventChangedPerCpu(pVM, pVCpu);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Configures (enables/disables) multiple selectable debug events.
+ *
+ * @returns VBox status code.
+ * @param   pUVM        The user mode VM handle.
+ * @param   paConfigs   The event to configure and their new state.
+ * @param   cConfigs    Number of entries in @a paConfigs.
+ */
+VMMR3DECL(int) DBGFR3EventConfigEx(PUVM pUVM, PCDBGFEVENTCONFIG paConfigs, size_t cConfigs)
+{
+    /*
+     * Validate input.
+     */
+    size_t i = cConfigs;
+    while (i-- > 0)
+    {
+        AssertReturn(paConfigs[i].enmType >= DBGFEVENT_FIRST_SELECTABLE, VERR_INVALID_PARAMETER);
+        AssertReturn(paConfigs[i].enmType <  DBGFEVENT_END, VERR_INVALID_PARAMETER);
+    }
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+
+    /*
+     * Apply the changes in EMT(0) and rendezvous with the other CPUs so they
+     * can sync their data and execution with new debug state.
+     */
+    DBGFR3EVENTCONFIGEXARGS Args = { paConfigs, cConfigs, VINF_SUCCESS };
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ASCENDING | VMMEMTRENDEZVOUS_FLAGS_PRIORITY,
+                                dbgfR3EventConfigEx, &Args);
+    if (RT_SUCCESS(rc))
+        rc = Args.rc;
+    return rc;
+}
+
+
+/**
+ * Enables or disables a selectable debug event.
+ *
+ * @returns VBox status code.
+ * @param   pUVM        The user mode VM handle.
+ * @param   enmEvent    The selectable debug event.
+ * @param   fEnabled    The new state.
+ */
+VMMR3DECL(int) DBGFR3EventConfig(PUVM pUVM, DBGFEVENTTYPE enmEvent, bool fEnabled)
+{
+    /*
+     * Convert to an array call.
+     */
+    DBGFEVENTCONFIG EvtCfg = { enmEvent, fEnabled };
+    return DBGFR3EventConfigEx(pUVM, &EvtCfg, 1);
+}
+
+
+/**
+ * Checks if the given selectable event is enabled.
+ *
+ * @returns true if enabled, false if not or invalid input.
+ * @param   pUVM        The user mode VM handle.
+ * @param   enmEvent    The selectable debug event.
+ * @sa      DBGFR3EventQuery
+ */
+VMMR3DECL(bool) DBGFR3EventIsEnabled(PUVM pUVM, DBGFEVENTTYPE enmEvent)
+{
+    /*
+     * Validate input.
+     */
+    AssertReturn(   enmEvent >= DBGFEVENT_HALT_DONE
+                 && enmEvent <  DBGFEVENT_END, false);
+    Assert(   enmEvent >= DBGFEVENT_FIRST_SELECTABLE
+           || enmEvent == DBGFEVENT_BREAKPOINT
+           || enmEvent == DBGFEVENT_BREAKPOINT_IO
+           || enmEvent == DBGFEVENT_BREAKPOINT_MMIO);
+
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, false);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, false);
+
+    /*
+     * Check the event status.
+     */
+    return ASMBitTest(&pVM->dbgf.s.bmSelectedEvents, enmEvent);
+}
+
+
+/**
+ * Queries the status of a set of events.
+ *
+ * @returns VBox status code.
+ * @param   pUVM        The user mode VM handle.
+ * @param   paConfigs   The events to query and where to return the state.
+ * @param   cConfigs    The number of elements in @a paConfigs.
+ * @sa      DBGFR3EventIsEnabled, DBGF_IS_EVENT_ENABLED
+ */
+VMMR3DECL(int) DBGFR3EventQuery(PUVM pUVM, PDBGFEVENTCONFIG paConfigs, size_t cConfigs)
+{
+    /*
+     * Validate input.
+     */
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+
+    for (size_t i = 0; i < cConfigs; i++)
+    {
+        DBGFEVENTTYPE enmType = paConfigs[i].enmType;
+        AssertReturn(   enmType >= DBGFEVENT_HALT_DONE
+                     && enmType <  DBGFEVENT_END, VERR_INVALID_PARAMETER);
+        Assert(   enmType >= DBGFEVENT_FIRST_SELECTABLE
+               || enmType == DBGFEVENT_BREAKPOINT
+               || enmType == DBGFEVENT_BREAKPOINT_IO
+               || enmType == DBGFEVENT_BREAKPOINT_MMIO);
+        paConfigs[i].fEnabled = ASMBitTest(&pVM->dbgf.s.bmSelectedEvents, paConfigs[i].enmType);
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * dbgfR3InterruptConfigEx argument packet.
+ */
+typedef struct DBGFR3INTERRUPTCONFIGEXARGS
+{
+    PCDBGFINTERRUPTCONFIG   paConfigs;
+    size_t                  cConfigs;
+    int                     rc;
+} DBGFR3INTERRUPTCONFIGEXARGS;
+/** Pointer to a dbgfR3InterruptConfigEx argument packet. */
+typedef DBGFR3INTERRUPTCONFIGEXARGS *PDBGFR3INTERRUPTCONFIGEXARGS;
+
+/**
+ * @callback_method_impl{FNVMMEMTRENDEZVOUS,
+ *      Worker for DBGFR3InterruptConfigEx.}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) dbgfR3InterruptConfigEx(PVM pVM, PVMCPU pVCpu, void *pvUser)
+{
+    if (pVCpu->idCpu == 0)
+    {
+        PDBGFR3INTERRUPTCONFIGEXARGS    pArgs = (PDBGFR3INTERRUPTCONFIGEXARGS)pvUser;
+        PCDBGFINTERRUPTCONFIG           paConfigs = pArgs->paConfigs;
+        size_t                          cConfigs  = pArgs->cConfigs;
+
+        /*
+         * Apply the changes.
+         */
+        bool fChanged = false;
+        bool fThis;
+        for (uint32_t i = 0; i < cConfigs; i++)
+        {
+            /*
+             * Hardware interrupts.
+             */
+            if (paConfigs[i].enmHardState == DBGFINTERRUPTSTATE_ENABLED)
+            {
+                fChanged |= fThis = ASMAtomicBitTestAndSet(&pVM->dbgf.s.bmHardIntBreakpoints, paConfigs[i].iInterrupt) == false;
+                if (fThis)
+                {
+                    Assert(pVM->dbgf.s.cHardIntBreakpoints < 256);
+                    pVM->dbgf.s.cHardIntBreakpoints++;
+                }
+            }
+            else if (paConfigs[i].enmHardState == DBGFINTERRUPTSTATE_DISABLED)
+            {
+                fChanged |= fThis = ASMAtomicBitTestAndClear(&pVM->dbgf.s.bmHardIntBreakpoints, paConfigs[i].iInterrupt) == true;
+                if (fThis)
+                {
+                    Assert(pVM->dbgf.s.cHardIntBreakpoints > 0);
+                    pVM->dbgf.s.cHardIntBreakpoints--;
+                }
+            }
+
+            /*
+             * Software interrupts.
+             */
+            if (paConfigs[i].enmHardState == DBGFINTERRUPTSTATE_ENABLED)
+            {
+                fChanged |= fThis = ASMAtomicBitTestAndSet(&pVM->dbgf.s.bmSoftIntBreakpoints, paConfigs[i].iInterrupt) == false;
+                if (fThis)
+                {
+                    Assert(pVM->dbgf.s.cSoftIntBreakpoints < 256);
+                    pVM->dbgf.s.cSoftIntBreakpoints++;
+                }
+            }
+            else if (paConfigs[i].enmSoftState == DBGFINTERRUPTSTATE_DISABLED)
+            {
+                fChanged |= fThis = ASMAtomicBitTestAndClear(&pVM->dbgf.s.bmSoftIntBreakpoints, paConfigs[i].iInterrupt) == true;
+                if (fThis)
+                {
+                    Assert(pVM->dbgf.s.cSoftIntBreakpoints > 0);
+                    pVM->dbgf.s.cSoftIntBreakpoints--;
+                }
+            }
+        }
+
+        /*
+         * Update the event bitmap entries.
+         */
+        if (pVM->dbgf.s.cHardIntBreakpoints > 0)
+            fChanged |= ASMAtomicBitTestAndSet(&pVM->dbgf.s.bmSelectedEvents, DBGFEVENT_INTERRUPT_HARDWARE) == false;
+        else
+            fChanged |= ASMAtomicBitTestAndClear(&pVM->dbgf.s.bmSelectedEvents, DBGFEVENT_INTERRUPT_HARDWARE) == true;
+
+        if (pVM->dbgf.s.cSoftIntBreakpoints > 0)
+            fChanged |= ASMAtomicBitTestAndSet(&pVM->dbgf.s.bmSelectedEvents, DBGFEVENT_INTERRUPT_SOFTWARE) == false;
+        else
+            fChanged |= ASMAtomicBitTestAndClear(&pVM->dbgf.s.bmSelectedEvents, DBGFEVENT_INTERRUPT_SOFTWARE) == true;
+
+        /*
+         * Inform HM about changes.
+         */
+        if (fChanged && HMIsEnabled(pVM))
+        {
+            HMR3NotifyDebugEventChanged(pVM);
+            HMR3NotifyDebugEventChangedPerCpu(pVM, pVCpu);
+        }
+    }
+    else if (HMIsEnabled(pVM))
+        HMR3NotifyDebugEventChangedPerCpu(pVM, pVCpu);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Changes
+ *
+ * @returns VBox status code.
+ * @param   pUVM        The user mode VM handle.
+ * @param   paConfigs   The events to query and where to return the state.
+ * @param   cConfigs    The number of elements in @a paConfigs.
+ * @sa      DBGFR3InterruptConfigHardware, DBGFR3InterruptConfigSoftware
+ */
+VMMR3DECL(int) DBGFR3InterruptConfigEx(PUVM pUVM, PCDBGFINTERRUPTCONFIG paConfigs, size_t cConfigs)
+{
+    /*
+     * Validate input.
+     */
+    size_t i = cConfigs;
+    while (i-- > 0)
+    {
+        AssertReturn(paConfigs[i].enmHardState <= DBGFINTERRUPTSTATE_DONT_TOUCH, VERR_INVALID_PARAMETER);
+        AssertReturn(paConfigs[i].enmSoftState <= DBGFINTERRUPTSTATE_DONT_TOUCH, VERR_INVALID_PARAMETER);
+    }
+
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+
+    /*
+     * Apply the changes in EMT(0) and rendezvous with the other CPUs so they
+     * can sync their data and execution with new debug state.
+     */
+    DBGFR3INTERRUPTCONFIGEXARGS Args = { paConfigs, cConfigs, VINF_SUCCESS };
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ASCENDING | VMMEMTRENDEZVOUS_FLAGS_PRIORITY,
+                                dbgfR3InterruptConfigEx, &Args);
+    if (RT_SUCCESS(rc))
+        rc = Args.rc;
+    return rc;
+}
+
+
+/**
+ * Configures interception of a hardware interrupt.
+ *
+ * @returns VBox status code.
+ * @param   pUVM        The user mode VM handle.
+ * @param   iInterrupt  The interrupt number.
+ * @param   fEnabled    Whether interception is enabled or not.
+ * @sa      DBGFR3InterruptSoftwareConfig, DBGFR3InterruptConfigEx
+ */
+VMMR3DECL(int) DBGFR3InterruptHardwareConfig(PUVM pUVM, uint8_t iInterrupt, bool fEnabled)
+{
+    /*
+     * Convert to DBGFR3InterruptConfigEx call.
+     */
+    DBGFINTERRUPTCONFIG IntCfg = { iInterrupt, (uint8_t)fEnabled, DBGFINTERRUPTSTATE_DONT_TOUCH };
+    return DBGFR3InterruptConfigEx(pUVM, &IntCfg, 1);
+}
+
+
+/**
+ * Configures interception of a software interrupt.
+ *
+ * @returns VBox status code.
+ * @param   pUVM        The user mode VM handle.
+ * @param   iInterrupt  The interrupt number.
+ * @param   fEnabled    Whether interception is enabled or not.
+ * @sa      DBGFR3InterruptHardwareConfig, DBGFR3InterruptConfigEx
+ */
+VMMR3DECL(int) DBGFR3InterruptSoftwareConfig(PUVM pUVM, uint8_t iInterrupt, bool fEnabled)
+{
+    /*
+     * Convert to DBGFR3InterruptConfigEx call.
+     */
+    DBGFINTERRUPTCONFIG IntCfg = { iInterrupt, DBGFINTERRUPTSTATE_DONT_TOUCH, (uint8_t)fEnabled };
+    return DBGFR3InterruptConfigEx(pUVM, &IntCfg, 1);
+}
+
+
+/**
+ * Checks whether interception is enabled for a hardware interrupt.
+ *
+ * @returns true if enabled, false if not or invalid input.
+ * @param   pUVM        The user mode VM handle.
+ * @param   iInterrupt  The interrupt number.
+ * @sa      DBGFR3InterruptSoftwareIsEnabled, DBGF_IS_HARDWARE_INT_ENABLED,
+ *          DBGF_IS_SOFTWARE_INT_ENABLED
+ */
+VMMR3DECL(int) DBGFR3InterruptHardwareIsEnabled(PUVM pUVM, uint8_t iInterrupt)
+{
+    /*
+     * Validate input.
+     */
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, false);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, false);
+
+    /*
+     * Check it.
+     */
+    return ASMBitTest(&pVM->dbgf.s.bmHardIntBreakpoints, iInterrupt);
+}
+
+
+/**
+ * Checks whether interception is enabled for a software interrupt.
+ *
+ * @returns true if enabled, false if not or invalid input.
+ * @param   pUVM        The user mode VM handle.
+ * @param   iInterrupt  The interrupt number.
+ * @sa      DBGFR3InterruptHardwareIsEnabled, DBGF_IS_SOFTWARE_INT_ENABLED,
+ *          DBGF_IS_HARDWARE_INT_ENABLED,
+ */
+VMMR3DECL(int) DBGFR3InterruptSoftwareIsEnabled(PUVM pUVM, uint8_t iInterrupt)
+{
+    /*
+     * Validate input.
+     */
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, false);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, false);
+
+    /*
+     * Check it.
+     */
+    return ASMBitTest(&pVM->dbgf.s.bmSoftIntBreakpoints, iInterrupt);
+}
+
 
 
 /**

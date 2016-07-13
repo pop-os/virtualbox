@@ -60,6 +60,8 @@ static FNDBGCCMD dbgcCmdDumpPageHierarchy;
 static FNDBGCCMD dbgcCmdDumpPageTable;
 static FNDBGCCMD dbgcCmdDumpPageTableBoth;
 static FNDBGCCMD dbgcCmdDumpTSS;
+static FNDBGCCMD dbgcCmdDumpTypeInfo;
+static FNDBGCCMD dbgcCmdDumpTypedVal;
 static FNDBGCCMD dbgcCmdEditMem;
 static FNDBGCCMD dbgcCmdGo;
 static FNDBGCCMD dbgcCmdListModules;
@@ -72,6 +74,9 @@ static FNDBGCCMD dbgcCmdRegHyper;
 static FNDBGCCMD dbgcCmdRegTerse;
 static FNDBGCCMD dbgcCmdSearchMem;
 static FNDBGCCMD dbgcCmdSearchMemType;
+static FNDBGCCMD dbgcCmdEventCtrl;
+static FNDBGCCMD dbgcCmdEventCtrlList;
+static FNDBGCCMD dbgcCmdEventCtrlReset;
 static FNDBGCCMD dbgcCmdStack;
 static FNDBGCCMD dbgcCmdTrace;
 static FNDBGCCMD dbgcCmdUnassemble;
@@ -201,6 +206,25 @@ static const DBGCVARDESC    g_aArgDumpTSS[] =
 };
 
 
+/** 'dti' arguments. */
+static const DBGCVARDESC    g_aArgDumpTypeInfo[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "type",         "The type to dump" },
+    {  0,           1,          DBGCVAR_CAT_NUMBER,     0,                              "levels",       "How many levels to dump the type information" }
+};
+
+
+/** 'dtv' arguments. */
+static const DBGCVARDESC    g_aArgDumpTypedVal[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "type",         "The type to use" },
+    {  1,           1,          DBGCVAR_CAT_POINTER,    0,                              "address",      "Address to start dumping from." },
+    {  0,           1,          DBGCVAR_CAT_NUMBER,     0,                              "levels",       "How many levels to dump" }
+};
+
+
 /** 'e?' arguments. */
 static const DBGCVARDESC    g_aArgEditMem[] =
 {
@@ -278,6 +302,22 @@ static const DBGCVARDESC    g_aArgSearchMemType[] =
 };
 
 
+/** 'sxe', 'sxn', 'sxi', 'sx-' arguments. */
+static const DBGCVARDESC    g_aArgEventCtrl[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  0,           1,          DBGCVAR_CAT_STRING,     0,                              "-c",           "The -c option, requires <cmds>." },
+    {  0,           1,          DBGCVAR_CAT_STRING,     DBGCVD_FLAGS_DEP_PREV,          "cmds",         "Command to execute on this event." },
+    {  0 /*weird*/, ~0U,        DBGCVAR_CAT_STRING,     0,                              "event",        "One or more events, 'all' refering to all events." },
+};
+
+/** 'sx' and 'sr' arguments. */
+static const DBGCVARDESC    g_aArgEventCtrlOpt[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  0,           ~0U,        DBGCVAR_CAT_STRING,     0,                              "event",        "Zero or more events, 'all' refering to all events and being the default." },
+};
+
 /** 'u' arguments. */
 static const DBGCVARDESC    g_aArgUnassemble[] =
 {
@@ -331,6 +371,8 @@ const DBGCCMD    g_aCmdsCodeView[] =
     { "dt16",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),     0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 16-bit task state segment (TSS)." },
     { "dt32",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),     0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 32-bit task state segment (TSS)." },
     { "dt64",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),     0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 64-bit task state segment (TSS)." },
+    { "dti",        1,        2,        &g_aArgDumpTypeInfo[0],RT_ELEMENTS(g_aArgDumpTypeInfo), 0,   dbgcCmdDumpTypeInfo,"<type> [levels]",      "Dump type information." },
+    { "dtv",        2,        3,        &g_aArgDumpTypedVal[0],RT_ELEMENTS(g_aArgDumpTypedVal), 0,   dbgcCmdDumpTypedVal,"<type> <addr> [levels]", "Dump a memory buffer using the information in the given type." },
     { "dw",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),     0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in words." },
     /** @todo add 'e', 'ea str', 'eza str', 'eu str' and 'ezu str'. See also
      *        dbgcCmdSearchMem and its dbgcVarsToBytes usage. */
@@ -362,6 +404,12 @@ const DBGCCMD    g_aCmdsCodeView[] =
     { "sq",         2,       ~0U,       &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for one or more quad words." },
     { "su",         2,       ~0U,       &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for an unicode string." },
     { "sw",         2,       ~0U,       &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for one or more words." },
+    { "sx",         0,       ~0U,       &g_aArgEventCtrlOpt[0], RT_ELEMENTS(g_aArgEventCtrlOpt), 0,  dbgcCmdEventCtrlList,  "[<event> [..]]", "Lists settings for exceptions, exits and other events.  All if no filter is specified." },
+    { "sx-",        3,       ~0U,       &g_aArgEventCtrl[0], RT_ELEMENTS(g_aArgEventCtrl),  0,       dbgcCmdEventCtrl,      "-c <cmd> <event> [..]", "Modifies the command for one or more exceptions, exits or other event.  'all' addresses all." },
+    { "sxe",        1,       ~0U,       &g_aArgEventCtrl[0], RT_ELEMENTS(g_aArgEventCtrl),  0,       dbgcCmdEventCtrl,      "[-c <cmd>] <event> [..]", "Enable: Break into the debugger on the specified exceptions, exits and other events.  'all' addresses all." },
+    { "sxn",        1,       ~0U,       &g_aArgEventCtrl[0], RT_ELEMENTS(g_aArgEventCtrl),  0,       dbgcCmdEventCtrl,      "[-c <cmd>] <event> [..]", "Notify: Display info in the debugger and continue on the specified exceptions, exits and other events. 'all' addresses all." },
+    { "sxi",        1,       ~0U,       &g_aArgEventCtrl[0], RT_ELEMENTS(g_aArgEventCtrl),  0,       dbgcCmdEventCtrl,      "[-c <cmd>] <event> [..]", "Ignore: Ignore the specified exceptions, exits and other events ('all' = all of them).  Without the -c option, the guest runs like normal." },
+    { "sxr",        0,        0,        &g_aArgEventCtrlOpt[0], RT_ELEMENTS(g_aArgEventCtrlOpt), 0,  dbgcCmdEventCtrlReset, "",                    "Reset the settings to default for exceptions, exits and other events. All if no filter is specified." },
     { "t",          0,        0,        NULL,               0,                              0,       dbgcCmdTrace,       "",                     "Instruction trace (step into)." },
     { "u",          0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble." },
     { "u64",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 64-bit code." },
@@ -373,6 +421,165 @@ const DBGCCMD    g_aCmdsCodeView[] =
 /** The number of commands in the CodeView/WinDbg emulation. */
 const uint32_t g_cCmdsCodeView = RT_ELEMENTS(g_aCmdsCodeView);
 
+
+/**
+ * Selectable debug event descriptors.
+ *
+ * @remarks  Sorted by DBGCSXEVT::enmType value.
+ */
+const DBGCSXEVT g_aDbgcSxEvents[] =
+{
+    { DBGFEVENT_INTERRUPT_HARDWARE,     "hwint",                NULL,       kDbgcSxEventKind_Interrupt, kDbgcEvtState_Disabled, 0,                    "Hardware interrupt" },
+    { DBGFEVENT_INTERRUPT_SOFTWARE,     "swint",                NULL,       kDbgcSxEventKind_Interrupt, kDbgcEvtState_Disabled, 0,                    "Software interrupt" },
+    { DBGFEVENT_TRIPLE_FAULT,           "triplefault",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Enabled,  0,                    "Triple fault "},
+    { DBGFEVENT_XCPT_DE,                "xcpt_de",              "de",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#DE (integer divide error)" },
+    { DBGFEVENT_XCPT_DB,                "xcpt_db",              "db",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#DB (debug)" },
+    { DBGFEVENT_XCPT_02,                "xcpt_02",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_BP,                "xcpt_bp",              "bp",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#BP (breakpoint)" },
+    { DBGFEVENT_XCPT_OF,                "xcpt_of",              "of",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#OF (overflow (INTO))" },
+    { DBGFEVENT_XCPT_BR,                "xcpt_br",              "br",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#BR (bound range exceeded)" },
+    { DBGFEVENT_XCPT_UD,                "xcpt_ud",              "ud",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#UD (undefined opcode)" },
+    { DBGFEVENT_XCPT_NM,                "xcpt_nm",              "nm",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#NM (FPU not available)" },
+    { DBGFEVENT_XCPT_DF,                "xcpt_df",              "df",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#DF (double fault)" },
+    { DBGFEVENT_XCPT_09,                "xcpt_09",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "Coprocessor segment overrun" },
+    { DBGFEVENT_XCPT_TS,                "xcpt_ts",              "ts",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, "#TS (task switch)" },
+    { DBGFEVENT_XCPT_NP,                "xcpt_np",              "np",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, "#NP (segment not present)" },
+    { DBGFEVENT_XCPT_SS,                "xcpt_ss",              "ss",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, "#SS (stack segment fault)" },
+    { DBGFEVENT_XCPT_GP,                "xcpt_gp",              "gp",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, "#GP (general protection fault)" },
+    { DBGFEVENT_XCPT_PF,                "xcpt_pf",              "pf",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, "#PF (page fault)" },
+    { DBGFEVENT_XCPT_0f,                "xcpt_0f",              "xcpt0f",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_MF,                "xcpt_mf",              "mf",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#MF (math fault)" },
+    { DBGFEVENT_XCPT_AC,                "xcpt_ac",              "ac",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#AC (alignment check)" },
+    { DBGFEVENT_XCPT_MC,                "xcpt_mc",              "mc",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#MC (machine check)" },
+    { DBGFEVENT_XCPT_XF,                "xcpt_xf",              "xf",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#XF (SIMD floating-point exception)" },
+    { DBGFEVENT_XCPT_VE,                "xcpt_vd",              "ve",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    "#VE (virtualization exception)" },
+    { DBGFEVENT_XCPT_15,                "xcpt_15",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_16,                "xcpt_16",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_17,                "xcpt_17",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_18,                "xcpt_18",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_19,                "xcpt_19",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_1a,                "xcpt_1a",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_1b,                "xcpt_1b",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_1c,                "xcpt_1c",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_1d,                "xcpt_1d",              NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_XCPT_SX,                "xcpt_sx",              "sx",       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, "#SX (security exception)" },
+    { DBGFEVENT_XCPT_1f,                "xcpt_1f",              "xcpt1f",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_HALT,             "instr_halt",           "hlt",      kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_MWAIT,            "instr_mwait",          "mwait",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_MONITOR,          "instr_monitor",        "monitor",  kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_CPUID,            "instr_cpuid",          "cpuid",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_INVD,             "instr_invd",           "invd",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_WBINVD,           "instr_wbinvd",         "wbinvd",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_INVLPG,           "instr_invlpg",         "invlpg",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_RDTSC,            "instr_rdtsc",          "rdtsc",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_RDTSCP,           "instr_rdtscp",         "rdtscp",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_RDPMC,            "instr_rdpmc",          "rdpmc",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_RDMSR,            "instr_rdmsr",          "rdmsr",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_WRMSR,            "instr_wrmsr",          "wrmsr",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_CRX_READ,         "instr_crx_read",       "crx_read", kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, NULL },
+    { DBGFEVENT_INSTR_CRX_WRITE,        "instr_crx_write",      "crx_write",kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, NULL },
+    { DBGFEVENT_INSTR_DRX_READ,         "instr_drx_read",       "drx_read", kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, NULL },
+    { DBGFEVENT_INSTR_DRX_WRITE,        "instr_drx_write",      "drx_write",kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, DBGCSXEVT_F_TAKE_ARG, NULL },
+    { DBGFEVENT_INSTR_PAUSE,            "instr_pause",          "pause",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_XSETBV,           "instr_xsetbv",         "xsetbv",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_SIDT,             "instr_sidt",           "sidt",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_LIDT,             "instr_lidt",           "lidt",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_SGDT,             "instr_sgdt",           "sgdt",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_LGDT,             "instr_lgdt",           "lgdt",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_SLDT,             "instr_sldt",           "sldt",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_LLDT,             "instr_lldt",           "lldt",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_STR,              "instr_str",            "str",      kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_LTR,              "instr_ltr",            "ltr",      kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_GETSEC,           "instr_getsec",         "getsec",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_RSM,              "instr_rsm",            "rsm",      kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_RDRAND,           "instr_rdrand",         "rdrand",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_RDSEED,           "instr_rdseed",         "rdseed",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_XSAVES,           "instr_xsaves",         "xsaves",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_XRSTORS,          "instr_xrstors",        "xrstors",  kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMM_CALL,         "instr_vmm_call",       "vmm_call", kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMCLEAR,      "instr_vmx_vmclear",    "vmclear",  kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMLAUNCH,     "instr_vmx_vmlaunch",   "vmlaunch", kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMPTRLD,      "instr_vmx_vmptrld",    "vmptrld",  kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMPTRST,      "instr_vmx_vmptrst",    "vmptrst",  kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMREAD,       "instr_vmx_vmread",     "vmread",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMRESUME,     "instr_vmx_vmresume",   "vmresume", kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMWRITE,      "instr_vmx_vmwrite",    "vmwrite",  kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMXOFF,       "instr_vmx_vmxoff",     "vmxoff",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMXON,        "instr_vmx_vmxon",      "vmxon",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_VMFUNC,       "instr_vmx_vmfunc",     "vmfunc",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_INVEPT,       "instr_vmx_invept",     "invept",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_INVVPID,      "instr_vmx_invvpid",    "invvpid",  kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_VMX_INVPCID,      "instr_vmx_invpcid",    "invpcid",  kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_SVM_VMRUN,        "instr_svm_vmrun",      "vmrun",    kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_SVM_VMLOAD,       "instr_svm_vmload",     "vmload",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_SVM_VMSAVE,       "instr_svm_vmsave",     "vmsave",   kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_SVM_STGI,         "instr_svm_stgi",       "stgi",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_INSTR_SVM_CLGI,         "instr_svm_clgi",       "clgi",     kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_TASK_SWITCH,       "exit_task_switch",  "task_switch", kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_HALT,              "exit_halt",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_MWAIT,             "exit_mwait",           NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_MONITOR,           "exit_monitor",         NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_CPUID,             "exit_cpuid",           NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_INVD,              "exit_invd",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_WBINVD,            "exit_wbinvd",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_INVLPG,            "exit_invlpg",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_RDTSC,             "exit_rdtsc",           NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_RDTSCP,            "exit_rdtscp",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_RDPMC,             "exit_rdpmc",           NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_RDMSR,             "exit_rdmsr",           NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_WRMSR,             "exit_wrmsr",           NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_CRX_READ,          "exit_crx_read",        NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_CRX_WRITE,         "exit_crx_write",       NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_DRX_READ,          "exit_drx_read",        NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_DRX_WRITE,         "exit_drx_write",       NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_PAUSE,             "exit_pause",           NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_XSETBV,            "exit_xsetbv",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_SIDT,              "exit_sidt",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_LIDT,              "exit_lidt",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_SGDT,              "exit_sgdt",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_LGDT,              "exit_lgdt",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_SLDT,              "exit_sldt",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_LLDT,              "exit_lldt",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_STR,               "exit_str",             NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_LTR,               "exit_ltr",             NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_GETSEC,            "exit_getsec",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_RSM,               "exit_rsm",             NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_RDRAND,            "exit_rdrand",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_RDSEED,            "exit_rdseed",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_XSAVES,            "exit_xsaves",          NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_XRSTORS,           "exit_xrstors",         NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMM_CALL,          "exit_vmm_call",        NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMCLEAR,       "exit_vmx_vmclear",     NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMLAUNCH,      "exit_vmx_vmlaunch",    NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMPTRLD,       "exit_vmx_vmptrld",     NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMPTRST,       "exit_vmx_vmptrst",     NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMREAD,        "exit_vmx_vmread",      NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMRESUME,      "exit_vmx_vmresume",    NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMWRITE,       "exit_vmx_vmwrite",     NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMXOFF,        "exit_vmx_vmxoff",      NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMXON,         "exit_vmx_vmxon",       NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VMFUNC,        "exit_vmx_vmfunc",      NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_INVEPT,        "exit_vmx_invept",      NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_INVVPID,       "exit_vmx_invvpid",     NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_INVPCID,       "exit_vmx_invpcid",     NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_EPT_VIOLATION, "exit_vmx_ept_violation", "eptvio", kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_EPT_MISCONFIG, "exit_vmx_ept_misconfig", "eptmis", kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VAPIC_ACCESS,  "exit_vmx_vapic_access", NULL,      kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_VMX_VAPIC_WRITE,   "exit_vmx_vapic_write", NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_SVM_VMRUN,         "exit_svm_vmrun",       NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_SVM_VMLOAD,        "exit_svm_vmload",      NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_SVM_VMSAVE,        "exit_svm_vmsave",      NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_SVM_STGI,          "exit_svm_stgi",        NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_EXIT_SVM_CLGI,          "exit_svm_clgi",        NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_IOPORT_UNASSIGNED,      "pio_unassigned",       NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_IOPORT_UNUSED,          "pio_unused",           NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_MEMORY_UNASSIGNED,      "mmio_unassigned",      NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_MEMORY_ROM_WRITE,       "rom_write",            NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_BSOD_MSR,               "bsod_msr",             NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+    { DBGFEVENT_BSOD_EFI,               "bsod_efi",             NULL,       kDbgcSxEventKind_Plain,     kDbgcEvtState_Disabled, 0,                    NULL },
+};
+/** Number of entries in g_aDbgcSxEvents.  */
+const uint32_t   g_cDbgcSxEvents = RT_ELEMENTS(g_aDbgcSxEvents);
 
 
 
@@ -649,14 +856,17 @@ static DECLCALLBACK(int) dbgcEnumBreakpointsCallback(PUVM pUVM, void *pvUser, PC
     /*
      * BP type and size.
      */
-    char chType;
-    char cb = 1;
+    DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%#4x %c ", pBp->iBp, pBp->fEnabled ? 'e' : 'd');
+    bool fHasAddress = false;
     switch (pBp->enmType)
     {
         case DBGFBPTYPE_INT3:
-            chType = 'p';
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " p %RGv", pBp->u.Int3.GCPtr);
+            fHasAddress = true;
             break;
         case DBGFBPTYPE_REG:
+        {
+            char chType;
             switch (pBp->u.Reg.fType)
             {
                 case X86_DR7_RW_EO: chType = 'x'; break;
@@ -666,40 +876,74 @@ static DECLCALLBACK(int) dbgcEnumBreakpointsCallback(PUVM pUVM, void *pvUser, PC
                 default:            chType = '?'; break;
 
             }
-            cb = pBp->u.Reg.cb;
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%d %c %RGv", pBp->u.Reg.cb, chType, pBp->u.Reg.GCPtr);
+            fHasAddress = true;
             break;
-        case DBGFBPTYPE_REM:
-            chType = 'r';
-            break;
-        default:
-            chType = '?';
-            break;
-    }
+        }
 
-    DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%#4x %c %d %c %RGv %04RX64 (%04RX64 to ",
-                     pBp->iBp, pBp->fEnabled ? 'e' : 'd', (int)cb, chType,
-                     pBp->GCPtr, pBp->cHits, pBp->iHitTrigger);
+        case DBGFBPTYPE_REM:
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " r %RGv", pBp->u.Rem.GCPtr);
+            fHasAddress = true;
+            break;
+
+/** @todo realign the list when I/O and MMIO breakpoint command have been added and it's possible to test this code. */
+        case DBGFBPTYPE_PORT_IO:
+        case DBGFBPTYPE_MMIO:
+        {
+            uint32_t fAccess = pBp->enmType == DBGFBPTYPE_PORT_IO ? pBp->u.PortIo.fAccess : pBp->u.Mmio.fAccess;
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, pBp->enmType == DBGFBPTYPE_PORT_IO ?  " i" : " m");
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " %c%c%c%c%c%c",
+                             fAccess & DBGFBPIOACCESS_READ_MASK   ? 'r' : '-',
+                             fAccess & DBGFBPIOACCESS_READ_BYTE   ? '1' : '-',
+                             fAccess & DBGFBPIOACCESS_READ_WORD   ? '2' : '-',
+                             fAccess & DBGFBPIOACCESS_READ_DWORD  ? '4' : '-',
+                             fAccess & DBGFBPIOACCESS_READ_QWORD  ? '8' : '-',
+                             fAccess & DBGFBPIOACCESS_READ_OTHER  ? '+' : '-');
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " %c%c%c%c%c%c",
+                             fAccess & DBGFBPIOACCESS_WRITE_MASK  ? 'w' : '-',
+                             fAccess & DBGFBPIOACCESS_WRITE_BYTE  ? '1' : '-',
+                             fAccess & DBGFBPIOACCESS_WRITE_WORD  ? '2' : '-',
+                             fAccess & DBGFBPIOACCESS_WRITE_DWORD ? '4' : '-',
+                             fAccess & DBGFBPIOACCESS_WRITE_QWORD ? '8' : '-',
+                             fAccess & DBGFBPIOACCESS_WRITE_OTHER ? '+' : '-');
+            if (pBp->enmType == DBGFBPTYPE_PORT_IO)
+                DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " %04x-%04x",
+                                 pBp->u.PortIo.uPort, pBp->u.PortIo.uPort + pBp->u.PortIo.cPorts - 1);
+            else
+                DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%RGp LB %03x", pBp->u.Mmio.PhysAddr, pBp->u.Mmio.cb);
+            break;
+        }
+
+        default:
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " unknown type %d!!", pBp->enmType);
+            AssertFailed();
+            break;
+
+    }
     if (pBp->iHitDisable == ~(uint64_t)0)
-        DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "~0)  ");
+        DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " %04RX64 (%04RX64 to ~0)  ", pBp->cHits, pBp->iHitTrigger);
     else
-        DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%04RX64)", pBp->iHitDisable);
+        DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " %04RX64 (%04RX64 to %04RX64)", pBp->cHits, pBp->iHitTrigger, pBp->iHitDisable);
 
     /*
-     * Try resolve the address.
+     * Try resolve the address if it has one.
      */
-    RTDBGSYMBOL Sym;
-    RTINTPTR    off;
-    DBGFADDRESS Addr;
-    int rc = DBGFR3AsSymbolByAddr(pUVM, pDbgc->hDbgAs, DBGFR3AddrFromFlat(pDbgc->pUVM, &Addr, pBp->GCPtr),
-                                  RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL, &off, &Sym, NULL);
-    if (RT_SUCCESS(rc))
+    if (fHasAddress)
     {
-        if (!off)
-            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s", Sym.szName);
-        else if (off > 0)
-            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s+%RGv", Sym.szName, off);
-        else
-            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s-%RGv", Sym.szName, -off);
+        RTDBGSYMBOL Sym;
+        RTINTPTR    off;
+        DBGFADDRESS Addr;
+        int rc = DBGFR3AsSymbolByAddr(pUVM, pDbgc->hDbgAs, DBGFR3AddrFromFlat(pDbgc->pUVM, &Addr, pBp->u.GCPtr),
+                                      RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL, &off, &Sym, NULL);
+        if (RT_SUCCESS(rc))
+        {
+            if (!off)
+                DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s", Sym.szName);
+            else if (off > 0)
+                DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s+%RGv", Sym.szName, off);
+            else
+                DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s-%RGv", Sym.szName, -off);
+        }
     }
 
     /*
@@ -1837,13 +2081,13 @@ static int dbgcCmdDumpDTWorker64(PDBGCCMDHLP pCmdHlp, PCX86DESC64 pDesc, unsigne
             case X86_SEL_TYPE_SYS_386_INT_GATE:
             case X86_SEL_TYPE_SYS_386_TRAP_GATE:
             {
-                RTSEL sel = pDesc->au16[1];
-                uint64_t off =    pDesc->au16[0]
-                                | ((uint64_t)pDesc->au16[3] << 16)
-                                | ((uint64_t)pDesc->Gen.u32BaseHigh3 << 32);
-                rc = DBGCCmdHlpPrintf(pCmdHlp, "%04x %s Sel:Off=%04x:%016RX64     DPL=%d %s%s\n",
-                                        iEntry, s_apszTypes[pDesc->Gen.u4Type], sel, off,
-                                        pDesc->Gen.u2Dpl, pszPresent, pszHyper);
+                RTSEL sel = pDesc->Gate.u16Sel;
+                uint64_t off =            pDesc->Gate.u16OffsetLow
+                             | ((uint64_t)pDesc->Gate.u16OffsetHigh << 16)
+                             | ((uint64_t)pDesc->Gate.u32OffsetTop  << 32);
+                rc = DBGCCmdHlpPrintf(pCmdHlp, "%04x %s Sel:Off=%04x:%016RX64     DPL=%u %s IST=%u%s\n",
+                                        iEntry, s_apszTypes[pDesc->Gate.u4Type], sel, off,
+                                        pDesc->Gate.u2Dpl, pszPresent, pDesc->Gate.u3IST, pszHyper);
                 if (pfDblEntry)
                     *pfDblEntry = true;
                 break;
@@ -3244,14 +3488,14 @@ static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUV
     switch (enmTssType)
     {
         case kTss16:
-            cbTssMin = cbTssMax = sizeof(X86TSS16);
+            cbTssMin = cbTssMax = X86_SEL_TYPE_SYS_286_TSS_LIMIT_MIN + 1;
             break;
         case kTss32:
-            cbTssMin = RT_OFFSETOF(X86TSS32, IntRedirBitmap);
+            cbTssMin = X86_SEL_TYPE_SYS_386_TSS_LIMIT_MIN + 1;
             cbTssMax = _64K;
             break;
         case kTss64:
-            cbTssMin = RT_OFFSETOF(X86TSS64, IntRedirBitmap);
+            cbTssMin = X86_SEL_TYPE_SYS_386_TSS_LIMIT_MIN + 1;
             cbTssMax = _64K;
             break;
         default:
@@ -3321,7 +3565,7 @@ static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUV
             else
                 DBGCCmdHlpPrintf(pCmdHlp, "TSS32 at %Dv  (min=%04x)\n", &VarTssAddr, cbTssMin);
             DBGCCmdHlpPrintf(pCmdHlp,
-                             "eax=%08x bx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x\n"
+                             "eax=%08x ebx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x\n"
                              "eip=%08x esp=%08x ebp=%08x\n"
                              "cs=%04x  ss=%04x  ds=%04x  es=%04x  fs=%04x  gs=%04x         eflags=%08x\n"
                              "ss:esp0=%04x:%08x ss:esp1=%04x:%08x ss:esp2=%04x:%08x\n"
@@ -3443,6 +3687,189 @@ static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUV
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @callback_method_impl{FNDBGFR3TYPEDUMP, The 'dti' command dumper callback.}
+ */
+static DECLCALLBACK(int) dbgcCmdDumpTypeInfoCallback(uint32_t off, const char *pszField, uint32_t iLvl,
+                                                     const char *pszType, uint32_t fTypeFlags,
+                                                     uint32_t cElements, void *pvUser)
+{
+    PDBGCCMDHLP pCmdHlp = (PDBGCCMDHLP)pvUser;
+
+    /* Pad with spaces to match the level. */
+    for (uint32_t i = 0; i < iLvl; i++)
+        DBGCCmdHlpPrintf(pCmdHlp, "    ");
+
+    size_t cbWritten = 0;
+    DBGCCmdHlpPrintfEx(pCmdHlp, &cbWritten, "+0x%04x %s", off, pszField);
+    while (cbWritten < 32)
+    {
+        /* Fill with spaces to get proper aligning. */
+        DBGCCmdHlpPrintf(pCmdHlp, " ");
+        cbWritten++;
+    }
+
+    DBGCCmdHlpPrintf(pCmdHlp, ": ");
+    if (fTypeFlags & DBGFTYPEREGMEMBER_F_ARRAY)
+        DBGCCmdHlpPrintf(pCmdHlp, "[%u] ", cElements);
+    if (fTypeFlags & DBGFTYPEREGMEMBER_F_POINTER)
+        DBGCCmdHlpPrintf(pCmdHlp, "Ptr ");
+    DBGCCmdHlpPrintf(pCmdHlp, "%s\n", pszType);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'dti' command.}
+ */
+static DECLCALLBACK(int) dbgcCmdDumpTypeInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    int   rc;
+
+    DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, cArgs == 1 || cArgs == 2);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, paArgs[0].enmType == DBGCVAR_TYPE_STRING);
+    if (cArgs == 2)
+        DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, paArgs[1].enmType == DBGCVAR_TYPE_NUMBER);
+
+    uint32_t cLvlMax = cArgs == 2 ? (uint32_t)paArgs[1].u.u64Number : UINT32_MAX;
+    return DBGFR3TypeDumpEx(pUVM, paArgs[0].u.pszString, 0 /* fFlags */, cLvlMax,
+                            dbgcCmdDumpTypeInfoCallback, pCmdHlp);
+}
+
+
+static void dbgcCmdDumpTypedValCallbackBuiltin(PDBGCCMDHLP pCmdHlp, DBGFTYPEBUILTIN enmType, size_t cbType,
+                                               PDBGFTYPEVALBUF pValBuf)
+{
+    switch (enmType)
+    {
+        case DBGFTYPEBUILTIN_UINT8:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RU8", pValBuf->u8);
+            break;
+        case DBGFTYPEBUILTIN_INT8:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RI8", pValBuf->i8);
+            break;
+        case DBGFTYPEBUILTIN_UINT16:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RU16", pValBuf->u16);
+            break;
+        case DBGFTYPEBUILTIN_INT16:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RI16", pValBuf->i16);
+            break;
+        case DBGFTYPEBUILTIN_UINT32:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RU32", pValBuf->u32);
+            break;
+        case DBGFTYPEBUILTIN_INT32:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RI32", pValBuf->i32);
+            break;
+        case DBGFTYPEBUILTIN_UINT64:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RU64", pValBuf->u64);
+            break;
+        case DBGFTYPEBUILTIN_INT64:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RI64", pValBuf->i64);
+            break;
+        case DBGFTYPEBUILTIN_PTR32:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RX32", pValBuf->GCPtr);
+            break;
+        case DBGFTYPEBUILTIN_PTR64:
+            DBGCCmdHlpPrintf(pCmdHlp, "%RX64", pValBuf->GCPtr);
+            break;
+        case DBGFTYPEBUILTIN_PTR:
+            if (cbType == sizeof(uint32_t))
+                DBGCCmdHlpPrintf(pCmdHlp, "%RX32", pValBuf->GCPtr);
+            else if (cbType == sizeof(uint64_t))
+                DBGCCmdHlpPrintf(pCmdHlp, "%RX64", pValBuf->GCPtr);
+            else
+                DBGCCmdHlpPrintf(pCmdHlp, "<Unsupported pointer width %u>", cbType);
+            break;
+        case DBGFTYPEBUILTIN_SIZE:
+            if (cbType == sizeof(uint32_t))
+                DBGCCmdHlpPrintf(pCmdHlp, "%RU32", pValBuf->size);
+            else if (cbType == sizeof(uint64_t))
+                DBGCCmdHlpPrintf(pCmdHlp, "%RU64", pValBuf->size);
+            else
+                DBGCCmdHlpPrintf(pCmdHlp, "<Unsupported size width %u>", cbType);
+            break;
+        case DBGFTYPEBUILTIN_FLOAT32:
+        case DBGFTYPEBUILTIN_FLOAT64:
+        case DBGFTYPEBUILTIN_COMPOUND:
+        default:
+            AssertMsgFailed(("Invalid built-in type: %d\n", enmType));
+    }
+}
+
+/**
+ * @callback_method_impl{FNDBGFR3TYPEDUMP, The 'dtv' command dumper callback.}
+ */
+static DECLCALLBACK(int) dbgcCmdDumpTypedValCallback(uint32_t off, const char *pszField, uint32_t iLvl,
+                                                     DBGFTYPEBUILTIN enmType, size_t cbType,
+                                                     PDBGFTYPEVALBUF pValBuf, uint32_t cValBufs,
+                                                     void *pvUser)
+{
+    PDBGCCMDHLP pCmdHlp = (PDBGCCMDHLP)pvUser;
+
+    /* Pad with spaces to match the level. */
+    for (uint32_t i = 0; i < iLvl; i++)
+        DBGCCmdHlpPrintf(pCmdHlp, "    ");
+
+    size_t cbWritten = 0;
+    DBGCCmdHlpPrintfEx(pCmdHlp, &cbWritten, "+0x%04x %s", off, pszField);
+    while (cbWritten < 32)
+    {
+        /* Fill with spaces to get proper aligning. */
+        DBGCCmdHlpPrintf(pCmdHlp, " ");
+        cbWritten++;
+    }
+
+    DBGCCmdHlpPrintf(pCmdHlp, ": ");
+    if (cValBufs > 1)
+        DBGCCmdHlpPrintf(pCmdHlp, "[%u] [ ", cValBufs);
+
+    for (uint32_t i = 0; i < cValBufs; i++)
+    {
+        dbgcCmdDumpTypedValCallbackBuiltin(pCmdHlp, enmType, cbType, pValBuf);
+        if (i < cValBufs - 1)
+            DBGCCmdHlpPrintf(pCmdHlp, " , ");
+        pValBuf++;
+    }
+
+    if (cValBufs > 1)
+        DBGCCmdHlpPrintf(pCmdHlp, " ]");
+    DBGCCmdHlpPrintf(pCmdHlp, "\n");
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'dtv' command.}
+ */
+static DECLCALLBACK(int) dbgcCmdDumpTypedVal(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    int   rc;
+
+    DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, cArgs == 2 || cArgs == 3);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, paArgs[0].enmType == DBGCVAR_TYPE_STRING);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, DBGCVAR_ISGCPOINTER(paArgs[1].enmType));
+    if (cArgs == 3)
+        DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, paArgs[2].enmType == DBGCVAR_TYPE_NUMBER);
+
+    /*
+     * Make DBGF address and fix the range.
+     */
+    DBGFADDRESS Address;
+    rc = pCmdHlp->pfnVarToDbgfAddr(pCmdHlp, &paArgs[1], &Address);
+    if (RT_FAILURE(rc))
+        return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "VarToDbgfAddr(,%Dv,)\n", &paArgs[1]);
+
+    uint32_t cLvlMax = cArgs == 3 ? (uint32_t)paArgs[2].u.u64Number : UINT32_MAX;
+    return DBGFR3TypeValDumpEx(pUVM, &Address, paArgs[0].u.pszString, 0 /* fFlags */, cLvlMax,
+                            dbgcCmdDumpTypedValCallback, pCmdHlp);
+}
 
 /**
  * @callback_method_impl{FNDBGCCMD, The 'm' command.}
@@ -3888,6 +4315,629 @@ static DECLCALLBACK(int) dbgcCmdSearchMemType(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHl
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, cArgs >= 2 && DBGCVAR_ISGCPOINTER(paArgs[0].enmType));
     return dbgcCmdWorkerSearchMem(pCmdHlp, pUVM, &paArgs[0], 25, pCmd->pszCmd[1], paArgs + 1, cArgs - 1, NULL);
 }
+
+
+/**
+ * Matching function for interrupts event names.
+ *
+ * This parses the interrupt number and length.
+ *
+ * @returns True if match, false if not.
+ * @param   pPattern    The user specified pattern to match.
+ * @param   pszEvtName  The event name.
+ * @param   pCmdHlp     Command helpers for warning about malformed stuff.
+ * @param   piFirst     Where to return start interrupt number on success.
+ * @param   pcInts      Where to return the number of interrupts on success.
+ */
+static bool dbgcEventIsMatchingInt(PCDBGCVAR pPattern, const char *pszEvtName, PDBGCCMDHLP pCmdHlp,
+                                   uint8_t *piFirst, uint16_t *pcInts)
+{
+    /*
+     * Ignore trailing hex digits when comparing with the event base name.
+     */
+    const char *pszPattern = pPattern->u.pszString;
+    const char *pszEnd = RTStrEnd(pszPattern, RTSTR_MAX);
+    while (   (uintptr_t)pszEnd > (uintptr_t)pszPattern
+           && RT_C_IS_XDIGIT(pszEnd[-1]))
+        pszEnd -= 1;
+    if (RTStrSimplePatternNMatch(pszPattern, pszEnd - pszPattern, pszEvtName, RTSTR_MAX))
+    {
+        /*
+         * Parse the index and length.
+         */
+        if (!*pszEnd)
+            *piFirst = 0;
+        else
+        {
+            int rc = RTStrToUInt8Full(pszEnd, 16, piFirst);
+            if (rc != VINF_SUCCESS)
+            {
+                if (RT_FAILURE(rc))
+                    *piFirst = 0;
+                DBGCCmdHlpPrintf(pCmdHlp, "Warning: %Rrc parsing '%s' - interpreting it as %#x\n", rc, pszEnd, *piFirst);
+            }
+        }
+
+        if (pPattern->enmRangeType == DBGCVAR_RANGE_NONE)
+            *pcInts = 1;
+        else
+            *pcInts = RT_MAX(RT_MIN((uint16_t)pPattern->u64Range, 256 - *piFirst), 1);
+        return true;
+    }
+    return false;
+}
+
+
+/**
+ * Updates a DBGC event config.
+ *
+ * @returns VINF_SUCCESS or VERR_NO_MEMORY.
+ * @param   ppEvtCfg        The event configuration entry to update.
+ * @param   pszCmd          The new command. Leave command alone if NULL.
+ * @param   enmEvtState     The new event state.
+ * @param   fChangeCmdOnly  Whether to only update the command.
+ */
+static int dbgcEventUpdate(PDBGCEVTCFG *ppEvtCfg, const char *pszCmd, DBGCEVTSTATE enmEvtState, bool fChangeCmdOnly)
+{
+    PDBGCEVTCFG pEvtCfg = *ppEvtCfg;
+
+    /*
+     * If we've got a command string, update the command too.
+     */
+    if (pszCmd)
+    {
+        size_t cchCmd = strlen(pszCmd);
+        if (   !cchCmd
+            && (  !fChangeCmdOnly
+                ? enmEvtState == kDbgcEvtState_Disabled
+                : !pEvtCfg || pEvtCfg->enmState == kDbgcEvtState_Disabled))
+        {
+            /* NULL entry is fine if no command and disabled. */
+            RTMemFree(pEvtCfg);
+            *ppEvtCfg = NULL;
+        }
+        else
+        {
+            if (!pEvtCfg || pEvtCfg->cchCmd < cchCmd)
+            {
+                RTMemFree(pEvtCfg);
+                *ppEvtCfg = pEvtCfg = (PDBGCEVTCFG)RTMemAlloc(RT_OFFSETOF(DBGCEVTCFG, szCmd[cchCmd + 1]));
+                if (!pEvtCfg)
+                    return VERR_NO_MEMORY;
+            }
+            pEvtCfg->enmState = enmEvtState;
+            pEvtCfg->cchCmd   = cchCmd;
+            memcpy(pEvtCfg->szCmd, pszCmd, cchCmd + 1);
+        }
+    }
+    /*
+     * Update existing or enable new.  If NULL and not enabled, we can keep it that way.
+     */
+    else if (pEvtCfg || enmEvtState != kDbgcEvtState_Disabled)
+    {
+        if (!pEvtCfg)
+        {
+            *ppEvtCfg = pEvtCfg = (PDBGCEVTCFG)RTMemAlloc(sizeof(DBGCEVTCFG));
+            if (!pEvtCfg)
+                return VERR_NO_MEMORY;
+            pEvtCfg->cchCmd = 0;
+            pEvtCfg->szCmd[0] = '\0';
+        }
+        pEvtCfg->enmState = enmEvtState;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Record one settings change for a plain event.
+ *
+ * @returns The new @a cIntCfgs value.
+ * @param   paEventCfgs The event setttings array.  Must have DBGFEVENT_END
+ *                      entries.
+ * @param   cEventCfgs  The current number of entries in @a paEventCfgs.
+ * @param   enmType     The event to change the settings for.
+ * @param   enmEvtState The new event state.
+ * @param   iSxEvt      Index into the g_aDbgcSxEvents array.
+ *
+ * @remarks We use abUnused[0] for the enmEvtState, while abUnused[1] and
+ *          abUnused[2] are used for iSxEvt.
+ */
+static uint32_t dbgcEventAddPlainConfig(PDBGFEVENTCONFIG paEventCfgs, uint32_t cEventCfgs, DBGFEVENTTYPE enmType,
+                                        DBGCEVTSTATE enmEvtState, uint16_t iSxEvt)
+{
+    uint32_t iCfg;
+    for (iCfg = 0; iCfg < cEventCfgs; iCfg++)
+        if (paEventCfgs[iCfg].enmType == enmType)
+            break;
+    if (iCfg == cEventCfgs)
+    {
+        Assert(cEventCfgs < DBGFEVENT_END);
+        paEventCfgs[iCfg].enmType = enmType;
+        cEventCfgs++;
+    }
+    paEventCfgs[iCfg].fEnabled    = enmEvtState > kDbgcEvtState_Disabled;
+    paEventCfgs[iCfg].abUnused[0] = enmEvtState;
+    paEventCfgs[iCfg].abUnused[1] = (uint8_t)iSxEvt;
+    paEventCfgs[iCfg].abUnused[2] = (uint8_t)(iSxEvt >> 8);
+    return cEventCfgs;
+}
+
+
+/**
+ * Record one or more interrupt event config changes.
+ *
+ * @returns The new @a cIntCfgs value.
+ * @param   paIntCfgs   Interrupt confiruation array. Must have 256 entries.
+ * @param   cIntCfgs    The current number of entries in @a paIntCfgs.
+ * @param   iInt        The interrupt number to start with.
+ * @param   cInts       The number of interrupts to change.
+ * @param   pszName     The settings name (hwint/swint).
+ * @param   enmEvtState The new event state.
+ * @param   bIntOp      The new DBGF interrupt state.
+ */
+static uint32_t dbgcEventAddIntConfig(PDBGFINTERRUPTCONFIG paIntCfgs, uint32_t cIntCfgs, uint8_t iInt, uint16_t cInts,
+                                      const char *pszName, DBGCEVTSTATE enmEvtState, uint8_t bIntOp)
+{
+    bool const fHwInt = *pszName == 'h';
+
+    bIntOp |= (uint8_t)enmEvtState << 4;
+    uint8_t const   bSoftState = !fHwInt ? bIntOp : DBGFINTERRUPTSTATE_DONT_TOUCH;
+    uint8_t const   bHardState = fHwInt  ? bIntOp : DBGFINTERRUPTSTATE_DONT_TOUCH;
+
+    while (cInts > 0)
+    {
+        uint32_t iCfg;
+        for (iCfg = 0; iCfg < cIntCfgs; iCfg++)
+            if (paIntCfgs[iCfg].iInterrupt == iInt)
+                break;
+        if (iCfg == cIntCfgs)
+            break;
+        if (fHwInt)
+            paIntCfgs[iCfg].enmHardState = bHardState;
+        else
+            paIntCfgs[iCfg].enmSoftState = bSoftState;
+        iInt++;
+        cInts--;
+    }
+
+    while (cInts > 0)
+    {
+        Assert(cIntCfgs < 256);
+        paIntCfgs[cIntCfgs].iInterrupt   = iInt;
+        paIntCfgs[cIntCfgs].enmHardState = bHardState;
+        paIntCfgs[cIntCfgs].enmSoftState = bSoftState;
+        cIntCfgs++;
+        iInt++;
+        cInts--;
+    }
+
+    return cIntCfgs;
+}
+
+
+/**
+ * Applies event settings changes to DBGC and DBGF.
+ *
+ * @returns VBox status code (fully bitched)
+ * @param   pCmdHlp         The command helpers.
+ * @param   pUVM            The user mode VM handle.
+ * @param   paIntCfgs       Interrupt configuration array.  We use the upper 4
+ *                          bits of the settings for the DBGCEVTSTATE.  This
+ *                          will be cleared.
+ * @param   cIntCfgs        Number of interrupt configuration changes.
+ * @param   paEventCfgs     The generic event configuration array.  We use the
+ *                          abUnused[0] member for the DBGCEVTSTATE, and
+ *                          abUnused[2:1] for the g_aDbgcSxEvents index.
+ * @param   cEventCfgs      The number of generic event settings changes.
+ * @param   pszCmd          The commands to associate with the changed events.
+ *                          If this is NULL, don't touch the command.
+ * @param   fChangeCmdOnly  Whether to only change the commands (sx-).
+ */
+static int dbgcEventApplyChanges(PDBGCCMDHLP pCmdHlp, PUVM pUVM, PDBGFINTERRUPTCONFIG paIntCfgs, uint32_t cIntCfgs,
+                                 PCDBGFEVENTCONFIG paEventCfgs, uint32_t cEventCfgs, const char *pszCmd, bool fChangeCmdOnly)
+{
+    int rc;
+
+    /*
+     * Apply changes to DBGC.  This can only fail with out of memory error.
+     */
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    if (cIntCfgs)
+        for (uint32_t iCfg = 0; iCfg < cIntCfgs; iCfg++)
+        {
+            DBGCEVTSTATE enmEvtState = (DBGCEVTSTATE)(paIntCfgs[iCfg].enmHardState >> 4);
+            paIntCfgs[iCfg].enmHardState &= 0xf;
+            if (paIntCfgs[iCfg].enmHardState != DBGFINTERRUPTSTATE_DONT_TOUCH)
+            {
+                rc = dbgcEventUpdate(&pDbgc->apHardInts[paIntCfgs[iCfg].iInterrupt], pszCmd, enmEvtState, fChangeCmdOnly);
+                if (RT_FAILURE(rc))
+                    return rc;
+            }
+
+            enmEvtState = (DBGCEVTSTATE)(paIntCfgs[iCfg].enmSoftState >> 4);
+            paIntCfgs[iCfg].enmSoftState &= 0xf;
+            if (paIntCfgs[iCfg].enmSoftState != DBGFINTERRUPTSTATE_DONT_TOUCH)
+            {
+                rc = dbgcEventUpdate(&pDbgc->apSoftInts[paIntCfgs[iCfg].iInterrupt], pszCmd, enmEvtState, fChangeCmdOnly);
+                if (RT_FAILURE(rc))
+                    return rc;
+            }
+        }
+
+    if (cEventCfgs)
+    {
+        for (uint32_t iCfg = 0; iCfg < cEventCfgs; iCfg++)
+        {
+            Assert((unsigned)paEventCfgs[iCfg].enmType < RT_ELEMENTS(pDbgc->apEventCfgs));
+            uint16_t iSxEvt = RT_MAKE_U16(paEventCfgs[iCfg].abUnused[1], paEventCfgs[iCfg].abUnused[2]);
+            Assert(iSxEvt < RT_ELEMENTS(g_aDbgcSxEvents));
+            rc = dbgcEventUpdate(&pDbgc->apEventCfgs[iSxEvt], pszCmd, (DBGCEVTSTATE)paEventCfgs[iCfg].abUnused[0], fChangeCmdOnly);
+            if (RT_FAILURE(rc))
+                return rc;
+        }
+    }
+
+    /*
+     * Apply changes to DBGF.
+     */
+    if (!fChangeCmdOnly)
+    {
+        if (cIntCfgs)
+        {
+            rc = DBGFR3InterruptConfigEx(pUVM, paIntCfgs, cIntCfgs);
+            if (RT_FAILURE(rc))
+                return DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGFR3InterruptConfigEx: %Rrc\n", rc);
+        }
+        if (cEventCfgs)
+        {
+            rc = DBGFR3EventConfigEx(pUVM, paEventCfgs, cEventCfgs);
+            if (RT_FAILURE(rc))
+                return DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGFR3EventConfigEx: %Rrc\n", rc);
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'sx[eni-]' commands.}
+ */
+static DECLCALLBACK(int) dbgcCmdEventCtrl(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    /*
+     * Figure out which command this is.
+     */
+    uint8_t         bIntOp;
+    DBGCEVTSTATE    enmEvtState;
+    bool            fChangeCmdOnly;
+    switch (pCmd->pszCmd[2])
+    {
+        case 'e': bIntOp = DBGFINTERRUPTSTATE_ENABLED;  enmEvtState = kDbgcEvtState_Enabled;  fChangeCmdOnly = false; break;
+        case 'n': bIntOp = DBGFINTERRUPTSTATE_ENABLED;  enmEvtState = kDbgcEvtState_Notify;   fChangeCmdOnly = false; break;
+        case '-': bIntOp = DBGFINTERRUPTSTATE_ENABLED;  enmEvtState = kDbgcEvtState_Invalid;  fChangeCmdOnly = true;  break;
+        case 'i': bIntOp = DBGFINTERRUPTSTATE_DISABLED; enmEvtState = kDbgcEvtState_Disabled; fChangeCmdOnly = false; break;
+        default:
+            return DBGCCmdHlpVBoxError(pCmdHlp, VERR_INVALID_PARAMETER, "pszCmd=%s\n", pCmd->pszCmd);
+    }
+
+    /*
+     * Command option.
+     */
+    unsigned    iArg = 0;
+    const char *pszCmd = NULL;
+    if (   cArgs >= iArg + 2
+        && paArgs[iArg].enmType == DBGCVAR_TYPE_STRING
+        && paArgs[iArg + 1].enmType == DBGCVAR_TYPE_STRING
+        && strcmp(paArgs[iArg].u.pszString, "-c") == 0)
+    {
+        pszCmd = paArgs[iArg + 1].u.pszString;
+        iArg += 2;
+    }
+    if (fChangeCmdOnly && !pszCmd)
+        return DBGCCmdHlpVBoxError(pCmdHlp, VERR_INVALID_PARAMETER, "The 'sx-' requires the '-c cmd' arguments.\n");
+
+    /*
+     * The remaining arguments are event specifiers to which the operation should be applied.
+     */
+    uint32_t            cIntCfgs   = 0;
+    DBGFINTERRUPTCONFIG aIntCfgs[256];
+    uint32_t            cEventCfgs = 0;
+    DBGFEVENTCONFIG     aEventCfgs[DBGFEVENT_END];
+
+    for (; iArg < cArgs; iArg++)
+    {
+        DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, iArg, paArgs[iArg].enmType == DBGCVAR_TYPE_STRING
+                                                        || paArgs[iArg].enmType == DBGCVAR_TYPE_SYMBOL);
+        uint32_t cHits = 0;
+        for (uint32_t iEvt = 0; iEvt < RT_ELEMENTS(g_aDbgcSxEvents); iEvt++)
+            if (g_aDbgcSxEvents[iEvt].enmKind == kDbgcSxEventKind_Plain)
+            {
+                if (   RTStrSimplePatternMatch(paArgs[iArg].u.pszString, g_aDbgcSxEvents[iEvt].pszName)
+                    || (   g_aDbgcSxEvents[iEvt].pszAltNm
+                        && RTStrSimplePatternMatch(paArgs[iArg].u.pszString, g_aDbgcSxEvents[iEvt].pszAltNm)) )
+                {
+                    cEventCfgs = dbgcEventAddPlainConfig(aEventCfgs, cEventCfgs, g_aDbgcSxEvents[iEvt].enmType,
+                                                         enmEvtState, iEvt);
+                    cHits++;
+                }
+            }
+            else
+            {
+                Assert(g_aDbgcSxEvents[iEvt].enmKind == kDbgcSxEventKind_Interrupt);
+                uint8_t  iInt;
+                uint16_t cInts;
+                if (dbgcEventIsMatchingInt(&paArgs[iArg], g_aDbgcSxEvents[iEvt].pszName, pCmdHlp, &iInt, &cInts))
+                {
+                    cIntCfgs = dbgcEventAddIntConfig(aIntCfgs, cIntCfgs, iInt, cInts, g_aDbgcSxEvents[iEvt].pszName,
+                                                     enmEvtState, bIntOp);
+                    cHits++;
+                }
+            }
+        if (!cHits)
+            return DBGCCmdHlpVBoxError(pCmdHlp, VERR_INVALID_PARAMETER, "Unknown event: '%s'\n", paArgs[iArg].u.pszString);
+    }
+
+    /*
+     * Apply the changes.
+     */
+    return dbgcEventApplyChanges(pCmdHlp, pUVM, aIntCfgs, cIntCfgs, aEventCfgs, cEventCfgs, pszCmd, fChangeCmdOnly);
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'sxr' commands.}
+ */
+static DECLCALLBACK(int) dbgcCmdEventCtrlReset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    uint32_t            cEventCfgs = 0;
+    DBGFEVENTCONFIG     aEventCfgs[DBGFEVENT_END];
+    uint32_t            cIntCfgs   = 0;
+    DBGFINTERRUPTCONFIG aIntCfgs[256];
+
+    if (cArgs == 0)
+    {
+        /*
+         * All events.
+         */
+        for (uint32_t iInt = 0; iInt < 256; iInt++)
+        {
+            aIntCfgs[iInt].iInterrupt   = iInt;
+            aIntCfgs[iInt].enmHardState = DBGFINTERRUPTSTATE_DONT_TOUCH;
+            aIntCfgs[iInt].enmSoftState = DBGFINTERRUPTSTATE_DONT_TOUCH;
+        }
+        cIntCfgs = 256;
+
+        for (uint32_t iEvt = 0; iEvt < RT_ELEMENTS(g_aDbgcSxEvents); iEvt++)
+            if (g_aDbgcSxEvents[iEvt].enmKind == kDbgcSxEventKind_Plain)
+            {
+                aEventCfgs[cEventCfgs].enmType     = g_aDbgcSxEvents[iEvt].enmType;
+                aEventCfgs[cEventCfgs].fEnabled    = g_aDbgcSxEvents[iEvt].enmDefault > kDbgcEvtState_Disabled;
+                aEventCfgs[cEventCfgs].abUnused[0] = g_aDbgcSxEvents[iEvt].enmDefault;
+                aEventCfgs[cEventCfgs].abUnused[1] = (uint8_t)iEvt;
+                aEventCfgs[cEventCfgs].abUnused[2] = (uint8_t)(iEvt >> 8);
+                cEventCfgs++;
+            }
+            else
+            {
+                uint8_t const bState = (  g_aDbgcSxEvents[iEvt].enmDefault > kDbgcEvtState_Disabled
+                                        ? DBGFINTERRUPTSTATE_ENABLED : DBGFINTERRUPTSTATE_DISABLED)
+                                     | ((uint8_t)g_aDbgcSxEvents[iEvt].enmDefault << 4);
+                if (strcmp(g_aDbgcSxEvents[iEvt].pszName, "hwint") == 0)
+                    for (uint32_t iInt = 0; iInt < 256; iInt++)
+                        aIntCfgs[iInt].enmHardState = bState;
+                else
+                    for (uint32_t iInt = 0; iInt < 256; iInt++)
+                        aIntCfgs[iInt].enmSoftState = bState;
+            }
+    }
+    else
+    {
+        /*
+         * Selected events.
+         */
+        for (uint32_t iArg = 0; iArg < cArgs; iArg++)
+        {
+            unsigned cHits = 0;
+            for (uint32_t iEvt = 0; iEvt < RT_ELEMENTS(g_aDbgcSxEvents); iEvt++)
+                if (g_aDbgcSxEvents[iEvt].enmKind == kDbgcSxEventKind_Plain)
+                {
+                    if (   RTStrSimplePatternMatch(paArgs[iArg].u.pszString, g_aDbgcSxEvents[iEvt].pszName)
+                        || (   g_aDbgcSxEvents[iEvt].pszAltNm
+                            && RTStrSimplePatternMatch(paArgs[iArg].u.pszString, g_aDbgcSxEvents[iEvt].pszAltNm)) )
+                    {
+                        cEventCfgs = dbgcEventAddPlainConfig(aEventCfgs, cEventCfgs, g_aDbgcSxEvents[iEvt].enmType,
+                                                             g_aDbgcSxEvents[iEvt].enmDefault, iEvt);
+                        cHits++;
+                    }
+                }
+                else
+                {
+                    Assert(g_aDbgcSxEvents[iEvt].enmKind == kDbgcSxEventKind_Interrupt);
+                    uint8_t  iInt;
+                    uint16_t cInts;
+                    if (dbgcEventIsMatchingInt(&paArgs[iArg], g_aDbgcSxEvents[iEvt].pszName, pCmdHlp, &iInt, &cInts))
+                    {
+                        cIntCfgs = dbgcEventAddIntConfig(aIntCfgs, cIntCfgs, iInt, cInts, g_aDbgcSxEvents[iEvt].pszName,
+                                                         g_aDbgcSxEvents[iEvt].enmDefault,
+                                                         g_aDbgcSxEvents[iEvt].enmDefault > kDbgcEvtState_Disabled
+                                                         ? DBGFINTERRUPTSTATE_ENABLED : DBGFINTERRUPTSTATE_DISABLED);
+                        cHits++;
+                    }
+                }
+            if (!cHits)
+                return DBGCCmdHlpVBoxError(pCmdHlp, VERR_INVALID_PARAMETER, "Unknown event: '%s'\n", paArgs[iArg].u.pszString);
+        }
+    }
+
+    /*
+     * Apply the reset changes.
+     */
+    return dbgcEventApplyChanges(pCmdHlp, pUVM, aIntCfgs, cIntCfgs, aEventCfgs, cEventCfgs, "", false);
+}
+
+
+/**
+ * Used during DBGC initialization to configure events with defaults.
+ *
+ * @returns VBox status code.
+ * @param   pDbgc       The DBGC instance.
+ */
+void dbgcEventInit(PDBGC pDbgc)
+{
+    if (pDbgc->pUVM)
+        dbgcCmdEventCtrlReset(NULL, &pDbgc->CmdHlp, pDbgc->pUVM, NULL, 0);
+}
+
+
+/**
+ * Used during DBGC termination to disable all events.
+ *
+ * @param   pDbgc       The DBGC instance.
+ */
+void dbgcEventTerm(PDBGC pDbgc)
+{
+/** @todo need to do more than just reset later. */
+    if (pDbgc->pUVM && VMR3GetStateU(pDbgc->pUVM) < VMSTATE_DESTROYING)
+        dbgcCmdEventCtrlReset(NULL, &pDbgc->CmdHlp, pDbgc->pUVM, NULL, 0);
+}
+
+
+static void dbgcEventDisplay(PDBGCCMDHLP pCmdHlp, const char *pszName, DBGCEVTSTATE enmDefault, PDBGCEVTCFG const *ppEvtCfg)
+{
+    PDBGCEVTCFG pEvtCfg = *ppEvtCfg;
+
+    const char *pszState;
+    switch (pEvtCfg ? pEvtCfg->enmState : kDbgcEvtState_Disabled)
+    {
+        case kDbgcEvtState_Disabled:    pszState = "ignore"; break;
+        case kDbgcEvtState_Enabled:     pszState = "enabled"; break;
+        case kDbgcEvtState_Notify:      pszState = "notify"; break;
+        default:
+            AssertFailed();
+            pszState = "invalid";
+            break;
+    }
+
+    if (pEvtCfg && pEvtCfg->cchCmd > 0)
+        DBGCCmdHlpPrintf(pCmdHlp, "%-22s  %-7s  \"%s\"\n", pszName, pszState, pEvtCfg->szCmd);
+    else
+        DBGCCmdHlpPrintf(pCmdHlp, "%-22s  %s\n", pszName, pszState);
+}
+
+
+static void dbgcEventDisplayRange(PDBGCCMDHLP pCmdHlp, const char *pszBaseNm, DBGCEVTSTATE enmDefault,
+                                  PDBGCEVTCFG const *papEvtCfgs, unsigned iCfg, unsigned cCfgs)
+{
+    do
+    {
+        PCDBGCEVTCFG pFirstCfg = papEvtCfgs[iCfg];
+        if (pFirstCfg && pFirstCfg->enmState == kDbgcEvtState_Disabled && pFirstCfg->cchCmd == 0)
+            pFirstCfg = NULL;
+
+        unsigned const iFirstCfg = iCfg;
+        iCfg++;
+        while (iCfg < cCfgs)
+        {
+            PCDBGCEVTCFG pCurCfg = papEvtCfgs[iCfg];
+            if (pCurCfg && pCurCfg->enmState == kDbgcEvtState_Disabled  && pCurCfg->cchCmd == 0)
+                pCurCfg = NULL;
+            if (pCurCfg != pFirstCfg)
+            {
+                if (!pCurCfg || !pFirstCfg)
+                    break;
+                if (pCurCfg->enmState != pFirstCfg->enmState)
+                    break;
+                if (pCurCfg->cchCmd != pFirstCfg->cchCmd)
+                    break;
+                if (memcmp(pCurCfg->szCmd, pFirstCfg->szCmd, pFirstCfg->cchCmd) != 0)
+                    break;
+            }
+            iCfg++;
+        }
+
+        char szName[16];
+        unsigned cEntries = iCfg - iFirstCfg;
+        if (cEntries == 1)
+            RTStrPrintf(szName, sizeof(szName), "%s%02x", pszBaseNm, iFirstCfg);
+        else
+            RTStrPrintf(szName, sizeof(szName), "%s%02x L %#x", pszBaseNm, iFirstCfg, cEntries);
+        dbgcEventDisplay(pCmdHlp, szName, enmDefault, &papEvtCfgs[iFirstCfg]);
+
+        cCfgs -= cEntries;
+    } while (cCfgs > 0);
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'sx' commands.}
+ */
+static DECLCALLBACK(int) dbgcCmdEventCtrlList(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+
+    if (cArgs == 0)
+    {
+        /*
+         * All events.
+         */
+        for (uint32_t iEvt = 0; iEvt < RT_ELEMENTS(g_aDbgcSxEvents); iEvt++)
+            if (g_aDbgcSxEvents[iEvt].enmKind == kDbgcSxEventKind_Plain)
+                dbgcEventDisplay(pCmdHlp, g_aDbgcSxEvents[iEvt].pszName, g_aDbgcSxEvents[iEvt].enmDefault,
+                                 &pDbgc->apEventCfgs[iEvt]);
+            else if (strcmp(g_aDbgcSxEvents[iEvt].pszName, "hwint") == 0)
+                dbgcEventDisplayRange(pCmdHlp, g_aDbgcSxEvents[iEvt].pszName, g_aDbgcSxEvents[iEvt].enmDefault,
+                                      pDbgc->apHardInts, 0, 256);
+            else
+                dbgcEventDisplayRange(pCmdHlp, g_aDbgcSxEvents[iEvt].pszName, g_aDbgcSxEvents[iEvt].enmDefault,
+                                      pDbgc->apSoftInts, 0, 256);
+    }
+    else
+    {
+        /*
+         * Selected events.
+         */
+        for (uint32_t iArg = 0; iArg < cArgs; iArg++)
+        {
+            unsigned cHits = 0;
+            for (uint32_t iEvt = 0; iEvt < RT_ELEMENTS(g_aDbgcSxEvents); iEvt++)
+                if (g_aDbgcSxEvents[iEvt].enmKind == kDbgcSxEventKind_Plain)
+                {
+                    if (   RTStrSimplePatternMatch(paArgs[iArg].u.pszString, g_aDbgcSxEvents[iEvt].pszName)
+                        || (   g_aDbgcSxEvents[iEvt].pszAltNm
+                            && RTStrSimplePatternMatch(paArgs[iArg].u.pszString, g_aDbgcSxEvents[iEvt].pszAltNm)) )
+                    {
+                        dbgcEventDisplay(pCmdHlp, g_aDbgcSxEvents[iEvt].pszName, g_aDbgcSxEvents[iEvt].enmDefault,
+                                         &pDbgc->apEventCfgs[iEvt]);
+                        cHits++;
+                    }
+                }
+                else
+                {
+                    Assert(g_aDbgcSxEvents[iEvt].enmKind == kDbgcSxEventKind_Interrupt);
+                    uint8_t  iInt;
+                    uint16_t cInts;
+                    if (dbgcEventIsMatchingInt(&paArgs[iArg], g_aDbgcSxEvents[iEvt].pszName, pCmdHlp, &iInt, &cInts))
+                    {
+                        if (strcmp(g_aDbgcSxEvents[iEvt].pszName, "hwint") == 0)
+                            dbgcEventDisplayRange(pCmdHlp, g_aDbgcSxEvents[iEvt].pszName, g_aDbgcSxEvents[iEvt].enmDefault,
+                                                  pDbgc->apHardInts, iInt, cInts);
+                        else
+                            dbgcEventDisplayRange(pCmdHlp, g_aDbgcSxEvents[iEvt].pszName, g_aDbgcSxEvents[iEvt].enmDefault,
+                                                  pDbgc->apSoftInts, iInt, cInts);
+                        cHits++;
+                    }
+                }
+            if (cHits == 0)
+                return DBGCCmdHlpVBoxError(pCmdHlp, VERR_INVALID_PARAMETER, "Unknown event: '%s'\n", paArgs[iArg].u.pszString);
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
 
 
 /**

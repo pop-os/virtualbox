@@ -42,7 +42,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_DEV_APIC
+#define LOG_GROUP LOG_GROUP_DEV_IOAPIC
 #include <VBox/vmm/pdmdev.h>
 
 #include <VBox/log.h>
@@ -179,7 +179,7 @@ static void ioapic_service(PIOAPIC pThis)
                                                                         uTagSrc);
                 /* We must be sure that attempts to reschedule in R3
                    never get here */
-                Assert(rc == VINF_SUCCESS);
+                Assert(rc == VINF_SUCCESS || rc == VERR_APIC_INTR_DISCARDED);
             }
         }
     }
@@ -523,7 +523,7 @@ PDMBOTHCBDECL(void) ioapicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t 
                                                             uTagSrc);
     /* We must be sure that attempts to reschedule in R3
        never get here */
-    Assert(rc == VINF_SUCCESS);
+    Assert(rc == VINF_SUCCESS || rc == VERR_APIC_INTR_DISCARDED);
 }
 
 #ifdef IN_RING3

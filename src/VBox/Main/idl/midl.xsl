@@ -168,7 +168,7 @@
 -->
 <xsl:template match="result">
   <xsl:text>cpp_quote("</xsl:text>
-  <xsl:value-of select="concat('#define ',@name,' ',@value)"/>
+  <xsl:value-of select="concat('#define ',@name,' ((HRESULT)',@value, ')')"/>
   <xsl:text>")&#x0A;</xsl:text>
 </xsl:template>
 
@@ -198,6 +198,11 @@
     object,
     dual,
     oleautomation
+<xsl:if test="$g_fGenProxy = 'yes'">
+  <!-- Indicates to the typelib that we are using a proxy stub DLL and that interfaces
+       should have any ProxyStubClsid32 or TypeLib keys in the registry. -->
+  <xsl:text>    , proxy</xsl:text>
+</xsl:if>
 ]
 <xsl:text>interface </xsl:text>
   <xsl:variable name="name" select="@name"/>

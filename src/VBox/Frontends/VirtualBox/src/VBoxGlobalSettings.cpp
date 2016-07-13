@@ -34,10 +34,10 @@
 # include "COMEnums.h"
 # include "CVirtualBox.h"
 
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 /* Namespaces: */
 using namespace UIExtraDataDefs;
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -51,16 +51,20 @@ using namespace UIExtraDataDefs;
 VBoxGlobalSettingsData::VBoxGlobalSettingsData()
 {
     /* default settings */
-#if defined (Q_WS_WIN)
+#if defined (VBOX_WS_WIN)
     hostCombo = "163"; // VK_RCONTROL
-#elif defined (Q_WS_X11)
+#elif defined (VBOX_WS_X11)
     hostCombo = "65508"; // XK_Control_R
-#elif defined (Q_WS_MAC)
+#elif defined (VBOX_WS_MAC)
     hostCombo = "55"; // QZ_LMETA
 #else
 # warning "port me!"
 #endif
+#if defined(VBOX_WS_X11) && defined(DEBUG)
+    autoCapture = false;
+#else
     autoCapture = true;
+#endif
     guiFeatures = QString::null;
     languageId  = QString::null;
     maxGuestRes = "auto";

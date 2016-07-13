@@ -184,7 +184,7 @@ typedef uint32_t VTGSTROFF;
 /** The type is signed. */
 #define VTG_TYPE_SIGNED         RT_BIT_32(31)
 /** Mask of valid bits (for simple validation). */
-#define VTG_TYPE_VALID_MASK     UINT32_C(0xff000fff)
+#define VTG_TYPE_VALID_MASK     UINT32_C(0xff001fff)
 /** @} */
 
 /**
@@ -295,16 +295,22 @@ typedef VTGDESCATTR const *PCVTGDESCATTR;
  */
 typedef struct VTGDESCPROVIDER
 {
-    VTGSTROFF       offName;
-    uint16_t        iFirstProbe;
-    uint16_t        cProbes;
-    VTGDESCATTR     AttrSelf;
-    VTGDESCATTR     AttrModules;
-    VTGDESCATTR     AttrFunctions;
-    VTGDESCATTR     AttrNames;
-    VTGDESCATTR     AttrArguments;
-    uint8_t         bReserved;
+    VTGSTROFF           offName;
+    uint16_t            iFirstProbe;
+    uint16_t            cProbes;
+    VTGDESCATTR         AttrSelf;
+    VTGDESCATTR         AttrModules;
+    VTGDESCATTR         AttrFunctions;
+    VTGDESCATTR         AttrNames;
+    VTGDESCATTR         AttrArguments;
+    uint8_t             bReserved;
+    uint32_t volatile   cProbesEnabled;
+    /** This increases every time a probe is enabled or disabled.
+     * Can be used in non-ring-3 context via PROVIDER_GET_SETTINGS_SEQ_NO() in
+     * order to only configure probes related stuff when actually required.  */
+    uint32_t volatile   uSettingsSerialNo;
 } VTGDESCPROVIDER;
+AssertCompileSize(VTGDESCPROVIDER, 32);
 /** Pointer to a VTG provider descriptor. */
 typedef VTGDESCPROVIDER    *PVTGDESCPROVIDER;
 /** Pointer to a const VTG provider descriptor. */
@@ -411,7 +417,7 @@ typedef VTGOBJHDR          *PVTGOBJHDR;
 typedef VTGOBJHDR const    *PCVTGOBJHDR;
 
 /** The current VTGOBJHDR::szMagic value. */
-#define VTGOBJHDR_MAGIC     "VTG Object Header v1.5\0"
+#define VTGOBJHDR_MAGIC     "VTG Object Header v1.7\0"
 
 /** The name of the VTG data object header symbol in the object file. */
 extern VTGOBJHDR            g_VTGObjHeader;

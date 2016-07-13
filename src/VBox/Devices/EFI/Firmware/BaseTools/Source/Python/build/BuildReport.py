@@ -4,7 +4,7 @@
 # This module contains the functionality to generate build report after
 # build all target completes successfully.
 #
-# Copyright (c) 2010, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
 # which accompanies this distribution.  The full text of the license may be found at
@@ -16,7 +16,7 @@
 
 ## Import Modules
 #
-import os
+import Common.LongFilePathOs as os
 import re
 import platform
 import textwrap
@@ -40,6 +40,7 @@ from Common.DataType import TAB_SPACE_SPLIT
 from Common.DataType import TAB_BRG_PCD
 from Common.DataType import TAB_BRG_LIBRARY
 from Common.DataType import TAB_BACK_SLASH
+from Common.LongFilePathSupport import OpenLongFilePath as open
 
 ## Pattern to extract contents in EDK DXS files
 gDxsDependencyPattern = re.compile(r"DEPENDENCY_START(.+)DEPENDENCY_END", re.DOTALL)
@@ -72,6 +73,9 @@ gGlueLibEntryPoint = re.compile(r"__EDKII_GLUE_MODULE_ENTRY_POINT__\s*=\s*(\w+)"
 ## Tags for MaxLength of line in report
 gLineMaxLength = 120
 
+## Tags for end of line in report
+gEndOfLine = "\r\n"
+
 ## Tags for section start, end and separator
 gSectionStart = ">" + "=" * (gLineMaxLength-2) + "<"
 gSectionEnd = "<" + "=" * (gLineMaxLength-2) + ">" + "\n"
@@ -91,9 +95,9 @@ gPcdTypeMap = {
   'Dynamic'          : ('DYN',    'Dynamic'),
   'DynamicHii'       : ('DYNHII', 'Dynamic'),
   'DynamicVpd'       : ('DYNVPD', 'Dynamic'),
-  'DynamicEx'        : ('DEX',    'Dynamic'),
-  'DynamicExHii'     : ('DEXHII', 'Dynamic'),
-  'DynamicExVpd'     : ('DEXVPD', 'Dynamic'),
+  'DynamicEx'        : ('DEX',    'DynamicEx'),
+  'DynamicExHii'     : ('DEXHII', 'DynamicEx'),
+  'DynamicExVpd'     : ('DEXVPD', 'DynamicEx'),
   }
 
 ## The look up table to map module type to driver type
@@ -128,7 +132,7 @@ gOpCodeList = ["BEFORE", "AFTER", "PUSH", "AND", "OR", "NOT", "TRUE", "FALSE", "
 def FileWrite(File, String, Wrapper=False):
     if Wrapper:
         String = textwrap.fill(String, 120)
-    File.write(String + "\r\n")
+    File.write(String + gEndOfLine)
 
 ##
 # Find all the header file that the module source directly includes.
@@ -178,7 +182,7 @@ def FindIncludeFiles(Source, IncludePathList, IncludeFiles):
 
 ## Split each lines in file
 #
-#  This method is used to split the lines in file to make the length of each line 
+#  This method is used to split the lines in file to make the length of each line
 #  less than MaxLength.
 #
 #  @param      Content           The content of file
@@ -203,10 +207,12 @@ def FileLinesSplit(Content=None, MaxLength=None):
             NewContentList.append(Line)
     for NewLine in NewContentList:
         NewContent += NewLine + TAB_LINE_BREAK
+
+    NewContent = NewContent.replace(TAB_LINE_BREAK, gEndOfLine).replace('\r\r\n', gEndOfLine)
     return NewContent
-    
-    
-    
+
+
+
 ##
 # Parse binary dependency expression section
 #
@@ -226,7 +232,7 @@ class DepexParser(object):
     def __init__(self, Wa):
         self._GuidDb = {}
         for Pa in Wa.AutoGenObjectList:
-            for Package in Pa.PackageList:        
+            for Package in Pa.PackageList:
                 for Protocol in Package.Protocols:
                     GuidValue = GuidStructureStringToGuidString(Package.Protocols[Protocol])
                     self._GuidDb[GuidValue.upper()] = Protocol
@@ -236,10 +242,10 @@ class DepexParser(object):
                 for Guid in Package.Guids:
                     GuidValue = GuidStructureStringToGuidString(Package.Guids[Guid])
                     self._GuidDb[GuidValue.upper()] = Guid
-    
+
     ##
     # Parse the binary dependency expression files.
-    # 
+    #
     # This function parses the binary dependency expression file and translate it
     # to the instruction list.
     #
@@ -254,14 +260,14 @@ class DepexParser(object):
             Statement = gOpCodeList[struct.unpack("B", OpCode)[0]]
             if Statement in ["BEFORE", "AFTER", "PUSH"]:
                 GuidValue = "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X" % \
-                            struct.unpack("LHHBBBBBBBB", DepexFile.read(16))
+                            struct.unpack("=LHHBBBBBBBB", DepexFile.read(16))
                 GuidString = self._GuidDb.get(GuidValue, GuidValue)
                 Statement = "%s %s" % (Statement, GuidString)
             DepexStatement.append(Statement)
-            OpCode = DepexFile.read(1)     
-        
+            OpCode = DepexFile.read(1)
+
         return DepexStatement
-    
+
 ##
 # Reports library information
 #
@@ -354,14 +360,14 @@ class DepexReport(object):
     #
     def __init__(self, M):
         self.Depex = ""
-        self._DepexFileName = os.path.join(M.BuildDir, "OUTPUT", M.Module.BaseName + ".depex") 
+        self._DepexFileName = os.path.join(M.BuildDir, "OUTPUT", M.Module.BaseName + ".depex")
         ModuleType = M.ModuleType
         if not ModuleType:
             ModuleType = gComponentType2ModuleType.get(M.ComponentType, "")
 
         if ModuleType in ["SEC", "PEI_CORE", "DXE_CORE", "SMM_CORE", "UEFI_APPLICATION"]:
             return
-      
+
         for Source in M.SourceFileList:
             if os.path.splitext(Source.Path)[1].lower() == ".dxs":
                 Match = gDxsDependencyPattern.search(open(Source.Path).read())
@@ -410,7 +416,7 @@ class DepexReport(object):
                 FileWrite(File, gSubSectionSep)
             except:
                 EdkLogger.warn(None, "Dependency expression file is corrupted", self._DepexFileName)
-        
+
         FileWrite(File, "Dependency Expression (DEPEX) from %s" % self.Source)
 
         if self.Source == "INF":
@@ -694,7 +700,8 @@ class PcdReport(object):
         # Collect PCDs defined in DSC common section
         #
         self.DscPcdDefault = {}
-        for Platform in Wa.BuildDatabase.WorkspaceDb.PlatformList:
+        for Arch in Wa.ArchList:
+            Platform = Wa.BuildDatabase[Wa.MetaFile, Arch, Wa.BuildTarget, Wa.ToolChain]
             for (TokenCName, TokenSpaceGuidCName) in Platform.Pcds:
                 DscDefaultValue = Platform.Pcds[(TokenCName, TokenSpaceGuidCName)].DefaultValue
                 if DscDefaultValue:
@@ -749,7 +756,7 @@ class PcdReport(object):
                     DscDefaultValue = self.DscPcdDefault.get((Pcd.TokenCName, Pcd.TokenSpaceGuidCName))
                     DscDefaultValue = self.FdfPcdSet.get((Pcd.TokenCName, Key), DscDefaultValue)
                     InfDefaultValue = None
-                    
+
                     PcdValue = DecDefaultValue
                     if DscDefaultValue:
                         PcdValue = DscDefaultValue
@@ -814,14 +821,14 @@ class PcdReport(object):
                                 FileWrite(File, ' *P %-*s: %6s %10s = %-22s' % (self.MaxLen, Pcd.TokenCName, TypeName, '('+Pcd.DatumType+')', PcdValue.strip()))
                         else:
                             FileWrite(File, ' *M %-*s: %6s %10s = %-22s' % (self.MaxLen, Pcd.TokenCName, TypeName, '('+Pcd.DatumType+')', PcdValue.strip()))
-                    
+
                     if TypeName in ('DYNHII', 'DEXHII', 'DYNVPD', 'DEXVPD'):
                         for SkuInfo in Pcd.SkuInfoList.values():
                             if TypeName in ('DYNHII', 'DEXHII'):
-                                FileWrite(File, '%*s: %s: %s' % (self.MaxLen + 4, SkuInfo.VariableGuid, SkuInfo.VariableName, SkuInfo.VariableOffset))        
+                                FileWrite(File, '%*s: %s: %s' % (self.MaxLen + 4, SkuInfo.VariableGuid, SkuInfo.VariableName, SkuInfo.VariableOffset))
                             else:
                                 FileWrite(File, '%*s' % (self.MaxLen + 4, SkuInfo.VpdOffset))
-                               
+
                     if not DscMatch and DscDefaultValue != None:
                         FileWrite(File, '    %*s = %s' % (self.MaxLen + 19, 'DSC DEFAULT', DscDefaultValue.strip()))
 
@@ -1026,7 +1033,7 @@ class PredictionReport(object):
             EotEndTime = time.time()
             EotDuration = time.strftime("%H:%M:%S", time.gmtime(int(round(EotEndTime - EotStartTime))))
             EdkLogger.quiet("EOT run time: %s\n" % EotDuration)
-            
+
             #
             # Parse the output of EOT tool
             #
@@ -1221,7 +1228,7 @@ class FdRegionReport(object):
         PlatformPcds = {}
         #
         # Collect PCDs declared in DEC files.
-        #        
+        #
         for Pa in Wa.AutoGenObjectList:
             for Package in Pa.PackageList:
                 for (TokenCName, TokenSpaceGuidCName, DecType) in Package.Pcds:
@@ -1445,7 +1452,7 @@ class PlatformReport(object):
         self.DepexParser = None
         if "DEPEX" in ReportType:
             self.DepexParser = DepexParser(Wa)
-            
+
         self.ModuleReportList = []
         if MaList != None:
             self._IsModuleBuild = True
@@ -1486,7 +1493,7 @@ class PlatformReport(object):
         if not self._IsModuleBuild:
             if "PCD" in ReportType:
                 self.PcdReport.GenerateReport(File, None)
-    
+
             if "FLASH" in ReportType:
                 for FdReportListItem in self.FdReportList:
                     FdReportListItem.GenerateReport(File)
@@ -1520,7 +1527,7 @@ class BuildReport(object):
         if ReportFile:
             self.ReportList = []
             self.ReportType = []
-            if ReportType: 
+            if ReportType:
                 for ReportTypeItem in ReportType:
                     if ReportTypeItem not in self.ReportType:
                         self.ReportType.append(ReportTypeItem)
@@ -1563,7 +1570,7 @@ class BuildReport(object):
                 EdkLogger.error("BuildReport", CODE_ERROR, "Unknown fatal error when generating build report", ExtraData=self.ReportFile, RaiseError=False)
                 EdkLogger.quiet("(Python %s on %s\n%s)" % (platform.python_version(), sys.platform, traceback.format_exc()))
             File.close()
-            
+
 # This acts like the main() function for the script, unless it is 'import'ed into another script.
 if __name__ == '__main__':
     pass

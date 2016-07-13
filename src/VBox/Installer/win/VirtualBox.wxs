@@ -60,16 +60,21 @@
     <Property Id="ARPPRODUCTICON">IconVirtualBox</Property>
     <Property Id="ARPURLINFOABOUT">http://www.virtualbox.org</Property>
     <Property Id="ARPURLUPDATEINFO">http://www.virtualbox.org</Property>
-
-    <!-- Default property for network adapter type -->
+    
     <Property Id="NETWORKTYPE" Value="NDIS6" Secure="yes"/>
-    <!-- Force NDIS5 on pre-Vista -->
+
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "no" ?>
     <!-- Force NDIS5 on pre-Vista -->
-    <SetProperty Id="NETWORKTYPE" After="CostFinalize" Value="NDIS5">
-      <![CDATA[(VersionNT < 600)]]>
-    </SetProperty>
+    <SetProperty Id="NETWORKTYPE" After="LaunchConditions" Value="NDIS5"><![CDATA[(VersionNT < 600)]]></SetProperty>
 <?endif ?>
+
+    <!-- Whether or not registering of known desktop shortcut for the Quick Launch Bar should be created -->
+    <Property Id="VBOX_REGISTERFILEEXTENSIONS" Value="1" Secure="yes"/>
+
+    <SetProperty Id="VBOX_REGISTERFILEEXTENSIONS" After="AppSearch" Sequence="both" Value="{}">
+        <![CDATA[VBOX_REGISTERFILEEXTENSIONS="0"]]>
+     </SetProperty>
+
 
     <!-- Install the product for all users on the system -->
     <Property Id="ALLUSERS"><![CDATA[1]]></Property>
@@ -77,27 +82,7 @@
     <!-- Force overwriting all files and re-create shortcuts to guarantee a working environment -->
     <Property Id='REINSTALLMODE' Value='amus'/>
 
-    <!-- VirtualBox properties (can be modified from command line) -->
-
-    <!-- Whether or not a desktop shortcut should be created. -->
-    <Property Id="VBOX_INSTALLDESKTOPSHORTCUT" Value="1" Secure="yes"/>
-    <SetProperty Id="VBOX_INSTALLDESKTOPSHORTCUT" After="AppSearch" Sequence="both"
-                 Value="{}"><![CDATA[VBOX_INSTALLDESKTOPSHORTCUT="0"]]></SetProperty>
-
-    <!-- Whether or not a desktop shortcut for the Quick Launch Bar should be created -->
-    <Property Id="VBOX_INSTALLQUICKLAUNCHSHORTCUT" Value="1" Secure="yes"/>
-    <SetProperty Id="VBOX_INSTALLQUICKLAUNCHSHORTCUT" After="AppSearch" Sequence="both"
-                 Value="{}"><![CDATA[VBOX_INSTALLQUICKLAUNCHSHORTCUT="0"]]></SetProperty>
-
-    <!-- Whether or not registering of known desktop shortcut for the Quick Launch Bar should be created -->
-    <Property Id="VBOX_REGISTERFILEEXTENSIONS" Value="1" Secure="yes"/>
-    <SetProperty Id="VBOX_REGISTERFILEEXTENSIONS" After="AppSearch" Sequence="both"
-                 Value="{}"><![CDATA[VBOX_REGISTERFILEEXTENSIONS="0"]]></SetProperty>
-
-    <!-- Whether or not VirtualBox should be started automatically right after successful installation -->
-    <Property Id="VBOX_START" Value="1" Secure="yes"/>
-    <SetProperty Id="VBOX_START" After="AppSearch" Sequence="both"
-                 Value="{}"><![CDATA[VBOX_START="0"]]></SetProperty>
+    <?include PublicProperties.wxi ?>
 
     <!-- Make sure installation will not start on anything other but the NT family -->
 <?if $(env.BUILD_TARGET_ARCH) = "amd64" ?>
@@ -245,9 +230,7 @@
                 <Directory Id="INSTALLDIR" Name="VirtualBox">
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
                 <Merge Id="msm_VBoxApp" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeApp)" DiskId="1">
-                    <ConfigurationData Name="argRegesterExtensions" Value="[VBOX_REGISTERFILEEXTENSIONS]"/>
-                    <ConfigurationData Name="argInstallDesktopShortcut" Value="[VBOX_INSTALLDESKTOPSHORTCUT]"/>
-                    <ConfigurationData Name="argInstallQuickLaunchShortcut" Value="[VBOX_INSTALLQUICKLAUNCHSHORTCUT]"/>
+                    <ConfigurationData Name="argRegesterExtensions" Value="[VBOX_REGISTERFILEEXTENSIONS]"/> 
                 </Merge>
     <?if $(env.VBOX_WITH_32_ON_64_MAIN_API) = "yes" ?>
                 <Merge Id="msm_VBoxCOM32On64" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeCOM32On64)" DiskId="1" />
@@ -335,7 +318,6 @@
                     </Directory>
                 </Directory>
 <?endif ?>
-
                 <!-- Set up special directory IDs for referencing to the start menu
                      or the Quick Launch bar.
                      See: http://msdn.microsoft.com/en-us/library/aa368276.aspx
@@ -379,7 +361,6 @@
                     <RegistryValue Root="HKCU" Key="$(var.Property_RegKeyInstall)"
                                    Type="string" Value="installed" KeyPath="yes" />
                 </Component>
-
                 </Directory>
             </Directory>
         </Directory>
@@ -392,12 +373,10 @@
              Description="!(loc.VB_App)"
              ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
              Absent="disallow" AllowAdvertise="no" >
-
         <!-- Components which are handled only by this installer itself -->
         <ComponentRef Id="cp_StartMenuVBox" />
         <ComponentRef Id="cp_DesktopShortcut" />
         <ComponentRef Id="cp_QuickLaunchVBox" />
-        
         <!-- Components handled either by the installer itself or
              the merge module -->
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
@@ -406,7 +385,6 @@
             <MergeRef Id="msm_VBoxCOM32On64" />
         <?endif ?>
 <?else ?>
-
     <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
         <ComponentRef Id="cp_RegisterExtensions" />
     <?endif ?>
@@ -420,9 +398,17 @@
         <ComponentRef Id="cp_MainCOM_x86" />
     <?endif ?>
         <ComponentRef Id="cp_MainCOM" />
+    <?if $(env.VBOX_WITH_MIDL_PROXY_STUB) = "yes" ?>
+        <ComponentRef Id="cp_ProxyStub" />
+        <ComponentRef Id="cp_ProxyStubLegacy" />
+    <?endif?>
         <ComponentRef Id="cp_MainBinaries" />
     <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
-        <ComponentRef Id="cp_QtAccessible" />
+        <?if $(env.VBOX_WITH_QTGUI_V5) = "no" ?>
+            <ComponentRef Id="cp_QtAccessible" />
+        <?else ?>
+            <ComponentRef Id="cp_QtPlatforms" />
+        <?endif?>
     <?endif ?>
     <?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
         <ComponentRef Id="cp_VBoxPyInst" />

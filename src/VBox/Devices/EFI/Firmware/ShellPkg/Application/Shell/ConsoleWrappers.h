@@ -1,6 +1,7 @@
 /** @file
   Function definitions for shell simple text in and out on top of file handles.
 
+  Copyright (c) 2013 Hewlett-Packard Development Company, L.P.
   Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -16,7 +17,7 @@
 #define _SHELL_CONSOLE_WRAPPERS_HEADER_
 
 /**
-  Function to create a EFI_SIMPLE_TEXT_INPUT_PROTOCOL on top of a 
+  Function to create a EFI_SIMPLE_TEXT_INPUT_PROTOCOL on top of a
   SHELL_FILE_HANDLE to support redirecting input from a file.
 
   @param[in]  FileHandleToUse The pointer to the SHELL_FILE_HANDLE to use.
@@ -33,7 +34,7 @@ CreateSimpleTextInOnFile(
   );
 
 /**
-  Function to close a EFI_SIMPLE_TEXT_INPUT_PROTOCOL on top of a 
+  Function to close a EFI_SIMPLE_TEXT_INPUT_PROTOCOL on top of a
   SHELL_FILE_HANDLE to support redirecting input from a file.
 
   @param[in]  SimpleTextIn    The pointer to the SimpleTextIn to close.
@@ -47,11 +48,12 @@ CloseSimpleTextInOnFile(
   );
 
 /**
-  Function to create a EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL on top of a 
+  Function to create a EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL on top of a
   SHELL_FILE_HANDLE to support redirecting output from a file.
 
-  @param[in]  FileHandleToUse The pointer to the SHELL_FILE_HANDLE to use.
-  @param[in]  HandleLocation  The pointer of a location to copy handle with protocol to.
+  @param[in]  FileHandleToUse  The pointer to the SHELL_FILE_HANDLE to use.
+  @param[in]  HandleLocation   The pointer of a location to copy handle with protocol to.
+  @param[in]  OriginalProtocol The pointer to the original output protocol for pass thru of functions.
 
   @retval NULL                There was insufficient memory available.
   @return                     A pointer to the allocated protocol structure;
@@ -59,12 +61,13 @@ CloseSimpleTextInOnFile(
 EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL*
 EFIAPI
 CreateSimpleTextOutOnFile(
-  IN SHELL_FILE_HANDLE  FileHandleToUse,
-  IN EFI_HANDLE         *HandleLocation
+  IN SHELL_FILE_HANDLE               FileHandleToUse,
+  IN EFI_HANDLE                      *HandleLocation,
+  IN EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *OriginalProtocol
   );
 
 /**
-  Function to close a EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL on top of a 
+  Function to close a EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL on top of a
   SHELL_FILE_HANDLE to support redirecting output from a file.
 
   @param[in] SimpleTextOut    The pointer to the SimpleTextOUT to close.

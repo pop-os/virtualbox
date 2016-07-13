@@ -147,17 +147,22 @@ typedef enum DBGFEVENTTYPE
      */
     DBGFEVENT_INVALID_COMMAND,
 
-
     /** Fatal error.
      * This notifies a fatal error in the VMM and that the debugger get's a
      * chance to first hand information about the the problem.
      */
-    DBGFEVENT_FATAL_ERROR = 100,
+    DBGFEVENT_FATAL_ERROR,
     /** Breakpoint Hit.
      * This notifies that a breakpoint installed by the debugger was hit. The
      * identifier of the breakpoint can be found in the DBGFEVENT::u::Bp::iBp member.
      */
     DBGFEVENT_BREAKPOINT,
+    /** I/O port breakpoint.
+     * @todo not yet implemented. */
+    DBGFEVENT_BREAKPOINT_IO,
+    /** MMIO breakpoint.
+     * @todo not yet implemented. */
+    DBGFEVENT_BREAKPOINT_MMIO,
     /** Breakpoint Hit in the Hypervisor.
      * This notifies that a breakpoint installed by the debugger was hit. The
      * identifier of the breakpoint can be found in the DBGFEVENT::u::Bp::iBp member.
@@ -184,10 +189,238 @@ typedef enum DBGFEVENTTYPE
      */
     DBGFEVENT_POWERING_OFF,
 
+    /** Hardware Interrupt break.
+     * @todo not yet implemented. */
+    DBGFEVENT_INTERRUPT_HARDWARE,
+    /** Software Interrupt break.
+     * @todo not yet implemented. */
+    DBGFEVENT_INTERRUPT_SOFTWARE,
+
+    /** The first selectable event.
+     * Whether the debugger wants or doesn't want these events can be configured
+     * via DBGFR3xxx and queried via DBGFR3yyy.  */
+    DBGFEVENT_FIRST_SELECTABLE,
+    /** Tripple fault. */
+    DBGFEVENT_TRIPLE_FAULT = DBGFEVENT_FIRST_SELECTABLE,
+
+    /** @name Exception events
+     * The exception events normally represents guest exceptions, but depending on
+     * the execution mode some virtualization exceptions may occure (no nested
+     * paging, raw-mode, ++).  When necessary, we will request additional VM exits.
+     * @{  */
+    DBGFEVENT_XCPT_FIRST,           /**< The first exception event. */
+    DBGFEVENT_XCPT_DE               /**< 0x00 - \#DE - Fault - NoErr - Integer divide error (zero/overflow). */
+        = DBGFEVENT_XCPT_FIRST,
+    DBGFEVENT_XCPT_DB,              /**< 0x01 - \#DB - trap/fault - NoErr - debug event. */
+    DBGFEVENT_XCPT_02,              /**< 0x02 - Reserved for NMI, see interrupt events. */
+    DBGFEVENT_XCPT_BP,              /**< 0x03 - \#BP - Trap  - NoErr - Breakpoint, INT 3 instruction. */
+    DBGFEVENT_XCPT_OF,              /**< 0x04 - \#OF - Trap  - NoErr - Overflow, INTO instruction. */
+    DBGFEVENT_XCPT_BR,              /**< 0x05 - \#BR - Fault - NoErr - BOUND Range Exceeded, BOUND instruction. */
+    DBGFEVENT_XCPT_UD,              /**< 0x06 - \#UD - Fault - NoErr - Undefined(/Invalid) Opcode. */
+    DBGFEVENT_XCPT_NM,              /**< 0x07 - \#NM - Fault - NoErr - Device not available, FP or (F)WAIT instruction. */
+    DBGFEVENT_XCPT_DF,              /**< 0x08 - \#DF - Abort - Err=0 - Double fault. */
+    DBGFEVENT_XCPT_09,              /**< 0x09 - Int9 - Fault - NoErr - Coprocessor Segment Overrun (obsolete). */
+    DBGFEVENT_XCPT_TS,              /**< 0x0a - \#TS - Fault - ErrCd - Invalid TSS, Taskswitch or TSS access. */
+    DBGFEVENT_XCPT_NP,              /**< 0x0b - \#NP - Fault - ErrCd - Segment not present. */
+    DBGFEVENT_XCPT_SS,              /**< 0x0c - \#SS - Fault - ErrCd - Stack-Segment fault. */
+    DBGFEVENT_XCPT_GP,              /**< 0x0d - \#GP - Fault - ErrCd - General protection fault. */
+    DBGFEVENT_XCPT_PF,              /**< 0x0e - \#PF - Fault - ErrCd - Page fault. - interrupt gate!!! */
+    DBGFEVENT_XCPT_0f,              /**< 0x0f - Rsvd - Resvd - Resvd - Intel Reserved. */
+    DBGFEVENT_XCPT_MF,              /**< 0x10 - \#MF - Fault - NoErr - x86 FPU Floating-Point Error (Math fault), FP or (F)WAIT instruction. */
+    DBGFEVENT_XCPT_AC,              /**< 0x11 - \#AC - Fault - Err=0 - Alignment Check. */
+    DBGFEVENT_XCPT_MC,              /**< 0x12 - \#MC - Abort - NoErr - Machine Check. */
+    DBGFEVENT_XCPT_XF,              /**< 0x13 - \#XF - Fault - NoErr - SIMD Floating-Point Exception. */
+    DBGFEVENT_XCPT_VE,              /**< 0x14 - \#VE - Fault - Noerr - Virtualization exception. */
+    DBGFEVENT_XCPT_15,              /**< 0x15 - Intel Reserved. */
+    DBGFEVENT_XCPT_16,              /**< 0x16 - Intel Reserved. */
+    DBGFEVENT_XCPT_17,              /**< 0x17 - Intel Reserved. */
+    DBGFEVENT_XCPT_18,              /**< 0x18 - Intel Reserved. */
+    DBGFEVENT_XCPT_19,              /**< 0x19 - Intel Reserved. */
+    DBGFEVENT_XCPT_1a,              /**< 0x1a - Intel Reserved. */
+    DBGFEVENT_XCPT_1b,              /**< 0x1b - Intel Reserved. */
+    DBGFEVENT_XCPT_1c,              /**< 0x1c - Intel Reserved. */
+    DBGFEVENT_XCPT_1d,              /**< 0x1d - Intel Reserved. */
+    DBGFEVENT_XCPT_SX,              /**< 0x1e - \#SX - Fault - ErrCd - Security Exception. */
+    DBGFEVENT_XCPT_1f,              /**< 0x1f - Intel Reserved. */
+    DBGFEVENT_XCPT_LAST             /**< The last exception event. */
+        = DBGFEVENT_XCPT_1f,
+    /** @} */
+
+    /** @name Instruction events
+     * The instruction events exerts all possible effort to intercept the
+     * relevant instructions.  However, in some execution modes we won't be able
+     * to catch them.  So it goes.
+     * @{ */
+    DBGFEVENT_INSTR_FIRST,          /**< The first VM instruction event. */
+    DBGFEVENT_INSTR_HALT            /**< Instruction: HALT */
+        = DBGFEVENT_INSTR_FIRST,
+    DBGFEVENT_INSTR_MWAIT,          /**< Instruction: MWAIT */
+    DBGFEVENT_INSTR_MONITOR,        /**< Instruction: MONITOR */
+    DBGFEVENT_INSTR_CPUID,          /**< Instruction: CPUID (missing stuff in raw-mode). */
+    DBGFEVENT_INSTR_INVD,           /**< Instruction: INVD */
+    DBGFEVENT_INSTR_WBINVD,         /**< Instruction: WBINVD */
+    DBGFEVENT_INSTR_INVLPG,         /**< Instruction: INVLPG */
+    DBGFEVENT_INSTR_RDTSC,          /**< Instruction: RDTSC */
+    DBGFEVENT_INSTR_RDTSCP,         /**< Instruction: RDTSCP */
+    DBGFEVENT_INSTR_RDPMC,          /**< Instruction: RDPMC */
+    DBGFEVENT_INSTR_RDMSR,          /**< Instruction: RDMSR */
+    DBGFEVENT_INSTR_WRMSR,          /**< Instruction: WRMSR */
+    DBGFEVENT_INSTR_CRX_READ,       /**< Instruction: CRx read instruction (missing smsw in raw-mode, and reads in general in VT-x). */
+    DBGFEVENT_INSTR_CRX_WRITE,      /**< Instruction: CRx write */
+    DBGFEVENT_INSTR_DRX_READ,       /**< Instruction: DRx read */
+    DBGFEVENT_INSTR_DRX_WRITE,      /**< Instruction: DRx write */
+    DBGFEVENT_INSTR_PAUSE,          /**< Instruction: PAUSE instruction (not in raw-mode). */
+    DBGFEVENT_INSTR_XSETBV,         /**< Instruction: XSETBV */
+    DBGFEVENT_INSTR_SIDT,           /**< Instruction: SIDT */
+    DBGFEVENT_INSTR_LIDT,           /**< Instruction: LIDT */
+    DBGFEVENT_INSTR_SGDT,           /**< Instruction: SGDT */
+    DBGFEVENT_INSTR_LGDT,           /**< Instruction: LGDT */
+    DBGFEVENT_INSTR_SLDT,           /**< Instruction: SLDT */
+    DBGFEVENT_INSTR_LLDT,           /**< Instruction: LLDT */
+    DBGFEVENT_INSTR_STR,            /**< Instruction: STR */
+    DBGFEVENT_INSTR_LTR,            /**< Instruction: LTR */
+    DBGFEVENT_INSTR_GETSEC,         /**< Instruction: GETSEC */
+    DBGFEVENT_INSTR_RSM,            /**< Instruction: RSM */
+    DBGFEVENT_INSTR_RDRAND,         /**< Instruction: RDRAND */
+    DBGFEVENT_INSTR_RDSEED,         /**< Instruction: RDSEED */
+    DBGFEVENT_INSTR_XSAVES,         /**< Instruction: XSAVES */
+    DBGFEVENT_INSTR_XRSTORS,        /**< Instruction: XRSTORS */
+    DBGFEVENT_INSTR_VMM_CALL,       /**< Instruction: VMCALL (intel) or VMMCALL (AMD) */
+    DBGFEVENT_INSTR_LAST_COMMON     /**< Instruction: the last common event. */
+        = DBGFEVENT_INSTR_VMM_CALL,
+    DBGFEVENT_INSTR_VMX_FIRST,      /**< Instruction: VT-x - First. */
+    DBGFEVENT_INSTR_VMX_VMCLEAR     /**< Instruction: VT-x VMCLEAR */
+        = DBGFEVENT_INSTR_VMX_FIRST,
+    DBGFEVENT_INSTR_VMX_VMLAUNCH,   /**< Instruction: VT-x VMLAUNCH */
+    DBGFEVENT_INSTR_VMX_VMPTRLD,    /**< Instruction: VT-x VMPTRLD */
+    DBGFEVENT_INSTR_VMX_VMPTRST,    /**< Instruction: VT-x VMPTRST */
+    DBGFEVENT_INSTR_VMX_VMREAD,     /**< Instruction: VT-x VMREAD */
+    DBGFEVENT_INSTR_VMX_VMRESUME,   /**< Instruction: VT-x VMRESUME */
+    DBGFEVENT_INSTR_VMX_VMWRITE,    /**< Instruction: VT-x VMWRITE */
+    DBGFEVENT_INSTR_VMX_VMXOFF,     /**< Instruction: VT-x VMXOFF */
+    DBGFEVENT_INSTR_VMX_VMXON,      /**< Instruction: VT-x VMXON */
+    DBGFEVENT_INSTR_VMX_VMFUNC,     /**< Instruction: VT-x VMFUNC */
+    DBGFEVENT_INSTR_VMX_INVEPT,     /**< Instruction: VT-x INVEPT */
+    DBGFEVENT_INSTR_VMX_INVVPID,    /**< Instruction: VT-x INVVPID */
+    DBGFEVENT_INSTR_VMX_INVPCID,    /**< Instruction: VT-x INVPCID */
+    DBGFEVENT_INSTR_VMX_LAST        /**< Instruction: VT-x - Last. */
+        = DBGFEVENT_INSTR_VMX_INVPCID,
+    DBGFEVENT_INSTR_SVM_FIRST,      /**< Instruction: AMD-V - first */
+    DBGFEVENT_INSTR_SVM_VMRUN       /**< Instruction: AMD-V VMRUN */
+    = DBGFEVENT_INSTR_SVM_FIRST,
+    DBGFEVENT_INSTR_SVM_VMLOAD,     /**< Instruction: AMD-V VMLOAD */
+    DBGFEVENT_INSTR_SVM_VMSAVE,     /**< Instruction: AMD-V VMSAVE */
+    DBGFEVENT_INSTR_SVM_STGI,       /**< Instruction: AMD-V STGI */
+    DBGFEVENT_INSTR_SVM_CLGI,       /**< Instruction: AMD-V CLGI */
+    DBGFEVENT_INSTR_SVM_LAST        /**< Instruction: The last ADM-V VM exit event. */
+        = DBGFEVENT_INSTR_SVM_CLGI,
+    DBGFEVENT_INSTR_LAST            /**< Instruction: The last instruction event.   */
+        = DBGFEVENT_INSTR_SVM_LAST,
+    /** @} */
+
+
+    /** @name VM exit events.
+     * VM exits events for VT-x and AMD-V execution mode.  Many of the VM exits
+     * behind these events are also directly translated into instruction events, but
+     * the difference here is that the exit events will not try provoke the exits.
+     * @{ */
+    DBGFEVENT_EXIT_FIRST,               /**< The first VM exit event. */
+    DBGFEVENT_EXIT_TASK_SWITCH          /**< Exit: Task switch. */
+        = DBGFEVENT_EXIT_FIRST,
+    DBGFEVENT_EXIT_HALT,                /**< Exit: HALT instruction. */
+    DBGFEVENT_EXIT_MWAIT,               /**< Exit: MWAIT instruction. */
+    DBGFEVENT_EXIT_MONITOR,             /**< Exit: MONITOR instruction. */
+    DBGFEVENT_EXIT_CPUID,               /**< Exit: CPUID instruction (missing stuff in raw-mode). */
+    DBGFEVENT_EXIT_INVD,                /**< Exit: INVD instruction. */
+    DBGFEVENT_EXIT_WBINVD,              /**< Exit: WBINVD instruction. */
+    DBGFEVENT_EXIT_INVLPG,              /**< Exit: INVLPG instruction. */
+    DBGFEVENT_EXIT_RDTSC,               /**< Exit: RDTSC instruction. */
+    DBGFEVENT_EXIT_RDTSCP,              /**< Exit: RDTSCP instruction. */
+    DBGFEVENT_EXIT_RDPMC,               /**< Exit: RDPMC instruction. */
+    DBGFEVENT_EXIT_RDMSR,               /**< Exit: RDMSR instruction. */
+    DBGFEVENT_EXIT_WRMSR,               /**< Exit: WRMSR instruction. */
+    DBGFEVENT_EXIT_CRX_READ,            /**< Exit: CRx read instruction (missing smsw in raw-mode, and reads in  general in VT-x). */
+    DBGFEVENT_EXIT_CRX_WRITE,           /**< Exit: CRx write instruction. */
+    DBGFEVENT_EXIT_DRX_READ,            /**< Exit: DRx read instruction. */
+    DBGFEVENT_EXIT_DRX_WRITE,           /**< Exit: DRx write instruction. */
+    DBGFEVENT_EXIT_PAUSE,               /**< Exit: PAUSE instruction (not in raw-mode). */
+    DBGFEVENT_EXIT_XSETBV,              /**< Exit: XSETBV instruction. */
+    DBGFEVENT_EXIT_SIDT,                /**< Exit: SIDT instruction. */
+    DBGFEVENT_EXIT_LIDT,                /**< Exit: LIDT instruction. */
+    DBGFEVENT_EXIT_SGDT,                /**< Exit: SGDT instruction. */
+    DBGFEVENT_EXIT_LGDT,                /**< Exit: LGDT instruction. */
+    DBGFEVENT_EXIT_SLDT,                /**< Exit: SLDT instruction. */
+    DBGFEVENT_EXIT_LLDT,                /**< Exit: LLDT instruction. */
+    DBGFEVENT_EXIT_STR,                 /**< Exit: STR instruction. */
+    DBGFEVENT_EXIT_LTR,                 /**< Exit: LTR instruction. */
+    DBGFEVENT_EXIT_GETSEC,              /**< Exit: GETSEC instruction. */
+    DBGFEVENT_EXIT_RSM,                 /**< Exit: RSM instruction. */
+    DBGFEVENT_EXIT_RDRAND,              /**< Exit: RDRAND instruction. */
+    DBGFEVENT_EXIT_RDSEED,              /**< Exit: RDSEED instruction. */
+    DBGFEVENT_EXIT_XSAVES,              /**< Exit: XSAVES instruction. */
+    DBGFEVENT_EXIT_XRSTORS,             /**< Exit: XRSTORS instruction. */
+    DBGFEVENT_EXIT_VMM_CALL,            /**< Exit: VMCALL (intel) or VMMCALL (AMD) instruction. */
+    DBGFEVENT_EXIT_LAST_COMMON          /**< Exit: the last common event. */
+        = DBGFEVENT_EXIT_VMM_CALL,
+    DBGFEVENT_EXIT_VMX_FIRST,           /**< Exit: VT-x - First. */
+    DBGFEVENT_EXIT_VMX_VMCLEAR          /**< Exit: VT-x VMCLEAR instruction. */
+        = DBGFEVENT_EXIT_VMX_FIRST,
+    DBGFEVENT_EXIT_VMX_VMLAUNCH,        /**< Exit: VT-x VMLAUNCH instruction. */
+    DBGFEVENT_EXIT_VMX_VMPTRLD,         /**< Exit: VT-x VMPTRLD instruction. */
+    DBGFEVENT_EXIT_VMX_VMPTRST,         /**< Exit: VT-x VMPTRST instruction. */
+    DBGFEVENT_EXIT_VMX_VMREAD,          /**< Exit: VT-x VMREAD instruction. */
+    DBGFEVENT_EXIT_VMX_VMRESUME,        /**< Exit: VT-x VMRESUME instruction. */
+    DBGFEVENT_EXIT_VMX_VMWRITE,         /**< Exit: VT-x VMWRITE instruction. */
+    DBGFEVENT_EXIT_VMX_VMXOFF,          /**< Exit: VT-x VMXOFF instruction. */
+    DBGFEVENT_EXIT_VMX_VMXON,           /**< Exit: VT-x VMXON instruction. */
+    DBGFEVENT_EXIT_VMX_VMFUNC,          /**< Exit: VT-x VMFUNC instruction. */
+    DBGFEVENT_EXIT_VMX_INVEPT,          /**< Exit: VT-x INVEPT instruction. */
+    DBGFEVENT_EXIT_VMX_INVVPID,         /**< Exit: VT-x INVVPID instruction. */
+    DBGFEVENT_EXIT_VMX_INVPCID,         /**< Exit: VT-x INVPCID instruction. */
+    DBGFEVENT_EXIT_VMX_EPT_VIOLATION,   /**< Exit: VT-x EPT violation. */
+    DBGFEVENT_EXIT_VMX_EPT_MISCONFIG,   /**< Exit: VT-x EPT misconfiguration. */
+    DBGFEVENT_EXIT_VMX_VAPIC_ACCESS,    /**< Exit: VT-x Virtual APIC page access. */
+    DBGFEVENT_EXIT_VMX_VAPIC_WRITE,     /**< Exit: VT-x Virtual APIC write. */
+    DBGFEVENT_EXIT_VMX_LAST             /**< Exit: VT-x - Last. */
+        = DBGFEVENT_EXIT_VMX_VAPIC_WRITE,
+    DBGFEVENT_EXIT_SVM_FIRST,           /**< Exit: AMD-V - first */
+    DBGFEVENT_EXIT_SVM_VMRUN            /**< Exit: AMD-V VMRUN instruction. */
+        = DBGFEVENT_EXIT_SVM_FIRST,
+    DBGFEVENT_EXIT_SVM_VMLOAD,          /**< Exit: AMD-V VMLOAD instruction. */
+    DBGFEVENT_EXIT_SVM_VMSAVE,          /**< Exit: AMD-V VMSAVE instruction. */
+    DBGFEVENT_EXIT_SVM_STGI,            /**< Exit: AMD-V STGI instruction. */
+    DBGFEVENT_EXIT_SVM_CLGI,            /**< Exit: AMD-V CLGI instruction. */
+    DBGFEVENT_EXIT_SVM_LAST             /**< Exit: The last ADM-V VM exit event. */
+        = DBGFEVENT_EXIT_SVM_CLGI,
+    DBGFEVENT_EXIT_LAST                 /**< Exit: The last VM exit event. */
+        = DBGFEVENT_EXIT_SVM_LAST,
+    /** @} */
+
+
+    /** Access to an unassigned I/O port.
+     * @todo not yet implemented. */
+    DBGFEVENT_IOPORT_UNASSIGNED,
+    /** Access to an unused I/O port on a device.
+     * @todo not yet implemented.  */
+    DBGFEVENT_IOPORT_UNUSED,
+    /** Unassigned memory event.
+     * @todo not yet implemented.  */
+    DBGFEVENT_MEMORY_UNASSIGNED,
+    /** Attempt to write to unshadowed ROM.
+     * @todo not yet implemented.  */
+    DBGFEVENT_MEMORY_ROM_WRITE,
+
+    /** Windows guest reported BSOD via hyperv MSRs. */
+    DBGFEVENT_BSOD_MSR,
+    /** Windows guest reported BSOD via EFI variables. */
+    DBGFEVENT_BSOD_EFI,
+
+    /** End of valid event values. */
+    DBGFEVENT_END,
     /** The usual 32-bit hack. */
     DBGFEVENT_32BIT_HACK = 0x7fffffff
 } DBGFEVENTTYPE;
-
+AssertCompile(DBGFEVENT_XCPT_LAST - DBGFEVENT_XCPT_FIRST == 0x1f);
 
 /**
  * The context of an event.
@@ -258,10 +491,19 @@ typedef struct DBGFEVENT
             /** The identifier of the breakpoint which was hit. */
             RTUINT                  iBp;
         } Bp;
+
+        /** Generic debug event. */
+        struct DBGFEVENTGENERIC
+        {
+            /** Argument. */
+            uint64_t                uArg;
+        } Generic;
+
         /** Padding for ensuring that the structure is 8 byte aligned. */
         uint64_t        au64Padding[4];
     } u;
 } DBGFEVENT;
+AssertCompileSizeAlignment(DBGFEVENT, 8);
 /** Pointer to VMM Debug Event. */
 typedef DBGFEVENT *PDBGFEVENT;
 /** Pointer to const VMM Debug Event. */
@@ -285,7 +527,8 @@ VMMR3_INT_DECL(int)     DBGFR3Init(PVM pVM);
 VMMR3_INT_DECL(int)     DBGFR3Term(PVM pVM);
 VMMR3_INT_DECL(void)    DBGFR3PowerOff(PVM pVM);
 VMMR3_INT_DECL(void)    DBGFR3Relocate(PVM pVM, RTGCINTPTR offDelta);
-VMMR3_INT_DECL(int)     DBGFR3VMMForcedAction(PVM pVM);
+VMMR3_INT_DECL(int)     DBGFR3VMMForcedAction(PVM pVM, PVMCPU pVCpu);
+VMMR3_INT_DECL(VBOXSTRICTRC)    DBGFR3EventHandlePending(PVM pVM, PVMCPU pVCpu);
 VMMR3DECL(int)          DBGFR3Event(PVM pVM, DBGFEVENTTYPE enmEvent);
 VMMR3DECL(int)          DBGFR3EventSrc(PVM pVM, DBGFEVENTTYPE enmEvent, const char *pszFile, unsigned uLine,
                                        const char *pszFunction, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR_MAYBE_NULL(6, 7);
@@ -305,7 +548,115 @@ VMMR3DECL(int)          DBGFR3Resume(PUVM pUVM);
 VMMR3DECL(int)          DBGFR3Step(PUVM pUVM, VMCPUID idCpu);
 VMMR3DECL(int)          DBGFR3InjectNMI(PUVM pUVM, VMCPUID idCpu);
 
+/**
+ * Event configuration array element, see DBGFR3EventConfigEx.
+ */
+typedef struct DBGFEVENTCONFIG
+{
+    /** The event to configure */
+    DBGFEVENTTYPE   enmType;
+    /** The new state. */
+    bool            fEnabled;
+    /** Unused. */
+    uint8_t         abUnused[3];
+} DBGFEVENTCONFIG;
+/** Pointer to an event config. */
+typedef DBGFEVENTCONFIG *PDBGFEVENTCONFIG;
+/** Pointer to a const event config. */
+typedef const DBGFEVENTCONFIG *PCDBGFEVENTCONFIG;
+
+VMMR3DECL(int)          DBGFR3EventConfigEx(PUVM pUVM, PCDBGFEVENTCONFIG paConfigs, size_t cConfigs);
+VMMR3DECL(int)          DBGFR3EventConfig(PUVM pUVM, DBGFEVENTTYPE enmEvent, bool fEnabled);
+VMMR3DECL(bool)         DBGFR3EventIsEnabled(PUVM pUVM, DBGFEVENTTYPE enmEvent);
+VMMR3DECL(int)          DBGFR3EventQuery(PUVM pUVM, PDBGFEVENTCONFIG paConfigs, size_t cConfigs);
+
+/** @name DBGFINTERRUPTSTATE_XXX - interrupt break state.
+ * @{ */
+#define DBGFINTERRUPTSTATE_DISABLED     0
+#define DBGFINTERRUPTSTATE_ENABLED      1
+#define DBGFINTERRUPTSTATE_DONT_TOUCH   2
+/** @} */
+
+/**
+ * Interrupt break state configuration entry.
+ */
+typedef struct DBGFINTERRUPTCONFIG
+{
+    /** The interrupt number. */
+    uint8_t     iInterrupt;
+    /** The hardware interrupt state (DBGFINTERRUPTSTATE_XXX). */
+    uint8_t     enmHardState;
+    /** The software interrupt state (DBGFINTERRUPTSTATE_XXX). */
+    uint8_t     enmSoftState;
+} DBGFINTERRUPTCONFIG;
+/** Pointer to an interrupt break state config entyr. */
+typedef DBGFINTERRUPTCONFIG *PDBGFINTERRUPTCONFIG;
+/** Pointer to a const interrupt break state config entyr. */
+typedef DBGFINTERRUPTCONFIG const *PCDBGFINTERRUPTCONFIG;
+
+VMMR3DECL(int) DBGFR3InterruptConfigEx(PUVM pUVM, PCDBGFINTERRUPTCONFIG paConfigs, size_t cConfigs);
+VMMR3DECL(int) DBGFR3InterruptHardwareConfig(PUVM pUVM, uint8_t iInterrupt, bool fEnabled);
+VMMR3DECL(int) DBGFR3InterruptSoftwareConfig(PUVM pUVM, uint8_t iInterrupt, bool fEnabled);
+VMMR3DECL(int) DBGFR3InterruptHardwareIsEnabled(PUVM pUVM, uint8_t iInterrupt);
+VMMR3DECL(int) DBGFR3InterruptSoftwareIsEnabled(PUVM pUVM, uint8_t iInterrupt);
+
 #endif /* IN_RING3 */
+
+/** @def DBGF_IS_EVENT_ENABLED
+ * Checks if a selectable debug event is enabled or not (fast).
+ *
+ * @returns true/false.
+ * @param   a_pVM       Pointer to the cross context VM structure.
+ * @param   a_enmEvent  The selectable event to check.
+ * @remarks Only for use internally in the VMM. Use DBGFR3EventIsEnabled elsewhere.
+ */
+#if defined(VBOX_STRICT) && defined(RT_COMPILER_SUPPORTS_LAMBDA)
+# define DBGF_IS_EVENT_ENABLED(a_pVM, a_enmEvent) \
+    ([](PVM a_pLambdaVM, DBGFEVENTTYPE a_enmLambdaEvent) -> bool { \
+        Assert(   a_enmLambdaEvent >= DBGFEVENT_FIRST_SELECTABLE \
+               || a_enmLambdaEvent == DBGFEVENT_INTERRUPT_HARDWARE \
+               || a_enmLambdaEvent == DBGFEVENT_INTERRUPT_SOFTWARE); \
+        Assert(a_enmLambdaEvent < DBGFEVENT_END); \
+        return ASMBitTest(&a_pLambdaVM->dbgf.ro.bmSelectedEvents, a_enmLambdaEvent); \
+    }(a_pVM, a_enmEvent))
+#elif defined(VBOX_STRICT) && defined(__GNUC__)
+# define DBGF_IS_EVENT_ENABLED(a_pVM, a_enmEvent) \
+    __extension__ ({ \
+        Assert(   (a_enmEvent) >= DBGFEVENT_FIRST_SELECTABLE \
+               || (a_enmEvent) == DBGFEVENT_INTERRUPT_HARDWARE \
+               || (a_enmEvent) == DBGFEVENT_INTERRUPT_SOFTWARE); \
+        Assert((a_enmEvent) < DBGFEVENT_END); \
+        ASMBitTest(&(a_pVM)->dbgf.ro.bmSelectedEvents, (a_enmEvent)); \
+    })
+#else
+# define DBGF_IS_EVENT_ENABLED(a_pVM, a_enmEvent) \
+        ASMBitTest(&(a_pVM)->dbgf.ro.bmSelectedEvents, (a_enmEvent))
+#endif
+
+
+/** @def DBGF_IS_HARDWARE_INT_ENABLED
+ * Checks if hardware interrupt interception is enabled or not for an interrupt.
+ *
+ * @returns true/false.
+ * @param   a_pVM           Pointer to the cross context VM structure.
+ * @param   a_iInterrupt    Interrupt to check.
+ * @remarks Only for use internally in the VMM.  Use
+ *          DBGFR3InterruptHardwareIsEnabled elsewhere.
+ */
+#define DBGF_IS_HARDWARE_INT_ENABLED(a_pVM, a_iInterrupt) \
+        ASMBitTest(&(a_pVM)->dbgf.ro.bmHardIntBreakpoints, (uint8_t)(a_iInterrupt))
+
+/** @def DBGF_IS_SOFTWARE_INT_ENABLED
+ * Checks if software interrupt interception is enabled or not for an interrupt.
+ *
+ * @returns true/false.
+ * @param   a_pVM           Pointer to the cross context VM structure.
+ * @param   a_iInterrupt    Interrupt to check.
+ * @remarks Only for use internally in the VMM.  Use
+ *          DBGFR3InterruptSoftwareIsEnabled elsewhere.
+ */
+#define DBGF_IS_SOFTWARE_INT_ENABLED(a_pVM, a_iInterrupt) \
+        ASMBitTest(&(a_pVM)->dbgf.ro.bmSoftIntBreakpoints, (uint8_t)(a_iInterrupt))
 
 
 
@@ -320,10 +671,51 @@ typedef enum DBGFBPTYPE
     DBGFBPTYPE_INT3,
     /** Recompiler. */
     DBGFBPTYPE_REM,
+    /** Port I/O breakpoint. */
+    DBGFBPTYPE_PORT_IO,
+    /** Memory mapped I/O breakpoint. */
+    DBGFBPTYPE_MMIO,
     /** ensure 32-bit size. */
     DBGFBPTYPE_32BIT_HACK = 0x7fffffff
 } DBGFBPTYPE;
 
+
+/** @name DBGFBPIOACCESS_XXX - I/O (port + mmio) access types.
+ * @{ */
+/** Byte sized read accesses. */
+#define DBGFBPIOACCESS_READ_BYTE            UINT32_C(0x00000001)
+/** Word sized accesses. */
+#define DBGFBPIOACCESS_READ_WORD            UINT32_C(0x00000002)
+/** Double word sized accesses. */
+#define DBGFBPIOACCESS_READ_DWORD           UINT32_C(0x00000004)
+/** Quad word sized accesses - not available for I/O ports. */
+#define DBGFBPIOACCESS_READ_QWORD           UINT32_C(0x00000008)
+/** Other sized accesses - not available for I/O ports. */
+#define DBGFBPIOACCESS_READ_OTHER           UINT32_C(0x00000010)
+/** Read mask. */
+#define DBGFBPIOACCESS_READ_MASK            UINT32_C(0x0000001f)
+
+/** Byte sized write accesses. */
+#define DBGFBPIOACCESS_WRITE_BYTE           UINT32_C(0x00000100)
+/** Word sized write accesses. */
+#define DBGFBPIOACCESS_WRITE_WORD           UINT32_C(0x00000200)
+/** Double word sized write accesses. */
+#define DBGFBPIOACCESS_WRITE_DWORD          UINT32_C(0x00000400)
+/** Quad word sized write accesses - not available for I/O ports. */
+#define DBGFBPIOACCESS_WRITE_QWORD          UINT32_C(0x00000800)
+/** Other sized write accesses - not available for I/O ports. */
+#define DBGFBPIOACCESS_WRITE_OTHER          UINT32_C(0x00001000)
+/** Write mask. */
+#define DBGFBPIOACCESS_WRITE_MASK           UINT32_C(0x00001f00)
+
+/** All kind of access (read, write, all sizes). */
+#define DBGFBPIOACCESS_ALL                  UINT32_C(0x00001f1f)
+
+/** The acceptable mask for I/O ports.   */
+#define DBGFBPIOACCESS_VALID_MASK_PORT_IO   UINT32_C(0x00000303)
+/** The acceptable mask for MMIO.   */
+#define DBGFBPIOACCESS_VALID_MASK_MMIO      UINT32_C(0x00001f1f)
+/** @} */
 
 /**
  * A Breakpoint.
@@ -337,51 +729,77 @@ typedef struct DBGFBP
     /** The hit number which stops triggering the breakpoint (disables it).
      * Use ~(uint64_t)0 if it should never stop. */
     uint64_t        iHitDisable;
-    /** The Flat GC address of the breakpoint.
-     * (PC register value if REM type?) */
-    RTGCUINTPTR     GCPtr;
     /** The breakpoint id. */
-    uint32_t        iBp;
+    uint16_t        iBp;
     /** The breakpoint status - enabled or disabled. */
     bool            fEnabled;
-
     /** The breakpoint type. */
     DBGFBPTYPE      enmType;
-
-#if GC_ARCH_BITS == 64
-    uint32_t        u32Padding;
-#endif
 
     /** Union of type specific data. */
     union
     {
+        /** The flat GC address breakpoint address for REG, INT3 and REM breakpoints. */
+        RTGCUINTPTR         GCPtr;
+
         /** Debug register data. */
         struct DBGFBPREG
         {
+            /** The flat GC address of the breakpoint. */
+            RTGCUINTPTR     GCPtr;
             /** The debug register number. */
-            uint8_t     iReg;
+            uint8_t         iReg;
             /** The access type (one of the X86_DR7_RW_* value). */
-            uint8_t     fType;
+            uint8_t         fType;
             /** The access size. */
-            uint8_t     cb;
+            uint8_t         cb;
         } Reg;
         /** Recompiler breakpoint data. */
         struct DBGFBPINT3
         {
+            /** The flat GC address of the breakpoint. */
+            RTGCUINTPTR     GCPtr;
             /** The byte value we replaced by the INT 3 instruction. */
-            uint8_t     bOrg;
+            uint8_t         bOrg;
         } Int3;
 
         /** Recompiler breakpoint data. */
         struct DBGFBPREM
         {
-            /** nothing yet */
-            uint8_t fDummy;
+            /** The flat GC address of the breakpoint.
+             * (PC register value?) */
+            RTGCUINTPTR     GCPtr;
         } Rem;
+
+        /** I/O port breakpoint data.   */
+        struct DBGFBPPORTIO
+        {
+            /** The first port. */
+            RTIOPORT        uPort;
+            /** The number of ports. */
+            RTIOPORT        cPorts;
+            /** Valid DBGFBPIOACCESS_XXX selection, max DWORD size. */
+            uint32_t        fAccess;
+        } PortIo;
+
+        /** Memory mapped I/O breakpoint data. */
+        struct DBGFBPMMIO
+        {
+            /** The first MMIO address. */
+            RTGCPHYS        PhysAddr;
+            /** The size of the MMIO range in bytes. */
+            uint32_t        cb;
+            /** Valid DBGFBPIOACCESS_XXX selection, max DWORD size. */
+            uint32_t        fAccess;
+        } Mmio;
+
         /** Paddind to ensure that the size is identical on win32 and linux. */
-        uint64_t    u64Padding;
+        uint64_t    u64Padding[2];
     } u;
 } DBGFBP;
+AssertCompileMembersAtSameOffset(DBGFBP, u.GCPtr, DBGFBP, u.Reg.GCPtr);
+AssertCompileMembersAtSameOffset(DBGFBP, u.GCPtr, DBGFBP, u.Int3.GCPtr);
+AssertCompileMembersAtSameOffset(DBGFBP, u.GCPtr, DBGFBP, u.Rem.GCPtr);
 
 /** Pointer to a breakpoint. */
 typedef DBGFBP *PDBGFBP;
@@ -393,6 +811,10 @@ VMMR3DECL(int)  DBGFR3BpSet(PUVM pUVM, PCDBGFADDRESS pAddress, uint64_t iHitTrig
 VMMR3DECL(int)  DBGFR3BpSetReg(PUVM pUVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable,
                                uint8_t fType, uint8_t cb, uint32_t *piBp);
 VMMR3DECL(int)  DBGFR3BpSetREM(PUVM pUVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable, uint32_t *piBp);
+VMMR3DECL(int)  DBGFR3BpSetPortIo(PUVM pUVM, RTIOPORT uPort, RTIOPORT cPorts, uint32_t fAccess,
+                                  uint64_t iHitTrigger, uint64_t iHitDisable, uint32_t *piBp);
+VMMR3DECL(int)  DBGFR3BpSetMmio(PUVM pUVM, RTGCPHYS GCPhys, uint32_t cb, uint32_t fAccess,
+                                uint64_t iHitTrigger, uint64_t iHitDisable, uint32_t *piBp);
 VMMR3DECL(int)  DBGFR3BpClear(PUVM pUVM, uint32_t iBp);
 VMMR3DECL(int)  DBGFR3BpEnable(PUVM pUVM, uint32_t iBp);
 VMMR3DECL(int)  DBGFR3BpDisable(PUVM pUVM, uint32_t iBp);
@@ -400,7 +822,8 @@ VMMR3DECL(int)  DBGFR3BpDisable(PUVM pUVM, uint32_t iBp);
 /**
  * Breakpoint enumeration callback function.
  *
- * @returns VBox status code. Any failure will stop the enumeration.
+ * @returns VBox status code.
+ *          The enumeration stops on failure status and VINF_CALLBACK_RETURN.
  * @param   pUVM        The user mode VM handle.
  * @param   pvUser      The user argument.
  * @param   pBp         Pointer to the breakpoint information. (readonly)
@@ -421,6 +844,8 @@ VMM_INT_DECL(bool)          DBGFBpIsHwArmed(PVM pVM);
 VMM_INT_DECL(bool)          DBGFBpIsHwIoArmed(PVM pVM);
 VMM_INT_DECL(bool)          DBGFIsStepping(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  DBGFBpCheckIo(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, RTIOPORT uIoPort, uint8_t cbValue);
+VMM_INT_DECL(VBOXSTRICTRC)  DBGFEventGenericWithArg(PVM pVM, PVMCPU pVCpu, DBGFEVENTTYPE enmEvent, uint64_t uEventArg,
+                                                    DBGFEVENTCTX enmCtx);
 
 
 #ifdef IN_RING3 /* The CPU mode API only works in ring-3. */
@@ -518,6 +943,8 @@ typedef FNDBGFHANDLEREXT  *PFNDBGFHANDLEREXT;
  * @{ */
 /** The handler must run on the EMT. */
 #define DBGFINFO_FLAGS_RUN_ON_EMT       RT_BIT(0)
+/** Call on all EMTs when a specific isn't specified. */
+#define DBGFINFO_FLAGS_ALL_EMTS         RT_BIT(1)
 /** @} */
 
 VMMR3_INT_DECL(int) DBGFR3InfoRegisterDevice(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDEV pfnHandler, PPDMDEVINS pDevIns);
@@ -539,18 +966,43 @@ VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const ch
 /** @def DBGFR3_INFO_LOG
  * Display a piece of info writing to the log if enabled.
  *
+ * This is for execution on EMTs and will only show the items on the calling
+ * EMT.  This is to avoid deadlocking against other CPUs if a rendezvous is
+ * initiated in parallel to this call.  (Besides, nobody really wants or need
+ * info for the other EMTs when using this macro.)
+ *
  * @param   a_pVM       The shared VM handle.
+ * @param   a_pVCpu     The cross context per CPU structure of the calling EMT.
  * @param   a_pszName   The identifier of the info to display.
  * @param   a_pszArgs   Arguments to the info handler.
  */
 #ifdef LOG_ENABLED
-# define DBGFR3_INFO_LOG(a_pVM, a_pszName, a_pszArgs) \
+# define DBGFR3_INFO_LOG(a_pVM, a_pVCpu, a_pszName, a_pszArgs) \
+    do { \
+        if (LogIsEnabled()) \
+            DBGFR3InfoEx((a_pVM)->pUVM, (a_pVCpu)->idCpu, a_pszName, a_pszArgs, NULL); \
+    } while (0)
+#else
+# define DBGFR3_INFO_LOG(a_pVM, a_pVCpu, a_pszName, a_pszArgs) do { } while (0)
+#endif
+
+/** @def DBGFR3_INFO_LOG_SAFE
+ * Display a piece of info (rendezvous safe) writing to the log if enabled.
+ *
+ * @param   a_pVM       The shared VM handle.
+ * @param   a_pszName   The identifier of the info to display.
+ * @param   a_pszArgs   Arguments to the info handler.
+ *
+ * @remarks Use DBGFR3_INFO_LOG where ever possible!
+ */
+#ifdef LOG_ENABLED
+# define DBGFR3_INFO_LOG_SAFE(a_pVM, a_pszName, a_pszArgs) \
     do { \
         if (LogIsEnabled()) \
             DBGFR3Info((a_pVM)->pUVM, a_pszName, a_pszArgs, NULL); \
     } while (0)
 #else
-# define DBGFR3_INFO_LOG(a_pVM, a_pszName, a_pszArgs) do { } while (0)
+# define DBGFR3_INFO_LOG_SAFE(a_pVM, a_pszName, a_pszArgs) do { } while (0)
 #endif
 
 /**
@@ -822,20 +1274,22 @@ typedef struct DBGFSTACKFRAME
  * @{ */
 /** Set if the content of the frame is filled in by DBGFR3StackWalk() and can be used
  * to construct the next frame. */
-# define DBGFSTACKFRAME_FLAGS_ALL_VALID RT_BIT(0)
+# define DBGFSTACKFRAME_FLAGS_ALL_VALID     RT_BIT(0)
 /** This is the last stack frame we can read.
  * This flag is not set if the walk stop because of max dept or recursion. */
-# define DBGFSTACKFRAME_FLAGS_LAST      RT_BIT(1)
+# define DBGFSTACKFRAME_FLAGS_LAST          RT_BIT(1)
 /** This is the last record because we detected a loop. */
-# define DBGFSTACKFRAME_FLAGS_LOOP      RT_BIT(2)
+# define DBGFSTACKFRAME_FLAGS_LOOP          RT_BIT(2)
 /** This is the last record because we reached the maximum depth. */
-# define DBGFSTACKFRAME_FLAGS_MAX_DEPTH RT_BIT(3)
+# define DBGFSTACKFRAME_FLAGS_MAX_DEPTH     RT_BIT(3)
 /** 16-bit frame. */
-# define DBGFSTACKFRAME_FLAGS_16BIT     RT_BIT(4)
+# define DBGFSTACKFRAME_FLAGS_16BIT         RT_BIT(4)
 /** 32-bit frame. */
-# define DBGFSTACKFRAME_FLAGS_32BIT     RT_BIT(5)
+# define DBGFSTACKFRAME_FLAGS_32BIT         RT_BIT(5)
 /** 64-bit frame. */
-# define DBGFSTACKFRAME_FLAGS_64BIT     RT_BIT(6)
+# define DBGFSTACKFRAME_FLAGS_64BIT         RT_BIT(6)
+/** Used Odd/even heuristics for far/near return. */
+# define DBGFSTACKFRAME_FLAGS_USED_ODD_EVEN RT_BIT(7)
 /** @} */
 
 /** @name DBGFCODETYPE
@@ -1734,15 +2188,16 @@ VMMR3DECL(int)      DBGFR3CoreWrite(PUVM pUVM, const char *pszFilename, bool fRe
 
 
 #ifdef IN_RING3
+
 /** @defgroup grp_dbgf_plug_in      The DBGF Plug-in Interface
  * @{
  */
 
 /** The plug-in module name prefix. */
-#define DBGF_PLUG_IN_PREFIX         "DbgPlugIn"
+# define DBGF_PLUG_IN_PREFIX        "DbgPlugIn"
 
 /** The name of the plug-in entry point (FNDBGFPLUGIN) */
-#define DBGF_PLUG_IN_ENTRYPOINT     "DbgPlugInEntry"
+# define DBGF_PLUG_IN_ENTRYPOINT    "DbgPlugInEntry"
 
 /**
  * DBGF plug-in operations.
@@ -1785,8 +2240,253 @@ VMMR3DECL(void) DBGFR3PlugInLoadAll(PUVM pUVM);
 VMMR3DECL(void) DBGFR3PlugInUnloadAll(PUVM pUVM);
 
 /** @} */
-#endif /* IN_RING3 */
 
+
+/** @defgroup grp_dbgf_types        The DBGF type system Interface.
+ * @{
+ */
+
+/** A few forward declarations. */
+/** Pointer to a type registration structure. */
+typedef struct DBGFTYPEREG *PDBGFTYPEREG;
+/** Pointer to a const type registration structure. */
+typedef const struct DBGFTYPEREG *PCDBGFTYPEREG;
+/** Pointer to a typed buffer. */
+typedef struct DBGFTYPEVAL *PDBGFTYPEVAL;
+
+/**
+ * DBGF built-in types.
+ */
+typedef enum DBGFTYPEBUILTIN
+{
+    /** The usual invalid first value. */
+    DBGFTYPEBUILTIN_INVALID,
+    /** Unsigned 8bit integer. */
+    DBGFTYPEBUILTIN_UINT8,
+    /** Signed 8bit integer. */
+    DBGFTYPEBUILTIN_INT8,
+    /** Unsigned 16bit integer. */
+    DBGFTYPEBUILTIN_UINT16,
+    /** Signed 16bit integer. */
+    DBGFTYPEBUILTIN_INT16,
+    /** Unsigned 32bit integer. */
+    DBGFTYPEBUILTIN_UINT32,
+    /** Signed 32bit integer. */
+    DBGFTYPEBUILTIN_INT32,
+    /** Unsigned 64bit integer. */
+    DBGFTYPEBUILTIN_UINT64,
+    /** Signed 64bit integer. */
+    DBGFTYPEBUILTIN_INT64,
+    /** 32bit Guest pointer */
+    DBGFTYPEBUILTIN_PTR32,
+    /** 64bit Guest pointer */
+    DBGFTYPEBUILTIN_PTR64,
+    /** Guest pointer - size depends on the guest bitness */
+    DBGFTYPEBUILTIN_PTR,
+    /** Type indicating a size, like size_t this can have different sizes
+     * on 32bit and 64bit systems */
+    DBGFTYPEBUILTIN_SIZE,
+    /** 32bit float. */
+    DBGFTYPEBUILTIN_FLOAT32,
+    /** 64bit float (also known as double). */
+    DBGFTYPEBUILTIN_FLOAT64,
+    /** Compund types like structs and unions. */
+    DBGFTYPEBUILTIN_COMPOUND,
+    /** The usual 32-bit hack. */
+    DBGFTYPEBUILTIN_32BIT_HACK = 0x7fffffff
+} DBGFTYPEBUILTIN;
+/** Pointer to a built-in type. */
+typedef DBGFTYPEBUILTIN *PDBGFTYPEBUILTIN;
+/** Pointer to a const built-in type. */
+typedef const DBGFTYPEBUILTIN *PCDBGFTYPEBUILTIN;
+
+/**
+ * DBGF type value buffer.
+ */
+typedef union DBGFTYPEVALBUF
+{
+    uint8_t          u8;
+    int8_t           i8;
+    uint16_t         u16;
+    int16_t          i16;
+    uint32_t         u32;
+    int32_t          i32;
+    uint64_t         u64;
+    int64_t          i64;
+    float            f32;
+    double           f64;
+    uint64_t         size; /* For the built-in size_t which can be either 32-bit or 64-bit. */
+    RTGCPTR          GCPtr;
+    /** For embedded structs. */
+    PDBGFTYPEVAL     pVal;
+} DBGFTYPEVALBUF;
+/** Pointer to a value. */
+typedef DBGFTYPEVALBUF *PDBGFTYPEVALBUF;
+
+/**
+ * DBGF type value entry.
+ */
+typedef struct DBGFTYPEVALENTRY
+{
+    /** DBGF built-in type. */
+    DBGFTYPEBUILTIN     enmType;
+    /** Size of the type. */
+    size_t              cbType;
+    /** Number of entries, for arrays this can be > 1. */
+    uint32_t            cEntries;
+    /** Value buffer, depends on whether this is an array. */
+    union
+    {
+        /** Single value. */
+        DBGFTYPEVALBUF  Val;
+        /** Pointer to the array of values. */
+        PDBGFTYPEVALBUF pVal;
+    } Buf;
+} DBGFTYPEVALENTRY;
+/** Pointer to a type value entry. */
+typedef DBGFTYPEVALENTRY *PDBGFTYPEVALENTRY;
+/** Pointer to a const type value entry. */
+typedef const DBGFTYPEVALENTRY *PCDBGFTYPEVALENTRY;
+
+/**
+ * DBGF typed value.
+ */
+typedef struct DBGFTYPEVAL
+{
+    /** Pointer to the registration structure for this type. */
+    PCDBGFTYPEREG       pTypeReg;
+    /** Number of value entries. */
+    uint32_t            cEntries;
+    /** Variable sized array of value entries. */
+    DBGFTYPEVALENTRY    aEntries[1];
+} DBGFTYPEVAL;
+
+/**
+ * DBGF type variant.
+ */
+typedef enum DBGFTYPEVARIANT
+{
+    /** The usual invalid first value. */
+    DBGFTYPEVARIANT_INVALID,
+    /** A struct. */
+    DBGFTYPEVARIANT_STRUCT,
+    /** Union. */
+    DBGFTYPEVARIANT_UNION,
+    /** Alias for an existing type. */
+    DBGFTYPEVARIANT_ALIAS,
+    /** The usual 32-bit hack. */
+    DBGFTYPEVARIANT_32BIT_HACK = 0x7fffffff
+} DBGFTYPEVARIANT;
+
+/** @name DBGFTYPEREGMEMBER Flags.
+ * @{ */
+/** The member is an array with a fixed size. */
+# define DBGFTYPEREGMEMBER_F_ARRAY   RT_BIT_32(0)
+/** The member denotes a pointer. */
+# define DBGFTYPEREGMEMBER_F_POINTER RT_BIT_32(1)
+/** @} */
+
+/**
+ * DBGF type member.
+ */
+typedef struct DBGFTYPEREGMEMBER
+{
+    /** Name of the member. */
+    const char         *pszName;
+    /** Flags for this member, see DBGFTYPEREGMEMBER_F_XXX. */
+    uint32_t            fFlags;
+    /** Type identifier. */
+    const char         *pszType;
+    /** The number of elements in the array, only valid for arrays. */
+    uint32_t            cElements;
+} DBGFTYPEREGMEMBER;
+/** Pointer to a member. */
+typedef DBGFTYPEREGMEMBER *PDBGFTYPEREGMEMBER;
+/** Pointer to a const member. */
+typedef const DBGFTYPEREGMEMBER *PCDBGFTYPEREGMEMBER;
+
+/** @name DBGFTYPEREG Flags.
+ * @{ */
+/** The type is a packed structure. */
+# define DBGFTYPEREG_F_PACKED        RT_BIT_32(0)
+/** @} */
+
+/**
+ * New type registration structure.
+ */
+typedef struct DBGFTYPEREG
+{
+    /** Name of the type. */
+    const char         *pszType;
+    /** The type variant. */
+    DBGFTYPEVARIANT     enmVariant;
+    /** Some registration flags, see DBGFTYPEREG_F_XXX. */
+    uint32_t            fFlags;
+    /** Number of members this type has, only valid for structs or unions. */
+    uint32_t            cMembers;
+    /** Pointer to the member fields, only valid for structs or unions. */
+    PCDBGFTYPEREGMEMBER paMembers;
+    /** Name of the aliased type for aliases. */
+    const char         *pszAliasedType;
+} DBGFTYPEREG;
+
+/**
+ * DBGF typed value dumper callback.
+ *
+ * @returns VBox status code. Any non VINF_SUCCESS status code will abort the dumping.
+ *
+ * @param   off             The byte offset of the entry from the start of the type.
+ * @param   pszField        The name of the field for the value.
+ * @param   iLvl            The current level.
+ * @param   enmType         The type enum.
+ * @param   cbType          Size of the type.
+ * @param   pValBuf         Pointer to the value buffer.
+ * @param   cValBufs        Number of value buffers (for arrays).
+ * @param   pvUser          Opaque user data.
+ */
+typedef DECLCALLBACK(int) FNDBGFR3TYPEVALDUMP(uint32_t off, const char *pszField, uint32_t iLvl,
+                                              DBGFTYPEBUILTIN enmType, size_t cbType,
+                                              PDBGFTYPEVALBUF pValBuf, uint32_t cValBufs,
+                                              void *pvUser);
+/** Pointer to a FNDBGFR3TYPEVALDUMP. */
+typedef FNDBGFR3TYPEVALDUMP *PFNDBGFR3TYPEVALDUMP;
+
+/**
+ * DBGF type information dumper callback.
+ *
+ * @returns VBox status code. Any non VINF_SUCCESS status code will abort the dumping.
+ *
+ * @param   off             The byte offset of the entry from the start of the type.
+ * @param   pszField        The name of the field for the value.
+ * @param   iLvl            The current level.
+ * @param   pszType         The type of the field.
+ * @param   fTypeFlags      Flags for this type, see DBGFTYPEREGMEMBER_F_XXX.
+ * @param   cElements       Number of for the field ( > 0 for arrays).
+ * @param   pvUser          Opaque user data.
+ */
+typedef DECLCALLBACK(int) FNDBGFR3TYPEDUMP(uint32_t off, const char *pszField, uint32_t iLvl,
+                                           const char *pszType, uint32_t fTypeFlags,
+                                           uint32_t cElements, void *pvUser);
+/** Pointer to a FNDBGFR3TYPEDUMP. */
+typedef FNDBGFR3TYPEDUMP *PFNDBGFR3TYPEDUMP;
+
+VMMR3DECL(int) DBGFR3TypeRegister(  PUVM pUVM, uint32_t cTypes, PCDBGFTYPEREG paTypes);
+VMMR3DECL(int) DBGFR3TypeDeregister(PUVM pUVM, const char *pszType);
+VMMR3DECL(int) DBGFR3TypeQueryReg(  PUVM pUVM, const char *pszType, PCDBGFTYPEREG *ppTypeReg);
+
+VMMR3DECL(int) DBGFR3TypeQuerySize( PUVM pUVM, const char *pszType, size_t *pcbType);
+VMMR3DECL(int) DBGFR3TypeSetSize(   PUVM pUVM, const char *pszType, size_t cbType);
+VMMR3DECL(int) DBGFR3TypeDumpEx(    PUVM pUVM, const char *pszType, uint32_t fFlags,
+                                    uint32_t cLvlMax, PFNDBGFR3TYPEDUMP pfnDump, void *pvUser);
+VMMR3DECL(int) DBGFR3TypeQueryValByType(PUVM pUVM, PCDBGFADDRESS pAddress, const char *pszType,
+                                        PDBGFTYPEVAL *ppVal);
+VMMR3DECL(void) DBGFR3TypeValFree(PDBGFTYPEVAL pVal);
+VMMR3DECL(int)  DBGFR3TypeValDumpEx(PUVM pUVM, PCDBGFADDRESS pAddress, const char *pszType, uint32_t fFlags,
+                                    uint32_t cLvlMax, FNDBGFR3TYPEVALDUMP pfnDump, void *pvUser);
+
+/** @} */
+
+#endif /* IN_RING3 */
 
 /** @} */
 

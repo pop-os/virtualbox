@@ -3052,16 +3052,29 @@ static DECLCALLBACK(int) vgaR3IOPortHGSMIWrite(PPDMDEVINS pDevIns, void *pvUser,
 # if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_VDMA) || defined(VBOX_WITH_WDDM)
                 if (u32 == HGSMIOFFSET_VOID)
                 {
-                    PDMDevHlpPCISetIrq(pDevIns, 0, PDM_IRQ_LEVEL_LOW);
-                    HGSMIClearHostGuestFlags(pThis->pHGSMI,
-                                             HGSMIHOSTFLAGS_IRQ
+                    PDMCritSectEnter(&pThis->CritSectIRQ, VERR_SEM_BUSY);
+
+                    if (pThis->fu32PendingGuestFlags == 0)
+                    {
+                        PDMDevHlpPCISetIrqNoWait(pDevIns, 0, PDM_IRQ_LEVEL_LOW);
+                        HGSMIClearHostGuestFlags(pThis->pHGSMI,
+                                                 HGSMIHOSTFLAGS_IRQ
 #  ifdef VBOX_VDMA_WITH_WATCHDOG
-                                             | HGSMIHOSTFLAGS_WATCHDOG
+                                                 | HGSMIHOSTFLAGS_WATCHDOG
 #  endif
-                                             | HGSMIHOSTFLAGS_VSYNC
-                                             | HGSMIHOSTFLAGS_HOTPLUG
-                                             | HGSMIHOSTFLAGS_CURSOR_CAPABILITIES
-                                             );
+                                                 | HGSMIHOSTFLAGS_VSYNC
+                                                 | HGSMIHOSTFLAGS_HOTPLUG
+                                                 | HGSMIHOSTFLAGS_CURSOR_CAPABILITIES
+                                                );
+                    }
+                    else
+                    {
+                        HGSMISetHostGuestFlags(pThis->pHGSMI, HGSMIHOSTFLAGS_IRQ | pThis->fu32PendingGuestFlags);
+                        pThis->fu32PendingGuestFlags = 0;
+                        /* Keep the IRQ unchanged. */
+                    }
+
+                    PDMCritSectLeave(&pThis->CritSectIRQ);
                 }
                 else
 # endif
@@ -5940,6 +5953,7 @@ static DECLCALLBACK(int) vgaR3Destruct(PPDMDEVINS pDevIns)
         pThis->pszLogoFile = NULL;
     }
 
+    PDMR3CritSectDelete(&pThis->CritSectIRQ);
     PDMR3CritSectDelete(&pThis->CritSect);
     return VINF_SUCCESS;
 }
@@ -6169,6 +6183,9 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, RT_SRC_POS, "VGA#%u", iInstance);
     AssertRCReturn(rc, rc);
     rc = PDMDevHlpSetDeviceCritSect(pDevIns, &pThis->CritSect);
+    AssertRCReturn(rc, rc);
+
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSectIRQ, RT_SRC_POS, "VGA#%u_IRQ", iInstance);
     AssertRCReturn(rc, rc);
 
     /*
@@ -6449,8 +6466,28 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     uint32_t        fFlags = 0;
     if (pThis->pbVgaBios == NULL)
     {
-        pbVgaBiosBinary = g_abVgaBiosBinary;
-        cbVgaBiosBinary = g_cbVgaBiosBinary;
+        CPUMMICROARCH enmMicroarch = pVM ? pVM->cpum.ro.GuestFeatures.enmMicroarch : kCpumMicroarch_Intel_P6;
+        if (   enmMicroarch == kCpumMicroarch_Intel_8086
+            || enmMicroarch == kCpumMicroarch_Intel_80186
+            || enmMicroarch == kCpumMicroarch_NEC_V20
+            || enmMicroarch == kCpumMicroarch_NEC_V30)
+        {
+            pbVgaBiosBinary = g_abVgaBiosBinary8086;
+            cbVgaBiosBinary = g_cbVgaBiosBinary8086;
+            LogRel(("VGA: Using the 8086 BIOS image!\n"));
+        }
+        else if (enmMicroarch == kCpumMicroarch_Intel_80286)
+        {
+            pbVgaBiosBinary = g_abVgaBiosBinary286;
+            cbVgaBiosBinary = g_cbVgaBiosBinary286;
+            LogRel(("VGA: Using the 286 BIOS image!\n"));
+        }
+        else
+        {
+            pbVgaBiosBinary = g_abVgaBiosBinary386;
+            cbVgaBiosBinary = g_cbVgaBiosBinary386;
+            LogRel(("VGA: Using the 386+ BIOS image.\n"));
+        }
         fFlags          = PGMPHYS_ROM_FLAGS_PERMANENT_BINARY;
     }
     else
@@ -6459,8 +6496,8 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
         cbVgaBiosBinary = pThis->cbVgaBios;
     }
 
-    AssertReleaseMsg(g_cbVgaBiosBinary <= _64K && g_cbVgaBiosBinary >= 32*_1K, ("g_cbVgaBiosBinary=%#x\n", g_cbVgaBiosBinary));
-    AssertReleaseMsg(RT_ALIGN_Z(g_cbVgaBiosBinary, PAGE_SIZE) == g_cbVgaBiosBinary, ("g_cbVgaBiosBinary=%#x\n", g_cbVgaBiosBinary));
+    AssertReleaseMsg(cbVgaBiosBinary <= _64K && cbVgaBiosBinary >= 32*_1K, ("cbVgaBiosBinary=%#x\n", cbVgaBiosBinary));
+    AssertReleaseMsg(RT_ALIGN_Z(cbVgaBiosBinary, PAGE_SIZE) == cbVgaBiosBinary, ("cbVgaBiosBinary=%#x\n", cbVgaBiosBinary));
     /* Note! Because of old saved states we'll always register at least 36KB of ROM. */
     rc = PDMDevHlpROMRegister(pDevIns, 0x000c0000, RT_MAX(cbVgaBiosBinary, 36*_1K), pbVgaBiosBinary, cbVgaBiosBinary,
                               fFlags, "VGA BIOS");

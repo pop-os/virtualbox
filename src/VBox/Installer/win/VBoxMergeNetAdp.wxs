@@ -33,6 +33,9 @@
                  Platform="$(var.Property_Platform)"
                  SummaryCodepage="1252"/>
 
+
+        <?include PublicProperties.wxi ?>
+
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
         <Property Id="localMSMNetworkType" Value="Empty" /> 
         <Configuration Name="passedNetworkType" Format="Text" DefaultValue="Not passed"/> 
@@ -53,7 +56,7 @@
         <!-- Custom actions -->
         <Binary Id="VBoxInstallHelper" SourceFile="$(env.PATH_OUT)\bin\VBoxInstallHelper.dll" />
         <?include VBoxMergeNetAdpCA.wxi ?>
-
+        
         <InstallExecuteSequence>
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
             <Custom Action="setNetworkTypeADP" After="CostInitialize"/>

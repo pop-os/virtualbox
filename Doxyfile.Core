@@ -296,7 +296,7 @@ HIDE_UNDOC_MEMBERS     = NO
 HIDE_UNDOC_CLASSES     = NO
 HIDE_FRIEND_COMPOUNDS  = NO
 HIDE_IN_BODY_DOCS      = NO
-INTERNAL_DOCS          = NO
+INTERNAL_DOCS          = YES
 CASE_SENSE_NAMES       = NO
 HIDE_SCOPE_NAMES       = NO
 HIDE_COMPOUND_REFERENCE= NO
@@ -534,6 +534,7 @@ PREDEFINED             =  \
 # decl and calling conventions.
 PREDEFINED += \
     "DECLINLINE(type)=inline type" \
+    APICBOTHCBDECL(type)=type \
     DECL_FORCE_INLINE(type)=DECLINLINE(type) \
     DECL_NO_INLINE(type)=type \
     DECLCALLBACK(type)=type \
@@ -559,6 +560,31 @@ PREDEFINED += \
     VMMRZ_INT_DECL(type)=type \
     GMMR0DECL(type)=type \
     GMMR3DECL(type)=type 
+
+# BS3Kit
+PREDEFINED += \
+    BS3_FAR= \
+    BS3_NEAR= \
+    BS3_FAR_DATA= \
+    BS3_DECL(a_Type)=a_Type \
+    BS3_DECL_NEAR(a_Type)=a_Type \
+    BS3_DECL_FAR(a_Type)=a_Type \
+    BS3_DECL_CALLBACK(a_Type)=a_Type \
+    BS3_CMN_NM(a_Name)=a_Name \
+    BS3_CMN_FAR_NM(a_Name)=a_Name \
+    BS3_CMN_FN_NM(a_Name)=a_Name \
+    BS3_DATA_NM(a_Name)=a_Name \
+    TMPL_NM(a_Name)=a_Name##_mmm \
+    TMPL_FAR_NM(a_Name)=a_Name##_mmm \
+    "BS3_CMN_PROTO_STUB(a_RetType,a_Name,a_Params)=a_RetType a_Name a_Params" \
+    "BS3_CMN_PROTO_NOSB(a_RetType,a_Name,a_Params)=a_RetType a_Name a_Params" \
+    "BS3_CMN_DEF(a_RetType,a_Name,a_Params)=a_RetType a_Name a_Params" \
+    "BS3_MODE_PROTO_STUB(a_RetType,a_Name,a_Params)=a_RetType a_Name##_mmm a_Params" \
+    "BS3_MODE_PROTO_NOSB(a_RetType,a_Name,a_Params)=a_RetType a_Name##_mmm a_Params" \
+    "BS3_MODE_DEF(a_RetType,a_Name,a_Params)=a_RetType a_Name##_mmm a_Params" \
+    "BS3_PTR_UNION_TEMPLATE(a_BaseName,a_Modifiers)=typedef union a_BaseName { a_Modifiers void *pv } a_BaseName, * P##a_BaseName; }" \
+    "BS3_XPTR_MEMBER(a_Type,a_Name)=a_Type * a_Name" \
+
 
 # templated fun.
 PREDEFINED += \
@@ -666,8 +692,10 @@ PREDEFINED          += \
     "END_INTERFACE_MAP()=" \
     "DISP_FUNCTION(class, name, function, result, id)=" \
     "END_DISPATCH_MAP()=" \
-    "IMPLEMENT_OLECREATE2(class, name, id1, id2, id3, id4,\
-    id5, id6, id7, id8, id9, id10, id11)="
+    "IMPLEMENT_OLECREATE2(class, name, id1, id2, id3, id4, id5, id6, id7, id8, id9, id10, id11)=" \
+    RT_GCC_EXTENSION= \
+    "CPUM_STRUCT_NM(n)=" \
+    "CPUM_UNION_NM(n)="
 
 EXPAND_AS_DEFINED      = \
     RCPTRTYPE \
@@ -716,6 +744,7 @@ EXPAND_AS_DEFINED      = \
     INTNETR0DECL \
     INTNETR3DECL \
     PDMBOTHCBDECL \
+    APICBOTHCBDECL \
     PGM_BTH_DECL \
     PGM_GST_DECL \
     PGM_SHW_DECL \

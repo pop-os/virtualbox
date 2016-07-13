@@ -34,7 +34,7 @@
 #include <iprt/asm.h>
 
 
-static void *sgBufGet(PRTSGBUF pSgBuf, size_t *pcbData)
+static void *rtSgBufGet(PRTSGBUF pSgBuf, size_t *pcbData)
 {
     size_t cbData;
     void *pvBuf;
@@ -52,8 +52,8 @@ static void *sgBufGet(PRTSGBUF pSgBuf, size_t *pcbData)
               &&    (uintptr_t)pSgBuf->pvSegCur                     >= (uintptr_t)pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg
               &&    (uintptr_t)pSgBuf->pvSegCur + pSgBuf->cbSegLeft <= (uintptr_t)pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg + pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg,
               ("pSgBuf->idxSeg=%d pSgBuf->cSegs=%d pSgBuf->pvSegCur=%p pSgBuf->cbSegLeft=%zd pSgBuf->paSegs[%d].pvSeg=%p pSgBuf->paSegs[%d].cbSeg=%zd\n",
-               pSgBuf->idxSeg, pSgBuf->cSegs, pSgBuf->pvSegCur, pSgBuf->cbSegLeft,
-               pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg, pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg));
+               pSgBuf->idxSeg, pSgBuf->cSegs, pSgBuf->pvSegCur, pSgBuf->cbSegLeft, pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg, pSgBuf->idxSeg,
+               pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg));
 #endif
 
     cbData = RT_MIN(*pcbData, pSgBuf->cbSegLeft);
@@ -142,7 +142,7 @@ RTDECL(void *) RTSgBufGetNextSegment(PRTSGBUF pSgBuf, size_t *pcbSeg)
     if (!*pcbSeg)
         *pcbSeg = pSgBuf->cbSegLeft;
 
-    return sgBufGet(pSgBuf, pcbSeg);
+    return rtSgBufGet(pSgBuf, pcbSeg);
 }
 
 
@@ -152,20 +152,16 @@ RTDECL(size_t) RTSgBufCopy(PRTSGBUF pSgBufDst, PRTSGBUF pSgBufSrc, size_t cbCopy
     AssertPtrReturn(pSgBufSrc, 0);
 
     size_t cbLeft = cbCopy;
-
     while (cbLeft)
     {
         size_t cbThisCopy = RT_MIN(RT_MIN(pSgBufDst->cbSegLeft, cbLeft), pSgBufSrc->cbSegLeft);
-        size_t cbTmp = cbThisCopy;
-        void *pvBufDst;
-        void *pvBufSrc;
-
         if (!cbThisCopy)
             break;
 
-        pvBufDst = sgBufGet(pSgBufDst, &cbTmp);
+        size_t cbTmp = cbThisCopy;
+        void *pvBufDst = rtSgBufGet(pSgBufDst, &cbTmp);
         Assert(cbTmp == cbThisCopy);
-        pvBufSrc = sgBufGet(pSgBufSrc, &cbTmp);
+        void *pvBufSrc = rtSgBufGet(pSgBufSrc, &cbTmp);
         Assert(cbTmp == cbThisCopy);
 
         memcpy(pvBufDst, pvBufSrc, cbThisCopy);
@@ -182,27 +178,23 @@ RTDECL(int) RTSgBufCmp(PCRTSGBUF pSgBuf1, PCRTSGBUF pSgBuf2, size_t cbCmp)
     AssertPtrReturn(pSgBuf1, 0);
     AssertPtrReturn(pSgBuf2, 0);
 
-    size_t cbLeft = cbCmp;
-    RTSGBUF SgBuf1;
-    RTSGBUF SgBuf2;
-
     /* Set up the temporary buffers */
+    RTSGBUF SgBuf1;
     RTSgBufClone(&SgBuf1, pSgBuf1);
+    RTSGBUF SgBuf2;
     RTSgBufClone(&SgBuf2, pSgBuf2);
 
+    size_t cbLeft = cbCmp;
     while (cbLeft)
     {
         size_t cbThisCmp = RT_MIN(RT_MIN(SgBuf1.cbSegLeft, cbLeft), SgBuf2.cbSegLeft);
-        size_t cbTmp = cbThisCmp;
-        void *pvBuf1;
-        void *pvBuf2;
-
-        if (!cbCmp)
+        if (!cbThisCmp)
             break;
 
-        pvBuf1 = sgBufGet(&SgBuf1, &cbTmp);
+        size_t cbTmp = cbThisCmp;
+        void *pvBuf1 = rtSgBufGet(&SgBuf1, &cbTmp);
         Assert(cbTmp == cbThisCmp);
-        pvBuf2 = sgBufGet(&SgBuf2, &cbTmp);
+        void *pvBuf2 = rtSgBufGet(&SgBuf2, &cbTmp);
         Assert(cbTmp == cbThisCmp);
 
         int rc = memcmp(pvBuf1, pvBuf2, cbThisCmp);
@@ -216,14 +208,11 @@ RTDECL(int) RTSgBufCmp(PCRTSGBUF pSgBuf1, PCRTSGBUF pSgBuf2, size_t cbCmp)
 }
 
 
-RTDECL(int) RTSgBufCmpEx(PRTSGBUF pSgBuf1, PRTSGBUF pSgBuf2, size_t cbCmp,
-                         size_t *pcbOff, bool fAdvance)
+RTDECL(int) RTSgBufCmpEx(PRTSGBUF pSgBuf1, PRTSGBUF pSgBuf2, size_t cbCmp, size_t *poffDiff, bool fAdvance)
 {
     AssertPtrReturn(pSgBuf1, 0);
     AssertPtrReturn(pSgBuf2, 0);
 
-    size_t cbLeft = cbCmp;
-    size_t cbOff  = 0;
     RTSGBUF SgBuf1Tmp;
     RTSGBUF SgBuf2Tmp;
     PRTSGBUF pSgBuf1Tmp;
@@ -243,42 +232,41 @@ RTDECL(int) RTSgBufCmpEx(PRTSGBUF pSgBuf1, PRTSGBUF pSgBuf2, size_t cbCmp,
         pSgBuf2Tmp = pSgBuf2;
     }
 
+    size_t cbLeft = cbCmp;
+    size_t off    = 0;
     while (cbLeft)
     {
         size_t cbThisCmp = RT_MIN(RT_MIN(pSgBuf1Tmp->cbSegLeft, cbLeft), pSgBuf2Tmp->cbSegLeft);
-        size_t cbTmp = cbThisCmp;
-        uint8_t *pbBuf1;
-        uint8_t *pbBuf2;
-
-        if (!cbCmp)
+        if (!cbThisCmp)
             break;
 
-        pbBuf1 = (uint8_t *)sgBufGet(pSgBuf1Tmp, &cbTmp);
+        size_t cbTmp = cbThisCmp;
+        uint8_t *pbBuf1 = (uint8_t *)rtSgBufGet(pSgBuf1Tmp, &cbTmp);
         Assert(cbTmp == cbThisCmp);
-        pbBuf2 = (uint8_t *)sgBufGet(pSgBuf2Tmp, &cbTmp);
+        uint8_t *pbBuf2 = (uint8_t *)rtSgBufGet(pSgBuf2Tmp, &cbTmp);
         Assert(cbTmp == cbThisCmp);
 
-        int rc = memcmp(pbBuf1, pbBuf2, cbThisCmp);
-        if (rc)
+        int iDiff = memcmp(pbBuf1, pbBuf2, cbThisCmp);
+        if (iDiff)
         {
-            if (pcbOff)
+            /* Locate the first byte that differs if the caller requested this. */
+            if (poffDiff)
             {
-                /* Search for the correct offset */
                 while (   cbThisCmp-- > 0
-                       && (*pbBuf1 == *pbBuf2))
+                       && *pbBuf1 == *pbBuf2)
                 {
                     pbBuf1++;
                     pbBuf2++;
-                    cbOff++;
+                    off++;
                 }
 
-                *pcbOff = cbOff;
+                *poffDiff = off;
             }
-            return rc;
+            return iDiff;
         }
 
         cbLeft -= cbThisCmp;
-        cbOff  += cbThisCmp;
+        off    += cbThisCmp;
     }
 
     return 0;
@@ -294,7 +282,7 @@ RTDECL(size_t) RTSgBufSet(PRTSGBUF pSgBuf, uint8_t ubFill, size_t cbSet)
     while (cbLeft)
     {
         size_t cbThisSet = cbLeft;
-        void *pvBuf = sgBufGet(pSgBuf, &cbThisSet);
+        void *pvBuf = rtSgBufGet(pSgBuf, &cbThisSet);
 
         if (!cbThisSet)
             break;
@@ -318,7 +306,7 @@ RTDECL(size_t) RTSgBufCopyToBuf(PRTSGBUF pSgBuf, void *pvBuf, size_t cbCopy)
     while (cbLeft)
     {
         size_t cbThisCopy = cbLeft;
-        void *pvSrc = sgBufGet(pSgBuf, &cbThisCopy);
+        void *pvSrc = rtSgBufGet(pSgBuf, &cbThisCopy);
 
         if (!cbThisCopy)
             break;
@@ -343,7 +331,7 @@ RTDECL(size_t) RTSgBufCopyFromBuf(PRTSGBUF pSgBuf, const void *pvBuf, size_t cbC
     while (cbLeft)
     {
         size_t cbThisCopy = cbLeft;
-        void *pvDst = sgBufGet(pSgBuf, &cbThisCopy);
+        void *pvDst = rtSgBufGet(pSgBuf, &cbThisCopy);
 
         if (!cbThisCopy)
             break;
@@ -363,14 +351,10 @@ RTDECL(size_t) RTSgBufAdvance(PRTSGBUF pSgBuf, size_t cbAdvance)
     AssertPtrReturn(pSgBuf, 0);
 
     size_t cbLeft = cbAdvance;
-
     while (cbLeft)
     {
         size_t cbThisAdvance = cbLeft;
-        void *pv = sgBufGet(pSgBuf, &cbThisAdvance);
-
-        NOREF(pv);
-
+        rtSgBufGet(pSgBuf, &cbThisAdvance);
         if (!cbThisAdvance)
             break;
 
@@ -415,9 +399,7 @@ RTDECL(size_t) RTSgBufSegArrayCreate(PRTSGBUF pSgBuf, PRTSGSEG paSeg, unsigned *
                && cSeg < *pcSeg)
         {
             size_t  cbThisSeg = cbData;
-            void   *pvSeg     = NULL;
-
-            pvSeg = sgBufGet(pSgBuf, &cbThisSeg);
+            void *pvSeg = rtSgBufGet(pSgBuf, &cbThisSeg);
 
             if (!cbThisSeg)
             {
@@ -440,49 +422,23 @@ RTDECL(size_t) RTSgBufSegArrayCreate(PRTSGBUF pSgBuf, PRTSGSEG paSeg, unsigned *
     return cb;
 }
 
+
 RTDECL(bool) RTSgBufIsZero(PRTSGBUF pSgBuf, size_t cbCheck)
 {
-    bool fIsZero = true;
-    size_t cbLeft = cbCheck;
     RTSGBUF SgBufTmp;
-
     RTSgBufClone(&SgBufTmp, pSgBuf);
 
+    bool   fIsZero = true;
+    size_t cbLeft  = cbCheck;
     while (cbLeft)
     {
         size_t cbThisCheck = cbLeft;
-        void *pvBuf = sgBufGet(&SgBufTmp, &cbThisCheck);
-
+        void *pvBuf = rtSgBufGet(&SgBufTmp, &cbThisCheck);
         if (!cbThisCheck)
             break;
-
-        /* Use optimized inline assembler if possible. */
-        if (   !(cbThisCheck % 4)
-            && (cbThisCheck * 8 <= UINT32_MAX))
-        {
-            if (ASMBitFirstSet((volatile void *)pvBuf, (uint32_t)cbThisCheck * 8) != -1)
-            {
-                fIsZero = false;
-                break;
-            }
-        }
-        else
-        {
-            for (unsigned i = 0; i < cbThisCheck; i++)
-            {
-                char *pbBuf = (char *)pvBuf;
-                if (*pbBuf)
-                {
-                    fIsZero = false;
-                    break;
-                }
-                pvBuf = pbBuf + 1;
-            }
-
-            if (!fIsZero)
-                break;
-        }
-
+        fIsZero = ASMMemIsZero(pvBuf, cbThisCheck);
+        if (!fIsZero)
+            break;
         cbLeft -= cbThisCheck;
     }
 

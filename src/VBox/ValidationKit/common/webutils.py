@@ -26,26 +26,25 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 101411 $"
+__version__ = "$Revision: 108487 $"
 
 # Standard Python imports.
 import os;
-import shutil;
 import sys;
 import unittest;
 
-# Validation Kit imports.
-from common import utils;
-
 # Python 3 hacks:
 if sys.version_info[0] < 3:
-    from urllib         import urlopen      as urllib_urlopen;
     from urllib2        import quote        as urllib_quote;
     from urllib         import urlencode    as urllib_urlencode;
+    from urllib         import urlopen      as urllib_urlopen;
 else:
     from urllib.parse   import quote        as urllib_quote;        # pylint: disable=F0401,E0611
     from urllib.parse   import urlencode    as urllib_urlencode;    # pylint: disable=F0401,E0611
     from urllib.request import urlopen      as urllib_urlopen;      # pylint: disable=F0401,E0611
+
+# Validation Kit imports.
+from common import utils;
 
 
 def escapeElem(sText):
@@ -176,7 +175,7 @@ def downloadFile(sUrlFile, sDstFile, sLocalPrefix, fnLog, fnError = None, fNoPro
         sSrcPath = os.path.join(sLocalPrefix, sUrlFile);
         fnLog('Copying "%s" to "%s"...' % (sSrcPath, sDstFile));
         try:
-            shutil.copyfile(sSrcPath, sDstFile);
+            utils.copyFileSimple(sSrcPath, sDstFile);
         except Exception, oXcpt:
             fnError('Error copying "%s" to "%s": %s' % (sSrcPath, sDstFile, oXcpt));
             return False;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1021,6 +1021,10 @@ static int vmdkAllocGrainDirectory(PVMDKIMAGE pImage, PVMDKEXTENT pExtent)
 {
     int rc = VINF_SUCCESS;
     size_t cbGD = pExtent->cGDEntries * sizeof(uint32_t);
+    /** @todo r=bird: This code is unnecessarily confusing pointer states with
+     *        (1) unnecessary initialization of locals, (2) unnecesarily wide
+     *        scoping of variables, (3) instance on goto code structure.  Also,
+     *        having two initialized variables on one line decreases readability. */
     uint32_t *pGD = NULL, *pRGD = NULL;
 
     pGD = (uint32_t *)RTMemAllocZ(cbGD);
@@ -1364,6 +1368,10 @@ out:
     return rc;
 }
 
+/**
+ * @param   ppszUnquoted    Where to store the return value, use RTMemTmpFree to
+ *                          free.
+ */
 static int vmdkStringUnquote(PVMDKIMAGE pImage, const char *pszStr,
                              char **ppszUnquoted, char **ppszNext)
 {
@@ -1569,8 +1577,12 @@ static int vmdkDescBaseGetU32(PVMDKDESCRIPTOR pDescriptor, const char *pszKey,
     return RTStrToUInt32Ex(pszValue, NULL, 10, puValue);
 }
 
+/**
+ * @param   ppszValue       Where to store the return value, use RTMemTmpFree to
+ *                          free.
+ */
 static int vmdkDescBaseGetStr(PVMDKIMAGE pImage, PVMDKDESCRIPTOR pDescriptor,
-                              const char *pszKey, const char **ppszValue)
+                              const char *pszKey, char **ppszValue)
 {
     const char *pszValue;
     char *pszValueUnquoted;
@@ -1702,8 +1714,12 @@ static int vmdkDescExtInsert(PVMDKIMAGE pImage, PVMDKDESCRIPTOR pDescriptor,
     return VINF_SUCCESS;
 }
 
+/**
+ * @param   ppszValue       Where to store the return value, use RTMemTmpFree to
+ *                          free.
+ */
 static int vmdkDescDDBGetStr(PVMDKIMAGE pImage, PVMDKDESCRIPTOR pDescriptor,
-                             const char *pszKey, const char **ppszValue)
+                             const char *pszKey, char **ppszValue)
 {
     const char *pszValue;
     char *pszValueUnquoted;
@@ -2050,7 +2066,7 @@ static int vmdkParseDescriptor(PVMDKIMAGE pImage, char *pDescData,
         return vdIfError(pImage->pIfError, VERR_VD_VMDK_UNSUPPORTED_VERSION, RT_SRC_POS, N_("VMDK: unsupported format version in descriptor in '%s'"), pImage->pszFilename);
 
     /* Get image creation type and determine image flags. */
-    const char *pszCreateType = NULL;   /* initialized to make gcc shut up */
+    char *pszCreateType = NULL;   /* initialized to make gcc shut up */
     rc = vmdkDescBaseGetStr(pImage, &pImage->Descriptor, "createType",
                             &pszCreateType);
     if (RT_FAILURE(rc))
@@ -2065,7 +2081,7 @@ static int vmdkParseDescriptor(PVMDKIMAGE pImage, char *pDescData,
         pImage->uImageFlags |= VD_VMDK_IMAGE_FLAGS_STREAM_OPTIMIZED;
     else if (!strcmp(pszCreateType, "vmfs"))
         pImage->uImageFlags |= VD_IMAGE_FLAGS_FIXED | VD_VMDK_IMAGE_FLAGS_ESX;
-    RTStrFree((char *)(void *)pszCreateType);
+    RTMemTmpFree(pszCreateType);
 
     /* Count the number of extent config entries. */
     for (uLine = pImage->Descriptor.uFirstExtent, cExtents = 0;
@@ -3700,7 +3716,10 @@ static int vmdkCreateRegularImage(PVMDKIMAGE pImage, uint64_t cbSize,
             cbTmp = strlen(pszTmp) + 1;
             char *pszBasename = (char *)RTMemTmpAlloc(cbTmp);
             if (!pszBasename)
+            {
+                RTStrFree(pszTmp);
                 return VERR_NO_MEMORY;
+            }
             memcpy(pszBasename, pszTmp, cbTmp);
             RTStrFree(pszTmp);
             pExtent->pszBasename = pszBasename;
@@ -3725,51 +3744,10 @@ static int vmdkCreateRegularImage(PVMDKIMAGE pImage, uint64_t cbSize,
             return vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VMDK: could not create new file '%s'"), pExtent->pszFullname);
         if (uImageFlags & VD_IMAGE_FLAGS_FIXED)
         {
-            rc = vdIfIoIntFileSetSize(pImage->pIfIo, pExtent->pFile->pStorage, cbExtent);
+            rc = vdIfIoIntFileSetAllocationSize(pImage->pIfIo, pExtent->pFile->pStorage, cbExtent,
+                                                0 /* fFlags */, pfnProgress, pvUser, uPercentStart + cbOffset * uPercentSpan / cbSize, uPercentSpan / cExtents);
             if (RT_FAILURE(rc))
                 return vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VMDK: could not set size of new file '%s'"), pExtent->pszFullname);
-
-            /* Fill image with zeroes. We do this for every fixed-size image since on some systems
-             * (for example Windows Vista), it takes ages to write a block near the end of a sparse
-             * file and the guest could complain about an ATA timeout. */
-
-            /** @todo Starting with Linux 2.6.23, there is an fallocate() system call.
-             *        Currently supported file systems are ext4 and ocfs2. */
-
-            /* Allocate a temporary zero-filled buffer. Use a bigger block size to optimize writing */
-            const size_t cbBuf = 128 * _1K;
-            void *pvBuf = RTMemTmpAllocZ(cbBuf);
-            if (!pvBuf)
-                return VERR_NO_MEMORY;
-
-            uint64_t uOff = 0;
-            /* Write data to all image blocks. */
-            while (uOff < cbExtent)
-            {
-                unsigned cbChunk = (unsigned)RT_MIN(cbExtent, cbBuf);
-
-                rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pExtent->pFile->pStorage,
-                                            uOff, pvBuf, cbChunk);
-                if (RT_FAILURE(rc))
-                {
-                    RTMemFree(pvBuf);
-                    return vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VMDK: writing block failed for '%s'"), pImage->pszFilename);
-                }
-
-                uOff += cbChunk;
-
-                if (pfnProgress)
-                {
-                    rc = pfnProgress(pvUser,
-                                     uPercentStart + (cbOffset + uOff) * uPercentSpan / cbSize);
-                    if (RT_FAILURE(rc))
-                    {
-                        RTMemFree(pvBuf);
-                        return rc;
-                    }
-                }
-            }
-            RTMemTmpFree(pvBuf);
         }
 
         /* Place descriptor file information (where integrated). */
@@ -6314,7 +6292,7 @@ static DECLCALLBACK(int) vmdkGetComment(void *pBackendData, char *pszComment,
 
     if (pImage)
     {
-        const char *pszCommentEncoded = NULL;
+        char *pszCommentEncoded = NULL;
         rc = vmdkDescDDBGetStr(pImage, &pImage->Descriptor,
                               "ddb.comment", &pszCommentEncoded);
         if (rc == VERR_VD_VMDK_VALUE_NOT_FOUND)
@@ -6330,8 +6308,7 @@ static DECLCALLBACK(int) vmdkGetComment(void *pBackendData, char *pszComment,
                 *pszComment = '\0';
             rc = VINF_SUCCESS;
         }
-        if (pszCommentEncoded)
-            RTStrFree((char *)(void *)pszCommentEncoded);
+        RTMemTmpFree(pszCommentEncoded);
     }
     else
         rc = VERR_VD_NOT_OPENED;
@@ -6632,7 +6609,7 @@ const VBOXHDDBACKEND g_VmdkBackend =
     /* uBackendCaps */
       VD_CAP_UUID | VD_CAP_CREATE_FIXED | VD_CAP_CREATE_DYNAMIC
     | VD_CAP_CREATE_SPLIT_2G | VD_CAP_DIFF | VD_CAP_FILE | VD_CAP_ASYNC
-    | VD_CAP_VFS,
+    | VD_CAP_VFS | VD_CAP_PREFERRED,
     /* paFileExtensions */
     s_aVmdkFileExtensions,
     /* paConfigInfo */

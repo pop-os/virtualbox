@@ -1,7 +1,7 @@
 /** @file
   Header file for SCSI Disk Driver.
 
-Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -70,7 +70,7 @@ typedef struct {
   UINT32                    Channel;
   UINT32                    Device;
   ATAPI_IDENTIFY_DATA       IdentifyData;
-  
+
   //
   // The flag indicates if 16-byte command can be used
   //
@@ -90,14 +90,19 @@ extern EFI_COMPONENT_NAME2_PROTOCOL  gScsiDiskComponentName2;
 //
 // action code used in detect media process
 //
-#define ACTION_NO_ACTION            0x00
-#define ACTION_READ_CAPACITY        0x01
-#define ACTION_RETRY_COMMAND_LATER  0x02
+#define ACTION_NO_ACTION               0x00
+#define ACTION_READ_CAPACITY           0x01
+#define ACTION_RETRY_COMMAND_LATER     0x02
+#define ACTION_RETRY_WITH_BACKOFF_ALGO 0x03
 
 #define SCSI_COMMAND_VERSION_1      0x01
 #define SCSI_COMMAND_VERSION_2      0x02
 #define SCSI_COMMAND_VERSION_3      0x03
 
+//
+// SCSI Disk Timeout Experience Value
+//
+#define SCSI_DISK_TIMEOUT           EFI_TIMER_PERIOD_SECONDS (3)
 
 /**
   Test to see if this driver supports ControllerHandle.
@@ -161,7 +166,7 @@ ScsiDiskDriverBindingStart (
   restrictions for this service. DisconnectController() must follow these
   calling restrictions. If any other agent wishes to call Stop() it must
   also follow these calling restrictions.
-  
+
   @param  This              Protocol instance pointer.
   @param  ControllerHandle  Handle of device to stop driver on
   @param  NumberOfChildren  Number of Handles in ChildHandleBuffer. If number of
@@ -407,7 +412,7 @@ ScsiDiskFlushBlocks (
 
 /**
   Provides inquiry information for the controller type.
-  
+
   This function is used by the IDE bus driver to get inquiry data.  Data format
   of Identify data is defined by the Interface GUID.
 
@@ -416,9 +421,9 @@ ScsiDiskFlushBlocks (
   @param[in, out] InquiryDataSize   Pointer to the value for the inquiry data size.
 
   @retval EFI_SUCCESS            The command was accepted without any errors.
-  @retval EFI_NOT_FOUND          Device does not support this data class 
-  @retval EFI_DEVICE_ERROR       Error reading InquiryData from device 
-  @retval EFI_BUFFER_TOO_SMALL   InquiryDataSize not big enough 
+  @retval EFI_NOT_FOUND          Device does not support this data class
+  @retval EFI_DEVICE_ERROR       Error reading InquiryData from device
+  @retval EFI_BUFFER_TOO_SMALL   InquiryDataSize not big enough
 
 **/
 EFI_STATUS
@@ -436,16 +441,16 @@ ScsiDiskInfoInquiry (
   This function is used by the IDE bus driver to get identify data.  Data format
   of Identify data is defined by the Interface GUID.
 
-  @param[in]     This               Pointer to the EFI_DISK_INFO_PROTOCOL 
+  @param[in]     This               Pointer to the EFI_DISK_INFO_PROTOCOL
                                     instance.
   @param[in, out] IdentifyData      Pointer to a buffer for the identify data.
   @param[in, out] IdentifyDataSize  Pointer to the value for the identify data
                                     size.
 
   @retval EFI_SUCCESS            The command was accepted without any errors.
-  @retval EFI_NOT_FOUND          Device does not support this data class 
-  @retval EFI_DEVICE_ERROR       Error reading IdentifyData from device 
-  @retval EFI_BUFFER_TOO_SMALL   IdentifyDataSize not big enough 
+  @retval EFI_NOT_FOUND          Device does not support this data class
+  @retval EFI_DEVICE_ERROR       Error reading IdentifyData from device
+  @retval EFI_BUFFER_TOO_SMALL   IdentifyDataSize not big enough
 
 **/
 EFI_STATUS
@@ -459,8 +464,8 @@ ScsiDiskInfoIdentify (
 
 /**
   Provides sense data information for the controller type.
-  
-  This function is used by the IDE bus driver to get sense data. 
+
+  This function is used by the IDE bus driver to get sense data.
   Data format of Sense data is defined by the Interface GUID.
 
   @param[in]      This              Pointer to the EFI_DISK_INFO_PROTOCOL instance.
@@ -486,7 +491,7 @@ ScsiDiskInfoSenseData (
 /**
   This function is used by the IDE bus driver to get controller information.
 
-  @param[in]  This         Pointer to the EFI_DISK_INFO_PROTOCOL instance. 
+  @param[in]  This         Pointer to the EFI_DISK_INFO_PROTOCOL instance.
   @param[out] IdeChannel   Pointer to the Ide Channel number.  Primary or secondary.
   @param[out] IdeDevice    Pointer to the Ide Device number.  Master or slave.
 
@@ -508,7 +513,7 @@ ScsiDiskInfoWhichIde (
 
   @param  ScsiDiskDevice    The pointer of SCSI_DISK_DEV
   @param  MustReadCapacity  The flag about reading device capacity
-  @param  MediaChange       The pointer of flag indicates if media has changed 
+  @param  MediaChange       The pointer of flag indicates if media has changed
 
   @retval EFI_DEVICE_ERROR  Indicates that error occurs
   @retval EFI_SUCCESS       Successfully to detect media
@@ -551,7 +556,7 @@ ScsiDiskTestUnitReady (
 
   @param  ScsiDiskDevice     The pointer of SCSI_DISK_DEV
   @param  SenseData          The pointer of EFI_SCSI_SENSE_DATA
-  @param  NumberOfSenseKeys  The number of sense key  
+  @param  NumberOfSenseKeys  The number of sense key
   @param  Action             The pointer of action which indicates what is need to do next
 
   @retval EFI_DEVICE_ERROR   Indicates that error occurs
@@ -610,7 +615,7 @@ CheckHostAdapterStatus (
   @param  TargetStatus  Target status
 
   @retval EFI_NOT_READY       Device is NOT ready.
-  @retval EFI_DEVICE_ERROR 
+  @retval EFI_DEVICE_ERROR
   @retval EFI_SUCCESS
 
 **/
@@ -713,17 +718,15 @@ ScsiDiskWriteSectors (
   );
 
 /**
-  Submit Read command.
+  Submit Read(10) command.
 
   @param  ScsiDiskDevice     The pointer of ScsiDiskDevice
   @param  NeedRetry          The pointer of flag indicates if needs retry if error happens
-  @param  SenseDataArray     NOT used yet in this function
-  @param  NumberOfSenseKeys  The number of sense key
   @param  Timeout            The time to complete the command
   @param  DataBuffer         The buffer to fill with the read out data
   @param  DataLength         The length of buffer
   @param  StartLba           The start logic block address
-  @param  SectorSize         The size of sector
+  @param  SectorCount        The number of blocks to read
 
   @return  EFI_STATUS is returned by calling ScsiRead10Command().
 **/
@@ -731,27 +734,23 @@ EFI_STATUS
 ScsiDiskRead10 (
   IN     SCSI_DISK_DEV         *ScsiDiskDevice,
      OUT BOOLEAN               *NeedRetry,
-     OUT EFI_SCSI_SENSE_DATA   **SenseDataArray,   OPTIONAL
-     OUT UINTN                 *NumberOfSenseKeys,
   IN     UINT64                Timeout,
      OUT UINT8                 *DataBuffer,
   IN OUT UINT32                *DataLength,
   IN     UINT32                StartLba,
-  IN     UINT32                SectorSize
+  IN     UINT32                SectorCount
   );
 
 /**
-  Submit Write Command.
+  Submit Write(10) Command.
 
   @param  ScsiDiskDevice     The pointer of ScsiDiskDevice
   @param  NeedRetry          The pointer of flag indicates if needs retry if error happens
-  @param  SenseDataArray     NOT used yet in this function
-  @param  NumberOfSenseKeys  The number of sense key
   @param  Timeout            The time to complete the command
   @param  DataBuffer         The buffer to fill with the read out data
   @param  DataLength         The length of buffer
   @param  StartLba           The start logic block address
-  @param  SectorSize         The size of sector
+  @param  SectorCount        The number of blocks to write
 
   @return  EFI_STATUS is returned by calling ScsiWrite10Command().
 
@@ -760,13 +759,11 @@ EFI_STATUS
 ScsiDiskWrite10 (
   IN     SCSI_DISK_DEV         *ScsiDiskDevice,
      OUT BOOLEAN               *NeedRetry,
-     OUT EFI_SCSI_SENSE_DATA   **SenseDataArray,   OPTIONAL
-     OUT UINTN                 *NumberOfSenseKeys,
   IN     UINT64                Timeout,
   IN     UINT8                 *DataBuffer,
   IN OUT UINT32                *DataLength,
   IN     UINT32                StartLba,
-  IN     UINT32                SectorSize
+  IN     UINT32                SectorCount
   );
 
 /**
@@ -774,57 +771,49 @@ ScsiDiskWrite10 (
 
   @param  ScsiDiskDevice     The pointer of ScsiDiskDevice
   @param  NeedRetry          The pointer of flag indicates if needs retry if error happens
-  @param  SenseDataArray     NOT used yet in this function
-  @param  NumberOfSenseKeys  The number of sense key
   @param  Timeout            The time to complete the command
   @param  DataBuffer         The buffer to fill with the read out data
   @param  DataLength         The length of buffer
   @param  StartLba           The start logic block address
-  @param  SectorSize         The size of sector
+  @param  SectorCount        The number of blocks to read
 
-  @return  EFI_STATUS is returned by calling ScsiRead10Command().
+  @return  EFI_STATUS is returned by calling ScsiRead16Command().
 **/
 EFI_STATUS
 ScsiDiskRead16 (
   IN     SCSI_DISK_DEV         *ScsiDiskDevice,
      OUT BOOLEAN               *NeedRetry,
-     OUT EFI_SCSI_SENSE_DATA   **SenseDataArray,   OPTIONAL
-     OUT UINTN                 *NumberOfSenseKeys,
   IN     UINT64                Timeout,
      OUT UINT8                 *DataBuffer,
   IN OUT UINT32                *DataLength,
   IN     UINT64                StartLba,
-  IN     UINT32                SectorSize
+  IN     UINT32                SectorCount
   );
-  
+
 /**
   Submit Write(16) Command.
 
   @param  ScsiDiskDevice     The pointer of ScsiDiskDevice
   @param  NeedRetry          The pointer of flag indicates if needs retry if error happens
-  @param  SenseDataArray     NOT used yet in this function
-  @param  NumberOfSenseKeys  The number of sense key
   @param  Timeout            The time to complete the command
   @param  DataBuffer         The buffer to fill with the read out data
   @param  DataLength         The length of buffer
   @param  StartLba           The start logic block address
-  @param  SectorSize         The size of sector
+  @param  SectorCount        The number of blocks to write
 
-  @return  EFI_STATUS is returned by calling ScsiWrite10Command().
+  @return  EFI_STATUS is returned by calling ScsiWrite16Command().
 
 **/
 EFI_STATUS
 ScsiDiskWrite16 (
   IN     SCSI_DISK_DEV         *ScsiDiskDevice,
      OUT BOOLEAN               *NeedRetry,
-     OUT EFI_SCSI_SENSE_DATA   **SenseDataArray,   OPTIONAL
-     OUT UINTN                 *NumberOfSenseKeys,
   IN     UINT64                Timeout,
   IN     UINT8                 *DataBuffer,
   IN OUT UINT32                *DataLength,
   IN     UINT64                StartLba,
-  IN     UINT32                SectorSize
-  );  
+  IN     UINT32                SectorCount
+  );
 
 /**
   Get information from media read capacity command.
@@ -923,7 +912,7 @@ ScsiDiskIsResetBefore (
 
   @param  SenseData    The pointer of EFI_SCSI_SENSE_DATA
   @param  SenseCounts  The number of sense key
-  @param  RetryLater   The flag means if need a retry 
+  @param  RetryLater   The flag means if need a retry
 
   @retval TRUE  Drive is ready.
   @retval FALSE Drive is NOT ready.
@@ -965,14 +954,14 @@ ReleaseScsiDiskDeviceResources (
 
 /**
   Determine if Block Io should be produced.
-  
+
 
   @param  ChildHandle  Child Handle to retrieve Parent information.
-  
+
   @retval  TRUE    Should produce Block Io.
   @retval  FALSE   Should not produce Block Io.
 
-**/  
+**/
 BOOLEAN
 DetermineInstallBlockIo (
   IN  EFI_HANDLE      ChildHandle
@@ -988,26 +977,26 @@ DetermineInstallBlockIo (
 
   @param  ScsiDiskDevice  The pointer of SCSI_DISK_DEV.
   @param  ChildHandle     Child handle to install DiskInfo protocol.
-  
-**/  
+
+**/
 VOID
 InitializeInstallDiskInfo (
   IN  SCSI_DISK_DEV   *ScsiDiskDevice,
   IN  EFI_HANDLE      ChildHandle
-  ); 
+  );
 
 /**
   Search protocol database and check to see if the protocol
   specified by ProtocolGuid is present on a ControllerHandle and opened by
   ChildHandle with an attribute of EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER.
   If the ControllerHandle is found, then the protocol specified by ProtocolGuid
-  will be opened on it.  
-  
+  will be opened on it.
+
 
   @param  ProtocolGuid   ProtocolGuid pointer.
   @param  ChildHandle    Child Handle to retrieve Parent information.
-  
-**/ 
+
+**/
 VOID *
 EFIAPI
 GetParentProtocol (

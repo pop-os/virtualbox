@@ -28,12 +28,25 @@
 #import <AppKit/NSFont.h>
 #import <AppKit/NSImage.h>
 #import <AppKit/NSSegmentedControl.h>
+#if QT_VERSION >= 0x050000
+# import <AppKit/NSEvent.h>
+# import <AppKit/NSColor.h>
+# import <AppKit/NSSearchFieldCell.h>
+# import <AppKit/NSSearchField.h>
+# import <AppKit/NSSegmentedCell.h>
+#endif /* QT_VERSION >= 0x050000 */
 
 /* Qt includes */
 #include <QApplication>
 #include <QIcon>
 #include <QKeyEvent>
 #include <QMacCocoaViewContainer>
+
+/* Interface Builder Constant,
+ * hmm, where is it declared with Qt4? */
+#if QT_VERSION >= 0x050000
+# define IBAction void
+#endif /* QT_VERSION >= 0x050000 */
 
 /*
  * Private interfaces
@@ -91,7 +104,7 @@
     return self;
 }
 
--(IBAction)clicked:(id)sender;
+-(IBAction)clicked:(id)sender
 {
     mRealTarget->onClicked();
 }
@@ -107,7 +120,7 @@
     return self;
 }
 
--(IBAction)segControlClicked:(id)sender;
+-(IBAction)segControlClicked:(id)sender
 {
     mRealTarget->onClicked([sender selectedSegment]);
 }

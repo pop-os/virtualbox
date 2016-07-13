@@ -35,7 +35,7 @@
 --
 
 
-DROP DATABASE testmanager; -- WARNING!! WE CURRENTLY DROP THE DATABASE!
+--  D R O P   D A T A B A S E    t e s t m a n a g e r  - -   you do this now.
 \set ON_ERROR_STOP 1
 CREATE DATABASE testmanager;
 \connect testmanager;
@@ -58,8 +58,8 @@ CREATE DATABASE testmanager;
 --              WHERE   tsCreated >= (current_timestamp - interval '24 hours')
 --                  AND sEvent = 'TBoxUnkn'
 --                  AND sLogText = :sNewLogText;
---      - When cleaning up an abandond testcase (scenario #9), log which
---        testbox abandond which testset.
+--      - When cleaning up an abandoned testcase (scenario #9), log which
+--        testbox abandoned which testset.
 --
 -- The Web UI will have some way of displaying the log.
 --
@@ -301,6 +301,9 @@ CREATE TABLE TestCases (
     -- @DOWNLOAD_BASE_URL@ prefix can be used to refer to this area.
     sTestSuiteZips      TEXT        DEFAULT NULL,
 
+    -- Comment regarding a change or something.
+    sComment            TEXT        DEFAULT NULL,
+
     PRIMARY KEY (idTestCase, tsExpire)
 );
 
@@ -401,6 +404,8 @@ CREATE TABLE TestCaseArgs (
     sBuildReqExpr       TEXT        DEFAULT NULL,
     --- Number of testboxes required (gang scheduling).
     cGangMembers        SMALLINT    DEFAULT 1  NOT NULL  CHECK (cGangMembers > 0 AND cGangMembers < 1024),
+    --- Optional variation sub-name.
+    sSubName            TEXT        DEFAULT NULL,
 
     --- The arguments are part of the primary key for several reasons.
     -- No duplicate argument lists (makes no sense - if you want to prioritize
@@ -508,9 +513,11 @@ CREATE TABLE TestGroups (
     uidAuthor           INTEGER     NOT NULL,
 
     --- The name of the scheduling group.
-    sName               text        NOT NULL,
+    sName               TEXT        NOT NULL,
     --- Optional group description.
-    sDescription        text,
+    sDescription        TEXT,
+    -- Comment regarding a change or something.
+    sComment            TEXT        DEFAULT NULL,
 
     PRIMARY KEY (idTestGroup, tsExpire)
 );
@@ -542,7 +549,7 @@ CREATE TABLE TestGroupMembers (
 
     --- Test case scheduling priority.
     -- Higher number causes the test case to be run more frequently.
-    -- @sa SchedGroupMembers.iSchedPriority
+    -- @sa SchedGroupMembers.iSchedPriority, TestBoxesInSchedGroups.iSchedPriority
     -- @todo Not sure we want to keep this...
     iSchedPriority      INTEGER     DEFAULT 16  CHECK (iSchedPriority >= 0 AND iSchedPriority < 32)  NOT NULL,
 
@@ -601,9 +608,9 @@ CREATE TABLE SchedGroups (
     uidAuthor           INTEGER     DEFAULT NULL,
 
     --- The name of the scheduling group.
-    sName               text        NOT NULL,
+    sName               TEXT        NOT NULL,
     --- Optional group description.
-    sDescription        text,
+    sDescription        TEXT,
     --- Indicates whether this group is currently enabled.
     fEnabled            boolean     NOT NULL,
     --- The scheduler to use.
@@ -616,6 +623,8 @@ CREATE TABLE SchedGroups (
     --- The Validation Kit build source (@VALIDATIONKIT_ZIP@).
     -- Non-unique foreign key: BuildSources(idBuildSrc)
     idBuildSrcTestSuite INTEGER     DEFAULT NULL,
+    -- Comment regarding a change or something.
+    sComment            TEXT        DEFAULT NULL,
 
     PRIMARY KEY (idSchedGroup, tsExpire)
 );
@@ -656,9 +665,9 @@ CREATE TABLE SchedGroupMembers (
     -- Non-unique foreign key: Users(uid)
     uidAuthor           INTEGER     NOT NULL,
 
-    --- The scheduling priority if the test group.
+    --- The scheduling priority of the test group.
     -- Higher number causes the test case to be run more frequently.
-    -- @sa TestGroupMembers.iSchedPriority
+    -- @sa TestGroupMembers.iSchedPriority, TestBoxesInSchedGroups.iSchedPriority
     iSchedPriority      INTEGER     DEFAULT 16 CHECK (iSchedPriority >= 0 AND iSchedPriority < 32)  NOT NULL,
     --- When during the week this group is allowed to start running, NULL means
     -- there are no constraints.
@@ -675,6 +684,58 @@ CREATE TABLE SchedGroupMembers (
 
     PRIMARY KEY (idSchedGroup, idTestGroup, tsExpire)
 );
+
+
+--- @table TestBoxStrTab
+-- String table for the test boxes.
+--
+-- This is a string cache for all string members in TestBoxes except the name.
+-- The rational is to avoid duplicating large strings like sReport when the 
+-- testbox reports a new cMbScratch value or the box when the test sheriff 
+-- sends a reboot command or similar.  
+-- 
+-- At the time this table was introduced, we had 400558 TestBoxes rows,  where 
+-- the SUM(LENGTH(sReport)) was 993MB.  There were really just 1066 distinct
+-- sReport values, with a total length of 0x3 MB.
+--
+-- Nothing is ever deleted from this table.
+--
+-- @note Should use a stored procedure to query/insert a string.
+--
+--
+-- TestBox stats prior to conversion:
+--      SELECT COUNT(*) FROM TestBoxes:                     400558 rows
+--      SELECT pg_total_relation_size('TestBoxes'):      740794368 bytes (706 MB)
+--      Average row cost:           740794368 / 400558 =      1849 bytes/row
+--
+-- After conversion:
+--      SELECT COUNT(*) FROM TestBoxes:                     400558 rows
+--      SELECT pg_total_relation_size('TestBoxes'):      144375808 bytes (138 MB)
+--      SELECT COUNT(idStr) FROM TestBoxStrTab:               1292 rows
+--      SELECT pg_total_relation_size('TestBoxStrTab'):    5709824 bytes (5.5 MB)
+--                   (144375808 + 5709824) / 740794368 =        20 %
+--      Average row cost boxes:     144375808 / 400558 =       360 bytes/row
+--      Average row cost strings:       5709824 / 1292 =      4420 bytes/row
+--
+CREATE SEQUENCE TestBoxStrTabIdSeq
+    START 1
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+CREATE TABLE TestBoxStrTab (
+    --- The ID of this string.
+    idStr               INTEGER     PRIMARY KEY DEFAULT NEXTVAL('TestBoxStrTabIdSeq'),
+    --- The string value.
+    sValue              text        NOT NULL,
+    --- Creation time stamp.
+    tsCreated           TIMESTAMP WITH TIME ZONE  DEFAULT current_timestamp  NOT NULL
+);
+-- Note! Must use hash index as the sReport strings are too long for regular indexing.
+CREATE INDEX TestBoxStrTabNameIdx ON TestBoxStrTab USING hash (sValue);
+
+--- Empty string with ID 0.
+INSERT INTO TestBoxStrTab (idStr, sValue) VALUES (0, '');
 
 
 --- @type TestBoxCmd_T
@@ -760,12 +821,7 @@ CREATE TABLE TestBoxes (
     sName               text        NOT NULL,
     --- Optional testbox description.
     -- Intended for describing the box as well as making other relevant notes.
-    sDescription        text        DEFAULT NULL,
-
-    --- Reference to the scheduling group that this testbox is a member of.
-    -- Non-unique foreign key: SchedGroups(idSchedGroup)
-    -- A testbox is always part of a group, the default one nothing else.
-    idSchedGroup        INTEGER     DEFAULT 1  NOT NULL,
+    idStrDescription    INTEGER     REFERENCES TestBoxStrTab(idStr)  DEFAULT NULL,
 
     --- Indicates whether this testbox is enabled.
     -- A testbox gets disabled when we're doing maintenance, debugging a issue
@@ -783,18 +839,21 @@ CREATE TABLE TestBoxes (
     -- This is a crude adjustment of the test case timeout for slower hardware.
     pctScaleTimeout     smallint    DEFAULT 100  NOT NULL  CHECK (pctScaleTimeout > 10 AND pctScaleTimeout < 20000),
 
+    --- Change comment or similar.
+    idStrComment        INTEGER     REFERENCES TestBoxStrTab(idStr)  DEFAULT NULL,
+
     --- @name Scheduling properties (reported by testbox script).
     -- @{
     --- Same abbrieviations as kBuild, see KBUILD_OSES.
-    sOs                 text        DEFAULT NULL,
+    idStrOs             INTEGER     REFERENCES TestBoxStrTab(idStr)  DEFAULT NULL,
     --- Informational, no fixed format.
-    sOsVersion          text        DEFAULT NULL,
+    idStrOsVersion      INTEGER     REFERENCES TestBoxStrTab(idStr)  DEFAULT NULL,
     --- Same as CPUID reports (GenuineIntel, AuthenticAMD, CentaurHauls, ...).
-    sCpuVendor          text        DEFAULT NULL,
+    idStrCpuVendor      INTEGER     REFERENCES TestBoxStrTab(idStr)  DEFAULT NULL,
     --- Same as kBuild - x86, amd64, ... See KBUILD_ARCHES.
-    sCpuArch            text        DEFAULT NULL,
+    idStrCpuArch        INTEGER     REFERENCES TestBoxStrTab(idStr)  DEFAULT NULL,
     --- The CPU name if available.
-    sCpuName            text        DEFAULT NULL,
+    idStrCpuName        INTEGER     REFERENCES TestBoxStrTab(idStr)  DEFAULT NULL,
     --- Number identifying the CPU family/model/stepping/whatever.
     -- For x86 and AMD64 type CPUs, this will on the following format:
     --   (EffFamily << 24) | (EffModel << 8) | Stepping.
@@ -809,12 +868,14 @@ CREATE TABLE TestBoxes (
     fCpu64BitGuest      boolean     DEFAULT NULL,
     --- Set if chipset with usable IOMMU (VT-d / AMD-Vi).
     fChipsetIoMmu       boolean     DEFAULT NULL,
+    --- Set if the test box does raw-mode tests.
+    fRawMode            boolean     DEFAULT NULL,
     --- The (approximate) memory size in megabytes (rounded down to nearest 4 MB).
     cMbMemory           bigint      DEFAULT NULL  CHECK (cMbMemory IS NULL OR cMbMemory > 0),
     --- The amount of scratch space in megabytes (rounded down to nearest 64 MB).
     cMbScratch          bigint      DEFAULT NULL  CHECK (cMbScratch IS NULL OR cMbScratch >= 0),
     --- Free form hardware and software report field.
-    sReport             text        DEFAULT NULL,
+    idStrReport         INTEGER     REFERENCES TestBoxStrTab(idStr)  DEFAULT NULL,
     --- @}
 
     --- The testbox script revision number, serves the purpose of a version number.
@@ -837,8 +898,62 @@ CREATE UNIQUE INDEX TestBoxesUuidIdx ON TestBoxes (uuidSystem, tsExpire DESC);
 CREATE INDEX TestBoxesExpireEffectiveIdx ON TestBoxes (tsExpire DESC, tsEffective ASC);
 
 
+--
+-- Create a view for TestBoxes where the strings are resolved.
+--
+CREATE VIEW TestBoxesWithStrings AS
+    SELECT  TestBoxes.*,
+            Str1.sValue AS sDescription,
+            Str2.sValue AS sComment,
+            Str3.sValue AS sOs,
+            Str4.sValue AS sOsVersion,
+            Str5.sValue AS sCpuVendor,
+            Str6.sValue AS sCpuArch,
+            Str7.sValue AS sCpuName,
+            Str8.sValue AS sReport
+    FROM    TestBoxes
+            LEFT OUTER JOIN TestBoxStrTab Str1 ON idStrDescription = Str1.idStr
+            LEFT OUTER JOIN TestBoxStrTab Str2 ON idStrComment     = Str2.idStr
+            LEFT OUTER JOIN TestBoxStrTab Str3 ON idStrOs          = Str3.idStr
+            LEFT OUTER JOIN TestBoxStrTab Str4 ON idStrOsVersion   = Str4.idStr
+            LEFT OUTER JOIN TestBoxStrTab Str5 ON idStrCpuVendor   = Str5.idStr
+            LEFT OUTER JOIN TestBoxStrTab Str6 ON idStrCpuArch     = Str6.idStr
+            LEFT OUTER JOIN TestBoxStrTab Str7 ON idStrCpuName     = Str7.idStr
+            LEFT OUTER JOIN TestBoxStrTab Str8 ON idStrReport      = Str8.idStr;
 
 
+--- @table TestBoxesInSchedGroups
+-- N:M relationship between test boxes and scheduling groups.
+--
+-- We associate a priority with this relationship.
+--
+-- @remarks This table stores history.  Never update or delete anything.  The
+--          equivalent of deleting is done by setting the 'tsExpire' field to
+--          current_timestamp.  To select the currently valid entries use
+--          tsExpire = TIMESTAMP WITH TIME ZONE 'infinity'.
+--
+CREATE TABLE TestBoxesInSchedGroups (
+    --- TestBox ID.
+    -- Non-unique foreign key: TestBoxes(idTestBox).
+    idTestBox           INTEGER     NOT NULL,
+    --- Scheduling ID.
+    -- Non-unique foreign key: SchedGroups(idSchedGroup).
+    idSchedGroup        INTEGER     NOT NULL,
+    --- When this row starts taking effect (inclusive).
+    tsEffective         TIMESTAMP WITH TIME ZONE  DEFAULT current_timestamp  NOT NULL,
+    --- When this row stops being tsEffective (exclusive).
+    tsExpire            TIMESTAMP WITH TIME ZONE  DEFAULT TIMESTAMP WITH TIME ZONE 'infinity'  NOT NULL,
+    --- The user id of the one who created/modified this entry.
+    -- Non-unique foreign key: Users(uid)
+    uidAuthor           INTEGER     NOT NULL,
+
+    --- The scheduling priority of the scheduling group for the test box.
+    -- Higher number causes the scheduling group to be serviced more frequently.
+    -- @sa TestGroupMembers.iSchedPriority, SchedGroups.iSchedPriority
+    iSchedPriority      INTEGER     DEFAULT 16 CHECK (iSchedPriority >= 0 AND iSchedPriority < 32)  NOT NULL,
+
+    PRIMARY KEY (idTestBox, idSchedGroup, tsExpire)
+);
 
 
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -956,6 +1071,11 @@ CREATE TABLE TestResultFailures (
     --- The user id of the one who created/modified this entry.
     -- Non-unique foreign key: Users(uid)
     uidAuthor           INTEGER     NOT NULL,
+    --- The testsest this result is a part of.
+    -- This is mainly an aid for bypassing the enormous TestResults table.
+    -- Note! This is a foreign key, but we have to add it after TestSets has
+    --       been created, see further down.
+    idTestSet           INTEGER     NOT NULL,
 
     --- The suggested failure reason.
     -- Non-unique foreign key: FailureReasons(idFailureReason)
@@ -965,7 +1085,9 @@ CREATE TABLE TestResultFailures (
 
     PRIMARY KEY (idTestResult, tsExpire)
 );
-
+CREATE INDEX TestResultFailureIdx  ON TestResultFailures (idTestSet, tsExpire DESC, tsEffective ASC);
+CREATE INDEX TestResultFailureIdx2 ON TestResultFailures (idTestResult, tsExpire DESC, tsEffective ASC);
+CREATE INDEX TestResultFailureIdx3 ON TestResultFailures (idFailureReason, idTestResult, tsExpire DESC, tsEffective ASC);
 
 
 
@@ -1283,7 +1405,7 @@ CREATE TABLE TestResults (
     --- The parent test result.
     -- This is NULL for the top test result.
     idTestResultParent  INTEGER     REFERENCES TestResults(idTestResult),
-    --- The testsest this result is a part of.
+    --- The test set this result is a part of.
     -- Note! This is a foreign key, but we have to add it after TestSets has
     --       been created, see further down.
     idTestSet           INTEGER     NOT NULL,
@@ -1308,7 +1430,10 @@ CREATE TABLE TestResults (
                                                  'failure'::TestStatus_T, 'timed-out'::TestStatus_T, 'rebooted'::TestStatus_T ))
                OR (cErrors = 0 AND enmStatus IN ('running'::TestStatus_T, 'success'::TestStatus_T,
                                                  'skipped'::TestStatus_T, 'aborted'::TestStatus_T, 'bad-testbox'::TestStatus_T))
-              )
+              ),
+    -- The following is for the TestResultFailures foreign key.
+    -- Note! This was added with the name TestResults_idTestResult_idTestSet_key in the tmdb-r16 update script.
+    UNIQUE (idTestResult, idTestSet)
 );
 
 CREATE INDEX TestResultsSetIdx ON TestResults (idTestSet, idStrName, idTestResult);
@@ -1317,8 +1442,8 @@ CREATE INDEX TestResultsParentIdx ON TestResults (idTestResultParent);
 CREATE INDEX TestResultsNameIdx ON TestResults (idStrName, tsCreated DESC);
 CREATE INDEX TestResultsNameIdx2 ON TestResults (idTestResult, idStrName);
 
-ALTER TABLE TestResultFailures
-    ADD CONSTRAINT idTestResultFk FOREIGN KEY (idTestResult) REFERENCES TestResults(idTestResult) MATCH FULL;
+ALTER TABLE TestResultFailures ADD CONSTRAINT TestResultFailures_idTestResult_idTestSet_fkey 
+    FOREIGN KEY (idTestResult, idTestSet) REFERENCES TestResults(idTestResult, idTestSet) MATCH FULL;
 
 
 --- @table TestResultValues
@@ -1341,7 +1466,7 @@ CREATE TABLE TestResultValues (
     idTestResultValue   INTEGER     PRIMARY KEY DEFAULT NEXTVAL('TestResultValueIdSeq'),
     --- The test result it was reported within.
     idTestResult        INTEGER     REFERENCES TestResults(idTestResult)  NOT NULL,
-    --- The test result it was reported within.
+    --- The test set this value is a part of (for avoiding joining thru TestResults).
     -- Note! This is a foreign key, but we have to add it after TestSets has
     --       been created, see further down.
     idTestSet           INTEGER     NOT NULL,
@@ -1360,6 +1485,8 @@ CREATE TABLE TestResultValues (
 CREATE INDEX TestResultValuesIdx ON TestResultValues(idTestResult);
 -- The TestResultValuesGraphIdx is for speeding up the result graph & reporting code.
 CREATE INDEX TestResultValuesGraphIdx ON TestResultValues(idStrName, tsCreated);
+-- The TestResultValuesLogIdx is for speeding up the log viewer.
+CREATE INDEX TestResultValuesLogIdx ON TestResultValues(idTestSet, tsCreated);
 
 
 --- @table TestResultFiles
@@ -1385,6 +1512,10 @@ CREATE TABLE TestResultFiles (
     idTestResultFile    INTEGER     PRIMARY KEY DEFAULT NEXTVAL('TestResultFileId'),
     --- The test result it was reported within.
     idTestResult        INTEGER     REFERENCES TestResults(idTestResult)  NOT NULL,
+    --- The test set this file is a part of (for avoiding joining thru TestResults).
+    -- Note! This is a foreign key, but we have to add it after TestSets has
+    --       been created, see further down.
+    idTestSet           INTEGER     NOT NULL,
     --- Creation time stamp.
     tsCreated           TIMESTAMP WITH TIME ZONE  DEFAULT current_timestamp  NOT NULL,
     --- The filename relative to TestSets(sBaseFilename) + '-'.
@@ -1410,6 +1541,7 @@ CREATE TABLE TestResultFiles (
 );
 
 CREATE INDEX TestResultFilesIdx ON TestResultFiles(idTestResult);
+CREATE INDEX TestResultFilesIdx2 ON TestResultFiles(idTestSet, tsCreated DESC);
 
 
 --- @table TestResultMsgs
@@ -1438,6 +1570,10 @@ CREATE TABLE TestResultMsgs (
     idTestResultMsg     INTEGER     PRIMARY KEY DEFAULT NEXTVAL('TestResultMsgIdSeq'),
     --- The test result it was reported within.
     idTestResult        INTEGER     REFERENCES TestResults(idTestResult)  NOT NULL,
+    --- The test set this file is a part of (for avoiding joining thru TestResults).
+    -- Note! This is a foreign key, but we have to add it after TestSets has
+    --       been created, see further down.
+    idTestSet           INTEGER     NOT NULL,
     --- Creation time stamp.
     tsCreated           TIMESTAMP WITH TIME ZONE  DEFAULT current_timestamp  NOT NULL,
     --- The message string.
@@ -1446,7 +1582,8 @@ CREATE TABLE TestResultMsgs (
     enmLevel            TestResultMsgLevel_T  NOT NULL
 );
 
-CREATE INDEX TestResultMsgsIdx ON TestResultMsgs(idTestResult);
+CREATE INDEX TestResultMsgsIdx  ON TestResultMsgs(idTestResult);
+CREATE INDEX TestResultMsgsIdx2 ON TestResultMsgs(idTestSet, tsCreated DESC);
 
 
 --- @table TestSets
@@ -1495,6 +1632,9 @@ CREATE TABLE TestSets (
     --- The testbox ID for joining with (valid: tsStarted).
     -- Non-unique foreign key: TestBoxes(idTestBox)
     idTestBox           INTEGER     NOT NULL,
+    --- The scheduling group ID the test was scheduled thru (valid: tsStarted).
+    -- Non-unique foreign key: SchedGroups(idSchedGroup)
+    idSchedGroup        INTEGER     NOT NULL,
 
     --- The testgroup (valid: tsConfig).
     -- Non-unique foreign key: TestBoxes(idTestGroup)
@@ -1554,8 +1694,11 @@ CREATE INDEX TestSetsDoneCreatedBuildCatIdx ON TestSets (tsDone DESC NULLS FIRST
 --- For graphs.
 CREATE INDEX TestSetsGraphBoxIdx    ON TestSets (idTestBox, tsCreated DESC, tsDone ASC NULLS LAST, idBuildCategory, idTestCase);
 
-ALTER TABLE TestResults      ADD FOREIGN KEY (idTestSet) REFERENCES TestSets(idTestSet) MATCH FULL;
-ALTER TABLE TestResultValues ADD FOREIGN KEY (idTestSet) REFERENCES TestSets(idTestSet) MATCH FULL;
+ALTER TABLE TestResults        ADD FOREIGN KEY (idTestSet) REFERENCES TestSets(idTestSet) MATCH FULL;
+ALTER TABLE TestResultValues   ADD FOREIGN KEY (idTestSet) REFERENCES TestSets(idTestSet) MATCH FULL;
+ALTER TABLE TestResultFiles    ADD FOREIGN KEY (idTestSet) REFERENCES TestSets(idTestSet) MATCH FULL;
+ALTER TABLE TestResultMsgs     ADD FOREIGN KEY (idTestSet) REFERENCES TestSets(idTestSet) MATCH FULL;
+ALTER TABLE TestResultFailures ADD FOREIGN KEY (idTestSet) REFERENCES TestSets(idTestSet) MATCH FULL;
 
 
 
@@ -1655,7 +1798,10 @@ CREATE TABLE TestBoxStatuses (
     --- The current state.
     enmState            TestBoxState_T DEFAULT 'idle'::TestBoxState_T  NOT NULL,
     --- Reference to the test set
-    idTestSet           INTEGER     REFERENCES TestSets(idTestSet)
+    idTestSet           INTEGER     REFERENCES TestSets(idTestSet),
+    --- Interal work item number.
+    -- This is used to pick and prioritize between multiple scheduling groups.
+    iWorkItem           INTEGER     DEFAULT 0  NOT NULL
 );
 
 

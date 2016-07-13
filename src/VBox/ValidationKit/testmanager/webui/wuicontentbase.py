@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 101457 $"
+__version__ = "$Revision: 107799 $"
 
 
 # Standard python imports.
@@ -173,14 +173,45 @@ class WuiRawHtml(WuiHtmlBase): # pylint: disable=R0903
     def toHtml(self):
         return self.sHtml;
 
+class WuiHtmlKeeper(WuiHtmlBase): # pylint: disable=R0903
+    """
+    For keeping a list of elements, concatenating their toHtml output together.
+    """
+    def __init__(self, aoInitial = None, sSep = ' '):
+        WuiHtmlBase.__init__(self);
+        self.sSep   = sSep;
+        self.aoKept = [];
+        if aoInitial is not None:
+            if isinstance(aoInitial, WuiHtmlBase):
+                self.aoKept.append(aoInitial);
+            else:
+                self.aoKept.extend(aoInitial);
+
+    def append(self, oObject):
+        """ Appends one objects. """
+        self.aoKept.append(oObject);
+
+    def extend(self, aoObjects):
+        """ Appends a list of objects. """
+        self.aoKept.extend(aoObjects);
+
+    def toHtml(self):
+        return self.sSep.join(oObj.toHtml() for oObj in self.aoKept);
+
 class WuiSpanText(WuiRawHtml): # pylint: disable=R0903
     """
     Outputs the given text within a span of the given CSS class.
     """
-    def __init__(self, sSpanClass, sText):
-        WuiRawHtml.__init__(self,
-                            u'<span class="%s">%s</span>'
-                            % (webutils.escapeAttr(sSpanClass), webutils.escapeElem(sText),));
+    def __init__(self, sSpanClass, sText, sTitle = None):
+        if sTitle is None:
+            WuiRawHtml.__init__(self,
+                                u'<span class="%s">%s</span>'
+                                % ( webutils.escapeAttr(sSpanClass),  webutils.escapeElem(sText),));
+        else:
+            WuiRawHtml.__init__(self,
+                                u'<span class="%s" title="%s">%s</span>'
+                                % ( webutils.escapeAttr(sSpanClass), webutils.escapeAttr(sTitle), webutils.escapeElem(sText),));
+
 
 
 class WuiContentBase(object): # pylint: disable=R0903
@@ -188,10 +219,26 @@ class WuiContentBase(object): # pylint: disable=R0903
     Base for the content classes.
     """
 
+    ## The text/symbol for a very short add link.
+    ksShortAddLink         = u'\u2795'
+    ## HTML hex entity string for ksShortAddLink.
+    ksShortAddLinkHtml     = '&#x2795;;'
     ## The text/symbol for a very short edit link.
-    ksShortEditLink    = u'\u270D'
+    ksShortEditLink        = u'\u270D'
+    ## HTML hex entity string for ksShortDetailsLink.
+    ksShortEditLinkHtml    = '&#x270d;'
     ## The text/symbol for a very short details link.
-    ksShortDetailsLink = u'\u2318'
+    ksShortDetailsLink     = u'\u2318'
+    ## HTML hex entity string for ksShortDetailsLink.
+    ksShortDetailsLinkHtml = '&#x2318;'
+    ## The text/symbol for a very short change log / details / previous page link.
+    ksShortChangeLogLink   = u'\u2397'
+    ## HTML hex entity string for ksShortDetailsLink.
+    ksShortChangeLogLinkHtml = '&#x2397;'
+    ## The text/symbol for a very short reports link.
+    ksShortReportLink      = u'\u2397'
+    ## HTML hex entity string for ksShortReportLink.
+    ksShortReportLinkHtml  = '&#x2397;'
 
 
     def __init__(self, fnDPrint = None, oDisp = None):
@@ -212,6 +259,10 @@ class WuiContentBase(object): # pylint: disable=R0903
         oTsZulu = db.dbTimestampToZuluDatetime(oTs);
         sTs = oTsZulu.strftime('%Y-%m-%d %H:%M:%SZ');
         return unicode(sTs).replace('-', u'\u2011').replace(' ', u'\u00a0');
+
+    def getNowTs(self):
+        """ Gets a database compatible current timestamp from python. See db.dbTimestampPythonNow(). """
+        return db.dbTimestampPythonNow();
 
     def formatIntervalShort(self, oInterval):
         """
@@ -326,6 +377,7 @@ class WuiFormContentBase(WuiSingleContentBase): # pylint: disable=R0903
         self._sSubmitAction = sSubmitAction;
         if sSubmitAction is None and sMode != self.ksMode_Show:
             self._sSubmitAction = getattr(oDisp, self._sActionBase + self.kdSubmitActionMappings[sMode]);
+        self._sRedirectTo   = None;
 
 
     def _populateForm(self, oForm, oData):
@@ -335,6 +387,15 @@ class WuiFormContentBase(WuiSingleContentBase): # pylint: disable=R0903
         """
         _ = oForm; _ = oData;
         raise Exception('Reimplement me!');
+
+    def _generatePostFormContent(self, oData):
+        """
+        Generate optional content that comes below the form.
+        Returns a list of tuples, where the first tuple element is the title
+        and the second the content.  I.e. similar to show() output.
+        """
+        _ = oData;
+        return [];
 
     def _calcChangeLogEntryLinks(self, aoEntries, iEntry):
         """
@@ -469,6 +530,13 @@ class WuiFormContentBase(WuiSingleContentBase): # pylint: disable=R0903
                        '</div>\n';
         return sNavigation;
 
+    def setRedirectTo(self, sRedirectTo):
+        """
+        For setting the hidden redirect-to field.
+        """
+        self._sRedirectTo = sRedirectTo;
+        return True;
+
     def showChangeLog(self, aoEntries, fMoreEntries, iPageNo, cEntriesPerPage, tsNow, fShowNavigation = True):
         """
         Render the change log, returning raw HTML.
@@ -505,6 +573,53 @@ class WuiFormContentBase(WuiSingleContentBase): # pylint: disable=R0903
         sContent += '</div>\n\n';
         return sContent;
 
+    def _generateTopRowFormActions(self, oData):
+        """
+        Returns a list of WuiTmLinks.
+        """
+        aoActions = [];
+        if self._sMode == self.ksMode_Show and self._fEditable:
+            # Remove _idGen and effective date since we're always editing the current data,
+            # and make sure the primary ID is present.
+            dParams = self._oDisp.getParameters();
+            if hasattr(oData, 'ksIdGenAttr'):
+                sIdGenParam = getattr(oData, 'ksParam_' + oData.ksIdGenAttr);
+                if sIdGenParam in dParams:
+                    del dParams[sIdGenParam];
+            if WuiDispatcherBase.ksParamEffectiveDate in dParams:
+                del dParams[WuiDispatcherBase.ksParamEffectiveDate];
+            dParams[getattr(oData, 'ksParam_' + oData.ksIdAttr)] = getattr(oData, oData.ksIdAttr);
+
+            dParams[WuiDispatcherBase.ksParamAction] = getattr(self._oDisp, self._sActionBase + 'Edit');
+            aoActions.append(WuiTmLink('Edit', '', dParams));
+
+            # Add clone operation if available. This uses the same data selection as for showing details.
+            if hasattr(self._oDisp, self._sActionBase + 'Clone'):
+                dParams = self._oDisp.getParameters();
+                dParams[WuiDispatcherBase.ksParamAction] = getattr(self._oDisp, self._sActionBase + 'Clone');
+                aoActions.append(WuiTmLink('Clone', '', dParams));
+
+        elif self._sMode == self.ksMode_Edit:
+            # Details views the details at a given time, so we need either idGen or an effecive date + regular id.
+            dParams = {};
+            if hasattr(oData, 'ksIdGenAttr'):
+                sIdGenParam = getattr(oData, 'ksParam_' + oData.ksIdGenAttr);
+                dParams[sIdGenParam] = getattr(oData, oData.ksIdGenAttr);
+            elif hasattr(oData, 'tsEffective'):
+                dParams[WuiDispatcherBase.ksParamEffectiveDate] = oData.tsEffective;
+                dParams[getattr(oData, 'ksParam_' + oData.ksIdAttr)] = getattr(oData, oData.ksIdAttr);
+            dParams[WuiDispatcherBase.ksParamAction] = getattr(self._oDisp, self._sActionBase + 'Details');
+            aoActions.append(WuiTmLink('Details', '', dParams));
+
+            # Add delete operation if available.
+            if hasattr(self._oDisp, self._sActionBase + 'DoRemove'):
+                dParams = self._oDisp.getParameters();
+                dParams[WuiDispatcherBase.ksParamAction] = getattr(self._oDisp, self._sActionBase + 'DoRemove');
+                dParams[getattr(oData, 'ksParam_' + oData.ksIdAttr)] = getattr(oData, oData.ksIdAttr);
+                aoActions.append(WuiTmLink('Delete', '', dParams, sConfirm = "Are you absolutely sure?"));
+
+        return aoActions;
+
     def showForm(self, dErrors = None, sErrorMsg = None):
         """
         Render the form.
@@ -520,46 +635,28 @@ class WuiFormContentBase(WuiSingleContentBase): # pylint: disable=R0903
         # need to show this reason
         try:
             self._populateForm(oForm, self._oData);
+            if self._sRedirectTo is not None:
+                oForm.addTextHidden(self._oDisp.ksParamRedirectTo, self._sRedirectTo);
         except WuiException, oXcpt:
             sContent = unicode(oXcpt)
         else:
             sContent = oForm.finalize();
 
+        # Add any post form content.
+        atPostFormContent = self._generatePostFormContent(self._oData);
+        if atPostFormContent is not None and len(atPostFormContent) > 0:
+            for iSection, tSection in enumerate(atPostFormContent):
+                (sSectionTitle, sSectionContent) = tSection;
+                sContent += u'<div id="postform-%d"  class="tmformpostsection">\n' % (iSection,);
+                if sSectionTitle is not None and len(sSectionTitle) > 0:
+                    sContent += '<h3 class="tmformpostheader">%s</h3>\n' % (webutils.escapeElem(sSectionTitle),);
+                sContent += u' <div id="postform-%d-content" class="tmformpostcontent">\n' % (iSection,);
+                sContent += sSectionContent;
+                sContent += u' </div>\n' \
+                            u'</div>\n';
+
         # Add action to the top.
-        aoActions = [];
-        if self._sMode == self.ksMode_Show and self._fEditable:
-            # Remove _idGen and effective date since we're always editing the current data,
-            # and make sure the primary ID is present.
-            dParams = self._oDisp.getParameters();
-            if hasattr(self._oData, 'ksIdGenAttr'):
-                sIdGenParam = getattr(self._oData, 'ksParam_' + self._oData.ksIdGenAttr);
-                if sIdGenParam in dParams:
-                    del dParams[sIdGenParam];
-            if WuiDispatcherBase.ksParamEffectiveDate in dParams:
-                del dParams[WuiDispatcherBase.ksParamEffectiveDate];
-            dParams[getattr(self._oData, 'ksParam_' + self._oData.ksIdAttr)] = getattr(self._oData, self._oData.ksIdAttr);
-
-            dParams[WuiDispatcherBase.ksParamAction] = getattr(self._oDisp, self._sActionBase + 'Edit');
-            aoActions.append(WuiTmLink('Edit', '', dParams));
-
-            # Add clone operation if available. This uses the same data selection as for showing details.
-            if hasattr(self._oDisp, self._sActionBase + 'Clone'):
-                dParams = self._oDisp.getParameters();
-                dParams[WuiDispatcherBase.ksParamAction] = getattr(self._oDisp, self._sActionBase + 'Clone');
-                aoActions.append(WuiTmLink('Clone', '', dParams));
-
-        elif self._sMode == self.ksMode_Edit:
-            # Details views the details at a given time, so we need either idGen or an effecive date + regular id.
-            dParams = {};
-            if hasattr(self._oData, 'ksIdGenAttr'):
-                sIdGenParam = getattr(self._oData, 'ksParam_' + self._oData.ksIdGenAttr);
-                dParams[sIdGenParam] = getattr(self._oData, self._oData.ksIdGenAttr);
-            elif hasattr(self._oData, 'tsEffective'):
-                dParams[WuiDispatcherBase.ksParamEffectiveDate] = self._oData.tsEffective;
-                dParams[getattr(self._oData, 'ksParam_' + self._oData.ksIdAttr)] = getattr(self._oData, self._oData.ksIdAttr);
-            dParams[WuiDispatcherBase.ksParamAction] = getattr(self._oDisp, self._sActionBase + 'Edit');
-            aoActions.append(WuiTmLink('Details', '', dParams));
-
+        aoActions = self._generateTopRowFormActions(self._oData);
         if len(aoActions) > 0:
             sActionLinks = '<p>%s</p>' % (' '.join(unicode(oLink) for oLink in aoActions));
             sContent = sActionLinks + sContent;
@@ -600,6 +697,36 @@ class WuiListContentBase(WuiContentBase):
         self._asColumnHeaders   = [];
         self._asColumnAttribs   = [];
 
+    def _formatCommentCell(self, sComment, cMaxLines = 3, cchMaxLine = 63):
+        """
+        Helper functions for formatting comment cell.
+        Returns None or WuiRawHtml instance.
+        """
+        # Nothing to do for empty comments.
+        if sComment is None:
+            return None;
+        sComment = sComment.strip();
+        if len(sComment) == 0:
+            return None;
+
+        # Restrict the text if necessary, making the whole text available thru mouse-over.
+        ## @todo this would be better done by java script or smth, so it could automatically adjust to the table size.
+        if len(sComment) > cchMaxLine or sComment.count('\n') >= cMaxLines:
+            sShortHtml = '';
+            for iLine, sLine in enumerate(sComment.split('\n')):
+                if iLine >= cMaxLines:
+                    break;
+                if iLine > 0:
+                    sShortHtml += '<br>\n';
+                if len(sLine) > cchMaxLine:
+                    sShortHtml += webutils.escapeElem(sLine[:(cchMaxLine - 3)]);
+                    sShortHtml += '...';
+                else:
+                    sShortHtml += webutils.escapeElem(sLine);
+            return WuiRawHtml('<span class="tmcomment" title="%s">%s</span>' % (webutils.escapeAttr(sComment), sShortHtml,));
+
+        return WuiRawHtml('<span class="tmcomment">%s</span>' % (webutils.escapeElem(sComment).replace('\n', '<br>'),));
+
     def _formatListEntry(self, iEntry):
         """
         Formats the specified list entry as a list of column values.
@@ -628,7 +755,7 @@ class WuiListContentBase(WuiContentBase):
         aoValues = self._formatListEntry(iEntry);
         assert len(aoValues) == len(self._asColumnHeaders), '%s vs %s' % (len(aoValues), len(self._asColumnHeaders));
 
-        for i in range(len(aoValues)):
+        for i, _ in enumerate(aoValues):
             if i < len(self._asColumnAttribs) and len(self._asColumnAttribs[i]) > 0:
                 sRow += u'    <td ' + self._asColumnAttribs[i] + '>';
             else:

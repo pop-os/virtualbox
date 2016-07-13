@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 108686 $"
 
 # Standard Python imports.
 import array
@@ -200,7 +200,7 @@ class TransportBase(object):
         Remarks: cb is always a multiple of 16.
         """
         _ = cb; _ = cMsTimeout; _ = fNoDataOk;
-        return False;
+        return None;
 
     def isConnectionOk(self):
         """
@@ -550,7 +550,7 @@ class Session(TdTaskBase):
         Wrapper for TransportBase.recvMsg that stashes the response away
         so the client can inspect it later on.
         """
-        if cMsTimeout == None:
+        if cMsTimeout is None:
             cMsTimeout = self.getMsLeft(500);
         cbMsg, sOpcode, abPayload = self.oTransport.recvMsg(cMsTimeout, fNoDataOk);
         self.lockTask();
@@ -612,7 +612,7 @@ class Session(TdTaskBase):
         """
         Wrapper for TransportBase.sendMsg that inserts the correct timeout.
         """
-        if cMsTimeout == None:
+        if cMsTimeout is None:
             cMsTimeout = self.getMsLeft(500);
         return self.oTransport.sendMsg(sOpcode, cMsTimeout, aoPayload);
 
@@ -749,14 +749,18 @@ class Session(TdTaskBase):
                    and oStdIn is not None \
                    and not isinstance(oStdIn, basestring):
                     try:
-                        abInput = oStdIn.read(65536);
+                        sInput = oStdIn.read(65536);
                     except:
                         reporter.errorXcpt('read standard in');
                         sFailure = 'exception reading stdin';
                         rc = None;
                         break;
-                    if len(abInput) > 0:
-                        oStdIn.uTxsClientCrc32 = zlib.crc32(abInput, oStdIn.uTxsClientCrc32);
+                    if len(sInput) > 0:
+                        oStdIn.uTxsClientCrc32 = zlib.crc32(sInput, oStdIn.uTxsClientCrc32);
+                        # Convert to a byte array before handing it of to sendMsg or the string
+                        # will get some zero termination added breaking the CRC (and injecting
+                        # unwanted bytes).
+                        abInput = array.array('B', sInput);
                         rc = self.sendMsg('STDIN', (long(oStdIn.uTxsClientCrc32 & 0xffffffff), abInput));
                         if rc is not True:
                             sFailure = 'sendMsg failure';
@@ -764,10 +768,17 @@ class Session(TdTaskBase):
                         msPendingInputReply = base.timestampMilli();
                         continue;
 
+                    rc = self.sendMsg('STDINEOS');
+                    oStdIn = None;
+                    if rc is not True:
+                        sFailure = 'sendMsg failure';
+                        break;
+                    msPendingInputReply = base.timestampMilli();
+
                 # Wait for input (500 ms timeout).
                 if cbMsg is None:
                     cbMsg, sOpcode, abPayload = self.recvReply(cMsTimeout=500, fNoDataOk=True);
-                    if cbMsg == None:
+                    if cbMsg is None:
                         # Check for time out before restarting the loop.
                         # Note! Only doing timeout checking here does mean that
                         #       the TXS may prevent us from timing out by
@@ -864,9 +875,7 @@ class Session(TdTaskBase):
 
             # Parse the exit status (True), abort (None) or do nothing (False).
             if rc is True:
-                if sOpcode == 'PROC OK':
-                    rc = True;
-                else:
+                if sOpcode != 'PROC OK':
                     # Do proper parsing some other day if needed:
                     #   PROC TOK, PROC TOA, PROC DWN, PROC DOO,
                     #   PROC NOK + rc, PROC SIG + sig, PROC ABD, FAILED.
@@ -902,6 +911,8 @@ class Session(TdTaskBase):
         for o in (oStdIn, oStdOut, oStdErr, oTestPipe):
             if o is not None and not isinstance(o, basestring):
                 del o.uTxsClientCrc32;      # pylint: disable=E1103
+                # Make sure all files are closed
+                o.close();                  # pylint: disable=E1103
         reporter.log('taskExecEx: returns %s' % (rc));
         return rc;
 
@@ -1072,7 +1083,7 @@ class Session(TdTaskBase):
 
                 # Convert to array - this is silly!
                 abBuf = array.array('B');
-                for i in range(len(sRaw)):
+                for i, _ in enumerate(sRaw):
                     abBuf.append(ord(sRaw[i]));
                 sRaw = None;
 
@@ -1345,7 +1356,7 @@ class Session(TdTaskBase):
         oStdOut   = reporter.FileWrapper('%sstdout' % sPrefix);
         oStdErr   = reporter.FileWrapper('%sstderr' % sPrefix);
         if fWithTestPipe:   oTestPipe = reporter.FileWrapperTestPipe();
-        else:               oTestPipe = '/dev/null';
+        else:               oTestPipe = '/dev/null'; # pylint: disable=redefined-variable-type
 
         return self.startTask(cMsTimeout, fIgnoreErrors, "exec", self.taskExecEx,
                               (sExecName, long(0), asArgs, asAddEnv, sStdIn, oStdOut, oStdErr, oTestPipe, sAsUser));

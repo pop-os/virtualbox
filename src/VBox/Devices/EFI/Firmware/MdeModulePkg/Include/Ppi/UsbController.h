@@ -1,8 +1,8 @@
 /** @file
-  Define APIs to retrieve USB Host Controller Info such as controller type and 
+  Define APIs to retrieve USB Host Controller Info such as controller type and
   I/O Port Base Address.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -49,6 +49,12 @@ typedef struct _PEI_USB_CONTROLLER_PPI PEI_USB_CONTROLLER_PPI;
 ///
 #define PEI_EHCI_CONTROLLER 0x03
 
+///
+/// This bit is used in the ControllerType return parameter of GetUsbController()
+/// to identify the USB Host Controller type as XHCI
+///
+#define PEI_XHCI_CONTROLLER 0x04
+
 /**
   Retrieve USB Host Controller Info such as controller type and I/O Base Address.
 
@@ -57,11 +63,11 @@ typedef struct _PEI_USB_CONTROLLER_PPI PEI_USB_CONTROLLER_PPI;
   @param[in]  ControllerId     The ID of the USB controller.
   @param[out] ControllerType   On output, returns the type of the USB controller.
   @param[out] BaseAddress      On output, returns the base address of UHCI's I/O ports
-                               if UHCI is enabled or the base address of EHCI's MMIO 
+                               if UHCI is enabled or the base address of EHCI's MMIO
                                if EHCI is enabled.
 
   @retval EFI_SUCCESS             USB controller attributes were returned successfully.
-  @retval EFI_INVALID_PARAMETER   ControllerId is greater than the maximum number 
+  @retval EFI_INVALID_PARAMETER   ControllerId is greater than the maximum number
                                   of USB controller supported by this platform.
 
 **/

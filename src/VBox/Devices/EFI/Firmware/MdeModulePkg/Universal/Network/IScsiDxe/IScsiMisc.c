@@ -1,7 +1,7 @@
 /** @file
   Miscellaneous routines for iSCSI driver.
 
-Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -19,8 +19,8 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST CHAR8  IScsiHexString[] = "0123456789ABCDEFa
 /**
   Removes (trims) specified leading and trailing characters from a string.
 
-  @param[in, out]  Str  Pointer to the null-terminated string to be trimmed. On return, 
-                        Str will hold the trimmed string. 
+  @param[in, out]  Str  Pointer to the null-terminated string to be trimmed. On return,
+                        Str will hold the trimmed string.
 
   @param[in]      CharC Character will be trimmed from str.
 **/
@@ -32,18 +32,18 @@ StrTrim (
 {
   CHAR16  *Pointer1;
   CHAR16  *Pointer2;
-  
+
   if (*Str == 0) {
     return;
   }
-  
+
   //
   // Trim off the leading and trailing characters c
   //
   for (Pointer1 = Str; (*Pointer1 != 0) && (*Pointer1 == CharC); Pointer1++) {
     ;
   }
-  
+
   Pointer2 = Str;
   if (Pointer2 == Pointer1) {
     while (*Pointer1 != 0) {
@@ -51,19 +51,19 @@ StrTrim (
       Pointer1++;
     }
   } else {
-    while (*Pointer1 != 0) {    
-    *Pointer2 = *Pointer1;    
+    while (*Pointer1 != 0) {
+    *Pointer2 = *Pointer1;
     Pointer1++;
     Pointer2++;
     }
     *Pointer2 = 0;
   }
-  
-  
+
+
   for (Pointer1 = Str + StrLen(Str) - 1; Pointer1 >= Str && *Pointer1 == CharC; Pointer1--) {
     ;
   }
-  if  (Pointer1 !=  Str + StrLen(Str) - 1) { 
+  if  (Pointer1 !=  Str + StrLen(Str) - 1) {
     *(Pointer1 + 1) = 0;
   }
 }
@@ -109,7 +109,7 @@ IScsiGetSubnetMaskPrefixLength (
 }
 
 /**
-  Convert the hexadecimal encoded LUN string into the 64-bit LUN. 
+  Convert the hexadecimal encoded LUN string into the 64-bit LUN.
 
   @param[in]   Str             The hexadecimal encoded LUN string.
   @param[out]  Lun             Storage to return the 64-bit LUN.
@@ -127,11 +127,11 @@ IScsiAsciiStrToLun (
   CHAR8   TemStr[2];
   UINT8   TemValue;
   UINT16  Value[4];
-  
+
   ZeroMem (Lun, 8);
   ZeroMem (TemStr, 2);
   ZeroMem ((UINT8 *) Value, sizeof (Value));
-  SizeStr    = AsciiStrLen (Str);  
+  SizeStr    = AsciiStrLen (Str);
   IndexValue = 0;
   IndexNum   = 0;
 
@@ -146,7 +146,7 @@ IScsiAsciiStrToLun (
         return EFI_INVALID_PARAMETER;
       }
     }
-    
+
     if ((TemValue == 0) && (TemStr[0] == '-')) {
       //
       // Next Lun value
@@ -163,24 +163,24 @@ IScsiAsciiStrToLun (
       IndexNum = 0;
       continue;
     }
-    
+
     if (++IndexNum > 4) {
-      //     
+      //
       // Each Lun Str can't exceed size 4, because it will be as UINT16 value
       //
       return EFI_INVALID_PARAMETER;
     }
-    
+
     //
     // Combine UINT16 value
     //
     Value[IndexValue] = (UINT16) ((Value[IndexValue] << 4) + TemValue);
   }
- 
+
   for (Index = 0; Index <= IndexValue; Index ++) {
     *((UINT16 *) &Lun[Index * 2]) =  HTONS (Value[Index]);
   }
-  
+
   return EFI_SUCCESS;
 }
 
@@ -219,6 +219,7 @@ IScsiLunToUnicodeStr (
     TempStr += StrLen (TempStr);
   }
 
+  ASSERT (StrLen(Str) >= 1);
   Str[StrLen (Str) - 1] = 0;
 
   for (Index = StrLen (Str) - 1; Index > 1; Index = Index - 2) {
@@ -391,7 +392,7 @@ IScsiMacAddrToStr (
   @param[in, out]  HexStr      Pointer to the string.
   @param[in, out]  HexLength   The length of the string.
 
-  @retval EFI_SUCCESS          The binary data is converted to the hexadecimal string 
+  @retval EFI_SUCCESS          The binary data is converted to the hexadecimal string
                                and the length of the string is updated.
   @retval EFI_BUFFER_TOO_SMALL The string is too small.
   @retval EFI_INVALID_PARAMETER The IP string is malformatted.
@@ -454,7 +455,7 @@ IScsiHexToBin (
   UINTN   Length;
   UINT8   Digit;
   CHAR8   TemStr[2];
-  
+
   ZeroMem (TemStr, sizeof (TemStr));
 
   //
@@ -463,7 +464,7 @@ IScsiHexToBin (
   if ((HexStr[0] == '0') && ((HexStr[1] == 'x') || (HexStr[1] == 'X'))) {
     HexStr += 2;
   }
-  
+
   Length = AsciiStrLen (HexStr);
 
   for (Index = 0; Index < Length; Index ++) {
@@ -481,7 +482,7 @@ IScsiHexToBin (
       BinBuffer [Index/2] = (UINT8) ((BinBuffer [Index/2] << 4) + Digit);
     }
   }
-  
+
   *BinLength = (UINT32) ((Index + 1)/2);
 
   return EFI_SUCCESS;
@@ -614,6 +615,59 @@ IScsiCleanDriverData (
   gBS->CloseEvent (Private->ExitBootServiceEvent);
 
   FreePool (Private);
+}
+
+/**
+  Check wheather the Controller is configured to use DHCP protocol.
+
+  @param[in]  Controller           The handle of the controller.
+
+  @retval TRUE                     The handle of the controller need the Dhcp protocol.
+  @retval FALSE                    The handle of the controller does not need the Dhcp protocol.
+
+**/
+BOOLEAN
+IScsiDhcpIsConfigured (
+  IN EFI_HANDLE  Controller
+  )
+{
+  EFI_STATUS                  Status;
+  EFI_MAC_ADDRESS             MacAddress;
+  UINTN                       HwAddressSize;
+  UINT16                      VlanId;
+  CHAR16                      MacString[70];
+  ISCSI_SESSION_CONFIG_NVDATA *ConfigDataTmp;
+
+  //
+  // Get the mac string, it's the name of various variable
+  //
+  Status = NetLibGetMacAddress (Controller, &MacAddress, &HwAddressSize);
+  if (EFI_ERROR (Status)) {
+    return FALSE;
+  }
+  VlanId = NetLibGetVlanId (Controller);
+  IScsiMacAddrToStr (&MacAddress, (UINT32) HwAddressSize, VlanId, MacString);
+
+  //
+  // Get the normal configuration.
+  //
+  Status = GetVariable2 (
+             MacString,
+             &gEfiIScsiInitiatorNameProtocolGuid,
+             (VOID**)&ConfigDataTmp,
+             NULL
+             );
+  if (ConfigDataTmp == NULL || EFI_ERROR (Status)) {
+    return FALSE;
+  }
+
+  if (ConfigDataTmp->Enabled && ConfigDataTmp->InitiatorInfoFromDhcp) {
+    FreePool (ConfigDataTmp);
+    return TRUE;
+  }
+
+  FreePool (ConfigDataTmp);
+  return FALSE;
 }
 
 /**
@@ -757,7 +811,7 @@ IScsiGetTcpConnDevicePath (
         ) {
 
       DPathNode->Ipv4.LocalPort       = 0;
-      DPathNode->Ipv4.StaticIpAddress = 
+      DPathNode->Ipv4.StaticIpAddress =
         (BOOLEAN) (!Session->ConfigData.NvData.InitiatorInfoFromDhcp);
 
       IP4_COPY_ADDRESS (
@@ -798,4 +852,71 @@ IScsiOnExitBootService (
   gBS->CloseEvent (Private->ExitBootServiceEvent);
 
   IScsiSessionAbort (&Private->Session);
+}
+
+/**
+  Tests whether a controller handle is being managed by IScsi driver.
+
+  This function tests whether the driver specified by DriverBindingHandle is
+  currently managing the controller specified by ControllerHandle.  This test
+  is performed by evaluating if the the protocol specified by ProtocolGuid is
+  present on ControllerHandle and is was opened by DriverBindingHandle and Nic
+  Device handle with an attribute of EFI_OPEN_PROTOCOL_BY_DRIVER.
+  If ProtocolGuid is NULL, then ASSERT().
+
+  @param  ControllerHandle     A handle for a controller to test.
+  @param  DriverBindingHandle  Specifies the driver binding handle for the
+                               driver.
+  @param  ProtocolGuid         Specifies the protocol that the driver specified
+                               by DriverBindingHandle opens in its Start()
+                               function.
+
+  @retval EFI_SUCCESS          ControllerHandle is managed by the driver
+                               specified by DriverBindingHandle.
+  @retval EFI_UNSUPPORTED      ControllerHandle is not managed by the driver
+                               specified by DriverBindingHandle.
+
+**/
+EFI_STATUS
+EFIAPI
+IScsiTestManagedDevice (
+  IN  EFI_HANDLE       ControllerHandle,
+  IN  EFI_HANDLE       DriverBindingHandle,
+  IN  EFI_GUID         *ProtocolGuid
+  )
+{
+  EFI_STATUS     Status;
+  VOID           *ManagedInterface;
+  EFI_HANDLE     NicControllerHandle;
+
+  ASSERT (ProtocolGuid != NULL);
+
+  NicControllerHandle = NetLibGetNicHandle (ControllerHandle, ProtocolGuid);
+  if (NicControllerHandle == NULL) {
+    return EFI_UNSUPPORTED;
+  }
+
+  Status = gBS->OpenProtocol (
+                  ControllerHandle,
+                  (EFI_GUID *) ProtocolGuid,
+                  &ManagedInterface,
+                  DriverBindingHandle,
+                  NicControllerHandle,
+                  EFI_OPEN_PROTOCOL_BY_DRIVER
+                  );
+  if (!EFI_ERROR (Status)) {
+    gBS->CloseProtocol (
+           ControllerHandle,
+           (EFI_GUID *) ProtocolGuid,
+           DriverBindingHandle,
+           NicControllerHandle
+           );
+    return EFI_UNSUPPORTED;
+  }
+
+  if (Status != EFI_ALREADY_STARTED) {
+    return EFI_UNSUPPORTED;
+  }
+
+  return EFI_SUCCESS;
 }

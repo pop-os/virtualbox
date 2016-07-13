@@ -551,7 +551,11 @@ static int usbProxyLinuxFindActiveConfigSysfs(PUSBPROXYDEV pProxyDev, const char
         *piFirstCfg = pProxyDev->paCfgDescs != NULL
                     ? pProxyDev->paCfgDescs[0].Core.bConfigurationValue
                     : 1;
-    return RTLinuxSysFsReadIntFile(10, "%s/bConfigurationValue", pszPath); /* returns -1 on failure */
+    int64_t bCfg = 0;
+    int rc = RTLinuxSysFsReadIntFile(10, &bCfg, "%s/bConfigurationValue", pszPath);
+    if (RT_FAILURE(rc))
+        bCfg = -1;
+    return (int)bCfg;
 #else  /* !VBOX_USB_WITH_SYSFS */
     return -1;
 #endif /* !VBOX_USB_WITH_SYSFS */
@@ -1751,7 +1755,7 @@ static DECLCALLBACK(PVUSBURB) usbProxyLinuxUrbReap(PUSBPROXYDEV pProxyDev, RTMSI
                     bool fSucceeded;
 
                     Assert(pUrbLnx->pSplitHead);
-                    Assert((pKUrb->endpoint & 0x80) && (!pKUrb->flags & USBDEVFS_URB_SHORT_NOT_OK));
+                    Assert((pKUrb->endpoint & 0x80) && !(pKUrb->flags & USBDEVFS_URB_SHORT_NOT_OK));
                     PUSBPROXYURBLNX pNew = usbProxyLinuxSplitURBFragment(pProxyDev, pUrbLnx->pSplitHead, pUrbLnx);
                     if (!pNew)
                     {
@@ -1931,8 +1935,6 @@ const USBPROXYBACK g_USBProxyDeviceHost =
  *  mode: c
  *  c-file-style: "bsd"
  *  c-basic-offset: 4
- *  tab-width: 4
- *  indent-tabs-mode: s
  * End:
  */
 

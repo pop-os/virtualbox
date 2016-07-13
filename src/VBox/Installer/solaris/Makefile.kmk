@@ -250,6 +250,7 @@ SOLARIS_COMMON.SRC     := $(PATH_STAGE_BIN)
 SOLARIS_COMMON.DST     := $(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox
 SOLARIS_COMMON = \
 	LICENSE
+
 ## @def SOLARIS_COMMON_EXES
 # List of executable script (and VBoxISAExec) files that are copied directly from INST_BIN to /opt/VirtualBox/.
 SOLARIS_FILE_LIST_VARS += SOLARIS_COMMON_EXES
@@ -265,7 +266,7 @@ SOLARIS_COMMON_EXES = \
 # List of INST_BIN shared libraries that should be copied into /opt/VirtualBox/ and stripped.
 SOLARIS_FILE_LIST_VARS += SOLARIS_COMMON_STRIP_BINS
 SOLARIS_COMMON_STRIP_BINS.SUBDIRS := yes
-SOLARIS_COMMON_STRIP_BINS.STRIP   := no
+SOLARIS_COMMON_STRIP_BINS.STRIP   := yes
 SOLARIS_COMMON_STRIP_BINS.MODE    := 0644
 SOLARIS_COMMON_STRIP_BINS.SRC     := $(PATH_STAGE_BIN)
 SOLARIS_COMMON_STRIP_BINS.DST     := $(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/
@@ -331,12 +332,7 @@ SOLARIS_STRIP_BINS = \
 	VBoxHostChannel.so \
 	$(if $(VBOX_WITH_JXPCOM),libvboxjxpcom.so,) \
 	$(if $(VBOX_WITH_QTGUI),\
-	  VBoxKeyboard.so \
-	  $(if $(VBOX_WITH_QT4_SUN),\
-	    libQtCoreVBox.so.4 \
-	    libQtGuiVBox.so.4 \
-	    $(if $(VBOX_GUI_USE_QGL),libQtOpenGLVBox.so.4,) \
-	    accessible/libqtaccessiblewidgets.so,)) \
+	  VBoxKeyboard.so) \
 	$(if $(VBOX_WITH_DEBUGGER_GUI),VBoxDbg.so DbgPlugInDiggers.so,) \
 	$(if $(VBOX_WITH_CROGL),\
 	  VBoxOGLhostcrutil.so \
@@ -346,6 +342,32 @@ SOLARIS_STRIP_BINS = \
 	components/VBoxC.so \
 	components/VBoxSVCM.so \
 	components/VBoxXPCOMIPCC.so
+
+ifdef VBOX_WITH_QTGUI
+ ifdef VBOX_WITH_QTGUI_V5
+  ifdef VBOX_WITH_ORACLE_QT
+   SOLARIS_STRIP_BINS += \
+          libQt5CoreVBox.so.5 \
+	  libQt5GuiVBox.so.5 \
+          libQt5XcbQpaVBox.so.5 \
+          libQt5PrintSupportVBox.so.5 \
+          libQt5DBusVBox.so.5 \
+	  libQt5X11ExtrasVBox.so.5 \
+          libQt5WidgetsVBox.so.5 \
+          plugins/platforms/libqxcb.so \
+	  $(if $(VBOX_GUI_USE_QGL),libQt5OpenGLVBox.so.5,)
+  endif  
+ else # VBOX_WITH_QTGUI_V5
+  ifdef VBOX_WITH_ORACLE_QT
+   SOLARIS_STRIP_BINS += \
+          libQtCoreVBox.so.4 \
+	  libQtGuiVBox.so.4 \
+	  $(if $(VBOX_GUI_USE_QGL),libQtOpenGLVBox.so.4,) \
+	  accessible/libqtaccessiblewidgets.so
+  endif # VBOX_WITH_ORACLE_QT
+ endif # !VBOX_WITH_QTGUI_V5
+endif #VBOX_WITH_QTGUI
+
 ifdef VBOX_WITH_32_ON_64_MAIN_API
  SOLARIS_STRIP_BINS += \
 	VBoxRT-x86.so \
@@ -413,26 +435,29 @@ SOLARIS_COMMON_EXES += \
 
 
 ## @def SOLARIS_QTLIBS
-# List of Qt shared libs that we need to copy from $(VBOX_PATH_QT4)/lib/ to /opt/VirtualBox/$(VBOX_SI_ARCH)/
+# List of Qt shared libs that we need to copy from $(VBOX_PATH_QT)/lib/ to /opt/VirtualBox/$(VBOX_SI_ARCH)/
 # so that we can run VBoxQtConfig.
-SOLARIS_FILE_LIST_VARS += SOLARIS_QTLIBS
-SOLARIS_QTLIBS.SUBDIRS := no
-SOLARIS_QTLIBS.STRIP   := no
-SOLARIS_QTLIBS.MODE    := 0644
-SOLARIS_QTLIBS.SRC     := $(VBOX_PATH_QT4)/lib
-SOLARIS_QTLIBS.DST     := $(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)
-SOLARIS_QTLIBS =
-ifdef VBOX_WITH_QTGUI
- ifdef VBOX_WITH_QT4_SUN
-  SOLARIS_QTLIBS += \
-  	libQtXmlVBox.so.4 \
-  	libQtSqlVBox.so.4 \
-  	libQt3SupportVBox.so.4
-  SOLARIS_USRBIN_LINKS += \
-  	VBoxQtconfig
- endif
+ifndef VBOX_WITH_QTGUI_V5
+ SOLARIS_FILE_LIST_VARS += SOLARIS_QTLIBS
+ SOLARIS_QTLIBS.SUBDIRS := no
+ SOLARIS_QTLIBS.STRIP   := no
+ SOLARIS_QTLIBS.MODE    := 0644
+ SOLARIS_QTLIBS.SRC     := $(VBOX_PATH_QT)/lib
+ SOLARIS_QTLIBS.DST     := $(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)
+ SOLARIS_QTLIBS =
+ ifdef VBOX_WITH_QTGUI
+  ifdef VBOX_WITH_ORACLE_QT 
+    SOLARIS_QTLIBS += \
+       	  libQtXmlVBox.so.4 \
+  	  libQtSqlVBox.so.4 \
+  	  libQt3SupportVBox.so.4
+    SOLARIS_USRBIN_LINKS += \
+  	  VBoxQtconfig
+  endif
+
  include $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/nls/ApprovedLanguages.kmk
  SOLARIS_COMMON += $(foreach f,$(VBOX_APPROVED_GUI_LANGUAGES),nls/VirtualBox_$(f).qm nls/qt_$(f).qm)
+ endif
 endif
 
 # Documentation (packed as DOCS as they are arch. neutral)
@@ -489,10 +514,10 @@ SOLARIS_STRIP_BINS += \
 
 SOLARIS_STRIP_EXES += \
 	$(if $(VBOX_WITH_HEADLESS),VBoxHeadless) \
+	VBoxBugReport \
 	VBoxBalloonCtrl \
 	VBoxAutostart \
 	$(if $(VBOX_WITH_WEBSERVICES),vboxwebsrv) \
-	$(if $(VBOX_WITH_WEBSERVICES),webtest) \
 	$(if $(VBOX_WITH_VBOX_IMG)$(VBOX_WITH_TESTCASES),vbox-img)
 
 # Guest Additions
@@ -527,6 +552,15 @@ endif
 
 include $(FILE_KBUILD_SUB_FOOTER)
 
+PATH_S10LIBS.x86 := $(sort $(wildcard $(PATH_DEVTOOLS)/solaris.x86/s10libs/v*))
+ifneq ($(PATH_S10LIBS.x86),)
+ PATH_S10LIBS.x86 := $(call lastword,$(PATH_S10LIBS.x86))
+endif
+PATH_S10LIBS.amd64 := $(sort $(wildcard $(PATH_DEVTOOLS)/solaris.amd64/s10libs/v*))
+ifneq ($(PATH_S10LIBS.amd64),)
+ PATH_S10LIBS.amd64 := $(call lastword,$(PATH_S10LIBS.amd64))
+endif
+
 #
 # Creates the System V style installer package.
 #
@@ -539,9 +573,15 @@ $(VBOX_PATH_SI_SCRATCH)/$(PKG_FILENAME).pkg: \
 		$(VBOX_PATH_SOL_INST_SRC)/virtualbox.applications.in \
 		$(VBOX_PATH_SOL_INST_SRC)/vbox.pkginfo \
 		\
-		$(if-expr defined(VBOX_WITH_QTGUI) && defined(VBOX_WITH_QT4_SUN),$(VBOX_PATH_QT4)/bin/qtconfig,) \
+		$(if-expr defined(VBOX_WITH_QTGUI) && defined(VBOX_WITH_ORACLE_QT) && !defined(VBOX_WITH_QTGUI_V5),$(VBOX_PATH_QT)/bin/qtconfig,) \
 		$(if-expr defined(VBOX_WITH_ADDITIONS_PACKING),$(PATH_STAGE_BIN)/additions/VBoxGuestAdditions.iso,) \
-		$(if-expr !defined(VBOX_OSE) && defined(VBOX_WITH_VBOXSDL),$(PATH_DEVTOOLS_TRG)/libsdl/v1.2.13/lib/libSDL-1.2.so.0.11.2,) \
+		$(if-expr !defined(VBOX_OSE) && defined(VBOX_WITH_VBOXSDL), $(PATH_DEVTOOLS_TRG)/libsdl/v1.2.13/lib/libSDL-1.2.so.0.11.2,) \
+		\
+		$(if $(VBOX_OSE),,$(foreach arch, x86 amd64, $(foreach lib, libgcc_s.so.1 libstdc++.so.6, \
+			$(PATH_S10LIBS.$(arch))/$(lib)))) \
+		\
+		$(if $(VBOX_OSE),,$(foreach arch, amd64, $(foreach lib, libxcb.so.1 libX11-xcb.so.1 libX11.so.4 libGL.so, \
+			$(PATH_S10LIBS.$(arch))/$(lib)))) \
 		\
 		$(foreach var, $(SOLARIS_FILE_LIST_VARS),$(foreach file, $($(var)), $($(var).SRC)/$(file))) \
 		\
@@ -559,6 +599,9 @@ $(VBOX_PATH_SI_SCRATCH)/$(PKG_FILENAME).pkg: \
 	$(MKDIR) -p -m 0755 -- $(sort $(VBOX_PATH_SI_SCRATCH_PKG)/ \
 		$(VBOX_PATH_SI_SCRATCH_PKG)/opt/ \
 		$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/ \
+		$(if $(VBOX_OSE),,$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/legacy/) \
+		$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/amd64/ \
+		$(if $(VBOX_OSE),,$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/amd64/legacy/) \
 		$(VBOX_PATH_SI_SCRATCH_PKG)/platform/ \
 		$(VBOX_PATH_SI_SCRATCH_PKG)/platform/i86pc/ \
 		$(VBOX_PATH_SI_SCRATCH_PKG)/platform/i86pc/kernel/ \
@@ -602,9 +645,9 @@ $(VBOX_PATH_SI_SCRATCH)/$(PKG_FILENAME).pkg: \
 	$(INSTALL) -m 0644 $(VBOX_PATH_SOL_INST_SRC)/vbox.pkgresponse	$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/autoresponse
 
 # VirtualBox: Arch specific files.
-	$(if-expr defined(VBOX_WITH_QTGUI) && defined(VBOX_WITH_QT4_SUN)\
+	$(if-expr defined(VBOX_WITH_QTGUI) && defined(VBOX_WITH_ORACLE_QT) && !defined(VBOX_WITH_QTGUI_V5)\
 	,$(INSTALL) -m 0755 \
-		$(VBOX_PATH_QT4)/bin/qtconfig	$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)/VBoxQtconfig,)
+		$(VBOX_PATH_QT)/bin/qtconfig	$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)/VBoxQtconfig,)
 
 	$(if-expr defined(VBOX_WITH_QTGUI) \
 	,$(NLTAB)$(LN_SYMLINK) ../rdesktop-vrdp-keymaps/ $(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)/rdesktop-vrdp-keymaps,)
@@ -613,8 +656,16 @@ $(VBOX_PATH_SI_SCRATCH)/$(PKG_FILENAME).pkg: \
 	,$(NLTAB)$(LN_SYMLINK) ../VBoxGuestAdditions.iso $(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)/,)
 
 	$(if-expr !defined(VBOX_OSE) && defined(VBOX_WITH_VBOXSDL) \
-	,$(INSTALL) -m 0644 $(PATH_DEVTOOLS_TRG)/libsdl/v1.2.13/lib/libSDL-1.2.so.0.11.2 \
+	,$(INSTALL) -s -m 0644 $(PATH_DEVTOOLS_TRG)/libsdl/v1.2.13/lib/libSDL-1.2.so.0.11.2 \
 		$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)/libSDL-1.2.so.0,)
+
+	$(if $(VBOX_OSE),,$(foreach arch, x86 amd64, $(foreach lib, libgcc_s.so.1 libstdc++.so.6 \
+		,$(NLTAB)$(INSTALL) -s -m 0644 $(PATH_S10LIBS.$(arch))/$(lib) \
+		$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(if-expr $(arch) == "amd64",amd64/,)legacy/$(lib))))
+
+	$(if $(VBOX_OSE),,$(foreach arch, amd64, $(foreach lib, libxcb.so.1 libX11-xcb.so.1 libX11.so.4 libGL.so \
+		,$(NLTAB)$(INSTALL) -s -m 0644 $(PATH_S10LIBS.$(arch))/$(lib) \
+		$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(if-expr $(arch) == "amd64",amd64/,)legacy/$(lib))))
 
 	$(if-expr defined(VBOX_WITH_EFIFW_PACKING) \
 	,$(LN_SYMLINK) ../VBoxEFI32.fd ../VBoxEFI64.fd	$(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)/,)

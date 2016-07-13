@@ -945,11 +945,7 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
         {
             uint8_t *pMac = (uint8_t*)skb_mac_header(pBuf);
             struct vlan_ethhdr *pVHdr = (struct vlan_ethhdr *)(pMac - VLAN_HLEN);
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
             memmove(pVHdr, pMac, ETH_ALEN * 2);
-#  else
-            memmove(pVHdr, pMac, VLAN_ETH_ALEN * 2);
-#  endif
             pVHdr->h_vlan_proto = RT_H2N_U16(ETH_P_8021Q);
             pVHdr->h_vlan_TCI   = RT_H2N_U16(vlan_tx_tag_get(pBuf));
             pBuf->mac_header   -= VLAN_HLEN;
@@ -1208,7 +1204,7 @@ static bool vboxNetFltLinuxCanForwardAsGso(PVBOXNETFLTINS pThis, struct sk_buff 
             if (uProtocol == RTNETIPV4_PROT_TCP)
                 enmGsoType = PDMNETWORKGSOTYPE_IPV6_TCP;
             else if (uProtocol == RTNETIPV4_PROT_UDP)
-                enmGsoType = PDMNETWORKGSOTYPE_IPV4_UDP;
+                enmGsoType = PDMNETWORKGSOTYPE_IPV6_UDP;
             else
                 enmGsoType = PDMNETWORKGSOTYPE_INVALID;
             break;

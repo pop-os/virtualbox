@@ -66,11 +66,11 @@ UIGlobalSettingsInput::UIGlobalSettingsInput()
     connect(m_pSelectorFilterEditor, SIGNAL(textChanged(const QString &)),
             m_pSelectorModel, SLOT(sltHandleFilterTextChange(const QString &)));
     QVBoxLayout *pSelectorLayout = new QVBoxLayout(pSelectorTab);
-#ifndef Q_WS_WIN
+#ifndef VBOX_WS_WIN
     /* On Windows host that looks ugly, but
      * On Mac OS X and X11 that deserves it's place. */
     pSelectorLayout->setContentsMargins(0, 0, 0, 0);
-#endif /* !Q_WS_WIN */
+#endif /* !VBOX_WS_WIN */
     pSelectorLayout->setSpacing(1);
     pSelectorLayout->addWidget(m_pSelectorFilterEditor);
     pSelectorLayout->addWidget(m_pSelectorTable);
@@ -86,16 +86,20 @@ UIGlobalSettingsInput::UIGlobalSettingsInput()
     connect(m_pMachineFilterEditor, SIGNAL(textChanged(const QString &)),
             m_pMachineModel, SLOT(sltHandleFilterTextChange(const QString &)));
     QVBoxLayout *pMachineLayout = new QVBoxLayout(pMachineTab);
-#ifndef Q_WS_WIN
+#ifndef VBOX_WS_WIN
     /* On Windows host that looks ugly, but
      * On Mac OS X and X11 that deserves it's place. */
     pMachineLayout->setContentsMargins(0, 0, 0, 0);
-#endif /* !Q_WS_WIN */
+#endif /* !VBOX_WS_WIN */
     pMachineLayout->setSpacing(1);
     pMachineLayout->addWidget(m_pMachineFilterEditor);
     pMachineLayout->addWidget(m_pMachineTable);
     setTabOrder(m_pSelectorTable, m_pMachineFilterEditor);
     setTabOrder(m_pMachineFilterEditor, m_pMachineTable);
+
+    /* In the VM process we start by displaying the machine tab: */
+    if (VBoxGlobal::instance()->isVMConsoleProcess())
+        m_pTabWidget->setCurrentWidget(pMachineTab);
 
     /* Prepare validation: */
     prepareValidation();
@@ -570,8 +574,13 @@ UIHotKeyTable::UIHotKeyTable(QWidget *pParent, UIHotKeyTableModel *pModel, const
     verticalHeader()->hide();
     verticalHeader()->setDefaultSectionSize((int)(verticalHeader()->minimumSectionSize() * 1.33));
     horizontalHeader()->setStretchLastSection(false);
+#if QT_VERSION >= 0x050000
+    horizontalHeader()->setSectionResizeMode(UIHotKeyTableSection_Name, QHeaderView::Interactive);
+    horizontalHeader()->setSectionResizeMode(UIHotKeyTableSection_Value, QHeaderView::Stretch);
+#else /* QT_VERSION < 0x050000 */
     horizontalHeader()->setResizeMode(UIHotKeyTableSection_Name, QHeaderView::Interactive);
     horizontalHeader()->setResizeMode(UIHotKeyTableSection_Value, QHeaderView::Stretch);
+#endif /* QT_VERSION < 0x050000 */
 
     /* Reinstall delegate: */
     delete itemDelegate();

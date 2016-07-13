@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107799 $"
 
 # Validation Kit imports.
 from common                             import utils, webutils;
@@ -73,6 +73,7 @@ class WuiTestGroup(WuiFormContentBase):
                                         oData.aoMembers, self.aoAllTestCases, 'Test Case List',
                                         fReadOnly = self._sMode == WuiFormContentBase.ksMode_Show);
 
+        oForm.addMultilineText  (TestGroupData.ksParam_sComment,         self._oData.sComment,       'Comment');
         oForm.addSubmit();
         return True;
 
@@ -87,8 +88,8 @@ class WuiTestGroupList(WuiListContentBase):
 
         WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
                                     sTitle = 'Test Groups', fnDPrint = fnDPrint, oDisp = oDisp);
-        self._asColumnHeaders = [ 'ID', 'Name', 'Description', 'Test Cases', 'Actions' ];
-        self._asColumnAttribs = [ 'align="right"', '', '', '', 'align="center"' ];
+        self._asColumnHeaders = [ 'ID', 'Name', 'Description', 'Test Cases', 'Note', 'Actions' ];
+        self._asColumnAttribs = [ 'align="right"', '', '', '', 'align="center"', 'align="center"' ];
 
 
     def _formatListEntry(self, iEntry):
@@ -177,5 +178,6 @@ class WuiTestGroupList(WuiListContentBase):
                  oEntry.sName,
                  oEntry.sDescription if oEntry.sDescription is not None else '',
                  oTestCases,
+                 self._formatCommentCell(oEntry.sComment, cMaxLines = max(3, len(oEntry.aoMembers) * 2)),
                  aoActions ];
 

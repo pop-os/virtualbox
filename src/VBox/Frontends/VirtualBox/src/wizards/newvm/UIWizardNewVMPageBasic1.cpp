@@ -30,6 +30,7 @@
 # include "UIWizardNewVM.h"
 # include "UIMessageCenter.h"
 # include "UINameAndSystemEditor.h"
+# include "UIFilePathSelector.h"
 # include "QIRichTextLabel.h"
 
 /* COM includes: */
@@ -167,6 +168,7 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("Ne.*B.*32",            Qt::CaseInsensitive), "NetBSD" },
     { QRegExp("Net",                  Qt::CaseInsensitive), "Netware" },
     { QRegExp("Rocki",                Qt::CaseInsensitive), "JRockitVE" },
+    { QRegExp("bs[23]{0,1}-",         Qt::CaseInsensitive), "VBoxBS_64" }, /* bootsector tests */
     { QRegExp("Ot",                   Qt::CaseInsensitive), "Other" },
 };
 
@@ -202,6 +204,32 @@ void UIWizardNewVMPage1::onOsTypeChanged()
     m_pNameAndSystemEditor->disconnect(SIGNAL(sigNameChanged(const QString &)), thisImp(), SLOT(sltNameChanged(const QString &)));
 }
 
+void UIWizardNewVMPage1::adjustToolTip(const QString &strNewName /* = QString() */)
+{
+    /* Compose tool-tip: */
+    QString strToolTip;
+    /* If name is empty: */
+    if (strNewName.isEmpty())
+    {
+        /* We are just reseting the tool-tip to default: */
+        strToolTip = UIWizardNewVM::tr("<p><nobr>Holds the name or full path to the virtual "
+                                       "machine folder you are about to create.</nobr></p>");
+    }
+    /* If name is NOT empty: */
+    else
+    {
+        /* Compose the machine file-path, acquire the machine folder from it: */
+        const QString strMachineFilePath = composeMachineFilePath(strNewName);
+        const QString strMachineFolder = QDir::toNativeSeparators(QFileInfo(strMachineFilePath).absolutePath());
+        /* And compose the location-editor tool-tip accordingly: */
+        strToolTip = UIWizardNewVM::tr("<p><nobr>You are about to create the virtual machine in the "
+                                       "following folder:</nobr><br><nobr><b>%1</b></nobr></p>")
+                                       .arg(strMachineFolder);
+    }
+    /* Assign tool-tip: */
+    m_pNameAndSystemEditor->locationEditor()->setToolTip(strToolTip);
+}
+
 bool UIWizardNewVMPage1::machineFolderCreated()
 {
     return !m_strMachineFolder.isEmpty();
@@ -216,16 +244,10 @@ bool UIWizardNewVMPage1::createMachineFolder()
         return false;
     }
 
-    /* Get VBox: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    /* Get default machines directory: */
-    QString strDefaultMachinesFolder = vbox.GetSystemProperties().GetDefaultMachineFolder();
-    /* Compose machine filename: */
-    QString strMachineFilename = vbox.ComposeMachineFilename(m_pNameAndSystemEditor->name(), m_strGroup, QString::null, strDefaultMachinesFolder);
-    /* Compose machine folder/basename: */
-    QFileInfo fileInfo(strMachineFilename);
-    QString strMachineFolder = fileInfo.absolutePath();
-    QString strMachineBaseName = fileInfo.completeBaseName();
+    /* Compose machine file-path, parse it to folder and base-name: */
+    const QString strMachineFilePath = composeMachineFilePath(m_pNameAndSystemEditor->name());
+    const QString strMachineFolder = QDir::toNativeSeparators(QFileInfo(strMachineFilePath).absolutePath());
+    const QString strMachineBaseName = QFileInfo(strMachineFilePath).completeBaseName();
 
     /* Make sure that folder doesn't exists: */
     if (QDir(strMachineFolder).exists())
@@ -245,6 +267,7 @@ bool UIWizardNewVMPage1::createMachineFolder()
     /* Initialize fields: */
     m_strMachineFolder = strMachineFolder;
     m_strMachineBaseName = strMachineBaseName;
+    m_strMachineFilePath = strMachineFilePath;
     return true;
 }
 
@@ -262,6 +285,23 @@ bool UIWizardNewVMPage1::cleanupMachineFolder()
     return fMachineFolderRemoved;
 }
 
+QString UIWizardNewVMPage1::composeMachineFilePath(const QString &strUserMachineLocation)
+{
+    /* Get VBox: */
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    /* Get default machine folder: */
+    const QString strDefaultMachineFolder = vbox.GetSystemProperties().GetDefaultMachineFolder();
+    /* Fetch user's machine location: */
+    const QString strUserMachineFolder = QFileInfo(strUserMachineLocation).absolutePath();
+    const QString strUserMachineBaseName = QFileInfo(strUserMachineLocation).fileName();
+    const bool fUseDefaultPath = strUserMachineLocation == strUserMachineBaseName;
+    /* Compose machine filename: */
+    return vbox.ComposeMachineFilename(strUserMachineBaseName,
+                                       fUseDefaultPath ? m_strGroup : QString() /* no group in that case */,
+                                       QString(),
+                                       fUseDefaultPath ? strDefaultMachineFolder : strUserMachineFolder);
+}
+
 UIWizardNewVMPageBasic1::UIWizardNewVMPageBasic1(const QString &strGroup)
     : UIWizardNewVMPage1(strGroup)
 {
@@ -269,7 +309,7 @@ UIWizardNewVMPageBasic1::UIWizardNewVMPageBasic1(const QString &strGroup)
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);
     {
         m_pLabel = new QIRichTextLabel(this);
-        m_pNameAndSystemEditor = new UINameAndSystemEditor(this);
+        m_pNameAndSystemEditor = new UINameAndSystemEditor(this, true);
         pMainLayout->addWidget(m_pLabel);
         pMainLayout->addWidget(m_pNameAndSystemEditor);
         pMainLayout->addStretch();
@@ -277,6 +317,7 @@ UIWizardNewVMPageBasic1::UIWizardNewVMPageBasic1(const QString &strGroup)
 
     /* Setup connections: */
     connect(m_pNameAndSystemEditor, SIGNAL(sigNameChanged(const QString &)), this, SLOT(sltNameChanged(const QString &)));
+    connect(m_pNameAndSystemEditor, SIGNAL(sigNameChanged(const QString &)), this, SLOT(sltAdjustToolTip(const QString &)));
     connect(m_pNameAndSystemEditor, SIGNAL(sigOsTypeChanged()), this, SLOT(sltOsTypeChanged()));
 
     /* Register fields: */
@@ -284,12 +325,22 @@ UIWizardNewVMPageBasic1::UIWizardNewVMPageBasic1(const QString &strGroup)
     registerField("type", m_pNameAndSystemEditor, "type", SIGNAL(sigOsTypeChanged()));
     registerField("machineFolder", this, "machineFolder");
     registerField("machineBaseName", this, "machineBaseName");
+    registerField("machineFilePath", this, "machineFilePath");
+
+    /* Initialize tool-tip: */
+    adjustToolTip();
 }
 
 void UIWizardNewVMPageBasic1::sltNameChanged(const QString &strNewName)
 {
     /* Call to base-class: */
     onNameChanged(strNewName);
+}
+
+void UIWizardNewVMPageBasic1::sltAdjustToolTip(const QString &strNewName)
+{
+    /* Call to base-class: */
+    adjustToolTip(strNewName);
 }
 
 void UIWizardNewVMPageBasic1::sltOsTypeChanged()

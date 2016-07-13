@@ -22,7 +22,7 @@ include $(KBUILD_PATH)/subheader.kmk
 # Basic testcases for the VD code.
 #
 ifdef VBOX_WITH_TESTCASES
- PROGRAMS += tstVD tstVD-2 tstVDCopy tstVDSnap tstVDShareable
+ PROGRAMS += tstVD tstVD-2 tstVDSnap tstVDFill
 
  tstVD_TEMPLATE = VBOXR3TSTEXE
  tstVD_SOURCES = tstVD.cpp
@@ -32,9 +32,9 @@ ifdef VBOX_WITH_TESTCASES
  tstVD-2_SOURCES  = tstVD-2.cpp
  tstVD-2_LIBS = $(LIB_DDU)
 
- tstVDCopy_TEMPLATE = VBOXR3TSTEXE
- tstVDCopy_SOURCES  = tstVDCopy.cpp
- tstVDCopy_LIBS = $(LIB_DDU)
+ tstVDFill_TEMPLATE = VBOXR3TSTEXE
+ tstVDFill_SOURCES  = tstVDFill.cpp
+ tstVDFill_LIBS = $(LIB_DDU)
 
  PROGRAMS += tstVDIo
 
@@ -104,13 +104,6 @@ ifdef VBOX_WITH_TESTCASES
   	$(PATH_STAGE_LIB)/StorageDbgLib$(VBOX_SUFF_LIB)
  endif
 
- tstVDSetUuid_TEMPLATE = VBOXR3TSTEXE
- tstVDSetUuid_LIBS = $(LIB_DDU)
-
- tstVDShareable_TEMPLATE = VBOXR3TSTEXE
- tstVDShareable_LIBS = $(LIB_DDU)
- tstVDShareable_SOURCES = tstVDShareable.cpp
-
  tstVDSnap_TEMPLATE = VBOXR3TSTEXE
  tstVDSnap_LIBS = $(LIB_DDU)
  tstVDSnap_SOURCES  = tstVDSnap.cpp
@@ -166,6 +159,47 @@ if defined(VBOX_WITH_TESTCASES) || defined(VBOX_WITH_VBOX_IMG)
   vbox-img_LIBS += kstat
  endif
 
+endif
+
+if    defined(VBOX_WITH_TESTCASES) && defined(VBOX_WITH_PLUGIN_CRYPT) \
+   && defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD) \
+   && defined(VBOX_WITH_VDKEYSTOREMGR)
+ PROGRAMS += vdkeystoremgr
+
+ #
+ # vdkeystoremgr - static because it migth be used as at standalone tool.
+ #
+ vdkeystoremgr_TEMPLATE = VBoxR3Static
+ vdkeystoremgr_DEFS += IN_VBOXDDU IN_VBOXDDU_STATIC VBOX_HDD_NO_DYNAMIC_BACKENDS
+ vdkeystoremgr_SOURCES = \
+	vdkeystoremgr.cpp \
+	../VDKeyStore.cpp
+ vdkeystoremgr_SOURCES.win = \
+	vdkeystoremgr_SOURCES.rc
+ vdkeystoremgr_LIBS = \
+	$(VBOX_LIB_RUNTIME_STATIC) \
+	$(PATH_STAGE_LIB)/SUPR3$(VBOX_SUFF_LIB)
+ if1of ($(KBUILD_TARGET),os2 win)
+  vdkeystoremgr_LIBS += \
+	$(PATH_STAGE_LIB)/VBox-liblzf-static$(VBOX_SUFF_LIB) \
+	$(PATH_STAGE_LIB)/VBox-zlib-static$(VBOX_SUFF_LIB)
+ else
+  vdkeystoremgr_LIBS += \
+	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
+	$(SDK_VBOX_ZLIB_LIBS)
+ endif
+ ifeq ($(KBUILD_TARGET),linux)
+   vdkeystoremgr_LIBS += crypt
+  ifdef SDK_VBOX_LIBXML2_LIBS
+   vdkeystoremgr_LIBS += xml2
+  endif
+ else if1of ($(KBUILD_TARGET),darwin freebsd)
+  vdkeystoremgr_LIBS += iconv
+ else ifeq ($(KBUILD_TARGET),win)
+  vdkeystoremgr_SDKS.win = VBOX_NTDLL
+ else ifeq ($(KBUILD_TARGET),solaris)
+  vdkeystoremgr_LIBS += kstat
+ endif
 endif
 
 include $(FILE_KBUILD_SUB_FOOTER)

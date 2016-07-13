@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 #include "SystemPropertiesImpl.h"
 #include "AutoCaller.h"
 #include "Logging.h"
+#include "CertificateImpl.h"
 
 #include "ApplianceImplPrivate.h"
 
@@ -512,6 +513,22 @@ HRESULT Appliance::getDisks(std::vector<com::Utf8Str> &aDisks)
 }
 
 /**
+* Public method implementation.
+ * @return
+ */
+HRESULT Appliance::getCertificate(ComPtr<ICertificate> &aCertificateInfo)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (!i_isApplianceIdle())
+        return E_ACCESSDENIED;
+
+    /* Can be NULL at this point, queryInterfaceto handles that. */
+    m->ptrCertificateInfo.queryInterfaceTo(aCertificateInfo.asOutParam());
+    return S_OK;
+}
+
+/**
  * Public method implementation.
  * @param
  * @return
@@ -931,12 +948,12 @@ HRESULT Appliance::i_searchUniqueDiskImageFilePath(Utf8Str& aName) const
  * progress object with the proper weights and maximum progress values.
  *
  * @param pProgress
- * @param bstrDescription
+ * @param strDescription
  * @param mode
  * @return
  */
 HRESULT Appliance::i_setUpProgress(ComObjPtr<Progress> &pProgress,
-                                   const Bstr &bstrDescription,
+                                   const Utf8Str &strDescription,
                                    SetUpProgressMode mode)
 {
     HRESULT rc;
@@ -1031,11 +1048,11 @@ HRESULT Appliance::i_setUpProgress(ComObjPtr<Progress> &pProgress,
          m->ulTotalDisksMB, m->cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightForXmlOperation));
 
     rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
-                         bstrDescription.raw(),
+                         Bstr(strDescription).raw(),
                          TRUE /* aCancelable */,
                          cOperations, // ULONG cOperations,
                          ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
-                         bstrDescription.raw(), // CBSTR bstrFirstOperationDescription,
+                         Bstr(strDescription).raw(), // CBSTR bstrFirstOperationDescription,
                          m->ulWeightForXmlOperation); // ULONG ulFirstOperationWeight,
     return rc;
 }
@@ -1118,11 +1135,18 @@ void Appliance::i_waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis,
 
 void Appliance::i_addWarning(const char* aWarning, ...)
 {
-    va_list args;
-    va_start(args, aWarning);
-    Utf8Str str(aWarning, args);
-    va_end(args);
-    m->llWarnings.push_back(str);
+    try
+    {
+        va_list args;
+        va_start(args, aWarning);
+        Utf8Str str(aWarning, args);
+        va_end(args);
+        m->llWarnings.push_back(str);
+    }
+    catch (...)
+    {
+        AssertFailed();
+    }
 }
 
 /**
@@ -1184,34 +1208,11 @@ void Appliance::i_parseBucket(Utf8Str &aPath, Utf8Str &aBucket)
 }
 
 /**
- * Starts the worker thread for the task.
- *
- * @return COM status code.
- */
-HRESULT Appliance::TaskOVF::startThread()
-{
-    /* Pick a thread name suitable for logging (<= 8 chars). */
-    const char *pszTaskNm;
-    switch (taskType)
-    {
-        case TaskOVF::Read:     pszTaskNm = "ApplRead"; break;
-        case TaskOVF::Import:   pszTaskNm = "ApplImp"; break;
-        case TaskOVF::Write:    pszTaskNm = "ApplWrit"; break;
-        default:                pszTaskNm = "ApplTask"; break;
-    }
-
-    int vrc = RTThreadCreate(NULL, Appliance::i_taskThreadImportOrExport, this,
-                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0, pszTaskNm);
-    if (RT_SUCCESS(vrc))
-        return S_OK;
-    return Appliance::i_setErrorStatic(E_FAIL, Utf8StrFmt("Could not create OVF task thread (%Rrc)\n", vrc));
-}
-
-/**
  * Thread function for the thread started in Appliance::readImpl() and Appliance::importImpl()
  * and Appliance::writeImpl().
- * This will in turn call Appliance::readFS() or Appliance::readS3() or Appliance::importFS()
- * or Appliance::importS3() or Appliance::writeFS() or Appliance::writeS3().
+ *
+ * This will in turn call Appliance::readFS() or Appliance::importFS() or
+ * Appliance::writeFS().
  *
  * @param aThread
  * @param pvUser
@@ -1219,56 +1220,66 @@ HRESULT Appliance::TaskOVF::startThread()
 /* static */
 DECLCALLBACK(int) Appliance::i_taskThreadImportOrExport(RTTHREAD /* aThread */, void *pvUser)
 {
-    std::auto_ptr<TaskOVF> task(static_cast<TaskOVF*>(pvUser));
-    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
+    TaskOVF *pTask = static_cast<TaskOVF*>(pvUser);
+    AssertReturn(pTask, VERR_GENERAL_FAILURE);
 
-    Appliance *pAppliance = task->pAppliance;
+    Appliance *pAppliance = pTask->pAppliance;
 
     LogFlowFuncEnter();
-    LogFlowFunc(("Appliance %p taskType=%d\n", pAppliance, task->taskType));
+    LogFlowFunc(("Appliance %p taskType=%d\n", pAppliance, pTask->taskType));
 
-    HRESULT taskrc = S_OK;
-
-    switch (task->taskType)
+    switch (pTask->taskType)
     {
         case TaskOVF::Read:
-            if (task->locInfo.storageType == VFSType_File)
-                taskrc = pAppliance->i_readFS(task.get());
-            else if (task->locInfo.storageType == VFSType_S3)
-#ifdef VBOX_WITH_S3
-                taskrc = pAppliance->i_readS3(task.get());
-#else
-                taskrc = VERR_NOT_IMPLEMENTED;
-#endif
-        break;
+            pAppliance->m->resetReadData();
+            if (pTask->locInfo.storageType == VFSType_File)
+                pTask->rc = pAppliance->i_readFS(pTask);
+            else
+                pTask->rc = E_NOTIMPL;
+            break;
 
         case TaskOVF::Import:
-            if (task->locInfo.storageType == VFSType_File)
-                taskrc = pAppliance->i_importFS(task.get());
-            else if (task->locInfo.storageType == VFSType_S3)
-#ifdef VBOX_WITH_S3
-                taskrc = pAppliance->i_importS3(task.get());
-#else
-                taskrc = VERR_NOT_IMPLEMENTED;
-#endif
-        break;
+            /** @todo allow overriding these? */
+            if (!pAppliance->m->fSignatureValid && pAppliance->m->pbSignedDigest)
+                pTask->rc = pAppliance->setError(E_FAIL, tr("The manifest signature for '%s' is not valid"),
+                                                 pTask->locInfo.strPath.c_str());
+            else if (!pAppliance->m->fCertificateValid && pAppliance->m->pbSignedDigest)
+            {
+                if (pAppliance->m->strCertError.isNotEmpty())
+                    pTask->rc = pAppliance->setError(E_FAIL, tr("The certificate used to signed '%s' is not valid: %s"),
+                                                     pTask->locInfo.strPath.c_str(), pAppliance->m->strCertError.c_str());
+                else
+                    pTask->rc = pAppliance->setError(E_FAIL, tr("The certificate used to signed '%s' is not valid"),
+                                                     pTask->locInfo.strPath.c_str());
+            }
+            // fusion does not consider this a show stopper (we've filed a warning during read).
+            //else if (pAppliance->m->fCertificateMissingPath && pAppliance->m->pbSignedDigest)
+            //    pTask->rc = pAppliance->setError(E_FAIL, tr("The certificate used to signed '%s' is does not have a valid CA path"),
+            //                                     pTask->locInfo.strPath.c_str());
+            else
+            {
+                if (pTask->locInfo.storageType == VFSType_File)
+                    pTask->rc = pAppliance->i_importFS(pTask);
+                else
+                    pTask->rc = E_NOTIMPL;
+            }
+            break;
 
         case TaskOVF::Write:
-            if (task->locInfo.storageType == VFSType_File)
-                taskrc = pAppliance->i_writeFS(task.get());
-            else if (task->locInfo.storageType == VFSType_S3)
-#ifdef VBOX_WITH_S3
-                taskrc = pAppliance->i_writeS3(task.get());
-#else
-                taskrc = VERR_NOT_IMPLEMENTED;
-#endif
-        break;
+            if (pTask->locInfo.storageType == VFSType_File)
+                pTask->rc = pAppliance->i_writeFS(pTask);
+            else
+                pTask->rc = E_NOTIMPL;
+            break;
+
+        default:
+            AssertFailed();
+            pTask->rc = E_FAIL;
+            break;
     }
 
-    task->rc = taskrc;
-
-    if (!task->pProgress.isNull())
-        task->pProgress->i_notifyComplete(taskrc);
+    if (!pTask->pProgress.isNull())
+        pTask->pProgress->i_notifyComplete(pTask->rc);
 
     LogFlowFuncLeave();
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,21 +138,21 @@ static int drvAudioVideoRecPcmInitInfo(PDMPCMPROPS * pProps, PPDMAUDIOSTREAMCFG 
 
     switch (as->enmFormat)
     {
-        case AUD_FMT_S8:
+        case PDMAUDIOFMT_S8:
             fSigned = 1;
-        case AUD_FMT_U8:
+        case PDMAUDIOFMT_U8:
             break;
 
-        case AUD_FMT_S16:
+        case PDMAUDIOFMT_S16:
             fSigned = 1;
-        case AUD_FMT_U16:
+        case PDMAUDIOFMT_U16:
             cBits = 16;
             cShift = 1;
             break;
 
-        case AUD_FMT_S32:
+        case PDMAUDIOFMT_S32:
             fSigned = 1;
-        case AUD_FMT_U32:
+        case PDMAUDIOFMT_U32:
             cBits = 32;
             cShift = 2;
             break;
@@ -168,7 +168,7 @@ static int drvAudioVideoRecPcmInitInfo(PDMPCMPROPS * pProps, PPDMAUDIOSTREAMCFG 
     pProps->cChannels = as->cChannels;
     pProps->cShift = (as->cChannels == 2) + cShift;
     pProps->uAlign = (1 << pProps->cShift) - 1;
-    pProps->cbPerSec = pProps->uHz << pProps->cShift;
+    pProps->cbBitrate = (pProps->cBits * pProps->uHz * pProps->cChannels) / 8;
     pProps->fSwapEndian = (as->enmEndianness != PDMAUDIOHOSTENDIANESS);
 
     return rc;
@@ -616,14 +616,17 @@ static DECLCALLBACK(int) drvAudioVideoRecControlIn(PPDMIHOSTAUDIO pInterface, PP
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvAudioVideoRecGetConf(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pAudioConf)
+static DECLCALLBACK(int) drvAudioVideoRecGetConf(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
 {
-    LogFlowFunc(("pAudioConf=%p\n", pAudioConf));
+    NOREF(pInterface);
+    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
-    pAudioConf->cbStreamOut = sizeof(VIDEORECAUDIOOUT);
-    pAudioConf->cbStreamIn = sizeof(VIDEORECAUDIOIN);
-    pAudioConf->cMaxHstStrmsOut = 1;
-    pAudioConf->cMaxHstStrmsIn = 1;
+    pCfg->cbStreamIn     = sizeof(VIDEORECAUDIOIN);
+    pCfg->cbStreamOut    = sizeof(VIDEORECAUDIOOUT);
+    pCfg->cMaxStreamsIn  = UINT32_MAx;
+    pCfg->cMaxStreamsOut = UINT32_MAX;
+    pCfg->cSources       = 1;
+    pCfg->cSinks         = 1;
 
     return VINF_SUCCESS;
 }

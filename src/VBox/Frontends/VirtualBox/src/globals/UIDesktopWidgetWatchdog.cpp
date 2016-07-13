@@ -18,15 +18,14 @@
 /* Qt includes: */
 #include <QApplication>
 #include <QDesktopWidget>
-#ifdef Q_WS_X11
-# include <QX11Info>
-#endif /* Q_WS_X11 */
 
 /* GUI includes: */
+#include "VBoxGlobal.h"
 #include "UIDesktopWidgetWatchdog.h"
 
 /* Other VBox includes: */
 #include <iprt/assert.h>
+
 
 /** QWidget extension used as
   * an invisible window on the basis of which we
@@ -64,14 +63,14 @@ UIInvisibleWindow::UIInvisibleWindow(int iHostScreenIndex)
     resize(1, 1);
     /* Apply visual and mouse-event mask for that 1 pixel: */
     setMask(QRect(0, 0, 1, 1));
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     /* For composite WMs make this 1 pixel transparent: */
-    if (QX11Info::isCompositingManagerRunning())
+    if (vboxGlobal().isCompositingManagerRunning())
         setAttribute(Qt::WA_TranslucentBackground);
-#else /* !Q_WS_X11 */
+#else /* !VBOX_WS_X11 */
     /* Make this 1 pixel transparent: */
     setAttribute(Qt::WA_TranslucentBackground);
-#endif /* !Q_WS_X11 */
+#endif /* !VBOX_WS_X11 */
 }
 
 void UIInvisibleWindow::resizeEvent(QResizeEvent *pEvent)
@@ -131,11 +130,16 @@ void UIDesktopWidgetWatchdog::sltUpdateHostScreenConfiguration(int cHostScreenCo
     /* Acquire new host-screen count: */
     m_cHostScreenCount = cHostScreenCount != -1 ? cHostScreenCount : m_pDesktopWidget->screenCount();
 
-    /* Resize vectors to new host-screen count: */
+    /* Cleanup existing workers first: */
+    foreach (QWidget *pWorker, m_availableGeometryWorkers)
+        if (pWorker)
+            pWorker->disconnect();
     qDeleteAll(m_availableGeometryWorkers);
     m_availableGeometryWorkers.clear();
-    m_availableGeometryWorkers.resize(m_cHostScreenCount);
     m_availableGeometryData.clear();
+
+    /* Resize workers vectors to new host-screen count: */
+    m_availableGeometryWorkers.resize(m_cHostScreenCount);
     m_availableGeometryData.resize(m_cHostScreenCount);
 
     /* Calculate host-screen available-geometry for each particular host-screen: */
@@ -183,6 +187,7 @@ void UIDesktopWidgetWatchdog::sltHandleHostScreenAvailableGeometryCalculated(int
     m_availableGeometryData[iHostScreenIndex] = availableGeometry;
     /* Forget finished worker: */
     AssertPtrReturnVoid(m_availableGeometryWorkers.value(iHostScreenIndex));
+    m_availableGeometryWorkers.value(iHostScreenIndex)->disconnect();
     m_availableGeometryWorkers.value(iHostScreenIndex)->deleteLater();
     m_availableGeometryWorkers[iHostScreenIndex] = 0;
 }
@@ -203,9 +208,13 @@ void UIDesktopWidgetWatchdog::cleanup()
     disconnect(m_pDesktopWidget, SIGNAL(screenCountChanged(int)), this, SLOT(sltUpdateHostScreenConfiguration(int)));
     disconnect(m_pDesktopWidget, SIGNAL(resized(int)), this, SLOT(sltRecalculateHostScreenAvailableGeometry(int)));
 
-    /* Cleanup existing workers: */
+    /* Cleanup existing workers finally: */
+    foreach (QWidget *pWorker, m_availableGeometryWorkers)
+        if (pWorker)
+            pWorker->disconnect();
     qDeleteAll(m_availableGeometryWorkers);
     m_availableGeometryWorkers.clear();
+    m_availableGeometryData.clear();
 }
 
 #include "UIDesktopWidgetWatchdog.moc"

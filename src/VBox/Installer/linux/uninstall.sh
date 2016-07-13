@@ -15,7 +15,10 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
-. `dirname $0`/routines.sh
+# The below is GNU-specific.  See VBox.sh for the longer Solaris/OS X version.
+TARGET=`readlink -e -- "${0}"` || exit 1
+MY_PATH="${TARGET%/[!/]*}"
+. "${MY_PATH}/routines.sh"
 
 if [ -z "$ro_LOG_FILE" ]; then
     create_log "/var/log/vbox-uninstall.log"
@@ -29,7 +32,6 @@ fi
 
 check_root
 
-[ -z "$DKMS"       ]    && DKMS=`which dkms 2> /dev/null`
 [ -z "$CONFIG_DIR" ]    && CONFIG_DIR="/etc/vbox"
 [ -z "$CONFIG" ]        && CONFIG="vbox.cfg"
 [ -z "$CONFIG_FILES" ]  && CONFIG_FILES="filelist"
@@ -49,13 +51,9 @@ fi
 
 # Do pre-removal common to all installer types, currently service script
 # clean-up.
-test "${BUILD_MODULE}" = true && DO_DKMS="--dkms ${INSTALL_VER}"
-`dirname $0`/prerm-common.sh ${DO_DKMS} || exit 1  # Arguments intentionally not quoted.
+"${MY_PATH}/prerm-common.sh" || exit 1
 
 # Remove kernel module installed
-if [ -n "$DKMS" ]; then
-    $DKMS remove -m vboxhost -v $INSTALL_VER --all > /dev/null 2>&1
-fi
 if [ -z "$VBOX_DONT_REMOVE_OLD_MODULES" ]; then
     find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|xargs rm -f 2> /dev/null
     find /lib/modules/`uname -r` -name "vboxnetflt\.*" 2>/dev/null|xargs rm -f 2> /dev/null
@@ -79,6 +77,7 @@ rm -f \
   /usr/bin/VBoxVRDP \
   /usr/bin/VBoxHeadless \
   /usr/bin/VBoxDTrace \
+  /usr/bin/VBoxBugReport \
   /usr/bin/VBoxBalloonCtrl \
   /usr/bin/VBoxAutostart \
   /usr/bin/VBoxNetDHCP \
@@ -99,23 +98,13 @@ rm -f \
   /usr/bin/vboxsdl \
   /usr/bin/vboxheadless \
   /usr/bin/vboxdtrace \
+  /usr/bin/vboxbugreport \
   $PREV_INSTALLATION/components/VBoxVMM.so \
   $PREV_INSTALLATION/components/VBoxREM.so \
   $PREV_INSTALLATION/components/VBoxRT.so \
   $PREV_INSTALLATION/components/VBoxDDU.so \
   $PREV_INSTALLATION/components/VBoxXPCOM.so \
   2> /dev/null
-
-# Remove udev description file
-if [ -f /etc/udev/rules.d/60-vboxdrv.rules ]; then
-    rm -f /etc/udev/rules.d/60-vboxdrv.rules 2> /dev/null
-fi
-if [ -f /etc/udev/rules.d/10-vboxdrv.rules ]; then
-    rm -f /etc/udev/rules.d/10-vboxdrv.rules 2> /dev/null
-fi
-
-# Remove our USB device tree
-rm -rf /dev/vboxusb 2> /dev/null
 
 cwd=`pwd`
 if [ -f $PREV_INSTALLATION/src/Makefile ]; then

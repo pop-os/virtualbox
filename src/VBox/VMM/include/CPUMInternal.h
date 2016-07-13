@@ -26,12 +26,9 @@
 #else
 # pragma D depends_on library x86.d
 # pragma D depends_on library cpumctx.d
+# pragma D depends_on library cpum.d
 
 /* Some fudging. */
-typedef uint32_t CPUMMICROARCH;
-typedef uint32_t CPUMUNKNOWNCPUID;
-typedef struct CPUMCPUIDLEAF *PCPUMCPUIDLEAF;
-typedef struct CPUMMSRRANGE  *PCPUMMSRRANGE;
 typedef uint64_t STAMCOUNTER;
 #endif
 
@@ -65,10 +62,15 @@ typedef uint64_t STAMCOUNTER;
 
 /** Use flags (CPUM::fUseFlags).
  * (Don't forget to sync this with CPUMInternal.mac !)
+ * @note Part of saved state.
  * @{ */
-/** Used the FPU, SSE or such stuff. */
-#define CPUM_USED_FPU                   RT_BIT(0)
-/** Used the FPU, SSE or such stuff since last we were in REM.
+/** Indicates that we've saved the host FPU, SSE, whatever state and that it
+ * needs to be restored. */
+#define CPUM_USED_FPU_HOST              RT_BIT(0)
+/** Indicates that we've loaded the guest FPU, SSE, whatever state and that it
+ * needs to be saved. */
+#define CPUM_USED_FPU_GUEST             RT_BIT(10)
+/** Used the guest FPU, SSE or such stuff since last we were in REM.
  * REM syncing is clearing this, lazy FPU is setting it. */
 #define CPUM_USED_FPU_SINCE_REM         RT_BIT(1)
 /** The XMM state was manually restored. (AMD only) */
@@ -96,7 +98,6 @@ typedef uint64_t STAMCOUNTER;
  * registers (DR0-3 and maybe DR6) for direct use by the guest.
  * DR7 (and AMD-V DR6) are handled via the VMCB. */
 #define CPUM_USED_DEBUG_REGS_GUEST      RT_BIT(9)
-
 
 /** Sync the FPU state on next entry (32->64 switcher only). */
 #define CPUM_SYNC_FPU_STATE             RT_BIT(16)
@@ -260,6 +261,9 @@ typedef struct CPUMHOSTCTX
     /*uint32_t        cr2; - scratch*/
     uint32_t        cr3;
     uint32_t        cr4;
+    /** The CR0 FPU state in HM mode.  Can't use cr0 here because the
+     *  64-bit-on-32-bit-host world switches is using it. */
+    uint32_t        cr0Fpu;
     /** @} */
 
     /** Debug registers.
@@ -284,7 +288,6 @@ typedef struct CPUMHOSTCTX
     /** The task register. */
     RTSEL           tr;
     RTSEL           trPadding;
-    uint32_t        SysEnterPadding;
 
     /** The sysenter msr registers.
      * This member is not used by the hypervisor context. */
@@ -302,6 +305,7 @@ typedef struct CPUMHOSTCTX
 
     /** Control registers.
      * @{ */
+    /** The CR0 FPU state in HM mode.  */
     uint64_t        cr0;
     /*uint64_t        cr2; - scratch*/
     uint64_t        cr3;
@@ -340,7 +344,7 @@ typedef struct CPUMHOSTCTX
     uint64_t        efer;
     /** @} */
 
-    /* padding to get 32byte aligned size */
+    /* padding to get 64byte aligned size */
     uint8_t         auPadding[4];
 
 #else
@@ -359,7 +363,9 @@ typedef struct CPUMHOSTCTX
      *  FXSAVE/FXRSTOR (since bit 0 will always be set, we only need to test it). */
     uint64_t                    fXStateMask;
 } CPUMHOSTCTX;
+#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSizeAlignment(CPUMHOSTCTX, 64);
+#endif
 /** Pointer to the saved host CPU state. */
 typedef CPUMHOSTCTX *PCPUMHOSTCTX;
 
@@ -426,8 +432,10 @@ typedef struct CPUM
     STAMCOUNTER             cMsrReadsUnknown;
     /** @} */
 } CPUM;
+#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileMemberOffset(CPUM, HostFeatures, 64);
 AssertCompileMemberOffset(CPUM, GuestFeatures, 96);
+#endif
 /** Pointer to the CPUM instance data residing in the shared VM structure. */
 typedef CPUM *PCPUM;
 
@@ -485,9 +493,13 @@ typedef struct CPUMCPU
     bool                    fRawEntered;
     /** Have we entered the recompiler? */
     bool                    fRemEntered;
+    /** Whether the X86_CPUID_FEATURE_EDX_APIC and X86_CPUID_AMD_FEATURE_EDX_APIC
+     *  (?) bits are visible or not.  (The APIC is responsible for setting this
+     *  when loading state, so we won't save it.) */
+    bool                    fCpuIdApicFeatureVisible;
 
     /** Align the next member on a 64-bit boundrary. */
-    uint8_t                 abPadding2[64 - 16 - (HC_ARCH_BITS == 64 ? 8 : 4) - 4 - 1 - 2];
+    uint8_t                 abPadding2[64 - 16 - (HC_ARCH_BITS == 64 ? 8 : 4) - 4 - 1 - 3];
 
     /** Saved host context.  Only valid while inside RC or HM contexts.
      * Must be aligned on a 64-byte boundary. */
@@ -509,7 +521,7 @@ RT_C_DECLS_BEGIN
 PCPUMCPUIDLEAF      cpumCpuIdGetLeaf(PVM pVM, uint32_t uLeaf);
 PCPUMCPUIDLEAF      cpumCpuIdGetLeafEx(PVM pVM, uint32_t uLeaf, uint32_t uSubLeaf, bool *pfExactSubLeafHit);
 
-#ifdef IN_RING3
+# ifdef IN_RING3
 int                 cpumR3DbgInit(PVM pVM);
 int                 cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUMFEATURES pFeatures);
 int                 cpumR3InitCpuIdAndMsrs(PVM pVM);
@@ -524,26 +536,25 @@ int                 cpumR3MsrApplyFudge(PVM pVM);
 int                 cpumR3MsrRegStats(PVM pVM);
 int                 cpumR3MsrStrictInitChecks(void);
 PCPUMMSRRANGE       cpumLookupMsrRange(PVM pVM, uint32_t idMsr);
-#endif
+# endif
 
-#ifdef IN_RC
+# ifdef IN_RC
 DECLASM(int)        cpumHandleLazyFPUAsm(PCPUMCPU pCPUM);
-#endif
+# endif
 
-#ifdef IN_RING0
+# ifdef IN_RING0
 DECLASM(int)        cpumR0SaveHostRestoreGuestFPUState(PCPUMCPU pCPUM);
-DECLASM(int)        cpumR0SaveGuestRestoreHostFPUState(PCPUMCPU pCPUM);
-DECLASM(int)        cpumR0SaveHostFPUState(PCPUMCPU pCPUM);
-DECLASM(int)        cpumR0RestoreHostFPUState(PCPUMCPU pCPUM);
-DECLASM(void)       cpumR0LoadFPU(PCPUMCTX pCtx);
-DECLASM(void)       cpumR0SaveFPU(PCPUMCTX pCtx);
-DECLASM(void)       cpumR0LoadXMM(PCPUMCTX pCtx);
-DECLASM(void)       cpumR0SaveXMM(PCPUMCTX pCtx);
-DECLASM(void)       cpumR0SetFCW(uint16_t u16FCW);
-DECLASM(uint16_t)   cpumR0GetFCW(void);
-DECLASM(void)       cpumR0SetMXCSR(uint32_t u32MXCSR);
-DECLASM(uint32_t)   cpumR0GetMXCSR(void);
-#endif
+DECLASM(void)       cpumR0SaveGuestRestoreHostFPUState(PCPUMCPU pCPUM);
+#  if ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
+DECLASM(void)       cpumR0RestoreHostFPUState(PCPUMCPU pCPUM);
+#  endif
+# endif
+
+# if defined(IN_RC) || defined(IN_RING0)
+DECLASM(int)        cpumRZSaveHostFPUState(PCPUMCPU pCPUM);
+DECLASM(void)       cpumRZSaveGuestFpuState(PCPUMCPU pCPUM, bool fLeaveFpuAccessible);
+DECLASM(void)       cpumRZSaveGuestSseRegisters(PCPUMCPU pCPUM);
+# endif
 
 RT_C_DECLS_END
 #endif /* !VBOX_FOR_DTRACE_LIB */

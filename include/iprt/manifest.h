@@ -139,15 +139,28 @@ RTDECL(int) RTManifestEqualsEx(RTMANIFEST hManifest1, RTMANIFEST hManifest2, con
 RTDECL(int) RTManifestEquals(RTMANIFEST hManifest1, RTMANIFEST hManifest2);
 
 /**
+ *
+ * @returns IPRT status code.
+ * @param   hManifest       Handle to the manifest.
+ * @param   fEntriesOnly    Whether to only gather attribute types from the
+ *                          entries (@c true), or also include the manifest
+ *                          attributes (@c false).
+ * @param   pfTypes         Where to return the attributes.
+ */
+RTDECL(int) RTManifestQueryAllAttrTypes(RTMANIFEST hManifest, bool fEntriesOnly, uint32_t *pfTypes);
+
+/**
  * Sets a manifest attribute.
  *
  * @returns IPRT status code.
- * @param   hManifest           The manifest handle.
- * @param   pszAttr             The attribute name.  If this already exists,
- *                              its value will be replaced.
- * @param   pszValue            The value string.
- * @param   fType               The attribute type, pass
- *                              RTMANIFEST_ATTR_UNKNOWN if not known.
+ * @param   hManifest   The manifest handle.
+ * @param   pszAttr     The attribute name, if NULL it will be termined from  @a
+ *                      fType gives it. If this already exists, its value will
+ *                      be replaced.
+ * @param   pszValue    The value string.
+ * @param   fType       The attribute type.  If not know, pass
+ *                      RTMANIFEST_ATTR_UNKNOWN with a valid attribute
+ *                      name string (@a pszAttr).
  */
 RTDECL(int) RTManifestSetAttr(RTMANIFEST hManifest, const char *pszAttr, const char *pszValue, uint32_t fType);
 
@@ -190,16 +203,18 @@ RTDECL(int) RTManifestQueryAttr(RTMANIFEST hManifest, const char *pszAttr, uint3
  * Sets an attribute of a manifest entry.
  *
  * @returns IPRT status code.
- * @param   hManifest           The manifest handle.
- * @param   pszEntry            The entry name.  This will automatically be
- *                              added if there was no previous call to
- *                              RTManifestEntryAdd for this name.  See
- *                              RTManifestEntryAdd for the entry name rules.
- * @param   pszAttr             The attribute name.  If this already exists,
- *                              its value will be replaced.
- * @param   pszValue            The value string.
- * @param   fType               The attribute type, pass
- *                              RTMANIFEST_ATTR_UNKNOWN if not known.
+ * @param   hManifest   The manifest handle.
+ * @param   pszEntry    The entry name.  This will automatically be
+ *                      added if there was no previous call to
+ *                      RTManifestEntryAdd for this name.  See
+ *                      RTManifestEntryAdd for the entry name rules.
+ * @param   pszAttr     The attribute name, if NULL it will be termined from  @a
+ *                      fType gives it. If this already exists, its value will
+ *                      be replaced.
+ * @param   pszValue    The value string.
+ * @param   fType       The attribute type.  If not know, pass
+ *                      RTMANIFEST_ATTR_UNKNOWN with a valid attribute
+ *                      name string (@a pszAttr).
  */
 RTDECL(int) RTManifestEntrySetAttr(RTMANIFEST hManifest, const char *pszEntry, const char *pszAttr,
                                    const char *pszValue, uint32_t fType);
@@ -302,6 +317,14 @@ RTDECL(int) RTManifestEntryAddPassthruIoStream(RTMANIFEST hManifest, RTVFSIOSTRE
  *                              RTManifestEntryAddPassthruIoStream().
  */
 RTDECL(int) RTManifestPtIosAddEntryNow(RTVFSIOSTREAM hVfsPtIos);
+
+/**
+ * Checks if the give I/O stream is a manifest passthru instance or not.
+ *
+ * @returns true if it's a manifest passthru I/O stream, false if not.
+ * @param   hVfsPtIos   Possible the manifest passthru I/O stream handle.
+ */
+RTDECL(bool) RTManifestPtIosIsInstanceOf(RTVFSIOSTREAM hVfsPtIos);
 
 /**
  * Adds an entry for a file with the specified set of attributes.

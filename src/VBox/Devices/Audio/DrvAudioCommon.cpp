@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,236 +60,269 @@
 #include "DrvAudio.h"
 #include "AudioMixBuffer.h"
 
-bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg);
 
-const char *drvAudioRecSourceToString(PDMAUDIORECSOURCE enmRecSource)
+/**
+ * Retrieves the matching PDMAUDIOFMT for given bits + signing flag.
+ *
+ * @return  IPRT status code.
+ * @return  PDMAUDIOFMT         Resulting audio format or PDMAUDIOFMT_INVALID if invalid.
+ * @param   cBits               Bits to retrieve audio format for.
+ * @param   fSigned             Signed flag for bits to retrieve audio format for.
+ */
+PDMAUDIOFMT DrvAudioAudFmtBitsToAudFmt(uint8_t cBits, bool fSigned)
 {
-    switch (enmRecSource)
+    if (fSigned)
     {
+        switch (cBits)
+        {
+            case 8:  return PDMAUDIOFMT_S8;
+            case 16: return PDMAUDIOFMT_S16;
+            case 32: return PDMAUDIOFMT_S32;
+            default: break;
+        }
+    }
+    else
+    {
+        switch (cBits)
+        {
+            case 8:  return PDMAUDIOFMT_U8;
+            case 16: return PDMAUDIOFMT_U16;
+            case 32: return PDMAUDIOFMT_U32;
+            default: break;
+        }
+    }
+
+    AssertMsgFailed(("Bogus audio bits %RU8\n", cBits));
+    return PDMAUDIOFMT_INVALID;
+}
+
+/**
+ * Clears a sample buffer by the given amount of audio samples.
+ *
+ * @return  IPRT status code.
+ * @param   pPCMProps               PCM properties to use for the buffer to clear.
+ * @param   pvBuf                   Buffer to clear.
+ * @param   cbBuf                   Size (in bytes) of the buffer.
+ * @param   cSamples                Number of audio samples to clear in the buffer.
+ */
+void DrvAudioHlpClearBuf(PPDMPCMPROPS pPCMProps, void *pvBuf, size_t cbBuf, uint32_t cSamples)
+{
+    AssertPtrReturnVoid(pPCMProps);
+    AssertPtrReturnVoid(pvBuf);
+
+    if (!cbBuf || !cSamples)
+        return;
+
+    Log2Func(("pPCMInfo=%p, pvBuf=%p, cSamples=%RU32, fSigned=%RTbool, cBits=%RU8, cShift=%RU8\n",
+              pPCMProps, pvBuf, cSamples, pPCMProps->fSigned, pPCMProps->cBits, pPCMProps->cShift));
+
+    if (pPCMProps->fSigned)
+    {
+        memset(pvBuf, 0, cSamples << pPCMProps->cShift);
+    }
+    else
+    {
+        switch (pPCMProps->cBits)
+        {
+            case 8:
+            {
+                memset(pvBuf, 0x80, cSamples << pPCMProps->cShift);
+                break;
+            }
+
+            case 16:
+            {
+                uint16_t *p = (uint16_t *)pvBuf;
+                int shift = pPCMProps->cChannels - 1;
+                short s = INT16_MAX;
+
+                if (pPCMProps->fSwapEndian)
+                    s = RT_BSWAP_U16(s);
+
+                for (unsigned i = 0; i < cSamples << shift; i++)
+                    p[i] = s;
+
+                break;
+            }
+
+            case 32:
+            {
+                uint32_t *p = (uint32_t *)pvBuf;
+                int shift = pPCMProps->cChannels - 1;
+                int32_t s = INT32_MAX;
+
+                if (pPCMProps->fSwapEndian)
+                    s = RT_BSWAP_U32(s);
+
+                for (unsigned i = 0; i < cSamples << shift; i++)
+                    p[i] = s;
+
+                break;
+            }
+
+            default:
+            {
+                AssertMsgFailed(("Invalid bits: %RU8\n", pPCMProps->cBits));
+                break;
+            }
+        }
+    }
+}
+
+const char *DrvAudioHlpRecSrcToStr(PDMAUDIORECSOURCE enmRecSrc)
+{
+    switch (enmRecSrc)
+    {
+        case PDMAUDIORECSOURCE_UNKNOWN: return "Unknown";
         case PDMAUDIORECSOURCE_MIC:     return "Microphone In";
         case PDMAUDIORECSOURCE_CD:      return "CD";
         case PDMAUDIORECSOURCE_VIDEO:   return "Video";
         case PDMAUDIORECSOURCE_AUX:     return "AUX";
-        case PDMAUDIORECSOURCE_LINE_IN: return "Line In";
+        case PDMAUDIORECSOURCE_LINE:    return "Line In";
         case PDMAUDIORECSOURCE_PHONE:   return "Phone";
         default:
             break;
     }
 
-    AssertMsgFailed(("Bogus recording source %ld\n", enmRecSource));
+    AssertMsgFailed(("Invalid recording source %ld\n", enmRecSrc));
     return "Unknown";
 }
 
-const char *drvAudioHlpFormatToString(PDMAUDIOFMT enmFormat)
+/**
+ * Returns wether the given audio format has signed bits or not.
+ *
+ * @return  IPRT status code.
+ * @return  bool                @true for signed bits, @false for unsigned.
+ * @param   enmFmt              Audio format to retrieve value for.
+ */
+bool DrvAudioHlpAudFmtIsSigned(PDMAUDIOFMT enmFmt)
 {
-    switch (enmFormat)
+    switch (enmFmt)
     {
-        case AUD_FMT_U8:
+        case PDMAUDIOFMT_S8:
+        case PDMAUDIOFMT_S16:
+        case PDMAUDIOFMT_S32:
+            return true;
+
+        case PDMAUDIOFMT_U8:
+        case PDMAUDIOFMT_U16:
+        case PDMAUDIOFMT_U32:
+            return false;
+
+        default:
+            break;
+    }
+
+    AssertMsgFailed(("Bogus audio format %ld\n", enmFmt));
+    return false;
+}
+
+/**
+ * Returns the bits of a given audio format.
+ *
+ * @return  IPRT status code.
+ * @return  uint8_t             Bits of audio format.
+ * @param   enmFmt              Audio format to retrieve value for.
+ */
+uint8_t DrvAudioHlpAudFmtToBits(PDMAUDIOFMT enmFmt)
+{
+    switch (enmFmt)
+    {
+        case PDMAUDIOFMT_S8:
+        case PDMAUDIOFMT_U8:
+            return 8;
+
+        case PDMAUDIOFMT_U16:
+        case PDMAUDIOFMT_S16:
+            return 16;
+
+        case PDMAUDIOFMT_U32:
+        case PDMAUDIOFMT_S32:
+            return 32;
+
+        default:
+            break;
+    }
+
+    AssertMsgFailed(("Bogus audio format %ld\n", enmFmt));
+    return 0;
+}
+
+const char *DrvAudioHlpAudFmtToStr(PDMAUDIOFMT enmFmt)
+{
+    switch (enmFmt)
+    {
+        case PDMAUDIOFMT_U8:
             return "U8";
 
-        case AUD_FMT_U16:
+        case PDMAUDIOFMT_U16:
             return "U16";
 
-        case AUD_FMT_U32:
+        case PDMAUDIOFMT_U32:
             return "U32";
 
-        case AUD_FMT_S8:
+        case PDMAUDIOFMT_S8:
             return "S8";
 
-        case AUD_FMT_S16:
+        case PDMAUDIOFMT_S16:
             return "S16";
 
-        case AUD_FMT_S32:
+        case PDMAUDIOFMT_S32:
             return "S32";
 
         default:
             break;
     }
 
-    AssertMsgFailed(("Bogus audio format %ld\n", enmFormat));
+    AssertMsgFailed(("Bogus audio format %ld\n", enmFmt));
     return "Invalid";
 }
 
-PDMAUDIOFMT drvAudioHlpStringToFormat(const char *pszFormat)
+PDMAUDIOFMT DrvAudioHlpStrToAudFmt(const char *pszFmt)
 {
-    if (!RTStrICmp(pszFormat, "u8"))
-        return AUD_FMT_U8;
-    else if (!RTStrICmp(pszFormat, "u16"))
-        return AUD_FMT_U16;
-    else if (!RTStrICmp(pszFormat, "u32"))
-        return AUD_FMT_U32;
-    else if (!RTStrICmp(pszFormat, "s8"))
-        return AUD_FMT_S8;
-    else if (!RTStrICmp(pszFormat, "s16"))
-        return AUD_FMT_S16;
-    else if (!RTStrICmp(pszFormat, "s32"))
-        return AUD_FMT_S32;
+    AssertPtrReturn(pszFmt, PDMAUDIOFMT_INVALID);
 
-    AssertMsgFailed(("Bogus audio format \"%s\"\n", pszFormat));
-    return AUD_FMT_INVALID;
+    if (!RTStrICmp(pszFmt, "u8"))
+        return PDMAUDIOFMT_U8;
+    else if (!RTStrICmp(pszFmt, "u16"))
+        return PDMAUDIOFMT_U16;
+    else if (!RTStrICmp(pszFmt, "u32"))
+        return PDMAUDIOFMT_U32;
+    else if (!RTStrICmp(pszFmt, "s8"))
+        return PDMAUDIOFMT_S8;
+    else if (!RTStrICmp(pszFmt, "s16"))
+        return PDMAUDIOFMT_S16;
+    else if (!RTStrICmp(pszFmt, "s32"))
+        return PDMAUDIOFMT_S32;
+
+    AssertMsgFailed(("Invalid audio format \"%s\"\n", pszFmt));
+    return PDMAUDIOFMT_INVALID;
 }
 
-/*********************************** In Stream Functions **********************************************/
-
-void drvAudioGstInFreeRes(PPDMAUDIOGSTSTRMIN pGstStrmIn)
+bool DrvAudioHlpPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
 {
-    AssertPtrReturnVoid(pGstStrmIn);
+    AssertPtrReturn(pProps, false);
+    AssertPtrReturn(pCfg,   false);
 
-    if (pGstStrmIn->State.pszName)
-    {
-        RTStrFree(pGstStrmIn->State.pszName);
-        pGstStrmIn->State.pszName = NULL;
-    }
-
-    AudioMixBufDestroy(&pGstStrmIn->MixBuf);
-}
-
-void drvAudioHstInFreeRes(PPDMAUDIOHSTSTRMIN pHstStrmIn)
-{
-    AssertPtrReturnVoid(pHstStrmIn);
-    AudioMixBufDestroy(&pHstStrmIn->MixBuf);
-}
-
-void drvAudioGstOutFreeRes(PPDMAUDIOGSTSTRMOUT pGstStrmOut)
-{
-    if (!pGstStrmOut)
-        return;
-
-    if (pGstStrmOut->State.pszName)
-    {
-        RTStrFree(pGstStrmOut->State.pszName);
-        pGstStrmOut->State.pszName = NULL;
-    }
-
-    AudioMixBufDestroy(&pGstStrmOut->MixBuf);
-}
-
-#if 0
-
-/**
- * Finds the minimum number of not yet captured samples of all
- * attached guest input streams for a certain host input stream.
- *
- * @return  uint32_t            Minimum number of not yet captured samples.
- *                              UINT32_MAX if none found.
- * @param   pHstStrmIn          Host input stream to check for.
- */
-inline uint32_t drvAudioHstInFindMinCaptured(PPDMAUDIOHSTSTRMIN pHstStrmIn)
-{
-    AssertPtrReturn(pHstStrmIn, 0);
-    uint32_t cMinSamples = UINT32_MAX;
-
-    PPDMAUDIOGSTSTRMIN pGstStrmIn;
-    RTListForEach(&pHstStrmIn->lstGstStrmIn, pGstStrmIn, PDMAUDIOGSTSTRMIN, Node)
-    {
-        if (pGstStrmIn->State.fActive)
-            cMinSamples = RT_MIN(cMinSamples, audioMixBufMixed(&pGstStrmIn->MixBuf));
-    }
-
-#ifdef DEBUG_andy
-    LogFlowFunc(("cMinSamples=%RU32\n", cMinSamples));
-#endif
-    return cMinSamples;
-}
-
-uint32_t drvAudioHstInGetFree(PPDMAUDIOHSTSTRMIN pHstStrmIn)
-{
-    AssertPtrReturn(pHstStrmIn, 0);
-
-    return audioMixBufSize(&pHstStrmIn->MixBuf) - drvAudioHstInGetLive(pHstStrmIn);
-}
-
-uint32_t drvAudioHstInGetLive(PPDMAUDIOHSTSTRMIN pHstStrmIn)
-{
-    AssertPtrReturn(pHstStrmIn, 0);
-
-    uint32_t cMinSamplesCaptured = drvAudioHstInFindMinCaptured(pHstStrmIn);
-    uint32_t cSamplesCaptured = audioMixBufMixed(&pHstStrmIn->MixBuf);
-
-    Assert(cSamplesCaptured >= cMinSamplesCaptured);
-    uint32_t cSamplesLive = cSamplesCaptured - cMinSamplesCaptured;
-    Assert(cSamplesLive <= audioMixBufSize(&pHstStrmIn->MixBuf));
-
-#ifdef DEBUG_andy
-    LogFlowFunc(("cSamplesLive=%RU32\n", cSamplesLive));
-#endif
-    return cSamplesLive;
-}
-#endif
-
-void drvAudioHstOutFreeRes(PPDMAUDIOHSTSTRMOUT pHstStrmOut)
-{
-    AssertPtrReturnVoid(pHstStrmOut);
-    AudioMixBufDestroy(&pHstStrmOut->MixBuf);
-}
-
-#if 0
-/**
- * Returns the number of live sample data (in bytes) of a certain
- * guest input stream.
- *
- * @return  uint32_t            Live sample data (in bytes), 0 if none.
- * @param   pGstStrmIn          Guest input stream to check for.
- */
-uint32_t drvAudioGstInGetLiveBytes(PPDMAUDIOGSTSTRMIN pGstStrmIn)
-{
-    AssertPtrReturn(pGstStrmIn, 0);
-    AssertPtrReturn(pGstStrmIn->pHstStrmIn, 0);
-
-    Assert(pGstStrmIn->pHstStrmIn->cTotalSamplesCaptured >= pGstStrmIn->cTotalHostSamplesRead);
-    uint32_t cSamplesLive = pGstStrmIn->pHstStrmIn->cTotalSamplesCaptured - pGstStrmIn->cTotalHostSamplesRead;
-    if (!cSamplesLive)
-        return 0;
-    Assert(cSamplesLive <= pGstStrmIn->pHstStrmIn->cSamples);
-
-    /** @todo Document / refactor this! */
-    return (((int64_t) cSamplesLive << 32) / pGstStrmIn->State.uFreqRatio) << pGstStrmIn->Props.cShift;
-}
-
-
-/**
- * Returns the total number of unused sample data (in bytes) of a certain
- * guest output stream.
- *
- * @return  uint32_t            Number of unused sample data (in bytes), 0 if all used up.
- * @param   pGstStrmOut         Guest output stream to check for.
- */
-uint32_t drvAudioGstOutGetFreeBytes(PPDMAUDIOGSTSTRMOUT pGstStrmOut)
-{
-    AssertPtrReturn(pGstStrmOut, 0);
-
-    Assert(pGstStrmOut->cTotalSamplesWritten <= pGstStrmOut->pHstStrmOut->cSamples);
-    uint32_t cSamplesFree =   pGstStrmOut->pHstStrmOut->cSamples
-                            - pGstStrmOut->cTotalSamplesWritten;
-    if (!cSamplesFree)
-        return 0;
-
-    /** @todo Document / refactor this! */
-    return (((int64_t) cSamplesFree << 32) / pGstStrmOut->State.uFreqRatio) << pGstStrmOut->Props.cShift;
-}
-#endif
-
-bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
-{
     int cBits = 8;
     bool fSigned = false;
 
     switch (pCfg->enmFormat)
     {
-        case AUD_FMT_S8:
+        case PDMAUDIOFMT_S8:
             fSigned = true;
-        case AUD_FMT_U8:
+        case PDMAUDIOFMT_U8:
             break;
 
-        case AUD_FMT_S16:
+        case PDMAUDIOFMT_S16:
             fSigned = true;
-        case AUD_FMT_U16:
+        case PDMAUDIOFMT_U16:
             cBits = 16;
             break;
 
-        case AUD_FMT_S32:
+        case PDMAUDIOFMT_S32:
             fSigned = true;
-        case AUD_FMT_U32:
+        case PDMAUDIOFMT_U32:
             cBits = 32;
             break;
 
@@ -303,9 +336,74 @@ bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
                   && pProps->fSigned     == fSigned
                   && pProps->cBits       == cBits
                   && pProps->fSwapEndian == !(pCfg->enmEndianness == PDMAUDIOHOSTENDIANNESS);
-
-    LogFlowFunc(("fEqual=%RTbool\n", fEqual));
     return fEqual;
+}
+
+bool DrvAudioHlpPCMPropsAreEqual(PPDMPCMPROPS pProps1, PPDMPCMPROPS pProps2)
+{
+    AssertPtrReturn(pProps1, false);
+    AssertPtrReturn(pProps2, false);
+
+    return    pProps1->uHz         == pProps2->uHz
+           && pProps1->cChannels   == pProps2->cChannels
+           && pProps1->fSigned     == pProps2->fSigned
+           && pProps1->cBits       == pProps2->cBits
+           && pProps1->fSwapEndian == pProps2->fSwapEndian;
+}
+
+/**
+ * Converts PCM properties to a audio stream configuration.
+ *
+ * @return  IPRT status code.
+ * @param   pPCMProps           Pointer to PCM properties to convert.
+ * @param   pCfg                Pointer to audio stream configuration to store result into.
+ */
+int DrvAudioHlpPCMPropsToStreamCfg(PPDMPCMPROPS pPCMProps, PPDMAUDIOSTREAMCFG pCfg)
+{
+    AssertPtrReturn(pPCMProps, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfg,      VERR_INVALID_POINTER);
+
+    pCfg->uHz           = pPCMProps->uHz;
+    pCfg->cChannels     = pPCMProps->cChannels;
+    pCfg->enmFormat     = DrvAudioAudFmtBitsToAudFmt(pPCMProps->cBits, pPCMProps->fSigned);
+
+    /** @todo We assume little endian is the default for now. */
+    pCfg->enmEndianness = pPCMProps->fSwapEndian == false ? PDMAUDIOENDIANNESS_LITTLE : PDMAUDIOENDIANNESS_BIG;
+    return VINF_SUCCESS;
+}
+
+bool DrvAudioHlpStreamCfgIsValid(PPDMAUDIOSTREAMCFG pCfg)
+{
+    bool fValid = (   pCfg->cChannels == 1
+                   || pCfg->cChannels == 2); /* Either stereo (2) or mono (1), per stream. */
+
+    fValid |= (   pCfg->enmEndianness == PDMAUDIOENDIANNESS_LITTLE
+               || pCfg->enmEndianness == PDMAUDIOENDIANNESS_BIG);
+
+    fValid |= (   pCfg->enmDir == PDMAUDIODIR_IN
+               || pCfg->enmDir == PDMAUDIODIR_OUT);
+
+    if (fValid)
+    {
+        switch (pCfg->enmFormat)
+        {
+            case PDMAUDIOFMT_S8:
+            case PDMAUDIOFMT_U8:
+            case PDMAUDIOFMT_S16:
+            case PDMAUDIOFMT_U16:
+            case PDMAUDIOFMT_S32:
+            case PDMAUDIOFMT_U32:
+                break;
+            default:
+                fValid = false;
+                break;
+        }
+    }
+
+    /** @todo Check for defined frequencies supported. */
+    fValid |= pCfg->uHz > 0;
+
+    return fValid;
 }
 
 /**
@@ -315,7 +413,7 @@ bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
  * @param   pCfg                    Audio stream configuration to convert.
  * @param   pProps                  PCM properties to save result to.
  */
-int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
+int DrvAudioHlpStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
 {
     AssertPtrReturn(pCfg,   VERR_INVALID_POINTER);
     AssertPtrReturn(pProps, VERR_INVALID_POINTER);
@@ -327,21 +425,21 @@ int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
 
     switch (pCfg->enmFormat)
     {
-        case AUD_FMT_S8:
+        case PDMAUDIOFMT_S8:
             fSigned = true;
-        case AUD_FMT_U8:
+        case PDMAUDIOFMT_U8:
             break;
 
-        case AUD_FMT_S16:
+        case PDMAUDIOFMT_S16:
             fSigned = true;
-        case AUD_FMT_U16:
+        case PDMAUDIOFMT_U16:
             cBits = 16;
             cShift = 1;
             break;
 
-        case AUD_FMT_S32:
+        case PDMAUDIOFMT_S32:
             fSigned = true;
-        case AUD_FMT_U32:
+        case PDMAUDIOFMT_U32:
             cBits = 32;
             cShift = 2;
             break;
@@ -360,36 +458,37 @@ int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
         pProps->cChannels   = pCfg->cChannels;
         pProps->cShift      = (pCfg->cChannels == 2) + cShift;
         pProps->uAlign      = (1 << pProps->cShift) - 1;
-        pProps->cbPerSec    = pProps->uHz << pProps->cShift;
+        pProps->cbBitrate   = (pProps->cBits * pProps->uHz * pProps->cChannels) / 8;
         pProps->fSwapEndian = pCfg->enmEndianness != PDMAUDIOHOSTENDIANNESS;
     }
 
     return rc;
 }
 
-void drvAudioStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg)
+void DrvAudioHlpStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg)
 {
-    LogFlowFunc(("uHz=%RU32, cChannels=%RU8, enmFormat=",
-                 pCfg->uHz, pCfg->cChannels));
+    AssertPtrReturnVoid(pCfg);
+
+    LogFlowFunc(("uHz=%RU32, cChannels=%RU8, enmFormat=", pCfg->uHz, pCfg->cChannels));
 
     switch (pCfg->enmFormat)
     {
-        case AUD_FMT_S8:
+        case PDMAUDIOFMT_S8:
             LogFlow(("S8"));
             break;
-        case AUD_FMT_U8:
+        case PDMAUDIOFMT_U8:
             LogFlow(("U8"));
             break;
-        case AUD_FMT_S16:
+        case PDMAUDIOFMT_S16:
             LogFlow(("S16"));
             break;
-        case AUD_FMT_U16:
+        case PDMAUDIOFMT_U16:
             LogFlow(("U16"));
             break;
-        case AUD_FMT_S32:
+        case PDMAUDIOFMT_S32:
             LogFlow(("S32"));
             break;
-        case AUD_FMT_U32:
+        case PDMAUDIOFMT_U32:
             LogFlow(("U32"));
             break;
         default:
@@ -411,3 +510,4 @@ void drvAudioStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg)
             break;
     }
 }
+
