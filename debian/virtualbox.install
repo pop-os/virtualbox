@@ -27,7 +27,7 @@ out/bin/webtest /usr/lib/virtualbox
 out/bin/libvboxjxpcom.so /usr/lib/virtualbox
 
 out/bin/sdk/bindings/xpcom/java /usr/lib/virtualbox/sdk/bindings/xpcom
-out/bin/sdk/bindings/xpcom/python3 /usr/lib/virtualbox/sdk/bindings/xpcom
+out/bin/sdk/bindings/xpcom/python /usr/lib/virtualbox/sdk/bindings/xpcom
 
 out/bin/VBoxCreateUSBNode.sh /lib/udev
 out/bin/VBoxSysInfo.sh /usr/share/virtualbox
