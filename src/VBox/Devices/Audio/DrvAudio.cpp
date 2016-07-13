@@ -45,7 +45,9 @@ static int drvAudioStreamControlInternalBackend(PDRVAUDIO pThis, PPDMAUDIOSTREAM
 static int drvAudioStreamControlInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd);
 static int drvAudioStreamDestroyInternalBackend(PDRVAUDIO pThis, PPDMAUDIOSTREAM pHstStream);
 static int drvAudioStreamDestroyInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStream);
+static int drvAudioStreamInitInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfgHost, PPDMAUDIOSTREAMCFG pCfgGuest);
 static int drvAudioStreamIterateInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStream);
+static int drvAudioStreamReInitInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStream);
 
 #ifndef VBOX_AUDIO_TESTCASE
 static PDMAUDIOFMT drvAudioGetConfFormat(PCFGMNODE pCfgHandle, const char *pszKey,
@@ -253,7 +255,7 @@ static DECLCALLBACK(int) drvAudioStreamControl(PPDMIAUDIOCONNECTOR pInterface, P
     if (RT_FAILURE(rc))
         return rc;
 
-    LogFlowFunc(("%s: enmStreamCmd=%ld\n", pStream->szName, enmStreamCmd));
+    LogFlowFunc(("[%s] enmStreamCmd=%RU32\n", pStream->szName, enmStreamCmd));
 
     rc = drvAudioStreamControlInternal(pThis, pStream, enmStreamCmd);
 
@@ -269,7 +271,7 @@ static int drvAudioStreamControlInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStrea
     AssertPtrReturn(pThis,   VERR_INVALID_POINTER);
     AssertPtrReturn(pStream, VERR_INVALID_POINTER);
 
-    LogFlowFunc(("%s: enmStreamCmd=%ld\n", pStream->szName, enmStreamCmd));
+    LogFunc(("[%s] enmStreamCmd=%RU32\n", pStream->szName, enmStreamCmd));
 
     PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
     PPDMAUDIOSTREAM pGstStream = pHstStream ? pHstStream->pPair : pStream;
@@ -307,7 +309,7 @@ static int drvAudioStreamControlInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStrea
                  * Mark the host stream as pending disable and bail out. */
                 if (pHstStream)
                 {
-                    LogFlowFunc(("%s: Pending disable/pause\n", pHstStream->szName));
+                    LogFunc(("[%s] Pending disable/pause\n", pHstStream->szName));
                     pHstStream->fStatus |= PDMAUDIOSTRMSTS_FLAG_PENDING_DISABLE;
                 }
 
@@ -344,13 +346,13 @@ static int drvAudioStreamControlInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStrea
         }
 
         default:
-            AssertMsgFailed(("Command %ld not implemented\n", enmStreamCmd));
+            AssertMsgFailed(("Command %RU32 not implemented\n", enmStreamCmd));
             rc = VERR_NOT_IMPLEMENTED;
             break;
     }
 
     if (RT_FAILURE(rc))
-        LogFunc(("%s: Failed with %Rrc\n", pStream->szName, rc));
+        LogFunc(("[%s] Failed with %Rrc\n", pStream->szName, rc));
 
     return rc;
 }
@@ -360,73 +362,231 @@ static int drvAudioStreamControlInternalBackend(PDRVAUDIO pThis, PPDMAUDIOSTREAM
     AssertPtrReturn(pThis,   VERR_INVALID_POINTER);
     AssertPtrReturn(pStream, VERR_INVALID_POINTER);
 
-    LogFlowFunc(("%s: enmStreamCmd=%ld\n", pStream->szName, enmStreamCmd));
-
     PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
     AssertPtr(pHstStream);
+
+    LogFlowFunc(("[%s] enmStreamCmd=%RU32, fStatus=0x%x\n", pHstStream->szName, enmStreamCmd, pHstStream->fStatus));
 
     AssertPtr(pThis->pHostDrvAudio);
 
     int rc = VINF_SUCCESS;
 
-    switch (enmStreamCmd)
+    if (RT_SUCCESS(rc))
     {
-        case PDMAUDIOSTREAMCMD_ENABLE:
+        switch (enmStreamCmd)
         {
-            if (!(pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_ENABLED))
+            case PDMAUDIOSTREAMCMD_ENABLE:
             {
-                rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_ENABLE);
-                if (RT_SUCCESS(rc))
-                    pHstStream->fStatus |= PDMAUDIOSTRMSTS_FLAG_ENABLED;
-            }
-            break;
-        }
-
-        case PDMAUDIOSTREAMCMD_DISABLE:
-        {
-            if (pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_ENABLED)
-            {
-                rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_DISABLE);
-                if (RT_SUCCESS(rc))
+                if (!(pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_ENABLED))
                 {
-                    pHstStream->fStatus &= ~PDMAUDIOSTRMSTS_FLAG_ENABLED;
-                    AudioMixBufReset(&pHstStream->MixBuf);
+                    rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_ENABLE);
+                    if (RT_SUCCESS(rc))
+                        pHstStream->fStatus |= PDMAUDIOSTRMSTS_FLAG_ENABLED;
                 }
+                break;
             }
-            break;
-        }
 
-        case PDMAUDIOSTREAMCMD_PAUSE:
-        {
-            if (!(pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_PAUSED))
+            case PDMAUDIOSTREAMCMD_DISABLE:
             {
-                rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_PAUSE);
-                if (RT_SUCCESS(rc))
-                    pHstStream->fStatus |= PDMAUDIOSTRMSTS_FLAG_PAUSED;
+                if (pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_ENABLED)
+                {
+                    rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_DISABLE);
+                    if (RT_SUCCESS(rc))
+                    {
+                        pHstStream->fStatus &= ~PDMAUDIOSTRMSTS_FLAG_ENABLED;
+                        pHstStream->fStatus &= ~PDMAUDIOSTRMSTS_FLAG_PENDING_DISABLE;
+                        AudioMixBufReset(&pHstStream->MixBuf);
+                    }
+                }
+                break;
             }
-            break;
-        }
 
-        case PDMAUDIOSTREAMCMD_RESUME:
-        {
-            if (pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_PAUSED)
+            case PDMAUDIOSTREAMCMD_PAUSE:
             {
-                rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_RESUME);
-                if (RT_SUCCESS(rc))
-                    pHstStream->fStatus &= ~PDMAUDIOSTRMSTS_FLAG_PAUSED;
-            }
-            break;
-        }
+                /* Only pause if the stream is enabled. */
+                if (!(pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_ENABLED))
+                    break;
 
-        default:
-            AssertMsgFailed(("Command %ld not implemented\n", enmStreamCmd));
-            rc = VERR_NOT_IMPLEMENTED;
-            break;
+                if (!(pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_PAUSED))
+                {
+                    rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_PAUSE);
+                    if (RT_SUCCESS(rc))
+                        pHstStream->fStatus |= PDMAUDIOSTRMSTS_FLAG_PAUSED;
+                }
+                break;
+            }
+
+            case PDMAUDIOSTREAMCMD_RESUME:
+            {
+                /* Only need to resume if the stream is enabled. */
+                if (!(pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_ENABLED))
+                    break;
+
+                if (pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_PAUSED)
+                {
+                    rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_RESUME);
+                    if (RT_SUCCESS(rc))
+                        pHstStream->fStatus &= ~PDMAUDIOSTRMSTS_FLAG_PAUSED;
+                }
+                break;
+            }
+
+            default:
+                AssertMsgFailed(("Command %RU32 not implemented\n", enmStreamCmd));
+                rc = VERR_NOT_IMPLEMENTED;
+                break;
+        }
     }
 
     if (RT_FAILURE(rc))
-        LogFunc(("%s: Failed with %Rrc\n", pStream->szName, rc));
+        LogFunc(("[%s] Failed with %Rrc\n", pStream->szName, rc));
 
+    return rc;
+}
+
+static int drvAudioStreamInitInternal(PDRVAUDIO pThis,
+                                      PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfgHost, PPDMAUDIOSTREAMCFG pCfgGuest)
+{
+    AssertPtrReturn(pThis,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+
+    PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
+    PPDMAUDIOSTREAM pGstStream = pHstStream ? pHstStream->pPair : pStream;
+    AssertPtr(pGstStream);
+
+    LogFlowFunc(("[%s]\n", pStream->szName));
+
+    /*
+     * Init host stream.
+     */
+
+    uint32_t cSamples = 0;
+    int rc = pThis->pHostDrvAudio->pfnStreamCreate(pThis->pHostDrvAudio, pHstStream, pCfgHost, &cSamples);
+    if (RT_SUCCESS(rc))
+    {
+        /* Only set the host's stream to initialized if we were able create the stream
+         * in the host backend. This is necessary for trying to re-initialize the stream
+         * at some later point in time. */
+        pHstStream->fStatus |= PDMAUDIOSTRMSTS_FLAG_INITIALIZED;
+    }
+    else
+        LogFlowFunc(("[%s] Initializing stream in host backend failed with rc=%Rrc\n", pStream->szName, rc));
+
+    int rc2 = DrvAudioHlpStreamCfgToProps(pCfgHost, &pHstStream->Props);
+    AssertRC(rc2);
+
+    /* Destroy any former mixing buffer. */
+    AudioMixBufDestroy(&pHstStream->MixBuf);
+
+    if (cSamples)
+    {
+        rc2 = AudioMixBufInit(&pHstStream->MixBuf, pHstStream->szName, &pHstStream->Props, cSamples * 4);
+        AssertRC(rc2);
+    }
+
+    /* Make a copy of the host stream configuration. */
+    memcpy(&pHstStream->Cfg, pCfgHost, sizeof(PDMAUDIOSTREAMCFG));
+
+    /*
+     * Init guest stream.
+     */
+
+    rc2 = DrvAudioHlpStreamCfgToProps(pCfgGuest, &pGstStream->Props);
+    AssertRC(rc2);
+
+    /* Destroy any former mixing buffer. */
+    AudioMixBufDestroy(&pGstStream->MixBuf);
+
+    if (cSamples)
+    {
+        rc2 = AudioMixBufInit(&pGstStream->MixBuf, pGstStream->szName, &pGstStream->Props, cSamples * 2);
+        AssertRC(rc2);
+    }
+
+    if (cSamples)
+    {
+        if (pCfgGuest->enmDir == PDMAUDIODIR_IN)
+        {
+            /* Host (Parent) -> Guest (Child). */
+            rc2 = AudioMixBufLinkTo(&pHstStream->MixBuf, &pGstStream->MixBuf);
+            AssertRC(rc2);
+        }
+        else
+        {
+            /* Guest (Parent) -> Host (Child). */
+            rc2 = AudioMixBufLinkTo(&pGstStream->MixBuf, &pHstStream->MixBuf);
+            AssertRC(rc2);
+        }
+    }
+
+    /* Make a copy of the host stream configuration. */
+    memcpy(&pGstStream->Cfg, pCfgGuest, sizeof(PDMAUDIOSTREAMCFG));
+
+    LogFlowFunc(("[%s] Returning %Rrc\n", pStream->szName, rc));
+    return rc;
+}
+
+static int drvAudioStreamReInitInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStream)
+{
+    AssertPtrReturn(pThis,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+
+    LogFlowFunc(("[%s]\n", pStream->szName));
+
+    PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
+    PPDMAUDIOSTREAM pGstStream = pHstStream ? pHstStream->pPair : pStream;
+    AssertPtr(pGstStream);
+
+    int rc;
+
+    if (/* Stream initialized? */
+            (pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_INITIALIZED)
+        /* Not in pending re-init before? */
+        && !(pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_PENDING_REINIT))
+    {
+        /* Disable first. */
+        rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_DISABLE);
+        if (RT_FAILURE(rc))
+        {
+            LogFunc(("[%s] Error disabling stream, rc=%Rrc\n", pStream->szName, rc));
+            return rc;
+        }
+
+        /* Give the backend the chance to clean up the old context. */
+        rc = pThis->pHostDrvAudio->pfnStreamDestroy(pThis->pHostDrvAudio, pHstStream);
+        if (RT_FAILURE(rc))
+        {
+            LogFunc(("[%s] Error destroying stream in backend, rc=%Rrc\n", pStream->szName, rc));
+            return rc;
+        }
+
+        /* Set the pending re-init bit. */
+        pHstStream->fStatus |= PDMAUDIOSTRMSTS_FLAG_PENDING_REINIT;
+    }
+
+    LogFlowFunc(("[%s] Host status is 0x%x\n", pStream->szName, pHstStream->fStatus));
+
+    /* Try to re-initialize the stream. */
+    rc = drvAudioStreamInitInternal(pThis, pStream, &pHstStream->Cfg, &pGstStream->Cfg);
+    if (RT_SUCCESS(rc))
+    {
+        /* Try to restore the previous stream status, if possible. */
+        PDMAUDIOSTREAMCMD enmCmdRestore = PDMAUDIOSTREAMCMD_UNKNOWN;
+
+        if (pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_ENABLED) /* Stream was running before? */
+        {
+            LogFunc(("[%s] Re-enabling host stream ...\n", pStream->szName));
+            enmCmdRestore = PDMAUDIOSTREAMCMD_ENABLE;
+        }
+
+        if (enmCmdRestore != PDMAUDIOSTREAMCMD_UNKNOWN)
+            rc = pThis->pHostDrvAudio->pfnStreamControl(pThis->pHostDrvAudio, pHstStream, PDMAUDIOSTREAMCMD_ENABLE);
+
+        /* Re-initialization successful, remove bit again. */
+        pHstStream->fStatus &= ~PDMAUDIOSTRMSTS_FLAG_PENDING_REINIT;
+    }
+
+    LogFunc(("[%s] Reinitialization returned %Rrc\n", pStream->szName, rc));
     return rc;
 }
 
@@ -464,7 +624,7 @@ static DECLCALLBACK(int) drvAudioStreamWrite(PPDMIAUDIOCONNECTOR pInterface, PPD
               ("Stream '%s' is not an output stream and therefore cannot be written to (direction is 0x%x)\n",
                pStream->szName, pStream->enmDir));
 
-    LogFlowFunc(("[%s]: cbBuf=%RU32\n", pStream->szName, cbBuf));
+    Log3Func(("[%s]: cbBuf=%RU32\n", pStream->szName, cbBuf));
 
     int rc = RTCritSectEnter(&pThis->CritSect);
     if (RT_FAILURE(rc))
@@ -496,8 +656,7 @@ static DECLCALLBACK(int) drvAudioStreamWrite(PPDMIAUDIOCONNECTOR pInterface, PPD
     rc = AudioMixBufWriteCirc(&pGstStream->MixBuf, pvBuf, cbBuf, &cWritten);
     if (rc == VINF_BUFFER_OVERFLOW)
     {
-        LogRel2(("Audio: Lost audio samples from guest stream '%s' (only %zu / %zu bytes written), expect stuttering audio output\n",
-                 pGstStream->szName, AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cWritten), cbBuf));
+        LogRel2(("Audio: Lost audio samples from guest stream '%s', expect stuttering audio output\n", pGstStream->szName));
         rc = VINF_SUCCESS;
     }
 
@@ -507,8 +666,7 @@ static DECLCALLBACK(int) drvAudioStreamWrite(PPDMIAUDIOCONNECTOR pInterface, PPD
             *pcbWritten = AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cWritten);
     }
 
-    LogFlowFunc(("cWritten=%RU32 (%RU32 bytes), cMixed=%RU32, rc=%Rrc\n",
-                 cWritten, AUDIOMIXBUF_S2B(&pHstStream->MixBuf, cWritten), 0, rc));
+    Log3Func(("cWritten=%RU32 (%RU32 bytes), rc=%Rrc\n", cWritten, AUDIOMIXBUF_S2B(&pHstStream->MixBuf, cWritten), rc));
 
     int rc2 = RTCritSectLeave(&pThis->CritSect);
     if (RT_SUCCESS(rc))
@@ -552,8 +710,6 @@ static DECLCALLBACK(int) drvAudioStreamIterate(PPDMIAUDIOCONNECTOR pInterface, P
     if (RT_FAILURE(rc))
         return rc;
 
-    LogFlowFunc(("%s\n", pStream->szName));
-
     rc = drvAudioStreamIterateInternal(pThis, pStream);
 
     int rc2 = RTCritSectLeave(&pThis->CritSect);
@@ -572,8 +728,6 @@ static int drvAudioStreamIterateInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStrea
 
     if (!pStream)
         return VINF_SUCCESS;
-
-    LogFlowFunc(("%s\n", pStream->szName));
 
     PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
     AssertPtr(pHstStream);
@@ -598,7 +752,7 @@ static int drvAudioStreamIterateInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStrea
             /* Has the host captured any samples which were not mixed to the guest side yet? */
             uint32_t cSamplesCaptured = AudioMixBufUsed(&pHstStream->MixBuf);
 
-            LogFlowFunc(("[%s] %RU32 samples captured\n", pHstStream->szName, cSamplesCaptured));
+            Log3Func(("[%s] %RU32 samples captured\n", pHstStream->szName, cSamplesCaptured));
 
             if (cSamplesCaptured)
             {
@@ -608,7 +762,7 @@ static int drvAudioStreamIterateInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStrea
                 if (   RT_SUCCESS(rc)
                     && cSamplesMixed)
                 {
-                    LogFlowFunc(("[%s] %RU32 captured samples mixed\n", pHstStream->szName, cSamplesMixed));
+                    Log3Func(("[%s] %RU32 captured samples mixed\n", pHstStream->szName, cSamplesMixed));
                 }
             }
             else
@@ -627,14 +781,14 @@ static int drvAudioStreamIterateInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStrea
                 if (   RT_SUCCESS(rc)
                     && cSamplesMixed)
                 {
-                    LogFlowFunc(("[%s] %RU32 samples mixed\n", pHstStream->szName, cSamplesMixed));
+                    Log3Func(("[%s] %RU32 samples mixed\n", pHstStream->szName, cSamplesMixed));
                 }
 
                 if (RT_SUCCESS(rc))
                     cSamplesLive = AudioMixBufLive(&pGstStream->MixBuf);
             }
 
-            LogFlowFunc(("[%s] %RU32 live samples\n", pHstStream->szName, cSamplesLive));
+            Log3Func(("[%s] %RU32 live samples\n", pHstStream->szName, cSamplesLive));
 
             if (!cSamplesLive) /* No live samples (anymore)? */
             {
@@ -669,25 +823,24 @@ static int drvAudioStreamIterateInternal(PDRVAUDIO pThis, PPDMAUDIOSTREAM pStrea
     return rc;
 }
 
-static DECLCALLBACK(int) drvAudioStreamPlay(PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream,
-                                            uint32_t *pcSamplesPlayed)
+static DECLCALLBACK(int) drvAudioStreamPlay(PPDMIAUDIOCONNECTOR pInterface,
+                                            PPDMAUDIOSTREAM pStream, uint32_t *pcSamplesPlayed)
 {
     AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
     AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
     /* pcSamplesPlayed is optional. */
-
-    AssertMsg(pStream->enmDir == PDMAUDIODIR_OUT,
-              ("Stream '%s' is not an output stream and therefore cannot be played back (direction is 0x%x)\n",
-               pStream->szName, pStream->enmDir));
-
-    AssertMsg(pStream->fStatus & PDMAUDIOSTRMSTS_FLAG_INITIALIZED,
-              ("Unable to play stream '%s' (status is 0x%x)\n", pStream->szName, pStream->fStatus));
 
     PDRVAUDIO pThis = PDMIAUDIOCONNECTOR_2_DRVAUDIO(pInterface);
 
     int rc = RTCritSectEnter(&pThis->CritSect);
     if (RT_FAILURE(rc))
         return rc;
+
+    AssertMsg(pStream->enmDir == PDMAUDIODIR_OUT,
+              ("Stream '%s' is not an output stream and therefore cannot be played back (direction is 0x%x)\n",
+               pStream->szName, pStream->enmDir));
+
+    Log3Func(("[%s]\n", pStream->szName));
 
     uint32_t cSamplesPlayed = 0;
 
@@ -696,6 +849,7 @@ static DECLCALLBACK(int) drvAudioStreamPlay(PPDMIAUDIOCONNECTOR pInterface, PPDM
         /* Backend output (temporarily) disabled / unavailable? */
         if (pThis->pHostDrvAudio->pfnGetStatus(pThis->pHostDrvAudio, PDMAUDIODIR_OUT) != PDMAUDIOBACKENDSTS_RUNNING)
         {
+            /* Pull the new config from the backend and check again. */
             rc = pThis->pHostDrvAudio->pfnGetConfig(pThis->pHostDrvAudio, &pThis->BackendCfg);
             AssertRC(rc);
 
@@ -712,11 +866,19 @@ static DECLCALLBACK(int) drvAudioStreamPlay(PPDMIAUDIOCONNECTOR pInterface, PPDM
         PPDMAUDIOSTREAM pGstStream = pHstStream->pPair;
         AssertPtr(pGstStream);
 
+        PDMAUDIOSTRMSTS strmSts = pThis->pHostDrvAudio->pfnStreamGetStatus(pThis->pHostDrvAudio, pHstStream);
+        if (!(strmSts & PDMAUDIOSTRMSTS_FLAG_INITIALIZED))
+        {
+            LogFunc(("[%s] Backend not initialized (anymore), re-initializing ...\n", pHstStream->szName));
+            rc = drvAudioStreamReInitInternal(pThis, pStream);
+            break;
+        }
+
         uint32_t cSamplesLive = AudioMixBufLive(&pGstStream->MixBuf);
         if (cSamplesLive)
         {
-            PDMAUDIOSTRMSTS strmSts = pThis->pHostDrvAudio->pfnStreamGetStatus(pThis->pHostDrvAudio, pHstStream);
-            if (strmSts & PDMAUDIOSTRMSTS_FLAG_DATA_WRITABLE)
+            if (   (strmSts & PDMAUDIOSTRMSTS_FLAG_INITIALIZED)
+                && (strmSts & PDMAUDIOSTRMSTS_FLAG_DATA_WRITABLE))
             {
                 rc = pThis->pHostDrvAudio->pfnStreamPlay(pThis->pHostDrvAudio, pHstStream, &cSamplesPlayed);
                 if (RT_FAILURE(rc))
@@ -726,7 +888,7 @@ static DECLCALLBACK(int) drvAudioStreamPlay(PPDMIAUDIOCONNECTOR pInterface, PPDM
                 }
             }
 
-            LogFlowFunc(("[%s] strmSts=0x%x, cSamplesPlayed=%RU32, rc=%Rrc\n", pHstStream->szName, strmSts, cSamplesPlayed, rc));
+            Log3Func(("[%s] strmSts=0x%x, cSamplesPlayed=%RU32, rc=%Rrc\n", pHstStream->szName, strmSts, cSamplesPlayed, rc));
         }
 
         if (!cSamplesLive)
@@ -764,23 +926,20 @@ static DECLCALLBACK(int) drvAudioStreamPlay(PPDMIAUDIOCONNECTOR pInterface, PPDM
     return rc;
 }
 
-static DECLCALLBACK(int) drvAudioStreamCapture(PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream,
-                                               uint32_t *pcSamplesCaptured)
+static DECLCALLBACK(int) drvAudioStreamCapture(PPDMIAUDIOCONNECTOR pInterface,
+                                               PPDMAUDIOSTREAM pStream, uint32_t *pcSamplesCaptured)
 {
-    AssertMsg(pStream->enmDir == PDMAUDIODIR_IN,
-              ("Stream '%s' is not an input stream and therefore cannot be captured (direction is 0x%x)\n",
-               pStream->szName, pStream->enmDir));
-
-    AssertMsg(pStream->fStatus & PDMAUDIOSTRMSTS_FLAG_INITIALIZED,
-              ("Unable to capture stream '%s' (status is 0x%x)\n", pStream->szName, pStream->fStatus));
-
     PDRVAUDIO pThis = PDMIAUDIOCONNECTOR_2_DRVAUDIO(pInterface);
 
     int rc = RTCritSectEnter(&pThis->CritSect);
     if (RT_FAILURE(rc))
         return rc;
 
-    LogFlowFunc(("[%s]\n", pStream->szName));
+    AssertMsg(pStream->enmDir == PDMAUDIODIR_IN,
+              ("Stream '%s' is not an input stream and therefore cannot be captured (direction is 0x%x)\n",
+               pStream->szName, pStream->enmDir));
+
+    Log3Func(("[%s]\n", pStream->szName));
 
     uint32_t cSamplesCaptured = 0;
 
@@ -805,11 +964,19 @@ static DECLCALLBACK(int) drvAudioStreamCapture(PPDMIAUDIOCONNECTOR pInterface, P
         PPDMAUDIOSTREAM pGstStream = pHstStream->pPair;
         AssertPtr(pGstStream);
 
+        PDMAUDIOSTRMSTS strmSts = pThis->pHostDrvAudio->pfnStreamGetStatus(pThis->pHostDrvAudio, pHstStream);
+        if (!(strmSts & PDMAUDIOSTRMSTS_FLAG_INITIALIZED))
+        {
+            LogFunc(("[%s] Backend not initialized (anymore), re-initializing ...\n", pHstStream->szName));
+            rc = drvAudioStreamReInitInternal(pThis, pStream);
+            break;
+        }
+
         uint32_t cSamplesLive = AudioMixBufLive(&pGstStream->MixBuf);
         if (!cSamplesLive)
         {
-            PDMAUDIOSTRMSTS strmSts = pThis->pHostDrvAudio->pfnStreamGetStatus(pThis->pHostDrvAudio, pHstStream);
-            if (strmSts & PDMAUDIOSTRMSTS_FLAG_DATA_READABLE)
+            if (   (strmSts & PDMAUDIOSTRMSTS_FLAG_INITIALIZED)
+                && (strmSts & PDMAUDIOSTRMSTS_FLAG_DATA_READABLE))
             {
                 rc = pThis->pHostDrvAudio->pfnStreamCapture(pThis->pHostDrvAudio, pHstStream, &cSamplesCaptured);
                 if (RT_FAILURE(rc))
@@ -819,7 +986,7 @@ static DECLCALLBACK(int) drvAudioStreamCapture(PPDMIAUDIOCONNECTOR pInterface, P
                 }
             }
 
-            LogFlowFunc(("[%s] strmSts=0x%x, cSamplesCaptured=%RU32, rc=%Rrc\n", pHstStream->szName, strmSts, cSamplesCaptured, rc));
+            Log3Func(("[%s] strmSts=0x%x, cSamplesCaptured=%RU32, rc=%Rrc\n", pHstStream->szName, strmSts, cSamplesCaptured, rc));
         }
 
     } while (0);
@@ -1031,7 +1198,7 @@ static void drvAudioStateHandler(PPDMDRVINS pDrvIns, PDMAUDIOSTREAMCMD enmCmd)
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
     PDRVAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIO);
 
-    LogFlowFunc(("enmCmd=%ld\n", enmCmd));
+    LogFlowFunc(("enmCmd=%RU32\n", enmCmd));
 
     if (!pThis->pHostDrvAudio)
         return;
@@ -1119,8 +1286,7 @@ static DECLCALLBACK(int) drvAudioStreamRead(PPDMIAUDIOCONNECTOR pInterface, PPDM
             *pcbRead = AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cRead);
     }
 
-    LogFlowFunc(("cRead=%RU32 (%RU32 bytes), rc=%Rrc\n",
-                 cRead, AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cRead), rc));
+    Log3Func(("cRead=%RU32 (%RU32 bytes), rc=%Rrc\n", cRead, AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cRead), rc));
 
     int rc2 = RTCritSectLeave(&pThis->CritSect);
     if (RT_SUCCESS(rc))
@@ -1182,15 +1348,12 @@ static DECLCALLBACK(int) drvAudioStreamCreate(PPDMIAUDIOCONNECTOR pInterface,
         if (pCfgHost->enmDir == PDMAUDIODIR_IN)
         {
             if (!pThis->cStreamsFreeIn)
-            {
-                LogFlowFunc(("No more input streams free to use, bailing out\n"));
-                RC_BREAK(VERR_AUDIO_NO_FREE_INPUT_STREAMS);
-            }
+                LogFunc(("Warning: No more input streams free to use\n"));
 
             /* Validate backend configuration. */
             if (!pThis->BackendCfg.cbStreamIn)
             {
-                LogFlowFunc(("Backend input configuration not valid, bailing out\n"));
+                LogFunc(("Backend input configuration not valid, bailing out\n"));
                 RC_BREAK(VERR_INVALID_PARAMETER);
             }
 
@@ -1227,59 +1390,31 @@ static DECLCALLBACK(int) drvAudioStreamCreate(PPDMIAUDIOCONNECTOR pInterface,
         pGstStrm->enmDir = pCfgGuest->enmDir;
 
         /*
-         * Create host stream.
+         * Init host stream.
          */
-
         RTStrPrintf(pHstStrm->szName, RT_ELEMENTS(pHstStrm->szName), "%s (Host)",
                     strlen(pCfgHost->szName) ? pCfgHost->szName : "<Untitled>");
 
-        /* Note: Direction is always from child -> parent. */
-        uint32_t cSamples = 0;
-        rc = pThis->pHostDrvAudio->pfnStreamCreate(pThis->pHostDrvAudio, pHstStrm, pCfgHost, &cSamples);
-        if (RT_FAILURE(rc))
-        {
-            LogFlowFunc(("Initializing host backend failed with rc=%Rrc\n", rc));
-            break;
-        }
-
-        pHstStrm->fStatus |= PDMAUDIOSTRMSTS_FLAG_INITIALIZED;
-        pHstStrm->pPair    = pGstStrm;
-
-        rc = DrvAudioHlpStreamCfgToProps(pCfgHost, &pHstStrm->Props);
-        AssertRCBreak(rc);
-
-        rc = AudioMixBufInit(&pHstStrm->MixBuf, pHstStrm->szName, &pHstStrm->Props, cSamples * 4);
-        AssertRCBreak(rc);
+        pHstStrm->pPair = pGstStrm;
 
         /*
-         * Create guest stream.
+         * Init guest stream.
          */
-
         RTStrPrintf(pGstStrm->szName, RT_ELEMENTS(pGstStrm->szName), "%s (Guest)",
                     strlen(pCfgGuest->szName) ? pCfgGuest->szName : "<Untitled>");
 
-        rc = DrvAudioHlpStreamCfgToProps(pCfgGuest, &pGstStrm->Props);
-        AssertRCBreak(rc);
+        pGstStrm->fStatus = pHstStrm->fStatus; /* Reflect the host stream's status. */
+        pGstStrm->pPair   = pHstStrm;
 
-        rc = AudioMixBufInit(&pGstStrm->MixBuf, pGstStrm->szName, &pGstStrm->Props, cSamples * 2);
-        if (RT_SUCCESS(rc))
+        /*
+         * Try to init the rest.
+         */
+        rc = drvAudioStreamInitInternal(pThis, pHstStrm, pCfgHost, pCfgGuest);
+        if (RT_FAILURE(rc))
         {
-            if (pCfgGuest->enmDir == PDMAUDIODIR_IN)
-            {
-                /* Host (Parent) -> Guest (Child). */
-                rc = AudioMixBufLinkTo(&pHstStrm->MixBuf, &pGstStrm->MixBuf);
-            }
-            else
-            {
-                /* Guest (Parent) -> Host (Child). */
-                rc = AudioMixBufLinkTo(&pGstStrm->MixBuf, &pHstStrm->MixBuf);
-            }
+            LogFlowFunc(("Stream not available (yet)\n"));
+            rc = VINF_SUCCESS;
         }
-
-        pGstStrm->fStatus |= PDMAUDIOSTRMSTS_FLAG_INITIALIZED;
-        pGstStrm->pPair    = pHstStrm;
-
-        AssertRCBreak(rc);
 
     } while (0);
 
@@ -1310,13 +1445,13 @@ static DECLCALLBACK(int) drvAudioStreamCreate(PPDMIAUDIOCONNECTOR pInterface,
 
         if (pCfgHost->enmDir == PDMAUDIODIR_IN)
         {
-            Assert(pThis->cStreamsFreeIn);
-            pThis->cStreamsFreeIn--;
+            if (pThis->cStreamsFreeIn)
+                pThis->cStreamsFreeIn--;
         }
         else /* Out */
         {
-            Assert(pThis->cStreamsFreeOut);
-            pThis->cStreamsFreeOut--;
+            if (pThis->cStreamsFreeOut)
+                pThis->cStreamsFreeOut--;
         }
 
         /* Always return the guest-side part to the device emulation. */
@@ -1400,7 +1535,7 @@ static DECLCALLBACK(uint32_t) drvAudioStreamGetReadable(PPDMIAUDIOCONNECTOR pInt
     if (pGstStream)
         cReadable = AudioMixBufLive(&pGstStream->MixBuf);
 
-    LogFlowFunc(("[%s] cbReadable=%RU32\n", pHstStream->szName, cReadable));
+    Log3Func(("[%s] cbReadable=%RU32\n", pHstStream->szName, cReadable));
 
     rc2 = RTCritSectLeave(&pThis->CritSect);
     AssertRC(rc2);
@@ -1437,7 +1572,7 @@ static DECLCALLBACK(uint32_t) drvAudioStreamGetWritable(PPDMIAUDIOCONNECTOR pInt
     if (AudioMixBufLive(&pHstStream->MixBuf) == 0)
         cWritable = AudioMixBufFreeBytes(&pGstStream->MixBuf);
 
-    LogFlowFunc(("[%s] cWritable=%RU32\n", pHstStream->szName, cWritable));
+    Log3Func(("[%s] cWritable=%RU32\n", pHstStream->szName, cWritable));
 
     rc2 = RTCritSectLeave(&pThis->CritSect);
     AssertRC(rc2);
@@ -1461,7 +1596,8 @@ static DECLCALLBACK(PDMAUDIOSTRMSTS) drvAudioStreamGetStatus(PPDMIAUDIOCONNECTOR
     PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
     PDMAUDIOSTRMSTS strmSts    = pHstStream->fStatus;
 
-    LogFlowFunc(("%s: strmSts=0x%x\n", pHstStream->szName, strmSts));
+    Log3Func(("%s: strmSts=0x%x\n", pHstStream->szName, strmSts));
+
     rc2 = RTCritSectLeave(&pThis->CritSect);
     AssertRC(rc2);
 
@@ -1478,8 +1614,11 @@ static DECLCALLBACK(int) drvAudioStreamSetVolume(PPDMIAUDIOCONNECTOR pInterface,
 
     LogFlowFunc(("%s: volL=%RU32, volR=%RU32, fMute=%RTbool\n", pStream->szName, pVol->uLeft, pVol->uRight, pVol->fMuted));
 
-    AudioMixBufSetVolume(&pStream->MixBuf, pVol);
+    PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
+    PPDMAUDIOSTREAM pGstStream = pHstStream ? pHstStream->pPair : pStream;
 
+    AudioMixBufSetVolume(&pHstStream->MixBuf, pVol);
+    AudioMixBufSetVolume(&pGstStream->MixBuf, pVol);
     return VINF_SUCCESS;
 }
 #endif
@@ -1574,6 +1713,8 @@ static int drvAudioStreamDestroyInternalBackend(PDRVAUDIO pThis, PPDMAUDIOSTREAM
 
     if (pHstStream->fStatus & PDMAUDIOSTRMSTS_FLAG_INITIALIZED)
     {
+        /* Check if the pointer to  the host audio driver is still valid.
+         * It can be NULL if we were called in drvAudioDestruct, for example. */
         if (pThis->pHostDrvAudio)
             rc = pThis->pHostDrvAudio->pfnStreamDestroy(pThis->pHostDrvAudio, pHstStream);
         if (RT_SUCCESS(rc))
@@ -1769,13 +1910,6 @@ static DECLCALLBACK(void) drvAudioDestruct(PPDMDRVINS pDrvIns)
     int rc2 = RTCritSectEnter(&pThis->CritSect);
     AssertRC(rc2);
 
-    PPDMAUDIOSTREAM pStream, pStreamNext;
-    RTListForEachSafe(&pThis->lstHstStreams, pStream, pStreamNext, PDMAUDIOSTREAM, Node)
-        drvAudioStreamDestroyInternal(pThis, pStream);
-
-    RTListForEachSafe(&pThis->lstGstStreams, pStream, pStreamNext, PDMAUDIOSTREAM, Node)
-        drvAudioStreamDestroyInternal(pThis, pStream);
-
     /*
      * Note: No calls here to the driver below us anymore,
      *       as PDM already has destroyed it.
@@ -1783,9 +1917,16 @@ static DECLCALLBACK(void) drvAudioDestruct(PPDMDRVINS pDrvIns)
      *       do this in drvAudioPowerOff() instead.
      */
 
-    /* Sanity. */
-    Assert(RTListIsEmpty(&pThis->lstHstStreams));
-    Assert(RTListIsEmpty(&pThis->lstGstStreams));
+    /* Thus, NULL the pointer to the host audio driver first,
+     * so that routines like drvAudioStreamDestroyInternal() don't call the driver(s) below us anymore. */
+    pThis->pHostDrvAudio = NULL;
+
+    PPDMAUDIOSTREAM pStream, pStreamNext;
+    RTListForEachSafe(&pThis->lstHstStreams, pStream, pStreamNext, PDMAUDIOSTREAM, Node)
+        drvAudioStreamDestroyInternal(pThis, pStream);
+
+    RTListForEachSafe(&pThis->lstGstStreams, pStream, pStreamNext, PDMAUDIOSTREAM, Node)
+        drvAudioStreamDestroyInternal(pThis, pStream);
 
 #ifdef VBOX_WITH_AUDIO_CALLBACKS
     /*

@@ -200,6 +200,10 @@ protected:
 
     /* Other keyboard variables: */
     int m_iKeyboardCaptureViewIndex;
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /* Holds the index of the screen to capture keyboard when ready. */
+    int m_idxDelayedKeyboardCaptureView;
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
     const VBoxGlobalSettings &m_globalSettings;
 
     uint8_t m_pressedKeys[128];

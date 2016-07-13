@@ -3,7 +3,7 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
-    <title>Version 5.1.0 Beta 3 (2016-06-16)</title>
+    <title>Version 5.1.0 (2016-07-12)</title>
 
     <para>This is a major update. The following major new features
       were added:</para>
@@ -25,7 +25,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: overall migration to Qt5</para>
+        <para>GUI: overall migration to Qt5 (bug #11775)</para>
       </listitem>
 
       <listitem>
@@ -33,18 +33,19 @@
           response time</para>
       </listitem>
 
-      <!--- (new code currently disabled)
       <listitem>
         <para>Audio: added HDA (High Definition Audio) support for newer Linux guests</para>
       </listitem>
 
       <listitem>
-        <para>Audio: added on-demand timers which should improve the overall performance</para>
+        <para>Audio: added on-demand timers which should improve the overall performance
+          and reduce the CPU consumption</para>
       </listitem>
 
       <listitem>
-        <para>Audio: various bugfixes and infrastructure improvements</para>
-      </listitem>-->
+        <para>Audio: more fine-grained volume control for the AC'97 emulation, which now also
+          takes the master volume control into account</para>
+      </listitem>
 
       <listitem>
         <para>better support for Python 3</para>
@@ -57,7 +58,11 @@
     <itemizedlist>
 
       <listitem>
-        <para>VMM: many fixes</para>
+        <para>VMM: activate the x2APIC by default for Linux guests</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: many more fixes</para>
       </listitem>
 
       <listitem>
@@ -75,16 +80,29 @@
       </listitem>
 
       <listitem>
+        <para>GUI: fixed location of touch events in unscaled HiDPI mode
+          (bugs #14366, #14367)</para>
+      </listitem>
+
+      <listitem>
         <para>GUI: various bugfixes and internal cleanup</para>
       </listitem>
 
       <listitem>
-        <para>Storage: use fallocate or similar if present to speed up creating
-          fixed-sized disk images</para>
+        <para>Storage: use <emphasis>fallocate()</emphasis> or similar if present to speed
+          up creating fixed-sized disk images (bug #5967)</para>
       </listitem>
 
       <listitem>
         <para>Storage: implemented NVMHCI-compatible storage controller</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: various bugfixes and infrastructure improvements</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: implemented interrupt throttling for performance improvements</para>
       </listitem>
 
       <listitem>
@@ -96,11 +114,35 @@
       </listitem>
 
       <listitem>
-        <para>Windows hosts: rework COM proxy (e.g. bug #8298)</para>
+        <para>API: Windows XP guests and Windows 2003 server guests now default to
+          the E1000 T Server network card</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed several memory leaks when handling .dmg images</para>
+      </listitem>
+
+      <listitem>
+        <para>Installers: ship VBoxBugReport</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: reworked COM proxy (e.g. bug #8298)</para>
       </listitem>
 
       <listitem>
         <para>Linux installers: no longer rely on DKMS for module rebuilding</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix a problem when updating the initramfs after
+          the guest modules are compiled (bug #15579)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: try to fix a problem where the OpenGL libraries
+          where loaded by the X server when we only support X clients
+          (bug #15574)</para>
       </listitem>
 
     </itemizedlist>

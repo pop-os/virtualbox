@@ -110,8 +110,10 @@ static const char * const g_apszVTxExitReasons[MAX_EXITREASON_STAT] =
     EXIT_REASON(VMX_EXIT_WRMSR                  ,  32, "WRMSR instruction."),
     EXIT_REASON(VMX_EXIT_ERR_INVALID_GUEST_STATE,  33, "VM-entry failure due to invalid guest state."),
     EXIT_REASON(VMX_EXIT_ERR_MSR_LOAD           ,  34, "VM-entry failure due to MSR loading."),
+    EXIT_REASON_NIL(),
     EXIT_REASON(VMX_EXIT_MWAIT                  ,  36, "MWAIT instruction."),
     EXIT_REASON(VMX_EXIT_MTF                    ,  37, "Monitor Trap Flag."),
+    EXIT_REASON_NIL(),
     EXIT_REASON(VMX_EXIT_MONITOR                ,  39, "MONITOR instruction."),
     EXIT_REASON(VMX_EXIT_PAUSE                  ,  40, "PAUSE instruction."),
     EXIT_REASON(VMX_EXIT_ERR_MACHINE_CHECK      ,  41, "VM-entry failure due to machine-check."),
@@ -359,9 +361,9 @@ DECLINLINE(const char *) hmSvmGetSpecialExitReasonDesc(uint16_t uExit)
 /** @def HMVMX_REPORT_MSR_CAPABILITY
  * Reports MSR feature capability.
  *
- * @param   msrcap          Mask of MSR feature bits.
+ * @param   msrcaps         Mask of MSR feature bits.
  * @param   strdesc         The description string to report.
- * @param   featflag        Mask of the feature to report.
+ * @param   cap             Mask of the feature to report.
  */
 #define HMVMX_REPORT_MSR_CAPABILITY(msrcaps, strdesc, cap) \
     do { \
@@ -1401,9 +1403,9 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
      * in Nehalems and secondary VM exec. controls should be supported in all of them, but nonetheless it's Intel...
      */
     if (   !(pVM->hm.s.vmx.Msrs.VmxProcCtls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_USE_SECONDARY_EXEC_CTRL)
-        && CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_RDTSCP))
+        && CPUMR3GetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_RDTSCP))
     {
-        CPUMClearGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_RDTSCP);
+        CPUMR3ClearGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_RDTSCP);
         LogRel(("HM: Disabled RDTSCP\n"));
     }
 
@@ -1497,22 +1499,22 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     /*
      * Change the CPU features.
      */
-    CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SEP);
+    CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SEP);
     if (pVM->hm.s.fAllow64BitGuests)
     {
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE);
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LONG_MODE);
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SYSCALL);            /* 64 bits only on Intel CPUs */
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LAHF);
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE);
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LONG_MODE);
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SYSCALL);            /* 64 bits only on Intel CPUs */
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LAHF);
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
     }
     /* Turn on NXE if PAE has been enabled *and* the host has turned on NXE
        (we reuse the host EFER in the switcher). */
     /** @todo this needs to be fixed properly!! */
-    else if (CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
+    else if (CPUMR3GetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
     {
         if (pVM->hm.s.vmx.u64HostEfer & MSR_K6_EFER_NXE)
-            CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
+            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
         else
             LogRel(("HM: NX not enabled on the host, unavailable to PAE guest\n"));
     }
@@ -1691,18 +1693,18 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
     /*
      * Change the CPU features.
      */
-    CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SEP);
-    CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SYSCALL);
+    CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SEP);
+    CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SYSCALL);
     if (pVM->hm.s.fAllow64BitGuests)
     {
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE);
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LONG_MODE);
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LAHF);
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE);
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LONG_MODE);
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LAHF);
     }
     /* Turn on NXE if PAE has been enabled. */
-    else if (CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
-        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
+    else if (CPUMR3GetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
+        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
 
     LogRel(("HM: %s TPR patching\n", (pVM->hm.s.fTprPatchingAllowed) ? "Enabled" : "Disabled"));
 

@@ -798,27 +798,23 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
             RTStrmPrintf(pStrm, "|dsound");
 #endif
         }
-        if (fSolaris)
+        if (fLinux || fSolaris)
         {
-            RTStrmPrintf(pStrm, "|solaudio"
-#ifdef VBOX_WITH_SOLARIS_OSS
-                                    "|oss"
+            RTStrmPrintf(pStrm, ""
+#ifdef VBOX_WITH_OSS
+                                "|oss"
 #endif
-                        );
-        }
-        if (fLinux)
-        {
-            RTStrmPrintf(pStrm, "|oss"
 #ifdef VBOX_WITH_ALSA
-                                    "|alsa"
+                                "|alsa"
 #endif
 #ifdef VBOX_WITH_PULSE
-                                    "|pulse"
+                                "|pulse"
 #endif
                         );
         }
         if (fFreeBSD)
         {
+#ifdef VBOX_WITH_OSS
             /* Get the line break sorted when dumping all option variants. */
             if (fDumpOpts)
             {
@@ -827,6 +823,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
             }
             else
                 RTStrmPrintf(pStrm, "|oss");
+#endif
 #ifdef VBOX_WITH_PULSE
             RTStrmPrintf(pStrm, "|pulse");
 #endif
@@ -1273,30 +1270,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         usageGuestControl(pStrm, SEP, fSubCategory);
 #endif /* VBOX_WITH_GUEST_CONTROL defined */
 
-    if (fCategory & USAGE_DEBUGVM)
-    {
-        RTStrmPrintf(pStrm,
-                           "%s debugvm %s         <uuid|vmname>\n"
-                     "                            dumpvmcore --filename <name> |\n"
-                     "                            dumpgueststack [--cpu <id>]\n"
-                     "                            info <item> [args] |\n"
-                     "                            injectnmi |\n"
-                     "                            log [--release|--debug] <settings> ...|\n"
-                     "                            logdest [--release|--debug] <settings> ...|\n"
-                     "                            logflags [--release|--debug] <settings> ...|\n"
-                     "                            osdetect |\n"
-                     "                            osinfo |\n"
-                     "                            osdmesg [--lines|-n <N>] |\n"
-                     "                            getregisters [--cpu <id>] <reg>|all ... |\n"
-                     "                            setregisters [--cpu <id>] <reg>=<value> ... |\n"
-                     "                            show [--human-readable|--sh-export|--sh-eval|\n"
-                     "                                  --cmd-set] \n"
-                     "                                <logdbg-settings|logrel-settings>\n"
-                     "                                [[opt] what ...] |\n"
-                     "                            statistics [--reset] [--pattern <pattern>]\n"
-                     "                            [--descriptions]\n"
-                     "\n", SEP);
-    }
     if (fCategory & USAGE_METRICS)
         RTStrmPrintf(pStrm,
                            "%s metrics %s         list [*|host|<vmname> [<metric_list>]]\n"
@@ -1405,13 +1378,13 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         for (uint32_t i = 0; i < g_cHelpEntries; i++)
         {
             PCREFENTRY pHelp = g_apHelpEntries[i];
-            RTStrmPrintf(pStrm, "  %c%s:\n", RT_C_TO_UPPER(pHelp->pszBrief[0]), pHelp->pszBrief + 1);
-            cPendingBlankLines = printStringTable(pStrm, &pHelp->Synopsis, REFENTRYSTR_SCOPE_GLOBAL, cPendingBlankLines);
-            if (!cPendingBlankLines)
-                cPendingBlankLines = 1;
+            while (cPendingBlankLines-- > 0)
+                RTStrmPutCh(pStrm, '\n');
+            RTStrmPrintf(pStrm, " %c%s:\n", RT_C_TO_UPPER(pHelp->pszBrief[0]), pHelp->pszBrief + 1);
+            cPendingBlankLines = printStringTable(pStrm, &pHelp->Synopsis, REFENTRYSTR_SCOPE_GLOBAL, 0);
+            cPendingBlankLines = RT_MAX(cPendingBlankLines, 1);
         }
     }
-
 #endif
 }
 

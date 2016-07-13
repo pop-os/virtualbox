@@ -62,14 +62,14 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
-        pVCpu->iem.s.offVM    = -RT_OFFSETOF(VM, aCpus[idCpu].iem.s);
-        pVCpu->iem.s.offVMCpu = -RT_OFFSETOF(VMCPU, iem.s);
-        pVCpu->iem.s.pCtxR3   = CPUMQueryGuestCtxPtr(pVCpu);
-        pVCpu->iem.s.pCtxR0   = VM_R0_ADDR(pVM, pVCpu->iem.s.pCtxR3);
-        pVCpu->iem.s.pCtxRC   = VM_RC_ADDR(pVM, pVCpu->iem.s.pCtxR3);
+        pVCpu->iem.s.pCtxR3 = CPUMQueryGuestCtxPtr(pVCpu);
+        pVCpu->iem.s.pCtxR0 = VM_R0_ADDR(pVM, pVCpu->iem.s.pCtxR3);
+        pVCpu->iem.s.pCtxRC = VM_RC_ADDR(pVM, pVCpu->iem.s.pCtxR3);
 
         STAMR3RegisterF(pVM, &pVCpu->iem.s.cInstructions,             STAMTYPE_U32,       STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
                         "Instructions interpreted",          "/IEM/CPU%u/cInstructions", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.cLongJumps,                STAMTYPE_U32,       STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,
+                        "Number of longjmp calls",           "/IEM/CPU%u/cLongJumps", idCpu);
         STAMR3RegisterF(pVM, &pVCpu->iem.s.cPotentialExits,           STAMTYPE_U32,       STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
                         "Potential exits",                   "/IEM/CPU%u/cPotentialExits", idCpu);
         STAMR3RegisterF(pVM, &pVCpu->iem.s.cRetAspectNotImplemented,  STAMTYPE_U32_RESET, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,

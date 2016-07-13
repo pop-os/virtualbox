@@ -264,9 +264,41 @@ bool UIKeyboardHandler::checkForX11FocusEvents(Window hWindow)
 
 void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
 {
-    /* Do NOT capture keyboard if its captured already: */
+    /* Do NOT capture the keyboard if it is already captured: */
     if (m_fIsKeyboardCaptured)
         return;
+
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /* Due to X11 async nature we may have lost the focus already by the time we get the focus
+     * notification, so we do a sanity check that we still have it. If we don't have the focus
+     * and grab the keyboard now that will cause focus change which we want to avoid. This change
+     * potentially leads to a loop where two windows are continually responding to outdated focus events. */
+    const xcb_get_input_focus_cookie_t xcbFocusCookie = xcb_get_input_focus(QX11Info::connection());
+    xcb_get_input_focus_reply_t *pFocusReply = xcb_get_input_focus_reply(QX11Info::connection(), xcbFocusCookie, NULL);
+    WId actualWinId = 0;
+    if (pFocusReply)
+    {
+        actualWinId = pFocusReply->focus;
+        free(pFocusReply);
+    }
+    else
+        LogRel(("GUI: UIKeyboardHandler::captureKeyboard: XCB error on acquiring focus information detected!\n"));
+    if (m_windows.value(uScreenId)->winId() != actualWinId)
+        return;
+
+    /* Delay capturing the keyboard if the mouse button is held down and the mouse is not
+     * captured to work around window managers which transfer the focus when the user
+     * clicks in the title bar and then try to grab the keyboard and sulk if they fail.
+     * If the click is inside of our views we will do the capture when it is released. */
+    const xcb_query_pointer_cookie_t xcbPointerCookie = xcb_query_pointer(QX11Info::connection(), QX11Info::appRootWindow());
+    xcb_query_pointer_reply_t *pPointerReply = xcb_query_pointer_reply(QX11Info::connection(), xcbPointerCookie, NULL);
+    if (!uisession()->isMouseCaptured() && pPointerReply && (pPointerReply->mask & XCB_KEY_BUT_MASK_BUTTON_1))
+    {
+        free(pPointerReply);
+        return;
+    }
+    free(pPointerReply);
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
     /* If such view exists: */
     if (m_views.contains(uScreenId))
@@ -294,6 +326,7 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
          * S.a. UIKeyboardHandler::eventFilter for more information. */
 
 #elif defined(VBOX_WS_X11)
+# if QT_VERSION < 0x050000
 
         /* On X11, we are using passive XGrabKey for normal (windowed) mode
          * instead of XGrabKeyboard (called by QWidget::grabKeyboard())
@@ -306,20 +339,13 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
             case UIVisualStateType_Normal:
             case UIVisualStateType_Scale:
             {
-# if QT_VERSION >= 0x050000
-                xcb_grab_key_checked(QX11Info::connection(), 0, m_windows.value(uScreenId)->winId(), XCB_MOD_MASK_ANY, XCB_GRAB_ANY, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-# else /* QT_VERSION < 0x050000 */
                 XGrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[uScreenId]->winId(), False, GrabModeAsync, GrabModeAsync);
-# endif /* QT_VERSION < 0x050000 */
                 break;
             }
             /* If window is NOT moveable we are making active keyboard grab: */
             case UIVisualStateType_Fullscreen:
             case UIVisualStateType_Seamless:
             {
-# if QT_VERSION >= 0x050000
-                xcb_grab_keyboard(QX11Info::connection(), 0, m_windows.value(uScreenId)->winId(), XCB_CURRENT_TIME, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-# else /* QT_VERSION < 0x050000 */
                 /* Keyboard grabbing can fail because of some keyboard shortcut is still grabbed by window manager.
                  * We can't be sure this shortcut will be released at all, so we will retry to grab keyboard for 50 times,
                  * and after we will just ignore that issue: */
@@ -335,7 +361,6 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
                            hWindow, False, GrabModeAsync, GrabModeAsync,
                            CurrentTime))
                         --cTriesLeft;
-# endif /* QT_VERSION < 0x050000 */
                 break;
             }
             /* Should we try to grab keyboard in default case? I think - NO. */
@@ -343,6 +368,37 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
                 break;
         }
 
+# else /* QT_VERSION >= 0x050000 */
+
+        /* On X11, we are using XCB stuff to grab the keyboard.
+         * This stuff is a part of the active keyboard grabbing functionality.
+         * Active keyboard grabbing causes a problems on certain old window managers - a window cannot
+         * be moved using the mouse. So we additionally grabbing the mouse as well to detect that user
+         * is trying to click outside of internal window geometry. */
+
+        /* Grab the mouse button (if mouse is not captured),
+         * We do not check for failure as we do not currently implement a back-up plan. */
+        if (!uisession()->isMouseCaptured())
+            xcb_grab_button_checked(QX11Info::connection(), 0, QX11Info::appRootWindow(),
+                                    XCB_EVENT_MASK_BUTTON_PRESS, XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC,
+                                    XCB_NONE, XCB_NONE, XCB_BUTTON_INDEX_1, XCB_MOD_MASK_ANY);
+        /* And grab the keyboard, using XCB directly, as Qt does not report failure. */
+        xcb_grab_keyboard_cookie_t xcbGrabCookie = xcb_grab_keyboard(QX11Info::connection(), false, m_views[uScreenId]->winId(),
+                                                                     XCB_TIME_CURRENT_TIME, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+        xcb_grab_keyboard_reply_t *pGrabReply = xcb_grab_keyboard_reply(QX11Info::connection(), xcbGrabCookie, NULL);
+        if (pGrabReply == NULL || pGrabReply->status != XCB_GRAB_STATUS_SUCCESS)
+        {
+            /* Try again later: */
+            m_idxDelayedKeyboardCaptureView = uScreenId;
+            free(pGrabReply);
+            return;
+        }
+        free(pGrabReply);
+
+        /* Successfully captured, stop delayed capture attempts: */
+        m_idxDelayedKeyboardCaptureView = -1;
+
+# endif /* QT_VERSION >= 0x050000 */
 #else
 
         /* On other platforms we are just praying Qt method to work: */
@@ -363,7 +419,12 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
 
 void UIKeyboardHandler::releaseKeyboard()
 {
-    /* Do NOT capture keyboard if its captured already: */
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /* If we haven't captured the keyboard by now it is too late: */
+    m_idxDelayedKeyboardCaptureView = -1;
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
+    /* Do NOT release the keyboard if it is already released: */
     if (!m_fIsKeyboardCaptured)
         return;
 
@@ -393,6 +454,7 @@ void UIKeyboardHandler::releaseKeyboard()
          * S.a. UIKeyboardHandler::eventFilter for more information. */
 
 #elif defined(VBOX_WS_X11)
+# if QT_VERSION < 0x050000
 
         /* On X11, we are using passive XGrabKey for normal (windowed) mode
          * instead of XGrabKeyboard (called by QWidget::grabKeyboard())
@@ -405,22 +467,14 @@ void UIKeyboardHandler::releaseKeyboard()
             case UIVisualStateType_Normal:
             case UIVisualStateType_Scale:
             {
-# if QT_VERSION >= 0x050000
-                xcb_ungrab_key(QX11Info::connection(), XCB_GRAB_ANY, m_windows.value(m_iKeyboardCaptureViewIndex)->winId(), XCB_MOD_MASK_ANY);
-# else /* QT_VERSION < 0x050000 */
                 XUngrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->winId());
-# endif /* QT_VERSION < 0x050000 */
                 break;
             }
             /* If window is NOT moveable we are making active keyboard ungrab: */
             case UIVisualStateType_Fullscreen:
             case UIVisualStateType_Seamless:
             {
-# if QT_VERSION >= 0x050000
-                xcb_ungrab_keyboard(QX11Info::connection(), CurrentTime);
-# else /* QT_VERSION < 0x050000 */
                 XUngrabKeyboard(QX11Info::display(), CurrentTime);
-# endif /* QT_VERSION < 0x050000 */
                 break;
             }
             /* Should we try to release keyboard in default case? I think - NO. */
@@ -428,6 +482,21 @@ void UIKeyboardHandler::releaseKeyboard()
                 break;
         }
 
+# else /* QT_VERSION >= 0x050000 */
+
+        /* On X11, we are using XCB stuff to grab the keyboard.
+         * This stuff is a part of the active keyboard grabbing functionality.
+         * Active keyboard grabbing causes a problems on certain old window managers - a window cannot
+         * be moved using the mouse. So we finally releasing additionally grabbed mouse as well to
+         * allow further user interactions. */
+
+        /* Ungrab using XCB: */
+        xcb_ungrab_keyboard(QX11Info::connection(), XCB_TIME_CURRENT_TIME);
+        /* And release the mouse button,
+         * We do not check for failure as we do not currently implement a back-up plan. */
+        xcb_ungrab_button_checked(QX11Info::connection(), XCB_BUTTON_INDEX_1, QX11Info::appRootWindow(), XCB_MOD_MASK_ANY);
+
+# endif /* QT_VERSION >= 0x050000 */
 #else
 
         /* On other platforms we are just praying Qt method to work: */
@@ -450,33 +519,35 @@ void UIKeyboardHandler::releaseAllPressedKeys(bool aReleaseHostKey /* = true */)
 {
     bool fSentRESEND = false;
 
-    /* Send a dummy scan code (RESEND) to prevent the guest OS from recognizing
+    /* Send a dummy modifier sequence to prevent the guest OS from recognizing
      * a single key click (for ex., Alt) and performing an unwanted action
      * (for ex., activating the menu) when we release all pressed keys below.
-     * Note, that it's just a guess that sending RESEND will give the desired
-     * effect :), but at least it works with NT and W2k guests. */
+     * This is just a work-around and is likely to fail in some cases.  We are
+     * not aware of any ideal solution.  Historically we sent an 0xFE scan code,
+     * but this is a real key release code on Brazilian keyboards. */
     for (uint i = 0; i < SIZEOF_ARRAY (m_pressedKeys); i++)
     {
-        if (m_pressedKeys[i] & IsKeyPressed)
+        if ((m_pressedKeys[i] & IsKeyPressed) || (m_pressedKeys[i] & IsExtKeyPressed))
         {
             if (!fSentRESEND)
             {
-                keyboard().PutScancode(0xFE);
+                LONG aCodes[] = { 0x1D,  0x2A, 0x38, 0x9D, 0xAA, 0xB8 };
+                QVector <LONG> codes(RT_ELEMENTS(aCodes));
+                for (unsigned i = 0; i < RT_ELEMENTS(aCodes); ++i)
+                    codes[i] = aCodes[i];
+                keyboard().PutScancodes(codes);
+                m_pressedKeys[0x1D] = m_pressedKeys[0x2A] = m_pressedKeys[0x38] = 0;
                 fSentRESEND = true;
             }
-            keyboard().PutScancode(i | 0x80);
-        }
-        else if (m_pressedKeys[i] & IsExtKeyPressed)
-        {
-            if (!fSentRESEND)
+            if (m_pressedKeys[i] & IsKeyPressed)
+                keyboard().PutScancode(i | 0x80);
+            else
             {
-                keyboard().PutScancode(0xFE);
-                fSentRESEND = true;
+                QVector <LONG> codes(2);
+                codes[0] = 0xE0;
+                codes[1] = i | 0x80;
+                keyboard().PutScancodes(codes);
             }
-            QVector <LONG> codes(2);
-            codes[0] = 0xE0;
-            codes[1] = i | 0x80;
-            keyboard().PutScancodes(codes);
         }
         m_pressedKeys[i] = 0;
     }
@@ -1293,6 +1364,11 @@ bool UIKeyboardHandler::nativeEventPostprocessor(void *pMessage, ulong uScreenId
         case XCB_KEY_PRESS:
         case XCB_KEY_RELEASE:
         {
+            /* If we were asked to grab the keyboard previously but had to delay it
+             * then try again on every key press and release event until we manage: */
+            if (m_idxDelayedKeyboardCaptureView != -1)
+                captureKeyboard(m_idxDelayedKeyboardCaptureView);
+
             /* Cast to XCB key-event: */
             xcb_key_press_event_t *pKeyEvent = static_cast<xcb_key_press_event_t*>(pMessage);
 
@@ -1364,6 +1440,43 @@ bool UIKeyboardHandler::nativeEventPostprocessor(void *pMessage, ulong uScreenId
             /* Finally, handle parsed key-event: */
             fResult = keyEvent(ks, uScan, iflags, uScreenId);
 
+            break;
+        }
+        /* Watch for mouse-events: */
+        case XCB_BUTTON_PRESS:
+        {
+            /* Do nothing if mouse is actively grabbed: */
+            if (uisession()->isMouseCaptured())
+                break;
+
+            /* If we see a mouse press outside of our views while the mouse is not
+             * captured, release the keyboard before letting the event owner see it.
+             * This is because some owners cannot deal with failures to grab the
+             * keyboard themselves (e.g. window managers dragging windows).
+             * Only works if we have passively grabbed the mouse button. */
+
+            /* Cast to XCB key-event: */
+            xcb_button_press_event_t *pButtonEvent = static_cast<xcb_button_press_event_t*>(pMessage);
+
+            /* Detect the widget which should receive the event actually: */
+            const QWidget *pWidget = qApp->widgetAt(pButtonEvent->root_x, pButtonEvent->root_y);
+            if (pWidget)
+            {
+                /* Redirect the event to corresponding widget: */
+                const QPoint pos = pWidget->mapFromGlobal(QPoint(pButtonEvent->root_x, pButtonEvent->root_y));
+                pButtonEvent->event = pWidget->effectiveWinId();
+                pButtonEvent->event_x = pos.x();
+                pButtonEvent->event_y = pos.y();
+                xcb_ungrab_pointer_checked(QX11Info::connection(), pButtonEvent->time);
+                break;
+            }
+            /* Else if the event happened outside of our view areas then release the keyboard,
+             * but set the delayed capture index so that it will be captured again if we still
+             * have the focus after the event is handled: */
+            releaseKeyboard();
+            m_idxDelayedKeyboardCaptureView = uScreenId;
+            /* And re-send the event so that the window which it was meant for actually gets it: */
+            xcb_allow_events_checked(QX11Info::connection(), XCB_ALLOW_REPLAY_POINTER, pButtonEvent->time);
             break;
         }
         default:
@@ -1441,6 +1554,9 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     : QObject(pMachineLogic)
     , m_pMachineLogic(pMachineLogic)
     , m_iKeyboardCaptureViewIndex(-1)
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    , m_idxDelayedKeyboardCaptureView(-1)
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
     , m_globalSettings(vboxGlobal().settings())
     , m_fIsKeyboardCaptured(false)
     , m_bIsHostComboPressed(false)
@@ -1670,7 +1786,11 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 #else /* !VBOX_WS_WIN */
                     if (!isAutoCaptureDisabled() && autoCaptureSetGlobally())
 #endif /* !VBOX_WS_WIN */
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+                        m_idxDelayedKeyboardCaptureView = uScreenId;
+#else /* !VBOX_WS_X11 || QT_VERSION < 0x050000 */
                         captureKeyboard(uScreenId);
+#endif /* !VBOX_WS_X11 || QT_VERSION < 0x050000 */
                     /* Reset the single-time disable capture flag: */
                     if (isAutoCaptureDisabled())
                         setAutoCaptureDisabled(false);

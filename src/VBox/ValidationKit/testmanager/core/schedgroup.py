@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107844 $"
+__version__ = "$Revision: 108617 $"
 
 
 # Standard python imports.
@@ -464,7 +464,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         #
         # Validate.
         #
-        dDataErrors = oData.validateAndConvert(self._oDb, idPrimaryMustBeNullOrNot = True);
+        dDataErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
         if len(dDataErrors) > 0:
             raise TMInvalidData('Invalid data passed to addEntry: %s' % (dDataErrors,));
         if self.exists(oData.sName):

@@ -2332,7 +2332,7 @@ bool NAT::operator==(const NAT &n) const
  */
 NetworkAdapter::NetworkAdapter() :
     ulSlot(0),
-    type(NetworkAdapterType_Am79C973),
+    type(NetworkAdapterType_Am79C970A), // default for old VMs, for new ones it's Am79C973
     fEnabled(false),
     fCableConnected(false), // default for old VMs, for new ones it's true
     ulLineSpeed(0),
@@ -2362,11 +2362,10 @@ bool NetworkAdapter::areDefaultSettings(SettingsVersion_T sv) const
     // setting if it's at the default value and thus must get it right.
     return !fEnabled
         && strMACAddress.isEmpty()
-        && (   (sv >= SettingsVersion_v1_16 && fCableConnected)
-            || (sv < SettingsVersion_v1_16 && !fCableConnected))
+        && (   (sv >= SettingsVersion_v1_16 && fCableConnected && type == NetworkAdapterType_Am79C973)
+            || (sv < SettingsVersion_v1_16 && !fCableConnected && type == NetworkAdapterType_Am79C970A))
         && ulLineSpeed == 0
         && enmPromiscModePolicy == NetworkAdapterPromiscModePolicy_Deny
-        && type == NetworkAdapterType_Am79C973
         && mode == NetworkAttachmentType_Null
         && nat.areDefaultSettings()
         && strBridgedName.isEmpty()
@@ -3285,9 +3284,10 @@ void MachineConfigFile::readNetworkAdapters(const xml::ElementNode &elmNetwork,
 
         if (m->sv >= SettingsVersion_v1_16)
         {
-            /* Starting with VirtualBox 5.1 the default is true, before it was
-             * false. This needs to matched by NetworkAdapter.areDefaultSettings(). */
+            /* Starting with VirtualBox 5.1 the default is cable connected and
+             * PCnet-FAST III. Needs to match NetworkAdapter.areDefaultSettings(). */
             nic.fCableConnected = true;
+            nic.type = NetworkAdapterType_Am79C973;
         }
 
         if (!pelmAdapter->getAttributeValue("slot", nic.ulSlot))
@@ -3649,7 +3649,7 @@ void MachineConfigFile::readAudioAdapter(const xml::ElementNode &elmAudioAdapter
             aa.driverType = AudioDriverType_WinMM;
         else if ( (strTemp == "DIRECTSOUND") || (strTemp == "DSOUND") )
             aa.driverType = AudioDriverType_DirectSound;
-        else if (strTemp == "SOLAUDIO")
+        else if (strTemp == "SOLAUDIO") /* Deprecated -- Solaris will use OSS by default now. */
             aa.driverType = AudioDriverType_SolAudio;
         else if (strTemp == "ALSA")
             aa.driverType = AudioDriverType_ALSA;
@@ -5737,7 +5737,8 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
                 if (pszPolicy)
                     pelmAdapter->setAttribute("promiscuousModePolicy", pszPolicy);
 
-                if (nic.type != NetworkAdapterType_Am79C973)
+                if (   (m->sv >= SettingsVersion_v1_16 && nic.type != NetworkAdapterType_Am79C973)
+                    || (m->sv < SettingsVersion_v1_16 && nic.type != NetworkAdapterType_Am79C970A))
                 {
                     const char *pcszType;
                     switch (nic.type)
@@ -6099,7 +6100,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         }
     }
 
-    /** @todo In the future (6.0?) place the storage controllers under <Hardware>, because
+    /** @todo In the future (6.0?) place the storage controllers under \<Hardware\>, because
      * this is where it always should've been. What else than hardware are they? */
     xml::ElementNode &elmStorageParent = (m->sv > SettingsVersion_Future) ? *pelmHardware : elmParent;
     buildStorageControllersXML(elmStorageParent,
@@ -6695,29 +6696,16 @@ bool MachineConfigFile::isAudioDriverAllowedOnThisHost(AudioDriverType_T drv)
     {
         case AudioDriverType_Null:
 #ifdef RT_OS_WINDOWS
-# ifdef VBOX_WITH_WINMM
-        case AudioDriverType_WinMM:
-# endif
         case AudioDriverType_DirectSound:
-#endif /* RT_OS_WINDOWS */
-#ifdef RT_OS_SOLARIS
-        case AudioDriverType_SolAudio:
 #endif
-#ifdef RT_OS_LINUX
-# ifdef VBOX_WITH_ALSA
-        case AudioDriverType_ALSA:
-# endif
-# ifdef VBOX_WITH_PULSE
-        case AudioDriverType_Pulse:
-# endif
-#endif /* RT_OS_LINUX */
-#if defined (RT_OS_LINUX) || defined (RT_OS_FREEBSD) || defined(VBOX_WITH_SOLARIS_OSS)
+#ifdef VBOX_WITH_OSS
         case AudioDriverType_OSS:
 #endif
-#ifdef RT_OS_FREEBSD
-# ifdef VBOX_WITH_PULSE
+#ifdef VBOX_WITH_ALSA
+        case AudioDriverType_ALSA:
+#endif
+#ifdef VBOX_WITH_PULSE
         case AudioDriverType_Pulse:
-# endif
 #endif
 #ifdef RT_OS_DARWIN
         case AudioDriverType_CoreAudio:
@@ -6735,34 +6723,29 @@ bool MachineConfigFile::isAudioDriverAllowedOnThisHost(AudioDriverType_T drv)
  * Returns the AudioDriverType_* which should be used by default on this
  * host platform. On Linux, this will check at runtime whether PulseAudio
  * or ALSA are actually supported on the first call.
- * @return
+ *
+ * @return Default audio driver type for this host platform.
  */
 /*static*/
 AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
 {
 #if defined(RT_OS_WINDOWS)
-# ifdef VBOX_WITH_WINMM
-    return AudioDriverType_WinMM;
-# else /* VBOX_WITH_WINMM */
     return AudioDriverType_DirectSound;
-# endif /* !VBOX_WITH_WINMM */
-#elif defined(RT_OS_SOLARIS)
-    return AudioDriverType_SolAudio;
 #elif defined(RT_OS_LINUX)
-    // on Linux, we need to check at runtime what's actually supported...
+    /* On Linux, we need to check at runtime what's actually supported. */
     static RTCLockMtx s_mtx;
     static AudioDriverType_T s_linuxDriver = -1;
     RTCLock lock(s_mtx);
     if (s_linuxDriver == (AudioDriverType_T)-1)
     {
-# if defined(VBOX_WITH_PULSE)
+# ifdef VBOX_WITH_PULSE
         /* Check for the pulse library & that the pulse audio daemon is running. */
         if (RTProcIsRunningByName("pulseaudio") &&
             RTLdrIsLoadable("libpulse.so.0"))
             s_linuxDriver = AudioDriverType_Pulse;
         else
 # endif /* VBOX_WITH_PULSE */
-# if defined(VBOX_WITH_ALSA)
+# ifdef VBOX_WITH_ALSA
             /* Check if we can load the ALSA library */
              if (RTLdrIsLoadable("libasound.so.2"))
                 s_linuxDriver = AudioDriverType_ALSA;
@@ -6771,16 +6754,18 @@ AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
             s_linuxDriver = AudioDriverType_OSS;
     }
     return s_linuxDriver;
-// end elif defined(RT_OS_LINUX)
 #elif defined(RT_OS_DARWIN)
     return AudioDriverType_CoreAudio;
 #elif defined(RT_OS_OS2)
     return AudioDriverType_MMPM;
-#elif defined(RT_OS_FREEBSD)
+#else /* All other platforms. */
+# ifdef VBOX_WITH_OSS
     return AudioDriverType_OSS;
-#else
-    return AudioDriverType_Null;
+# endif
 #endif
+
+    /* Return NULL driver as a fallback if nothing of the above is available. */
+    return AudioDriverType_Null;
 }
 
 /**

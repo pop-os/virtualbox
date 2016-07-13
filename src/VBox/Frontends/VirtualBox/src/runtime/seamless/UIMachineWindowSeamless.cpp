@@ -49,6 +49,7 @@ UIMachineWindowSeamless::UIMachineWindowSeamless(UIMachineLogic *pMachineLogic, 
 #if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     , m_pMiniToolBar(0)
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+    , m_fWasMinimized(false)
 {
 }
 
@@ -177,16 +178,6 @@ void UIMachineWindowSeamless::placeOnScreen()
     /* Set appropriate geometry for window: */
     resize(workingArea.size());
     move(workingArea.topLeft());
-
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
-    /* If there is a mini-toolbar: */
-    if (m_pMiniToolBar)
-    {
-        /* Set appropriate geometry for mini-toolbar: */
-        m_pMiniToolBar->resize(workingArea.size());
-        m_pMiniToolBar->move(workingArea.topLeft());
-    }
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 }
 
 void UIMachineWindowSeamless::showInNecessaryMode()
@@ -195,27 +186,26 @@ void UIMachineWindowSeamless::showInNecessaryMode()
     UIMachineLogicSeamless *pSeamlessLogic = qobject_cast<UIMachineLogicSeamless*>(machineLogic());
     AssertPtrReturnVoid(pSeamlessLogic);
 
-    /* Make sure window should be shown and mapped to some host-screen: */
+    /* If window shouldn't be shown or mapped to some host-screen: */
     if (!uisession()->isScreenVisible(m_uScreenId) ||
         !pSeamlessLogic->hasHostScreenForGuestScreen(m_uScreenId))
     {
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
-        /* If there is a mini-toolbar: */
-        if (m_pMiniToolBar)
-        {
-            /* Hide mini-toolbar: */
-            m_pMiniToolBar->hide();
-        }
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+        /* Remember whether the window was minimized: */
+        if (isMinimized())
+            m_fWasMinimized = true;
 
-        /* Hide window: */
+        /* Hide window and reset it's state to NONE: */
+        setWindowState(Qt::WindowNoState);
         hide();
     }
+    /* If window should be shown and mapped to some host-screen: */
     else
     {
-        /* Ignore if window minimized: */
-        if (isMinimized())
-            return;
+        /* Check whether window was minimized: */
+        const bool fWasMinimized = isMinimized() && isVisible();
+        /* And reset it's state in such case before exposing: */
+        if (fWasMinimized)
+            setWindowState(Qt::WindowNoState);
 
         /* Make sure window have appropriate geometry: */
         placeOnScreen();
@@ -223,14 +213,12 @@ void UIMachineWindowSeamless::showInNecessaryMode()
         /* Show window in normal mode: */
         show();
 
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
-        /* If there is a mini-toolbar: */
-        if (m_pMiniToolBar)
+        /* Restore minimized state if necessary: */
+        if (m_fWasMinimized || fWasMinimized)
         {
-            /* Show mini-toolbar in normal mode: */
-            m_pMiniToolBar->show();
+            m_fWasMinimized = false;
+            QMetaObject::invokeMethod(this, "showMinimized", Qt::QueuedConnection);
         }
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
         /* Adjust machine-view size if necessary: */
         adjustMachineViewSize();

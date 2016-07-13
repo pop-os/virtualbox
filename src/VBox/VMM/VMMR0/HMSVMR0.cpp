@@ -927,6 +927,10 @@ static void hmR0SvmFlushTaggedTlb(PVMCPU pVCpu)
 
         /* Clear the VMCB Clean Bit for NP while flushing the TLB. See @bugref{7152}. */
         pVmcb->ctrl.u64VmcbCleanBits    &= ~HMSVM_VMCB_CLEAN_NP;
+
+        /* Keep track of last CPU ID even when flushing all the time. */
+        if (fNewAsid)
+            pVCpu->hm.s.idLastCpu = pCpu->idCpu;
     }
     else if (pVCpu->hm.s.fForceTLBFlush)
     {
@@ -2976,8 +2980,8 @@ static int hmR0SvmCheckForceFlags(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  *
  * This may cause longjmps to ring-3 and may even result in rescheduling to the
  * recompiler. We must be cautious what we do here regarding committing
- * guest-state information into the the VMCB assuming we assuredly execute the
- * guest in AMD-V. If we fall back to the recompiler after updating the VMCB and
+ * guest-state information into the VMCB assuming we assuredly execute the guest
+ * in AMD-V. If we fall back to the recompiler after updating the VMCB and
  * clearing the common-state (TRPM/forceflags), we must undo those changes so
  * that the recompiler can (and should) use them when it resumes guest
  * execution. Otherwise such operations must be done when we can no longer
@@ -3005,6 +3009,15 @@ static int hmR0SvmPreRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIEN
         hmR0SvmTrpmTrapToPendingEvent(pVCpu);
     else if (!pVCpu->hm.s.Event.fPending)
         hmR0SvmEvaluatePendingEvent(pVCpu, pCtx);
+
+    /*
+     * On the oldest AMD-V systems, we may not get enough information to reinject an NMI.
+     * Just do it in software, see @bugref{8411}.
+     * NB: If we could continue a task switch exit we wouldn't need to do this.
+     */
+    if (RT_UNLIKELY(pVCpu->hm.s.Event.fPending && (((pVCpu->hm.s.Event.u64IntInfo >> 8) & 7) == SVM_EVENT_NMI)))
+        if (RT_UNLIKELY(!pVM->hm.s.svm.u32Features))
+            return VINF_EM_RAW_INJECT_TRPM_EVENT;
 
 #ifdef HMSVM_SYNC_FULL_GUEST_STATE
     HMCPU_CF_SET(pVCpu, HM_CHANGED_ALL_GUEST);
@@ -3245,6 +3258,11 @@ static void hmR0SvmPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PSVMT
     PSVMVMCB pVmcb = (PSVMVMCB)pVCpu->hm.s.svm.pvVmcb;
     pVmcb->ctrl.u64VmcbCleanBits = HMSVM_VMCB_CLEAN_ALL;        /* Mark the VMCB-state cache as unmodified by VMM. */
 
+    /* TSC read must be done early for maximum accuracy. */
+    if (!(pVmcb->ctrl.u32InterceptCtrl1 & SVM_CTRL1_INTERCEPT_RDTSC))
+        TMCpuTickSetLastSeen(pVCpu, ASMReadTSC() + pVmcb->ctrl.u64TSCOffset);
+
+
     if (pSvmTransient->fRestoreTscAuxMsr)
     {
         uint64_t u64GuestTscAuxMsr = ASMRdMsr(MSR_K8_TSC_AUX);
@@ -3252,9 +3270,6 @@ static void hmR0SvmPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PSVMT
         if (u64GuestTscAuxMsr != pVCpu->hm.s.u64HostTscAux)
             ASMWrMsr(MSR_K8_TSC_AUX, pVCpu->hm.s.u64HostTscAux);
     }
-
-    if (!(pVmcb->ctrl.u32InterceptCtrl1 & SVM_CTRL1_INTERCEPT_RDTSC))
-        TMCpuTickSetLastSeen(pVCpu, ASMReadTSC() + pVmcb->ctrl.u64TSCOffset);
 
     STAM_PROFILE_ADV_STOP_START(&pVCpu->hm.s.StatInGC, &pVCpu->hm.s.StatExit1, x);
     TMNotifyEndOfExecution(pVCpu);                              /* Notify TM that the guest is no longer running. */
@@ -4091,6 +4106,10 @@ static int hmR0SvmCheckExitDueToEventDelivery(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMT
 {
     int rc = VINF_SUCCESS;
     PSVMVMCB pVmcb = (PSVMVMCB)pVCpu->hm.s.svm.pvVmcb;
+
+    Log4(("EXITINTINFO: Pending vectoring event %#RX64 Valid=%RTbool ErrValid=%RTbool Err=%#RX32 Type=%u Vector=%u\n",
+          pVmcb->ctrl.ExitIntInfo.u, !!pVmcb->ctrl.ExitIntInfo.n.u1Valid, !!pVmcb->ctrl.ExitIntInfo.n.u1ErrorCodeValid,
+          pVmcb->ctrl.ExitIntInfo.n.u32ErrorCode, pVmcb->ctrl.ExitIntInfo.n.u3Type, pVmcb->ctrl.ExitIntInfo.n.u8Vector));
 
     /* See AMD spec. 15.7.3 "EXITINFO Pseudo-Code". The EXITINTINFO (if valid) contains the prior exception (IDT vector)
      * that was trying to be delivered to the guest which caused a #VMEXIT which was intercepted (Exit vector). */

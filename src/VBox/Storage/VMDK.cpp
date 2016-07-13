@@ -1375,6 +1375,7 @@ out:
 static int vmdkStringUnquote(PVMDKIMAGE pImage, const char *pszStr,
                              char **ppszUnquoted, char **ppszNext)
 {
+    const char *pszStart = pszStr;
     char *pszQ;
     char *pszUnquoted;
 
@@ -1393,7 +1394,8 @@ static int vmdkStringUnquote(PVMDKIMAGE pImage, const char *pszStr,
         pszStr++;
         pszQ = (char *)strchr(pszStr, '"');
         if (pszQ == NULL)
-            return vdIfError(pImage->pIfError, VERR_VD_VMDK_INVALID_HEADER, RT_SRC_POS, N_("VMDK: incorrectly quoted value in descriptor in '%s'"), pImage->pszFilename);
+            return vdIfError(pImage->pIfError, VERR_VD_VMDK_INVALID_HEADER, RT_SRC_POS, N_("VMDK: incorrectly quoted value in descriptor in '%s' (raw value %s)"),
+                             pImage->pszFilename, pszStart);
     }
 
     pszUnquoted = (char *)RTMemTmpAlloc(pszQ - pszStr + 1);
@@ -3076,14 +3078,43 @@ static int vmdkOpenImage(PVMDKIMAGE pImage, unsigned uOpenFlags)
         }
         /* HACK: extend the descriptor if it is unusually small and it fits in
          * the unused space after the image header. Allows opening VMDK files
-         * with extremely small descriptor in read/write mode. */
-        if (    !(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-            &&  pExtent->cDescriptorSectors < 3
+         * with extremely small descriptor in read/write mode.
+         *
+         * The previous version introduced a possible regression for VMDK stream
+         * optimized images from VMware which tend to have only a single sector sized
+         * descriptor. Increasing the descriptor size resulted in adding the various uuid
+         * entries required to make it work with VBox but for stream optimized images
+         * the updated binary header wasn't written to the disk creating a mismatch
+         * between advertised and real descriptor size.
+         *
+         * The descriptor size will be increased even if opened readonly now if there
+         * enough room but the new value will not be written back to the image.
+         */
+        if (    pExtent->cDescriptorSectors < 3
             &&  (int64_t)pExtent->uSectorGD - pExtent->uDescriptorSector >= 4
             &&  (!pExtent->uSectorRGD || (int64_t)pExtent->uSectorRGD - pExtent->uDescriptorSector >= 4))
         {
+            uint64_t cDescriptorSectorsOld = pExtent->cDescriptorSectors;
+
             pExtent->cDescriptorSectors = 4;
-            pExtent->fMetaDirty = true;
+            if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
+            {
+                /*
+                 * Update the on disk number now to make sure we don't introduce inconsistencies
+                 * in case of stream optimized images from VMware where the descriptor is just
+                 * one sector big (the binary header is not written to disk for complete
+                 * stream optimized images in vmdkFlushImage()).
+                 */
+                uint64_t u64DescSizeNew = RT_H2LE_U64(pExtent->cDescriptorSectors);
+                rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pFile->pStorage, RT_OFFSETOF(SparseExtentHeader, descriptorSize),
+                                            &u64DescSizeNew, sizeof(u64DescSizeNew));
+                if (RT_FAILURE(rc))
+                {
+                    LogFlowFunc(("Increasing the descriptor size failed with %Rrc\n", rc));
+                    /* Restore the old size and carry on. */
+                    pExtent->cDescriptorSectors = cDescriptorSectorsOld;
+                }
+            }
         }
         /* Read the descriptor from the extent. */
         pExtent->pDescData = (char *)RTMemAllocZ(VMDK_SECTOR2BYTE(pExtent->cDescriptorSectors));

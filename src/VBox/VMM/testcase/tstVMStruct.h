@@ -268,8 +268,6 @@
     GEN_CHECK_OFF(IEMCPU, pCtxR0);
     GEN_CHECK_OFF(IEMCPU, pCtxR3);
     GEN_CHECK_OFF(IEMCPU, pCtxRC);
-    GEN_CHECK_OFF(IEMCPU, offVM);
-    GEN_CHECK_OFF(IEMCPU, offVMCpu);
     GEN_CHECK_OFF(IEMCPU, enmCpuMode);
     GEN_CHECK_OFF(IEMCPU, fPrefixes);
     GEN_CHECK_OFF(IEMCPU, abOpcode);
@@ -281,6 +279,8 @@
     GEN_CHECK_OFF(IEMCPU, aBounceBuffers[1]);
     GEN_CHECK_OFF(IEMCPU, aMemBbMappings);
     GEN_CHECK_OFF(IEMCPU, aMemBbMappings[1]);
+    GEN_CHECK_OFF(IEMCPU, DataTlb);
+    GEN_CHECK_OFF(IEMCPU, CodeTlb);
 
     GEN_CHECK_SIZE(IOM);
     GEN_CHECK_OFF(IOM, pTreesRC);
@@ -1380,7 +1380,7 @@
     GEN_CHECK_OFF(APIC, pvApicPibR3);
     GEN_CHECK_OFF(APIC, pvApicPibRC);
     GEN_CHECK_OFF(APIC, cbApicPib);
-    GEN_CHECK_OFF(APIC, enmOriginalMode);
+    GEN_CHECK_OFF(APIC, enmMaxMode);
     GEN_CHECK_OFF(APICCPU, pvApicPageR0);
     GEN_CHECK_OFF(APICCPU, pvApicPageR3);
     GEN_CHECK_OFF(APICCPU, pvApicPageRC);
@@ -1448,14 +1448,18 @@
     GEN_CHECK_OFF(VM, mm);
     GEN_CHECK_OFF(VM, pdm);
     GEN_CHECK_OFF(VM, iom);
+#ifdef VBOX_WITH_RAW_MODE
     GEN_CHECK_OFF(VM, patm);
     GEN_CHECK_OFF(VM, csam);
+#endif
     GEN_CHECK_OFF(VM, em);
     GEN_CHECK_OFF(VM, tm);
     GEN_CHECK_OFF(VM, dbgf);
     GEN_CHECK_OFF(VM, ssm);
     GEN_CHECK_OFF(VM, ftm);
+#ifdef VBOX_WITH_REM
     GEN_CHECK_OFF(VM, rem);
+#endif
     GEN_CHECK_OFF(VM, gim);
     GEN_CHECK_OFF(VM, vm);
     GEN_CHECK_OFF(VM, cfgm);

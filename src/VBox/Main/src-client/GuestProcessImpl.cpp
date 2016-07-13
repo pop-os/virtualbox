@@ -108,6 +108,10 @@ public:
     {
     }
 
+    virtual ~GuestProcessListener(void)
+    {
+    }
+
     HRESULT init(GuestProcess *pProcess)
     {
         AssertPtrReturn(pProcess, E_POINTER);
@@ -552,6 +556,21 @@ Utf8Str GuestProcess::i_guestErrorToString(int guestRc)
     }
 
     return strError;
+}
+
+/**
+ * Returns @true if the passed in error code indicates an error which came from the guest side,
+ * or @false if not.
+ *
+ * @return  bool                @true if the passed in error code indicates an error which came from the guest side,
+ *                              or @false if not.
+ * @param   rc                  Error code to check.
+ */
+/* static */
+bool GuestProcess::i_isGuestError(int rc)
+{
+    return (   rc == VERR_GSTCTL_GUEST_ERROR
+            || rc == VWRN_GSTCTL_PROCESS_EXIT_CODE);
 }
 
 inline bool GuestProcess::i_isAlive(void)
@@ -2043,27 +2062,46 @@ int GuestProcessTool::i_run(      GuestSession              *pGuestSession,
     return vrc;
 }
 
+/**
+ * Static helper function to start and wait for a certain toolbox tool.
+ *
+ * @return  IPRT status code.
+ * @param   pGuestSession           Guest control session to use for starting the toolbox tool in.
+ * @param   startupInfo             Startup information about the toolbox tool.
+ * @param   errorInfo               Error information returned for error handling.
+ */
 /* static */
 int GuestProcessTool::i_runErrorInfo(      GuestSession              *pGuestSession,
                                      const GuestProcessStartupInfo   &startupInfo,
                                            GuestProcessToolErrorInfo &errorInfo)
 {
     return i_runExErrorInfo(pGuestSession, startupInfo,
-                            NULL /* pStrmOutObjects */, 0 /* cStrmOutObjects */,
+                            NULL /* paStrmOutObjects */, 0 /* cStrmOutObjects */,
                             errorInfo);
 }
 
+/**
+ * Static helper function to start and wait for output of a certain toolbox tool.
+ *
+ * @return  IPRT status code.
+ * @param   pGuestSession           Guest control session to use for starting the toolbox tool in.
+ * @param   startupInfo             Startup information about the toolbox tool.
+ * @param   paStrmOutObjects        Pointer to stream objects array to use for retrieving the output of the toolbox tool.
+ *                                  Optional.
+ * @param   cStrmOutObjects         Number of stream objects passed in. Optional.
+ * @param   pGuestRc                Error code returned from the guest side if VERR_GSTCTL_GUEST_ERROR is returned. Optional.
+ */
 /* static */
 int GuestProcessTool::i_runEx(      GuestSession              *pGuestSession,
                               const GuestProcessStartupInfo   &startupInfo,
-                                    GuestCtrlStreamObjects    *pStrmOutObjects,
+                                    GuestCtrlStreamObjects    *paStrmOutObjects,
                                     uint32_t                   cStrmOutObjects,
                                     int                       *pGuestRc /* = NULL */)
 {
     int guestRc;
 
     GuestProcessToolErrorInfo errorInfo;
-    int vrc = GuestProcessTool::i_runExErrorInfo(pGuestSession, startupInfo, pStrmOutObjects, cStrmOutObjects, errorInfo);
+    int vrc = GuestProcessTool::i_runExErrorInfo(pGuestSession, startupInfo, paStrmOutObjects, cStrmOutObjects, errorInfo);
     if (RT_SUCCESS(vrc))
     {
         if (errorInfo.guestRc == VWRN_GSTCTL_PROCESS_EXIT_CODE)
@@ -2072,6 +2110,10 @@ int GuestProcessTool::i_runEx(      GuestSession              *pGuestSession,
         }
         else
             guestRc = errorInfo.guestRc;
+
+        /* Return VERR_GSTCTL_GUEST_ERROR if we retrieved a guest return code. */
+        if (RT_FAILURE(guestRc))
+            vrc = VERR_GSTCTL_GUEST_ERROR;
 
         if (pGuestRc)
             *pGuestRc = guestRc;
@@ -2090,7 +2132,7 @@ int GuestProcessTool::i_runEx(      GuestSession              *pGuestSession,
  * @return  IPRT status code.
  * @param   pGuestSession           Guest control session to use for starting the toolbox tool in.
  * @param   startupInfo             Startup information about the toolbox tool.
- * @param   pStrmOutObjects         Pointer to stream objects array to use for retrieving the output of the toolbox tool.
+ * @param   paStrmOutObjects        Pointer to stream objects array to use for retrieving the output of the toolbox tool.
  *                                  Optional.
  * @param   cStrmOutObjects         Number of stream objects passed in. Optional.
  * @param   errorInfo               Error information returned for error handling.

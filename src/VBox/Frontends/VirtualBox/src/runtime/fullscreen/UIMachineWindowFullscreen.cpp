@@ -60,6 +60,9 @@ UIMachineWindowFullscreen::UIMachineWindowFullscreen(UIMachineLogic *pMachineLog
     , m_fIsInFullscreenTransition(false)
 #endif /* VBOX_WS_MAC */
     , m_fWasMinimized(false)
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    , m_fIsMinimized(false)
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 {
 }
 
@@ -265,14 +268,6 @@ void UIMachineWindowFullscreen::prepareMiniToolbar()
                 actionPool()->action(UIActionIndex_M_Application_S_Close), SLOT(trigger()));
         connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutWindowActivationStolen()),
                 this, SLOT(sltRevokeWindowActivation()), Qt::QueuedConnection);
-# ifdef VBOX_WS_X11
-        // WORKAROUND:
-        // Due to Unity bug we want native full-screen flag to be set
-        // for mini-toolbar _before_ trying to show it in full-screen mode.
-        // That significantly improves of chances to have required geometry.
-        if (vboxGlobal().typeOfWindowManager() == X11WMType_Compiz)
-            vboxGlobal().setFullScreenFlag(m_pMiniToolBar);
-# endif /* VBOX_WS_X11 */
     }
 }
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
@@ -318,17 +313,17 @@ void UIMachineWindowFullscreen::cleanupVisualState()
 
 void UIMachineWindowFullscreen::placeOnScreen()
 {
+    /* Make sure this window has fullscreen logic: */
+    UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
+    AssertPtrReturnVoid(pFullscreenLogic);
+
     /* Get corresponding host-screen: */
-    const int iHostScreen = qobject_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
+    const int iHostScreen = pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId);
     /* And corresponding working area: */
     const QRect workingArea = vboxGlobal().screenGeometry(iHostScreen);
     Q_UNUSED(workingArea);
 
 #if defined(VBOX_WS_MAC)
-
-    /* Make sure this window has fullscreen logic: */
-    UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
-    AssertPtrReturnVoid(pFullscreenLogic);
 
     /* Move window to the appropriate position: */
     move(workingArea.topLeft());
@@ -370,34 +365,20 @@ void UIMachineWindowFullscreen::placeOnScreen()
     move(workingArea.topLeft());
 # endif /* QT_VERSION < 0x050000 */
 
-    /* If there is a mini-toolbar: */
-    if (m_pMiniToolBar)
-    {
-# if QT_VERSION >= 0x050000
-        /* Map mini-toolbar onto required screen: */
-        m_pMiniToolBar->windowHandle()->setScreen(qApp->screens().at(iHostScreen));
-# endif /* QT_VERSION >= 0x050000 */
-        /* Set appropriate mini-toolbar size: */
-        m_pMiniToolBar->resize(workingArea.size());
-# if QT_VERSION < 0x050000
-        /* Move mini-toolbar onto required screen: */
-        m_pMiniToolBar->move(workingArea.topLeft());
-# endif /* QT_VERSION < 0x050000 */
-    }
-
 #elif defined(VBOX_WS_X11)
 
-    /* Set appropriate geometry for window: */
+    /* Determine whether we should use the native full-screen mode: */
+    const bool fUseNativeFullScreen = VBoxGlobal::supportsFullScreenMonitorsProtocolX11() &&
+                                      !gEDataManager->legacyFullscreenModeRequested();
+    if (fUseNativeFullScreen)
+    {
+        /* Tell recent window managers which host-screen this window should be mapped to: */
+        VBoxGlobal::setFullScreenMonitorX11(this, pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId));
+    }
+
+    /* Set appropriate window geometry: */
     resize(workingArea.size());
     move(workingArea.topLeft());
-
-    /* If there is a mini-toolbar: */
-    if (m_pMiniToolBar)
-    {
-        /* Set appropriate geometry for mini-toolbar: */
-        m_pMiniToolBar->resize(workingArea.size());
-        m_pMiniToolBar->move(workingArea.topLeft());
-    }
 
 #else
 
@@ -453,40 +434,27 @@ void UIMachineWindowFullscreen::showInNecessaryMode()
         /* Hide window and reset it's state to NONE: */
         setWindowState(Qt::WindowNoState);
         hide();
-
-        /* If there is mini-toolbar: */
-        if (m_pMiniToolBar)
-        {
-            /* Hide mini-toolbar and reset it's state to NONE: */
-            m_pMiniToolBar->setWindowState(Qt::WindowNoState);
-            m_pMiniToolBar->hide();
-        }
     }
     /* If window should be shown and mapped to some host-screen: */
     else
     {
-        /* Ignore if window is minimized and visible: */
-        if (isMinimized() && isVisible())
-            return;
+        /* Check whether window was minimized: */
+        const bool fWasMinimized = isMinimized() && isVisible();
+        /* And reset it's state in such case before exposing: */
+        if (fWasMinimized)
+            setWindowState(Qt::WindowNoState);
 
         /* Make sure window have appropriate geometry: */
         placeOnScreen();
-
-        /* If there is mini-toolbar: */
-        if (m_pMiniToolBar)
-        {
-            /* Show mini-toolbar: */
-            m_pMiniToolBar->showFullScreen();
-        }
 
         /* Show window: */
         showFullScreen();
 
         /* Restore minimized state if necessary: */
-        if (m_fWasMinimized)
+        if (m_fWasMinimized || fWasMinimized)
         {
             m_fWasMinimized = false;
-            showMinimized();
+            QMetaObject::invokeMethod(this, "showMinimized", Qt::QueuedConnection);
         }
 
         /* Adjust machine-view size if necessary: */
@@ -509,60 +477,30 @@ void UIMachineWindowFullscreen::showInNecessaryMode()
         /* Hide window and reset it's state to NONE: */
         setWindowState(Qt::WindowNoState);
         hide();
-
-        /* If there is mini-toolbar: */
-        if (m_pMiniToolBar)
-        {
-            /* Hide mini-toolbar and reset it's state to NONE: */
-            m_pMiniToolBar->setWindowState(Qt::WindowNoState);
-            m_pMiniToolBar->hide();
-        }
     }
     /* If window should be shown and mapped to some host-screen: */
     else
     {
-        /* Ignore if window is minimized and visible: */
-        if (isMinimized() && isVisible())
-            return;
-
-        /* If WM doesn't support native stuff, we need to call for placeOnScreen(): */
-        const bool fUseNativeFullScreen = VBoxGlobal::supportsFullScreenMonitorsProtocolX11() &&
-                                          !gEDataManager->legacyFullscreenModeRequested();
-        if (!fUseNativeFullScreen)
-        {
-            /* Make sure window have appropriate geometry: */
-            placeOnScreen();
-        }
+        /* Check whether window was minimized: */
+        const bool fWasMinimized = isMinimized() && isVisible();
+        /* And reset it's state in such case before exposing: */
+        if (fWasMinimized)
+            setWindowState(Qt::WindowNoState);
 
         /* Show window: */
         showFullScreen();
 
-        /* If there is mini-toolbar: */
-        if (m_pMiniToolBar)
-        {
-            /* Show mini-toolbar: */
-            m_pMiniToolBar->showFullScreen();
-        }
+        /* Make sure window have appropriate geometry: */
+        placeOnScreen();
+
+        /* Restore full-screen state after placeOnScreen() call: */
+        setWindowState(Qt::WindowFullScreen);
 
         /* Restore minimized state if necessary: */
-        if (m_fWasMinimized)
+        if (m_fWasMinimized || fWasMinimized)
         {
             m_fWasMinimized = false;
-            showMinimized();
-        }
-
-        /* If WM supports native stuff, we need to map window to corresponding host-screen. */
-        if (fUseNativeFullScreen)
-        {
-            /* Tell recent window managers which host-screen this window should be mapped to: */
-            VBoxGlobal::setFullScreenMonitorX11(this, pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId));
-
-            /* If there is a mini-toolbar: */
-            if (m_pMiniToolBar)
-            {
-                /* Tell recent window managers which host-screen this mini-toolbar should be mapped to: */
-                VBoxGlobal::setFullScreenMonitorX11(m_pMiniToolBar, pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId));
-            }
+            QMetaObject::invokeMethod(this, "showMinimized", Qt::QueuedConnection);
         }
 
         /* Adjust machine-view size if necessary: */
@@ -604,6 +542,46 @@ void UIMachineWindowFullscreen::updateAppearanceOf(int iElement)
     }
 }
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+void UIMachineWindowFullscreen::changeEvent(QEvent *pEvent)
+{
+    switch (pEvent->type())
+    {
+        case QEvent::WindowStateChange:
+        {
+            /* Watch for window state changes: */
+            QWindowStateChangeEvent *pChangeEvent = static_cast<QWindowStateChangeEvent*>(pEvent);
+            LogRel2(("GUI: UIMachineWindowFullscreen::changeEvent: Window state changed from %d to %d\n",
+                     (int)pChangeEvent->oldState(), (int)windowState()));
+            if (   windowState() == Qt::WindowMinimized
+                && pChangeEvent->oldState() == Qt::WindowNoState
+                && !m_fIsMinimized)
+            {
+                /* Mark window minimized, isMinimized() is not enough due to Qt5vsX11 fight: */
+                LogRel2(("GUI: UIMachineWindowFullscreen::changeEvent: Window minimized\n"));
+                m_fIsMinimized = true;
+            }
+            else
+            if (   windowState() == Qt::WindowNoState
+                && pChangeEvent->oldState() == Qt::WindowMinimized
+                && m_fIsMinimized)
+            {
+                /* Mark window restored, and do manual restoring with showInNecessaryMode(): */
+                LogRel2(("GUI: UIMachineWindowFullscreen::changeEvent: Window restored\n"));
+                m_fIsMinimized = false;
+                showInNecessaryMode();
+            }
+            break;
+        }
+        default:
+            break;
+    }
+
+    /* Call to base-class: */
+    UIMachineWindow::changeEvent(pEvent);
+}
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
 #ifdef VBOX_WS_WIN
 # if QT_VERSION >= 0x050000

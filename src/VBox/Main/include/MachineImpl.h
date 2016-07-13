@@ -798,6 +798,7 @@ protected:
               m_strTaskName(t),
               m_machineStateBackup(m->mData->mMachineState) // save the current machine state
         {}
+        virtual ~Task(){}
 
         HRESULT createThread()
         {
@@ -931,6 +932,7 @@ private:
     HRESULT getAudioAdapter(ComPtr<IAudioAdapter> &aAudioAdapter);
     HRESULT getStorageControllers(std::vector<ComPtr<IStorageController> > &aStorageControllers);
     HRESULT getSettingsFilePath(com::Utf8Str &aSettingsFilePath);
+    HRESULT getSettingsAuxFilePath(com::Utf8Str &aSettingsAuxFilePath);
     HRESULT getSettingsModified(BOOL *aSettingsModified);
     HRESULT getSessionState(SessionState_T *aSessionState);
     HRESULT getSessionType(SessionType_T *aSessionType);

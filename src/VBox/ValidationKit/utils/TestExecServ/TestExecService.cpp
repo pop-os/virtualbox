@@ -1781,7 +1781,7 @@ static int txsDoExecHlpHandleTransportEvent(RTPOLLSET hPollSet, uint32_t fPollEv
 
             /* Check the CRC */
             pStdInBuf->uCrc32 = RTCrc32Process(pStdInBuf->uCrc32, pch, cb);
-            if (pStdInBuf->uCrc32 == uCrc32)
+            if (RTCrc32Finish(pStdInBuf->uCrc32) == uCrc32)
             {
 
                 /* Rewind the buffer if it's empty. */
@@ -1855,12 +1855,27 @@ static int txsDoExecHlpHandleTransportEvent(RTPOLLSET hPollSet, uint32_t fPollEv
                 }
             }
             else
-                rc = txsReplySimple(pPktHdr, "STDINCRC");
+                rc = txsReplyFailure(pPktHdr, "STDINCRC", "Invalid CRC checksum expected %#x got %#x",
+                                     pStdInBuf->uCrc32, uCrc32);
         }
         else if (pPktHdr->cb < sizeof(TXSPKTHDR) + sizeof(uint32_t))
             rc = txsReplySimple(pPktHdr, "STDINBAD");
         else
             rc = txsReplySimple(pPktHdr, "STDINIGN");
+    }
+    /*
+     * Marks the end of the stream for stdin.
+     */
+    else if (txsIsSameOpcode(pPktHdr, "STDINEOS"))
+    {
+        if (RT_LIKELY(pPktHdr->cb == sizeof(TXSPKTHDR)))
+        {
+            /* Close the pipe. */
+            txsDoExecHlpHandleStdInErrorEvent(hPollSet, fPollEvt, phStdInW, pStdInBuf);
+            rc = txsReplyAck(pPktHdr);
+        }
+        else
+            rc = txsReplySimple(pPktHdr, "STDINBAD");
     }
     /*
      * The only other two requests are connection oriented and we return a error
@@ -3352,7 +3367,7 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 102121 $\n");
+                RTPrintf("$Revision: 108663 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 

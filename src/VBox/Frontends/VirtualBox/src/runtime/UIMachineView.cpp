@@ -1874,6 +1874,14 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
         case WM_KEYUP:
         case WM_SYSKEYUP:
         {
+            /* Can't do COM inter-process calls from a SendMessage handler,
+             * see http://support.microsoft.com/kb/131056. */
+            if (vboxGlobal().isSeparateProcess() && InSendMessage())
+            {
+                PostMessage(pEvent->hwnd, pEvent->message, pEvent->wParam, pEvent->lParam);
+                return true;
+            }
+
             // WORKAROUND:
             // There is an issue in the Windows Qt5 event processing sequence
             // causing QAbstractNativeEventFilter to receive Windows native events
@@ -1908,8 +1916,10 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
         /* Watch for key-events: */
         case XCB_KEY_PRESS:
         case XCB_KEY_RELEASE:
+        case XCB_BUTTON_PRESS:
         {
-            /* Delegate key-event handling to the keyboard-handler: */
+            /* Delegate key-event handling to the keyboard-handler and let it
+             * filter out button presses out of the view windows: */
             return machineLogic()->keyboardHandler()->nativeEventPostprocessor(pMessage, screenId());
         }
         default:

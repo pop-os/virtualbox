@@ -1117,7 +1117,6 @@ typedef enum XAPICDELIVERYMODE
     XAPICDELIVERYMODE_SMI                 = 2,
     XAPICDELIVERYMODE_NMI                 = 4,
     XAPICDELIVERYMODE_INIT                = 5,
-    XAPICDELIVERYMODE_INIT_LEVEL_DEASSERT = 5,  /* Yes, also 5. */
     XAPICDELIVERYMODE_STARTUP             = 6,
     XAPICDELIVERYMODE_EXTINT              = 7
 } XAPICDELIVERYMODE;
@@ -1229,8 +1228,8 @@ typedef struct APIC
     bool                        fRZEnabled;
     /** Alignment padding. */
     bool                        afAlignment0[7];
-    /** The original APIC mode from CFGM. */
-    APICMODE                    enmOriginalMode;
+    /** The max supported APIC mode from CFGM.  */
+    PDMAPICMODE                 enmMaxMode;
     /** @} */
 } APIC;
 /** Pointer to APIC VM instance data. */
@@ -1318,40 +1317,32 @@ typedef struct APICCPU
 #ifdef VBOX_WITH_STATISTICS
     /** @name APIC statistics.
      * @{ */
-    /** Number of MMIO reads in R0. */
-    STAMCOUNTER                 StatMmioReadR0;
+    /** Number of MMIO reads in RZ. */
+    STAMCOUNTER                 StatMmioReadRZ;
     /** Number of MMIO reads in R3. */
     STAMCOUNTER                 StatMmioReadR3;
-    /** Number of MMIO reads in RC. */
-    STAMCOUNTER                 StatMmioReadRC;
 
-    /** Number of MMIO writes in R0. */
-    STAMCOUNTER                 StatMmioWriteR0;
+    /** Number of MMIO writes in RZ. */
+    STAMCOUNTER                 StatMmioWriteRZ;
     /** Number of MMIO writes in R3. */
     STAMCOUNTER                 StatMmioWriteR3;
-    /** Number of MMIO writes in RC. */
-    STAMCOUNTER                 StatMmioWriteRC;
 
-    /** Number of MSR reads in R0. */
-    STAMCOUNTER                 StatMsrReadR0;
+    /** Number of MSR reads in RZ. */
+    STAMCOUNTER                 StatMsrReadRZ;
     /** Number of MSR reads in R3. */
     STAMCOUNTER                 StatMsrReadR3;
-    /** Number of MSR reads in RC. */
-    STAMCOUNTER                 StatMsrReadRC;
 
-    /** Number of MSR writes in R0. */
-    STAMCOUNTER                 StatMsrWriteR0;
+    /** Number of MSR writes in RZ. */
+    STAMCOUNTER                 StatMsrWriteRZ;
     /** Number of MSR writes in R3. */
     STAMCOUNTER                 StatMsrWriteR3;
-    /** Number of MSR writes in RC. */
-    STAMCOUNTER                 StatMsrWriteRC;
 
     /** Profiling of APICUpdatePendingInterrupts().  */
     STAMPROFILE                 StatUpdatePendingIntrs;
-    /** Profiling of APICPostInterrupt().  */
+    /** Profiling of apicPostInterrupt().  */
     STAMPROFILE                 StatPostIntr;
     /** Number of times an interrupt is already pending in
-     *  APICPostInterrupts().*/
+     *  apicPostInterrupts().*/
     STAMCOUNTER                 StatPostIntrAlreadyPending;
     /** Number of times the timer callback is invoked. */
     STAMCOUNTER                 StatTimerCallback;
@@ -1361,9 +1352,9 @@ typedef struct APICCPU
     STAMCOUNTER                 StatTprRead;
     /** Number of times the EOI is written. */
     STAMCOUNTER                 StatEoiWrite;
-    /** Number of times TPR masks an interrupt in APICGetInterrupt(). */
+    /** Number of times TPR masks an interrupt in apicGetInterrupt(). */
     STAMCOUNTER                 StatMaskedByTpr;
-    /** Number of times PPR masks an interrupt in APICGetInterrupt(). */
+    /** Number of times PPR masks an interrupt in apicGetInterrupt(). */
     STAMCOUNTER                 StatMaskedByPpr;
     /** Number of times the timer ICR is written. */
     STAMCOUNTER                 StatTimerIcrWrite;
@@ -1377,6 +1368,20 @@ typedef APICCPU *PAPICCPU;
 /** Pointer to a const APIC VMCPU instance data. */
 typedef APICCPU const *PCAPICCPU;
 AssertCompileMemberAlignment(APICCPU, uApicBaseMsr, 8);
+
+/**
+ * APIC operating modes as returned by apicGetMode().
+ *
+ * The values match hardware states.
+ * See Intel spec. 10.12.1 "Detecting and Enabling x2APIC Mode".
+ */
+typedef enum APICMODE
+{
+    APICMODE_DISABLED = 0,
+    APICMODE_INVALID,
+    APICMODE_XAPIC,
+    APICMODE_X2APIC
+} APICMODE;
 
 /**
  * Gets the timer shift value.
@@ -1393,36 +1398,49 @@ DECLINLINE(uint8_t) apicGetTimerShift(PCXAPICPAGE pXApicPage)
 
 RT_C_DECLS_BEGIN
 
-const char             *apicGetModeName(APICMODE enmMode);
-const char             *apicGetDestFormatName(XAPICDESTFORMAT enmDestFormat);
-const char             *apicGetDeliveryModeName(XAPICDELIVERYMODE enmDeliveryMode);
-const char             *apicGetDestModeName(XAPICDESTMODE enmDestMode);
-const char             *apicGetTriggerModeName(XAPICTRIGGERMODE enmTriggerMode);
-const char             *apicGetDestShorthandName(XAPICDESTSHORTHAND enmDestShorthand);
-const char             *apicGetTimerModeName(XAPICTIMERMODE enmTimerMode);
-void                    apicHintTimerFreq(PAPICCPU pApicCpu, uint32_t uInitialCount, uint8_t uTimerShift);
-APICMODE                apicGetMode(uint64_t uApicBaseMsr);
 
-VMMDECL(uint64_t)       APICGetBaseMsr(PPDMDEVINS pDevIns, PVMCPU pVCpu);
-VMMDECL(VBOXSTRICTRC)   APICSetBaseMsr(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint64_t uBase);
-VMMDECL(uint8_t)        APICGetTpr(PPDMDEVINS pDevIns, PVMCPU pVCpu, bool *pfPending, uint8_t *pu8PendingIntr);
-VMMDECL(void)           APICSetTpr(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t u8Tpr);
-VMMDECL(uint64_t)       APICGetTimerFreq(PPDMDEVINS pDevIns);
-VMMDECL(int)            APICReadMmio(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-VMMDECL(int)            APICWriteMmio(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
-VMMDECL(VBOXSTRICTRC)   APICReadMsr(PPDMDEVINS pDevIns,  PVMCPU pVCpu, uint32_t u32Reg, uint64_t *pu64Val);
-VMMDECL(VBOXSTRICTRC)   APICWriteMsr(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint32_t u32Reg, uint64_t u64Val);
-VMMDECL(int)            APICGetInterrupt(PPDMDEVINS pDevIns,  PVMCPU pVCpu, uint8_t *puVector, uint32_t *puTagSrc);
-VMMDECL(void)           APICSetInterruptFF(PVMCPU pVCpu, PDMAPICIRQ enmType);
-VMMDECL(void)           APICClearInterruptFF(PVMCPU pVCpu, PDMAPICIRQ enmType);
-VMMDECL(VBOXSTRICTRC)   APICLocalInterrupt(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t u8Pin, uint8_t u8Level, int rcRZ);
-VMMDECL(int)            APICBusDeliver(PPDMDEVINS pDevIns, uint8_t uDest, uint8_t uDestMode, uint8_t uDeliveryMode,
-                                       uint8_t uVector, uint8_t uPolarity, uint8_t uTriggerMode, uint32_t uTagSrc);
+/** @def APICBOTHCBDECL
+ * Macro for declaring a callback which is static in HC and exported in GC.
+ */
+#if defined(IN_RC) || defined(IN_RING0)
+# define APICBOTHCBDECL(type)    DECLEXPORT(type)
+#else
+# define APICBOTHCBDECL(type)    DECLCALLBACK(type)
+#endif
 
-VMM_INT_DECL(void)      APICPostInterrupt(PVMCPU pVCpu, uint8_t uVector, XAPICTRIGGERMODE enmTriggerMode);
-VMM_INT_DECL(void)      APICStartTimer(PVMCPU pVCpu, uint32_t uInitialCount);
-VMM_INT_DECL(void)      APICStopTimer(PVMCPU pVCpu);
-VMM_INT_DECL(void)      APICUpdateCpuIdForMode(PVM pVM, APICMODE enmMode);
+const char                   *apicGetModeName(APICMODE enmMode);
+const char                   *apicGetDestFormatName(XAPICDESTFORMAT enmDestFormat);
+const char                   *apicGetDeliveryModeName(XAPICDELIVERYMODE enmDeliveryMode);
+const char                   *apicGetDestModeName(XAPICDESTMODE enmDestMode);
+const char                   *apicGetTriggerModeName(XAPICTRIGGERMODE enmTriggerMode);
+const char                   *apicGetDestShorthandName(XAPICDESTSHORTHAND enmDestShorthand);
+const char                   *apicGetTimerModeName(XAPICTIMERMODE enmTimerMode);
+void                          apicHintTimerFreq(PAPICCPU pApicCpu, uint32_t uInitialCount, uint8_t uTimerShift);
+APICMODE                      apicGetMode(uint64_t uApicBaseMsr);
+
+APICBOTHCBDECL(uint64_t)      apicGetBaseMsr(PPDMDEVINS pDevIns, PVMCPU pVCpu);
+APICBOTHCBDECL(VBOXSTRICTRC)  apicSetBaseMsr(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint64_t uBase);
+APICBOTHCBDECL(uint8_t)       apicGetTpr(PPDMDEVINS pDevIns, PVMCPU pVCpu, bool *pfPending, uint8_t *pu8PendingIntr);
+APICBOTHCBDECL(void)          apicSetTpr(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t u8Tpr);
+APICBOTHCBDECL(uint64_t)      apicGetTimerFreq(PPDMDEVINS pDevIns);
+APICBOTHCBDECL(int)           apicReadMmio(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
+APICBOTHCBDECL(int)           apicWriteMmio(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
+APICBOTHCBDECL(VBOXSTRICTRC)  apicReadMsr(PPDMDEVINS pDevIns,  PVMCPU pVCpu, uint32_t u32Reg, uint64_t *pu64Val);
+APICBOTHCBDECL(VBOXSTRICTRC)  apicWriteMsr(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint32_t u32Reg, uint64_t u64Val);
+APICBOTHCBDECL(int)           apicGetInterrupt(PPDMDEVINS pDevIns,  PVMCPU pVCpu, uint8_t *puVector, uint32_t *puTagSrc);
+APICBOTHCBDECL(VBOXSTRICTRC)  apicLocalInterrupt(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t u8Pin, uint8_t u8Level, int rcRZ);
+APICBOTHCBDECL(int)           apicBusDeliver(PPDMDEVINS pDevIns, uint8_t uDest, uint8_t uDestMode, uint8_t uDeliveryMode,
+                                             uint8_t uVector, uint8_t uPolarity, uint8_t uTriggerMode, uint32_t uTagSrc);
+
+VMM_INT_DECL(bool)            apicPostInterrupt(PVMCPU pVCpu, uint8_t uVector, XAPICTRIGGERMODE enmTriggerMode);
+VMM_INT_DECL(void)            apicStartTimer(PVMCPU pVCpu, uint32_t uInitialCount);
+VMM_INT_DECL(void)            apicStopTimer(PVMCPU pVCpu);
+VMM_INT_DECL(void)            apicSetInterruptFF(PVMCPU pVCpu, PDMAPICIRQ enmType);
+VMM_INT_DECL(void)            apicClearInterruptFF(PVMCPU pVCpu, PDMAPICIRQ enmType);
+
+#ifdef IN_RING3
+VMMR3_INT_DECL(void)          apicR3ResetCpu(PVMCPU pVCpu, bool fResetApicBaseMsr);
+#endif
 
 RT_C_DECLS_END
 

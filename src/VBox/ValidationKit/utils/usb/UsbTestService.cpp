@@ -41,6 +41,7 @@
 #include <iprt/getopt.h>
 #include <iprt/handle.h>
 #include <iprt/initterm.h>
+#include <iprt/json.h>
 #include <iprt/list.h>
 #include <iprt/log.h>
 #include <iprt/mem.h>
@@ -54,7 +55,6 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 
-#include "UsbTestServiceCfg.h"
 #include "UsbTestServiceInternal.h"
 #include "UsbTestServiceGadget.h"
 #include "UsbTestServicePlatform.h"
@@ -151,7 +151,7 @@ static bool                 g_fDisplayOutput = true;
  * @todo implement signals and stuff.  */
 static bool volatile        g_fTerminate = false;
 /** Configuration AST. */
-static PCFGAST              g_pCfgAst = NULL;
+static RTJSONVAL            g_hCfgJson = NIL_RTJSONVAL;
 /** Pipe for communicating with the serving thread about new clients. - read end */
 static RTPIPE               g_hPipeR;
 /** Pipe for communicating with the serving thread about new clients. - write end */
@@ -1247,7 +1247,7 @@ static int utsInit(void)
 
     RTListInit(&g_LstClientsNew);
 
-    rc = utsParseConfig(g_szCfgPath, &g_pCfgAst, &pErrInfo);
+    rc = RTJsonParseFromFile(&g_hCfgJson, g_szCfgPath, pErrInfo);
     if (RT_SUCCESS(rc))
     {
         rc = utsPlatformInit();
@@ -1278,7 +1278,7 @@ static int utsInit(void)
             else
                 RTMsgError("Creating global critical section failed with %Rrc\n", rc);
 
-            utsConfigAstDestroy(g_pCfgAst);
+            RTJsonValueRelease(g_hCfgJson);
         }
         else
             RTMsgError("Initializing the platform failed with %Rrc\n", rc);
@@ -1544,7 +1544,7 @@ static RTEXITCODE utsParseArgv(int argc, char **argv, bool *pfExit)
             }
 
             case 'V':
-                RTPrintf("$Revision: 106992 $\n");
+                RTPrintf("$Revision: 108312 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 

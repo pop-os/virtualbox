@@ -23,6 +23,7 @@
 #include <VBox/param.h>
 #include <iprt/alloca.h>
 #include <iprt/initterm.h>
+#include <iprt/rand.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
 #include <iprt/test.h>
@@ -74,8 +75,8 @@ int foo(int i, int iZero, int iMinusOne)
     RTTESTI_CHECK_MSG_RET(g_cbFooUsed < (intptr_t)VMM_STACK_SIZE - 128, ("%p - %p -> %#x; cb=%#x i=%d\n", g_Jmp.esp, pv, g_cbFooUsed, cb, i), -15);
 #endif
 
-    /* Do long jmps every 7th time */
-    if ((i % 7) == 0)
+    /* Twice in a row, every 7th time. */
+    if ((i % 7) <= 1)
     {
         g_cJmps++;
         int rc = vmmR0CallRing3LongJmp(&g_Jmp, 42);
@@ -92,10 +93,25 @@ DECLCALLBACK(int) tst2(intptr_t i, intptr_t i2)
 {
     RTTESTI_CHECK_MSG_RET(i >= 0 && i <= 8192, ("i=%d is out of range [0..8192]\n", i),      1);
     RTTESTI_CHECK_MSG_RET(i2 == 0,             ("i2=%d is out of range [0]\n", i2),          1);
-    int iExpect = (i % 7) == 0 ? i + 10000 : i;
+    int iExpect = (i % 7) <= 1 ? i + 10000 : i;
     int rc = foo(i, 0, -1);
     RTTESTI_CHECK_MSG_RET(rc == iExpect,       ("i=%d rc=%d expected=%d\n", i, rc, iExpect), 1);
     return 0;
+}
+
+
+DECLCALLBACK(DECL_NO_INLINE(RT_NOTHING, int)) stackRandom(PVMMR0JMPBUF pJmpBuf, PFNVMMR0SETJMP pfn, PVM pVM, PVMCPU pVCpu)
+{
+#ifdef RT_ARCH_AMD64
+    uint32_t            cbRand  = RTRandU32Ex(1, 96);
+#else
+    uint32_t            cbRand  = 1;
+#endif
+    uint8_t volatile   *pabFuzz = (uint8_t volatile *)alloca(cbRand);
+    memset((void *)pabFuzz, 0xfa, cbRand);
+    int rc = vmmR0CallRing3SetJmp(pJmpBuf, pfn, pVM, pVCpu);
+    memset((void *)pabFuzz, 0xaf, cbRand);
+    return rc;
 }
 
 
@@ -116,7 +132,7 @@ void tst(int iFrom, int iTo, int iInc)
 
     for (int i = iFrom, iItr = 0; i != iTo; i += iInc, iItr++)
     {
-        int rc = vmmR0CallRing3SetJmp(&g_Jmp, (PFNVMMR0SETJMP)tst2, (PVM)(uintptr_t)i, 0);
+        int rc = stackRandom(&g_Jmp, (PFNVMMR0SETJMP)tst2, (PVM)(uintptr_t)i, 0);
         RTTESTI_CHECK_MSG_RETV(rc == 0 || rc == 42, ("i=%d rc=%d setjmp; cbFoo=%#x cbFooUsed=%#x\n", i, rc, g_cbFoo, g_cbFooUsed));
 
 #ifdef VMM_R0_SWITCH_STACK

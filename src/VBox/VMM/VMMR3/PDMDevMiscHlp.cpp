@@ -268,7 +268,7 @@ static DECLCALLBACK(void) pdmR3ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
 
 
 /** @interface_method_impl{PDMAPICHLPR3,pfnBusBroadcastEoi} */
-static DECLCALLBACK(void) pdmR3ApicHlp_BusBroadcastEoi(PPDMDEVINS pDevIns, uint8_t u8Vector)
+static DECLCALLBACK(int) pdmR3ApicHlp_BusBroadcastEoi(PPDMDEVINS pDevIns, uint8_t u8Vector)
 {
     /* pfnSetEoi will be NULL in the old IOAPIC code as it's not implemented. */
 #ifdef VBOX_WITH_NEW_IOAPIC
@@ -280,9 +280,10 @@ static DECLCALLBACK(void) pdmR3ApicHlp_BusBroadcastEoi(PPDMDEVINS pDevIns, uint8
     if (pVM->pdm.s.IoApic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.IoApic.CTX_SUFF(pfnSetEoi));
-        pVM->pdm.s.IoApic.CTX_SUFF(pfnSetEoi)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), u8Vector);
+        return pVM->pdm.s.IoApic.CTX_SUFF(pfnSetEoi)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), u8Vector);
     }
 #endif
+    return VINF_SUCCESS;
 }
 
 
@@ -309,40 +310,29 @@ static DECLCALLBACK(uint32_t) pdmR3ApicHlp_CalcIrqTag(PPDMDEVINS pDevIns, uint8_
 }
 
 
-/** @interface_method_impl{PDMAPICHLPR3,pfnChangeFeature} */
-static DECLCALLBACK(void) pdmR3ApicHlp_ChangeFeature(PPDMDEVINS pDevIns, PDMAPICMODE enmMode)
+/** @interface_method_impl{PDMAPICHLPR3,pfnSetFeatureLevel} */
+static DECLCALLBACK(void) pdmR3ApicHlp_SetFeatureLevel(PPDMDEVINS pDevIns, PDMAPICMODE enmMode)
 {
-#ifdef VBOX_WITH_NEW_APIC
-    /*
-     * The old code is also most likely incorrect with regards to changing the CPUID bits,
-     * see @bugref{8245#c32}.
-     *
-     * The new code should directly invoke APICUpdateCpuIdForMode() instead of using this
-     * indirect helper.
-     */
-    AssertMsgFailed(("pdmR3ApicHlp_ChangeFeature unsupported in VBOX_WITH_NEW_APIC!"));
-#else
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR3ApicHlp_ChangeFeature: caller='%s'/%d: mode=%d\n",
+    LogFlow(("pdmR3ApicHlp_SetFeatureLevel: caller='%s'/%d: mode=%d\n",
              pDevIns->pReg->szName, pDevIns->iInstance, (int)enmMode));
     switch (enmMode)
     {
         case PDMAPICMODE_NONE:
-            CPUMClearGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_APIC);
-            CPUMClearGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_X2APIC);
+            CPUMR3ClearGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_X2APIC);
+            CPUMR3ClearGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_APIC);
             break;
         case PDMAPICMODE_APIC:
-            CPUMSetGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_APIC);
-            CPUMClearGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_X2APIC);
+            CPUMR3ClearGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_X2APIC);
+            CPUMR3SetGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_APIC);
             break;
         case PDMAPICMODE_X2APIC:
-            CPUMSetGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_X2APIC);
-            CPUMSetGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_APIC);
+            CPUMR3SetGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_APIC);
+            CPUMR3SetGuestCpuIdFeature(pDevIns->Internal.s.pVMR3, CPUMCPUIDFEATURE_X2APIC);
             break;
         default:
             AssertMsgFailed(("Unknown APIC mode: %d\n", (int)enmMode));
     }
-#endif
 }
 
 /** @interface_method_impl{PDMAPICHLPR3,pfnGetCpuId} */
@@ -451,7 +441,7 @@ const PDMAPICHLPR3 g_pdmR3DevApicHlp =
     pdmR3ApicHlp_ClearInterruptFF,
     pdmR3ApicHlp_BusBroadcastEoi,
     pdmR3ApicHlp_CalcIrqTag,
-    pdmR3ApicHlp_ChangeFeature,
+    pdmR3ApicHlp_SetFeatureLevel,
     pdmR3ApicHlp_GetCpuId,
     pdmR3ApicHlp_SendStartupIpi,
     pdmR3ApicHlp_SendInitIpi,
@@ -491,9 +481,6 @@ static DECLCALLBACK(int) pdmR3IoApicHlp_Lock(PPDMDEVINS pDevIns, int rc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmR3IoApicHlp_Lock: caller='%s'/%d: rc=%Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
-#ifdef VBOX_WITH_NEW_IOAPIC
-    AssertFailed();
-#endif
     return pdmLockEx(pDevIns->Internal.s.pVMR3, rc);
 }
 
@@ -503,9 +490,6 @@ static DECLCALLBACK(void) pdmR3IoApicHlp_Unlock(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmR3IoApicHlp_Unlock: caller='%s'/%d:\n", pDevIns->pReg->szName, pDevIns->iInstance));
-#ifdef VBOX_WITH_NEW_IOAPIC
-    AssertFailed();
-#endif
     pdmUnlock(pDevIns->Internal.s.pVMR3);
 }
 

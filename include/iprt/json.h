@@ -1,5 +1,5 @@
 /** @file
- * IPRT JSON parser API (JSON).
+ * IPRT - JavaScript Object Notation (JSON) Parser.
  */
 
 /*
@@ -32,7 +32,8 @@
 RT_C_DECLS_BEGIN
 
 
-/** @defgroup grp_json           IPRT JSON parser
+/** @defgroup grp_json      RTJson - JavaScript Object Notation (JSON) Parser
+ * @ingroup grp_rt
  * @{
  */
 
@@ -81,20 +82,19 @@ typedef RTJSONIT *PRTJSONIT;
  * Parses a JSON document in the provided buffer returning the root JSON value.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_MALFORMED if the document does not conform to the spec.
+ * @retval  VERR_JSON_MALFORMED if the document does not conform to the spec.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
  * @param   pbBuf           The byte buffer containing the JSON document.
  * @param   cbBuf           Size of the buffer.
  * @param   pErrInfo        Where to store extended error info. Optional.
  */
-RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, const uint8_t *pbBuf, size_t cbBuf,
-                               PRTERRINFO pErrInfo);
+RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, const uint8_t *pbBuf, size_t cbBuf, PRTERRINFO pErrInfo);
 
 /**
  * Parses a JSON document from the provided string returning the root JSON value.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_MALFORMED if the document does not conform to the spec.
+ * @retval  VERR_JSON_MALFORMED if the document does not conform to the spec.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
  * @param   pszStr          The string containing the JSON document.
  * @param   pErrInfo        Where to store extended error info. Optional.
@@ -106,7 +106,7 @@ RTDECL(int) RTJsonParseFromString(PRTJSONVAL phJsonVal, const char *pszStr, PRTE
  * returning the root JSON value.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_MALFORMED if the document does not conform to the spec.
+ * @retval  VERR_JSON_MALFORMED if the document does not conform to the spec.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
  * @param   pszFilename     The name of the file containing the JSON document.
  * @param   pErrInfo        Where to store extended error info. Optional.
@@ -150,34 +150,77 @@ RTDECL(const char *) RTJsonValueGetString(RTJSONVAL hJsonVal);
  * Returns the string from a given JSON string value, extended.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not a string.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not a string.
  * @param   hJsonVal        The JSON value handle.
  * @param   ppszStr         Where to store the pointer to the string on success.
  */
-RTDECL(int) RTJsonValueGetStringEx(RTJSONVAL hJsonVal, const char **ppszStr);
+RTDECL(int) RTJsonValueQueryString(RTJSONVAL hJsonVal, const char **ppszStr);
 
 /**
  * Returns the number from a given JSON number value.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not a number.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not a number.
  * @param   hJsonVal        The JSON value handle.
  * @param   pi64Num         WHere to store the number on success.
  *
- * @note: This JSON implementation does not implement support for floating point numbers currently.
+ * @note    This JSON implementation does not implement support for floating point
+ *          numbers currently.  When it does, it will be in the form of a
+ *          RTJsonValueQueryFloat method.
  */
-RTDECL(int) RTJsonValueGetNumber(RTJSONVAL hJsonVal, int64_t *pi64Num);
+RTDECL(int) RTJsonValueQueryInteger(RTJSONVAL hJsonVal, int64_t *pi64Num);
 
 /**
  * Returns the value associated with a given name for the given JSON object value.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an object.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an object.
+ * @retval  VERR_NOT_FOUND if the name is not known for this JSON object.
  * @param   hJsonVal        The JSON value handle.
  * @param   pszName         The member name of the object.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
  */
-RTDECL(int) RTJsonValueGetByName(RTJSONVAL hJsonVal, const char *pszName, PRTJSONVAL phJsonVal);
+RTDECL(int) RTJsonValueQueryByName(RTJSONVAL hJsonVal, const char *pszName, PRTJSONVAL phJsonVal);
+
+/**
+ * Returns the number of a number value associated with a given name for the given JSON object value.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an object or
+ *          the name does not point to a number value.
+ * @retval  VERR_NOT_FOUND if the name is not known for this JSON object.
+ * @param   hJsonVal        The JSON value handle.
+ * @param   pszName         The member name of the object.
+ * @param   pi64Num         Where to store the number on success.
+ */
+RTDECL(int) RTJsonValueQueryIntegerByName(RTJSONVAL hJsonVal, const char *pszName, int64_t *pi64Num);
+
+/**
+ * Returns the string of a string value associated with a given name for the given JSON object value.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an object or
+ *          the name does not point to a string value.
+ * @retval  VERR_NOT_FOUND if the name is not known for this JSON object.
+ * @param   hJsonVal        The JSON value handle.
+ * @param   pszName         The member name of the object.
+ * @param   ppszStr         Where to store the pointer to the string on success.
+ *                          Must be freed with RTStrFree().
+ */
+RTDECL(int) RTJsonValueQueryStringByName(RTJSONVAL hJsonVal, const char *pszName, char **ppszStr);
+
+/**
+ * Returns the boolean of a true/false value associated with a given name for the given JSON object value.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an object or
+ *          the name does not point to a true/false value.
+ * @retval  VERR_NOT_FOUND if the name is not known for this JSON object.
+ * @param   hJsonVal        The JSON value handle.
+ * @param   pszName         The member name of the object.
+ * @param   pfBoolean       Where to store the boolean value on success.
+ */
+RTDECL(int) RTJsonValueQueryBooleanByName(RTJSONVAL hJsonVal, const char *pszName, bool *pfBoolean);
 
 /**
  * Returns the size of a given JSON array value.
@@ -192,28 +235,31 @@ RTDECL(unsigned) RTJsonValueGetArraySize(RTJSONVAL hJsonVal);
  * Returns the size of a given JSON array value - extended version.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an array.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an array.
  * @param   hJsonVal        The JSON value handle.
  * @param   pcItems         Where to store the size of the JSON array value on success.
  */
-RTDECL(int) RTJsonValueGetArraySizeEx(RTJSONVAL hJsonVal, unsigned *pcItems);
+RTDECL(int) RTJsonValueQueryArraySize(RTJSONVAL hJsonVal, unsigned *pcItems);
 
 /**
  * Returns the value for the given index of a given JSON array value.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an array.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an array.
+ * @retval  VERR_OUT_OF_RANGE if @a idx is out of bounds.
+ *
  * @param   hJsonVal        The JSON value handle.
  * @param   idx             The index to get the value from.
  * @param   phJsonVal       Where to store the handle to the JSON value on success.
  */
-RTDECL(int) RTJsonValueGetByIndex(RTJSONVAL hJsonVal, unsigned idx, PRTJSONVAL phJsonVal);
+RTDECL(int) RTJsonValueQueryByIndex(RTJSONVAL hJsonVal, unsigned idx, PRTJSONVAL phJsonVal);
 
 /**
  * Creates an iterator for a given JSON array or object value.
  *
  * @returns IPRT status code.
- * @retval VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an array or object.
+ * @retval  VERR_JSON_VALUE_INVALID_TYPE if the JSON value is not an array or
+ *          object.
  * @param   hJsonVal        The JSON value handle.
  * @param   phJsonIt        Where to store the JSON iterator handle on success.
  */
@@ -228,7 +274,7 @@ RTDECL(int) RTJsonIteratorBegin(RTJSONVAL hJsonVal, PRTJSONIT phJsonIt);
  * @param   ppszName        Where to store the object member name for an object.
  *                          NULL is returned for arrays.
  */
-RTDECL(int) RTJsonIteratorGetValue(RTJSONIT hJsonIt, PRTJSONVAL phJsonVal, const char **ppszName);
+RTDECL(int) RTJsonIteratorQueryValue(RTJSONIT hJsonIt, PRTJSONVAL phJsonVal, const char **ppszName);
 
 /**
  * Advances to the next element in the referenced JSON value.
@@ -242,8 +288,7 @@ RTDECL(int) RTJsonIteratorNext(RTJSONIT hJsonIt);
 /**
  * Frees a given JSON iterator.
  *
- * @returns nothing.
- * @param   hJsonIt         The JSOn iterator to free.
+ * @param   hJsonIt         The JSON iterator to free.
  */
 RTDECL(void) RTJsonIteratorFree(RTJSONIT hJsonIt);
 

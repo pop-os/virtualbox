@@ -358,6 +358,9 @@ HRESULT Machine::init(VirtualBox *aParent,
             /* Let the OS type select 64-bit ness. */
             mHWData->mLongMode = aOsType->i_is64Bit()
                                ? settings::Hardware::LongMode_Enabled : settings::Hardware::LongMode_Disabled;
+
+            /* Let the OS type enable the X2APIC */
+            mHWData->mX2APIC = aOsType->i_recommendedX2APIC();
         }
 
         /* Apply parallel port defaults */
@@ -2729,6 +2732,11 @@ HRESULT Machine::getSettingsFilePath(com::Utf8Str &aSettingsFilePath)
     aSettingsFilePath = mData->m_strConfigFileFull;
 
     return S_OK;
+}
+
+HRESULT Machine::getSettingsAuxFilePath(com::Utf8Str &aSettingsFilePath)
+{
+    ReturnComNotImplemented();
 }
 
 HRESULT Machine::getSettingsModified(BOOL *aSettingsModified)
@@ -6067,7 +6075,7 @@ HRESULT Machine::addStorageController(const com::Utf8Str &aName,
                                       ComPtr<IStorageController> &aController)
 {
     if (   (aConnectionType <= StorageBus_Null)
-        || (aConnectionType >  StorageBus_USB))
+        || (aConnectionType >  StorageBus_PCIe))
         return setError(E_INVALIDARG,
                         tr("Invalid connection type: %d"),
                         aConnectionType);
@@ -8679,10 +8687,11 @@ HRESULT Machine::i_loadMachineDataFromSettings(const settings::MachineConfigFile
     rc = COMSETTER(SnapshotFolder)(Bstr(config.machineUserData.strSnapshotFolder).raw());
     if (FAILED(rc)) return rc;
 
-    /* Copy the extra data items (Not in any case config is already the same as
-     * mData->pMachineConfigFile, like when the xml files are read from disk. So
-     * make sure the extra data map is copied). */
-    mData->pMachineConfigFile->mapExtraDataItems = config.mapExtraDataItems;
+    /* Copy the extra data items (config may or may not be the same as
+     * mData->pMachineConfigFile) if necessary. When loading the XML files
+     * from disk they are the same, but not for OVF import. */
+    if (mData->pMachineConfigFile != &config)
+        mData->pMachineConfigFile->mapExtraDataItems = config.mapExtraDataItems;
 
     /* currentStateModified (optional, default is true) */
     mData->mCurrentStateModified = config.fCurrentStateModified;
@@ -9944,7 +9953,7 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
         pNewConfig->copyBaseFrom(*mData->pMachineConfigFile);
 
         // now go and copy all the settings data from COM to the settings structures
-        // (this calles i_saveSettings() on all the COM objects in the machine)
+        // (this calls i_saveSettings() on all the COM objects in the machine)
         i_copyMachineDataToSettings(*pNewConfig);
 
         if (aFlags & SaveS_ResetCurStateModified)
@@ -10046,8 +10055,10 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
  */
 void Machine::i_copyMachineDataToSettings(settings::MachineConfigFile &config)
 {
-    // deep copy extradata
-    config.mapExtraDataItems = mData->pMachineConfigFile->mapExtraDataItems;
+    // deep copy extradata, being extra careful with self assignment (the STL
+    // map assignment on Mac OS X clang based Xcode isn't checking)
+    if (&config != mData->pMachineConfigFile)
+        config.mapExtraDataItems = mData->pMachineConfigFile->mapExtraDataItems;
 
     config.uuid = mData->mUuid;
 

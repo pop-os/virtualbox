@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 108543 $"
 
 
 # Standard python imports.
@@ -121,7 +121,7 @@ class TestBoxBaseTask(object):
         Returns True if we should terminate, False if not.
         """
         self._lock();
-        fShouldTerminate = self._fShouldTerminate == True;
+        fShouldTerminate = self._fShouldTerminate is True;
         self._unlock();
         return fShouldTerminate;
 
@@ -593,7 +593,7 @@ class TestBoxTestDriverTask(TestBoxBaseTask):
         #
         # Wipe the stuff clean.
         #
-        fRc2 = self._oTestBoxScript.reinitScratch(fnLog = self._log);
+        fRc2 = self._oTestBoxScript.reinitScratch(fnLog = self._log, cRetries = 6);
 
         return fRc and fRc2;
 
@@ -902,7 +902,7 @@ class TestBoxExecTask(TestBoxTestDriverTask):
         # Clean up scratch.
         #
         if fNeedCleanUp:
-            if self._oTestBoxScript.reinitScratch(self._logInternal) is not True:
+            if self._oTestBoxScript.reinitScratch(self._logInternal, cRetries = 6) is not True:
                 self._log('post run reinitScratch failed.');
                 fRc = False;
 

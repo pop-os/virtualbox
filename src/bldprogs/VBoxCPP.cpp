@@ -2343,7 +2343,7 @@ static RTEXITCODE vbcppMacroExpandDefinedOperator(PVBCPP pThis, PVBCPPMACROEXP p
     while ((ch = vbcppMacroExpandGetCh(pExp, poff)) != ~(unsigned)0)
         if (!vbcppIsCIdentifierChar(ch))
             break;
-    size_t const cchDefine = *poff - offDefine;
+    size_t const cchDefine = *poff - offDefine - 1;
 
     /*
      * Check for closing parenthesis.
@@ -5359,7 +5359,7 @@ static RTEXITCODE vbcppParseOptions(PVBCPP pThis, int argc, char **argv, bool *p
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 102116 $";
+                static const char s_szRev[] = "$Revision: 108452 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 *pfExit = true;

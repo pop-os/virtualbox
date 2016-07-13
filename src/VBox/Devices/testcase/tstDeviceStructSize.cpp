@@ -119,10 +119,17 @@
 
 #include <VBox/vmm/pdmaudioifs.h>
 
-#undef LOG_GROUP
-#include "../Audio/DevIchAc97.cpp"
-#undef LOG_GROUP
-#include "../Audio/DevIchHda.cpp"
+#ifdef VBOX_WITH_AUDIO_50
+# undef LOG_GROUP
+# include "../Audio_old/DevIchAc97.cpp"
+# undef LOG_GROUP
+# include "../Audio_old/DevIchHda.cpp"
+#else
+# undef LOG_GROUP
+# include "../Audio/DevIchAc97.cpp"
+# undef LOG_GROUP
+# include "../Audio/DevIchHda.cpp"
+#endif
 
 #include <stdio.h>
 
@@ -338,7 +345,7 @@ int main()
 #ifdef VBOX_WITH_NEW_IOAPIC
     CHECK_MEMBER_ALIGNMENT(IOAPIC, au64RedirTable, 8);
 # ifdef VBOX_WITH_STATISTICS
-    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMmioReadR0, 8);
+    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMmioReadRZ, 8);
 # endif
 #else
 # ifdef VBOX_WITH_STATISTICS
@@ -379,6 +386,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VGASTATE, Dev, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSect, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, StatRZMemoryRead, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSectIRQ, 8);
     CHECK_MEMBER_ALIGNMENT(VMMDevState, CritSect, 8);
 #ifdef VBOX_WITH_VIRTIO
     CHECK_MEMBER_ALIGNMENT(VPCISTATE, cs, 8);

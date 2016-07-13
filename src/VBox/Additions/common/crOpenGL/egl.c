@@ -29,6 +29,8 @@
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 
+#include <stdlib.h>
+
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
@@ -74,7 +76,7 @@ static RTONCE   g_tlsOnce = RTONCE_INITIALIZER;
 static Display *g_pDefaultDisplay = NULL;
 static RTONCE   g_defaultDisplayOnce = RTONCE_INITIALIZER;
 
-static int32_t tlsInitOnce(void *pv)
+static DECLCALLBACK(int32_t) tlsInitOnce(void *pv)
 {
     NOREF(pv);
     g_tls = RTTlsAlloc();
@@ -102,7 +104,7 @@ static struct VBEGLTLS *getTls(void)
     return pTls;
 }
 
-static int32_t defaultDisplayInitOnce(void *pv)
+static DECLCALLBACK(int32_t) defaultDisplayInitOnce(void *pv)
 {
     NOREF(pv);
     g_pDefaultDisplay = XOpenDisplay(NULL);
@@ -132,7 +134,11 @@ DECLEXPORT(EGLDisplay) eglGetDisplay(EGLNativeDisplayType hDisplay)
 {
     Display *pDisplay;
     int rc, cError, cEvent, cMajor, cMinor;
-
+    /* Prevent working from inside the X server by requiring a valid DISPLAY. */
+    char *pszDisplay = getenv("DISPLAY");
+    
+    if (!pszDisplay || !*pszDisplay)
+        return EGL_NO_DISPLAY;
     rc = RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
     if (RT_FAILURE(rc))
         return EGL_NO_DISPLAY;
@@ -163,6 +169,11 @@ DECLEXPORT(EGLint) eglGetError(void)
 
 DECLEXPORT(EGLBoolean) eglInitialize (EGLDisplay hDisplay, EGLint *pcMajor, EGLint *pcMinor)
 {
+    /* Prevent working from inside the X server by requiring a valid DISPLAY. */
+    char *pszDisplay = getenv("DISPLAY");
+    
+    if (!pszDisplay || !*pszDisplay)
+        return EGL_FALSE;
     if (!VALID_PTR(hDisplay))
         return setEGLError(EGL_BAD_DISPLAY);
     if (pcMajor)
@@ -339,15 +350,15 @@ DECLEXPORT(EGLBoolean) eglChooseConfig (EGLDisplay hDisplay, const EGLint *paAtt
         {
             switch (*pAttrib)
             {
-        if (   *pAttrib == EGL_COLOR_BUFFER_TYPE
-            && pAttrib[1] != EGL_DONT_CARE && pAttrib[1] != EGL_RGB_BUFFER)
-            return setEGLError(EGL_BAD_ACCESS);
                 case EGL_COLOR_BUFFER_TYPE:
                     aAttribList[cAttribs] = GLX_X_VISUAL_TYPE;
                     aAttribList[cAttribs + 1] =   pAttrib[1] == EGL_DONT_CARE ? GLX_DONT_CARE
                                                 : pAttrib[1] == EGL_RGB_BUFFER ? GLX_TRUE_COLOR
                                                 : pAttrib[1] == EGL_LUMINANCE_BUFFER ? GLX_GRAY_SCALE
                                                 : GL_FALSE;
+                    if (   *pAttrib == EGL_COLOR_BUFFER_TYPE
+                        && pAttrib[1] != EGL_DONT_CARE && pAttrib[1] != EGL_RGB_BUFFER)
+                        return setEGLError(EGL_BAD_ACCESS);
                     break;
                 case EGL_CONFIG_CAVEAT:
                     cConfigCaveat =   pAttrib[1] == EGL_DONT_CARE ? GLX_DONT_CARE
@@ -729,6 +740,11 @@ DECLEXPORT(EGLBoolean) eglReleaseTexImage(EGLDisplay hDisplay, EGLSurface hSurfa
 
 DECLEXPORT(EGLBoolean) eglBindAPI(EGLenum enmApi)
 {
+    /* Prevent working from inside the X server by requiring a valid DISPLAY. */
+    char *pszDisplay = getenv("DISPLAY");
+    
+    if (!pszDisplay || !*pszDisplay)
+        return EGL_FALSE;
     return enmApi == EGL_OPENGL_API ? clearEGLError() : setEGLError(EGL_BAD_PARAMETER);
 }
 

@@ -1472,9 +1472,9 @@ static void hmR0VmxLazySaveHostMsrs(PVMCPU pVCpu)
     /*
      * Note: If you're adding MSRs here, make sure to update the MSR-bitmap permissions in hmR0VmxSetupProcCtls().
      */
-    Assert(!(pVCpu->hm.s.vmx.fLazyMsrs & VMX_LAZY_MSRS_LOADED_GUEST));
     if (!(pVCpu->hm.s.vmx.fLazyMsrs & VMX_LAZY_MSRS_SAVED_HOST))
     {
+        Assert(!(pVCpu->hm.s.vmx.fLazyMsrs & VMX_LAZY_MSRS_LOADED_GUEST));  /* Guest MSRs better not be loaded now. */
 #if HC_ARCH_BITS == 64
         if (pVCpu->CTX_SUFF(pVM)->hm.s.fAllow64BitGuests)
         {
@@ -2908,9 +2908,18 @@ DECLINLINE(int) hmR0VmxSaveHostSegmentRegs(PVM pVM, PVMCPU pVCpu)
     /*
      * If we've executed guest code using VT-x, the host-state bits will be messed up. We
      * should -not- save the messed up state without restoring the original host-state. See @bugref{7240}.
+     *
+     * This apparently can happen (most likely the FPU changes), deal with it rather than asserting.
+     * Was observed booting Solaris10u10 32-bit guest.
      */
-    AssertMsgReturn(!(pVCpu->hm.s.vmx.fRestoreHostFlags & VMX_RESTORE_HOST_REQUIRED),
-                    ("Re-saving host-state after executing guest code without leaving VT-x!\n"), VERR_WRONG_ORDER);
+    if (   (pVCpu->hm.s.vmx.fRestoreHostFlags & VMX_RESTORE_HOST_REQUIRED)
+        && (pVCpu->hm.s.vmx.fRestoreHostFlags & ~VMX_RESTORE_HOST_REQUIRED))
+    {
+        Log4Func(("Restoring Host State: fRestoreHostFlags=%#RX32 HostCpuId=%u\n", pVCpu->hm.s.vmx.fRestoreHostFlags,
+                  pVCpu->idCpu));
+        VMXRestoreHostState(pVCpu->hm.s.vmx.fRestoreHostFlags, &pVCpu->hm.s.vmx.RestoreHost);
+    }
+    pVCpu->hm.s.vmx.fRestoreHostFlags = 0;
 #endif
 
     /*
@@ -2927,9 +2936,6 @@ DECLINLINE(int) hmR0VmxSaveHostSegmentRegs(PVM pVM, PVMCPU pVCpu)
     RTSEL uSelFS = 0;
     RTSEL uSelGS = 0;
 #endif
-
-    /* Recalculate which host-state bits need to be manually restored. */
-    pVCpu->hm.s.vmx.fRestoreHostFlags = 0;
 
     /*
      * Host CS and SS segment registers.
@@ -4817,6 +4823,50 @@ static int hmR0VmxLoadGuestActivityState(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 }
 
 
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
+/**
+ * Check if guest state allows safe use of 32-bit switcher again.
+ *
+ * Segment bases and protected mode structures must be 32-bit addressable
+ * because the  32-bit switcher will ignore high dword when writing these VMCS
+ * fields.  See @bugref{8432} for details.
+ *
+ * @returns true if safe, false if must continue to use the 64-bit switcher.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pMixedCtx   Pointer to the guest-CPU context. The data may be
+ *                      out-of-sync. Make sure to update the required fields
+ *                      before using them.
+ *
+ * @remarks No-long-jump zone!!!
+ */
+static bool hmR0VmxIs32BitSwitcherSafe(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
+{
+    if (pMixedCtx->gdtr.pGdt    & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->idtr.pIdt    & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->ldtr.u64Base & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->tr.u64Base   & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->es.u64Base   & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->cs.u64Base   & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->ss.u64Base   & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->ds.u64Base   & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->fs.u64Base   & UINT64_C(0xffffffff00000000))
+        return false;
+    if (pMixedCtx->gs.u64Base   & UINT64_C(0xffffffff00000000))
+        return false;
+    /* All good, bases are 32-bit. */
+    return true;
+}
+#endif
+
+
 /**
  * Sets up the appropriate function to run guest code.
  *
@@ -4872,11 +4922,25 @@ static int hmR0VmxSetupVMRunHandler(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
                                              | HM_CHANGED_GUEST_EFER_MSR), ("flags=%#x\n", HMCPU_CF_VALUE(pVCpu)));
         }
 # ifdef VBOX_ENABLE_64_BITS_GUESTS
-        /* Keep using the 64-bit switcher even though we're in 32-bit because of bad Intel design. See @bugref{8432#c7}. */
+        /* Keep using the 64-bit switcher even though we're in 32-bit because of bad Intel design. See @bugref{8432#c7}.
+         * Except if Real-on-V86 is active, clear the 64-bit switcher flag because now we know the guest is in a sane
+         * state where it's safe to use the 32-bit switcher again.
+         */
+        if (pVCpu->hm.s.vmx.RealMode.fRealOnV86Active)
+            pVCpu->hm.s.vmx.fSwitchedTo64on32 = false;
+
         if (!pVCpu->hm.s.vmx.fSwitchedTo64on32)
             pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
         else
+        {
+            Assert(!pVCpu->hm.s.vmx.RealMode.fRealOnV86Active);
             Assert(pVCpu->hm.s.vmx.pfnStartVM == VMXR0SwitcherStartVM64);
+            if (hmR0VmxIs32BitSwitcherSafe(pVCpu, pMixedCtx))
+            {
+                pVCpu->hm.s.vmx.fSwitchedTo64on32 = false;
+                pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
+            }
+        }
 # else
         pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
 # endif
@@ -4974,8 +5038,11 @@ static void hmR0VmxReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rcVMRun, PC
                 Log4(("VMX_VMCS32_CTRL_PIN_EXEC                %#RX32\n", u32Val));
                 rc = VMXReadVmcs32(VMX_VMCS32_CTRL_PROC_EXEC, &u32Val);                 AssertRC(rc);
                 Log4(("VMX_VMCS32_CTRL_PROC_EXEC               %#RX32\n", u32Val));
-                rc = VMXReadVmcs32(VMX_VMCS32_CTRL_PROC_EXEC2, &u32Val);                AssertRC(rc);
-                Log4(("VMX_VMCS32_CTRL_PROC_EXEC2              %#RX32\n", u32Val));
+                if (pVCpu->hm.s.vmx.u32ProcCtls & VMX_VMCS_CTRL_PROC_EXEC_USE_SECONDARY_EXEC_CTRL)
+                {
+                    rc = VMXReadVmcs32(VMX_VMCS32_CTRL_PROC_EXEC2, &u32Val);            AssertRC(rc);
+                    Log4(("VMX_VMCS32_CTRL_PROC_EXEC2              %#RX32\n", u32Val));
+                }
                 rc = VMXReadVmcs32(VMX_VMCS32_CTRL_ENTRY, &u32Val);                     AssertRC(rc);
                 Log4(("VMX_VMCS32_CTRL_ENTRY                   %#RX32\n", u32Val));
                 rc = VMXReadVmcs32(VMX_VMCS32_CTRL_EXIT, &u32Val);                      AssertRC(rc);
@@ -5010,8 +5077,11 @@ static void hmR0VmxReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rcVMRun, PC
                 Log4(("VMX_VMCS_CTRL_CR4_MASK                  %#RHr\n", uHCReg));
                 rc = VMXReadVmcsHstN(VMX_VMCS_CTRL_CR4_READ_SHADOW, &uHCReg);           AssertRC(rc);
                 Log4(("VMX_VMCS_CTRL_CR4_READ_SHADOW           %#RHr\n", uHCReg));
-                rc = VMXReadVmcs64(VMX_VMCS64_CTRL_EPTP_FULL, &u64Val);                 AssertRC(rc);
-                Log4(("VMX_VMCS64_CTRL_EPTP_FULL               %#RX64\n", u64Val));
+                if (pVM->hm.s.fNestedPaging)
+                {
+                    rc = VMXReadVmcs64(VMX_VMCS64_CTRL_EPTP_FULL, &u64Val);             AssertRC(rc);
+                    Log4(("VMX_VMCS64_CTRL_EPTP_FULL               %#RX64\n", u64Val));
+                }
 
                 /* Guest bits. */
                 rc = VMXReadVmcsGstN(VMX_VMCS_GUEST_RIP, &u64Val);          AssertRC(rc);
@@ -11388,7 +11458,7 @@ HMVMX_EXIT_DECL hmR0VmxExitGetsec(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIEN
 HMVMX_EXIT_DECL hmR0VmxExitRdtsc(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS();
-    int rc = hmR0VmxSaveGuestCR4(pVCpu, pMixedCtx);    /** @todo review if CR4 is really required by EM. */
+    int rc = hmR0VmxSaveGuestCR4(pVCpu, pMixedCtx);
     AssertRCReturn(rc, rc);
 
     PVM pVM = pVCpu->CTX_SUFF(pVM);
@@ -11414,7 +11484,7 @@ HMVMX_EXIT_DECL hmR0VmxExitRdtsc(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT
 HMVMX_EXIT_DECL hmR0VmxExitRdtscp(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS();
-    int rc = hmR0VmxSaveGuestCR4(pVCpu, pMixedCtx);                /** @todo review if CR4 is really required by EM. */
+    int rc = hmR0VmxSaveGuestCR4(pVCpu, pMixedCtx);
     rc    |= hmR0VmxSaveGuestAutoLoadStoreMsrs(pVCpu, pMixedCtx);  /* For MSR_K8_TSC_AUX */
     AssertRCReturn(rc, rc);
 
@@ -11444,8 +11514,8 @@ HMVMX_EXIT_DECL hmR0VmxExitRdtscp(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIEN
 HMVMX_EXIT_DECL hmR0VmxExitRdpmc(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS();
-    int rc = hmR0VmxSaveGuestCR4(pVCpu, pMixedCtx);    /** @todo review if CR4 is really required by EM. */
-    rc    |= hmR0VmxSaveGuestCR0(pVCpu, pMixedCtx);    /** @todo review if CR0 is really required by EM. */
+    int rc = hmR0VmxSaveGuestCR4(pVCpu, pMixedCtx);
+    rc    |= hmR0VmxSaveGuestCR0(pVCpu, pMixedCtx);
     AssertRCReturn(rc, rc);
 
     PVM pVM = pVCpu->CTX_SUFF(pVM);
@@ -12523,8 +12593,7 @@ HMVMX_EXIT_DECL hmR0VmxExitTaskSwitch(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRAN
         }
     }
 
-    /** @todo Emulate task switch someday, currently just going back to ring-3 for
-     *        emulation. */
+    /* Fall back to the interpreter to emulate the task-switch. */
     STAM_COUNTER_INC(&pVCpu->hm.s.StatExitTaskSwitch);
     return VERR_EM_INTERPRETER;
 }
@@ -13485,9 +13554,9 @@ static int hmR0VmxExitXcptPF(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
                             | HM_CHANGED_GUEST_RFLAGS
                             | HM_CHANGED_VMX_GUEST_APIC_STATE);
 #else
-        /* This is typically a shadow page table sync or a MMIO instruction. But we
-         * may have emulated something like LTR or a far jump. Any part of the CPU
-         * context may have changed.
+        /*
+         * This is typically a shadow page table sync or a MMIO instruction. But we may have
+         * emulated something like LTR or a far jump. Any part of the CPU context may have changed.
          */
         /** @todo take advantage of CPUM changed flags instead of brute forcing. */
         HMCPU_CF_SET(pVCpu, HM_CHANGED_ALL_GUEST);

@@ -4135,7 +4135,7 @@
 
     <attribute name="IOAPICEnabled" type="boolean">
       <desc>
-        IO APIC support flag. If set, VirtualBox will provide an IO APIC
+        I/O-APIC support flag. If set, VirtualBox will provide an I/O-APIC
         and support IRQs above 15.
       </desc>
     </attribute>
@@ -4362,11 +4362,11 @@
 
   <interface
     name="IMachine" extends="$unknown"
-    uuid="95565a66-622a-4ad0-4eed-9bb83c91c5be"
+    uuid="b2547866-a0a1-4391-8b86-6952d82efaa0"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IInternalMachineControl"
     wrap-hint-server="manualaddinterfaces"
-    reservedMethods="8" reservedAttributes="10"
+    reservedMethods="7" reservedAttributes="10"
     >
     <!-- Note! This interface is not compatible between 5.0 and 5.1 as it had too many
                methods/attributes for midl and the reservedAttributes had to be
@@ -4839,6 +4839,12 @@
     <attribute name="settingsFilePath" type="wstring" readonly="yes" wrap-hint-server="limitedcaller">
       <desc>
         Full name of the file containing machine settings data.
+      </desc>
+    </attribute>
+
+    <attribute name="settingsAuxFilePath" type="wstring" readonly="yes" wrap-hint-server="limitedcaller">
+      <desc>
+        Full name of the file containing auxiliary machine settings data.
       </desc>
     </attribute>
 
@@ -5989,7 +5995,6 @@ and "VAR" for unsetting. -->
       <desc>Device slot in the given port.</desc>
       </param>
     </method>
-
 
     <method name="unmountMedium">
       <desc>
@@ -7782,7 +7787,7 @@ and "VAR" for unsetting. -->
         media are created for all normal media of the machine.
 
         If the given snapshot is an online snapshot, the machine will go to
-        the <link to="MachineState_Saved"> saved state</link>, so that the
+        the <link to="MachineState_Saved">saved state</link>, so that the
         next time it is powered on, the execution state will be restored
         from the state of the snapshot.
 
@@ -9353,7 +9358,7 @@ and "VAR" for unsetting. -->
       <desc>
         Indicates whether VirtualBox was built with raw-mode support.
 
-        When this reads as False, the <link to="HWVirtExPropertyType::Enabled"/>
+        When this reads as False, the <link to="HWVirtExPropertyType_Enabled"/>
         setting will be ignored and assumed to be True.
       </desc>
     </attribute>
@@ -9757,7 +9762,7 @@ and "VAR" for unsetting. -->
 
   <interface
     name="IGuestOSType" extends="$unknown"
-    uuid="03cd409d-20f5-43f9-8de1-4a129620990b"
+    uuid="b1336a0a-2546-4d99-8cff-8efb130cfa9d"
     wsmap="struct"
     reservedAttributes="15"
     >
@@ -9785,7 +9790,7 @@ and "VAR" for unsetting. -->
     </attribute>
 
     <attribute name="recommendedIOAPIC" type="boolean" readonly="yes">
-      <desc>Returns @c true if IO APIC recommended for this OS type.</desc>
+      <desc>Returns @c true if I/O-APIC recommended for this OS type.</desc>
     </attribute>
 
     <attribute name="recommendedVirtEx" type="boolean" readonly="yes">
@@ -9882,6 +9887,10 @@ and "VAR" for unsetting. -->
 
     <attribute name="recommendedTFReset" type="boolean" readonly="yes">
       <desc>Returns @c true if using VCPU reset on triple fault is recommended for this OS type.</desc>
+    </attribute>
+
+    <attribute name="recommendedX2APIC" type="boolean" readonly="yes">
+      <desc>Returns @c true if X2APIC is recommended for this OS type.</desc>
     </attribute>
 
   </interface>
@@ -10561,12 +10570,12 @@ and "VAR" for unsetting. -->
 
   <enum
     name="ProcessCreateFlag"
-    uuid="be8c8dbd-4a76-e9ac-20df-468e86edf383"
+    uuid="C544CD2B-F02D-4886-9901-71C523DB8DC5"
     >
     <desc>
       Guest process execution flags.
       <note>The values are passed to the guest additions, so its not possible
-            to change (move) or reuse values.here.  See EXECUTEPROCESSFLAG_XXX
+            to change (move) or reuse values.here. See EXECUTEPROCESSFLAG_XXX
             in GuestControlSvc.h.</note>
     </desc>
 
@@ -10583,8 +10592,8 @@ and "VAR" for unsetting. -->
     <const name="Hidden"                    value="4">
       <desc>Do not show the started process according to the guest OS guidelines.</desc>
     </const>
-    <const name="NoProfile"                 value="8">
-      <desc>Do not use the user's profile data when exeuting a process. Only available for Windows guests.</desc>
+    <const name="Profile"                   value="8">
+      <desc>Utilize the user's profile data when exeuting a process. Only available for Windows guests at the moment.</desc>
     </const>
     <const name="WaitForStdOut"             value="16">
       <desc>The guest process waits until all data from stdout is read out.</desc>
@@ -11453,7 +11462,7 @@ and "VAR" for unsetting. -->
       </param>
       <param name="destination" type="wstring" dir="in">
         <desc>The path to the target directory (in the guest).  Unless the
-          <link to="DirectoryCopyFlags::CopyIntoExisting"/> flag is given, the
+          <link to="DirectoryCopyFlags_CopyIntoExisting"/> flag is given, the
           directory shall not already exist.  Guest path style.</desc>
       </param>
       <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
@@ -11478,7 +11487,7 @@ and "VAR" for unsetting. -->
       </param>
       <param name="destination" type="wstring" dir="in">
         <desc>Where to put the directory on the host.  Unless the
-          <link to="DirectoryCopyFlags::CopyIntoExisting"/> flag is given, the
+          <link to="DirectoryCopyFlags_CopyIntoExisting"/> flag is given, the
           directory shall not already exist.  Host path style.</desc>
       </param>
       <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
@@ -11503,7 +11512,7 @@ and "VAR" for unsetting. -->
       </param>
       <param name="destination" type="wstring" dir="in">
         <desc>Where to put the file in the guest. Unless the
-          <link to="DirectoryCopyFlags::CopyIntoExisting"/> flag is given, the
+          <link to="DirectoryCopyFlags_CopyIntoExisting"/> flag is given, the
           directory shall not already exist.  Guest style path.</desc>
       </param>
       <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
@@ -11682,7 +11691,7 @@ and "VAR" for unsetting. -->
       </param>
       <param name="flags" type="DirectoryRemoveRecFlag" dir="in" safearray="yes">
         <desc>Zero or more <link to="DirectoryRemoveRecFlag"/> flags.
-          <note>WARNING! SPECIFYING <link to="DirectoryRemoveRecFlag::ContentAndDir"/> IS
+          <note>WARNING! SPECIFYING <link to="DirectoryRemoveRecFlag_ContentAndDir"/> IS
              MANDATORY AT THE MOMENT!!</note>
         </desc>
       </param>
@@ -11772,7 +11781,7 @@ and "VAR" for unsetting. -->
         Copies a file from one guest location to another.
 
         <note>Will overwrite the destination file unless
-          <link to="FileCopyFlag::NoReplace"/> is specified.</note>
+          <link to="FileCopyFlag_NoReplace"/> is specified.</note>
 
         <result name="E_NOTIMPL">
           Not yet implemented.
@@ -11798,7 +11807,7 @@ and "VAR" for unsetting. -->
         Copies a file from the guest to the host.
 
         <note>Will overwrite the destination file unless
-          <link to="FileCopyFlag::NoReplace"/> is specified.</note>
+          <link to="FileCopyFlag_NoReplace"/> is specified.</note>
 
         <result name="VBOX_E_IPRT_ERROR">
           Error starting the copy operation.
@@ -11825,7 +11834,7 @@ and "VAR" for unsetting. -->
         Copies a file from the host to the guest.
 
         <note>Will overwrite the destination file unless
-          <link to="FileCopyFlag::NoReplace"/> is specified.</note>
+          <link to="FileCopyFlag_NoReplace"/> is specified.</note>
 
         <result name="VBOX_E_IPRT_ERROR">
           Error starting the copy operation.
@@ -11989,7 +11998,7 @@ and "VAR" for unsetting. -->
         <desc>The file sharing mode in the guest. This parameter is currently
           ignore for all guest OSes.  It will in the future be implemented for
           Windows, OS/2 and maybe Solaris guests only, the others will ignore it.
-          Use <link to="FileSharingMode::All"/>.
+          Use <link to="FileSharingMode_All"/>.
         </desc>
       </param>
       <param name="creationMode" type="unsigned long" dir="in">
@@ -12773,8 +12782,8 @@ and "VAR" for unsetting. -->
 
         The file current position always applies to the <link to="IFile::read"/>
         method, which updates it upon return.  Same goes for the <link to="IFile::write"/>
-        method except when <link to="IFile::accessMode"/> is <link to="FileAccessMode::AppendOnly"/>
-        or <link to="FileAccessMode::AppendRead"/>, where it will always write
+        method except when <link to="IFile::accessMode"/> is <link to="FileAccessMode_AppendOnly"/>
+        or <link to="FileAccessMode_AppendRead"/>, where it will always write
         to the end of the file and will leave this attribute unchanged.
 
         The <link to="IFile::seek"/> is used to change this attribute without
@@ -12897,8 +12906,8 @@ and "VAR" for unsetting. -->
 
         The file current position always applies to the <link to="IFile::read"/>
         method.  Same for the <link to="IFile::write"/> method it except when
-        the <link to="IFile::accessMode"/> is <link to="FileAccessMode::AppendOnly"/>
-        or <link to="FileAccessMode::AppendRead"/>.
+        the <link to="IFile::accessMode"/> is <link to="FileAccessMode_AppendOnly"/>
+        or <link to="FileAccessMode_AppendRead"/>.
       </desc>
       <param name="offset" type="long long" dir="in">
         <desc>Offset to seek relative to the position specified by @a whence.</desc>
@@ -16881,9 +16890,21 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           The Y origin of the guest screen.
         </desc>
       </param>
-      <param name="width" type="unsigned long" dir="in"/>
-      <param name="height" type="unsigned long" dir="in"/>
-      <param name="bitsPerPixel" type="unsigned long" dir="in"/>
+      <param name="width" type="unsigned long" dir="in">
+        <desc>
+          The width of the guest screen.
+        </desc>
+      </param>
+      <param name="height" type="unsigned long" dir="in">
+        <desc>
+          The height of the guest screen.
+        </desc>
+      </param>
+      <param name="bitsPerPixel" type="unsigned long" dir="in">
+        <desc>
+          The number of bits per pixel of the guest screen.
+        </desc>
+      </param>
     </method>
 
     <method name="setSeamlessMode">
@@ -18793,10 +18814,10 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <desc>Null value, also means "dummy audio driver".</desc>
     </const>
     <const name="WinMM"         value="1">
-        <desc>Windows multimedia (Windows hosts only).</desc>
+        <desc>Windows multimedia (Windows hosts only, not supported at the moment).</desc>
     </const>
     <const name="OSS"           value="2">
-        <desc>Open Sound System (Linux hosts only).</desc>
+        <desc>Open Sound System (Linux / Unix hosts only).</desc>
     </const>
     <const name="ALSA"          value="3">
         <desc>Advanced Linux Sound Architecture (Linux hosts only).</desc>
@@ -18814,7 +18835,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         <desc>PulseAudio (Linux hosts only).</desc>
     </const>
     <const name="SolAudio"      value="8">
-        <desc>Solaris audio (Solaris hosts only).</desc>
+        <desc>Solaris audio (Solaris hosts only, not supported at the moment).</desc>
     </const>
   </enum>
 

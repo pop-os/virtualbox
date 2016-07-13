@@ -30,7 +30,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 108245 $"
 
 import subprocess
 import sys
@@ -92,7 +92,7 @@ class TestBoxScriptWrapper(object): # pylint: disable=R0903
 
         # Look for --pidfile <name> and write a pid file.
         sPidFile = None;
-        for i in range(len(asArgs)):
+        for i, _ in enumerate(asArgs):
             if asArgs[i] == '--pidfile' and i + 1 < len(asArgs):
                 sPidFile = asArgs[i + 1];
                 break;

@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 107552 $)
+# Linux Additions kernel module init script ($Revision: 108709 $)
 #
 
 #
@@ -226,6 +226,8 @@ start()
     /sbin/rcvboxadd-x11 setup
     # Install the guest OpenGL drivers.  For now we don't support
     # multi-architecture installations
+    rm -f /etc/ld.so.conf.d/00vboxvideo.conf
+    ldconfig
     if /usr/bin/VBoxClient --check3d 2>/dev/null; then
         rm -f /var/lib/VBoxGuestAdditions/lib/system/tmp.so
         mkdir -m 0755 -p /var/lib/VBoxGuestAdditions/lib/system
@@ -246,8 +248,6 @@ start()
         ln -sf "${INSTALL_DIR}/lib/VBoxOGL.so" /var/lib/VBoxGuestAdditions/lib/libGL.so.1
         ln -sf "${INSTALL_DIR}/lib/VBoxEGL.so" /var/lib/VBoxGuestAdditions/lib/libEGL.so.1
         echo "/var/lib/VBoxGuestAdditions/lib" > /etc/ld.so.conf.d/00vboxvideo.conf
-    else
-        rm -f /etc/ld.so.conf.d/00vboxvideo.conf
     fi
     ldconfig
 
@@ -498,7 +498,7 @@ cleanup()
     # Delete old versions of VBox modules.
     cleanup_modules
     for i in /lib/modules/*; do
-        update_module_dependencies "${i#/lib/modules}"
+        update_module_dependencies "${i#/lib/modules/}"
     done
 
     # Remove old module sources

@@ -296,7 +296,7 @@ HIDE_UNDOC_MEMBERS     = NO
 HIDE_UNDOC_CLASSES     = NO
 HIDE_FRIEND_COMPOUNDS  = NO
 HIDE_IN_BODY_DOCS      = NO
-INTERNAL_DOCS          = NO
+INTERNAL_DOCS          = YES
 CASE_SENSE_NAMES       = NO
 HIDE_SCOPE_NAMES       = NO
 HIDE_COMPOUND_REFERENCE= NO
@@ -534,6 +534,7 @@ PREDEFINED             =  \
 # decl and calling conventions.
 PREDEFINED += \
     "DECLINLINE(type)=inline type" \
+    APICBOTHCBDECL(type)=type \
     DECL_FORCE_INLINE(type)=DECLINLINE(type) \
     DECL_NO_INLINE(type)=type \
     DECLCALLBACK(type)=type \
@@ -691,8 +692,10 @@ PREDEFINED          += \
     "END_INTERFACE_MAP()=" \
     "DISP_FUNCTION(class, name, function, result, id)=" \
     "END_DISPATCH_MAP()=" \
-    "IMPLEMENT_OLECREATE2(class, name, id1, id2, id3, id4,\
-    id5, id6, id7, id8, id9, id10, id11)="
+    "IMPLEMENT_OLECREATE2(class, name, id1, id2, id3, id4, id5, id6, id7, id8, id9, id10, id11)=" \
+    RT_GCC_EXTENSION= \
+    "CPUM_STRUCT_NM(n)=" \
+    "CPUM_UNION_NM(n)="
 
 EXPAND_AS_DEFINED      = \
     RCPTRTYPE \
@@ -741,6 +744,7 @@ EXPAND_AS_DEFINED      = \
     INTNETR0DECL \
     INTNETR3DECL \
     PDMBOTHCBDECL \
+    APICBOTHCBDECL \
     PGM_BTH_DECL \
     PGM_GST_DECL \
     PGM_SHW_DECL \

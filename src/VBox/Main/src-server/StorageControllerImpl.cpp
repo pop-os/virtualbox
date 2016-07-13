@@ -36,9 +36,6 @@
 
 // defines
 /////////////////////////////////////////////////////////////////////////////
-//
-//
-DEFINE_EMPTY_CTOR_DTOR(StorageController)
 
 struct StorageController::Data
 {
@@ -62,6 +59,8 @@ struct StorageController::Data
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
+
+DEFINE_EMPTY_CTOR_DTOR(StorageController)
 
 HRESULT StorageController::FinalConstruct()
 {
@@ -716,7 +715,7 @@ void StorageController::i_setBootable(BOOL fBootable)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m->bd.backup();
-    m->bd->fBootable = fBootable;
+    m->bd->fBootable = RT_BOOL(fBootable);
 }
 
 /** @note Locks objects for writing! */

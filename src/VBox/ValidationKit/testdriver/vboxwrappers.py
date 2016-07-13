@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107908 $"
+__version__ = "$Revision: 108687 $"
 
 
 # Standard Python imports.
@@ -135,17 +135,17 @@ class VirtualBoxWrapper(object): # pylint: disable=R0903
         Returns True on success and False on failure. Error information is logged.
         """
         try:
-            oIMedium = self.oVBox.findHardDisk(sHdLocation);
+            oIMedium = self.o.findHardDisk(sHdLocation);
         except:
             try:
                 if self.fpApiVer >= 4.1:
-                    oIMedium = self.oVBox.openMedium(sHdLocation, vboxcon.DeviceType_HardDisk,
-                                                     vboxcon.AccessMode_ReadWrite, False);
+                    oIMedium = self.o.openMedium(sHdLocation, vboxcon.DeviceType_HardDisk,
+                                                 vboxcon.AccessMode_ReadWrite, False);
                 elif self.fpApiVer >= 4.0:
-                    oIMedium = self.oVBox.openMedium(sHdLocation, vboxcon.DeviceType_HardDisk,
-                                                     vboxcon.AccessMode_ReadWrite);
+                    oIMedium = self.o.openMedium(sHdLocation, vboxcon.DeviceType_HardDisk,
+                                                 vboxcon.AccessMode_ReadWrite);
                 else:
-                    oIMedium = self.oVBox.openHardDisk(sHdLocation, vboxcon.AccessMode_ReadOnly, False, "", False, "");
+                    oIMedium = self.o.openHardDisk(sHdLocation, vboxcon.AccessMode_ReadOnly, False, "", False, "");
             except:
                 return reporter.errorXcpt('failed to open hd "%s"' % (sHdLocation));
         return self.deleteHdByMedium(oIMedium)
@@ -222,6 +222,7 @@ class ProgressWrapper(TdTaskBase):
                 self.o.waitForCompletion(cMsToWait);
             except KeyboardInterrupt: raise;
             except: pass;
+            reporter.doPollWork('ProgressWrapper.waitForTask');
             fState = self.pollTask(False);
         return fState;
 
@@ -408,6 +409,7 @@ class ProgressWrapper(TdTaskBase):
             except:
                 reporter.errorXcpt(self.sName);
                 return -2;
+            reporter.doPollWork('ProgressWrapper.wait');
 
         try:
             rc = self.o.resultCode;
@@ -480,6 +482,7 @@ class ProgressWrapper(TdTaskBase):
                 else:
                     reporter.errorXcpt(self.sName);
                 return -2;
+            reporter.doPollWork('ProgressWrapper.waitForOperation');
         # Not reached.
 
     def doQuickApiTest(self):
@@ -487,7 +490,7 @@ class ProgressWrapper(TdTaskBase):
         Queries everything that is stable and easy to get at and checks that
         they don't throw errors.
         """
-        if True:
+        if True is True:
             try:
                 iPct        = self.o.operationPercent;
                 sDesc       = self.o.description;
@@ -537,6 +540,7 @@ class SessionWrapper(TdTaskBase):
         self.sLogFile               = sLogFile;
         self.oConsoleEventHandler   = None;
         self.uPid                   = None;
+        self.fHostMemoryLow         = False;    # see signalHostMemoryLow; read-only for outsiders.
 
         try:
             self.sName              = oSession.machine.name;
@@ -637,7 +641,12 @@ class SessionWrapper(TdTaskBase):
 
         This method returns False while the VM is online and running normally.
         """
-        fRc = self.__pollTask();
+
+        # Call super to check if the task was signalled by runtime error or similar,
+        # if not then check the VM state via __pollTask.
+        fRc = super(SessionWrapper, self).pollTask(fLocked);
+        if not fRc:
+            fRc = self.__pollTask();
 
         # HACK ALERT: Lazily try registering the console event handler if
         #             we're not ready.
@@ -661,9 +670,13 @@ class SessionWrapper(TdTaskBase):
             cMsElapsed = base.timestampMilli() - msStart;
             if cMsElapsed > cMsTimeout:
                 break;
-            try:    self.oVBoxMgr.waitForEvents(cMsTimeout - cMsElapsed);
+            cMsSleep = cMsTimeout - cMsElapsed;
+            if cMsSleep > 10000:
+                cMsSleep = 10000;
+            try:    self.oVBoxMgr.waitForEvents(cMsSleep);
             except KeyboardInterrupt: raise;
             except: pass;
+            reporter.doPollWork('SessionWrapper.waitForTask');
             fState = self.pollTask(False);
         return fState;
 
@@ -694,7 +707,6 @@ class SessionWrapper(TdTaskBase):
         self.oConsoleEventHandler = self.registerDerivedEventHandler(vbox.SessionConsoleEventHandler, {}, False);
         return self.oConsoleEventHandler is not None;
 
-
     def deregisterEventHandlerForTask(self):
         """
         Deregisters the console event handlers.
@@ -702,6 +714,54 @@ class SessionWrapper(TdTaskBase):
         if self.oConsoleEventHandler is not None:
             self.oConsoleEventHandler.unregister();
             self.oConsoleEventHandler = None;
+
+    def signalHostMemoryLow(self):
+        """
+        Used by a runtime error event handler to indicate that we're low on memory.
+        Signals the task.
+        """
+        self.fHostMemoryLow = True;
+        self.signalTask();
+        return True;
+
+    def needsPoweringOff(self):
+        """
+        Examins the machine state to see if the VM needs powering off.
+        """
+        try:
+            try:
+                eState = self.o.machine.state;
+            except Exception, oXcpt:
+                if vbox.ComError.notEqual(oXcpt, vbox.ComError.E_UNEXPECTED):
+                    reporter.logXcpt();
+                return False;
+        finally:
+            self.oTstDrv.processPendingEvents();
+
+        # Switch
+        if eState == vboxcon.MachineState_Running:
+            return True;
+        if eState == vboxcon.MachineState_Paused:
+            return True;
+        if eState == vboxcon.MachineState_Stuck:
+            return True;
+        if eState == vboxcon.MachineState_Teleporting:
+            return True;
+        if eState == vboxcon.MachineState_LiveSnapshotting:
+            return True;
+        if eState == vboxcon.MachineState_Starting:
+            return True;
+        if eState == vboxcon.MachineState_Saving:
+            return True;
+        if eState == vboxcon.MachineState_Restoring:
+            return True;
+        if eState == vboxcon.MachineState_TeleportingPausedVM:
+            return True;
+        if eState == vboxcon.MachineState_TeleportingIn:
+            return True;
+        if eState == vboxcon.MachineState_FaultTolerantSyncing:
+            return True;
+        return False;
 
     def assertPoweredOff(self):
         """
@@ -722,7 +782,6 @@ class SessionWrapper(TdTaskBase):
         reporter.error('Expected machine state "PoweredOff", machine is in the "%s" state instead.'
                        % (_nameMachineState(eState),));
         return False;
-
 
     def getMachineStateWithName(self):
         """
@@ -1449,9 +1508,9 @@ class SessionWrapper(TdTaskBase):
 
                 sHostIP = socket.gethostbyname(sHostName)
                 abHostIP = socket.inet_aton(sHostIP)
-                if ord(abHostIP[0]) == 127 \
-                    or ord(abHostIP[0]) == 169 and ord(abHostIP[1]) == 254 \
-                    or ord(abHostIP[0]) == 192 and ord(abHostIP[1]) == 168 and ord(abHostIP[2]) == 56:
+                if   ord(abHostIP[0]) == 127 \
+                  or (ord(abHostIP[0]) == 169 and ord(abHostIP[1]) == 254) \
+                  or (ord(abHostIP[0]) == 192 and ord(abHostIP[1]) == 168 and ord(abHostIP[2]) == 56):
                     reporter.log('warning: host IP for "%s" is %s, most likely not unique.' % (sHostName, sHostIP))
             except:
                 reporter.errorXcpt('failed to determine the host IP for "%s".' % (sHostName,))
@@ -2545,13 +2604,13 @@ class SessionWrapper(TdTaskBase):
 
         # Now for the hardened windows startup log.
         try:
-            sLogFile = os.path.join(self.oVM.logFolder, 'VBoxStartup.log');
+            sLogFile = os.path.join(self.oVM.logFolder, 'VBoxHardening.log');
         except:
             reporter.logXcpt();
             fRc = False;
         else:
             if os.path.isfile(sLogFile):
-                reporter.addLogFile(sLogFile, 'log/release/vm', '%s startup log' % (self.sName, ),
+                reporter.addLogFile(sLogFile, 'log/release/vm', '%s hardening log' % (self.sName, ),
                                     sAltName = '%s-%s' % (self.sName, os.path.basename(sLogFile),));
 
         # Now for the debug log.

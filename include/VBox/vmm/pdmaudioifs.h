@@ -31,7 +31,7 @@
 #include <iprt/critsect.h>
 #include <iprt/list.h>
 
-#ifdef VBOX_WITH_AUDIO_STABLE
+#ifdef VBOX_WITH_AUDIO_50
 # undef ___VBox_vmm_pdmaudioifs_h
 # include "pdmaudioifs_old.h"
 #else
@@ -256,7 +256,7 @@ typedef struct PDMAUDIOSTREAMCFG
 typedef enum PDMAUDIOMIXERCTL
 {
     PDMAUDIOMIXERCTL_UNKNOWN = 0,
-    PDMAUDIOMIXERCTL_VOLUME,
+    PDMAUDIOMIXERCTL_VOLUME_MASTER,
     PDMAUDIOMIXERCTL_FRONT,
     PDMAUDIOMIXERCTL_CENTER_LFE,
     PDMAUDIOMIXERCTL_REAR,
@@ -310,8 +310,8 @@ typedef struct PDMPCMPROPS
     uint32_t    uAlign;
     /** Sample frequency in Hertz (Hz). */
     uint32_t    uHz;
-    /** Bandwidth (bytes/s). */
-    uint32_t    cbPerSec;
+    /** Bitrate (in bytes/s). */
+    uint32_t    cbBitrate;
     /** Whether the endianness is swapped or not. */
     bool        fSwapEndian;
 } PDMPCMPROPS, *PPDMPCMPROPS;
@@ -322,12 +322,21 @@ typedef struct PDMPCMPROPS
 typedef struct PDMAUDIOVOLUME
 {
     /** Set to @c true if this stream is muted, @c false if not. */
-    bool                   fMuted;
-    /** Left channel volume. */
-    uint32_t               uLeft;
-    /** Right channel volume. */
-    uint32_t               uRight;
+    bool    fMuted;
+    /** Left channel volume.
+     *  Range is from [0 ... 255], whereas 0 specifies
+     *  the most silent and 255 the loudest value. */
+    uint8_t uLeft;
+    /** Right channel volume.
+     *  Range is from [0 ... 255], whereas 0 specifies
+     *  the most silent and 255 the loudest value. */
+    uint8_t uRight;
 } PDMAUDIOVOLUME, *PPDMAUDIOVOLUME;
+
+/** Defines the minimum volume allowed. */
+#define PDMAUDIO_VOLUME_MIN     (0)
+/** Defines the maximum volume allowed. */
+#define PDMAUDIO_VOLUME_MAX     (255)
 
 /**
  * Structure for holding rate processing information
@@ -353,17 +362,40 @@ typedef struct PDMAUDIOSTRMRATE
 } PDMAUDIOSTRMRATE, *PPDMAUDIOSTRMRATE;
 
 /**
+ * Structure for holding mixing buffer volume parameters.
+ * The volume values are in fixed point style and must
+ * be converted to/from before using with e.g. PDMAUDIOVOLUME.
+ */
+typedef struct PDMAUDMIXBUFVOL
+{
+    /** Set to @c true if this stream is muted, @c false if not. */
+    bool    fMuted;
+    /** Left volume to apply during conversion. Pass 0
+     *  to convert the original values. May not apply to
+     *  all conversion functions. */
+    uint32_t uLeft;
+    /** Right volume to apply during conversion. Pass 0
+     *  to convert the original values. May not apply to
+     *  all conversion functions. */
+    uint32_t uRight;
+} PDMAUDMIXBUFVOL, *PPDMAUDMIXBUFVOL;
+
+/**
  * Structure for holding sample conversion parameters for
  * the audioMixBufConvFromXXX / audioMixBufConvToXXX macros.
  */
 typedef struct PDMAUDMIXBUFCONVOPTS
 {
     /** Number of audio samples to convert. */
-    uint32_t       cSamples;
-    /** Volume to apply during conversion. Pass 0
-     *  to convert the original values. May not apply to
-     *  all conversion functions. */
-    PDMAUDIOVOLUME Volume;
+    uint32_t        cSamples;
+    union
+    {
+        struct
+        {
+            /** Volume to use for conversion. */
+            PDMAUDMIXBUFVOL Volume;
+        } From;
+    };
 } PDMAUDMIXBUFCONVOPTS;
 /** Pointer to conversion parameters for the audio mixer.   */
 typedef PDMAUDMIXBUFCONVOPTS *PPDMAUDMIXBUFCONVOPTS;
@@ -434,8 +466,8 @@ typedef struct PDMAUDIOMIXBUF
     RTLISTANCHOR              lstChildren;
     /** Intermediate structure for buffer conversion tasks. */
     PPDMAUDIOSTRMRATE         pRate;
-    /** Current volume used for mixing. */
-    PDMAUDIOVOLUME            Volume;
+    /** Internal representation of current volume used for mixing. */
+    PDMAUDMIXBUFVOL           Volume;
     /** This buffer's audio format. */
     PDMAUDIOMIXBUFFMT         AudioFmt;
     /** Standard conversion-to function for set AudioFmt. */
@@ -478,18 +510,31 @@ typedef uint32_t PDMAUDIOSTRMSTS;
 #define PDMAUDIOSTRMSTS_FLAG_DATA_READABLE   RT_BIT_32(4)
 /** Data can be written to the stream. */
 #define PDMAUDIOSTRMSTS_FLAG_DATA_WRITABLE   RT_BIT_32(5)
+/** Whether this stream is in re-initialization phase.
+ *  All other bits remain untouched to be able to restore
+ *  the stream's state after the re-initialization bas been
+ *  finished. */
+#define PDMAUDIOSTRMSTS_FLAG_PENDING_REINIT  RT_BIT_32(6)
 /** Validation mask. */
-#define PDMAUDIOSTRMSTS_VALID_MASK           UINT32_C(0x0000003F)
+#define PDMAUDIOSTRMSTS_VALID_MASK           UINT32_C(0x0000007F)
 
 /**
  * Enumeration presenting a backend's current status.
  */
 typedef enum PDMAUDIOBACKENDSTS
 {
+    /** Unknown/invalid status. */
     PDMAUDIOBACKENDSTS_UNKNOWN = 0,
-    PDMAUDIOBACKENDSTS_INIT,
+    /** The backend is in its initialization phase.
+     *  Not all backends support this status. */
+    PDMAUDIOBACKENDSTS_INITIALIZING,
+    /** The backend has stopped its operation. */
+    PDMAUDIOBACKENDSTS_STOPPED,
+    /** The backend is up and running. */
     PDMAUDIOBACKENDSTS_RUNNING,
-    PDMAUDIOBACKENDSTS_SHUTDOWN
+    /** The backend ran into an error and is unable to recover.
+     *  A manual re-initialization might help. */
+    PDMAUDIOBACKENDSTS_ERROR
 } PDMAUDIOBACKENDSTS;
 
 /**
@@ -540,7 +585,10 @@ typedef struct PDMAUDIOSTREAM
      *  destroyed if the reference count is reaching 0. */
     uint32_t               cRefs;
     /** PCM properties. */
+    /** @todo Deprecated; remove. Use member Cfg instead. */
     PDMPCMPROPS            Props;
+    /** The stream's audio configuration. */
+    PDMAUDIOSTREAMCFG      Cfg;
     /** Stream status flag. */
     PDMAUDIOSTRMSTS        fStatus;
     /** This stream's mixing buffer. */
@@ -908,7 +956,7 @@ typedef struct PDMIHOSTAUDIO
 
 /** @} */
 
-#endif /* VBOX_WITH_AUDIO_STABLE */
+#endif /* VBOX_WITH_AUDIO_50 */
 
 #endif /* !___VBox_vmm_pdmaudioifs_h */
 

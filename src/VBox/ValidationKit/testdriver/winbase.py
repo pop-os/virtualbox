@@ -27,18 +27,19 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 108395 $"
 
 
 # Standard Python imports.
-import os
+import os;
+import ctypes;
 
 # Windows specific imports.
-import win32api;            # pylint: disable=F0401
-import win32con;            # pylint: disable=F0401
-import win32console;        # pylint: disable=F0401
-import win32event;          # pylint: disable=F0401
-import win32process;        # pylint: disable=F0401
+import win32api;            # pylint: disable=import-error
+import win32con;            # pylint: disable=import-error
+import win32console;        # pylint: disable=import-error
+import win32event;          # pylint: disable=import-error
+import win32process;        # pylint: disable=import-error
 
 # Validation Kit imports.
 from testdriver import reporter;
@@ -56,6 +57,7 @@ def processInterrupt(uPid):
     Note! This doesn't work terribly well with a lot of processes.
     """
     try:
+        # pylint: disable=no-member
         win32console.GenerateConsoleCtrlEvent(win32con.CTRL_BREAK_EVENT, uPid);
         #GenerateConsoleCtrlEvent = ctypes.windll.kernel32.GenerateConsoleCtrlEvent
         #rc = GenerateConsoleCtrlEvent(1, uPid);
@@ -70,7 +72,7 @@ def postThreadMesssageClose(uTid):
     """ Posts a WM_CLOSE message to the specified thread."""
     fRc = False;
     try:
-        win32api.PostThreadMessage(uTid, win32con.WM_CLOSE, 0, 0);
+        win32api.PostThreadMessage(uTid, win32con.WM_CLOSE, 0, 0);                                  # pylint: disable=no-member
         fRc = True;
     except:
         reporter.logXcpt('uTid=%s' % (uTid,));
@@ -80,7 +82,7 @@ def postThreadMesssageQuit(uTid):
     """ Posts a WM_QUIT message to the specified thread."""
     fRc = False;
     try:
-        win32api.PostThreadMessage(uTid, win32con.WM_QUIT, 0x40010004, 0); # DBG_TERMINATE_PROCESS
+        win32api.PostThreadMessage(uTid, win32con.WM_QUIT, 0x40010004, 0); # DBG_TERMINATE_PROCESS  # pylint: disable=no-member
         fRc = True;
     except:
         reporter.logXcpt('uTid=%s' % (uTid,));
@@ -88,6 +90,7 @@ def postThreadMesssageQuit(uTid):
 
 def processTerminate(uPid):
     """ The Windows version of base.processTerminate """
+    # pylint: disable=no-member
     fRc = False;
     try:
         hProcess = win32api.OpenProcess(win32con.PROCESS_TERMINATE, False, uPid);
@@ -108,6 +111,7 @@ def processKill(uPid):
 
 def processExists(uPid):
     """ The Windows version of base.processExists """
+    # pylint: disable=no-member
     fRc = False;
     try:
         hProcess = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION, False, uPid);
@@ -163,6 +167,7 @@ def processCreate(sName, asArgs):
         sCmdLine += '"';
 
     # Try start the process.
+    # pylint: disable=no-member
     dwCreationFlags = win32con.CREATE_NEW_PROCESS_GROUP;
     oStartupInfo    = win32process.STARTUPINFO();
     try:
@@ -187,15 +192,15 @@ def processCreate(sName, asArgs):
 
     # Try get full access to the process.
     try:
-        hProcessFullAccess = win32api.DuplicateHandle( \
-            win32api.GetCurrentProcess(), \
-            hProcess, \
-            win32api.GetCurrentProcess(), \
-            win32con.PROCESS_TERMINATE \
-            | win32con.PROCESS_QUERY_INFORMATION \
-            | win32con.SYNCHRONIZE  \
-            | win32con.DELETE, \
-            False, \
+        hProcessFullAccess = win32api.DuplicateHandle(
+            win32api.GetCurrentProcess(),
+            hProcess,
+            win32api.GetCurrentProcess(),
+            win32con.PROCESS_TERMINATE
+            | win32con.PROCESS_QUERY_INFORMATION
+            | win32con.SYNCHRONIZE
+            | win32con.DELETE,
+            False,
             0);
         win32api.CloseHandle(hProcess);
         hProcess = hProcessFullAccess;
@@ -209,7 +214,7 @@ def processPollByHandle(hProcess):
     Polls the process handle to see if it has finished (True) or not (False).
     """
     try:
-        dwWait = win32event.WaitForSingleObject(hProcess, 0);
+        dwWait = win32event.WaitForSingleObject(hProcess, 0);                                       # pylint: disable=no-member
     except:
         reporter.logXcpt('hProcess=%s %#x' % (hProcess, hProcess,));
         return True;
@@ -221,9 +226,48 @@ def processTerminateByHandle(hProcess):
     Terminates the process.
     """
     try:
-        win32api.TerminateProcess(hProcess, 0x40010004); # DBG_TERMINATE_PROCESS
+        win32api.TerminateProcess(hProcess, 0x40010004); # DBG_TERMINATE_PROCESS                    # pylint: disable=no-member
     except:
         reporter.logXcpt('hProcess=%s %#x' % (hProcess, hProcess,));
         return False;
+    return True;
+
+#
+# Misc
+#
+
+def logMemoryStats():
+    """
+    Logs windows memory stats.
+    """
+    class MemoryStatusEx(ctypes.Structure):
+        """ MEMORYSTATUSEX """
+        kaFields = [
+            ( 'dwLength',                    ctypes.c_ulong ),
+            ( 'dwMemoryLoad',                ctypes.c_ulong ),
+            ( 'ullTotalPhys',                ctypes.c_ulonglong ),
+            ( 'ullAvailPhys',                ctypes.c_ulonglong ),
+            ( 'ullTotalPageFile',            ctypes.c_ulonglong ),
+            ( 'ullAvailPageFile',            ctypes.c_ulonglong ),
+            ( 'ullTotalVirtual',             ctypes.c_ulonglong ),
+            ( 'ullAvailVirtual',             ctypes.c_ulonglong ),
+            ( 'ullAvailExtendedVirtual',     ctypes.c_ulonglong ),
+        ];
+        _fields_ = kaFields; # pylint: disable=invalid-name
+
+        def __init__(self):
+            super(MemoryStatusEx, self).__init__();
+            self.dwLength = ctypes.sizeof(self);
+
+    try:
+        oStats = MemoryStatusEx();
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(oStats));
+    except:
+        reporter.logXcpt();
+        return False;
+
+    reporter.log('Memory statistics:');
+    for sField, _ in MemoryStatusEx.kaFields:
+        reporter.log('  %32s: %s' % (sField, getattr(oStats, sField)));
     return True;
 

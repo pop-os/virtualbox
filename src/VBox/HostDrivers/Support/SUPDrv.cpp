@@ -467,6 +467,7 @@ PFNRT g_apfnVBoxDrvIPRTDeps[] =
     (PFNRT)RTRandBytes,
     /* VBoxUSB */
     (PFNRT)RTPathStripFilename,
+    (PFNRT)RTHandleTableAlloc,
 #if !defined(RT_OS_FREEBSD)
     (PFNRT)RTStrPurgeEncoding,
 #endif
@@ -5096,7 +5097,7 @@ static int supdrvIOCtl_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessi
     const char     *pchStrings;
     const size_t    cbSymbol = strlen(pReq->u.In.szSymbol) + 1;
     void           *pvSymbol = NULL;
-    int             rc = VERR_GENERAL_FAILURE;
+    int             rc = VERR_SYMBOL_NOT_FOUND;
     Log3(("supdrvIOCtl_LdrGetSymbol: pvImageBase=%p szSymbol=\"%s\"\n", pReq->u.In.pvImageBase, pReq->u.In.szSymbol));
 
     /*

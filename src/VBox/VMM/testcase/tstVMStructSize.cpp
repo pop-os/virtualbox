@@ -232,7 +232,9 @@ int main()
     CHECK_PADDING_VM(64, dbgf);
     CHECK_PADDING_VM(64, gim);
     CHECK_PADDING_VM(64, ssm);
+#ifdef VBOX_WITH_REM
     CHECK_PADDING_VM(64, rem);
+#endif
     CHECK_PADDING_VM(8, vm);
     CHECK_PADDING_VM(8, cfgm);
 #ifdef VBOX_WITH_NEW_APIC
@@ -240,10 +242,9 @@ int main()
 #endif
 
     PRINT_OFFSET(VMCPU, cpum);
-    CHECK_PADDING_VMCPU(64, cpum);
+    CHECK_PADDING_VMCPU(64, iem);
     CHECK_PADDING_VMCPU(64, hm);
     CHECK_PADDING_VMCPU(64, em);
-    CHECK_PADDING_VMCPU(64, iem);
     CHECK_PADDING_VMCPU(64, trpm);
     CHECK_PADDING_VMCPU(64, tm);
     CHECK_PADDING_VMCPU(64, vmm);
@@ -251,14 +252,10 @@ int main()
     CHECK_PADDING_VMCPU(64, iom);
     CHECK_PADDING_VMCPU(64, dbgf);
     CHECK_PADDING_VMCPU(64, gim);
-#ifdef VBOX_WITH_NEW_APIC
     CHECK_PADDING_VMCPU(64, apic);
-#endif
-#if 0
-    PRINT_OFFSET(VMCPU, abAlignment2);
-#endif
     PRINT_OFFSET(VMCPU, pgm);
     CHECK_PADDING_VMCPU(4096, pgm);
+    CHECK_PADDING_VMCPU(4096, cpum);
 #ifdef VBOX_WITH_STATISTICS
     PRINT_OFFSET(VMCPU, pgm.s.pStatTrap0eAttributionRC);
 #endif
@@ -290,6 +287,9 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.pvApicBase, 8);
 #endif
 
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].iem.s.DataTlb, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].iem.s.CodeTlb, 64);
+
     CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.u64CallRing3Arg, 8);
 #if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
     CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.CallRing3JmpBufR0, 16);
@@ -298,9 +298,11 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VM, vmm.s.u64LastYield, 8);
     CHECK_MEMBER_ALIGNMENT(VM, vmm.s.StatRunRC, 8);
     CHECK_MEMBER_ALIGNMENT(VM, StatTotalQemuToGC, 8);
+#ifdef VBOX_WITH_REM
     CHECK_MEMBER_ALIGNMENT(VM, rem.s.uPendingExcptCR2, 8);
     CHECK_MEMBER_ALIGNMENT(VM, rem.s.StatsInQEMU, 8);
     CHECK_MEMBER_ALIGNMENT(VM, rem.s.Env, 64);
+#endif
 
     /* the VMCPUs are page aligned TLB hit reasons. */
     CHECK_MEMBER_ALIGNMENT(VM, aCpus, 4096);

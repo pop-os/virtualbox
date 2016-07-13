@@ -252,10 +252,8 @@ void QIArrowSplitter::prepare()
             {
                 /* Configure switch-button: */
                 m_pSwitchButton->setIconSize(QSize(iIconMetric, iIconMetric));
-                m_pSwitchButton->setIconForButtonState(QIArrowButtonSwitch::ButtonState_Collapsed,
-                                                       UIIconPool::iconSet(":/arrow_right_10px.png"));
-                m_pSwitchButton->setIconForButtonState(QIArrowButtonSwitch::ButtonState_Expanded,
-                                                       UIIconPool::iconSet(":/arrow_down_10px.png"));
+                m_pSwitchButton->setIcons(UIIconPool::iconSet(":/arrow_right_10px.png"),
+                                          UIIconPool::iconSet(":/arrow_down_10px.png"));
                 connect(m_pSwitchButton, SIGNAL(sigClicked()), this, SLOT(sltUpdateNavigationButtonsVisibility()));
                 connect(m_pSwitchButton, SIGNAL(sigClicked()), this, SLOT(sltUpdateDetailsBrowserVisibility()));
                 /* Add switch-button into button-layout: */
@@ -333,14 +331,14 @@ void QIArrowSplitter::updateDetails()
         /* Single page: */
         if (m_details.size() == 1)
         {
-            setName(QApplication::translate("QIMessageBox", "&Details"));
+            setName(tr("&Details"));
             m_pBackButton->setEnabled(false);
             m_pNextButton->setEnabled(false);
         }
         /* Multi-paging: */
         else if (m_details.size() > 1)
         {
-            setName(QApplication::translate("QIMessageBox", "&Details (%1 of %2)").arg(m_iDetailsIndex + 1).arg(m_details.size()));
+            setName(tr("&Details (%1 of %2)").arg(m_iDetailsIndex + 1).arg(m_details.size()));
             m_pBackButton->setEnabled(m_iDetailsIndex > 0);
             m_pNextButton->setEnabled(m_iDetailsIndex < m_details.size() - 1);
         }

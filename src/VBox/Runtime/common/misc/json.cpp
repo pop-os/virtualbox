@@ -200,7 +200,7 @@ typedef struct RTJSONVALINT
         struct
         {
             /** Number of elements in the array. */
-            uint32_t        cItems;
+            unsigned        cItems;
             /** Pointer to the array of items. */
             PRTJSONVALINT   *papItems;
         } Array;
@@ -208,7 +208,7 @@ typedef struct RTJSONVALINT
         struct
         {
             /** Number of members. */
-            uint32_t        cMembers;
+            unsigned        cMembers;
             /** Pointer to the array holding the member names. */
             char            **papszNames;
             /** Pointer to the array holding the values. */
@@ -379,6 +379,7 @@ DECLINLINE(char) rtJsonTokenizerGetCh(PRTJSONTOKENIZER pTokenizer)
  *
  * @returns nothing.
  * @param   pTokenizer      The tokenizer state.
+ * @param   cSkip           Amount of characters to skip making up the new line.
  */
 DECLINLINE(void) rtJsonTokenizerNewLine(PRTJSONTOKENIZER pTokenizer, unsigned cSkip)
 {
@@ -757,7 +758,7 @@ static void rtJsonTokenizerConsume(PRTJSONTOKENIZER pTokenizer)
  * Consumes the current token if it matches the given class returning an indicator.
  *
  * @returns true if the class matched and the token was consumed.
- * @param   false otherwise.
+ * @retval  false otherwise.
  * @param   pTokenizer      The tokenizer state.
  * @param   enmClass        The token class to match against.
  */
@@ -838,7 +839,7 @@ static PRTJSONVALINT rtJsonValueCreate(RTJSONVALTYPE enmType)
  *
  * @returns IPRT status code.
  * @param   pTokenizer      The tokenizer to use.
- * @param   pVal            The JSON array value to fill in.
+ * @param   pJsonVal        The JSON array value to fill in.
  * @param   pErrInfo        Where to store extended error info. Optional.
  */
 static int rtJsonParseArray(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal, PRTERRINFO pErrInfo)
@@ -912,7 +913,7 @@ static int rtJsonParseArray(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal,
  *
  * @returns IPRT status code.
  * @param   pTokenizer      The tokenizer to use.
- * @param   pVal            The JSON object value to fill in.
+ * @param   pJsonVal        The JSON object value to fill in.
  * @param   pErrInfo        Where to store extended error info. Optional.
  */
 static int rtJsonParseObject(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal, PRTERRINFO pErrInfo)
@@ -1262,7 +1263,7 @@ RTDECL(const char *) RTJsonValueGetString(RTJSONVAL hJsonVal)
     return pThis->Type.String.pszStr;
 }
 
-RTDECL(int) RTJsonValueGetStringEx(RTJSONVAL hJsonVal, const char **ppszStr)
+RTDECL(int) RTJsonValueQueryString(RTJSONVAL hJsonVal, const char **ppszStr)
 {
     PRTJSONVALINT pThis = hJsonVal;
     AssertPtrReturn(ppszStr, VERR_INVALID_POINTER);
@@ -1273,7 +1274,7 @@ RTDECL(int) RTJsonValueGetStringEx(RTJSONVAL hJsonVal, const char **ppszStr)
     return VINF_SUCCESS;
 }
 
-RTDECL(int) RTJsonValueGetNumber(RTJSONVAL hJsonVal, int64_t *pi64Num)
+RTDECL(int) RTJsonValueQueryInteger(RTJSONVAL hJsonVal, int64_t *pi64Num)
 {
     PRTJSONVALINT pThis = hJsonVal;
     AssertPtrReturn(pi64Num, VERR_INVALID_POINTER);
@@ -1284,7 +1285,7 @@ RTDECL(int) RTJsonValueGetNumber(RTJSONVAL hJsonVal, int64_t *pi64Num)
     return VINF_SUCCESS;
 }
 
-RTDECL(int) RTJsonValueGetByName(RTJSONVAL hJsonVal, const char *pszName, PRTJSONVAL phJsonVal)
+RTDECL(int) RTJsonValueQueryByName(RTJSONVAL hJsonVal, const char *pszName, PRTJSONVAL phJsonVal)
 {
     PRTJSONVALINT pThis = hJsonVal;
     AssertPtrReturn(pszName, VERR_INVALID_POINTER);
@@ -1307,7 +1308,61 @@ RTDECL(int) RTJsonValueGetByName(RTJSONVAL hJsonVal, const char *pszName, PRTJSO
     return rc;
 }
 
-RTDECL(uint32_t) RTJsonValueGetArraySize(RTJSONVAL hJsonVal)
+RTDECL(int) RTJsonValueQueryIntegerByName(RTJSONVAL hJsonVal, const char *pszName, int64_t *pi64Num)
+{
+    RTJSONVAL hJsonValNum = NIL_RTJSONVAL;
+    int rc = RTJsonValueQueryByName(hJsonVal, pszName, &hJsonValNum);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTJsonValueQueryInteger(hJsonValNum, pi64Num);
+        RTJsonValueRelease(hJsonValNum);
+    }
+
+    return rc;
+}
+
+RTDECL(int) RTJsonValueQueryStringByName(RTJSONVAL hJsonVal, const char *pszName, char **ppszStr)
+{
+    RTJSONVAL hJsonValStr = NIL_RTJSONVAL;
+    int rc = RTJsonValueQueryByName(hJsonVal, pszName, &hJsonValStr);
+    if (RT_SUCCESS(rc))
+    {
+        const char *pszStr = NULL;
+        rc = RTJsonValueQueryString(hJsonValStr, &pszStr);
+        if (RT_SUCCESS(rc))
+        {
+            *ppszStr = RTStrDup(pszStr);
+            if (!*ppszStr)
+                rc = VERR_NO_STR_MEMORY;
+        }
+        RTJsonValueRelease(hJsonValStr);
+    }
+
+    return rc;
+}
+
+RTDECL(int) RTJsonValueQueryBooleanByName(RTJSONVAL hJsonVal, const char *pszName, bool *pfBoolean)
+{
+    AssertPtrReturn(pfBoolean, VERR_INVALID_POINTER);
+
+    RTJSONVAL hJsonValBool = NIL_RTJSONVAL;
+    int rc = RTJsonValueQueryByName(hJsonVal, pszName, &hJsonValBool);
+    if (RT_SUCCESS(rc))
+    {
+        RTJSONVALTYPE enmType = RTJsonValueGetType(hJsonValBool);
+        if (enmType == RTJSONVALTYPE_TRUE)
+            *pfBoolean = true;
+        else if (enmType == RTJSONVALTYPE_FALSE)
+            *pfBoolean = false;
+        else
+            rc = VERR_JSON_VALUE_INVALID_TYPE;
+        RTJsonValueRelease(hJsonValBool);
+    }
+
+    return rc;
+}
+
+RTDECL(unsigned) RTJsonValueGetArraySize(RTJSONVAL hJsonVal)
 {
     PRTJSONVALINT pThis = hJsonVal;
     AssertReturn(pThis != NIL_RTJSONVAL, 0);
@@ -1316,7 +1371,7 @@ RTDECL(uint32_t) RTJsonValueGetArraySize(RTJSONVAL hJsonVal)
     return pThis->Type.Array.cItems;
 }
 
-RTDECL(int) RTJsonValueGetArraySizeEx(RTJSONVAL hJsonVal, uint32_t *pcItems)
+RTDECL(int) RTJsonValueQueryArraySize(RTJSONVAL hJsonVal, unsigned *pcItems)
 {
     PRTJSONVALINT pThis = hJsonVal;
     AssertPtrReturn(pcItems, VERR_INVALID_POINTER);
@@ -1327,7 +1382,7 @@ RTDECL(int) RTJsonValueGetArraySizeEx(RTJSONVAL hJsonVal, uint32_t *pcItems)
     return VINF_SUCCESS;
 }
 
-RTDECL(int) RTJsonValueGetByIndex(RTJSONVAL hJsonVal, uint32_t idx, PRTJSONVAL phJsonVal)
+RTDECL(int) RTJsonValueQueryByIndex(RTJSONVAL hJsonVal, unsigned idx, PRTJSONVAL phJsonVal)
 {
     PRTJSONVALINT pThis = hJsonVal;
     AssertPtrReturn(phJsonVal, VERR_INVALID_POINTER);
@@ -1360,7 +1415,7 @@ RTDECL(int) RTJsonIteratorBegin(RTJSONVAL hJsonVal, PRTJSONIT phJsonIt)
     return VINF_SUCCESS;
 }
 
-RTDECL(int) RTJsonIteratorGetValue(RTJSONIT hJsonIt, PRTJSONVAL phJsonVal, const char **ppszName)
+RTDECL(int) RTJsonIteratorQueryValue(RTJSONIT hJsonIt, PRTJSONVAL phJsonVal, const char **ppszName)
 {
     PRTJSONITINT pIt = hJsonIt;
     AssertReturn(pIt != NIL_RTJSONIT, VERR_INVALID_HANDLE);

@@ -1755,7 +1755,7 @@ static DECLCALLBACK(PVUSBURB) usbProxyLinuxUrbReap(PUSBPROXYDEV pProxyDev, RTMSI
                     bool fSucceeded;
 
                     Assert(pUrbLnx->pSplitHead);
-                    Assert((pKUrb->endpoint & 0x80) && (!pKUrb->flags & USBDEVFS_URB_SHORT_NOT_OK));
+                    Assert((pKUrb->endpoint & 0x80) && !(pKUrb->flags & USBDEVFS_URB_SHORT_NOT_OK));
                     PUSBPROXYURBLNX pNew = usbProxyLinuxSplitURBFragment(pProxyDev, pUrbLnx->pSplitHead, pUrbLnx);
                     if (!pNew)
                     {
@@ -1935,8 +1935,6 @@ const USBPROXYBACK g_USBProxyDeviceHost =
  *  mode: c
  *  c-file-style: "bsd"
  *  c-basic-offset: 4
- *  tab-width: 4
- *  indent-tabs-mode: s
  * End:
  */
 

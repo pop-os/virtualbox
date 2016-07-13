@@ -1,4 +1,4 @@
-/* $Id: kDbgHlpCrt.cpp 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kDbgHlpCrt.cpp 77 2016-06-22 17:03:55Z bird $ */
 /** @file
  * kDbg - The Debug Info Reader, Helpers, CRT Based Implementation.
  */
@@ -157,6 +157,8 @@ int64_t kDbgHlpFileSize(PKDBGHLPFILE pFile)
             cbFile = -1;
         kDbgHlpSeek(pFile, offCur);
     }
+    else
+        cbFile = -1;
     return cbFile;
 }
 

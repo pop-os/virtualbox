@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107874 $"
+__version__ = "$Revision: 108593 $"
 
 
 # Standard Python imports.
@@ -45,7 +45,7 @@ import traceback
 from common import utils;
 
 ## test reporter instance
-g_oReporter = None;
+g_oReporter = None;                     # type: ReporterBase
 g_sReporterName = None;
 g_oLock = threading.Lock();
 
@@ -284,6 +284,18 @@ class ReporterBase(object):
             self.testFailure('Test not closed by test drver', sCaller)
             self.testDone(False, sCaller);
         return False;
+
+    #
+    # Misc.
+    #
+
+    def doPollWork(self, sDebug = None):
+        """
+        Check if any pending stuff expired and needs doing.
+        """
+        _ = sDebug;
+        return None;
+
 
 
 
@@ -859,6 +871,7 @@ class RemoteReporter(ReporterBase):
             if len(asXml) > 0  or  fForce is True:
                 self._fXmlFlushing = True;
 
+                self._writeOutput('xml-debug/%s: flushing!'  % (len(self._asXml),)); # temporarily while debugging flush/poll
                 g_oLock.release();
                 (asXml, fIncErrors) = self._xmlDoFlush(asXml, fRetry = fRetry);
                 g_oLock.acquire();
@@ -876,12 +889,15 @@ class RemoteReporter(ReporterBase):
             self._secTsXmlFlush = utils.timestampSecond();
         return False;
 
-    def _xmlFlushIfNecessary(self):
+    def _xmlFlushIfNecessary(self, fPolling = False, sDebug = None):
         """Flushes the XML back log if necessary."""
         tsNow = utils.timestampSecond();
         cSecs     = tsNow - self._secTsXmlFlush;
         cSecsLast = tsNow - self._secTsXmlLast;
-        self._secTsXmlLast = tsNow;
+        if fPolling is not True:
+            self._secTsXmlLast = tsNow;
+        self._writeOutput('xml-debug/%s: %s s since flush, %s s since poll %s'
+                          % (len(self._asXml), cSecs, cSecsLast, sDebug if sDebug is not None else '', )); # temporarily
 
         # Absolute flush thresholds.
         if cSecs >= self.kcSecXmlFlushMax:
@@ -898,6 +914,7 @@ class RemoteReporter(ReporterBase):
 
     def _xmlWrite(self, asText, fIndent = True):
         """XML output function for the reporter."""
+        self._writeOutput('xml-debug/%s: %s' % (len(self._asXml), asText)); # temporarily while debugging flush/poll problem.
         self._asXml += asText;
         self._xmlFlushIfNecessary();
         _ = fIndent; # No pretty printing, thank you.
@@ -922,6 +939,13 @@ class RemoteReporter(ReporterBase):
                          '<PopHint  testdepth="%d"/>' % (len(self.atTests),),];
         self._xmlFlushIfNecessary();
         g_oLock.release();
+        return None;
+
+    def doPollWork(self, sDebug = None):
+        if len(self._asXml) > 0:
+            g_oLock.acquire();
+            self._xmlFlushIfNecessary(fPolling = True, sDebug = sDebug);
+            g_oLock.release();
         return None;
 
 
@@ -1355,6 +1379,14 @@ def getErrorCount():
     g_oLock.release();
     return cErrors;
 
+def doPollWork(sDebug = None):
+    """
+    This can be called from wait loops and similar to make the reporter call
+    home with pending XML and such.
+    """
+    g_oReporter.doPollWork(sDebug);
+    return None;
+
 
 #
 # Test reporting, a bit similar to RTTestI*.
@@ -1529,16 +1561,20 @@ def checkTestManagerConnection():
     g_oLock.release();
     return fRc;
 
-def flushall():
+def flushall(fSkipXml = False):
     """
     Flushes all output streams, both standard and logger related.
+    This may also push data to the remote test manager.
     """
     try:    sys.stdout.flush();
     except: pass;
     try:    sys.stderr.flush();
     except: pass;
 
-    # Note! Current no logger specific streams to flush.
+    if fSkipXml is not True:
+        g_oLock.acquire();
+        g_oReporter.xmlFlush(fRetry = False);
+        g_oLock.release();
 
     return True;
 
@@ -1557,7 +1593,7 @@ def _InitReporterModule():
     if g_sReporterName == "local":
         g_oReporter = LocalReporter();
     elif g_sReporterName == "remote":
-        g_oReporter = RemoteReporter();
+        g_oReporter = RemoteReporter(); # Correct, but still plain stupid. pylint: disable=redefined-variable-type
     else:
         print >> sys.stderr, os.path.basename(__file__) + ": Unknown TESTBOX_REPORTER value: '" + g_sReporterName + "'";
         raise Exception("Unknown TESTBOX_REPORTER value '" + g_sReporterName + "'");

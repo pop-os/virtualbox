@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 105431 $"
+__version__ = "$Revision: 108682 $"
 
 
 # Standard Python imports.
@@ -285,6 +285,8 @@ class tdGuestOsInstTest1(vbox.TestDriver):
             ## @todo disable paravirt for Windows 8.1 guests as long as it's not fixed in the code
             InstallTestVm(oSet, 'tst-w81-32',       'Windows81',        'win81-x86-txs.iso',        InstallTestVm.ksSataController, 25, InstallTestVm.kf32Bit),
             InstallTestVm(oSet, 'tst-w81-64',       'Windows81_64',     'win81-x64-txs.iso',        InstallTestVm.ksSataController, 25, InstallTestVm.kf64Bit),
+            InstallTestVm(oSet, 'tst-w10-32',       'Windows10',        'win10-x86-txs.iso',        InstallTestVm.ksSataController, 25, InstallTestVm.kf32Bit | InstallTestVm.kfReqPae),
+            InstallTestVm(oSet, 'tst-w10-64',       'Windows10_64',     'win10-x64-txs.iso',        InstallTestVm.ksSataController, 25, InstallTestVm.kf64Bit),
             # pylint: enable=C0301
         ]);
         self.oTestVmSet = oSet;
@@ -326,7 +328,7 @@ class tdGuestOsInstTest1(vbox.TestDriver):
         Extend standard options set
         """
 
-        if False:
+        if False is True:
             pass;
         elif asArgs[iArg] == '--ioapic':
             for oTestVm in self.oTestVmSet.aoTestVms:

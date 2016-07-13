@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 108085 $"
+__version__ = "$Revision: 108487 $"
 
 
 # Standard Python imports.
@@ -35,7 +35,6 @@ import os
 import sys
 import re
 import subprocess
-import shutil
 
 
 # Only the main script needs to modify the path.
@@ -198,6 +197,8 @@ class tdUnitTest1(vbox.TestDriver):
         'testcase/tstOpenUSBDev': '',       # Not a useful testcase.
         'testcase/tstX86-1': '',            # Really more guest side.
         'testcase/tstX86-FpuSaveRestore': '', # Experiments, could be useful for the guest not the host.
+        'tstAsmStructsRC': '',              # Testcase run during build time (fails to find libstdc++.so.6 on some
+                                            # Solaris testboxes).
     };
 
     # Suffix exclude list.
@@ -313,7 +314,7 @@ class tdUnitTest1(vbox.TestDriver):
         #
         # We need a VBox install (/ build) to test.
         #
-        if False:
+        if False is True:
             if not self.importVBoxApi():
                 reporter.error('Unabled to import the VBox Python API.')
                 return False
@@ -512,7 +513,7 @@ class tdUnitTest1(vbox.TestDriver):
         """
         reporter.log('_hardenedCopyFile: %s -> %s (mode: %o)' % (sSrc, sDst, iMode,));
         if utils.getHostOs() in [ 'win', 'os2' ]:
-            shutil.copyfile(sSrc, sDst);
+            utils.copyFileSimple(sSrc, sDst);
             os.chmod(sDst, iMode);
         else:
             fRc = self._sudoExecuteSync(['/bin/cp', sSrc, sDst]);

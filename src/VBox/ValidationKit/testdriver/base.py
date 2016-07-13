@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107786 $"
+__version__ = "$Revision: 108584 $"
 
 
 # Standard Python imports.
@@ -171,10 +171,10 @@ def tryGetHostByName(sName):
         except:
             reporter.errorXcpt('gethostbyname(%s)' % (sName));
         else:
-            if sIpAddr == '0.0.0.0':
+            if sIpAddr != '0.0.0.0':
+                sName = sIpAddr;
+            else:
                 reporter.error('gethostbyname(%s) -> %s' % (sName, sIpAddr));
-                raise;
-            sName = sIpAddr;
     return sName;
 
 def processInterrupt(uPid):
@@ -393,7 +393,7 @@ class TdTaskBase(object):
 
     def lockTask(self):
         """ Wrapper around oCv.acquire(). """
-        if True: # change to False for debugging deadlocks.
+        if True is True: # change to False for debugging deadlocks.
             self.oCv.acquire();
         else:
             msStartWait = timestampMilli();
@@ -513,9 +513,10 @@ class TdTaskBase(object):
                 if cMsWait > 1000:
                     cMsWait = 1000;
                 try:
-                    self.oCv.wait(cMsWait / 1000)
+                    self.oCv.wait(cMsWait / 1000.0);
                 except:
                     pass;
+                reporter.doPollWork('TdTaskBase.waitForTask');
                 fState = self.pollTask(True);
 
         self.unlockTask();
@@ -606,7 +607,7 @@ class Process(TdTaskBase):
                         uStatus = 0xffffffff;
                 else:
                     uPid    = 0;
-                    uStatus = 0;
+                    uStatus = 0;        # pylint: disable=redefined-variable-type
             else:
                 try:
                     (uPid, uStatus) = os.waitpid(self.uPid, os.WNOHANG); # pylint: disable=E1101
@@ -1112,10 +1113,10 @@ class TestDriverBase(object): # pylint: disable=R0902
                     cMsElapsed = timestampMilli() - msStart;
                     if cMsElapsed > cMsTimeout: # not ==, we want the final waitForEvents.
                         break;
-                    if cMsTimeout - cMsElapsed > 1000:
-                        fMore = self.waitForTasksSleepWorker(1000);
-                    else:
-                        fMore = self.waitForTasksSleepWorker(cMsTimeout - cMsElapsed);
+                    cMsSleep = cMsTimeout - cMsElapsed;
+                    if cMsSleep > 1000:
+                        cMsSleep = 1000;
+                    fMore = self.waitForTasksSleepWorker(cMsSleep);
         except KeyboardInterrupt:
             self.fInterrupted = True;
             reporter.errorXcpt('KeyboardInterrupt', 6);

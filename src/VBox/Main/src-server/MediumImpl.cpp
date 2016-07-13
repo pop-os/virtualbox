@@ -3010,9 +3010,9 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
                     destMediumPath = destMediumFileName;
                 }
                 /* case when new path looks like "/path/to/new/location"
-                 * In this case just set destMediumFileName to NULL and 
-                 * and add '/' in the end of path.destMediumPath 
-                 */ 
+                 * In this case just set destMediumFileName to NULL and
+                 * and add '/' in the end of path.destMediumPath
+                 */
                 else
                 {
                     destMediumFileName.setNull();
@@ -3034,29 +3034,25 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
                      */
                     destMediumPath = sourceMediumPath.stripFilename().append(RTPATH_SLASH).append(destMediumFileName);
                 }
-                else
+                suffix = i_getFormat();
+
+                if (suffix.compare("RAW", Utf8Str::CaseInsensitive) == 0)
                 {
-                    /* set the target extension like on the source. Permission to convert is prohibited */
-                    suffix = i_getFormat();
-
-                    if (suffix.compare("RAW", Utf8Str::CaseInsensitive) == 0)
+                    if(i_getDeviceType() == DeviceType_DVD)
                     {
-                        if(i_getDeviceType() == DeviceType_DVD)
-                        {
-                            suffix = "iso";
-                        }
-                        else
-                        {
-                            rc = setError(VERR_NOT_A_FILE,
-                                   tr("Medium '%s' has RAW type. \"Move\" operation isn't supported for this type."),
-                                   i_getLocationFull().c_str());
-                            throw rc;
-                        }
+                        suffix = "iso";
                     }
-
-                    suffix.toLower();
-                    destMediumPath.stripSuffix().append('.').append(suffix);
+                    else
+                    {
+                        rc = setError(VERR_NOT_A_FILE,
+                               tr("Medium '%s' has RAW type. \"Move\" operation isn't supported for this type."),
+                               i_getLocationFull().c_str());
+                        throw rc;
+                    }
                 }
+                /* set the target extension like on the source. Any conversions are prohibited */
+                suffix.toLower();
+                destMediumPath.stripSuffix().append('.').append(suffix);
             }
 
             if (i_isMediumFormatFile())
@@ -3102,7 +3098,6 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
 
             if (SUCCEEDED(rc))
             {
-                MachineState_T aState;
                 ComObjPtr<SessionMachine> sm;
                 ComPtr<IInternalSessionControl> ctl;
 
@@ -3181,7 +3176,7 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
     }
-    else 
+    else
     {
         if (pTask != NULL)
             delete pTask;
@@ -5356,7 +5351,7 @@ HRESULT Medium::i_queryPreferredMergeDirection(const ComObjPtr<Medium> &pOther,
                  * media are used by a running VM.
                  */
                 bool fMergeIntoThis = cbMediumThis > cbMediumOther;
-                fMergeForward = fMergeIntoThis ^ fThisParent;
+                fMergeForward = fMergeIntoThis != fThisParent;
             }
         }
     }
@@ -6401,7 +6396,7 @@ HRESULT Medium::i_preparationForMoving(const Utf8Str &aLocation)
  */
 bool Medium::i_isMoveOperation(const ComObjPtr<Medium> &aTarget) const
 {
-    return (this == aTarget && m->fMoveThisMedium == true) ? true:false;
+    return (m->fMoveThisMedium == true) ? true:false;
 }
 
 bool Medium::i_resetMoveOperationData()
@@ -8844,7 +8839,7 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
 /**
  * Implementation code for the "move" task.
  *
- * This only gets started from Medium::SetLocation() and always 
+ * This only gets started from Medium::SetLocation() and always
  * runs asynchronously.
  *
  * @param task

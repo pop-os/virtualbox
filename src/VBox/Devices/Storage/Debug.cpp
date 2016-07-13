@@ -17,10 +17,13 @@
 
 
 #include <iprt/assert.h>
+#include <iprt/log.h>
 #include <iprt/types.h>
 #include <iprt/string.h>
 #include <VBox/scsi.h>
 #include "ide.h"
+
+#ifdef LOG_ENABLED
 
 /**
  * ATA command codes
@@ -284,6 +287,10 @@ static const char * const g_apszATACmdNames[256] =
     "",                                    /* 0xfe */
     ""                                     /* 0xff */
 };
+
+#endif /* LOG_ENABLED */
+
+#if defined(LOG_ENABLED) || defined(RT_STRICT)
 
 /**
  * SCSI command codes.
@@ -888,6 +895,10 @@ static struct
     { 0x27, 0x00, "WRITE PROTECTED" },
 };
 
+#endif /* LOG_ENABLED || RT_STRICT */
+
+#ifdef LOG_ENABLED
+
 /**
  * Return the plain text of an ATA command for debugging purposes.
  * Don't allocate the string as we use this function in Log() statements.
@@ -897,6 +908,10 @@ const char * ATACmdText(uint8_t uCmd)
     AssertCompile(RT_ELEMENTS(g_apszATACmdNames) == (1 << (8*sizeof(uCmd))));
     return g_apszATACmdNames[uCmd];
 }
+
+#endif
+
+#if defined(LOG_ENABLED) || defined(RT_STRICT)
 
 /**
  * Return the plain text of a SCSI command for debugging purposes.
@@ -1134,3 +1149,4 @@ int SCSILogCueSheet(char *pszBuffer, size_t cchBuffer, uint8_t *pbCueSheet,
     return rc;
 }
 
+#endif /* LOG_ENABLED || RT_STRICT */
