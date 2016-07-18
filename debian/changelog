@@ -3,6 +3,7 @@ virtualbox (5.1.0-dfsg-1) UNRELEASED; urgency=medium
   * New upstream major release, patch refresh.
   * Update dependencies to qt5
   * Regenerate manpages
+  [ Gianfranco Costamagna, Peter Melser ]
   * Major rewrite of the guest-additions GL library handling
   * Backport upstream patch for non-root Xorg guest run
     LP: #1599775
