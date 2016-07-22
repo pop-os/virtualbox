@@ -2,8 +2,18 @@
 
 set -ex
 
+if [ $# -ne 2 ]; then
+  echo "Error: 2 parameters are required."
+  exit 1
+fi
+
+if [ "$1" != "--upstream-version" ]; then
+  echo "Error: First parameter needs to be --upstream-version."
+  exit 1
+fi
+
 UPSTREAM_VERSION=$2
-ORIG_TARBALL=$3
+ORIG_TARBALL=`readlink -e ../`/VirtualBox-${UPSTREAM_VERSION}.tar.bz2
 
 REAL_TARBALL=`readlink -f ${ORIG_TARBALL}`
 
