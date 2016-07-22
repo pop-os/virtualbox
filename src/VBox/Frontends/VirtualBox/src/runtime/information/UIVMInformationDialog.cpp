@@ -36,7 +36,7 @@
 # include "QIDialogButtonBox.h"
 # include "VBoxGlobal.h"
 # include "VBoxUtils.h"
-# include "UIInformation.h"
+# include "UIInformationConfiguration.h"
 # include "UIMachine.h"
 # include "UIVMItem.h"
 # include "UIInformationRuntime.h"
@@ -231,17 +231,17 @@ void UIVMInformationDialog::prepareTabWidget()
         /* Prepare tab-widget: */
         m_pTabWidget->setTabIcon(0, UIIconPool::iconSet(":/session_info_details_16px.png"));
         m_pTabWidget->setTabIcon(1, UIIconPool::iconSet(":/session_info_runtime_16px.png"));
-        m_pTabWidget->setCurrentIndex(1);
+
         /* Add tab-widget into main-layout: */
         centralWidget()->layout()->addWidget(m_pTabWidget);
 
         /* Create tabs: */
         /* Create Configuration details tab: */
-        UIInformation *pInformationWidget = new UIInformation(this, gpMachine->uisession()->machine(), gpMachine->uisession()->console());
-        AssertPtrReturnVoid(pInformationWidget);
+        UIInformationConfiguration *pInformationConfigurationWidget = new UIInformationConfiguration(this, gpMachine->uisession()->machine(), gpMachine->uisession()->console());
+        AssertPtrReturnVoid(pInformationConfigurationWidget);
         {
             //pInformationWidget->setItems(items);
-            m_tabs.insert(0, pInformationWidget);
+            m_tabs.insert(0, pInformationConfigurationWidget);
             m_pTabWidget->addTab(m_tabs.value(0), QString());
         }
 
@@ -252,6 +252,8 @@ void UIVMInformationDialog::prepareTabWidget()
             m_tabs.insert(1, pInformationRuntimeWidget);
             m_pTabWidget->addTab(m_tabs.value(1), QString());
         }
+        /* Set runtime information tab as default: */
+        m_pTabWidget->setCurrentIndex(1);
     }
 }
 

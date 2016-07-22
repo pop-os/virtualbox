@@ -1298,7 +1298,7 @@ HRESULT Appliance::i_readFSOVA(TaskOVF *pTask)
      * the OVA. The manifest is optional.)
      */
     char    *pszOvfNameBase = NULL;
-    size_t   cchOvfNameBase = 0;
+    size_t   cchOvfNameBase = 0; NOREF(cchOvfNameBase);
     unsigned cLeftToFind = 3;
     HRESULT  hrc = S_OK;
     do
@@ -1446,6 +1446,7 @@ HRESULT Appliance::i_readOVFFile(TaskOVF *pTask, RTVFSIOSTREAM hVfsIosOvf, const
     size_t cbBufferedOvf;
     int vrc = RTVfsIoStrmReadAll(hVfsIosOvf, &pvBufferedOvf, &cbBufferedOvf);
     uint32_t cRefs = RTVfsIoStrmRelease(hVfsIosOvf);     /* consumes stream handle.  */
+    NOREF(cRefs);
     Assert(cRefs == 0);
     if (RT_FAILURE(vrc))
         return setErrorVrc(vrc, tr("Could not read the OVF file for '%s' (%Rrc)"), pTask->locInfo.strPath.c_str(), vrc);
@@ -1586,7 +1587,8 @@ HRESULT Appliance::i_readSignatureFile(TaskOVF *pTask, RTVFSIOSTREAM hVfsIosCert
      * this API ignores parse of the file that aren't relevant.
      */
     RTERRINFOSTATIC StaticErrInfo;
-    vrc = RTCrX509Certificate_ReadFromBuffer(&m->SignerCert, pvSignature, cbSignature, 0 /*fFlags*/,
+    vrc = RTCrX509Certificate_ReadFromBuffer(&m->SignerCert, pvSignature, cbSignature,
+                                             RTCRX509CERT_READ_F_PEM_ONLY,
                                              &g_RTAsn1DefaultAllocator, RTErrInfoInitStatic(&StaticErrInfo), pszSubFileNm);
     HRESULT hrc;
     if (RT_SUCCESS(vrc))
@@ -1689,6 +1691,9 @@ HRESULT Appliance::i_readSignatureFile(TaskOVF *pTask, RTVFSIOSTREAM hVfsIosCert
         else
             hrc = E_OUTOFMEMORY;
     }
+    else if (vrc == VERR_NOT_FOUND || vrc == VERR_EOF)
+        hrc = setErrorBoth(E_FAIL, vrc, tr("Malformed .cert-file for '%s': Signer's certificate not found (%Rrc)"),
+                           pTask->locInfo.strPath.c_str(), vrc);
     else
         hrc = setErrorVrc(vrc, tr("Error reading the signer's certificate from '%s' for '%s' (%Rrc): %s"),
                           pszSubFileNm, pTask->locInfo.strPath.c_str(), vrc, StaticErrInfo.Core.pszMsg);
@@ -3533,7 +3538,8 @@ void Appliance::i_importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescT
         if (!(   fKeepAllMACs
               || (fKeepNATMACs && it1->mode == NetworkAttachmentType_NAT)
               || (fKeepNATMACs && it1->mode == NetworkAttachmentType_NATNetwork)))
-            Host::i_generateMACAddress(it1->strMACAddress);
+            /* Force generation of new MAC address below. */
+            it1->strMACAddress.setNull();
     }
     /* Now iterate over all network entries. */
     std::list<VirtualSystemDescriptionEntry*> avsdeNWs = vsdescThis->i_findByType(VirtualSystemDescriptionType_NetworkAdapter);
@@ -3561,6 +3567,8 @@ void Appliance::i_importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescT
                     if (it1->ulSlot == iSlot)
                     {
                         it1->fEnabled = true;
+                        if (it1->strMACAddress.isEmpty())
+                            Host::i_generateMACAddress(it1->strMACAddress);
                         it1->type = (NetworkAdapterType_T)vsdeNW->strVBoxCurrent.toUInt32();
                         break;
                     }

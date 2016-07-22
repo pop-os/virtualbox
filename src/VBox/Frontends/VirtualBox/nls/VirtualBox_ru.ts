@@ -1705,27 +1705,27 @@
     </message>
     <message>
         <source>Issuer:               %1</source>
-        <translation>Издатель:                   %1</translation>
+        <translation type="vanished">Издатель:                   %1</translation>
     </message>
     <message>
         <source>Subject:              %1</source>
-        <translation>Пользователь:               %1</translation>
+        <translation type="vanished">Пользователь:               %1</translation>
     </message>
     <message>
         <source>Not Valid Before:     %1</source>
-        <translation>Срок действия (начало):     %1</translation>
+        <translation type="vanished">Срок действия (начало):     %1</translation>
     </message>
     <message>
         <source>Not Valid After:      %1</source>
-        <translation>Срок действия (конец):      %1</translation>
+        <translation type="vanished">Срок действия (конец):      %1</translation>
     </message>
     <message>
         <source>Serial Number:        %1</source>
-        <translation>Серийный номер:             %1</translation>
+        <translation type="vanished">Серийный номер:             %1</translation>
     </message>
     <message>
         <source>Self-Signed:          %1</source>
-        <translation>Самозаверенный сертификат:  %1</translation>
+        <translation type="vanished">Самозаверенный сертификат:  %1</translation>
     </message>
     <message>
         <source>True</source>
@@ -1737,19 +1737,69 @@
     </message>
     <message>
         <source>Authority (CA):       %1</source>
-        <translation>Доверенный сертификат:      %1</translation>
+        <translation type="vanished">Доверенный сертификат:      %1</translation>
     </message>
     <message>
         <source>Public Algorithm:     %1 (%2)</source>
-        <translation>Алгоритм открытого ключа:   %1 (%2)</translation>
+        <translation type="vanished">Алгоритм открытого ключа:   %1 (%2)</translation>
     </message>
     <message>
         <source>Signature Algorithm:  %1 (%2)</source>
-        <translation>Алгоритм подписи:           %1 (%2)</translation>
+        <translation type="vanished">Алгоритм подписи:           %1 (%2)</translation>
     </message>
     <message>
         <source>X.509 Version Number: %1</source>
-        <translation>Версия X.509:               %1</translation>
+        <translation type="vanished">Версия X.509:               %1</translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Issuer</source>
+        <translation>Издатель</translation>
+    </message>
+    <message>
+        <source>Subject</source>
+        <translation>Пользователь</translation>
+    </message>
+    <message>
+        <source>Not Valid Before</source>
+        <translation>Срок действия (начало)</translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation>Срок действия (конец)</translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation>Серийный номер</translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation>Самозаверенный сертификат</translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation>Доверенный сертификат</translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation>Алгоритм открытого ключа</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation>Алгоритм подписи</translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
+        <translation>Версия X.509</translation>
     </message>
 </context>
 <context>
@@ -5423,7 +5473,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataAudio</name>
     <message>
         <source>Audio</source>
-        <translation>Аудио</translation>
+        <translation type="vanished">Аудио</translation>
     </message>
     <message>
         <source>Host Driver</source>
@@ -5441,7 +5491,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Display</source>
         <comment>details report</comment>
-        <translation>Дисплей</translation>
+        <translation type="vanished">Дисплей</translation>
     </message>
     <message>
         <source>Video Memory</source>
@@ -5504,7 +5554,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>General</source>
         <comment>details report</comment>
-        <translation>Общие</translation>
+        <translation type="vanished">Общие</translation>
     </message>
     <message>
         <source>Name</source>
@@ -5521,7 +5571,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataNetwork</name>
     <message>
         <source>Network</source>
-        <translation>Сеть</translation>
+        <translation type="vanished">Сеть</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -5567,7 +5617,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Network Statistics</source>
         <comment>details report</comment>
-        <translation>Статистика сетевых адаптеров</translation>
+        <translation type="vanished">Статистика сетевых адаптеров</translation>
     </message>
 </context>
 <context>
@@ -5575,7 +5625,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Parallel Ports</source>
         <comment>details report</comment>
-        <translation>LPT-порты</translation>
+        <translation type="vanished">LPT-порты</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -5593,7 +5643,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Runtime Attributes</source>
         <comment>details report</comment>
-        <translation>Рабочие характеристики</translation>
+        <translation type="vanished">Рабочие характеристики</translation>
     </message>
     <message>
         <source>Not Detected</source>
@@ -5665,7 +5715,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataSerialPorts</name>
     <message>
         <source>Serial Ports</source>
-        <translation>COM-порты</translation>
+        <translation type="vanished">COM-порты</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -5678,7 +5728,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation>Общие папки</translation>
+        <translation type="vanished">Общие папки</translation>
     </message>
     <message>
         <source>Shared Folders</source>
@@ -5690,7 +5740,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataStorage</name>
     <message>
         <source>Storage</source>
-        <translation>Носители</translation>
+        <translation type="vanished">Носители</translation>
     </message>
     <message>
         <source>(Optical Drive)</source>
@@ -5718,7 +5768,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Storage Statistics</source>
         <comment>details report</comment>
-        <translation>Статистика носителей информации</translation>
+        <translation type="vanished">Статистика носителей информации</translation>
     </message>
 </context>
 <context>
@@ -5726,7 +5776,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>System</source>
         <comment>details report</comment>
-        <translation>Система</translation>
+        <translation type="vanished">Система</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -5831,11 +5881,6 @@ p, li { white-space: pre-wrap; }
 </context>
 <context>
     <name>UIInformationDataUSB</name>
-    <message>
-        <source>USB</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
     <message>
         <source>Disabled</source>
         <comment>details report (USB)</comment>
@@ -16095,7 +16140,87 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>RuntimeAttributes</source>
         <comment>DetailsElementType</comment>
+        <translation type="vanished">Рабочие характеристики</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation>Общие</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation>Превью</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation>Система</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation>Дисплей</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation>Носители</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation>Аудио</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation>Сеть</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation>COM-порты</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation>LPT-порты</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation>Общие папки</translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation>Интерфейс пользователя</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation>Описание</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
         <translation>Рабочие характеристики</translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation>Статистика носителей информации</translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation>Статистика сетевых адаптеров</translation>
     </message>
 </context>
 <context>

@@ -22,7 +22,6 @@
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/vm.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -1774,21 +1773,6 @@ static DECLCALLBACK(int) dbgcCmdWriteCore(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
     if (RT_FAILURE(rc))
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "DBGFR3WriteCore failed. rc=%Rrc\n", rc);
 
-    return VINF_SUCCESS;
-}
-
-
-
-/**
- * @callback_method_impl{FNDBGCFUNC, The randu32() function implementation.}
- */
-static DECLCALLBACK(int) dbgcFuncRandU32(PCDBGCFUNC pFunc, PDBGCCMDHLP pCmdHlp, PVM pUVM, PCDBGCVAR paArgs, uint32_t cArgs,
-                                         PDBGCVAR pResult)
-{
-    AssertReturn(cArgs == 0, VERR_DBGC_PARSE_BUG);
-    uint32_t u32 = RTRandU32();
-    DBGCVAR_INIT_NUMBER(pResult, u32);
-    NOREF(pFunc); NOREF(pCmdHlp); NOREF(pUVM); NOREF(paArgs);
     return VINF_SUCCESS;
 }
 

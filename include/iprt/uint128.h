@@ -648,6 +648,26 @@ DECLINLINE(PRTUINT128U) RTUInt128AssignSub(PRTUINT128U pValue1Result, PCRTUINT12
 
 
 /**
+ * Negates a 128 number, storing the result in the input.
+ *
+ * @returns pValueResult.
+ * @param   pValueResult    The value to negate.
+ */
+DECLINLINE(PRTUINT128U) RTUInt128AssignNeg(PRTUINT128U pValueResult)
+{
+    /* result = 0 - value */
+    if (pValueResult->s.Lo != 0)
+    {
+        pValueResult->s.Lo = UINT64_C(0) - pValueResult->s.Lo;
+        pValueResult->s.Hi = UINT64_MAX  - pValueResult->s.Hi;
+    }
+    else
+        pValueResult->s.Hi = UINT64_C(0) - pValueResult->s.Hi;
+    return pValueResult;
+}
+
+
+/**
  * Multiplies two 128-bit unsigned integer values, storing the result in the
  * first.
  *

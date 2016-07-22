@@ -86,8 +86,9 @@ UISelectorWindow* UISelectorWindow::m_spInstance = 0;
 /* static */
 void UISelectorWindow::create()
 {
-    /* Make sure selector-window is not created: */
-    AssertReturnVoid(!m_spInstance);
+    /* Return if selector-window is already created: */
+    if (m_spInstance)
+        return;
 
     /* Create selector-window: */
     new UISelectorWindow;
@@ -363,6 +364,14 @@ void UISelectorWindow::sltHandleGroupSavingProgressChange()
 {
     updateActionsAppearance();
 }
+
+#ifdef VBOX_WS_MAC
+void UISelectorWindow::sltActionHovered(UIAction *pAction)
+{
+    /* Show the action message for a ten seconds: */
+    statusBar()->showMessage(pAction->statusTip(), 10000);
+}
+#endif /* VBOX_WS_MAC */
 
 void UISelectorWindow::sltHandleStateChange(QString)
 {
@@ -1126,8 +1135,8 @@ void UISelectorWindow::polishEvent(QShowEvent*)
 #ifdef VBOX_WS_MAC
 bool UISelectorWindow::eventFilter(QObject *pObject, QEvent *pEvent)
 {
-    /* Ignore for non-active window: */
-    if (!isActiveWindow())
+    /* Ignore for non-active window except for FileOpen event which should be always processed: */
+    if (!isActiveWindow() && pEvent->type() != QEvent::FileOpen)
         return QIWithRetranslateUI<QMainWindow>::eventFilter(pObject, pEvent);
 
     /* Ignore for other objects: */
@@ -1140,7 +1149,7 @@ bool UISelectorWindow::eventFilter(QObject *pObject, QEvent *pEvent)
     {
         case QEvent::FileOpen:
         {
-            sltOpenUrls(QList<QUrl>() << static_cast<QFileOpenEvent*>(pEvent)->file());
+            sltOpenUrls(QList<QUrl>() << static_cast<QFileOpenEvent*>(pEvent)->url());
             pEvent->accept();
             return true;
             break;
@@ -1608,6 +1617,12 @@ void UISelectorWindow::prepareStatusBar()
     statusBar()->addPermanentWidget(pIndicator);
     pIndicator->updateAppearance();
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+
+#ifdef VBOX_WS_MAC
+    /* Make sure the status-bar is aware of action hovering: */
+    connect(actionPool(), SIGNAL(sigActionHovered(UIAction *)),
+            this, SLOT(sltActionHovered(UIAction *)));
+#endif /* VBOX_WS_MAC */
 }
 
 void UISelectorWindow::prepareWidgets()
@@ -1632,7 +1647,6 @@ void UISelectorWindow::prepareWidgets()
 
     /* Prepare graphics VM list: */
     m_pPaneChooser = new UIGChooser(this);
-    m_pPaneChooser->setStatusBar(statusBar());
 
     /* Prepare graphics details: */
     m_pPaneDetails = new UIGDetails(this);

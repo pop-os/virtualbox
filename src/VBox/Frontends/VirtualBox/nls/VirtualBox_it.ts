@@ -1914,27 +1914,27 @@
     </message>
     <message>
         <source>Issuer:               %1</source>
-        <translation>Emittente:          %1</translation>
+        <translation type="vanished">Emittente:          %1</translation>
     </message>
     <message>
         <source>Subject:              %1</source>
-        <translation>Oggetto:             %1</translation>
+        <translation type="vanished">Oggetto:             %1</translation>
     </message>
     <message>
         <source>Not Valid Before:     %1</source>
-        <translation>Non valido prima:   %1</translation>
+        <translation type="vanished">Non valido prima:   %1</translation>
     </message>
     <message>
         <source>Not Valid After:      %1</source>
-        <translation>Non valido dopo:   %1</translation>
+        <translation type="vanished">Non valido dopo:   %1</translation>
     </message>
     <message>
         <source>Serial Number:        %1</source>
-        <translation>Numero di serie:     %1</translation>
+        <translation type="vanished">Numero di serie:     %1</translation>
     </message>
     <message>
         <source>Self-Signed:          %1</source>
-        <translation>Auto-firmato:        %1</translation>
+        <translation type="vanished">Auto-firmato:        %1</translation>
     </message>
     <message>
         <source>True</source>
@@ -1946,19 +1946,69 @@
     </message>
     <message>
         <source>Authority (CA):       %1</source>
-        <translation>Autorità (CA):        %1</translation>
+        <translation type="vanished">Autorità (CA):        %1</translation>
     </message>
     <message>
         <source>Public Algorithm:     %1 (%2)</source>
-        <translation>Algoritmo pubblico: %1 (%2)</translation>
+        <translation type="vanished">Algoritmo pubblico: %1 (%2)</translation>
     </message>
     <message>
         <source>Signature Algorithm:  %1 (%2)</source>
-        <translation>Algoritmo di firma:    %1 (%2)</translation>
+        <translation type="vanished">Algoritmo di firma:    %1 (%2)</translation>
     </message>
     <message>
         <source>X.509 Version Number: %1</source>
-        <translation>Numero versione X.509: %1</translation>
+        <translation type="vanished">Numero versione X.509: %1</translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Issuer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subject</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid Before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5978,7 +6028,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataAudio</name>
     <message>
         <source>Audio</source>
-        <translation>Audio</translation>
+        <translation type="vanished">Audio</translation>
     </message>
     <message>
         <source>Host Driver</source>
@@ -5996,7 +6046,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Display</source>
         <comment>details report</comment>
-        <translation>Schermo</translation>
+        <translation type="vanished">Schermo</translation>
     </message>
     <message>
         <source>Video Memory</source>
@@ -6059,7 +6109,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>General</source>
         <comment>details report</comment>
-        <translation>Generale</translation>
+        <translation type="vanished">Generale</translation>
     </message>
     <message>
         <source>Name</source>
@@ -6076,7 +6126,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataNetwork</name>
     <message>
         <source>Network</source>
-        <translation>Rete</translation>
+        <translation type="vanished">Rete</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -6122,7 +6172,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Network Statistics</source>
         <comment>details report</comment>
-        <translation>Statistiche di rete</translation>
+        <translation type="vanished">Statistiche di rete</translation>
     </message>
 </context>
 <context>
@@ -6130,7 +6180,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Parallel Ports</source>
         <comment>details report</comment>
-        <translation>Porte parallele</translation>
+        <translation type="vanished">Porte parallele</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -6148,7 +6198,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Runtime Attributes</source>
         <comment>details report</comment>
-        <translation>Attributi di esecuzione</translation>
+        <translation type="vanished">Attributi di esecuzione</translation>
     </message>
     <message>
         <source>Not Detected</source>
@@ -6220,7 +6270,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataSerialPorts</name>
     <message>
         <source>Serial Ports</source>
-        <translation>Porte seriali</translation>
+        <translation type="vanished">Porte seriali</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -6233,7 +6283,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation>Cartelle condivise</translation>
+        <translation type="vanished">Cartelle condivise</translation>
     </message>
     <message>
         <source>Shared Folders</source>
@@ -6245,7 +6295,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataStorage</name>
     <message>
         <source>Storage</source>
-        <translation>Archiviazione</translation>
+        <translation type="vanished">Archiviazione</translation>
     </message>
     <message>
         <source>(Optical Drive)</source>
@@ -6273,7 +6323,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Storage Statistics</source>
         <comment>details report</comment>
-        <translation>Statistiche di archiviazione</translation>
+        <translation type="vanished">Statistiche di archiviazione</translation>
     </message>
 </context>
 <context>
@@ -6281,7 +6331,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>System</source>
         <comment>details report</comment>
-        <translation>Sistema</translation>
+        <translation type="vanished">Sistema</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -6389,7 +6439,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>USB</source>
         <comment>details report</comment>
-        <translation>USB</translation>
+        <translation type="vanished">USB</translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -17818,7 +17868,87 @@ Versione %1</translation>
     <message>
         <source>RuntimeAttributes</source>
         <comment>DetailsElementType</comment>
-        <translation>Attributi di esecuzione</translation>
+        <translation type="vanished">Attributi di esecuzione</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Generale</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Anteprima</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Sistema</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Schermo</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Archiviazione</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Audio</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Rete</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Porte seriali</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Porte parallele</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Cartelle condivise</translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Interfaccia utente</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Descrizione</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

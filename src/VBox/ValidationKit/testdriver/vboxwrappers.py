@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 108687 $"
+__version__ = "$Revision: 108748 $"
 
 
 # Standard Python imports.
@@ -57,6 +57,8 @@ def _ControllerNameToBus(sController):
         iType = vboxcon.StorageBus_SAS;
     elif sController == "SCSI Controller":
         iType = vboxcon.StorageBus_SCSI;
+    elif sController == "NVMe Controller":
+        iType = vboxcon.StorageBus_PCIe;
     else:
         iType = vboxcon.StorageBus_Null;
     return iType;

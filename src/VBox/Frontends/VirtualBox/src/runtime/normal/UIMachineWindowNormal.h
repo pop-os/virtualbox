@@ -24,6 +24,7 @@
 /* Forward declarations: */
 class CMediumAttachment;
 class UIIndicatorsPool;
+class UIAction;
 
 /** UIMachineWindow reimplementation,
   * providing GUI with machine-window for the normal mode. */
@@ -81,6 +82,11 @@ private slots:
     /** Handles status-bar indicator context-menu-request. */
     void sltHandleIndicatorContextMenuRequest(IndicatorType indicatorType, const QPoint &position);
 
+#ifdef VBOX_WS_MAC
+    /** Handles signal about some @a pAction hovered. */
+    void sltActionHovered(UIAction *pAction);
+#endif /* VBOX_WS_MAC */
+
 private:
 
     /** Prepare session connections routine. */
@@ -106,7 +112,8 @@ private:
     /** Updates visibility according to visual-state. */
     void showInNecessaryMode();
 
-    /** Normalizes geometry according to guest-size. */
+    /** Performs window geometry normalization according to guest-size and host's available geometry.
+      * @param  fAdjustPosition  Determines whether is it necessary to adjust position as well. */
     void normalizeGeometry(bool fAdjustPosition);
 
     /** Common update routine. */

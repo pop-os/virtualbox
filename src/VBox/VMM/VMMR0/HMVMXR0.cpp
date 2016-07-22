@@ -4902,6 +4902,7 @@ static int hmR0VmxSetupVMRunHandler(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
             /* Mark that we've switched to 64-bit handler, we can't safely switch back to 32-bit for
                the rest of the VM run (until VM reset). See @bugref{8432#c7}. */
             pVCpu->hm.s.vmx.fSwitchedTo64on32 = true;
+            Log4(("Load[%RU32]: hmR0VmxSetupVMRunHandler: selected 64-bit switcher\n", pVCpu->idCpu));
         }
 #else
         /* 64-bit host. */
@@ -4922,23 +4923,31 @@ static int hmR0VmxSetupVMRunHandler(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
                                              | HM_CHANGED_GUEST_EFER_MSR), ("flags=%#x\n", HMCPU_CF_VALUE(pVCpu)));
         }
 # ifdef VBOX_ENABLE_64_BITS_GUESTS
-        /* Keep using the 64-bit switcher even though we're in 32-bit because of bad Intel design. See @bugref{8432#c7}.
-         * Except if Real-on-V86 is active, clear the 64-bit switcher flag because now we know the guest is in a sane
-         * state where it's safe to use the 32-bit switcher again.
+        /*
+         * Keep using the 64-bit switcher even though we're in 32-bit because of bad Intel design, see @bugref{8432#c7}.
+         * If real-on-v86 mode is active, clear the 64-bit switcher flag because now we know the guest is in a sane
+         * state where it's safe to use the 32-bit switcher. Otherwise check the guest state if it's safe to use
+         * the much faster 32-bit switcher again.
          */
-        if (pVCpu->hm.s.vmx.RealMode.fRealOnV86Active)
-            pVCpu->hm.s.vmx.fSwitchedTo64on32 = false;
-
         if (!pVCpu->hm.s.vmx.fSwitchedTo64on32)
+        {
+            if (pVCpu->hm.s.vmx.pfnStartVM != VMXR0StartVM32)
+                Log4(("Load[%RU32]: hmR0VmxSetupVMRunHandler: selected 32-bit switcher\n", pVCpu->idCpu));
             pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
+        }
         else
         {
-            Assert(!pVCpu->hm.s.vmx.RealMode.fRealOnV86Active);
             Assert(pVCpu->hm.s.vmx.pfnStartVM == VMXR0SwitcherStartVM64);
-            if (hmR0VmxIs32BitSwitcherSafe(pVCpu, pMixedCtx))
+            if (   pVCpu->hm.s.vmx.RealMode.fRealOnV86Active
+                || hmR0VmxIs32BitSwitcherSafe(pVCpu, pMixedCtx))
             {
                 pVCpu->hm.s.vmx.fSwitchedTo64on32 = false;
                 pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
+                HMCPU_CF_SET(pVCpu,   HM_CHANGED_GUEST_EFER_MSR
+                                    | HM_CHANGED_VMX_ENTRY_CTLS
+                                    | HM_CHANGED_VMX_EXIT_CTLS
+                                    | HM_CHANGED_HOST_CONTEXT);
+                Log4(("Load[%RU32]: hmR0VmxSetupVMRunHandler: selected 32-bit switcher (safe)\n", pVCpu->idCpu));
             }
         }
 # else
@@ -5090,8 +5099,11 @@ static void hmR0VmxReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rcVMRun, PC
                 Log4(("Old Guest Rsp %#RX64 New %#RX64\n", pCtx->rsp, u64Val));
                 rc = VMXReadVmcs32(VMX_VMCS_GUEST_RFLAGS, &u32Val);         AssertRC(rc);
                 Log4(("Old Guest Rflags %#RX32 New %#RX32\n", pCtx->eflags.u32, u32Val));
-                rc = VMXReadVmcs32(VMX_VMCS16_VPID, &u32Val);               AssertRC(rc);
-                Log4(("VMX_VMCS16_VPID  %u\n", u32Val));
+                if (pVM->hm.s.vmx.fVpid)
+                {
+                    rc = VMXReadVmcs32(VMX_VMCS16_VPID, &u32Val);           AssertRC(rc);
+                    Log4(("VMX_VMCS16_VPID  %u\n", u32Val));
+                }
 
                 /* Host bits. */
                 rc = VMXReadVmcsHstN(VMX_VMCS_HOST_CR0, &uHCReg);           AssertRC(rc);
@@ -5282,6 +5294,7 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, H
 
     /* Clear VMCS. Marking it inactive, clearing implementation-specific data and writing VMCS data back to memory. */
     VMXClearVmcs(pVCpu->hm.s.vmx.HCPhysVmcs);
+    pVCpu->hm.s.vmx.uVmcsState = HMVMX_VMCS_STATE_CLEAR;
 
     /* Leave VMX Root Mode. */
     VMXDisable();
@@ -5315,6 +5328,7 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, H
 
     rc2 = VMXActivateVmcs(pVCpu->hm.s.vmx.HCPhysVmcs);
     AssertRC(rc2);
+    pVCpu->hm.s.vmx.uVmcsState = HMVMX_VMCS_STATE_ACTIVE;
     Assert(!(ASMGetFlags() & X86_EFL_IF));
     ASMSetFlags(fOldEFlags);
     return rc;
@@ -8744,12 +8758,12 @@ static void hmR0VmxPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCt
     /*
      * Load the host state bits as we may've been preempted (only happens when
      * thread-context hooks are used or when hmR0VmxSetupVMRunHandler() changes pfnStartVM).
+     * Note that the 64-on-32 switcher saves the (64-bit) host state into the VMCS and
+     * if we change the switcher back to 32-bit, we *must* save the 32-bit host state here.
+     * See @bugref{8432}.
      */
-    /** @todo Why should hmR0VmxSetupVMRunHandler() changing pfnStartVM have
-     *        any effect to the host state needing to be saved? */
     if (HMCPU_CF_IS_PENDING(pVCpu, HM_CHANGED_HOST_CONTEXT))
     {
-        /* This ASSUMES that pfnStartVM has been set up already. */
         int rc = hmR0VmxSaveHostState(pVM, pVCpu);
         AssertRC(rc);
         STAM_COUNTER_INC(&pVCpu->hm.s.StatSwitchPreemptSaveHostState);
@@ -8892,7 +8906,13 @@ static void hmR0VmxPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXT
 #if HC_ARCH_BITS == 64
     pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_REQUIRED;   /* Host state messed up by VT-x, we must restore. */
 #endif
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
+    /* The 64-on-32 switcher maintains uVmcsState on its own and we need to leave it alone here. */
+    if (pVCpu->hm.s.vmx.pfnStartVM != VMXR0SwitcherStartVM64)
+        pVCpu->hm.s.vmx.uVmcsState |= HMVMX_VMCS_STATE_LAUNCHED;      /* Use VMRESUME instead of VMLAUNCH in the next run. */
+#else
     pVCpu->hm.s.vmx.uVmcsState |= HMVMX_VMCS_STATE_LAUNCHED;          /* Use VMRESUME instead of VMLAUNCH in the next run. */
+#endif
 #ifdef VBOX_STRICT
     hmR0VmxCheckHostEferMsr(pVCpu);                                   /* Verify that VMRUN/VMLAUNCH didn't modify host EFER. */
 #endif

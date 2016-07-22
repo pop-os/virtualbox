@@ -1382,30 +1382,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Issuer:               %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Subject:              %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not Valid Before:     %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not Valid After:      %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Serial Number:        %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Self-Signed:          %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>True</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1414,19 +1390,53 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Authority (CA):       %1</source>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Public Algorithm:     %1 (%2)</source>
+        <source>Issuer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Signature Algorithm:  %1 (%2)</source>
+        <source>Subject</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>X.509 Version Number: %1</source>
+        <source>Not Valid Before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4590,7 +4600,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataAudio</name>
     <message>
         <source>Audio</source>
-        <translation type="unfinished">Audio</translation>
+        <translation type="obsolete">Audio</translation>
     </message>
     <message>
         <source>Host Driver</source>
@@ -4608,7 +4618,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Display</source>
         <comment>details report</comment>
-        <translation type="unfinished">Pantalla</translation>
+        <translation type="obsolete">Pantalla</translation>
     </message>
     <message>
         <source>Video Memory</source>
@@ -4671,7 +4681,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>General</source>
         <comment>details report</comment>
-        <translation type="unfinished">Xeral</translation>
+        <translation type="obsolete">Xeral</translation>
     </message>
     <message>
         <source>Name</source>
@@ -4688,7 +4698,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataNetwork</name>
     <message>
         <source>Network</source>
-        <translation type="unfinished">Rede</translation>
+        <translation type="obsolete">Rede</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -4731,18 +4741,13 @@ p, li { white-space: pre-wrap; }
         <source>Data Received</source>
         <translation type="unfinished">Datos recibidos</translation>
     </message>
-    <message>
-        <source>Network Statistics</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>UIInformationDataParallelPorts</name>
     <message>
         <source>Parallel Ports</source>
         <comment>details report</comment>
-        <translation type="unfinished">Portos paralelos</translation>
+        <translation type="obsolete">Portos paralelos</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -4760,7 +4765,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Runtime Attributes</source>
         <comment>details report</comment>
-        <translation type="unfinished">Atributos de tempo de execución</translation>
+        <translation type="obsolete">Atributos de tempo de execución</translation>
     </message>
     <message>
         <source>Not Detected</source>
@@ -4832,7 +4837,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataSerialPorts</name>
     <message>
         <source>Serial Ports</source>
-        <translation type="unfinished">Portos serie</translation>
+        <translation type="obsolete">Portos serie</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -4845,7 +4850,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation type="unfinished">Cartafoles compartidos</translation>
+        <translation type="obsolete">Cartafoles compartidos</translation>
     </message>
     <message>
         <source>Shared Folders</source>
@@ -4857,7 +4862,7 @@ p, li { white-space: pre-wrap; }
     <name>UIInformationDataStorage</name>
     <message>
         <source>Storage</source>
-        <translation type="unfinished">Almacenamento</translation>
+        <translation type="obsolete">Almacenamento</translation>
     </message>
     <message>
         <source>(Optical Drive)</source>
@@ -4882,18 +4887,13 @@ p, li { white-space: pre-wrap; }
         <source>Data Written</source>
         <translation type="unfinished">Datos escritos</translation>
     </message>
-    <message>
-        <source>Storage Statistics</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>UIInformationDataSystem</name>
     <message>
         <source>System</source>
         <comment>details report</comment>
-        <translation type="unfinished">Sistema</translation>
+        <translation type="obsolete">Sistema</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -5001,7 +5001,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>USB</source>
         <comment>details report</comment>
-        <translation type="unfinished">USB</translation>
+        <translation type="obsolete">USB</translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -13032,8 +13032,83 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>RuntimeAttributes</source>
-        <comment>DetailsElementType</comment>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Xeral</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Sistema</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Pantalla</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Almacenamento</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Audio</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Rede</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Descrición</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

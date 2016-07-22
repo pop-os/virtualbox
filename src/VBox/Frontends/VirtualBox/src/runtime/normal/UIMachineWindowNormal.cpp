@@ -215,6 +215,14 @@ void UIMachineWindowNormal::sltHandleIndicatorContextMenuRequest(IndicatorType i
         pAction->menu()->exec(position);
 }
 
+#ifdef VBOX_WS_MAC
+void UIMachineWindowNormal::sltActionHovered(UIAction *pAction)
+{
+    /* Show the action message for a ten seconds: */
+    statusBar()->showMessage(pAction->statusTip(), 10000);
+}
+#endif /* VBOX_WS_MAC */
+
 void UIMachineWindowNormal::prepareSessionConnections()
 {
     /* Call to base-class: */
@@ -284,6 +292,11 @@ void UIMachineWindowNormal::prepareStatusBar()
         /* Post-configure status-bar: */
         connect(gEDataManager, SIGNAL(sigStatusBarConfigurationChange(const QString&)),
                 this, SLOT(sltHandleStatusBarConfigurationChange(const QString&)));
+#ifdef VBOX_WS_MAC
+        /* Make sure the status-bar is aware of action hovering: */
+        connect(actionPool(), SIGNAL(sigActionHovered(UIAction *)),
+                this, SLOT(sltActionHovered(UIAction *)));
+#endif /* VBOX_WS_MAC */
     }
 
 #ifdef VBOX_WS_MAC
@@ -499,10 +512,6 @@ void UIMachineWindowNormal::showInNecessaryMode()
     m_pMachineView->setFocus();
 }
 
-/**
- * Adjusts machine-window size to correspond current guest screen size.
- * @param fAdjustPosition determines whether is it necessary to adjust position too.
- */
 void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
 {
 #ifndef VBOX_GUI_WITH_CUSTOMIZATIONS1
@@ -511,15 +520,15 @@ void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
         return;
 
     /* Calculate client window offsets: */
-    QRect frameGeo = frameGeometry();
+    QRect frGeo = frameGeometry();
     const QRect geo = geometry();
-    int dl = geo.left() - frameGeo.left();
-    int dt = geo.top() - frameGeo.top();
-    int dr = frameGeo.right() - geo.right();
-    int db = frameGeo.bottom() - geo.bottom();
+    const int dl = geo.left() - frGeo.left();
+    const int dt = geo.top() - frGeo.top();
+    const int dr = frGeo.right() - geo.right();
+    const int db = frGeo.bottom() - geo.bottom();
 
     /* Get the best size w/o scroll-bars: */
-    QSize s = sizeHint();
+    QSize sh = sizeHint();
 
     /* If guest-screen auto-resize is not enabled
      * or the guest-additions doesn't support graphics
@@ -527,23 +536,38 @@ void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
     if (!machineView()->isGuestAutoresizeEnabled() || !uisession()->isGuestSupportsGraphics())
     {
         if (machineView()->verticalScrollBar()->isVisible())
-            s -= QSize(machineView()->verticalScrollBar()->sizeHint().width(), 0);
+            sh -= QSize(machineView()->verticalScrollBar()->sizeHint().width(), 0);
         if (machineView()->horizontalScrollBar()->isVisible())
-            s -= QSize(0, machineView()->horizontalScrollBar()->sizeHint().height());
+            sh -= QSize(0, machineView()->horizontalScrollBar()->sizeHint().height());
     }
 
     /* Resize the frame to fit the contents: */
-    s -= size();
-    frameGeo.setRight(frameGeo.right() + s.width());
-    frameGeo.setBottom(frameGeo.bottom() + s.height());
+    sh -= size();
+    frGeo.setRight(frGeo.right() + sh.width());
+    frGeo.setBottom(frGeo.bottom() + sh.height());
+
+    /* Calculate common bound region: */
+    QRegion region;
+    for (int iScreenIndex = 0; iScreenIndex < vboxGlobal().screenCount(); ++iScreenIndex)
+    {
+        /* Get enumerated screen's available area: */
+        QRect rect = vboxGlobal().availableGeometry(iScreenIndex);
+#ifdef VBOX_WS_WIN
+        /* On Windows host window can exceed the available
+         * area in maximized/sticky-borders state: */
+        rect.adjust(-10, -10, 10, 10);
+#endif /* VBOX_WS_WIN */
+        /* Append rectangle: */
+        region += rect;
+    }
 
     /* Adjust position if necessary: */
     if (fAdjustPosition)
-        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, vboxGlobal().availableGeometry(pos()));
+        frGeo = VBoxGlobal::normalizeGeometry(frGeo, region);
 
     /* Finally, set the frame geometry: */
-    setGeometry(frameGeo.left() + dl, frameGeo.top() + dt,
-                frameGeo.width() - dl - dr, frameGeo.height() - dt - db);
+    setGeometry(frGeo.left() + dl, frGeo.top() + dt,
+                frGeo.width() - dl - dr, frGeo.height() - dt - db);
 #else /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
     /* Customer request: There should no be
      * machine-window resize on machine-view resize: */
