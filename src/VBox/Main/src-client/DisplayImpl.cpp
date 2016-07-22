@@ -440,7 +440,7 @@ DECLCALLBACK(void) Display::i_displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pv
     SSMR3PutU32(pSSM, 2); /* Write thumbnail and PNG screenshot. */
 
     /* First block. */
-    SSMR3PutU32(pSSM, cbThumbnail + 2 * sizeof(uint32_t));
+    SSMR3PutU32(pSSM, (uint32_t)(cbThumbnail + 2 * sizeof(uint32_t)));
     SSMR3PutU32(pSSM, 0); /* Block type: thumbnail. */
 
     if (cbThumbnail)
@@ -451,7 +451,7 @@ DECLCALLBACK(void) Display::i_displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pv
     }
 
     /* Second block. */
-    SSMR3PutU32(pSSM, cbPNG + 2 * sizeof(uint32_t));
+    SSMR3PutU32(pSSM, (uint32_t)(cbPNG + 2 * sizeof(uint32_t)));
     SSMR3PutU32(pSSM, 1); /* Block type: png. */
 
     if (cbPNG)
@@ -468,8 +468,6 @@ DECLCALLBACK(void) Display::i_displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pv
 DECLCALLBACK(int)
 Display::i_displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass)
 {
-    Display *that = static_cast<Display*>(pvUser);
-
     if (uVersion != sSSMDisplayScreenshotVer)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
@@ -548,6 +546,7 @@ Display::i_displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint
 
     uint32_t cMonitors;
     int rc = SSMR3GetU32(pSSM, &cMonitors);
+    AssertRCReturn(rc, rc);
     if (cMonitors != that->mcMonitors)
         return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Number of monitors changed (%d->%d)!"), cMonitors, that->mcMonitors);
 
@@ -920,13 +919,16 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
     /* Guest screen image will be invalid during resize, make sure that it is not updated. */
     if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
     {
-        mpDrv->pUpPort->pfnSetRenderVRAM(mpDrv->pUpPort, false);
+        if (mpDrv)
+        {
+            mpDrv->pUpPort->pfnSetRenderVRAM(mpDrv->pUpPort, false);
 
-        mpDrv->IConnector.pbData     = NULL;
-        mpDrv->IConnector.cbScanline = 0;
-        mpDrv->IConnector.cBits      = 32; /* DevVGA does not work with cBits == 0. */
-        mpDrv->IConnector.cx         = 0;
-        mpDrv->IConnector.cy         = 0;
+            mpDrv->IConnector.pbData     = NULL;
+            mpDrv->IConnector.cbScanline = 0;
+            mpDrv->IConnector.cBits      = 32; /* DevVGA does not work with cBits == 0. */
+            mpDrv->IConnector.cx         = 0;
+            mpDrv->IConnector.cy         = 0;
+        }
     }
 
     maFramebuffers[uScreenId].pSourceBitmap.setNull();
@@ -1369,7 +1371,7 @@ int Display::i_handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
 
                 pCtl->aParms[0].type = VBOX_HGCM_SVC_PARM_PTR;
                 pCtl->aParms[0].u.pointer.addr = pRectsCopy;
-                pCtl->aParms[0].u.pointer.size = cRect * sizeof(RTRECT);
+                pCtl->aParms[0].u.pointer.size = (uint32_t)(cRect * sizeof(RTRECT));
 
                 rc = i_crCtlSubmit(&pCtl->Hdr, sizeof(*pCtl), i_displayCrCmdFree, pCtl);
                 if (!RT_SUCCESS(rc))
@@ -1914,8 +1916,21 @@ int Display::i_displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint
     if (   aScreenId == VBOX_VIDEO_PRIMARY_SCREEN
         && pDisplay->maFramebuffers[aScreenId].fVBVAEnabled == false) /* A non-VBVA mode. */
     {
-        rc = pDisplay->mpDrv->pUpPort->pfnTakeScreenshot(pDisplay->mpDrv->pUpPort, ppbData, pcbData, pcx, pcy);
-        *pfMemFree = false;
+        if (pDisplay->mpDrv)
+        {
+            rc = pDisplay->mpDrv->pUpPort->pfnTakeScreenshot(pDisplay->mpDrv->pUpPort, ppbData, pcbData, pcx, pcy);
+            *pfMemFree = false;
+        }
+        else
+        {
+            /* No image. */
+            *ppbData = NULL;
+            *pcbData = 0;
+            *pcx = 0;
+            *pcy = 0;
+            *pfMemFree = true;
+            rc = VINF_SUCCESS;
+        }
     }
     else if (aScreenId < pDisplay->mcMonitors)
     {
@@ -3086,7 +3101,6 @@ DECLCALLBACK(void) Display::i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInter
         if (rc == VWRN_INVALID_STATE)
         {
             /* No VBVA do a display update. */
-            DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[VBOX_VIDEO_PRIMARY_SCREEN];
             pDrv->pUpPort->pfnUpdateDisplay(pDrv->pUpPort);
         }
 
@@ -3098,8 +3112,6 @@ DECLCALLBACK(void) Display::i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInter
          */
         for (uScreenId = 0; uScreenId < pDisplay->mcMonitors; uScreenId++)
         {
-            DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[uScreenId];
-
             Assert(pDisplay->mParent && pDisplay->mParent->i_consoleVRDPServer());
             pDisplay->mParent->i_consoleVRDPServer()->SendUpdate(uScreenId, NULL, 0);
         }
@@ -3273,7 +3285,6 @@ DECLCALLBACK(void) Display::i_displayProcessDisplayDataCallback(PPDMIDISPLAYCONN
 int Display::i_handleVHWACommandProcess(PVBOXVHWACMD pCommand)
 {
     unsigned id = (unsigned)pCommand->iDisplay;
-    int rc = VINF_SUCCESS;
     if (id >= mcMonitors)
         return VERR_INVALID_PARAMETER;
 
@@ -3569,6 +3580,7 @@ void  Display::i_handleCrVRecScreenshotPerform(uint32_t uScreen,
                                   uBitsPerPixel, uBytesPerLine,
                                   uGuestWidth, uGuestHeight,
                                   pu8BufferAddress, u64TimeStamp);
+    NOREF(rc);
     Assert(rc == VINF_SUCCESS /* || rc == VERR_TRY_AGAIN || rc == VINF_TRY_AGAIN*/);
 # endif
 }
@@ -3831,7 +3843,6 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateBegin(PPDMIDISPLAYCONNECTOR pInte
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
-    DISPLAYFBINFO *pFBInfo = &pThis->maFramebuffers[uScreenId];
 
     if (ASMAtomicReadU32(&pThis->mu32UpdateVBVAFlags) > 0)
     {
@@ -4141,7 +4152,6 @@ DECLCALLBACK(int) Display::i_displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR 
     LogFlowFunc(("\n"));
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
-    Display *pThis = pDrv->pDisplay;
 
     uint32_t cbShape = 0;
     if (pvShape)

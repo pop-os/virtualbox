@@ -1722,27 +1722,27 @@
     </message>
     <message>
         <source>Issuer:               %1</source>
-        <translation>Veren:                %1</translation>
+        <translation type="vanished">Veren:                %1</translation>
     </message>
     <message>
         <source>Subject:              %1</source>
-        <translation>Konu:                  %1</translation>
+        <translation type="vanished">Konu:                  %1</translation>
     </message>
     <message>
         <source>Not Valid Before:     %1</source>
-        <translation>Geçerlilik Başlangıcı: %1</translation>
+        <translation type="vanished">Geçerlilik Başlangıcı: %1</translation>
     </message>
     <message>
         <source>Not Valid After:      %1</source>
-        <translation>Geçerlilik Sonu:      %1</translation>
+        <translation type="vanished">Geçerlilik Sonu:      %1</translation>
     </message>
     <message>
         <source>Serial Number:        %1</source>
-        <translation>Seri Numarası:        %1</translation>
+        <translation type="vanished">Seri Numarası:        %1</translation>
     </message>
     <message>
         <source>Self-Signed:          %1</source>
-        <translation>Kendinden İmzalı: %1</translation>
+        <translation type="vanished">Kendinden İmzalı: %1</translation>
     </message>
     <message>
         <source>True</source>
@@ -1754,19 +1754,69 @@
     </message>
     <message>
         <source>Authority (CA):       %1</source>
-        <translation>Yetkili (CA):             %1</translation>
+        <translation type="vanished">Yetkili (CA):             %1</translation>
     </message>
     <message>
         <source>Public Algorithm:     %1 (%2)</source>
-        <translation>Ortak Algoritma:    %1 (%2)</translation>
+        <translation type="vanished">Ortak Algoritma:    %1 (%2)</translation>
     </message>
     <message>
         <source>Signature Algorithm:  %1 (%2)</source>
-        <translation>İmza Algoritması:       %1 (%2)</translation>
+        <translation type="vanished">İmza Algoritması:       %1 (%2)</translation>
     </message>
     <message>
         <source>X.509 Version Number: %1</source>
-        <translation>X.509 Sürüm Numarası: %1</translation>
+        <translation type="vanished">X.509 Sürüm Numarası: %1</translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Issuer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subject</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid Before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4829,7 +4879,7 @@
     <name>UIInformationDataAudio</name>
     <message>
         <source>Audio</source>
-        <translation>Ses</translation>
+        <translation type="vanished">Ses</translation>
     </message>
     <message>
         <source>Host Driver</source>
@@ -4847,7 +4897,7 @@
     <message>
         <source>Display</source>
         <comment>details report</comment>
-        <translation>Ekran</translation>
+        <translation type="vanished">Ekran</translation>
     </message>
     <message>
         <source>Video Memory</source>
@@ -4910,7 +4960,7 @@
     <message>
         <source>General</source>
         <comment>details report</comment>
-        <translation>Genel</translation>
+        <translation type="vanished">Genel</translation>
     </message>
     <message>
         <source>Name</source>
@@ -4927,7 +4977,7 @@
     <name>UIInformationDataNetwork</name>
     <message>
         <source>Network</source>
-        <translation>Ağ</translation>
+        <translation type="vanished">Ağ</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -4973,7 +5023,7 @@
     <message>
         <source>Network Statistics</source>
         <comment>details report</comment>
-        <translation>Ağ İstatistikleri</translation>
+        <translation type="vanished">Ağ İstatistikleri</translation>
     </message>
 </context>
 <context>
@@ -4981,7 +5031,7 @@
     <message>
         <source>Parallel Ports</source>
         <comment>details report</comment>
-        <translation>Paralel B.Noktaları</translation>
+        <translation type="vanished">Paralel B.Noktaları</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -4999,7 +5049,7 @@
     <message>
         <source>Runtime Attributes</source>
         <comment>details report</comment>
-        <translation>Çalışma Zamanı Öznitelikleri</translation>
+        <translation type="vanished">Çalışma Zamanı Öznitelikleri</translation>
     </message>
     <message>
         <source>Not Detected</source>
@@ -5071,7 +5121,7 @@
     <name>UIInformationDataSerialPorts</name>
     <message>
         <source>Serial Ports</source>
-        <translation>Seri B.Noktaları</translation>
+        <translation type="vanished">Seri B.Noktaları</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -5084,7 +5134,7 @@
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation>Paylaşılan Klasörler</translation>
+        <translation type="vanished">Paylaşılan Klasörler</translation>
     </message>
     <message>
         <source>Shared Folders</source>
@@ -5096,7 +5146,7 @@
     <name>UIInformationDataStorage</name>
     <message>
         <source>Storage</source>
-        <translation>Depolama</translation>
+        <translation type="vanished">Depolama</translation>
     </message>
     <message>
         <source>(Optical Drive)</source>
@@ -5124,7 +5174,7 @@
     <message>
         <source>Storage Statistics</source>
         <comment>details report</comment>
-        <translation>Depolama İstatistikleri</translation>
+        <translation type="vanished">Depolama İstatistikleri</translation>
     </message>
 </context>
 <context>
@@ -5132,7 +5182,7 @@
     <message>
         <source>System</source>
         <comment>details report</comment>
-        <translation>Sistem</translation>
+        <translation type="vanished">Sistem</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -5240,7 +5290,7 @@
     <message>
         <source>USB</source>
         <comment>details report</comment>
-        <translation>USB</translation>
+        <translation type="vanished">USB</translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -15246,7 +15296,87 @@ Version %1</source>
     <message>
         <source>RuntimeAttributes</source>
         <comment>DetailsElementType</comment>
-        <translation>Çalışma Zamanı Öznitelikleri</translation>
+        <translation type="vanished">Çalışma Zamanı Öznitelikleri</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Genel</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Önizleme</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Sistem</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Ekran</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Depolama</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Ses</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Ağ</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Seri b.noktaları</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Paralel b.noktaları</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Paylaşılan klasörler</translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Kullanıcı arayüzü</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Açıklama</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

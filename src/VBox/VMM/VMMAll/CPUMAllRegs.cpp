@@ -1373,8 +1373,12 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPU pVCpu, uint32_t uLeaf, uint32_t uSubLeaf,
  * @param   pVCpu       The cross context virtual CPU structure to make the
  *                      change on.  Usually the calling EMT.
  * @param   fVisible    Whether to make it visible (true) or hide it (false).
+ *
+ * @remarks This is "VMMDECL" so that it still links with
+ *          the old APIC code which is in VBoxDD2 and not in
+ *          the VMM module.
  */
-VMM_INT_DECL(bool) CPUMSetGuestCpuIdPerCpuApicFeature(PVMCPU pVCpu, bool fVisible)
+VMMDECL(bool) CPUMSetGuestCpuIdPerCpuApicFeature(PVMCPU pVCpu, bool fVisible)
 {
     bool fOld = pVCpu->cpum.s.fCpuIdApicFeatureVisible;
     pVCpu->cpum.s.fCpuIdApicFeatureVisible = fVisible;
@@ -2033,7 +2037,7 @@ VMM_INT_DECL(int) CPUMRawEnter(PVMCPU pVCpu)
     AssertMsg((pCtx->eflags.u32 & X86_EFL_IF), ("X86_EFL_IF is clear\n"));
     AssertReleaseMsg(pCtx->eflags.Bits.u2IOPL == 0,
                      ("X86_EFL_IOPL=%d CPL=%d\n", pCtx->eflags.Bits.u2IOPL, pCtx->ss.Sel & X86_SEL_RPL));
-    Assert((pVCpu->cpum.s.Guest.cr0 & (X86_CR0_PG | X86_CR0_WP | X86_CR0_PE)) == (X86_CR0_PG | X86_CR0_PE | X86_CR0_WP));
+    Assert((pVCpu->cpum.s.Guest.cr0 & (X86_CR0_PG | X86_CR0_PE)) == (X86_CR0_PG | X86_CR0_PE));
 
     pCtx->eflags.u32        |= X86_EFL_IF; /* paranoia */
 

@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 108705 $"
+__version__ = "$Revision: 108935 $"
 
 
 # Standard Python imports.
@@ -157,6 +157,8 @@ class IozoneTest(object):
                           ('random writers',  'RandomWrite'),
                           ('pwrite writers',  'PWrite'),
                           ('pread readers',   'PRead'),
+                          ('fwriters',        'FWrite'),
+                          ('freaders',        'FRead'),
                           ('readers',         'FirstRead')];
         self.sRecordSize  = dCfg.get('RecordSize',  '4k');
         self.sTestsetSize = dCfg.get('TestsetSize', '2g');
@@ -211,14 +213,18 @@ class IozoneTest(object):
                         while sLine[idxValue] == ' ':
                             idxValue += 1;
 
+                        # Get the reported value, cut off after the decimal point
+                        # it is not supported by the testmanager yet and is not really
+                        # relevant anyway.
                         idxValueEnd = idxValue;
-                        while sLine[idxValueEnd] == '.' or sLine[idxValueEnd].isdigit():
+                        while sLine[idxValueEnd].isdigit():
                             idxValueEnd += 1;
 
                         for sNeedle, sTestVal in self.lstTests:
                             if sLine.rfind(sNeedle) is not -1:
                                 reporter.testValue(sTestVal, sLine[idxValue:idxValueEnd],
                                                    constants.valueunit.g_asNames[constants.valueunit.KILOBYTES_PER_SEC]);
+                                break;
             except:
                 fRc = False;
         else:
@@ -244,7 +250,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
         self.oGuestToGuestVM   = None;
         self.oGuestToGuestSess = None;
         self.oGuestToGuestTxs  = None;
-        self.asTestVMsDef      = ['tst-storage'];
+        self.asTestVMsDef      = ['tst-storage', 'tst-storage32'];
         self.asTestVMs         = self.asTestVMsDef;
         self.asSkipVMs         = [];
         self.asVirtModesDef    = ['hwvirt', 'hwvirt-np', 'raw',]
@@ -369,6 +375,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
             self.asRsrcs = [];
             if 'tst-storage' in self.asTestVMs:
                 self.asRsrcs.append('5.0/storage/tst-storage.vdi');
+            if 'tst-storage32' in self.asTestVMs:
+                self.asRsrcs.append('5.0/storage/tst-storage32.vdi');
 
         return self.asRsrcs;
 
@@ -385,6 +393,13 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
         # Linux VMs
         if 'tst-storage' in self.asTestVMs:
             oVM = self.createTestVM('tst-storage', 1, '5.0/storage/tst-storage.vdi', sKind = 'ArchLinux_64', fIoApic = True, \
+                                    eNic0AttachType = vboxcon.NetworkAttachmentType_NAT, \
+                                    eNic0Type = vboxcon.NetworkAdapterType_Am79C973);
+            if oVM is None:
+                return False;
+
+        if 'tst-storage32' in self.asTestVMs:
+            oVM = self.createTestVM('tst-storage32', 1, '5.0/storage/tst-storage32.vdi', sKind = 'ArchLinux', fIoApic = True, \
                                     eNic0AttachType = vboxcon.NetworkAttachmentType_NAT, \
                                     eNic0Type = vboxcon.NetworkAdapterType_Am79C973);
             if oVM is None:
@@ -585,29 +600,30 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 # cleanup.
                 self.removeTask(oTxsSession);
                 self.terminateVmBySession(oSession)
-
-                # Remove disk
-                oSession = self.openSession(oVM);
-                if oSession is not None:
-                    try:
-                        oSession.o.machine.detachDevice(_ControllerTypeToName(eStorageController), 0, iDevice);
-
-                        # Remove storage controller if it is not an IDE controller.
-                        if     eStorageController is not vboxcon.StorageControllerType_PIIX3 \
-                           and eStorageController is not vboxcon.StorageControllerType_PIIX4:
-                            oSession.o.machine.removeStorageController(_ControllerTypeToName(eStorageController));
-
-                        oSession.saveSettings();
-                        self.oVBox.deleteHdByLocation(sDiskPath);
-                        oSession.saveSettings();
-                        oSession.close();
-                        oSession = None;
-                    except:
-                        reporter.errorXcpt('failed to detach/delete disk %s from storage controller' % (sDiskPath));
-                else:
-                    fRc = False;
             else:
                 fRc = False;
+
+            # Remove disk
+            oSession = self.openSession(oVM);
+            if oSession is not None:
+                try:
+                    oSession.o.machine.detachDevice(_ControllerTypeToName(eStorageController), 0, iDevice);
+
+                    # Remove storage controller if it is not an IDE controller.
+                    if     eStorageController is not vboxcon.StorageControllerType_PIIX3 \
+                       and eStorageController is not vboxcon.StorageControllerType_PIIX4:
+                        oSession.o.machine.removeStorageController(_ControllerTypeToName(eStorageController));
+
+                    oSession.saveSettings();
+                    self.oVBox.deleteHdByLocation(sDiskPath);
+                    oSession.saveSettings();
+                    oSession.close();
+                    oSession = None;
+                except:
+                    reporter.errorXcpt('failed to detach/delete disk %s from storage controller' % (sDiskPath));
+            else:
+                fRc = False;
+
         return fRc;
 
     def testBenchmarkOneVM(self, sVmName):
@@ -628,6 +644,9 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
             elif sStorageCtrl == 'LsiLogic':
                 eStorageCtrl = vboxcon.StorageControllerType_LsiLogic;
             elif sStorageCtrl == 'BusLogic':
+                if sVmName == 'tst-storage': # Broken for 64bit Linux
+                    reporter.testDone(True);
+                    continue;
                 eStorageCtrl = vboxcon.StorageControllerType_BusLogic;
             elif sStorageCtrl == 'NVMe':
                 eStorageCtrl = vboxcon.StorageControllerType_NVMe;
@@ -667,7 +686,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                         else:           reporter.testStart('%u cpus' % (cCpus));
 
                         for sVirtMode in self.asVirtModes:
-                            if sVirtMode == 'raw' and cCpus > 1:
+                            if sVirtMode == 'raw' and (cCpus > 1 or sVmName == 'tst-storage'):
                                 continue;
                             hsVirtModeDesc = {};
                             hsVirtModeDesc['raw']       = 'Raw-mode';
@@ -715,13 +734,13 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 else:
                     sMountPoint = self.prepareStorage(self.oStorCfg);
                 if sMountPoint is not None:
-                    fRc = self.testBenchmarks(utils.getHostOs(), sMountPoint, oExecutor);
+                    self.testBenchmarks(utils.getHostOs(), sMountPoint, oExecutor);
                     self.cleanupStorage(self.oStorCfg);
                 else:
                     reporter.testFailure('Failed to prepare host storage');
+                    fRc = False;
                 reporter.testDone();
-
-            if fRc:
+            else:
                 # Loop thru the test VMs.
                 for sVM in self.asTestVMs:
                     # run test on the VM.

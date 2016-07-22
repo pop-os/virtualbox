@@ -1467,30 +1467,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Issuer:               %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Subject:              %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not Valid Before:     %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not Valid After:      %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Serial Number:        %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Self-Signed:          %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>True</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1499,19 +1475,53 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Authority (CA):       %1</source>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Public Algorithm:     %1 (%2)</source>
+        <source>Issuer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Signature Algorithm:  %1 (%2)</source>
+        <source>Subject</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>X.509 Version Number: %1</source>
+        <source>Not Valid Before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3829,7 +3839,7 @@
     <name>UIInformationDataAudio</name>
     <message>
         <source>Audio</source>
-        <translation type="unfinished">صدا</translation>
+        <translation type="obsolete">صدا</translation>
     </message>
     <message>
         <source>Host Driver</source>
@@ -3847,7 +3857,7 @@
     <message>
         <source>Display</source>
         <comment>details report</comment>
-        <translation type="unfinished">نمایش</translation>
+        <translation type="obsolete">نمایش</translation>
     </message>
     <message>
         <source>Video Memory</source>
@@ -3910,7 +3920,7 @@
     <message>
         <source>General</source>
         <comment>details report</comment>
-        <translation type="unfinished">عمومی</translation>
+        <translation type="obsolete">عمومی</translation>
     </message>
     <message>
         <source>Name</source>
@@ -3927,7 +3937,7 @@
     <name>UIInformationDataNetwork</name>
     <message>
         <source>Network</source>
-        <translation type="unfinished">شبکه</translation>
+        <translation type="obsolete">شبکه</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -3973,7 +3983,7 @@
     <message>
         <source>Network Statistics</source>
         <comment>details report</comment>
-        <translation type="unfinished">آمار شبکه</translation>
+        <translation type="obsolete">آمار شبکه</translation>
     </message>
 </context>
 <context>
@@ -3981,7 +3991,7 @@
     <message>
         <source>Parallel Ports</source>
         <comment>details report</comment>
-        <translation type="unfinished">پورت پارالل</translation>
+        <translation type="obsolete">پورت پارالل</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -3999,7 +4009,7 @@
     <message>
         <source>Runtime Attributes</source>
         <comment>details report</comment>
-        <translation type="unfinished">صفات زمان اِجرا</translation>
+        <translation type="obsolete">صفات زمان اِجرا</translation>
     </message>
     <message>
         <source>Not Detected</source>
@@ -4071,7 +4081,7 @@
     <name>UIInformationDataSerialPorts</name>
     <message>
         <source>Serial Ports</source>
-        <translation type="unfinished">پورت سریال</translation>
+        <translation type="obsolete">پورت سریال</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -4084,7 +4094,7 @@
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation type="unfinished">پوشه های اشتراکی</translation>
+        <translation type="obsolete">پوشه های اشتراکی</translation>
     </message>
     <message>
         <source>Shared Folders</source>
@@ -4096,7 +4106,7 @@
     <name>UIInformationDataStorage</name>
     <message>
         <source>Storage</source>
-        <translation type="unfinished">ذخیره ساز</translation>
+        <translation type="obsolete">ذخیره ساز</translation>
     </message>
     <message>
         <source>(Optical Drive)</source>
@@ -4124,7 +4134,7 @@
     <message>
         <source>Storage Statistics</source>
         <comment>details report</comment>
-        <translation type="unfinished">آمار ذخیره ساز</translation>
+        <translation type="obsolete">آمار ذخیره ساز</translation>
     </message>
 </context>
 <context>
@@ -4132,7 +4142,7 @@
     <message>
         <source>System</source>
         <comment>details report</comment>
-        <translation type="unfinished">سیستم</translation>
+        <translation type="obsolete">سیستم</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -4240,7 +4250,7 @@
     <message>
         <source>USB</source>
         <comment>details report</comment>
-        <translation type="unfinished">یو اِس بی</translation>
+        <translation type="obsolete">یو اِس بی</translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -11469,8 +11479,83 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>RuntimeAttributes</source>
-        <comment>DetailsElementType</comment>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">عمومی</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">پیشنمایش</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">سیستم</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">نمایش</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">ذخیره ساز</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">صدا</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">شبکه</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">پورت سریال</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">پورت پارالل</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">یو اِس بی</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">پوشه های اشتراکی</translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">رابط کاربری</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">توضیحات</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

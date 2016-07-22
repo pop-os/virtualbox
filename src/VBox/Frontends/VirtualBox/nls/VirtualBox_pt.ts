@@ -1525,30 +1525,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Issuer:               %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Subject:              %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not Valid Before:     %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not Valid After:      %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Serial Number:        %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Self-Signed:          %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>True</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1557,19 +1533,53 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Authority (CA):       %1</source>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Public Algorithm:     %1 (%2)</source>
+        <source>Issuer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Signature Algorithm:  %1 (%2)</source>
+        <source>Subject</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>X.509 Version Number: %1</source>
+        <source>Not Valid Before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4683,7 +4693,7 @@
     <name>UIInformationDataAudio</name>
     <message>
         <source>Audio</source>
-        <translation type="unfinished">Áudio</translation>
+        <translation type="obsolete">Áudio</translation>
     </message>
     <message>
         <source>Host Driver</source>
@@ -4698,11 +4708,6 @@
 </context>
 <context>
     <name>UIInformationDataDisplay</name>
-    <message>
-        <source>Display</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
     <message>
         <source>Video Memory</source>
         <comment>details report</comment>
@@ -4764,7 +4769,7 @@
     <message>
         <source>General</source>
         <comment>details report</comment>
-        <translation type="unfinished">Geral</translation>
+        <translation type="obsolete">Geral</translation>
     </message>
     <message>
         <source>Name</source>
@@ -4781,7 +4786,7 @@
     <name>UIInformationDataNetwork</name>
     <message>
         <source>Network</source>
-        <translation type="unfinished">Rede</translation>
+        <translation type="obsolete">Rede</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -4827,7 +4832,7 @@
     <message>
         <source>Network Statistics</source>
         <comment>details report</comment>
-        <translation type="unfinished">Estatísticas da Rede</translation>
+        <translation type="obsolete">Estatísticas da Rede</translation>
     </message>
 </context>
 <context>
@@ -4835,7 +4840,7 @@
     <message>
         <source>Parallel Ports</source>
         <comment>details report</comment>
-        <translation type="unfinished">Portas Paralelas</translation>
+        <translation type="obsolete">Portas Paralelas</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -4853,7 +4858,7 @@
     <message>
         <source>Runtime Attributes</source>
         <comment>details report</comment>
-        <translation type="unfinished">Atributos de Execução</translation>
+        <translation type="obsolete">Atributos de Execução</translation>
     </message>
     <message>
         <source>Not Detected</source>
@@ -4925,7 +4930,7 @@
     <name>UIInformationDataSerialPorts</name>
     <message>
         <source>Serial Ports</source>
-        <translation type="unfinished">Portas Série</translation>
+        <translation type="obsolete">Portas Série</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -4938,7 +4943,7 @@
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation type="unfinished">Pastas Partilhadas</translation>
+        <translation type="obsolete">Pastas Partilhadas</translation>
     </message>
     <message>
         <source>Shared Folders</source>
@@ -4950,7 +4955,7 @@
     <name>UIInformationDataStorage</name>
     <message>
         <source>Storage</source>
-        <translation type="unfinished">Armazenamento</translation>
+        <translation type="obsolete">Armazenamento</translation>
     </message>
     <message>
         <source>(Optical Drive)</source>
@@ -4978,7 +4983,7 @@
     <message>
         <source>Storage Statistics</source>
         <comment>details report</comment>
-        <translation type="unfinished">Estatísticas de Armazenamento</translation>
+        <translation type="obsolete">Estatísticas de Armazenamento</translation>
     </message>
 </context>
 <context>
@@ -4986,7 +4991,7 @@
     <message>
         <source>System</source>
         <comment>details report</comment>
-        <translation type="unfinished">Sistema</translation>
+        <translation type="obsolete">Sistema</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -5094,7 +5099,7 @@
     <message>
         <source>USB</source>
         <comment>details report</comment>
-        <translation type="unfinished">USB</translation>
+        <translation type="obsolete">USB</translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -14606,8 +14611,83 @@ Versão %1</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>RuntimeAttributes</source>
-        <comment>DetailsElementType</comment>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Geral</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Prever</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Sistema</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Armazenamento</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Áudio</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Rede</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Descrição</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

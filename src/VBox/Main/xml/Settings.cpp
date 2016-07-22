@@ -906,10 +906,10 @@ void ConfigFileBase::readNATForwardRulesMap(const xml::ElementNode &elmParent, N
         (*pf)->getAttributeValue("proto", (uint32_t&)rule.proto);
         (*pf)->getAttributeValue("hostip", rule.strHostIP);
         (*pf)->getAttributeValue("hostport", port);
-        rule.u16HostPort = port;
+        rule.u16HostPort = (uint16_t)port;
         (*pf)->getAttributeValue("guestip", rule.strGuestIP);
         (*pf)->getAttributeValue("guestport", port);
-        rule.u16GuestPort = port;
+        rule.u16GuestPort = (uint16_t)port;
         mapRules.insert(std::make_pair(rule.strName, rule));
     }
 }
@@ -2105,7 +2105,7 @@ void MainConfigFile::write(const com::Utf8Str strFilename)
  * Constructor. Needs to set sane defaults which stand the test of time.
  */
 VRDESettings::VRDESettings() :
-    fEnabled(false),
+    fEnabled(true), // default for old VMs, for new ones it's false
     authType(AuthType_Null),
     ulAuthTimeout(5000),
     fAllowMultiConnection(false),
@@ -2116,9 +2116,9 @@ VRDESettings::VRDESettings() :
 /**
  * Check if all settings have default values.
  */
-bool VRDESettings::areDefaultSettings() const
+bool VRDESettings::areDefaultSettings(SettingsVersion_T sv) const
 {
-    return !fEnabled
+    return (sv < SettingsVersion_v1_16 ? fEnabled : !fEnabled)
         && authType == AuthType_Null
         && (ulAuthTimeout == 5000 || ulAuthTimeout == 0)
         && strAuthLibrary.isEmpty()
@@ -2476,7 +2476,7 @@ bool ParallelPort::operator==(const ParallelPort &s) const
  * Constructor. Needs to set sane defaults which stand the test of time.
  */
 AudioAdapter::AudioAdapter() :
-    fEnabled(false),
+    fEnabled(true), // default for old VMs, for new ones it's false
     controllerType(AudioControllerType_AC97),
     codecType(AudioCodecType_STAC9700),
     driverType(AudioDriverType_Null)
@@ -2488,10 +2488,9 @@ AudioAdapter::AudioAdapter() :
  */
 bool AudioAdapter::areDefaultSettings(SettingsVersion_T sv) const
 {
-    return (sv <= SettingsVersion_v1_14 ? fEnabled : !fEnabled)
+    return (sv < SettingsVersion_v1_16 ? false : !fEnabled)
         && controllerType == AudioControllerType_AC97
         && codecType == AudioCodecType_STAC9700
-        && driverType == MachineConfigFile::getHostDefaultAudioDriver()
         && properties.size() == 0;
 }
 
@@ -3086,7 +3085,7 @@ MachineUserData::MachineUserData() :
     uFaultTolerancePort(0),
     uFaultToleranceInterval(0),
     fRTCUseUTC(false),
-    strVMPriority("")
+    strVMPriority()
 {
     llGroups.push_back("/");
 }
@@ -3587,11 +3586,6 @@ void MachineConfigFile::readAudioAdapter(const xml::ElementNode &elmAudioAdapter
         }
     }
 
-    if (m->sv <= SettingsVersion_v1_14)
-    {
-        // Special default handling: tag presence hints it should be enabled
-        aa.fEnabled = true;
-    }
     elmAudioAdapter.getAttributeValue("enabled", aa.fEnabled);
 
     Utf8Str strTemp;
@@ -3726,6 +3720,10 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
         /* Starting with VirtualBox 5.1 the default is Default, before it was
          * Legacy. This needs to matched by areParavirtDefaultSettings(). */
         hw.paravirtProvider = ParavirtProvider_Default;
+        /* The new default is disabled, before it was enabled by default. */
+        hw.vrdeSettings.fEnabled = false;
+        /* The new default is disabled, before it was enabled by default. */
+        hw.audioAdapter.fEnabled = false;
     }
 
     if (!elmHardware.getAttributeValue("version", hw.strVersion))
@@ -5406,10 +5404,10 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             pelmVideoCapture->setAttribute("maxSize",   hw.ulVideoCaptureMaxSize);
     }
 
-    if (!hw.vrdeSettings.areDefaultSettings())
+    if (!hw.vrdeSettings.areDefaultSettings(m->sv))
     {
         xml::ElementNode *pelmVRDE = pelmHardware->createChild("RemoteDisplay");
-        if (hw.vrdeSettings.fEnabled)
+        if (m->sv < SettingsVersion_v1_16 ? !hw.vrdeSettings.fEnabled : hw.vrdeSettings.fEnabled)
             pelmVRDE->setAttribute("enabled", hw.vrdeSettings.fEnabled);
         if (m->sv < SettingsVersion_v1_11)
         {
@@ -5864,31 +5862,33 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         }
     }
 
-    if (!hw.audioAdapter.areDefaultSettings(m->sv))
+    /* Always write the AudioAdapter config, intentionally not checking if
+     * the settings are at the default, because that would be problematic
+     * for the configured host driver type, which would automatically change
+     * if the default host driver is detected differently. */
     {
         xml::ElementNode *pelmAudio = pelmHardware->createChild("AudioAdapter");
-        if (hw.audioAdapter.controllerType != AudioControllerType_AC97)
+
+        const char *pcszController;
+        switch (hw.audioAdapter.controllerType)
         {
-            const char *pcszController;
-            switch (hw.audioAdapter.controllerType)
-            {
-                case AudioControllerType_SB16:
-                    pcszController = "SB16";
+            case AudioControllerType_SB16:
+                pcszController = "SB16";
+                break;
+            case AudioControllerType_HDA:
+                if (m->sv >= SettingsVersion_v1_11)
+                {
+                    pcszController = "HDA";
                     break;
-                case AudioControllerType_HDA:
-                    if (m->sv >= SettingsVersion_v1_11)
-                    {
-                        pcszController = "HDA";
-                        break;
-                    }
-                    /* fall through */
-                case AudioControllerType_AC97:
-                default:
-                    pcszController = "AC97";
-                    break;
-            }
-            pelmAudio->setAttribute("controller", pcszController);
+                }
+                /* fall through */
+            case AudioControllerType_AC97:
+            default:
+                pcszController = NULL;
+                break;
         }
+        if (pcszController)
+            pelmAudio->setAttribute("controller", pcszController);
 
         const char *pcszCodec;
         switch (hw.audioAdapter.codecType)
@@ -5930,9 +5930,11 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             case AudioDriverType_MMPM: pcszDriver = "MMPM"; break;
             default: /*case AudioDriverType_Null:*/ pcszDriver = "Null"; break;
         }
+        /* Deliberately have the audio driver explicitly in the config file,
+         * otherwise an unwritten default driver triggers auto-detection. */
         pelmAudio->setAttribute("driver", pcszDriver);
 
-        if (hw.audioAdapter.fEnabled || m->sv <= SettingsVersion_v1_14)
+        if (hw.audioAdapter.fEnabled || m->sv < SettingsVersion_v1_16)
             pelmAudio->setAttribute("enabled", hw.audioAdapter.fEnabled);
 
         if (m->sv >= SettingsVersion_v1_15 && hw.audioAdapter.properties.size() > 0)
