@@ -4,7 +4,7 @@ virtualbox (5.1.2-dfsg-1) UNRELEASED; urgency=medium
     LP: #1599775
   * Update dependencies to qt5
   * Regenerate manpages
-  [ Gianfranco Costamagna, Peter Melser ]
+  [ Gianfranco Costamagna, Peter Meiser ]
   * Major rewrite of the guest-additions GL library handling
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 30 May 2016 12:30:24 +0200
