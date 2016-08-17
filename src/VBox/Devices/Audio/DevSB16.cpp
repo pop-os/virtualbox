@@ -224,8 +224,9 @@ static void sb16TimerMaybeStop(PSB16STATE pThis);
  * @param   uLUN        The logical unit which is being detached.
  * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-static DECLCALLBACK(int) sb16AttachInternal(PPDMDEVINS pDevIns, PSB16DRIVER pDrv, unsigned uLUN, uint32_t fFlags)
+static int sb16AttachInternal(PPDMDEVINS pDevIns, PSB16DRIVER pDrv, unsigned uLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PSB16STATE pThis = PDMINS_2_DATA(pDevIns, PSB16STATE);
 
     /*
@@ -257,7 +258,7 @@ static DECLCALLBACK(int) sb16AttachInternal(PPDMDEVINS pDevIns, PSB16DRIVER pDrv
              * host backend. This might change in the future.
              */
             if (pDrv->uLUN == 0)
-                pDrv->Flags |= PDMAUDIODRVFLAG_PRIMARY;
+                pDrv->Flags |= PDMAUDIODRVFLAGS_PRIMARY;
 
             LogFunc(("LUN#%RU8: pCon=%p, drvFlags=0x%x\n", uLUN, pDrv->pConnector, pDrv->Flags));
 
@@ -309,6 +310,7 @@ static DECLCALLBACK(int) sb16Attach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t 
 
 static DECLCALLBACK(void) sb16Detach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t fFlags)
 {
+    RT_NOREF(pDevIns, uLUN, fFlags);
     LogFunc(("iLUN=%u, fFlags=0x%x\n", uLUN, fFlags));
 }
 
@@ -372,7 +374,6 @@ static int sb16Reattach(PSB16STATE pThis, PSB16DRIVER pDrv, uint8_t uLUN, const 
     return rc;
 }
 
-static void sb16AudioCallback(void *pvContext, uint32_t cbFree);
 
 static int magic_of_irq(int irq)
 {
@@ -414,8 +415,8 @@ static int irq_of_magic(int magic)
     return -1;
 }
 
-#ifdef DEBUG
-static inline void log_dsp(PSB16STATE pThis)
+#if 0 // unused // def DEBUG
+DECLINLINE(void) log_dsp(PSB16STATE pThis)
 {
     LogFlowFunc(("%s:%s:%d:%s:dmasize=%d:freq=%d:const=%d:speaker=%d\n",
                  pThis->fmt_stereo ? "Stereo" : "Mono",
@@ -469,12 +470,13 @@ static void sb16Control(PSB16STATE pThis, int hold)
 
         int rc2 = pDrv->pConnector->pfnStreamControl(pDrv->pConnector, pDrv->Out.pStream,
                                                      hold == 1 ? PDMAUDIOSTREAMCMD_ENABLE : PDMAUDIOSTREAMCMD_DISABLE);
-        LogFlowFunc(("%s: rc=%Rrc\n", pDrv->Out.pStream->szName, rc2));
+        LogFlowFunc(("%s: rc=%Rrc\n", pDrv->Out.pStream->szName, rc2)); NOREF(rc2);
     }
 }
 
 static DECLCALLBACK(void) sb16TimerIRQ(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvThis)
 {
+    RT_NOREF(pDevIns, pTimer);
     PSB16STATE pThis = (PSB16STATE)pvThis;
     pThis->can_write = 1;
     PDMDevHlpISASetIrq(pThis->pDevInsR3, pThis->irq, 1);
@@ -1201,6 +1203,7 @@ static void sb16Reset(PSB16STATE pThis)
 
 static IO_WRITE_PROTO(dsp_write)
 {
+    RT_NOREF(pDevIns, cb);
     PSB16STATE pThis = (PSB16STATE)opaque;
     int iport = nport - pThis->port;
 
@@ -1297,6 +1300,7 @@ static IO_WRITE_PROTO(dsp_write)
 
 static IO_READ_PROTO(dsp_read)
 {
+    RT_NOREF(pDevIns, cb);
     PSB16STATE pThis = (PSB16STATE)opaque;
     int iport, retval, ack = 0;
 
@@ -1408,6 +1412,7 @@ static void sb16MixerReset(PSB16STATE pThis)
 
 static IO_WRITE_PROTO(mixer_write_indexb)
 {
+    RT_NOREF(pDevIns, cb);
     PSB16STATE pThis = (PSB16STATE)opaque;
     (void) nport;
     pThis->mixer_nreg = val;
@@ -1455,6 +1460,7 @@ static inline void sb16ConvVolumeOldToNew(PSB16STATE pThis, unsigned reg, uint8_
 
 static IO_WRITE_PROTO(mixer_write_datab)
 {
+    RT_NOREF(pDevIns, cb);
     PSB16STATE  pThis = (PSB16STATE)opaque;
     bool        fUpdateMaster = false;
     bool        fUpdateStream = false;
@@ -1615,6 +1621,7 @@ static IO_WRITE_PROTO(mixer_write)
 
 static IO_READ_PROTO(mixer_read)
 {
+    RT_NOREF(pDevIns, cb);
     PSB16STATE pThis = (PSB16STATE)opaque;
 
     (void) nport;
@@ -1631,8 +1638,7 @@ static IO_READ_PROTO(mixer_read)
     return VINF_SUCCESS;
 }
 
-static int sb16WriteAudio(PSB16STATE pThis, int nchan, uint32_t dma_pos,
-                          uint32_t dma_len, int len)
+static int sb16WriteAudio(PSB16STATE pThis, int nchan, uint32_t dma_pos, uint32_t dma_len, int len)
 {
     uint8_t  tmpbuf[_4K]; /** @todo Have a buffer on the heap. */
     uint32_t cbToWrite = len;
@@ -1687,6 +1693,7 @@ static int sb16WriteAudio(PSB16STATE pThis, int nchan, uint32_t dma_pos,
 
 static DECLCALLBACK(uint32_t) sb16DMARead(PPDMDEVINS pDevIns, void *opaque, unsigned nchan, uint32_t dma_pos, uint32_t dma_len)
 {
+    RT_NOREF(pDevIns);
     PSB16STATE pThis = (PSB16STATE)opaque;
     int till, copy, written, free;
 
@@ -1786,14 +1793,12 @@ static void sb16TimerMaybeStop(PSB16STATE pThis)
 
 static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns);
     PSB16STATE pThis = (PSB16STATE)pvUser;
     Assert(pThis == PDMINS_2_DATA(pDevIns, PSB16STATE));
     AssertPtr(pThis);
 
     uint64_t cTicksNow     = TMTimerGet(pTimer);
-    uint64_t cTicksElapsed = cTicksNow - pThis->uTimerTSIO;
-    uint64_t cTicksPerSec  = TMTimerGetFreq(pTimer);
-
     bool     fIsPlaying    = false; /* Whether one or more streams are still playing. */
     bool     fDoTransfer   = false;
 
@@ -1826,7 +1831,7 @@ static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
             AssertMsg(pStream->Cfg.cChannels == pStreamPrev->Cfg.cChannels,
                       ("%RU8 vs. %RU8 channels\n", pStream->Cfg.cChannels, pStreamPrev->Cfg.cChannels));
             AssertMsg(pStream->Cfg.enmFormat == pStreamPrev->Cfg.enmFormat,
-                      ("%ld vs. %ld format\n", pStream->Cfg.enmFormat, pStreamPrev->Cfg.enmFormat));
+                      ("%d vs. %d format\n", pStream->Cfg.enmFormat, pStreamPrev->Cfg.enmFormat));
         }
 #endif
         PPDMIAUDIOCONNECTOR pConn = pDrv->pConnector;
@@ -1850,7 +1855,7 @@ static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
                 }
             }
 
-            if (pDrv->Flags & PDMAUDIODRVFLAG_PRIMARY)
+            if (pDrv->Flags & PDMAUDIODRVFLAGS_PRIMARY)
             {
                 /* Only do the next DMA transfer if we're able to write the entire
                  * next data block. */
@@ -1942,7 +1947,7 @@ static void sb16Save(PSSMHANDLE pSSM, PSB16STATE pThis)
 
 }
 
-static int sb16Load(PSSMHANDLE pSSM, PSB16STATE pThis, int version_id)
+static int sb16Load(PSSMHANDLE pSSM, PSB16STATE pThis)
 {
     SSMR3GetS32(pSSM, &pThis->irq);
     SSMR3GetS32(pSSM, &pThis->dma);
@@ -2036,6 +2041,7 @@ static int sb16Load(PSSMHANDLE pSSM, PSB16STATE pThis, int version_id)
 
 static DECLCALLBACK(int) sb16LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF(uPass);
     PSB16STATE pThis = PDMINS_2_DATA(pDevIns, PSB16STATE);
 
     SSMR3PutS32(pSSM, pThis->irqCfg);
@@ -2096,7 +2102,7 @@ static DECLCALLBACK(int) sb16LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint3
     if (uPass != SSM_PASS_FINAL)
         return VINF_SUCCESS;
 
-    sb16Load(pSSM, pThis, uVersion);
+    sb16Load(pSSM, pThis);
     return VINF_SUCCESS;
 }
 
@@ -2152,7 +2158,7 @@ static int sb16OpenOut(PSB16STATE pThis, PPDMAUDIOSTREAMCFG pCfg)
         {
             rc2 = pDrv->pConnector->pfnStreamCreate(pDrv->pConnector, &CfgHost, pCfg, &pDrv->Out.pStream);
             if (RT_SUCCESS(rc2))
-                pDrv->pConnector->pfnStreamAddRef(pDrv->pConnector, pDrv->Out.pStream);
+                pDrv->pConnector->pfnStreamRetain(pDrv->pConnector, pDrv->Out.pStream);
         }
 
         LogFlowFunc(("LUN#%RU8: Created output \"%s\", rc=%Rrc\n", pDrv->uLUN, pCfg->szName, rc2));
@@ -2255,6 +2261,7 @@ static DECLCALLBACK(void) sb16PowerOff(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) sb16Destruct(PPDMDEVINS pDevIns)
 {
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
     PSB16STATE pThis = PDMINS_2_DATA(pDevIns, PSB16STATE);
 
     LogFlowFuncEnter();
@@ -2273,13 +2280,14 @@ static DECLCALLBACK(int) sb16Destruct(PPDMDEVINS pDevIns)
 
 static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+    RT_NOREF(iInstance);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
     PSB16STATE pThis = PDMINS_2_DATA(pDevIns, PSB16STATE);
 
     /*
      * Validations.
      */
     Assert(iInstance == 0);
-    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
     if (!CFGMR3AreValuesValid(pCfg,
                               "IRQ\0"
                               "DMA\0"
@@ -2420,7 +2428,7 @@ static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
          * Only primary drivers are critical for the VM to run. Everything else
          * might not worth showing an own error message box in the GUI.
          */
-        if (!(pDrv->Flags & PDMAUDIODRVFLAG_PRIMARY))
+        if (!(pDrv->Flags & PDMAUDIODRVFLAGS_PRIMARY))
             continue;
 
         PPDMIAUDIOCONNECTOR pCon = pDrv->pConnector;
@@ -2467,7 +2475,7 @@ static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         {
             /* Only register primary driver.
              * The device emulation does the output multiplexing then. */
-            if (pDrv->Flags != PDMAUDIODRVFLAG_PRIMARY)
+            if (pDrv->Flags != PDMAUDIODRVFLAGS_PRIMARY)
                 continue;
 
             PDMAUDIOCALLBACK AudioCallbacks[2];

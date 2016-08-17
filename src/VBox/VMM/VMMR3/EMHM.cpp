@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -240,6 +240,7 @@ DECLINLINE(int) emR3HmExecuteInstruction(PVM pVM, PVMCPU pVCpu, const char *pszP
 #ifdef LOG_ENABLED
     return emR3HmExecuteInstructionWorker(pVM, pVCpu, rcGC, pszPrefix);
 #else
+    RT_NOREF_PV(pszPrefix);
     return emR3HmExecuteInstructionWorker(pVM, pVCpu, rcGC);
 #endif
 }

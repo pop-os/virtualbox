@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,7 +37,7 @@
         { \
             uint64_t uMarker; \
             int rcMarker = SSMR3GetU64(pSSM, &uMarker); \
-            AssertLogRelRCReturn(rc, rc); \
+            AssertLogRelRCReturn(rcMarker, rcMarker); \
             AssertLogRelMsgReturn(uMarker == VGA_SAVED_STATE_MAKE_MARKER(uSub), \
                                   ("Bad VGA marker: expected %llx, got %llx\n", VGA_SAVED_STATE_MAKE_MARKER(uSub), uMarker), \
                                   VERR_SSM_DATA_UNIT_FORMAT_CHANGED); \

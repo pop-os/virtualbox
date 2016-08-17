@@ -15,7 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 #include "VBoxNetFltNobj.h"
-#include <Ntddndis.h>
+#include <iprt/win/ntddndis.h>
 #include <assert.h>
 #include <stdio.h>
 
@@ -93,6 +93,7 @@ STDMETHODIMP VBoxNetFltNobj::ApplyRegistryChanges()
 
 STDMETHODIMP VBoxNetFltNobj::ApplyPnpChanges(IN INetCfgPnpReconfigCallback *pCallback)
 {
+    RT_NOREF1(pCallback);
     return S_OK;
 }
 
@@ -270,7 +271,7 @@ static HRESULT vboxNetFltWinNotifyCheckMsLoop(IN INetCfgComponent *pComponent, O
                 }
                 else
                 {
-                    /* TODO: we should check the default medium in HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002bE10318}\<driver_id>\Ndi\Params\Medium, REG_SZ "Default" value */
+                    /** @todo we should check the default medium in HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002bE10318}\<driver_id>\Ndi\Params\Medium, REG_SZ "Default" value */
                     NonStandardAssertBreakpoint();
                     *pbShouldBind = true;
                 }
@@ -535,6 +536,7 @@ STDMETHODIMP VBoxNetFltNobj::NotifyBindingPath(IN DWORD dwChangeFlag, IN INetCfg
 
 STDMETHODIMP VBoxNetFltNobj::QueryBindingPath(IN DWORD dwChangeFlag, IN INetCfgBindingPath *pNetCfgBP)
 {
+    RT_NOREF1(dwChangeFlag);
     if (vboxNetFltWinNotifyShouldBind(pNetCfgBP))
         return S_OK;
     return NETCFG_S_DISABLE_QUERY;

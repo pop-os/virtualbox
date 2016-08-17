@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -114,7 +114,7 @@ GLint PACKSPU_APIENTRY packspu_GetUniformLocation(GLuint program, const char * n
     return crStateGetUniformLocation(program, name);
 }
 
-GLint PACKSPU_APIENTRY packspu_GetAttribLocationUnchached( GLuint program, const char * name )
+static GLint PACKSPU_APIENTRY packspu_GetAttribLocationUnchached( GLuint program, const char * name )
 {
     GET_THREAD(thread);
     int writeback = 1;

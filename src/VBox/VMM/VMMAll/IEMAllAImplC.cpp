@@ -28,6 +28,7 @@
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+#ifdef RT_ARCH_X86
 /**
  * Parity calculation table.
  *
@@ -323,6 +324,7 @@ static uint8_t const g_afParity[256] =
     /* 0xfe = 11111110b */ 0,
     /* 0xff = 11111111b */ X86_EFL_PF,
 };
+#endif /* RT_ARCH_X86 */
 
 
 /**
@@ -831,6 +833,7 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_not_u64,(uint64_t  *puDst,  uint32_t *pfEFlags)
     uint64_t uResult = ~uDst;
     *puDst = uResult;
     /* EFLAGS are not modified. */
+    RT_NOREF_PV(pfEFlags);
 }
 
 
@@ -1140,16 +1143,25 @@ IEM_DECL_IMPL_DEF(int, iemAImpl_mul_u64,(uint64_t *pu64RAX, uint64_t *pu64RDX, u
     RTUInt128MulU64ByU64(&Result, *pu64RAX, u64Factor);
     *pu64RAX = Result.s.Lo;
     *pu64RDX = Result.s.Hi;
-    /** @todo research the undefined MUL flags. */
+
+    /* MUL EFLAGS according to Skylake (similar to IMUL). */
+    *pfEFlags &= ~(X86_EFL_SF | X86_EFL_CF | X86_EFL_OF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_PF);
+    if (Result.s.Lo & RT_BIT_64(63))
+        *pfEFlags |= X86_EFL_SF;
+    *pfEFlags |= g_afParity[Result.s.Lo & 0xff]; /* (Skylake behaviour) */
+    if (Result.s.Hi != 0)
+        *pfEFlags |= X86_EFL_CF | X86_EFL_OF;
     return 0;
 }
 
 
 IEM_DECL_IMPL_DEF(int, iemAImpl_imul_u64,(uint64_t *pu64RAX, uint64_t *pu64RDX, uint64_t u64Factor, uint32_t *pfEFlags))
 {
-/** @todo Testcase: IMUL 1 operand   */
     RTUINT128U Result;
-    *pfEFlags &= ~(X86_EFL_SF | X86_EFL_CF | X86_EFL_OF);
+    *pfEFlags &= ~( X86_EFL_SF | X86_EFL_CF | X86_EFL_OF
+                   /* Skylake always clears: */ | X86_EFL_AF | X86_EFL_ZF
+                   /* Skylake may set: */       | X86_EFL_PF);
+
     if ((int64_t)*pu64RAX >= 0)
     {
         if ((int64_t)u64Factor >= 0)
@@ -1183,11 +1195,11 @@ IEM_DECL_IMPL_DEF(int, iemAImpl_imul_u64,(uint64_t *pu64RAX, uint64_t *pu64RDX, 
         }
     }
     *pu64RAX = Result.s.Lo;
-    *pu64RDX = Result.s.Hi;
-    if (*pu64RAX & RT_BIT_64(63))
+    if (Result.s.Lo & RT_BIT_64(63))
         *pfEFlags |= X86_EFL_SF;
+    *pfEFlags |= g_afParity[Result.s.Lo & 0xff]; /* (Skylake behaviour) */
+    *pu64RDX = Result.s.Hi;
 
-    /** @todo research the undefined IMUL flags. */
     return 0;
 }
 
@@ -1203,6 +1215,9 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_imul_two_u64,(uint64_t *puDst, uint64_t uSrc, u
 
 IEM_DECL_IMPL_DEF(int, iemAImpl_div_u64,(uint64_t *pu64RAX, uint64_t *pu64RDX, uint64_t u64Divisor, uint32_t *pfEFlags))
 {
+    /* Note! Skylake leaves all flags alone. */
+    RT_NOREF_PV(pfEFlags);
+
     if (   u64Divisor != 0
         && *pu64RDX < u64Divisor)
     {
@@ -1237,6 +1252,9 @@ IEM_DECL_IMPL_DEF(int, iemAImpl_div_u64,(uint64_t *pu64RAX, uint64_t *pu64RDX, u
 
 IEM_DECL_IMPL_DEF(int, iemAImpl_idiv_u64,(uint64_t *pu64RAX, uint64_t *pu64RDX, uint64_t u64Divisor, uint32_t *pfEFlags))
 {
+    /* Note! Skylake leaves all flags alone. */
+    RT_NOREF_PV(pfEFlags);
+
     if (u64Divisor != 0)
     {
         /*

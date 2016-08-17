@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -182,6 +182,7 @@ typedef struct CPUMDBENTRY
 #endif
 /** @} */
 
+#ifndef CPUM_DB_STANDALONE
 
 #include "cpus/Intel_Core_i7_6700K.h"
 #include "cpus/Intel_Core_i7_5600U.h"
@@ -294,7 +295,6 @@ static CPUMDBENTRY const * const g_apCpumDbEntries[] =
 };
 
 
-#ifndef CPUM_DB_STANDALONE
 
 /**
  * Binary search used by cpumR3MsrRangesInsert and has some special properties

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,11 @@
 #include "ExtPackFileWrap.h"
 #include "ExtPackManagerWrap.h"
 #include <iprt/fs.h>
+
+
+/** The name of the oracle extension back. */
+#define ORACLE_PUEL_EXTPACK_NAME "Oracle VM VirtualBox Extension Pack"
+
 
 #if !defined(VBOX_COM_INPROC)
 /**
@@ -203,7 +208,7 @@ public:
     void        i_callAllVmPowerOffHooks(IConsole *a_pConsole, PVM a_pVM);
     HRESULT     i_checkVrdeExtPack(Utf8Str const *a_pstrExtPack);
     int         i_getVrdeLibraryPathForExtPack(Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrVrdeLibrary);
-    HRESULT     i_getLibraryPathForExtPack(const char *a_pszModuleName, Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrLibrary);
+    HRESULT     i_getLibraryPathForExtPack(const char *a_pszModuleName, const char *a_pszExtPack, Utf8Str *a_pstrLibrary);
     HRESULT     i_getDefaultVrdeExtPack(Utf8Str *a_pstrExtPack);
     bool        i_isExtPackUsable(const char *a_pszExtPack);
     void        i_dumpAllToReleaseLog(void);

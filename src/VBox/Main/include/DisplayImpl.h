@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -178,6 +178,9 @@ public:
                                           uint32_t x, uint32_t y, uint32_t uPixelFormat, uint32_t uBitsPerPixel,
                                           uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
                                           uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
+    /** @todo r=bird: u64TimeStamp - using the 'u64' prefix add nothing.
+     *        However, using one of the prefixes indicating the timestamp unit
+     *        would be very valuable!  */
     bool i_handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64TimeStamp);
     void i_handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64TimeStamp);
     void i_handleVRecCompletion();
@@ -187,7 +190,7 @@ public:
 
     int  i_saveVisibleRegion(uint32_t cRect, PRTRECT pRect);
     int  i_handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
-    int  i_handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect);
+    int  i_handleQueryVisibleRegion(uint32_t *pcRects, PRTRECT paRects);
 
     void i_VideoAccelVRDP(bool fEnable);
 
@@ -503,6 +506,9 @@ private:
     VIDEORECCONTEXT *mpVideoRecCtx;
     bool maVideoRecEnabled[SchemaDefs::MaxGuestMonitors];
 #endif
+
+private:
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(Display); /* Shuts up MSC warning C4625. */
 };
 
 /* The legacy VBVA helpers. */
@@ -521,10 +527,6 @@ void videoAccelLeaveVMMDev(VIDEOACCEL *pVideoAccel);
 
 
 /* helper function, code in DisplayResampleImage.cpp */
-void gdImageCopyResampled(uint8_t *dst, uint8_t *src,
-                            int dstX, int dstY, int srcX, int srcY,
-                            int dstW, int dstH, int srcW, int srcH);
-
 void BitmapScale32(uint8_t *dst, int dstW, int dstH,
                    const uint8_t *src, int iDeltaLine, int srcW, int srcH);
 

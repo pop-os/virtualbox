@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -689,9 +689,17 @@ RTEXITCODE handleStorageAttach(HandlerArg *a)
             // set medium type, if so desired
             if (pMedium2Mount && fSetMediumType)
             {
-                CHECK_ERROR(pMedium2Mount, COMSETTER(Type)(enmMediumType));
-                if (FAILED(rc))
-                    throw  Utf8Str("Failed to set the medium type");
+                MediumType_T enmMediumTypeOld;
+                CHECK_ERROR(pMedium2Mount, COMGETTER(Type)(&enmMediumTypeOld));
+                if (SUCCEEDED(rc))
+                {
+                    if (enmMediumTypeOld != enmMediumType)
+                    {
+                        CHECK_ERROR(pMedium2Mount, COMSETTER(Type)(enmMediumType));
+                        if (FAILED(rc))
+                            throw  Utf8Str("Failed to set the medium type");
+                    }
+                }
             }
 
             if (pMedium2Mount && !bstrComment.isEmpty())
@@ -744,8 +752,8 @@ RTEXITCODE handleStorageAttach(HandlerArg *a)
                                                              pMedium2Mount,
                                                              fForceUnmount));
                         }
+                        break;
                     } // end DeviceType_DVD or DeviceType_Floppy:
-                    break;
 
                     case DeviceType_HardDisk:
                     {
@@ -756,8 +764,10 @@ RTEXITCODE handleStorageAttach(HandlerArg *a)
                                                           device,
                                                           DeviceType_HardDisk,
                                                           pMedium2Mount));
+                        break;
                     }
-                    break;
+
+                    default: break; /* Shut up MSC */
                 }
             }
         }
@@ -961,8 +971,6 @@ RTEXITCODE handleStorageController(HandlerArg *a)
     const char       *pszHostIOCache = NULL;
     const char       *pszBootable    = NULL;
     const char       *pszCtlNewName  = NULL;
-    ULONG             satabootdev    = ~0U;
-    ULONG             sataidedev     = ~0U;
     ULONG             portcount      = ~0U;
     bool              fRemoveCtl     = false;
     ComPtr<IMachine>  machine;

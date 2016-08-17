@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,9 +46,9 @@
 #include "internal/mem.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #if defined(DOXYGEN_RUNNING)
 # define RTR0MEM_EF_IN_FRONT
 #endif
@@ -112,11 +112,11 @@
 #define RTR0MEM_EF_FENCE_FILLER     0xcc
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #ifdef RT_OS_WINDOWS
-# include <Windows.h>
+# include <iprt/win/windows.h>
 #elif !defined(RT_OS_FREEBSD)
 # include <sys/mman.h>
 #endif
@@ -124,9 +124,9 @@
 #include <iprt/thread.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Allocation types.
  */
@@ -205,6 +205,7 @@ bool    gfRTMemFreeLog = false;
  */
 static DECLCALLBACK(size_t) rtR0MemEfWrite(void *pvArg, const char *pachChars, size_t cbChars)
 {
+    RT_NOREF1(pvArg);
     if (cbChars)
     {
         RTLogWriteDebugger(pachChars, cbChars);

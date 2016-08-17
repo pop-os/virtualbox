@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -333,6 +333,8 @@ RTDECL(int) RTCrPemParseContent(void const *pvContent, size_t cbContent, uint32_
                                 PCRTCRPEMMARKER paMarkers, size_t cMarkers,
                                 PCRTCRPEMSECTION *ppSectionHead, PRTERRINFO pErrInfo)
 {
+    RT_NOREF_PV(pErrInfo);
+
     /*
      * Input validation.
      */

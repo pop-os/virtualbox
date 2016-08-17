@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015 Oracle Corporation
+ * Copyright (C) 2015-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,6 +57,7 @@ typedef TSTRTR0THREADDATA *PTSTRTR0THREADDATA;
 static DECLCALLBACK(int) tstRTR0ThreadCallback(RTTHREAD hThread, void *pvUser)
 {
     PTSTRTR0THREADDATA pData = (PTSTRTR0THREADDATA)pvUser;
+    RT_NOREF1(hThread);
     if (RT_LIKELY(pData))
     {
         if (pData->uMagic == TSTRTR0THREADDATA_MAGIC)
@@ -81,6 +82,7 @@ DECLEXPORT(int) TSTRTR0ThreadSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOp
                                                    uint64_t u64Arg, PSUPR0SERVICEREQHDR pReqHdr)
 {
     RTR0TESTR0_SRV_REQ_PROLOG_RET(pReqHdr);
+    RT_NOREF2(pSession, u64Arg);
 
     /*
      * The big switch.

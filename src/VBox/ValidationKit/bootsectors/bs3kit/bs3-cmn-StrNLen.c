@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,5 +34,4 @@ BS3_CMN_DEF(size_t, Bs3StrNLen,(const char BS3_FAR *pszString, size_t cchMax))
         cch++;
     return cch;
 }
-
 

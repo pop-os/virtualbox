@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -234,7 +234,7 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
     size_t cVars;
     const char * const *papszEnv;
 #ifdef RTENV_HAVE_WENVIRON
-    PCRTUTF16 const * papwszEnv;
+    PCRTUTF16 const * papwszEnv = NULL;
 #endif
     PRTENVINTERNAL pIntEnvToClone;
     AssertPtrReturn(pEnv, VERR_INVALID_POINTER);

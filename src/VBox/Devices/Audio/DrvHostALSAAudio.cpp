@@ -63,6 +63,7 @@ RT_C_DECLS_END
 
 #include "VBoxDD.h"
 
+
 /*********************************************************************************************************************************
 *   Defines                                                                                                                      *
 *********************************************************************************************************************************/
@@ -70,6 +71,7 @@ RT_C_DECLS_END
 /** Makes DRVHOSTALSAAUDIO out of PDMIHOSTAUDIO. */
 #define PDMIHOSTAUDIO_2_DRVHOSTALSAAUDIO(pInterface) \
     ( (PDRVHOSTALSAAUDIO)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTALSAAUDIO, IHostAudio)) )
+
 
 /*********************************************************************************************************************************
 *   Structures                                                                                                                   *
@@ -217,6 +219,7 @@ static snd_pcm_format_t alsaAudioFmtToALSA(PDMAUDIOFMT fmt)
     return SND_PCM_FORMAT_U8;
 }
 
+
 static int alsaALSAToAudioFmt(snd_pcm_format_t fmt,
                               PDMAUDIOFMT *pFmt, PDMAUDIOENDIANNESS *pEndianness)
 {
@@ -293,6 +296,7 @@ static int alsaALSAToAudioFmt(snd_pcm_format_t fmt,
     return VINF_SUCCESS;
 }
 
+
 static int alsaGetSampleShift(snd_pcm_format_t fmt, unsigned *puShift)
 {
     AssertPtrReturn(puShift, VERR_INVALID_POINTER);
@@ -325,6 +329,7 @@ static int alsaGetSampleShift(snd_pcm_format_t fmt, unsigned *puShift)
 
     return VINF_SUCCESS;
 }
+
 
 static int alsaStreamSetThreshold(snd_pcm_t *phPCM, snd_pcm_uframes_t threshold)
 {
@@ -380,6 +385,7 @@ static int alsaStreamSetThreshold(snd_pcm_t *phPCM, snd_pcm_uframes_t threshold)
     return rc;
 }
 
+
 static int alsaStreamClose(snd_pcm_t **pphPCM)
 {
     if (!pphPCM || !*pphPCM)
@@ -400,6 +406,7 @@ static int alsaStreamClose(snd_pcm_t **pphPCM)
 
     return rc;
 }
+
 
 #if 0 /* After Beta. */
 static int alsaSetHWParams(snd_pcm_t *phPCM, PALSAAUDIOSTREAMCFG pCfg)
@@ -529,6 +536,8 @@ static int alsaSetHWParams(snd_pcm_t *phPCM, PALSAAUDIOSTREAMCFG pCfg)
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
+
+
 static int alsaSetSWParams(snd_pcm_t *phPCM, PALSAAUDIOCFG pCfg)
 {
     int rc;
@@ -591,6 +600,7 @@ static int alsaSetSWParams(snd_pcm_t *phPCM, PALSAAUDIOCFG pCfg)
     return rc;
 }
 #endif
+
 
 static int alsaStreamOpen(bool fIn, PALSAAUDIOSTREAMCFG pCfgReq, PALSAAUDIOSTREAMCFG pCfgObt, snd_pcm_t **pphPCM)
 {
@@ -881,13 +891,16 @@ static int alsaStreamOpen(bool fIn, PALSAAUDIOSTREAMCFG pCfgReq, PALSAAUDIOSTREA
     return rc;
 }
 
+
 #ifdef DEBUG
 static void alsaDbgErrorHandler(const char *file, int line, const char *function,
                                 int err, const char *fmt, ...)
 {
     /** @todo Implement me! */
+    RT_NOREF(file, line, function, err, fmt);
 }
 #endif
+
 
 static int alsaStreamGetAvail(snd_pcm_t *phPCM, snd_pcm_sframes_t *pFramesAvail)
 {
@@ -918,6 +931,7 @@ static int alsaStreamGetAvail(snd_pcm_t *phPCM, snd_pcm_sframes_t *pFramesAvail)
     return rc;
 }
 
+
 static int alsaStreamRecover(snd_pcm_t *phPCM)
 {
     AssertPtrReturn(phPCM, VERR_INVALID_POINTER);
@@ -932,6 +946,7 @@ static int alsaStreamRecover(snd_pcm_t *phPCM)
     return VINF_SUCCESS;
 }
 
+
 static int alsaStreamResume(snd_pcm_t *phPCM)
 {
     AssertPtrReturn(phPCM, VERR_INVALID_POINTER);
@@ -945,6 +960,7 @@ static int alsaStreamResume(snd_pcm_t *phPCM)
 
     return VINF_SUCCESS;
 }
+
 
 static int drvHostALSAAudioStreamCtl(snd_pcm_t *phPCM, bool fPause)
 {
@@ -971,6 +987,10 @@ static int drvHostALSAAudioStreamCtl(snd_pcm_t *phPCM, bool fPause)
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnInit}
+ */
 static DECLCALLBACK(int) drvHostALSAAudioInit(PPDMIHOSTAUDIO pInterface)
 {
     NOREF(pInterface);
@@ -990,11 +1010,16 @@ static DECLCALLBACK(int) drvHostALSAAudioInit(PPDMIHOSTAUDIO pInterface)
     return rc;
 }
 
-static DECLCALLBACK(int) drvHostALSAAudioStreamCapture(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                                                       uint32_t *pcSamplesCaptured)
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamCapture}
+ */
+static DECLCALLBACK(int) drvHostALSAAudioStreamCapture(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead)
 {
-    NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    RT_NOREF(pvBuf, cbBuf);
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+    /* pcbRead is optional. */
 
     PALSAAUDIOSTREAMIN pThisStream = (PALSAAUDIOSTREAMIN)pStream;
 
@@ -1032,8 +1057,8 @@ static DECLCALLBACK(int) drvHostALSAAudioStreamCapture(PPDMIHOSTAUDIO pInterface
 
         if (!cAvail)
         {
-            if (pcSamplesCaptured)
-                *pcSamplesCaptured = 0;
+            if (pcbRead)
+                *pcbRead = 0;
             return VINF_SUCCESS;
         }
     }
@@ -1130,8 +1155,8 @@ static DECLCALLBACK(int) drvHostALSAAudioStreamCapture(PPDMIHOSTAUDIO pInterface
             rc = AudioMixBufMixToParent(&pStream->MixBuf, cWrittenTotal,
                                         &cProcessed);
 
-        if (pcSamplesCaptured)
-            *pcSamplesCaptured = cWrittenTotal;
+        if (pcbRead)
+            *pcbRead = cWrittenTotal;
 
         LogFlowFunc(("cWrittenTotal=%RU32 (%RU32 processed), rc=%Rrc\n",
                      cWrittenTotal, cProcessed, rc));
@@ -1141,11 +1166,15 @@ static DECLCALLBACK(int) drvHostALSAAudioStreamCapture(PPDMIHOSTAUDIO pInterface
     return rc;
 }
 
-static DECLCALLBACK(int) drvHostALSAAudioStreamPlay(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                                                    uint32_t *pcSamplesPlayed)
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamPlay}
+ */
+static DECLCALLBACK(int) drvHostALSAAudioStreamPlay(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten)
 {
-    NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    RT_NOREF(pvBuf, cbBuf);
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+    /* pcbWritten is optional. */
 
     PALSAAUDIOSTREAMOUT pThisStream = (PALSAAUDIOSTREAMOUT)pStream;
 
@@ -1251,8 +1280,8 @@ static DECLCALLBACK(int) drvHostALSAAudioStreamPlay(PPDMIHOSTAUDIO pInterface, P
         if (cReadTotal)
             AudioMixBufFinish(&pStream->MixBuf, cReadTotal);
 
-        if (pcSamplesPlayed)
-            *pcSamplesPlayed = cReadTotal;
+        if (pcbWritten)
+            *pcbWritten = cReadTotal;
 
         LogFlowFunc(("cReadTotal=%RU32 (%RU32 bytes), rc=%Rrc\n",
                      cReadTotal, cbReadTotal, rc));
@@ -1261,6 +1290,7 @@ static DECLCALLBACK(int) drvHostALSAAudioStreamPlay(PPDMIHOSTAUDIO pInterface, P
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
+
 
 static int alsaDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
 {
@@ -1280,6 +1310,7 @@ static int alsaDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStrea
     return VINF_SUCCESS;
 }
 
+
 static int alsaDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
 {
     NOREF(pInterface);
@@ -1298,15 +1329,11 @@ static int alsaDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStre
     return VINF_SUCCESS;
 }
 
-static int alsaCreateStreamOut(PPDMIHOSTAUDIO pInterface,
-                               PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg,
-                               uint32_t *pcSamples)
-{
-    NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
+static int alsaCreateStreamOut(PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
+{
     PALSAAUDIOSTREAMOUT pThisStream = (PALSAAUDIOSTREAMOUT)pStream;
+
     snd_pcm_t *phPCM = NULL;
 
     int rc;
@@ -1314,9 +1341,9 @@ static int alsaCreateStreamOut(PPDMIHOSTAUDIO pInterface,
     do
     {
         ALSAAUDIOSTREAMCFG req;
-        req.fmt         = alsaAudioFmtToALSA(pCfg->enmFormat);
-        req.freq        = pCfg->uHz;
-        req.nchannels   = pCfg->cChannels;
+        req.fmt         = alsaAudioFmtToALSA(pCfgReq->enmFormat);
+        req.freq        = pCfgReq->uHz;
+        req.nchannels   = pCfgReq->cChannels;
         req.period_size = s_ALSAConf.period_size_out;
         req.buffer_size = s_ALSAConf.buffer_size_out;
 
@@ -1331,33 +1358,31 @@ static int alsaCreateStreamOut(PPDMIHOSTAUDIO pInterface,
         if (RT_FAILURE(rc))
             break;
 
-        PDMAUDIOSTREAMCFG streamCfg;
-        streamCfg.uHz           = obt.freq;
-        streamCfg.cChannels     = obt.nchannels;
-        streamCfg.enmFormat     = enmFormat;
-        streamCfg.enmEndianness = enmEnd;
+        pCfgAcq->uHz               = obt.freq;
+        pCfgAcq->cChannels         = obt.nchannels;
+        pCfgAcq->enmFormat         = enmFormat;
+        pCfgAcq->enmEndianness     = enmEnd;
+        pCfgAcq->cSampleBufferSize = obt.samples * 4;
 
-        rc = DrvAudioHlpStreamCfgToProps(&streamCfg, &pStream->Props);
+        PDMAUDIOPCMPROPS Props;
+        rc = DrvAudioHlpStreamCfgToProps(pCfgAcq, &Props);
         if (RT_FAILURE(rc))
             break;
 
         AssertBreakStmt(obt.samples, rc = VERR_INVALID_PARAMETER);
-        size_t cbBuf = obt.samples * (1 << pStream->Props.cShift);
+        size_t cbBuf = obt.samples * (1 << Props.cShift); /** @todo Get rid of using Props! */
         AssertBreakStmt(cbBuf, rc = VERR_INVALID_PARAMETER);
         pThisStream->pvBuf = RTMemAlloc(cbBuf);
         if (!pThisStream->pvBuf)
         {
             LogRel(("ALSA: Not enough memory for output DAC buffer (%RU32 samples, each %d bytes)\n",
-                    obt.samples, 1 << pStream->Props.cShift));
+                    obt.samples, 1 << Props.cShift));
             rc = VERR_NO_MEMORY;
             break;
         }
 
-        pThisStream->cbBuf       = cbBuf;
-        pThisStream->phPCM       = phPCM;
-
-        if (pcSamples)
-            *pcSamples = obt.samples * 4;
+        pThisStream->cbBuf = cbBuf;
+        pThisStream->phPCM = phPCM;
     }
     while (0);
 
@@ -1368,13 +1393,9 @@ static int alsaCreateStreamOut(PPDMIHOSTAUDIO pInterface,
     return rc;
 }
 
-static int alsaCreateStreamIn(PPDMIHOSTAUDIO pInterface,
-                              PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg, uint32_t *pcSamples)
-{
-    NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
+static int alsaCreateStreamIn(PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
+{
     int rc;
 
     PALSAAUDIOSTREAMIN pThisStream = (PALSAAUDIOSTREAMIN)pStream;
@@ -1383,9 +1404,9 @@ static int alsaCreateStreamIn(PPDMIHOSTAUDIO pInterface,
     do
     {
         ALSAAUDIOSTREAMCFG req;
-        req.fmt         = alsaAudioFmtToALSA(pCfg->enmFormat);
-        req.freq        = pCfg->uHz;
-        req.nchannels   = pCfg->cChannels;
+        req.fmt         = alsaAudioFmtToALSA(pCfgReq->enmFormat);
+        req.freq        = pCfgReq->uHz;
+        req.nchannels   = pCfgReq->cChannels;
         req.period_size = s_ALSAConf.period_size_in;
         req.buffer_size = s_ALSAConf.buffer_size_in;
 
@@ -1400,33 +1421,31 @@ static int alsaCreateStreamIn(PPDMIHOSTAUDIO pInterface,
         if (RT_FAILURE(rc))
             break;
 
-        PDMAUDIOSTREAMCFG streamCfg;
-        streamCfg.uHz           = obt.freq;
-        streamCfg.cChannels     = obt.nchannels;
-        streamCfg.enmFormat     = enmFormat;
-        streamCfg.enmEndianness = enmEnd;
+        pCfgAcq->uHz               = obt.freq;
+        pCfgAcq->cChannels         = obt.nchannels;
+        pCfgAcq->enmFormat         = enmFormat;
+        pCfgAcq->enmEndianness     = enmEnd;
+        pCfgAcq->cSampleBufferSize = obt.samples;
 
-        rc = DrvAudioHlpStreamCfgToProps(&streamCfg, &pStream->Props);
+        PDMAUDIOPCMPROPS Props;
+        rc = DrvAudioHlpStreamCfgToProps(pCfgAcq, &Props);
         if (RT_FAILURE(rc))
             break;
 
         AssertBreakStmt(obt.samples, rc = VERR_INVALID_PARAMETER);
-        size_t cbBuf = obt.samples * (1 << pStream->Props.cShift);
+        size_t cbBuf = obt.samples * (1 << Props.cShift); /** @todo Get rid of using Props! */
         AssertBreakStmt(cbBuf, rc = VERR_INVALID_PARAMETER);
         pThisStream->pvBuf = RTMemAlloc(cbBuf);
         if (!pThisStream->pvBuf)
         {
             LogRel(("ALSA: Not enough memory for input ADC buffer (%RU32 samples, each %d bytes)\n",
-                    obt.samples, 1 << pStream->Props.cShift));
+                    obt.samples, 1 << Props.cShift));
             rc = VERR_NO_MEMORY;
             break;
         }
 
-        pThisStream->cbBuf       = cbBuf;
-        pThisStream->phPCM       = phPCM;
-
-        if (pcSamples)
-            *pcSamples = obt.samples;
+        pThisStream->cbBuf = cbBuf;
+        pThisStream->phPCM = phPCM;
     }
     while (0);
 
@@ -1436,6 +1455,7 @@ static int alsaCreateStreamIn(PPDMIHOSTAUDIO pInterface,
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
+
 
 static int alsaControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
                                PDMAUDIOSTREAMCMD enmStreamCmd)
@@ -1468,6 +1488,7 @@ static int alsaControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStrea
     return rc;
 }
 
+
 static int alsaControlStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
                                 PDMAUDIOSTREAMCMD enmStreamCmd)
 {
@@ -1499,16 +1520,20 @@ static int alsaControlStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStre
     return rc;
 }
 
-static DECLCALLBACK(int) drvHostALSAAudioGetConfig(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnGetConfig}
+ */
+static DECLCALLBACK(int) drvHostALSAAudioGetConfig(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pBackendCfg)
 {
     NOREF(pInterface);
-    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
+    AssertPtrReturn(pBackendCfg, VERR_INVALID_POINTER);
 
-    pCfg->cbStreamIn  = sizeof(ALSAAUDIOSTREAMIN);
-    pCfg->cbStreamOut = sizeof(ALSAAUDIOSTREAMOUT);
+    pBackendCfg->cbStreamIn  = sizeof(ALSAAUDIOSTREAMIN);
+    pBackendCfg->cbStreamOut = sizeof(ALSAAUDIOSTREAMOUT);
 
-    pCfg->cSources    = 0;
-    pCfg->cSinks      = 0;
+    pBackendCfg->cSources    = 0;
+    pBackendCfg->cSinks      = 0;
 
     /* Enumerate sound devices. */
     char **pszHints;
@@ -1533,14 +1558,14 @@ static DECLCALLBACK(int) drvHostALSAAudioGetConfig(PPDMIHOSTAUDIO pInterface, PP
             if (pszIOID)
             {
                 if (!RTStrICmp("input", pszIOID))
-                    pCfg->cSources++;
+                    pBackendCfg->cSources++;
                 else if (!RTStrICmp("output", pszIOID))
-                    pCfg->cSinks++;
+                    pBackendCfg->cSinks++;
             }
             else /* NULL means bidirectional, input + output. */
             {
-                pCfg->cSources++;
-                pCfg->cSinks++;
+                pBackendCfg->cSources++;
+                pBackendCfg->cSinks++;
             }
 
             LogRel2(("ALSA: Found %s device: %s\n", pszIOID ?  RTStrToLower(pszIOID) : "bidirectional", pszDev));
@@ -1559,8 +1584,8 @@ static DECLCALLBACK(int) drvHostALSAAudioGetConfig(PPDMIHOSTAUDIO pInterface, PP
             pszHintCur++;
         }
 
-        LogRel2(("ALSA: Found %RU8 host playback devices\n",  pCfg->cSinks));
-        LogRel2(("ALSA: Found %RU8 host capturing devices\n", pCfg->cSources));
+        LogRel2(("ALSA: Found %RU8 host playback devices\n",  pBackendCfg->cSinks));
+        LogRel2(("ALSA: Found %RU8 host capturing devices\n", pBackendCfg->cSources));
 
         snd_device_name_free_hint((void **)pszHints);
         pszHints = NULL;
@@ -1569,41 +1594,58 @@ static DECLCALLBACK(int) drvHostALSAAudioGetConfig(PPDMIHOSTAUDIO pInterface, PP
         LogRel2(("ALSA: Error enumerating PCM devices: %Rrc (%d)\n", RTErrConvertFromErrno(err), err));
 
     /* ALSA allows exactly one input and one output used at a time for the selected device(s). */
-    pCfg->cMaxStreamsIn  = 1;
-    pCfg->cMaxStreamsOut = 1;
+    pBackendCfg->cMaxStreamsIn  = 1;
+    pBackendCfg->cMaxStreamsOut = 1;
 
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnShutdown}
+ */
 static DECLCALLBACK(void) drvHostALSAAudioShutdown(PPDMIHOSTAUDIO pInterface)
 {
     NOREF(pInterface);
 }
 
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnGetStatus}
+ */
 static DECLCALLBACK(PDMAUDIOBACKENDSTS) drvHostALSAAudioGetStatus(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
 {
+    RT_NOREF(enmDir);
     AssertPtrReturn(pInterface, PDMAUDIOBACKENDSTS_UNKNOWN);
 
     return PDMAUDIOBACKENDSTS_RUNNING;
 }
 
-static DECLCALLBACK(int) drvHostALSAAudioStreamCreate(PPDMIHOSTAUDIO pInterface,
-                                                      PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg, uint32_t *pcSamples)
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamCreate}
+ */
+static DECLCALLBACK(int) drvHostALSAAudioStreamCreate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
 {
     AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
     AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg,       VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfgReq,    VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfgAcq,    VERR_INVALID_POINTER);
 
     int rc;
-    if (pCfg->enmDir == PDMAUDIODIR_IN)
-        rc = alsaCreateStreamIn(pInterface,  pStream, pCfg, pcSamples);
+    if (pCfgReq->enmDir == PDMAUDIODIR_IN)
+        rc = alsaCreateStreamIn(pStream, pCfgReq, pCfgAcq);
     else
-        rc = alsaCreateStreamOut(pInterface, pStream, pCfg, pcSamples);
+        rc = alsaCreateStreamOut(pStream, pCfgReq, pCfgAcq);
 
     LogFlowFunc(("%s: rc=%Rrc\n", pStream->szName, rc));
     return rc;
 }
 
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamDestroy}
+ */
 static DECLCALLBACK(int) drvHostALSAAudioStreamDestroy(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
 {
     AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
@@ -1618,8 +1660,11 @@ static DECLCALLBACK(int) drvHostALSAAudioStreamDestroy(PPDMIHOSTAUDIO pInterface
     return rc;
 }
 
-static DECLCALLBACK(int) drvHostALSAAudioStreamControl(PPDMIHOSTAUDIO pInterface,
-                                                       PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd)
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamControl}
+ */
+static DECLCALLBACK(int) drvHostALSAAudioStreamControl(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd)
 {
     AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
     AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
@@ -1635,6 +1680,10 @@ static DECLCALLBACK(int) drvHostALSAAudioStreamControl(PPDMIHOSTAUDIO pInterface
     return rc;
 }
 
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnGetStatus}
+ */
 static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostALSAAudioStreamGetStatus(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
 {
     NOREF(pInterface);
@@ -1656,7 +1705,7 @@ static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostALSAAudioStreamGetStatus(PPDMIHOSTAU
         if (RT_SUCCESS(rc2))
         {
             LogFlowFunc(("cAvail=%ld\n", cAvail));
-            if (cAvail >= pStreamOut->cSamplesMin)
+            if (cAvail >= (snd_pcm_sframes_t)pStreamOut->cSamplesMin)
                 strmSts |= PDMAUDIOSTRMSTS_FLAG_DATA_WRITABLE;
         }
     }
@@ -1664,6 +1713,10 @@ static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostALSAAudioStreamGetStatus(PPDMIHOSTAU
     return strmSts;
 }
 
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamIterate}
+ */
 static DECLCALLBACK(int) drvHostALSAAudioStreamIterate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
 {
     AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
@@ -1674,6 +1727,7 @@ static DECLCALLBACK(int) drvHostALSAAudioStreamIterate(PPDMIHOSTAUDIO pInterface
     /* Nothing to do here for ALSA. */
     return VINF_SUCCESS;
 }
+
 
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
@@ -1688,6 +1742,7 @@ static DECLCALLBACK(void *) drvHostALSAAudioQueryInterface(PPDMIBASE pInterface,
     return NULL;
 }
 
+
 /**
  * Construct a DirectSound Audio driver instance.
  *
@@ -1695,6 +1750,8 @@ static DECLCALLBACK(void *) drvHostALSAAudioQueryInterface(PPDMIBASE pInterface,
  */
 static DECLCALLBACK(int) drvHostAlsaAudioConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(pCfg, fFlags);
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVHOSTALSAAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTALSAAUDIO);
     LogRel(("Audio: Initializing ALSA driver\n"));
 
@@ -1709,6 +1766,7 @@ static DECLCALLBACK(int) drvHostAlsaAudioConstruct(PPDMDRVINS pDrvIns, PCFGMNODE
 
     return VINF_SUCCESS;
 }
+
 
 /**
  * Char driver registration record.
@@ -1761,6 +1819,7 @@ const PDMDRVREG g_DrvHostALSAAudio =
     PDM_DRVREG_VERSION
 };
 
+#if 0 /* unused */
 static struct audio_option alsa_options[] =
 {
     {"DACSizeInUsec", AUD_OPT_BOOL, &s_ALSAConf.size_in_usec_out,
@@ -1786,4 +1845,4 @@ static struct audio_option alsa_options[] =
     {"ADCDev", AUD_OPT_STR, &s_ALSAConf.pcm_name_in,
      "ADC device name", NULL, 0}
 };
-
+#endif

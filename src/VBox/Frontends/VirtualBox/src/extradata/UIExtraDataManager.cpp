@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,6 @@
 # include <QMutex>
 # include <QMetaEnum>
 # ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-#  include <QMainWindow>
 #  include <QMenuBar>
 #  include <QListView>
 #  include <QTableView>
@@ -38,6 +37,7 @@
 # endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
 /* GUI includes: */
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
 # include "UIMainEventListener.h"
 # include "VBoxGlobalSettings.h"
@@ -51,6 +51,7 @@
 #  include "UIVirtualBoxEventHandler.h"
 #  include "UIIconPool.h"
 #  include "UIToolBar.h"
+#  include "QIMainWindow.h"
 #  include "QIWidgetValidator.h"
 #  include "QIDialogButtonBox.h"
 #  include "QIFileDialog.h"
@@ -457,9 +458,9 @@ protected:
 };
 
 
-/** QMainWindow extension
+/** QIMainWindow extension
   * providing Extra Data Manager with UI features. */
-class UIExtraDataManagerWindow : public QMainWindow
+class UIExtraDataManagerWindow : public QIMainWindow
 {
     Q_OBJECT;
 
@@ -528,6 +529,12 @@ private slots:
     /** @} */
 
 private:
+
+    /** @name General
+      * @{ */
+        /** Returns whether the window should be maximized when geometry being restored. */
+        virtual bool shouldBeMaximized() const /* override */;
+    /** @} */
 
     /** @name Prepare/Cleanup
       * @{ */
@@ -639,8 +646,6 @@ private:
 
     /** @name General
       * @{ */
-        /** Current geometry. */
-        QRect m_geometry;
         QVBoxLayout *m_pMainLayout;
         /** Data pane: Tool-bar. */
         UIToolBar *m_pToolBar;
@@ -1323,6 +1328,11 @@ void UIExtraDataManagerWindow::sltLoad()
     }
 }
 
+bool UIExtraDataManagerWindow::shouldBeMaximized() const
+{
+    return gEDataManager->extraDataManagerShouldBeMaximized();
+}
+
 void UIExtraDataManagerWindow::prepare()
 {
     /* Prepare this: */
@@ -1673,18 +1683,11 @@ void UIExtraDataManagerWindow::loadSettings()
     {
         /* Load geometry: */
         m_geometry = gEDataManager->extraDataManagerGeometry(this);
-#ifdef VBOX_WS_MAC
-        move(m_geometry.topLeft());
-        resize(m_geometry.size());
-#else /* VBOX_WS_MAC */
-        setGeometry(m_geometry);
-#endif /* !VBOX_WS_MAC */
-        LogRel2(("GUI: UIExtraDataManagerWindow: Geometry loaded to: Origin=%dx%d, Size=%dx%d\n",
-                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
 
-        /* Maximize (if necessary): */
-        if (gEDataManager->extraDataManagerShouldBeMaximized())
-            showMaximized();
+        /* Restore geometry: */
+        LogRel2(("GUI: UIExtraDataManagerWindow: Restoring geometry to: Origin=%dx%d, Size=%dx%d\n",
+                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+        restoreGeometry();
     }
 
     /* Load splitter hints: */
@@ -1722,7 +1725,7 @@ void UIExtraDataManagerWindow::cleanup()
 bool UIExtraDataManagerWindow::event(QEvent *pEvent)
 {
     /* Pre-process through base-class: */
-    bool fResult = QMainWindow::event(pEvent);
+    bool fResult = QIMainWindow::event(pEvent);
 
     /* Process required events: */
     switch (pEvent->type())
@@ -2427,8 +2430,8 @@ QRect UIExtraDataManager::selectorWindowGeometry(QWidget *pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
     /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
-                                          vboxGlobal().availableGeometry();
+    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
+                                          gpDesktop->availableGeometry();
 
     /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
 #ifdef VBOX_WS_WIN
@@ -3639,8 +3642,8 @@ QRect UIExtraDataManager::informationWindowGeometry(QWidget *pWidget, QWidget *p
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
     /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
-                                          vboxGlobal().availableGeometry();
+    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
+                                          gpDesktop->availableGeometry();
 
     /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
 #ifdef VBOX_WS_WIN
@@ -3798,8 +3801,8 @@ QRect UIExtraDataManager::extraDataManagerGeometry(QWidget *pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
     /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
-                                          vboxGlobal().availableGeometry();
+    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
+                                          gpDesktop->availableGeometry();
 
     /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
 #ifdef VBOX_WS_WIN
@@ -3917,8 +3920,8 @@ QRect UIExtraDataManager::logWindowGeometry(QWidget *pWidget, const QRect &defau
     /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
 #ifdef VBOX_WS_WIN
     /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
-                                          vboxGlobal().availableGeometry();
+    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
+                                          gpDesktop->availableGeometry();
 
     /* Make sure resulting geometry is within current bounds: */
     if (!availableGeometry.contains(geometry))

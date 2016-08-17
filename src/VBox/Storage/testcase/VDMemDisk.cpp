@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,7 +15,7 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#define LOGGROUP LOGGROUP_DEFAULT /** @todo: Log group */
+#define LOGGROUP LOGGROUP_DEFAULT /** @todo Log group */
 #include <iprt/err.h>
 #include <iprt/log.h>
 #include <iprt/assert.h>
@@ -78,6 +78,7 @@ int VDMemDiskCreate(PPVDMEMDISK ppMemDisk, uint64_t cbSize)
 
 static DECLCALLBACK(int) vdMemDiskDestroy(PAVLRU64NODECORE pNode, void *pvUser)
 {
+    RT_NOREF1(pvUser);
     PVDMEMDISKSEG pSeg = (PVDMEMDISKSEG)pNode;
     RTMemFree(pSeg->pvSeg);
     RTMemFree(pSeg);
@@ -145,7 +146,7 @@ int VDMemDiskWrite(PVDMEMDISK pMemDisk, uint64_t off, size_t cbWrite, PRTSGBUF p
                 else
                 {
                     bool fInserted = RTAvlrU64Insert(pMemDisk->pTreeSegments, &pSeg->Core);
-                    AssertMsg(fInserted, ("Bug!\n"));
+                    AssertMsg(fInserted, ("Bug!\n")); NOREF(fInserted);
                 }
             }
             else
@@ -161,7 +162,7 @@ int VDMemDiskWrite(PVDMEMDISK pMemDisk, uint64_t off, size_t cbWrite, PRTSGBUF p
         {
             AssertPtr(pSeg);
             size_t cbCopied = RTSgBufCopyToBuf(pSgBuf, (uint8_t *)pSeg->pvSeg + offSeg, cbRange);
-            Assert(cbCopied == cbRange);
+            Assert(cbCopied == cbRange); NOREF(cbCopied);
         }
 
         offCurr += cbRange;
@@ -258,7 +259,7 @@ int VDMemDiskSetSize(PVDMEMDISK pMemDisk, uint64_t cbSize)
                 pSeg->Core.KeyLast = cbSize - pSeg->Core.Key - 1;
 
                 bool fInserted = RTAvlrU64Insert(pMemDisk->pTreeSegments, &pSeg->Core);
-                AssertMsg(fInserted, ("Bug!\n"));
+                AssertMsg(fInserted, ("Bug!\n")); NOREF(fInserted);
             }
             else
             {
@@ -340,6 +341,7 @@ int VDMemDiskWriteToFile(PVDMEMDISK pMemDisk, const char *pcszFilename)
 
 int VDMemDiskReadFromFile(PVDMEMDISK pMemDisk, const char *pcszFilename)
 {
+    RT_NOREF2(pMemDisk, pcszFilename);
     return VERR_NOT_IMPLEMENTED;
 }
 

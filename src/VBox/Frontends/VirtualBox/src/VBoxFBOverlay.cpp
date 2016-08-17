@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,10 @@
 # define LOG_GROUP LOG_GROUP_GUI
 
 /* Qt includes: */
+# ifdef RT_OS_WINDOWS
+#  include <iprt/win/windows.h> /* QGLWidget drags in Windows.h; -Wall forces us to use wrapper. */
+#  include <iprt/stdint.h>      /* QGLWidget drags in stdint.h; -Wall forces us to use wrapper. */
+# endif
 # include <QGLWidget>
 # include <QFile>
 # include <QTextStream>
@@ -318,7 +322,7 @@ uint32_t VBoxVHWAHandleTable::put(void * data)
 
     if(mcUsage == mcSize)
     {
-        /* @todo: resize */
+        /** @todo resize */
         AssertFailed();
     }
 
@@ -471,7 +475,7 @@ public:
         mRcName(aRcName),
         mType(aType),
         mInitialized(false)
-    {}
+    { NOREF(mType); }
 
 
     int init();
@@ -629,7 +633,7 @@ class VBoxVHWAGlProgram
 public:
     VBoxVHWAGlProgram(VBoxVHWAGlShader ** apShaders, int acShaders);
 
-    ~VBoxVHWAGlProgram();
+    virtual ~VBoxVHWAGlProgram();
 
     virtual int init();
     virtual void uninit();
@@ -2528,7 +2532,7 @@ int VBoxVHWAImage::vhwaSurfaceCreate (struct VBOXVHWACMD_SURF_CREATE *pCmd)
         Assert(bSuccess);
         if(!bSuccess)
         {
-            /* @todo: this is very bad, should not be here */
+            /** @todo this is very bad, should not be here */
             return VERR_GENERAL_FAILURE;
         }
     }
@@ -3009,16 +3013,16 @@ int VBoxVHWAImage::vhwaQueryInfo1(struct VBOXVHWACMD_QUERYINFO1 *pCmd)
                                  // | VBOXVHWA_CAPS_OVERLAYFOURCC set below if shader support is available
                                  ;
 
-        /* @todo: check if we could use DDSCAPS_ALPHA instead of colorkeying */
+        /** @todo check if we could use DDSCAPS_ALPHA instead of colorkeying */
 
         pCmd->u.out.caps2 = VBOXVHWA_CAPS2_CANRENDERWINDOWED
                                     | VBOXVHWA_CAPS2_WIDESURFACES;
 
-        //TODO: setup stretchCaps
+        /// @todo setup stretchCaps
         pCmd->u.out.stretchCaps = 0;
 
         pCmd->u.out.numOverlays = 1;
-        /* TODO: set curOverlays properly */
+        /** @todo set curOverlays properly */
         pCmd->u.out.curOverlays = 0;
 
         pCmd->u.out.surfaceCaps =
@@ -3585,7 +3589,7 @@ int VBoxVHWAImage::vhwaLoadExec(VHWACommandList * pCmdList, struct SSMHANDLE * p
 int VBoxVHWAImage::vhwaConstruct(struct VBOXVHWACMD_HH_CONSTRUCT *pCmd)
 {
 //    PVM pVM = (PVM)pCmd->pVM;
-//    uint32_t intsId = 0; /* @todo: set the proper id */
+//    uint32_t intsId = 0; /** @todo set the proper id */
 //
 //    char nameFuf[sizeof(VBOXQGL_STATE_NAMEBASE) + 8];
 //
@@ -3616,7 +3620,7 @@ int VBoxVHWAImage::vhwaConstruct(struct VBOXVHWACMD_HH_CONSTRUCT *pCmd)
 
 uchar * VBoxVHWAImage::vboxVRAMAddressFromOffset(uint64_t offset)
 {
-    /* @todo: check vramSize() */
+    /** @todo check vramSize() */
     return (offset != VBOXVHWA_OFFSET64_VOID) ? ((uint8_t*)vramBase()) + offset : NULL;
 }
 
@@ -3779,16 +3783,18 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
     bool fallback = false;
 
     VBOXQGLLOG(("resizing: fmt=%d, vram=%p, bpp=%d, bpl=%d, width=%d, height=%d\n",
-                      size.pixelFormat(), size.VRAM(),
-                      size.bitsPerPixel(), size.bytesPerLine(),
-                      size.width(), size.height()));
+                size.pixelFormat(), size.VRAM(),
+                size.bitsPerPixel(), size.bytesPerLine(),
+                size.width(), size.height()));
 
     /* clean the old values first */
 
-    ulong bytesPerLine;
-    uint32_t bitsPerPixel;
-    uint32_t b = 0xff, g = 0xff00, r = 0xff0000;
-    bool bUsesGuestVram;
+    ulong    bytesPerLine = 0; /* Shut up MSC. */
+    uint32_t bitsPerPixel = 0; /* Shut up MSC. */
+    uint32_t b =     0xff;
+    uint32_t g =   0xff00;
+    uint32_t r = 0xff0000;
+    bool fUsesGuestVram = false; /* Shut up MSC. */
 
     /* check if we support the pixel format and can use the guest VRAM directly */
     if (size.pixelFormat() == KBitmapFormat_BGR)
@@ -3848,7 +3854,7 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
         if (!fallback)
         {
             // ulong virtWdt = bitsPerLine / size.bitsPerPixel();
-            bUsesGuestVram = true;
+            fUsesGuestVram = true;
         }
     }
     else
@@ -3867,8 +3873,8 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
         b = 0xff;
         g = 0xff00;
         r = 0xff0000;
-        bytesPerLine = size.width()*bitsPerPixel/8;
-        bUsesGuestVram = false;
+        bytesPerLine = size.width() * bitsPerPixel / 8;
+        fUsesGuestVram = false;
     }
 
     ulong bytesPerPixel = bitsPerPixel/8;
@@ -3908,7 +3914,7 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
             0,
 #endif
             0 /* VBOXVHWAIMG_TYPE fFlags */);
-    pDisplay->init(NULL, bUsesGuestVram ? size.VRAM() : NULL);
+    pDisplay->init(NULL, fUsesGuestVram ? size.VRAM() : NULL);
     mDisplay.setVGA(pDisplay);
 //    VBOXQGLLOG(("\n\n*******\n\n     viewport size is: (%d):(%d)\n\n*******\n\n", size().width(), size().height()));
     mViewport = QRect(0,0,displayWidth, displayHeight);
@@ -5053,7 +5059,7 @@ void VBoxVHWACommandElementProcessor::postCmd(VBOXVHWA_PIPECMD_TYPE aType, void 
         RTCritSectLeave(&mCritSect);
         return;
 #else
-    //TODO:
+    /// @todo
 #endif
     }
     pCmd->setData(aType, pvData);

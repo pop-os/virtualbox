@@ -4,7 +4,7 @@
  * Miniport edge
  */
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@ static NDIS_STATUS vboxNetFltWinMpInitialize(OUT PNDIS_STATUS OpenErrorStatus,
         IN NDIS_HANDLE MiniportAdapterHandle,
         IN NDIS_HANDLE WrapperConfigurationContext)
 {
+    RT_NOREF1(WrapperConfigurationContext);
     PVBOXNETFLTINS pNetFlt = (PVBOXNETFLTINS)NdisIMGetDeviceContext(MiniportAdapterHandle);
     NDIS_STATUS Status = NDIS_STATUS_FAILURE;
 
@@ -157,8 +158,10 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMpDoDeinitialization(PVBOXNETFLTINS pNetFlt
     return NDIS_STATUS_SUCCESS;
 }
 
-static NDIS_STATUS vboxNetFltWinMpReadApplyConfig(PVBOXNETFLTINS pThis, NDIS_HANDLE hMiniportAdapter, NDIS_HANDLE hWrapperConfigurationContext)
+static NDIS_STATUS vboxNetFltWinMpReadApplyConfig(PVBOXNETFLTINS pThis, NDIS_HANDLE hMiniportAdapter,
+                                                  NDIS_HANDLE hWrapperConfigurationContext)
 {
+    RT_NOREF1(hMiniportAdapter);
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     NDIS_HANDLE hConfiguration;
     PNDIS_CONFIGURATION_PARAMETER pParameterValue;
@@ -380,7 +383,7 @@ static NDIS_STATUS vboxNetFltWinMpInitialize(OUT PNDIS_STATUS OpenErrorStatus,
         Status = NDIS_STATUS_UNSUPPORTED_MEDIA;
     }
 
-    /* TODO: */
+    /** @todo */
     *OpenErrorStatus = Status;
 
     LogFlowFunc(("LEAVE: Status (0x%x)\n", Status));
@@ -485,7 +488,7 @@ static VOID vboxNetFltWinMpSendPackets(IN NDIS_HANDLE hMiniportAdapterContext,
     else
     {
         NDIS_HANDLE h = pNetFlt->u.s.WinIf.hMiniport;
-        Assert(0);
+        AssertFailed();
         if (h)
         {
             for (UINT i = 0; i < cNumberOfPackets; i++)
@@ -650,7 +653,7 @@ static NDIS_STATUS vboxNetFltWinMpHandlePowerState(PVBOXNETFLTINS pNetFlt, NDIS_
             && enmState != NdisDeviceStateD0)
     {
         /* invalid state transformation */
-        Assert(0);
+        AssertFailed();
         return NDIS_STATUS_FAILURE;
     }
 
@@ -706,7 +709,7 @@ static NDIS_STATUS vboxNetFltWinMpRequestPostSet(PVBOXNETFLTINS pNetFlt)
             Assert(fWinIfActive);
 
             /* netflt is active, update the cached value */
-            /* TODO: in case we are are not in promiscuous now, we are issuing a request.
+            /** @todo in case we are are not in promiscuous now, we are issuing a request.
              * what should we do in case of a failure?
              * i.e. should we update the fUpperProtocolSetFilter in completion routine in this case? etc. */
             pNetFlt->u.s.WinIf.fUpperProtocolSetFilter = *((PULONG)pNetFlt->u.s.WinIf.PassDownRequest.DATA.SET_INFORMATION.InformationBuffer);
@@ -1229,7 +1232,7 @@ static NDIS_STATUS vboxNetFltWinMpSetInformation(IN NDIS_HANDLE MiniportAdapterC
 #define VBOXNETFLTDUMP_STRCASE(_t) \
         case _t: return #_t;
 #define VBOXNETFLTDUMP_STRCASE_UNKNOWN() \
-        default: /*Assert(0);*/ return "Unknown";
+        default: /*AssertFailed();*/ return "Unknown";
 
 static const char* vboxNetFltWinMpDumpOid(ULONG oid)
 {
@@ -1366,22 +1369,24 @@ static NDIS_STATUS vboxNetFltWinMpTransferData(OUT PNDIS_PACKET Packet,
 
     LogFlowFunc(("ENTER: pNetFlt (0x%p)\n", pNetFlt));
 
-    if (vboxNetFltWinGetPowerState(&pNetFlt->u.s.WinIf.PtState) != NdisDeviceStateD0
-            || vboxNetFltWinGetPowerState(&pNetFlt->u.s.WinIf.MpState) != NdisDeviceStateD0)
+    if (   vboxNetFltWinGetPowerState(&pNetFlt->u.s.WinIf.PtState) != NdisDeviceStateD0
+        || vboxNetFltWinGetPowerState(&pNetFlt->u.s.WinIf.MpState) != NdisDeviceStateD0)
     {
         LogFlowFunc(("LEAVE: pNetFlt (0x%p), Status (0x%x)\n", pNetFlt, NDIS_STATUS_FAILURE));
         return NDIS_STATUS_FAILURE;
     }
 
     NdisTransferData(&Status, pNetFlt->u.s.WinIf.hBinding, MiniportReceiveContext,
-            ByteOffset, BytesToTransfer, Packet, BytesTransferred);
+                     ByteOffset, BytesToTransfer, Packet, BytesTransferred);
 
     LogFlowFunc(("LEAVE: pNetFlt (0x%p), Status (0x%x)\n", pNetFlt, Status));
     return Status;
+
 #else
+    RT_NOREF6(Packet, BytesTransferred, hContext, MiniportReceiveContext, ByteOffset, BytesToTransfer);
     LogFlowFunc(("ENTER: pNetFlt (0x%p)\n", hContext));
     /* should never be here */
-    Assert(0);
+    AssertFailed();
     LogFlowFunc(("LEAVE: pNetFlt (0x%p), Status (0x%x)\n", hContext, NDIS_STATUS_FAILURE));
     return NDIS_STATUS_FAILURE;
 #endif
@@ -1507,7 +1512,6 @@ DECLHIDDEN(bool) vboxNetFltWinMpDeInitializeDeviceInstance(PVBOXNETFLTINS pThis,
     if (vboxNetFltWinGetOpState(&pThis->u.s.WinIf.MpState) == kVBoxNetDevOpState_Initializing)
     {
         Status = NdisIMCancelInitializeDeviceInstance(g_VBoxNetFltGlobalsWin.Mp.hMiniport, &pThis->u.s.WinIf.MpDeviceName);
-
         if (Status == NDIS_STATUS_SUCCESS)
         {
             /* we've canceled the initialization successfully */
@@ -1516,13 +1520,13 @@ DECLHIDDEN(bool) vboxNetFltWinMpDeInitializeDeviceInstance(PVBOXNETFLTINS pThis,
             vboxNetFltWinSetOpState(&pThis->u.s.WinIf.MpState, kVBoxNetDevOpState_Deinitialized);
         }
         else
-        {
             NdisWaitEvent(&pThis->u.s.WinIf.MpInitCompleteEvent, 0);
-        }
     }
+    else
+        Status = NDIS_STATUS_SUCCESS;
 
-    Assert(vboxNetFltWinGetOpState(&pThis->u.s.WinIf.MpState) == kVBoxNetDevOpState_Initialized
-            || vboxNetFltWinGetOpState(&pThis->u.s.WinIf.MpState) == kVBoxNetDevOpState_Deinitialized);
+    Assert(   vboxNetFltWinGetOpState(&pThis->u.s.WinIf.MpState) == kVBoxNetDevOpState_Initialized
+           || vboxNetFltWinGetOpState(&pThis->u.s.WinIf.MpState) == kVBoxNetDevOpState_Deinitialized);
     if (vboxNetFltWinGetOpState(&pThis->u.s.WinIf.MpState) == kVBoxNetDevOpState_Initialized)
     {
         vboxNetFltWinSetOpState(&pThis->u.s.WinIf.MpState, kVBoxNetDevOpState_Deinitializing);
@@ -1531,9 +1535,7 @@ DECLHIDDEN(bool) vboxNetFltWinMpDeInitializeDeviceInstance(PVBOXNETFLTINS pThis,
 
         vboxNetFltWinSetOpState(&pThis->u.s.WinIf.MpState, kVBoxNetDevOpState_Deinitialized);
         if (Status != NDIS_STATUS_SUCCESS)
-        {
             Status = NDIS_STATUS_FAILURE;
-        }
 
         *pStatus = Status;
         return true;
@@ -1545,4 +1547,5 @@ DECLHIDDEN(bool) vboxNetFltWinMpDeInitializeDeviceInstance(PVBOXNETFLTINS pThis,
     *pStatus = Status;
     return false;
 }
-#endif
+
+#endif /* !VBOXNETADP */

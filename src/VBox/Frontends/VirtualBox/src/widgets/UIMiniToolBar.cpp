@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,6 @@
 # include <QToolButton>
 # include <QStateMachine>
 # include <QPainter>
-# include <QDesktopWidget>
 # ifdef VBOX_WS_WIN
 #  include <QWindow>
 # endif /* VBOX_WS_WIN */
@@ -41,6 +40,7 @@
 # include "UIMiniToolBar.h"
 # include "UIAnimationFramework.h"
 # include "UIIconPool.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "VBoxGlobal.h"
 # ifdef VBOX_WS_X11
 #  include "UIExtraDataManager.h"
@@ -635,14 +635,14 @@ void UIMiniToolBar::sltAdjust()
     LogRel2(("GUI: UIMiniToolBar::sltAdjust\n"));
 
     /* Get corresponding host-screen: */
-    const int iHostScreen = QApplication::desktop()->screenNumber(parentWidget());
+    const int iHostScreen = gpDesktop->screenNumber(parentWidget());
     Q_UNUSED(iHostScreen);
     /* And corresponding working area: */
     QRect workingArea;
     switch (m_geometryType)
     {
-        case GeometryType_Available: workingArea = vboxGlobal().availableGeometry(iHostScreen); break;
-        case GeometryType_Full:      workingArea = vboxGlobal().screenGeometry(iHostScreen); break;
+        case GeometryType_Available: workingArea = gpDesktop->availableGeometry(iHostScreen); break;
+        case GeometryType_Full:      workingArea = gpDesktop->screenGeometry(iHostScreen); break;
     }
     Q_UNUSED(workingArea);
 

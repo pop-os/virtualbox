@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1130,6 +1130,7 @@ void UIGChooserItemMachine::prepare()
     /* Other things disabled for now: */
     return;
 
+#if 0 /* disabled for now */
     /* Create tool-bar: */
     m_pToolBar = new UIGraphicsToolBar(this, 2, 2);
 
@@ -1170,6 +1171,7 @@ void UIGChooserItemMachine::prepare()
     connect(m_pCloseButton, SIGNAL(sigButtonClicked()),
             actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff), SLOT(trigger()),
             Qt::QueuedConnection);
+#endif /* disabled for now */
 }
 
 /* static */

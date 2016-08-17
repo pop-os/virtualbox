@@ -4,7 +4,7 @@
  *
  * Installation code
  *
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,8 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <windows.h>
-#include <setupapi.h>
+#include <iprt/win/windows.h>
+#include <iprt/win/setupapi.h>
 #include <newdev.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -252,8 +252,11 @@ int usbMonitorInit()
         goto failure;
     }
 
-    if (version.u32Major != USBMON_MAJOR_VERSION ||
-        version.u32Minor <  USBMON_MINOR_VERSION)
+    if (   version.u32Major != USBMON_MAJOR_VERSION
+#if USBMON_MINOR_VERSION != 0
+        || version.u32Minor < USBMON_MINOR_VERSION
+#endif
+        )
     {
         printf("usbproxy: Filter driver version mismatch!!\n");
         rc = VERR_VERSION_MISMATCH;
@@ -304,6 +307,7 @@ int usbMonitorTerm()
 int __cdecl main(int argc, char **argv)
 {
     int rc;
+    RT_NOREF2(argc, argv);
 
     printf("USB test\n");
 

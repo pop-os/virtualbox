@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ int readSavedDisplayScreenshot(const Utf8Str &strStateFilePath, uint32_t u32Type
 {
     LogFlowFunc(("u32Type = %d [%s]\n", u32Type, strStateFilePath.c_str()));
 
-    /* @todo cache read data */
+    /** @todo cache read data */
     if (strStateFilePath.isEmpty())
     {
         /* No saved state data. */
@@ -138,7 +138,7 @@ int readSavedDisplayScreenshot(const Utf8Str &strStateFilePath, uint32_t u32Type
 
 void freeSavedDisplayScreenshot(uint8_t *pu8Data)
 {
-    /* @todo not necessary when caching is implemented. */
+    /** @todo not necessary when caching is implemented. */
     RTMemFree(pu8Data);
 }
 
@@ -148,7 +148,7 @@ int readSavedGuestScreenInfo(const Utf8Str &strStateFilePath, uint32_t u32Screen
 {
     LogFlowFunc(("u32ScreenId = %d [%s]\n", u32ScreenId, strStateFilePath.c_str()));
 
-    /* @todo cache read data */
+    /** @todo cache read data */
     if (strStateFilePath.isEmpty())
     {
         /* No saved state data. */

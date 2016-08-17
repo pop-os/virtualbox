@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -194,12 +194,33 @@ static struct pci_driver vbox_pci_driver =
     .driver.pm = &vbox_pm_ops,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+/* This works around a bug in X servers prior to 1.18.4, which sometimes
+ * submit more dirty rectangles than the kernel is willing to handle and
+ * then disable dirty rectangle handling altogether when they see the
+ * EINVAL error.  I do not want the code to hang around forever, which is
+ * why I am limiting it to certain kernel versions.  We can increase the
+ * limit if some distributions uses old X servers with new kernels. */
+long vbox_ioctl(struct file *filp,
+                unsigned int cmd, unsigned long arg)
+{
+    long rc = drm_ioctl(filp, cmd, arg);
+    if (cmd == DRM_IOCTL_MODE_DIRTYFB && rc == -EINVAL)
+        return -EOVERFLOW;
+    return rc;
+}
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) */
+
 static const struct file_operations vbox_fops =
 {
     .owner = THIS_MODULE,
     .open = drm_open,
     .release = drm_release,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+    .unlocked_ioctl = vbox_ioctl,
+#else
     .unlocked_ioctl = drm_ioctl,
+#endif
     .mmap = vbox_mmap,
     .poll = drm_poll,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
@@ -216,8 +237,10 @@ static int vbox_master_set(struct drm_device *dev,
                            bool from_open)
 {
     struct vbox_private *vbox = dev->dev_private;
+    /* We do not yet know whether the new owner can handle hotplug, so we
+     * do not advertise dynamic modes on the first query and send a
+     * tentative hotplug notification after that to see if they query again. */
     vbox->initial_mode_queried = false;
-    vbox_disable_accel(vbox);
     return 0;
 }
 
@@ -227,7 +250,12 @@ static void vbox_master_drop(struct drm_device *dev,
 {
     struct vbox_private *vbox = dev->dev_private;
     vbox->initial_mode_queried = false;
+    mutex_lock(&vbox->hw_mutex);
+    /* Disable VBVA when someone releases master in case the next person tries
+     * to do VESA. */
+    /** @todo work out if anyone is likely to and whether it will even work. */
     vbox_disable_accel(vbox);
+    mutex_unlock(&vbox->hw_mutex);
 }
 
 static struct drm_driver driver =

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -124,7 +124,8 @@ static DisplayModePtr vboxAddEmptyScreenMode(ScrnInfoPtr pScrn)
  */
 void vboxAddModes(ScrnInfoPtr pScrn)
 {
-    unsigned cx = 0, cy = 0, cIndex = 0;
+    unsigned cx = 0;
+    unsigned cy = 0;
     unsigned i;
     DisplayModePtr pMode;
 
@@ -236,10 +237,9 @@ void vbvxReadSizesAndCursorIntegrationFromHGSMI(ScrnInfoPtr pScrn, bool *pfNeedU
  * the time stamp and handled them at the wrong time. */
 static void acpiEventHandler(int fd, void *pvData)
 {
-    ScreenPtr pScreen = (ScreenPtr)pvData;
-    VBOXPtr pVBox = VBOXGetRec(xf86Screens[pScreen->myNum]);
     struct input_event event;
     ssize_t rc;
+    RT_NOREF(pvData);
 
     do
         rc = read(fd, &event, sizeof(event));

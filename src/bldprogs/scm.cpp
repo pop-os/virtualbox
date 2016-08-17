@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,6 +74,8 @@ typedef enum SCMOPT
     SCMOPT_NO_STRIP_TRAILING_LINES,
     SCMOPT_FIX_FLOWER_BOX_MARKERS,
     SCMOPT_NO_FIX_FLOWER_BOX_MARKERS,
+    SCMOPT_FIX_TODOS,
+    SCMOPT_NO_FIX_TODOS,
     SCMOPT_MIN_BLANK_LINES_BEFORE_FLOWER_BOX_MARKERS,
     SCMOPT_ONLY_SVN_DIRS,
     SCMOPT_NOT_ONLY_SVN_DIRS,
@@ -138,6 +140,7 @@ static SCMSETTINGSBASE const g_Defaults =
     /* .fStripTrailingLines = */                    true,
     /* .fFixFlowerBoxMarkers = */                   true,
     /* .cMinBlankLinesBeforeFlowerBoxMakers = */    2,
+    /* .fFixTodos = */                              true,
     /* .fOnlySvnFiles = */                          false,
     /* .fOnlySvnDirs = */                           false,
     /* .fSetSvnEol = */                             false,
@@ -168,6 +171,8 @@ static RTGETOPTDEF  g_aScmOpts[] =
     { "--min-blank-lines-before-flower-box-makers", SCMOPT_FIX_FLOWER_BOX_MARKERS,  RTGETOPT_REQ_UINT8 },
     { "--fix-flower-box-markers",           SCMOPT_FIX_FLOWER_BOX_MARKERS,          RTGETOPT_REQ_NOTHING },
     { "--no-fix-flower-box-markers",        SCMOPT_NO_FIX_FLOWER_BOX_MARKERS,       RTGETOPT_REQ_NOTHING },
+    { "--fix-todos",                        SCMOPT_FIX_TODOS,                       RTGETOPT_REQ_NOTHING },
+    { "--no-fix-todos",                     SCMOPT_NO_FIX_TODOS,                    RTGETOPT_REQ_NOTHING },
     { "--only-svn-dirs",                    SCMOPT_ONLY_SVN_DIRS,                   RTGETOPT_REQ_NOTHING },
     { "--not-only-svn-dirs",                SCMOPT_NOT_ONLY_SVN_DIRS,               RTGETOPT_REQ_NOTHING },
     { "--only-svn-files",                   SCMOPT_ONLY_SVN_FILES,                  RTGETOPT_REQ_NOTHING },
@@ -213,6 +218,7 @@ static PFNSCMREWRITER const g_aRewritersFor_C_and_CPP[] =
     rewrite_SvnNoExecutable,
     rewrite_SvnKeywords,
     rewrite_FixFlowerBoxMarkers,
+    rewrite_Fix_C_and_CPP_Todos,
     rewrite_C_and_CPP
 };
 
@@ -612,6 +618,7 @@ static int scmSettingsBaseVerifyString(const char *pszOptions)
 static int scmSettingsBaseLoadFromDocument(PSCMSETTINGSBASE pBase, PSCMSTREAM pStream)
 {
     /** @todo Editor and SCM settings directives in documents.  */
+    RT_NOREF2(pBase, pStream);
     return VINF_SUCCESS;
 }
 
@@ -785,6 +792,7 @@ static int scmSettingsLoadFile(PSCMSETTINGS pSettings, const char *pszFilename)
     return rc;
 }
 
+#if 0 /* unused */
 /**
  * Parse the specified settings file creating a new settings struct from it.
  *
@@ -811,6 +819,7 @@ static int scmSettingsCreateFromFile(PSCMSETTINGS *ppSettings, const char *pszFi
     *ppSettings = NULL;
     return rc;
 }
+#endif
 
 
 /**
@@ -1473,7 +1482,7 @@ static int scmProcessSomething(const char *pszSomething, PSCMSETTINGS pSettingsS
                 rc = scmProcessDirTree(szBuf, pSettingsStack);
 
             PSCMSETTINGS pPopped = scmSettingsStackPop(&pSettingsStack);
-            Assert(pPopped == pSettings);
+            Assert(pPopped == pSettings); RT_NOREF_PV(pPopped);
             scmSettingsDestroy(pSettings);
         }
         else
@@ -1628,7 +1637,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 102132 $";
+                static const char s_szRev[] = "$Revision: 110214 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

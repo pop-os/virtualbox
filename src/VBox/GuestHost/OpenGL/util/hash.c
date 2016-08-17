@@ -273,7 +273,7 @@ GLboolean crHashIdPoolAllocId( CRHashIdPool *pool, GLuint id )
         return GL_FALSE;
     }
 
-//    Assert(id != 2);
+/*    Assert(id != 2);*/
 
     RTListForEachSafe(&pool->freeList, f, next, FreeElem, Node)
     {
@@ -571,18 +571,20 @@ void crHashtableWalkKeys( CRHashTable *h, CRHashIdWalkKeys walkFunc , void *data
 GLuint crHashtableAllocKeys( CRHashTable *h,  GLsizei range)
 {
     GLuint res;
-    int i;
 
 #ifdef CHROMIUM_THREADSAFE
     crLockMutex(&h->mutex);
 #endif
     res = crHashIdPoolAllocBlock (h->idPool, range);
 #ifdef DEBUG_misha
-    Assert(res);
-    for (i = 0; i < range; ++i)
     {
-        void *search = crHashtableSearch( h, res+i );
-        Assert(!search);
+        int i;
+        Assert(res);
+        for (i = 0; i < range; ++i)
+        {
+            void *search = crHashtableSearch( h, res+i );
+            Assert(!search);
+        }
     }
 #endif
 #ifdef CHROMIUM_THREADSAFE

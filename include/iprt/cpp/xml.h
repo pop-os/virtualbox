@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -315,7 +315,7 @@ private:
     Data *m;
 
     /* auto_ptr data doesn't have proper copy semantics */
-    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP (File)
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(File);
 };
 
 /**
@@ -342,7 +342,7 @@ private:
     Data *m;
 
     /* auto_ptr data doesn't have proper copy semantics */
-    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(MemoryBuf)
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(MemoryBuf);
 };
 
 

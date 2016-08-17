@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,7 +81,7 @@ void CrMClrFillImg(CR_BLITTER_IMG *pImg, uint32_t cRects, const RTRECT *pRects, 
 
 
     RTRECT Intersection;
-    const RTPOINT ZeroPoint = {0, 0};
+    /*const RTPOINT ZeroPoint = {0, 0}; - unused */
 
     for (uint32_t i = 0; i < cRects; ++i)
     {
@@ -192,13 +192,13 @@ void CrMBltImgRectScaled(const CR_BLITTER_IMG *pSrc, const RTPOINT *pPos, bool f
         srcY = 0;
     }
 
-    if (srcX >= pSrc->width)
+    if ((GLuint)srcX >= pSrc->width)
     {
         WARN(("ups"));
         return;
     }
 
-    if (srcY >= pSrc->height)
+    if ((GLuint)srcY >= pSrc->height)
     {
         WARN(("ups"));
         return;
@@ -217,10 +217,10 @@ void CrMBltImgRectScaled(const CR_BLITTER_IMG *pSrc, const RTPOINT *pPos, bool f
     int32_t UnscaledSrcWidth = UnscaledCopyRect.xRight - UnscaledCopyRect.xLeft;
     int32_t UnscaledSrcHeight = UnscaledCopyRect.yBottom - UnscaledCopyRect.yTop;
 
-    if (UnscaledSrcWidth + srcX > pSrc->width)
+    if (UnscaledSrcWidth + srcX > (GLint)pSrc->width)
         UnscaledSrcWidth = pSrc->width - srcX;
 
-    if (UnscaledSrcHeight + srcY > pSrc->height)
+    if (UnscaledSrcHeight + srcY > (GLint)pSrc->height)
         UnscaledSrcHeight = pSrc->height - srcY;
 
     uint8_t *pu8Src = ((uint8_t*)pSrc->pvData) + pSrc->pitch * (!fSrcInvert ? srcY : pSrc->height - srcY - 1) + srcX * 4;
@@ -243,8 +243,7 @@ void CrMBltImgScaled(const CR_BLITTER_IMG *pSrc, const RTRECTSIZE *pSrcRectSize,
 
     float strX = ((float)dstWidth) / srcWidth;
     float strY = ((float)dstHeight) / srcHeight;
-    bool fScale = (dstWidth != srcWidth || dstHeight != srcHeight);
-    Assert(fScale);
+    Assert(dstWidth != srcWidth || dstHeight != srcHeight);
 
     RTRECT Intersection;
     RTRECT ScaledRestrictSrcRect;
@@ -572,6 +571,8 @@ DECLINLINE(GLfloat*) crBltVtRectsTFNormalized(const RTRECT *paRects, uint32_t cR
 
 DECLINLINE(GLint*) crBltVtRectTF(const RTRECT *pRect, uint32_t normalX, uint32_t normalY, GLint* pBuff, uint32_t height)
 {
+    (void)normalX; (void)normalY;
+
     /* xLeft yTop */
     pBuff[0] = pRect->xLeft;
     pBuff[1] = height ? height - pRect->yTop : pRect->yTop;
@@ -1114,6 +1115,7 @@ VBOXBLITTERDECL(int) CrBltImgGetTex(PCR_BLITTER pBlitter, const VBOXVR_TEXTURE *
 
 VBOXBLITTERDECL(int) CrBltImgGetMural(PCR_BLITTER pBlitter, bool fBb, CR_BLITTER_IMG *pDst)
 {
+    (void)fBb; (void)pDst;
     if (!CrBltIsEntered(pBlitter))
     {
         WARN(("CrBltImgGetMural: blitter not entered"));
@@ -2029,8 +2031,8 @@ static int ctTdBltSdGetUpdated(PCR_TEXDATA pTex, uint32_t width, uint32_t height
         return rc;
     }
 
-    Assert(width == pScaledCache->Tex.width);
-    Assert(height == pScaledCache->Tex.height);
+    Assert(width == (uint32_t)pScaledCache->Tex.width);
+    Assert(height == (uint32_t)pScaledCache->Tex.height);
 
     if (!pScaledCache->Flags.DataValid)
     {
@@ -2056,7 +2058,7 @@ static int ctTdBltSdGetUpdated(PCR_TEXDATA pTex, uint32_t width, uint32_t height
 
 VBOXBLITTERDECL(int) CrTdBltDataAcquireScaled(PCR_TEXDATA pTex, GLenum enmFormat, bool fInverted, uint32_t width, uint32_t height, const CR_BLITTER_IMG**ppImg)
 {
-    if (pTex->Tex.width == width && pTex->Tex.height == height)
+    if ((uint32_t)pTex->Tex.width == width && (uint32_t)pTex->Tex.height == height)
         return CrTdBltDataAcquire(pTex, enmFormat, fInverted, ppImg);
 
     if (!pTex->Flags.Entered)

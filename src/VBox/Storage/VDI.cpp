@@ -58,9 +58,6 @@ static const VDFILEEXTENSION s_aVdiFileExtensions[] =
 static unsigned getPowerOfTwo(unsigned uNumber);
 static void vdiInitPreHeader(PVDIPREHEADER pPreHdr);
 static int  vdiValidatePreHeader(PVDIPREHEADER pPreHdr);
-static void vdiInitHeader(PVDIHEADER pHeader, uint32_t uImageFlags,
-                          const char *pszComment, uint64_t cbDisk,
-                          uint32_t cbBlock, uint32_t cbBlockExtra);
 static int  vdiValidateHeader(PVDIHEADER pHeader);
 static void vdiSetupImageDesc(PVDIIMAGEDESC pImage);
 static int  vdiUpdateHeader(PVDIIMAGEDESC pImage);
@@ -372,10 +369,16 @@ static void vdiInitHeader(PVDIHEADER pHeader, uint32_t uImageFlags,
     pHeader->u.v1plus.offData = RT_ALIGN_32(pHeader->u.v1plus.offBlocks + (pHeader->u.v1plus.cBlocks * sizeof(VDIIMAGEBLOCKPOINTER)), cbDataAlign);
 
     /* Init uuids. */
+#ifdef _MSC_VER
+# pragma warning(disable:4366) /* (harmless "misalignment") */
+#endif
     RTUuidCreate(&pHeader->u.v1plus.uuidCreate);
     RTUuidClear(&pHeader->u.v1plus.uuidModify);
     RTUuidClear(&pHeader->u.v1plus.uuidLinkage);
     RTUuidClear(&pHeader->u.v1plus.uuidParentModify);
+#ifdef _MSC_VER
+# pragma warning(default:4366)
+#endif
 
     /* Mark LCHS geometry not-calculated. */
     pHeader->u.v1plus.LCHSGeometry.cCylinders = 0;
@@ -1053,6 +1056,7 @@ static int vdiFlushImageIoCtx(PVDIIMAGEDESC pImage, PVDIOCTX pIoCtx)
  */
 static DECLCALLBACK(int) vdiDiscardBlockAsyncUpdate(void *pBackendData, PVDIOCTX pIoCtx, void *pvUser, int rcReq)
 {
+    RT_NOREF1(rcReq);
     int rc = VINF_SUCCESS;
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)pBackendData;
     PVDIBLOCKDISCARDASYNC pDiscardAsync = (PVDIBLOCKDISCARDASYNC)pvUser;
@@ -2358,6 +2362,7 @@ static DECLCALLBACK(int) vdiCompact(void *pBackendData, unsigned uPercentStart,
                                     unsigned uPercentSpan, PVDINTERFACE pVDIfsDisk,
                                     PVDINTERFACE pVDIfsImage, PVDINTERFACE pVDIfsOperation)
 {
+    RT_NOREF2(pVDIfsDisk, pVDIfsImage);
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)pBackendData;
     int rc = VINF_SUCCESS;
     void *pvBuf = NULL, *pvTmp = NULL;
@@ -2372,8 +2377,6 @@ static DECLCALLBACK(int) vdiCompact(void *pBackendData, unsigned uPercentStart,
         pvParent = pIfParentState->Core.pvUser;
     }
 
-    PFNVDPROGRESS pfnProgress = NULL;
-    void *pvUser = NULL;
     PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
 
     PVDINTERFACEQUERYRANGEUSE pIfQueryRangeUse = VDIfQueryRangeUseGet(pVDIfsOperation);
@@ -2608,12 +2611,9 @@ static DECLCALLBACK(int) vdiResize(void *pBackendData, uint64_t cbSize,
                                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                                    PVDINTERFACE pVDIfsOperation)
 {
+    RT_NOREF5(uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation);
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)pBackendData;
     int rc = VINF_SUCCESS;
-
-    PFNVDPROGRESS pfnProgress = NULL;
-    void *pvUser = NULL;
-    PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
 
     /*
      * Making the image smaller is not supported at the moment.
@@ -2969,7 +2969,6 @@ static DECLCALLBACK(int) vdiRepair(const char *pszFilename, PVDINTERFACE pVDIfsD
 
     do
     {
-        bool fRepairHdr = false;
         bool fRepairBlockArray = false;
 
         rc = vdIfIoIntFileOpen(pIfIo, pszFilename,

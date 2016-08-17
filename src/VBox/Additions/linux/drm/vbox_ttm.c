@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -274,6 +274,10 @@ struct ttm_bo_driver vbox_bo_driver = {
     .verify_access = vbox_bo_verify_access,
     .io_mem_reserve = &vbox_ttm_io_mem_reserve,
     .io_mem_free = &vbox_ttm_io_mem_free,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+    .lru_tail = &ttm_bo_default_lru_tail,
+    .swap_lru_tail = &ttm_bo_default_swap_lru_tail,
+#endif
 };
 
 int vbox_mm_init(struct vbox_private *vbox)
@@ -300,7 +304,7 @@ int vbox_mm_init(struct vbox_private *vbox)
     }
 
     ret = ttm_bo_init_mm(bdev, TTM_PL_VRAM,
-                 vbox->vram_size >> PAGE_SHIFT);
+                 vbox->available_vram_size >> PAGE_SHIFT);
     if (ret) {
         DRM_ERROR("Failed ttm VRAM init: %d\n", ret);
         return ret;

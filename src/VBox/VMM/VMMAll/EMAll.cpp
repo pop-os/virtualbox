@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -276,6 +276,8 @@ VMMDECL(void) EMRemLock(PVM pVM)
     Assert(!IOMIsLockWriteOwner(pVM));
     int rc = PDMCritSectEnter(&pVM->em.s.CritSectREM, VERR_SEM_BUSY);
     AssertRCSuccess(rc);
+#else
+    RT_NOREF(pVM);
 #endif
 }
 
@@ -292,6 +294,8 @@ VMMDECL(void) EMRemUnlock(PVM pVM)
         return;     /* early init */
 
     PDMCritSectLeave(&pVM->em.s.CritSectREM);
+#else
+    RT_NOREF(pVM);
 #endif
 }
 
@@ -310,6 +314,7 @@ VMMDECL(bool) EMRemIsLockOwner(PVM pVM)
 
     return PDMCritSectIsOwner(&pVM->em.s.CritSectREM);
 #else
+    RT_NOREF(pVM);
     return true;
 #endif
 }
@@ -329,6 +334,7 @@ VMM_INT_DECL(int) EMRemTryLock(PVM pVM)
 
     return PDMCritSectTryEnter(&pVM->em.s.CritSectREM);
 #else
+    RT_NOREF(pVM);
     return VINF_SUCCESS;
 #endif
 }
@@ -340,7 +346,7 @@ VMM_INT_DECL(int) EMRemTryLock(PVM pVM)
 static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead)
 {
     PVMCPU      pVCpu    = (PVMCPU)pDis->pvUser;
-#if defined(IN_RC) || defined(IN_RING3)
+#if defined(VBOX_WITH_RAW_MODE) && (defined(IN_RC) || defined(IN_RING3))
     PVM         pVM      = pVCpu->CTX_SUFF(pVM);
 #endif
     RTUINTPTR   uSrcAddr = pDis->uInstrAddr + offInstr;
@@ -359,12 +365,12 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
     /*
      * We might be called upon to interpret an instruction in a patch.
      */
-    if (PATMIsPatchGCAddr(pVCpu->CTX_SUFF(pVM), uSrcAddr))
+    if (PATMIsPatchGCAddr(pVM, uSrcAddr))
     {
 # ifdef IN_RC
         memcpy(&pDis->abInstr[offInstr], (void *)(uintptr_t)uSrcAddr, cbToRead);
 # else
-        memcpy(&pDis->abInstr[offInstr], PATMR3GCPtrToHCPtr(pVCpu->CTX_SUFF(pVM), uSrcAddr), cbToRead);
+        memcpy(&pDis->abInstr[offInstr], PATMR3GCPtrToHCPtr(pVM, uSrcAddr), cbToRead);
 # endif
         rc = VINF_SUCCESS;
     }
@@ -419,11 +425,13 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
 }
 
 
+#if !defined(VBOX_WITH_IEM) || defined(VBOX_COMPARE_IEM_AND_EM)
 DECLINLINE(int) emDisCoreOne(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, RTGCUINTPTR InstrGC, uint32_t *pOpsize)
 {
     NOREF(pVM);
     return DISInstrWithReader(InstrGC, (DISCPUMODE)pDis->uCpuMode, emReadBytes, pVCpu, pDis, pOpsize);
 }
+#endif
 
 
 /**
@@ -1117,13 +1125,14 @@ VMM_INT_DECL(int) EMInterpretIretV86ForPatm(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE 
     return VINF_SUCCESS;
 }
 
+# ifndef VBOX_WITH_IEM
 /**
  * IRET Emulation.
  */
 static int emInterpretIret(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
 {
 #ifdef VBOX_WITH_RAW_RING1
-    NOREF(pvFault); NOREF(pcbSize);
+    NOREF(pvFault); NOREF(pcbSize); NOREF(pDis);
     if (EMIsRawRing1Enabled(pVM))
     {
         RTGCUINTPTR pIretStack = (RTGCUINTPTR)pRegFrame->esp;
@@ -1132,7 +1141,7 @@ static int emInterpretIret(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCOR
         uint32_t    cpl, rpl;
 
         /* We only execute 32-bits protected mode code in raw mode, so no need to bother to check for 16-bits code here. */
-        /* @todo: we don't verify all the edge cases that generate #GP faults */
+        /** @todo we don't verify all the edge cases that generate #GP faults */
 
         Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
         Assert(!CPUMIsGuestIn64BitCode(pVCpu));
@@ -1183,6 +1192,7 @@ static int emInterpretIret(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCOR
 #endif
     return VERR_EM_INTERPRETER;
 }
+# endif /* !VBOX_WITH_IEM */
 
 #endif /* IN_RC */
 

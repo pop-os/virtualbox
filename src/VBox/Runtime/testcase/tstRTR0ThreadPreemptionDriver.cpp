@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,6 +57,7 @@ static bool volatile g_fTerminate = false;
  */
 static DECLCALLBACK(int) MyThreadProc(RTTHREAD hSelf, void *pvCpuIdx)
 {
+    RT_NOREF1(hSelf);
     RTCPUSET Affinity;
     RTCpuSetEmpty(&Affinity);
     RTCpuSetAddByIndex(&Affinity, (intptr_t)pvCpuIdx);
@@ -81,6 +82,7 @@ static DECLCALLBACK(int) MyThreadProc(RTTHREAD hSelf, void *pvCpuIdx)
  */
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
+    RT_NOREF3(argc, argv, envp);
 #ifndef VBOX
     RTPrintf("tstSup: SKIPPED\n");
     return 0;
@@ -194,7 +196,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
      * Stay in ring-0 until preemption is pending.
      */
     RTTHREAD ahThreads[RTCPUSET_MAX_CPUS];
-    uint32_t cThreads = RTMpGetCount();
     RTCPUSET OnlineSet;
     RTMpGetOnlineSet(&OnlineSet);
     for (uint32_t i = 0; i < RT_ELEMENTS(ahThreads); i++)

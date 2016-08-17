@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -589,9 +589,7 @@ DECLINLINE(int) usbProxyUsbIpStatusConvertFromStatus(int32_t i32Status)
             LogFlowFunc(("i32Status=%d\n", i32Status));
             return VERR_INVALID_STATE;
     }
-
-    LogFlowFunc(("i32Status=%d\n", i32Status));
-    return VERR_INVALID_STATE;
+    /* not reached */
 }
 
 /**
@@ -613,8 +611,7 @@ DECLINLINE(VUSBSTATUS) usbProxyUsbIpVUsbStatusConvertFromStatus(int32_t i32Statu
         default:
             return VUSBSTATUS_DNR;
     }
-
-    return VUSBSTATUS_DNR;
+    /* not reached */
 }
 
 /**
@@ -887,7 +884,7 @@ static int usbProxyUsbIpCtrlUrbExchangeSync(PUSBPROXYDEVUSBIP pProxyDevUsbIp, PV
         if (RT_SUCCESS(rc))
         {
             /* Wait for the response. */
-            /** @todo: Don't wait indefinitely long. */
+            /** @todo Don't wait indefinitely long. */
             UsbIpRetSubmit RetSubmit;
             rc = RTTcpRead(pProxyDevUsbIp->hSocket, &RetSubmit, sizeof(RetSubmit), NULL);
             if (RT_SUCCESS(rc))
@@ -1031,7 +1028,7 @@ static int usbProxyUsbIpRecvPdu(PUSBPROXYDEVUSBIP pProxyDevUsbIp, PUSBPROXYURBUS
                 }
                 case USBPROXYUSBIPRECVSTATE_HDR_RESIDUAL:
                 {
-                    /** @todo: Verify that the directions match, verify that the length doesn't exceed the buffer. */
+                    /** @todo Verify that the directions match, verify that the length doesn't exceed the buffer. */
 
                     switch (RT_N2H_U32(pProxyDevUsbIp->BufRet.Hdr.u32ReqRet))
                     {
@@ -1130,7 +1127,7 @@ static int usbProxyUsbIpRecvPdu(PUSBPROXYDEVUSBIP pProxyDevUsbIp, PUSBPROXYURBUS
     }
     else
     {
-        /** @todo: Complete all URBs with DNR error and mark device as unplugged. */
+        /** @todo Complete all URBs with DNR error and mark device as unplugged. */
 #if 0
         pUrbUsbIp = pProxyDevUsbIp->pUrbUsbIp;
         pUrbUsbIp->pVUsbUrb->enmStatus = VUSBSTATUS_DNR;
@@ -1234,7 +1231,7 @@ static int usbProxyUsbIpUrbQueueWorker(PUSBPROXYDEVUSBIP pProxyDevUsbIp, PUSBPRO
             break;
         default:
             usbProxyUsbIpUrbFree(pProxyDevUsbIp, pUrbUsbIp);
-            return VERR_INVALID_PARAMETER; /** @todo: better status code. */
+            return VERR_INVALID_PARAMETER; /** @todo better status code. */
     }
 
     usbProxyUsbIpReqSubmitH2N(&ReqSubmit);
@@ -1279,7 +1276,7 @@ static int usbProxyUsbIpUrbsQueuePending(PUSBPROXYDEVUSBIP pProxyDevUsbIp)
         rc = usbProxyUsbIpUrbQueueWorker(pProxyDevUsbIp, pIter);
         if (RT_FAILURE(rc))
         {
-            /** @todo:  Complete the URB with an error. */
+            /** @todo  Complete the URB with an error. */
             usbProxyUsbIpUrbFree(pProxyDevUsbIp, pIter);
         }
     }
@@ -1315,9 +1312,8 @@ static char usbProxyUsbIpWakeupPipeDrain(PUSBPROXYDEVUSBIP pProxyDevUsbIp)
 {
     char bRead = 0;
     size_t cbRead = 0;
-
     int rc = RTPipeRead(pProxyDevUsbIp->hPipeR, &bRead, 1, &cbRead);
-    Assert(RT_SUCCESS(rc) && cbRead == 1);
+    Assert(RT_SUCCESS(rc) && cbRead == 1); NOREF(rc);
 
     return bRead;
 }
@@ -1326,8 +1322,12 @@ static char usbProxyUsbIpWakeupPipeDrain(PUSBPROXYDEVUSBIP pProxyDevUsbIp)
  * The USB proxy device functions.
  */
 
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnOpen}
+ */
 static DECLCALLBACK(int) usbProxyUsbIpOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
 {
+    RT_NOREF(pvBackend);
     LogFlowFunc(("pProxyDev=%p pszAddress=%s, pvBackend=%p\n", pProxyDev, pszAddress, pvBackend));
 
     PUSBPROXYDEVUSBIP pDevUsbIp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVUSBIP);
@@ -1386,6 +1386,10 @@ static DECLCALLBACK(int) usbProxyUsbIpOpen(PUSBPROXYDEV pProxyDev, const char *p
     return rc;
 }
 
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnClose}
+ */
 static DECLCALLBACK(void) usbProxyUsbIpClose(PUSBPROXYDEV pProxyDev)
 {
     int rc = VINF_SUCCESS;
@@ -1437,6 +1441,10 @@ static DECLCALLBACK(void) usbProxyUsbIpClose(PUSBPROXYDEV pProxyDev)
     RTSemFastMutexDestroy(pDevUsbIp->hMtxLists);
 }
 
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnReset}
+ */
 static DECLCALLBACK(int) usbProxyUsbIpReset(PUSBPROXYDEV pProxyDev, bool fResetOnLinux)
 {
     LogFlowFunc(("pProxyDev = %p\n", pProxyDev));
@@ -1463,6 +1471,10 @@ static DECLCALLBACK(int) usbProxyUsbIpReset(PUSBPROXYDEV pProxyDev, bool fResetO
     return rc;
 }
 
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnSetConfig}
+ */
 static DECLCALLBACK(int) usbProxyUsbIpSetConfig(PUSBPROXYDEV pProxyDev, int iCfg)
 {
     LogFlowFunc(("pProxyDev=%s cfg=%#x\n", pProxyDev->pUsbIns->pszName, iCfg));
@@ -1478,21 +1490,35 @@ static DECLCALLBACK(int) usbProxyUsbIpSetConfig(PUSBPROXYDEV pProxyDev, int iCfg
     return usbProxyUsbIpCtrlUrbExchangeSync(pProxyDevUsbIp, &Setup);
 }
 
-static DECLCALLBACK(int) usbProxyUsbIpClaimInterface(PUSBPROXYDEV pProxyDev, int ifnum)
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnClaimInterface}
+ */
+static DECLCALLBACK(int) usbProxyUsbIpClaimInterface(PUSBPROXYDEV pProxyDev, int iIf)
 {
-    LogFlowFunc(("pProxyDev=%s ifnum=%#x\n", pProxyDev->pUsbIns->pszName, ifnum));
+    RT_NOREF(pProxyDev, iIf);
+    LogFlowFunc(("pProxyDev=%s iIf=%#x\n", pProxyDev->pUsbIns->pszName, iIf));
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) usbProxyUsbIpReleaseInterface(PUSBPROXYDEV pProxyDev, int ifnum)
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnReleaseInterface}
+ */
+static DECLCALLBACK(int) usbProxyUsbIpReleaseInterface(PUSBPROXYDEV pProxyDev, int iIf)
 {
-    LogFlowFunc(("pProxyDev=%s ifnum=%#x\n", pProxyDev->pUsbIns->pszName, ifnum));
+    RT_NOREF(pProxyDev, iIf);
+    LogFlowFunc(("pProxyDev=%s iIf=%#x\n", pProxyDev->pUsbIns->pszName, iIf));
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) usbProxyUsbIpSetInterface(PUSBPROXYDEV pProxyDev, int ifnum, int setting)
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnSetInterface}
+ */
+static DECLCALLBACK(int) usbProxyUsbIpSetInterface(PUSBPROXYDEV pProxyDev, int iIf, int setting)
 {
-    LogFlowFunc(("pProxyDev=%p ifnum=%#x setting=%#x\n", pProxyDev, ifnum, setting));
+    LogFlowFunc(("pProxyDev=%p iIf=%#x setting=%#x\n", pProxyDev, iIf, setting));
 
     PUSBPROXYDEVUSBIP pProxyDevUsbIp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVUSBIP);
     VUSBSETUP Setup;
@@ -1500,11 +1526,15 @@ static DECLCALLBACK(int) usbProxyUsbIpSetInterface(PUSBPROXYDEV pProxyDev, int i
     Setup.bmRequestType = 0x1;
     Setup.bRequest      = 0x0b; /* SET_INTERFACE */
     Setup.wValue        = setting;
-    Setup.wIndex        = ifnum;
+    Setup.wIndex        = iIf;
     Setup.wLength       = 0;
     return usbProxyUsbIpCtrlUrbExchangeSync(pProxyDevUsbIp, &Setup);
 }
 
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnClearHaltedEndpoint}
+ */
 static DECLCALLBACK(int) usbProxyUsbIpClearHaltedEp(PUSBPROXYDEV pProxyDev, unsigned int iEp)
 {
     LogFlowFunc(("pProxyDev=%s ep=%u\n", pProxyDev->pUsbIns->pszName, iEp));
@@ -1520,6 +1550,10 @@ static DECLCALLBACK(int) usbProxyUsbIpClearHaltedEp(PUSBPROXYDEV pProxyDev, unsi
     return usbProxyUsbIpCtrlUrbExchangeSync(pProxyDevUsbIp, &Setup);
 }
 
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnUrbQueue}
+ */
 static DECLCALLBACK(int) usbProxyUsbIpUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
 {
     LogFlowFunc(("pUrb=%p\n", pUrb));
@@ -1543,6 +1577,10 @@ static DECLCALLBACK(int) usbProxyUsbIpUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB 
     return usbProxyReaperKick(pProxyDevUsbIp, USBIP_REAPER_WAKEUP_REASON_QUEUE);
 }
 
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnUrbReap}
+ */
 static DECLCALLBACK(PVUSBURB) usbProxyUsbIpUrbReap(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies)
 {
     LogFlowFunc(("pProxyDev=%s\n", pProxyDev->pUsbIns->pszName));
@@ -1604,6 +1642,10 @@ static DECLCALLBACK(PVUSBURB) usbProxyUsbIpUrbReap(PUSBPROXYDEV pProxyDev, RTMSI
     return pUrb;
 }
 
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnUrbCancel}
+ */
 static DECLCALLBACK(int) usbProxyUsbIpUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
 {
     LogFlowFunc(("pUrb=%p\n", pUrb));
@@ -1633,6 +1675,10 @@ static DECLCALLBACK(int) usbProxyUsbIpUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB
     return rc;
 }
 
+
+/**
+ * @interface_method_impl{USBPROXYBACK,pfnWakeup}
+ */
 static DECLCALLBACK(int) usbProxyUsbIpWakeup(PUSBPROXYDEV pProxyDev)
 {
     LogFlowFunc(("pProxyDev=%s\n", pProxyDev->pUsbIns->pszName));
@@ -1640,6 +1686,7 @@ static DECLCALLBACK(int) usbProxyUsbIpWakeup(PUSBPROXYDEV pProxyDev)
     PUSBPROXYDEVUSBIP pProxyDevUsbIp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVUSBIP);
     return usbProxyReaperKick(pProxyDevUsbIp, USBIP_REAPER_WAKEUP_REASON_EXTERNAL);
 }
+
 
 /**
  * The USB/IP USB Proxy Backend operations.

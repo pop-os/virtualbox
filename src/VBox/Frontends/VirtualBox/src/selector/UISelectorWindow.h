@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,10 +19,10 @@
 #define ___UISelectorWindow_h___
 
 /* Qt includes: */
-#include <QMainWindow>
 #include <QUrl>
 
 /* GUI includes: */
+#include "QIMainWindow.h"
 #include "QIWithRetranslateUI.h"
 
 /* Forward declarations: */
@@ -39,9 +39,9 @@ class QISplitter;
 class QMenu;
 class QStackedWidget;
 
-/** Singleton QMainWindow extension
+/** Singleton QIMainWindow extension
   * used as VirtualBox Manager (selector-window) instance. */
-class UISelectorWindow : public QIWithRetranslateUI<QMainWindow>
+class UISelectorWindow : public QIWithRetranslateUI<QIMainWindow>
 {
     Q_OBJECT;
 
@@ -64,7 +64,15 @@ protected:
     /** Destructs selector-window. */
     ~UISelectorWindow();
 
+    /** Returns whether the window should be maximized when geometry being restored. */
+    virtual bool shouldBeMaximized() const /* override */;
+
 private slots:
+
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /** Handles host-screen available-area change. */
+    void sltHandleHostScreenAvailableAreaChange();
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
     /** Handles selector-window context-menu call for passed @a position. */
     void sltShowSelectorWindowContextMenu(const QPoint &position);
@@ -303,9 +311,6 @@ private:
     QList<UIAction*> m_machineActions;
     /** Holds the Machine menu parent action. */
     QAction *m_pMachineMenuAction;
-
-    /** Holds the dialog geometry. */
-    QRect m_geometry;
 };
 
 #define gpSelectorWindow UISelectorWindow::instance()

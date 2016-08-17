@@ -44,6 +44,7 @@
 #include "UsbTestServiceGadgetHostInternal.h"
 #include "UsbTestServicePlatform.h"
 
+
 /*********************************************************************************************************************************
 *   Constants And Macros, Structures and Typedefs                                                                                *
 *********************************************************************************************************************************/
@@ -60,6 +61,7 @@ typedef struct UTSGADGETHOSTTYPEINT
 /** Default port of the USB/IP server. */
 #define UTS_GADGET_HOST_USBIP_PORT_DEF 3240
 
+
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
@@ -75,6 +77,7 @@ typedef struct UTSGADGETHOSTTYPEINT
  */
 static int usbGadgetHostUsbIpBindUnbind(PUTSGADGETHOSTTYPEINT pThis, UTSGADGET hGadget, bool fBind)
 {
+    RT_NOREF1(pThis);
     uint32_t uBusId, uDevId;
     char aszBus[32];
 
@@ -106,7 +109,7 @@ static int usbGadgetHostUsbIpBindUnbind(PUTSGADGETHOSTTYPEINT pThis, UTSGADGET h
             /* Evaluate the process status. */
             if (   ProcSts.enmReason != RTPROCEXITREASON_NORMAL
                 || ProcSts.iStatus != 0)
-                rc = VERR_UNRESOLVED_ERROR; /** @todo: Log and give finer grained status code. */
+                rc = VERR_UNRESOLVED_ERROR; /** @todo Log and give finer grained status code. */
         }
     }
 
@@ -191,6 +194,7 @@ static DECLCALLBACK(void) utsGadgetHostUsbIpTerm(PUTSGADGETHOSTTYPEINT pIf)
 static DECLCALLBACK(int) utsGadgetHostUsbIpGadgetAdd(PUTSGADGETHOSTTYPEINT pIf, UTSGADGET hGadget)
 {
     /* Nothing to do so far. */
+    RT_NOREF2(pIf, hGadget);
     return VINF_SUCCESS;
 }
 
@@ -201,6 +205,7 @@ static DECLCALLBACK(int) utsGadgetHostUsbIpGadgetAdd(PUTSGADGETHOSTTYPEINT pIf, 
 static DECLCALLBACK(int) utsGadgetHostUsbIpGadgetRemove(PUTSGADGETHOSTTYPEINT pIf, UTSGADGET hGadget)
 {
     /* Nothing to do so far. */
+    RT_NOREF2(pIf, hGadget);
     return VINF_SUCCESS;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,6 +56,7 @@ typedef enum RTCRPKCS7CONTENTINFOCHOICE
 static int rtCrPkcs7ContentInfo_DecodeExtra(PRTASN1CURSOR pCursor, uint32_t fFlags, PRTCRPKCS7CONTENTINFO pThis,
                                             const char *pszErrorTag)
 {
+    RT_NOREF_PV(fFlags); RT_NOREF_PV(pszErrorTag);
     pThis->u.pCore = NULL;
 
     /*

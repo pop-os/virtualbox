@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 #include <iprt/initterm.h>
 #include <iprt/stream.h>
 #ifdef RT_OS_WINDOWS
-# include <Windows.h>
+# include <iprt/win/windows.h>
 #endif
 #if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
 # include <sys/resource.h>
@@ -355,9 +355,9 @@ int main(int argc, char **argv)
 }
 
 #ifdef RT_OS_WINDOWS
-extern "C" int WINAPI WinMain(HINSTANCE hInstance,
-    HINSTANCE /*hPrevInstance*/, LPSTR lpCmdLine, int /*nShowCmd*/)
+extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
+    RT_NOREF(hInstance, hPrevInstance, lpCmdLine, nShowCmd);
     return main(__argc, __argv);
 }
 #endif

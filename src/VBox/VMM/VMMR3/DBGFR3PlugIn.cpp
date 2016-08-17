@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -601,6 +601,7 @@ VMMR3DECL(void) DBGFR3PlugInUnloadAll(PUVM pUVM)
 static DECLCALLBACK(void) dbgfR3PlugInInfoList(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     PDBGFPLUGIN pPlugIn = pVM->pUVM->dbgf.s.pPlugInHead;
+    RT_NOREF_PV(pszArgs);
     if (pPlugIn)
     {
         pHlp->pfnPrintf(pHlp, "Debugging plug-in%s: %s", pPlugIn->pNext ? "s" : "", pPlugIn->szName);

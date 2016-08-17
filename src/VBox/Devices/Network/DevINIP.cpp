@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -142,14 +142,7 @@ static const PFNRT g_pDevINILinkHack[] =
 };
 
 
-/*********************************************************************************************************************************
-*   Internal Functions                                                                                                           *
-*********************************************************************************************************************************/
-static err_t devINIPOutput(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr);
-static err_t devINIPOutputRaw(struct netif *netif, struct pbuf *p);
-static err_t devINIPInterface(struct netif *netif);
-
-
+#if 0 /* unused */
 /**
  * Output a TCP/IP packet on the interface. Uses the generic lwIP ARP
  * code to resolve the address and call the link-level packet function.
@@ -170,6 +163,7 @@ static err_t devINIPOutput(struct netif *netif, struct pbuf *p, struct ip_addr *
     LogFlow(("%s: return %d\n", __FUNCTION__, lrc));
     return lrc;
 }
+#endif
 
 /**
  * Output a raw packet on the interface.
@@ -180,6 +174,7 @@ static err_t devINIPOutput(struct netif *netif, struct pbuf *p, struct ip_addr *
  */
 static err_t devINIPOutputRaw(struct netif *netif, struct pbuf *p)
 {
+    NOREF(netif);
     int rc = VINF_SUCCESS;
 
     LogFlow(("%s: netif=%p p=%p\n", __FUNCTION__, netif, p));
@@ -288,7 +283,7 @@ static DECLCALLBACK(int) devINIPNetworkConfiguration(PPDMDEVINS pDevIns, PDEVINT
     {
         PDMDEV_SET_ERROR(pDevIns, rc,
                          N_("Configuration error: Failed to get the \"IP\" value"));
-        /* @todo: perhaps we should panic if IPv4 address isn't specify, with assumtion that
+        /** @todo perhaps we should panic if IPv4 address isn't specify, with assumtion that
          * ISCSI target specified in IPv6 form.
          */
         return rc;
@@ -321,6 +316,7 @@ static DECLCALLBACK(int) devINIPNetworkConfiguration(PPDMDEVINS pDevIns, PDEVINT
  */
 static DECLCALLBACK(int) devINIPNetworkDown_WaitInputAvail(PPDMINETWORKDOWN pInterface, RTMSINTERVAL cMillies)
 {
+    RT_NOREF(pInterface, cMillies);
     LogFlow(("%s: pInterface=%p\n", __FUNCTION__, pInterface));
     LogFlow(("%s: return VINF_SUCCESS\n", __FUNCTION__));
     return VINF_SUCCESS;
@@ -336,11 +332,11 @@ static DECLCALLBACK(int) devINIPNetworkDown_WaitInputAvail(PPDMINETWORKDOWN pInt
  */
 static DECLCALLBACK(int) devINIPNetworkDown_Input(PPDMINETWORKDOWN pInterface, const void *pvBuf, size_t cb)
 {
+    RT_NOREF(pInterface);
     const uint8_t *pbBuf = (const uint8_t *)pvBuf;
     size_t len = cb;
     const struct eth_hdr *ethhdr;
     struct pbuf *p, *q;
-    int rc = VINF_SUCCESS;
 
     LogFlow(("%s: pInterface=%p pvBuf=%p cb=%lu\n", __FUNCTION__, pInterface, pvBuf, cb));
     Assert(g_pDevINIPData);
@@ -349,7 +345,7 @@ static DECLCALLBACK(int) devINIPNetworkDown_Input(PPDMINETWORKDOWN pInterface, c
     /* Silently ignore packets being received while lwIP isn't set up. */
     if (!g_pDevINIPData)
     {
-        LogFlow(("%s: return %Rrc (no global)\n", __FUNCTION__, rc));
+        LogFlow(("%s: return %Rrc (no global)\n", __FUNCTION__, VINF_SUCCESS));
         return VINF_SUCCESS;
     }
 
@@ -358,7 +354,8 @@ static DECLCALLBACK(int) devINIPNetworkDown_Input(PPDMINETWORKDOWN pInterface, c
 #endif
 
     /* We allocate a pbuf chain of pbufs from the pool. */
-    p = lwip_pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
+    Assert((u16_t)len == len);
+    p = lwip_pbuf_alloc(PBUF_RAW, (u16_t)len, PBUF_POOL);
     if (p != NULL)
     {
 #if ETH_PAD_SIZE
@@ -383,8 +380,8 @@ static DECLCALLBACK(int) devINIPNetworkDown_Input(PPDMINETWORKDOWN pInterface, c
         tcpip_input(p,iface);
     }
 
-    LogFlow(("%s: return %Rrc\n", __FUNCTION__, rc));
-    return rc;
+    LogFlow(("%s: return %Rrc\n", __FUNCTION__, VINF_SUCCESS));
+    return VINF_SUCCESS;
 }
 
 /**
@@ -604,9 +601,8 @@ static DECLCALLBACK(int) devINIPDestruct(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) devINIPConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+    RT_NOREF(iInstance);
     PDEVINTNETIP pThis = PDMINS_2_DATA(pDevIns, PDEVINTNETIP);
-    int rc = VINF_SUCCESS;
-    err_t errRc = ERR_OK;
 
     LogFlow(("%s: pDevIns=%p iInstance=%d pCfg=%p\n", __FUNCTION__,
              pDevIns, iInstance, pCfg));
@@ -645,7 +641,7 @@ static DECLCALLBACK(int) devINIPConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     /*
      * Get the configuration settings.
      */
-    rc = CFGMR3QueryBytes(pCfg, "MAC", &pThis->MAC, sizeof(pThis->MAC));
+    int rc = CFGMR3QueryBytes(pCfg, "MAC", &pThis->MAC, sizeof(pThis->MAC));
     if (rc == VERR_CFGM_NOT_BYTES)
     {
         char szMAC[64];

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,9 +65,6 @@ class UIMediumEnumerator;
 class UIMedium;
 class UIIconPoolGeneral;
 class UIThreadPool;
-#ifdef VBOX_WS_X11
-class UIDesktopWidgetWatchdog;
-#endif /* VBOX_WS_X11 */
 
 // VBoxGlobal class
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,34 +141,6 @@ public:
 
     /** Returns the thread-pool instance. */
     UIThreadPool* threadPool() const { return m_pThreadPool; }
-
-    /** @name Host-screen geometry stuff
-      * @{ */
-        /** Returns the number of host-screens currently available on the system. */
-        int screenCount() const;
-
-        /** Returns the index of the screen which contains contains @a pWidget. */
-        int screenNumber(const QWidget *pWidget) const;
-        /** Returns the index of the screen which contains contains @a point. */
-        int screenNumber(const QPoint &point) const;
-
-        /** Returns the geometry of the host-screen with @a iHostScreenIndex.
-          * @note The default screen is used if @a iHostScreenIndex is -1. */
-        const QRect screenGeometry(int iHostScreenIndex = -1) const;
-        /** Returns the available-geometry of the host-screen with @a iHostScreenIndex.
-          * @note The default screen is used if @a iHostScreenIndex is -1. */
-        const QRect availableGeometry(int iHostScreenIndex = -1) const;
-
-        /** Returns the geometry of the host-screen which contains @a pWidget. */
-        const QRect screenGeometry(const QWidget *pWidget) const;
-        /** Returns the available-geometry of the host-screen which contains @a pWidget. */
-        const QRect availableGeometry(const QWidget *pWidget) const;
-
-        /** Returns the geometry of the host-screen which contains @a point. */
-        const QRect screenGeometry(const QPoint &point) const;
-        /** Returns the available-geometry of the host-screen which contains @a point. */
-        const QRect availableGeometry(const QPoint &point) const;
-    /** @} */
 
     VBoxGlobalSettings &settings() { return gset; }
     bool setSettings (VBoxGlobalSettings &gs);
@@ -572,12 +541,6 @@ private:
     bool m_fCompositingManagerRunning;
     /** X11: Holds the type of the Window Manager we are running under. */
     X11WMType m_enmWindowManagerType;
-
-    /** @name Host-screen geometry stuff
-      * @{ */
-        /** X11: Holds the desktop-widget watchdog instance aware of host-screen geometry changes. */
-        UIDesktopWidgetWatchdog *m_pDesktopWidgetWatchdog;
-    /** @} */
 #endif /* VBOX_WS_X11 */
 
     /** The --aggressive-caching / --no-aggressive-caching option. */

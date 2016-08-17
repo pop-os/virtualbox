@@ -1,10 +1,10 @@
 /* $Id: DevFdc.cpp $ */
 /** @file
- * VBox storage devices: Floppy disk controller
+ * VBox storage devices - Floppy disk controller
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,19 +70,11 @@
         do { printf("FLOPPY: " fmt , ##args); } while (0)
     #endif
 #else /* !VBOX */
-    # ifdef LOG_ENABLED
-        static void FLOPPY_DPRINTF (const char *fmt, ...)
-        {
-            if (LogIsEnabled ()) {
-                va_list args;
-                va_start (args, fmt);
-                RTLogLogger (NULL, NULL, "floppy: %N", fmt, &args); /* %N - nested va_list * type formatting call. */
-                va_end (args);
-            }
-        }
-    # else
-      DECLINLINE(void) FLOPPY_DPRINTF(const char *pszFmt, ...) {}
-    # endif
+# ifdef LOG_ENABLED
+#  define FLOPPY_DPRINTF(...) Log(("floppy: " __VA_ARGS__))
+# else
+#  define FLOPPY_DPRINTF(...) do { } while (0)
+# endif
 #endif /* !VBOX */
 
 #ifndef VBOX
@@ -285,6 +277,8 @@ static int fd_seek(fdrive_t *drv, uint8_t head, uint8_t track, uint8_t sect,
                          head, track, sect, 1, drv->max_track, drv->last_sect);
             return 4;
         }
+#else
+        RT_NOREF(enable_seek);
 #endif
         drv->head = head;
         if (drv->track != track)
@@ -1159,6 +1153,7 @@ static void fdctrl_set_fifo(fdctrl_t *fdctrl, int fifo_len, int do_irq)
 /* Set an error: unimplemented/unknown command */
 static void fdctrl_unimplemented(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     FLOPPY_ERROR("unimplemented command 0x%02x\n", fdctrl->fifo[0]);
     fdctrl->fifo[0] = FD_SR0_INVCMD;
     fdctrl_set_fifo(fdctrl, 1, 0);
@@ -1275,7 +1270,7 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
         return;
     case 5:
         /* No disk in drive */
-        ///@todo: This is wrong! Command should not complete.
+        /// @todo This is wrong! Command should not complete.
         fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | 0x08, /*FD_SR1_MA |*/ FD_SR1_ND, 0x00);
         fdctrl->fifo[3] = kt;
         fdctrl->fifo[4] = kh;
@@ -1482,6 +1477,7 @@ static void fdctrl_start_format(fdctrl_t *fdctrl)
 /* Prepare a transfer of deleted data */
 static void fdctrl_start_transfer_del(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     FLOPPY_ERROR("fdctrl_start_transfer_del() unimplemented\n");
 
     /* We don't handle deleted data,
@@ -1540,6 +1536,7 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
                                     int dma_pos, int dma_len)
 #endif
 {
+    RT_NOREF(pDevIns, dma_pos);
     fdctrl_t *fdctrl;
     fdrive_t *cur_drv;
 #ifdef VBOX
@@ -1707,7 +1704,7 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
                 uint32_t read;
                 int rc2 = PDMDevHlpDMAReadMemory (fdctrl->pDevIns, nchan, tmpbuf,
                                                   fdctrl->data_pos, len, &read);
-                AssertMsg (RT_SUCCESS (rc2), ("DMAReadMemory -> %Rrc2\n", rc2));
+                AssertMsg(RT_SUCCESS(rc2), ("DMAReadMemory -> %Rrc2\n", rc2)); NOREF(rc2);
 #else
                 DMA_read_memory (nchan, tmpbuf, fdctrl->data_pos, len);
 #endif
@@ -1893,6 +1890,7 @@ static void fdctrl_format_sector(fdctrl_t *fdctrl)
 
 static void fdctrl_handle_lock(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->lock = (fdctrl->fifo[0] & 0x80) ? 1 : 0;
     fdctrl->fifo[0] = fdctrl->lock << 4;
     fdctrl_set_fifo(fdctrl, 1, 0);
@@ -1900,6 +1898,7 @@ static void fdctrl_handle_lock(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_dumpreg(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     /* Drives position */
@@ -1925,6 +1924,7 @@ static void fdctrl_handle_dumpreg(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_version(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     /* Controller's version */
     fdctrl->fifo[0] = fdctrl->version;
     fdctrl_set_fifo(fdctrl, 1, 0);
@@ -1932,12 +1932,14 @@ static void fdctrl_handle_version(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_partid(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->fifo[0] = 0x01; /* Stepping 1 */
     fdctrl_set_fifo(fdctrl, 1, 0);
 }
 
 static void fdctrl_handle_restore(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     /* Drives position */
@@ -1961,6 +1963,7 @@ static void fdctrl_handle_restore(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_save(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     fdctrl->fifo[0] = 0;
@@ -1991,6 +1994,7 @@ static void fdctrl_handle_save(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_readid(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     FLOPPY_DPRINTF("CMD:%02x SEL:%02x\n", fdctrl->fifo[0], fdctrl->fifo[1]);
@@ -2007,6 +2011,7 @@ static void fdctrl_handle_readid(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_format_track(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
     uint8_t ns, dp;
 
@@ -2039,6 +2044,7 @@ static void fdctrl_handle_format_track(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_specify(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->timer0 = (fdctrl->fifo[1] >> 4) & 0xF;
     fdctrl->timer1 = fdctrl->fifo[2] >> 1;
     if (fdctrl->fifo[2] & 1)
@@ -2051,6 +2057,7 @@ static void fdctrl_handle_specify(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_sense_drive_status(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
 
     SET_CUR_DRV(fdctrl, fdctrl->fifo[1] & FD_DOR_SELMASK);
@@ -2067,6 +2074,7 @@ static void fdctrl_handle_sense_drive_status(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_recalibrate(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
     uint8_t  st0;
 
@@ -2084,6 +2092,7 @@ static void fdctrl_handle_recalibrate(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_sense_interrupt_status(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     FLOPPY_DPRINTF("CMD:%02x\n", fdctrl->fifo[0]);
@@ -2110,6 +2119,7 @@ static void fdctrl_handle_sense_interrupt_status(fdctrl_t *fdctrl, int direction
 
 static void fdctrl_handle_seek(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
 
     FLOPPY_DPRINTF("CMD:%02x SEL:%02x NCN:%02x\n", fdctrl->fifo[0],
@@ -2140,6 +2150,7 @@ static void fdctrl_handle_seek(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_perpendicular_mode(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     if (fdctrl->fifo[1] & 0x80)
@@ -2150,6 +2161,7 @@ static void fdctrl_handle_perpendicular_mode(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_configure(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->config = fdctrl->fifo[2];
     fdctrl->precomp_trk =  fdctrl->fifo[3];
     /* No result back */
@@ -2158,6 +2170,7 @@ static void fdctrl_handle_configure(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_powerdown_mode(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->pwrd = fdctrl->fifo[1];
     fdctrl->fifo[0] = fdctrl->fifo[1];
     fdctrl_set_fifo(fdctrl, 1, 0);
@@ -2165,13 +2178,15 @@ static void fdctrl_handle_powerdown_mode(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_option(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     /* No result back */
     fdctrl_reset_fifo(fdctrl);
 }
 
 static void fdctrl_handle_drive_specification_command(fdctrl_t *fdctrl, int direction)
 {
-    fdrive_t *cur_drv = get_cur_drv(fdctrl);
+    RT_NOREF(direction);
+    /* fdrive_t *cur_drv = get_cur_drv(fdctrl); - unused */
 
     /* This command takes a variable number of parameters. It can be terminated
      * at any time if the high bit of a parameter is set. Once there are 6 bytes
@@ -2196,6 +2211,7 @@ static void fdctrl_handle_drive_specification_command(fdctrl_t *fdctrl, int dire
 
 static void fdctrl_handle_relative_seek_out(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
 
     SET_CUR_DRV(fdctrl, fdctrl->fifo[1] & FD_DOR_SELMASK);
@@ -2212,6 +2228,7 @@ static void fdctrl_handle_relative_seek_out(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_relative_seek_in(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
 
     SET_CUR_DRV(fdctrl, fdctrl->fifo[1] & FD_DOR_SELMASK);
@@ -2350,7 +2367,7 @@ static void fdctrl_result_timer(void *opaque)
 #ifdef VBOX
     if (!cur_drv->max_track) {
         FLOPPY_DPRINTF("read id when no disk in drive\n");
-        ///@todo: This is wrong! Command should not complete.
+        /// @todo This is wrong! Command should not complete.
         fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
     } else if ((fdctrl->dsr & FD_DSR_DRATEMASK) != cur_drv->media_rate) {
         FLOPPY_DPRINTF("read id rate mismatch (fdc=%d, media=%d)\n",
@@ -2377,6 +2394,7 @@ static void fdctrl_result_timer(void *opaque)
  */
 static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     fdctrl_t *fdctrl = (fdctrl_t *)pvUser;
     fdctrl_result_timer(fdctrl);
 }
@@ -2389,6 +2407,7 @@ static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, 
  */
 static DECLCALLBACK(int) fdcIoPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
         fdctrl_write (pvUser, Port & 7, u32);
     else
@@ -2402,6 +2421,7 @@ static DECLCALLBACK(int) fdcIoPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
  */
 static DECLCALLBACK(int) fdcIoPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
     {
         *pu32 = fdctrl_read (pvUser, Port & 7);
@@ -2799,6 +2819,7 @@ static DECLCALLBACK(int)  fdcAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
  */
 static DECLCALLBACK(void) fdcDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     fdctrl_t *pThis = PDMINS_2_DATA(pDevIns, fdctrl_t *);
     LogFlow (("ideDetach: iLUN=%u\n", iLUN));
 
@@ -2846,6 +2867,7 @@ static DECLCALLBACK(void) fdcReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) fdcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+    RT_NOREF(iInstance);
     fdctrl_t      *pThis = PDMINS_2_DATA(pDevIns, fdctrl_t *);
     int            rc;
     unsigned       i, j;

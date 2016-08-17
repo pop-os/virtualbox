@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -587,15 +587,15 @@ static DECLCALLBACK(void) pdmR0ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
     /* Note: NMI/SMI can't be cleared. */
     switch (enmType)
     {
-        case PDMAPICIRQ_UPDATE_PENDING:
-            VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu);
-            VMCPU_FF_CLEAR(pVCpu, PDMAPICIRQ_UPDATE_PENDING);
-            break;
         case PDMAPICIRQ_HARDWARE:
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
             break;
         case PDMAPICIRQ_EXTINT:
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
+            break;
+        case PDMAPICIRQ_UPDATE_PENDING:
+            VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu);
+            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC);
             break;
         default:
             AssertMsgFailed(("enmType=%d\n", enmType));

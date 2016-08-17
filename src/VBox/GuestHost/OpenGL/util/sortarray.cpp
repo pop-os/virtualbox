@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -150,6 +150,7 @@ static int crSaAdd(CR_SORTARRAY *pArray, uint64_t element)
     if (!iMax)
         return crSaInsAt(pArray, 0, element);
 
+    el = element; /* Shup up MSC. */
     while (iMin < iMax)
     {
         i = (iMax + iMin) / 2;
@@ -335,7 +336,6 @@ VBOXSADECL(int) CrSaUnited(const CR_SORTARRAY *pArray1, const CR_SORTARRAY *pArr
 
 static int crSaClone(const CR_SORTARRAY *pArray1, CR_SORTARRAY *pResult)
 {
-    int rc = 0;
     CrSaClear(pResult);
 
     if (pArray1->cSize > pResult->cBufferSize)

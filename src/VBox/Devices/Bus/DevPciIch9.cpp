@@ -252,7 +252,7 @@ PDMBOTHCBDECL(void) ich9pcibridgeSetIrq(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, 
 PDMBOTHCBDECL(int) ich9pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     LogFlow(("ich9pciIOPortAddressWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
-    NOREF(pvUser);
+    RT_NOREF2(Port, pvUser);
     if (cb == 4)
     {
         PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
@@ -288,7 +288,7 @@ PDMBOTHCBDECL(int) ich9pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, R
  */
 PDMBOTHCBDECL(int) ich9pciIOPortAddressRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
-    NOREF(pvUser);
+    RT_NOREF2(Port, pvUser);
     if (cb == 4)
     {
         PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
@@ -315,6 +315,8 @@ static int ich9pciDataWriteAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pAddr,
     int rc = VINF_SUCCESS;
 #ifdef IN_RING3
     NOREF(rcReschedule);
+#else
+    RT_NOREF2(val, cb);
 #endif
 
     if (pAddr->iBus != 0)       /* forward to subordinate bus */
@@ -538,6 +540,8 @@ DECLINLINE(int) ich9pciSlot2ApicIrq(uint8_t uSlot, int irq_num)
     return (irq_num + uSlot) & 7;
 }
 
+#ifdef IN_RING3
+
 /* return the global irq number corresponding to a given device irq
    pin. We could also use the bus number to have a more precise
    mapping. This is the implementation note described in the PCI spec chapter 2.2.6 */
@@ -550,6 +554,8 @@ DECLINLINE(int) ich9pciSlotGetPirq(uint8_t uBus, uint8_t uDevFn, int iIrqNum)
 
 /* irqs corresponding to PCI irqs A-D, must match pci_irq_list in rombios.c */
 static const uint8_t aPciIrqs[4] = { 11, 10, 9, 5 };
+
+#endif /* IN_RING3 */
 
 /* Add one more level up request on APIC input line */
 DECLINLINE(void) ich9pciApicLevelUp(PICH9PCIGLOBALS pGlobals, int irq_num)
@@ -1144,7 +1150,7 @@ static DECLCALLBACK(int) ich9pciR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     for (int i = 0; i < PCI_APIC_IRQ_PINS; i++)
         SSMR3PutU32(pSSM, pThis->uaPciApicIrqLevels[i]);
 
-    SSMR3PutU32(pSSM, ~0);        /* separator */
+    SSMR3PutU32(pSSM, UINT32_MAX);  /* separator */
 
     return ich9pciR3CommonSaveExec(&pThis->aPciBus, pSSM);
 }
@@ -1940,8 +1946,6 @@ static void ich9pciInitBridgeTopology(PICH9PCIGLOBALS pGlobals, PICH9PCIBUS pBus
 static DECLCALLBACK(int) ich9pciFakePCIBIOS(PPDMDEVINS pDevIns)
 {
     PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
-    PVM             pVM = PDMDevHlpGetVM(pDevIns);
-    Assert(pVM);
 
     /*
      * Set the start addresses.
@@ -1960,9 +1964,7 @@ static DECLCALLBACK(int) ich9pciFakePCIBIOS(PPDMDEVINS pDevIns)
      * Init the devices.
      */
     for (int i = 0; i < 256; i++)
-    {
         ich9pciBiosInitDevice(pGlobals, 0, i);
-    }
 
     return VINF_SUCCESS;
 }
@@ -2175,18 +2177,18 @@ static DECLCALLBACK(void) ich9pciConfigWriteDev(PCIDevice *aDev, uint32_t u32Add
                 goto default_case;
             case VBOX_PCI_COMMAND+1: /* Command register, bits 8-15. */
                 /* don't change reserved bits (11-15) */
-                u8Val &= UINT32_C(~0xf8);
+                u8Val &= ~UINT32_C(0xf8);
                 fUpdateMappings = true;
                 goto default_case;
             case VBOX_PCI_STATUS:  /* Status register, bits 0-7. */
                 /* don't change read-only bits => actually all lower bits are read-only */
-                u8Val &= UINT32_C(~0xff);
+                u8Val &= ~UINT32_C(0xff);
                 /* status register, low part: clear bits by writing a '1' to the corresponding bit */
                 aDev->config[addr] &= ~u8Val;
                 break;
             case VBOX_PCI_STATUS+1:  /* Status register, bits 8-15. */
                 /* don't change read-only bits */
-                u8Val &= UINT32_C(~0x06);
+                u8Val &= ~UINT32_C(0x06);
                 /* status register, high part: clear bits by writing a '1' to the corresponding bit */
                 aDev->config[addr] &= ~u8Val;
                 break;
@@ -2514,10 +2516,9 @@ static DECLCALLBACK(void) ich9pciInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, co
 }
 
 
-static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
-                                          int        iInstance,
-                                          PCFGMNODE  pCfg)
+static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE  pCfg)
 {
+    RT_NOREF1(iInstance);
     Assert(iInstance == 0);
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
@@ -2612,7 +2613,7 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
     /*
      * Fill in PCI configs and add them to the bus.
      */
-    /** @todo: Disabled for now because this causes error messages with Linux guests.
+    /** @todo Disabled for now because this causes error messages with Linux guests.
      *         The guest loads the x38_edac device which tries to map a memory region
      *         using an address given at place 0x48 - 0x4f in the PCi config space.
      *         This fails. because we don't register such a region.
@@ -2693,7 +2694,7 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
         return rc;
 
 
-    /** @todo: other chipset devices shall be registered too */
+    /** @todo other chipset devices shall be registered too */
 
     PDMDevHlpDBGFInfoRegister(pDevIns, "pci", "Display PCI bus status. Recognizes 'basic' or 'verbose' "
                                               "as arguments, defaults to 'basic'.", ich9pciInfo);
@@ -2716,7 +2717,7 @@ static void ich9pciResetDevice(PPCIDEVICE pDev)
     if (pciDevIsPassthrough(pDev))
     {
         // no reset handler - we can do what we need in PDM reset handler
-        // @todo: is it correct?
+        /// @todo is it correct?
     }
     else
     {

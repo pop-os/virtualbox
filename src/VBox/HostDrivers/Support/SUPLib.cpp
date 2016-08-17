@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -130,20 +130,16 @@ PSUPDRVSESSION                  g_pSession;
 /** R0 SUP Functions used for resolving referenced to the SUPR0 module. */
 PSUPQUERYFUNCS                  g_pSupFunctions;
 
-/** VMMR0 Load Address. */
-static RTR0PTR                  g_pvVMMR0 = NIL_RTR0PTR;
 /** PAGE_ALLOC_EX sans kernel mapping support indicator. */
 static bool                     g_fSupportsPageAllocNoKernel = true;
 /** Fake mode indicator. (~0 at first, 0 or 1 after first test) */
-uint32_t                        g_uSupFakeMode = ~0;
+uint32_t                        g_uSupFakeMode = UINT32_MAX;
 
 
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 static int supInitFake(PSUPDRVSESSION *ppSession);
-static int supLoadModule(const char *pszFilename, const char *pszModule, const char *pszSrvReqHandler, void **ppvImageBase);
-static DECLCALLBACK(int) supLoadModuleResolveImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser);
 
 
 /** Touch a range of pages. */
@@ -548,7 +544,7 @@ SUPR3DECL(int) SUPR3Term(bool fForced)
         {
             ASMAtomicWriteNullPtr((void * volatile *)&g_pSUPGlobalInfoPage);
             ASMAtomicWriteNullPtr((void * volatile *)&g_pSUPGlobalInfoPageR0);
-            ASMAtomicWriteSize(&g_HCPhysSUPGlobalInfoPage, NIL_RTHCPHYS);
+            ASMAtomicWriteU64(&g_HCPhysSUPGlobalInfoPage, NIL_RTHCPHYS);
             /* just a little safe guard against threads using the page. */
             RTThreadSleep(50);
         }
@@ -1521,6 +1517,7 @@ SUPR3DECL(int) SUPR3HardenedVerifyFile(const char *pszFilename, const char *pszM
     AssertPtr(pszMsg);
     AssertReturn(!phFile, VERR_NOT_IMPLEMENTED); /** @todo Implement this. The deal is that we make sure the
                                                      file is the same we verified after opening it. */
+    RT_NOREF2(pszFilename, pszMsg);
 
     /*
      * Only do the actual check in hardened builds.
@@ -1636,6 +1633,7 @@ SUPR3DECL(int) SUPR3HardenedVerifyPlugIn(const char *pszFilename, PRTERRINFO pEr
         LogRel(("supR3HardenedVerifyFile: Verification of \"%s\" failed, rc=%Rrc\n", pszFilename, rc));
     return rc;
 #else
+    RT_NOREF1(pszFilename);
     return VINF_SUCCESS;
 #endif
 }
@@ -1985,7 +1983,7 @@ SUPR3DECL(int) SUPR3TracerRegisterModule(uintptr_t hModNative, const char *pszMo
      * Create a string table for the function names in the location array.
      * It's somewhat easier to do that here than from ring-0.
      */
-    size_t const        cProbeLocs  = pVtgHdr->cbProbeLocs
+    uint32_t const      cProbeLocs  = pVtgHdr->cbProbeLocs
                                     / (pVtgHdr->cBits == 32 ? sizeof(VTGPROBELOC32) : sizeof(VTGPROBELOC64));
     PVTGPROBELOC        paProbeLocs = (PVTGPROBELOC)((uintptr_t)pVtgHdr + pVtgHdr->offProbeLocs);
     PSUPDRVTRACERSTRTAB pStrTab     = supr3TracerCreateStrTab((PVTGPROBELOC32)paProbeLocs,
@@ -2086,6 +2084,8 @@ SUPR3DECL(int) SUPR3TracerDeregisterModule(struct VTGOBJHDR *pVtgHdr)
 
 DECLASM(void) suplibTracerFireProbe(PVTGPROBELOC pProbeLoc, PSUPTRACERUMODFIREPROBE pReq)
 {
+    RT_NOREF1(pProbeLoc);
+
     pReq->Hdr.u32Cookie         = g_u32Cookie;
     pReq->Hdr.u32SessionCookie  = g_u32SessionCookie;
     Assert(pReq->Hdr.cbIn  == SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE_IN);

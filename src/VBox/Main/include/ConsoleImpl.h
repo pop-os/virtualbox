@@ -50,6 +50,8 @@ class ExtPackManager;
 #endif
 class VMMDevMouseInterface;
 class DisplayMouseInterface;
+class VMPowerUpTask;
+class VMPowerDownTask;
 
 #include <iprt/uuid.h>
 #include <iprt/memsafer.h>
@@ -57,10 +59,6 @@ class DisplayMouseInterface;
 #include <VBox/vmm/pdmdrv.h>
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>  /* For the property notification callback */
-#endif
-
-#ifdef RT_OS_WINDOWS
-# include "../src-server/win/VBoxComEvents.h"
 #endif
 
 struct VUSBIRHCONFIG;
@@ -383,7 +381,7 @@ private:
         }
     private:
         HRESULT mRC; /* Whether the caller was added. */
-        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoVMCallerBase)
+        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoVMCallerBase);
     };
 
 #if 0
@@ -477,7 +475,7 @@ private:
         }
         HRESULT mRC; /* Whether the VM ptr was retained. */
         PUVM    mpUVM;
-        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(SafeVMPtrBase)
+        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(SafeVMPtrBase);
     };
 
 public:
@@ -564,8 +562,8 @@ public:
     typedef std::map<Utf8Str, ComPtr<IMediumAttachment> > MediumAttachmentMap;
     typedef std::list <USBStorageDevice> USBStorageDeviceList;
 
-    static DECLCALLBACK(int)    i_powerUpThread(RTTHREAD Thread, void *pvUser);
-    static DECLCALLBACK(int)    i_powerDownThread(RTTHREAD Thread, void *pvUser);
+    static void i_powerUpThreadTask(VMPowerUpTask *pTask);
+    static void i_powerDownThreadTask(VMPowerDownTask *pTask);
 
 private:
 
@@ -813,7 +811,7 @@ private:
 
     /** @name Teleporter support
      * @{ */
-    static DECLCALLBACK(int)    i_teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser);
+    static DECLCALLBACK(int)    i_teleporterSrcThreadWrapper(RTTHREAD hThreadSelf, void *pvUser);
     HRESULT                     i_teleporterSrc(TeleporterStateSrc *pState);
     HRESULT                     i_teleporterSrcReadACK(TeleporterStateSrc *pState, const char *pszWhich, const char *pszNAckMsg = NULL);
     HRESULT                     i_teleporterSrcSubmitCommand(TeleporterStateSrc *pState, const char *pszCommand, bool fWaitForAck = true);

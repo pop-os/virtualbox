@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,8 +29,8 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #ifdef RT_OS_WINDOWS
-# include <winsock2.h>
-# include <ws2tcpip.h>
+# include <iprt/win/winsock2.h>
+# include <iprt/win/ws2tcpip.h>
 #else /* !RT_OS_WINDOWS */
 # include <errno.h>
 # include <sys/select.h>
@@ -776,7 +776,6 @@ RTDECL(int) RTSocketQueryAddressStr(const char *pszHost, char *pszResult, size_t
         return VERR_NET_ADDRESS_NOT_AVAILABLE;
     }
 
-    uint8_t const  *pbDummy;
     RTNETADDRTYPE   enmAddrType = RTNETADDRTYPE_INVALID;
     size_t          cchIpAddress;
     char            szIpAddress[48];
@@ -1315,13 +1314,12 @@ RTDECL(int) RTSocketWriteNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
         return rc;
 
     rtSocketErrorReset();
-#ifdef RTSOCKET_MAX_WRITE
-    int    cbNow = cbBuffer >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbBuffer;
-#else
-    size_t cbNow = cbBuffer;
-#endif
-
 #ifdef RT_OS_WINDOWS
+# ifdef RTSOCKET_MAX_WRITE
+    int    cbNow = cbBuffer >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbBuffer;
+# else
+    size_t cbNow = cbBuffer;
+# endif
     int cbWritten = send(pThis->hNative, (const char *)pvBuffer, cbNow, MSG_NOSIGNAL);
     if (cbWritten >= 0)
     {
@@ -1468,7 +1466,7 @@ RTDECL(int) RTSocketSelectOne(RTSOCKET hSocket, RTMSINTERVAL cMillies)
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
     int const fdMax = (int)pThis->hNative + 1;
-    AssertReturn(fdMax - 1 == pThis->hNative, VERR_INTERNAL_ERROR_5);
+    AssertReturn((RTSOCKETNATIVE)(fdMax - 1) == pThis->hNative, VERR_INTERNAL_ERROR_5);
 
     /*
      * Set up the file descriptor sets and do the select.
@@ -1512,7 +1510,7 @@ RTDECL(int) RTSocketSelectOneEx(RTSOCKET hSocket, uint32_t fEvents, uint32_t *pf
     AssertReturn(!(fEvents & ~RTSOCKET_EVT_VALID_MASK), VERR_INVALID_PARAMETER);
     AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
     int const fdMax = (int)pThis->hNative + 1;
-    AssertReturn(fdMax - 1 == pThis->hNative, VERR_INTERNAL_ERROR_5);
+    AssertReturn((RTSOCKETNATIVE)(fdMax - 1) == pThis->hNative, VERR_INTERNAL_ERROR_5);
 
     *pfEvents = 0;
 
@@ -1960,6 +1958,7 @@ DECLHIDDEN(int) rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void c
 DECLHIDDEN(int) rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PRTHCINTPTR phNative)
 {
     RTSOCKETINT *pThis = hSocket;
+    RT_NOREF_PV(fEvents);
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
 #ifdef RT_OS_WINDOWS
@@ -2235,6 +2234,7 @@ DECLHIDDEN(uint32_t) rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool f
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, 0);
     Assert(pThis->cUsers > 0);
     Assert(pThis->hPollSet != NIL_RTPOLLSET);
+    RT_NOREF_PV(fFinalEntry);
 
     /* Harvest events and clear the event mask for the next round of polling. */
     uint32_t fRetEvents = rtSocketPollCheck(pThis, fEvents);

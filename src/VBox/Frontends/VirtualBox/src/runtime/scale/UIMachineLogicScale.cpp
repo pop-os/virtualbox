@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIMessageCenter.h"
 # include "UISession.h"
 # include "UIActionPoolRuntime.h"
@@ -74,6 +75,22 @@ void UIMachineLogicScale::sltInvokePopupMenu()
 }
 #endif /* !VBOX_WS_MAC */
 
+void UIMachineLogicScale::sltHostScreenAvailableAreaChange()
+{
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /* Prevent handling if fake screen detected: */
+    if (gpDesktop->isFakeScreenDetected())
+        return;
+
+    /* Make sure all machine-window(s) have previous but normalized geometry: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->restoreCachedGeometry();
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
+    /* Call to base-class: */
+    UIMachineLogic::sltHostScreenAvailableAreaChange();
+}
+
 void UIMachineLogicScale::prepareActionGroups()
 {
     /* Call to base-class: */
@@ -119,7 +136,7 @@ void UIMachineLogicScale::prepareMachineWindows()
     if (isMachineWindowsCreated())
         return;
 
-#ifdef VBOX_WS_MAC // TODO: Is that really need here?
+#ifdef VBOX_WS_MAC /// @todo Is that really need here?
     /* We have to make sure that we are getting the front most process.
      * This is necessary for Qt versions > 4.3.3: */
     ::darwinSetFrontMostProcess();

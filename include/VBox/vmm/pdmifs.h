@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1196,7 +1196,8 @@ typedef struct PDMICHARCONNECTOR
      * @param   cStopBits       Number of stop bits.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetParameters,(PPDMICHARCONNECTOR pInterface, unsigned Bps, char chParity, unsigned cDataBits, unsigned cStopBits));
+    DECLR3CALLBACKMEMBER(int, pfnSetParameters,(PPDMICHARCONNECTOR pInterface, unsigned Bps, char chParity,
+                                                unsigned cDataBits, unsigned cStopBits));
 
     /**
      * Set the state of the modem lines.
@@ -1922,11 +1923,13 @@ typedef struct PDMIVMMDEVCONNECTOR
      *
      * @returns VBox status code.
      * @param   pInterface          Pointer to this interface.
-     * @param   pcRect              Number of rectangles in pRect
-     * @param   pRect               Rectangle array (set to NULL to query the number of rectangles)
+     * @param   pcRects             Where to return the number of rectangles in
+     *                              paRects.
+     * @param   paRects             Rectangle array (set to NULL to query the number
+     *                              of rectangles)
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnQueryVisibleRegion,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcRect, PRTRECT pRect));
+    DECLR3CALLBACKMEMBER(int, pfnQueryVisibleRegion,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcRects, PRTRECT paRects));
 
     /**
      * Request the statistics interval

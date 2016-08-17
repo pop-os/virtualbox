@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -545,12 +545,12 @@ static DECLCALLBACK(void) pdmRCApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
         case PDMAPICIRQ_HARDWARE:
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
             break;
+        case PDMAPICIRQ_EXTINT:
+            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
+            break;
         case PDMAPICIRQ_UPDATE_PENDING:
             VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu);
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC);
-            break;
-        case PDMAPICIRQ_EXTINT:
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
             break;
         default:
             AssertMsgFailed(("enmType=%d\n", enmType));
@@ -878,7 +878,7 @@ static DECLCALLBACK(int) pdmRCDrvHlp_VMSetRuntimeErrorV(PPDMDRVINS pDrvIns, uint
 /** @interface_method_impl{PDMDRVHLPRC,pfnAssertEMT} */
 static DECLCALLBACK(bool) pdmRCDrvHlp_AssertEMT(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction)
 {
-    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    PDMDRV_ASSERT_DRVINS(pDrvIns); RT_NOREF_PV(pDrvIns);
     if (VM_IS_EMT(pDrvIns->Internal.s.pVMRC))
         return true;
 
@@ -891,7 +891,7 @@ static DECLCALLBACK(bool) pdmRCDrvHlp_AssertEMT(PPDMDRVINS pDrvIns, const char *
 /** @interface_method_impl{PDMDRVHLPRC,pfnAssertOther} */
 static DECLCALLBACK(bool) pdmRCDrvHlp_AssertOther(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction)
 {
-    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    PDMDRV_ASSERT_DRVINS(pDrvIns); RT_NOREF_PV(pDrvIns);
     if (!VM_IS_EMT(pDrvIns->Internal.s.pVMRC))
         return true;
 
@@ -899,6 +899,7 @@ static DECLCALLBACK(bool) pdmRCDrvHlp_AssertOther(PPDMDRVINS pDrvIns, const char
        still have drive code compiled in which it shouldn't execute. */
     RTAssertMsg1Weak("AssertOther", iLine, pszFile, pszFunction);
     RTAssertPanic();
+    RT_NOREF_PV(pszFile); RT_NOREF_PV(iLine); RT_NOREF_PV(pszFunction);
     return false;
 }
 

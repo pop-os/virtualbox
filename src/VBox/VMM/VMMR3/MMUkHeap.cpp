@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -287,6 +287,8 @@ static void *mmR3UkHeapAlloc(PMMUKHEAP pHeap, MMTAG enmTag, size_t cb, bool fZer
         STAMR3RegisterFU(pUVM, &pStat->cbAllocated,    STAMTYPE_U64, STAMVISIBILITY_ALWAYS,  STAMUNIT_BYTES, "Total number of bytes allocated.",        "/MM/UkHeap/%s/cbAllocated", pszTag);
         STAMR3RegisterFU(pUVM, &pStat->cbFreed,        STAMTYPE_U64, STAMVISIBILITY_ALWAYS,  STAMUNIT_BYTES, "Total number of bytes freed.",            "/MM/UkHeap/%s/cbFreed", pszTag);
     }
+#else
+    RT_NOREF_PV(enmTag);
 #endif
 
     /*
@@ -411,6 +413,8 @@ VMMR3DECL(void) MMR3UkHeapFree(PVM pVM, void *pv, MMTAG enmTag)
             pHeap->Stat.cFrees++;
             pHeap->Stat.cbFreed           += cbActual;
             pHeap->Stat.cbCurAllocated    -= cbActual;
+#else
+            RT_NOREF_PV(enmTag);
 #endif
             RTHeapSimpleFree(pSubHeap->hSimple, pv);
 

@@ -238,7 +238,7 @@ public:
 
     void handler()
     {
-        int vrc = Console::i_powerUpThread(NULL, this);
+        Console::i_powerUpThreadTask(this);
     }
 
 };
@@ -256,7 +256,7 @@ public:
 
     void handler()
     {
-        int vrc = Console::i_powerDownThread(NULL, this);
+        Console::i_powerDownThreadTask(this);
     }
 };
 
@@ -1437,6 +1437,7 @@ void Console::i_VRDPClientDisconnect(uint32_t u32ClientId,
 
 void Console::i_VRDPInterceptAudio(uint32_t u32ClientId)
 {
+    RT_NOREF(u32ClientId);
     LogFlowFuncEnter();
 
     AutoCaller autoCaller(this);
@@ -1510,7 +1511,7 @@ inline static const char *networkAdapterTypeToName(NetworkAdapterType_T adapterT
             AssertFailed();
             return "unknown";
     }
-    return NULL;
+    /* not reached */
 }
 
 /**
@@ -2811,6 +2812,7 @@ HRESULT Console::attachUSBDevice(const com::Guid &aId, const com::Utf8Str &aCapt
 
 HRESULT Console::detachUSBDevice(const com::Guid &aId, ComPtr<IUSBDevice> &aDevice)
 {
+    RT_NOREF(aDevice);
 #ifdef VBOX_WITH_USB
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -3991,75 +3993,75 @@ HRESULT Console::i_onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL
         {
             rc = aNetworkAdapter->COMGETTER(TraceEnabled)(&fTraceEnabled);
             AssertComRC(rc);
-        }
-        if (SUCCEEDED(rc))
-        {
-            ULONG ulInstance;
-            rc = aNetworkAdapter->COMGETTER(Slot)(&ulInstance);
-            AssertComRC(rc);
             if (SUCCEEDED(rc))
             {
-                /*
-                 * Find the adapter instance, get the config interface and update
-                 * the link state.
-                 */
-                NetworkAdapterType_T adapterType;
-                rc = aNetworkAdapter->COMGETTER(AdapterType)(&adapterType);
+                ULONG ulInstance;
+                rc = aNetworkAdapter->COMGETTER(Slot)(&ulInstance);
                 AssertComRC(rc);
-                const char *pszAdapterName = networkAdapterTypeToName(adapterType);
-
-                // prevent cross-thread deadlocks, don't need the lock any more
-                alock.release();
-
-                PPDMIBASE pBase;
-                int vrc = PDMR3QueryDeviceLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
-                if (RT_SUCCESS(vrc))
+                if (SUCCEEDED(rc))
                 {
-                    Assert(pBase);
-                    PPDMINETWORKCONFIG pINetCfg;
-                    pINetCfg = PDMIBASE_QUERY_INTERFACE(pBase, PDMINETWORKCONFIG);
-                    if (pINetCfg)
+                    /*
+                     * Find the adapter instance, get the config interface and update
+                     * the link state.
+                     */
+                    NetworkAdapterType_T adapterType;
+                    rc = aNetworkAdapter->COMGETTER(AdapterType)(&adapterType);
+                    AssertComRC(rc);
+                    const char *pszAdapterName = networkAdapterTypeToName(adapterType);
+
+                    // prevent cross-thread deadlocks, don't need the lock any more
+                    alock.release();
+
+                    PPDMIBASE pBase;
+                    int vrc = PDMR3QueryDeviceLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
+                    if (RT_SUCCESS(vrc))
                     {
-                        Log(("Console::onNetworkAdapterChange: setting link state to %d\n",
-                              fCableConnected));
-                        vrc = pINetCfg->pfnSetLinkState(pINetCfg,
-                                                        fCableConnected ? PDMNETWORKLINKSTATE_UP
-                                                                        : PDMNETWORKLINKSTATE_DOWN);
-                        ComAssertRC(vrc);
-                    }
-                    if (RT_SUCCESS(vrc) && changeAdapter)
-                    {
-                        VMSTATE enmVMState = VMR3GetStateU(ptrVM.rawUVM());
-                        if (    enmVMState == VMSTATE_RUNNING    /** @todo LiveMigration: Forbid or deal
-                                                                     correctly with the _LS variants */
-                            ||  enmVMState == VMSTATE_SUSPENDED)
+                        Assert(pBase);
+                        PPDMINETWORKCONFIG pINetCfg;
+                        pINetCfg = PDMIBASE_QUERY_INTERFACE(pBase, PDMINETWORKCONFIG);
+                        if (pINetCfg)
                         {
-                            if (fTraceEnabled && fCableConnected && pINetCfg)
+                            Log(("Console::onNetworkAdapterChange: setting link state to %d\n",
+                                  fCableConnected));
+                            vrc = pINetCfg->pfnSetLinkState(pINetCfg,
+                                                            fCableConnected ? PDMNETWORKLINKSTATE_UP
+                                                                            : PDMNETWORKLINKSTATE_DOWN);
+                            ComAssertRC(vrc);
+                        }
+                        if (RT_SUCCESS(vrc) && changeAdapter)
+                        {
+                            VMSTATE enmVMState = VMR3GetStateU(ptrVM.rawUVM());
+                            if (    enmVMState == VMSTATE_RUNNING    /** @todo LiveMigration: Forbid or deal
+                                                                         correctly with the _LS variants */
+                                ||  enmVMState == VMSTATE_SUSPENDED)
                             {
-                                vrc = pINetCfg->pfnSetLinkState(pINetCfg, PDMNETWORKLINKSTATE_DOWN);
-                                ComAssertRC(vrc);
-                            }
+                                if (fTraceEnabled && fCableConnected && pINetCfg)
+                                {
+                                    vrc = pINetCfg->pfnSetLinkState(pINetCfg, PDMNETWORKLINKSTATE_DOWN);
+                                    ComAssertRC(vrc);
+                                }
 
-                            rc = i_doNetworkAdapterChange(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, aNetworkAdapter);
+                                rc = i_doNetworkAdapterChange(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, aNetworkAdapter);
 
-                            if (fTraceEnabled && fCableConnected && pINetCfg)
-                            {
-                                vrc = pINetCfg->pfnSetLinkState(pINetCfg, PDMNETWORKLINKSTATE_UP);
-                                ComAssertRC(vrc);
+                                if (fTraceEnabled && fCableConnected && pINetCfg)
+                                {
+                                    vrc = pINetCfg->pfnSetLinkState(pINetCfg, PDMNETWORKLINKSTATE_UP);
+                                    ComAssertRC(vrc);
+                                }
                             }
                         }
                     }
+                    else if (vrc == VERR_PDM_DEVICE_INSTANCE_NOT_FOUND)
+                        return setError(E_FAIL,
+                                tr("The network adapter #%u is not enabled"), ulInstance);
+                    else
+                        ComAssertRC(vrc);
+
+                    if (RT_FAILURE(vrc))
+                        rc = E_FAIL;
+
+                    alock.acquire();
                 }
-                else if (vrc == VERR_PDM_DEVICE_INSTANCE_NOT_FOUND)
-                    return setError(E_FAIL,
-                            tr("The network adapter #%u is not enabled"), ulInstance);
-                else
-                    ComAssertRC(vrc);
-
-                if (RT_FAILURE(vrc))
-                    rc = E_FAIL;
-
-                alock.acquire();
             }
         }
         ptrVM.release();
@@ -5632,27 +5634,30 @@ HRESULT Console::i_onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
             )
         {
             /* No need to call in the EMT thread. */
-            LONG64 cMax;
             Bstr strName;
-            BandwidthGroupType_T enmType;
             rc = aBandwidthGroup->COMGETTER(Name)(strName.asOutParam());
             if (SUCCEEDED(rc))
-                rc = aBandwidthGroup->COMGETTER(MaxBytesPerSec)(&cMax);
-            if (SUCCEEDED(rc))
-                rc = aBandwidthGroup->COMGETTER(Type)(&enmType);
-
-            if (SUCCEEDED(rc))
             {
-                int vrc = VINF_SUCCESS;
-                if (enmType == BandwidthGroupType_Disk)
-                    vrc = PDMR3AsyncCompletionBwMgrSetMaxForFile(ptrVM.rawUVM(), Utf8Str(strName).c_str(), (uint32_t)cMax);
+                LONG64 cMax;
+                rc = aBandwidthGroup->COMGETTER(MaxBytesPerSec)(&cMax);
+                if (SUCCEEDED(rc))
+                {
+                    BandwidthGroupType_T enmType;
+                    rc = aBandwidthGroup->COMGETTER(Type)(&enmType);
+                    if (SUCCEEDED(rc))
+                    {
+                        int vrc = VINF_SUCCESS;
+                        if (enmType == BandwidthGroupType_Disk)
+                            vrc = PDMR3AsyncCompletionBwMgrSetMaxForFile(ptrVM.rawUVM(), Utf8Str(strName).c_str(), (uint32_t)cMax);
 #ifdef VBOX_WITH_NETSHAPER
-                else if (enmType == BandwidthGroupType_Network)
-                    vrc = PDMR3NsBwGroupSetLimit(ptrVM.rawUVM(), Utf8Str(strName).c_str(), cMax);
-                else
-                    rc = E_NOTIMPL;
-#endif /* VBOX_WITH_NETSHAPER */
-                AssertRC(vrc);
+                        else if (enmType == BandwidthGroupType_Network)
+                            vrc = PDMR3NsBwGroupSetLimit(ptrVM.rawUVM(), Utf8Str(strName).c_str(), cMax);
+                        else
+                            rc = E_NOTIMPL;
+#endif
+                        AssertRC(vrc);
+                    }
+                }
             }
         }
         else
@@ -6852,6 +6857,7 @@ HRESULT Console::i_onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId)
 HRESULT Console::i_addVMCaller(bool aQuiet /* = false */,
                                bool aAllowNullVM /* = false */)
 {
+    RT_NOREF(aAllowNullVM);
     AutoCaller autoCaller(this);
     /** @todo Fix race during console/VM reference destruction, refer @bugref{6318}
      *        comment 25. */
@@ -8792,6 +8798,7 @@ Console::i_usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, 
                              const char *aAddress, void *pvRemoteBackend, USHORT aPortVersion, ULONG aMaskedIfs,
                              const char *pszCaptureFilename)
 {
+    RT_NOREF(aHostDevice);
     LogFlowFuncEnter();
     LogFlowFunc(("that={%p} aUuid={%RTuuid}\n", that, aUuid));
 
@@ -9214,6 +9221,7 @@ DECLCALLBACK(int) Console::i_stateProgressCallback(PUVM pUVM, unsigned uPercent,
 Console::i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
                                      const char *pszErrorFmt, va_list va)
 {
+    RT_SRC_POS_NOREF();
     Utf8Str *pErrorText = (Utf8Str *)pvUser;
     AssertPtr(pErrorText);
 
@@ -9275,6 +9283,7 @@ Console::i_atVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFlags,
  */
 HRESULT Console::i_captureUSBDevices(PUVM pUVM)
 {
+    RT_NOREF(pUVM);
     LogFlowThisFunc(("\n"));
 
     /* sanity check */
@@ -9504,25 +9513,21 @@ static void faultToleranceProgressCancelCallback(void *pvUser)
 }
 
 /**
- * Thread function which starts the VM (also from saved state) and
- * track progress.
+ * Worker called by VMPowerUpTask::handler to start the VM (also from saved
+ * state) and track progress.
  *
- * @param   Thread      The thread id.
- * @param   pvUser      Pointer to a VMPowerUpTask structure.
- * @return  VINF_SUCCESS (ignored).
+ * @param   pTask       The power up task.
  *
  * @note Locks the Console object for writing.
  */
 /*static*/
-DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
+void Console::i_powerUpThreadTask(VMPowerUpTask *pTask)
 {
     LogFlowFuncEnter();
 
-    VMPowerUpTask* task = static_cast<VMPowerUpTask *>(pvUser);
-    AssertReturn(task, VERR_INVALID_PARAMETER);
-
-    AssertReturn(!task->mConsole.isNull(), VERR_INVALID_PARAMETER);
-    AssertReturn(!task->mProgress.isNull(), VERR_INVALID_PARAMETER);
+    AssertReturnVoid(pTask);
+    AssertReturnVoid(!pTask->mConsole.isNull());
+    AssertReturnVoid(!pTask->mProgress.isNull());
 
     VirtualBoxBase::initializeComForThread();
 
@@ -9535,7 +9540,7 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
     RTStrPrintf(saBuildID, sizeof(saBuildID), "%s%s%s%s VirtualBox %s r%u %s%s%s%s",
                 "BU", "IL", "DI", "D", RTBldCfgVersion(), RTBldCfgRevision(), "BU", "IL", "DI", "D");
 
-    ComObjPtr<Console> pConsole = task->mConsole;
+    ComObjPtr<Console> pConsole = pTask->mConsole;
 
     /* Note: no need to use AutoCaller because VMPowerUpTask does that */
 
@@ -9554,20 +9559,20 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
         if (!pConsole->m_pVMMDev)
         {
             pConsole->m_pVMMDev = new VMMDev(pConsole);
-            AssertReturn(pConsole->m_pVMMDev, E_FAIL);
+            AssertReturnVoid(pConsole->m_pVMMDev);
         }
 
         /* wait for auto reset ops to complete so that we can successfully lock
          * the attached hard disks by calling LockMedia() below */
         for (VMPowerUpTask::ProgressList::const_iterator
-             it = task->hardDiskProgresses.begin();
-             it != task->hardDiskProgresses.end(); ++it)
+             it = pTask->hardDiskProgresses.begin();
+             it != pTask->hardDiskProgresses.end(); ++it)
         {
             HRESULT rc2 = (*it)->WaitForCompletion(-1);
             AssertComRC(rc2);
 
-            rc = task->mProgress->SetNextOperation(BstrFmt(tr("Disk Image Reset Operation - Immutable Image")).raw(), 1);
-            AssertComRCReturnRC(rc);
+            rc = pTask->mProgress->SetNextOperation(BstrFmt(tr("Disk Image Reset Operation - Immutable Image")).raw(), 1);
+            AssertComRCReturnVoid(rc);
         }
 
         /*
@@ -9578,8 +9583,8 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
          * Note! The media will be unlocked automatically by
          *       SessionMachine::i_setMachineState() when the VM is powered down.
          */
-        if (    !task->mTeleporterEnabled
-            &&  task->mEnmFaultToleranceState != FaultToleranceState_Standby)
+        if (    !pTask->mTeleporterEnabled
+            &&  pTask->mEnmFaultToleranceState != FaultToleranceState_Standby)
         {
             rc = pConsole->mControl->LockMedia();
             if (FAILED(rc)) throw rc;
@@ -9622,8 +9627,8 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
         vrc = VMR3Create(cCpus,
                          pConsole->mpVmm2UserMethods,
                          Console::i_genericVMSetErrorCallback,
-                         &task->mErrorMsg,
-                         task->mConfigConstructor,
+                         &pTask->mErrorMsg,
+                         pTask->mConfigConstructor,
                          static_cast<Console *>(pConsole),
                          &pVM, NULL);
 
@@ -9667,8 +9672,8 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
                      * Not sure, so release the lock just in case. */
                     alock.release();
 
-                    for (SharedFolderDataMap::const_iterator it = task->mSharedFolders.begin();
-                         it != task->mSharedFolders.end();
+                    for (SharedFolderDataMap::const_iterator it = pTask->mSharedFolders.begin();
+                         it != pTask->mSharedFolders.end();
                          ++it)
                     {
                         const SharedFolderData &d = it->second;
@@ -9698,22 +9703,24 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
                  */
                 rc = pConsole->i_captureUSBDevices(pConsole->mpUVM);
                 if (FAILED(rc))
+                {
+                    alock.acquire();
                     break;
+                }
 
                 /* Load saved state? */
-                if (task->mSavedStateFile.length())
+                if (pTask->mSavedStateFile.length())
                 {
-                    LogFlowFunc(("Restoring saved state from '%s'...\n",
-                                 task->mSavedStateFile.c_str()));
+                    LogFlowFunc(("Restoring saved state from '%s'...\n", pTask->mSavedStateFile.c_str()));
 
                     vrc = VMR3LoadFromFile(pConsole->mpUVM,
-                                           task->mSavedStateFile.c_str(),
+                                           pTask->mSavedStateFile.c_str(),
                                            Console::i_stateProgressCallback,
-                                           static_cast<IProgress *>(task->mProgress));
+                                           static_cast<IProgress *>(pTask->mProgress));
 
                     if (RT_SUCCESS(vrc))
                     {
-                        if (task->mStartPaused)
+                        if (pTask->mStartPaused)
                             /* done */
                             pConsole->i_setMachineState(MachineState_Paused);
                         else
@@ -9737,12 +9744,12 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
 #endif
                     }
                 }
-                else if (task->mTeleporterEnabled)
+                else if (pTask->mTeleporterEnabled)
                 {
                     /* -> ConsoleImplTeleporter.cpp */
                     bool fPowerOffOnFailure;
-                    rc = pConsole->i_teleporterTrg(pConsole->mpUVM, pMachine, &task->mErrorMsg, task->mStartPaused,
-                                                   task->mProgress, &fPowerOffOnFailure);
+                    rc = pConsole->i_teleporterTrg(pConsole->mpUVM, pMachine, &pTask->mErrorMsg, pTask->mStartPaused,
+                                                   pTask->mProgress, &fPowerOffOnFailure);
                     if (FAILED(rc) && fPowerOffOnFailure)
                     {
                         ErrorInfoKeeper eik;
@@ -9752,52 +9759,61 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
 #endif
                     }
                 }
-                else if (task->mEnmFaultToleranceState != FaultToleranceState_Inactive)
+                else if (pTask->mEnmFaultToleranceState != FaultToleranceState_Inactive)
                 {
                     /*
                      * Get the config.
                      */
                     ULONG uPort;
-                    ULONG uInterval;
-                    Bstr bstrAddress, bstrPassword;
-
                     rc = pMachine->COMGETTER(FaultTolerancePort)(&uPort);
                     if (SUCCEEDED(rc))
                     {
+                        ULONG uInterval;
                         rc = pMachine->COMGETTER(FaultToleranceSyncInterval)(&uInterval);
                         if (SUCCEEDED(rc))
-                            rc = pMachine->COMGETTER(FaultToleranceAddress)(bstrAddress.asOutParam());
-                        if (SUCCEEDED(rc))
-                            rc = pMachine->COMGETTER(FaultTolerancePassword)(bstrPassword.asOutParam());
-                    }
-                    if (task->mProgress->i_setCancelCallback(faultToleranceProgressCancelCallback, pConsole->mpUVM))
-                    {
-                        if (SUCCEEDED(rc))
                         {
-                            Utf8Str strAddress(bstrAddress);
-                            const char *pszAddress = strAddress.isEmpty() ? NULL : strAddress.c_str();
-                            Utf8Str strPassword(bstrPassword);
-                            const char *pszPassword = strPassword.isEmpty() ? NULL : strPassword.c_str();
+                            Bstr bstrAddress;
+                            rc = pMachine->COMGETTER(FaultToleranceAddress)(bstrAddress.asOutParam());
+                            if (SUCCEEDED(rc))
+                            {
+                                Bstr bstrPassword;
+                                rc = pMachine->COMGETTER(FaultTolerancePassword)(bstrPassword.asOutParam());
+                                if (SUCCEEDED(rc))
+                                {
+                                    if (pTask->mProgress->i_setCancelCallback(faultToleranceProgressCancelCallback,
+                                                                              pConsole->mpUVM))
+                                    {
+                                        if (SUCCEEDED(rc))
+                                        {
+                                            Utf8Str strAddress(bstrAddress);
+                                            const char *pszAddress = strAddress.isEmpty() ? NULL : strAddress.c_str();
+                                            Utf8Str strPassword(bstrPassword);
+                                            const char *pszPassword = strPassword.isEmpty() ? NULL : strPassword.c_str();
 
-                            /* Power on the FT enabled VM. */
+                                            /* Power on the FT enabled VM. */
 #ifdef VBOX_WITH_EXTPACK
-                            vrc = pConsole->mptrExtPackManager->i_callAllVmPowerOnHooks(pConsole, pVM);
+                                            vrc = pConsole->mptrExtPackManager->i_callAllVmPowerOnHooks(pConsole, pVM);
 #endif
-                            if (RT_SUCCESS(vrc))
-                                vrc = FTMR3PowerOn(pConsole->mpUVM,
-                                                   task->mEnmFaultToleranceState == FaultToleranceState_Master /* fMaster */,
-                                                   uInterval,
-                                                   pszAddress,
-                                                   uPort,
-                                                   pszPassword);
-                            AssertLogRelRC(vrc);
+                                            if (RT_SUCCESS(vrc))
+                                                vrc = FTMR3PowerOn(pConsole->mpUVM,
+                                                                   pTask->mEnmFaultToleranceState == FaultToleranceState_Master /* fMaster */,
+                                                                   uInterval,
+                                                                   pszAddress,
+                                                                   uPort,
+                                                                   pszPassword);
+                                            AssertLogRelRC(vrc);
+                                        }
+                                        pTask->mProgress->i_setCancelCallback(NULL, NULL);
+                                    }
+                                    else
+                                        rc = E_FAIL;
+
+                                }
+                            }
                         }
-                        task->mProgress->i_setCancelCallback(NULL, NULL);
                     }
-                    else
-                        rc = E_FAIL;
                 }
-                else if (task->mStartPaused)
+                else if (pTask->mStartPaused)
                     /* done */
                     pConsole->i_setMachineState(MachineState_Paused);
                 else
@@ -9837,7 +9853,7 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
                  * be sticky but our error callback isn't.
                  */
                 alock.release();
-                VMR3AtErrorDeregister(pConsole->mpUVM, Console::i_genericVMSetErrorCallback, &task->mErrorMsg);
+                VMR3AtErrorDeregister(pConsole->mpUVM, Console::i_genericVMSetErrorCallback, &pTask->mErrorMsg);
                 /** @todo register another VMSetError callback? */
                 alock.acquire();
             }
@@ -9854,11 +9870,11 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
         if (SUCCEEDED(rc) && RT_FAILURE(vrc))
         {
             /* If VMR3Create() or one of the other calls in this function fail,
-             * an appropriate error message has been set in task->mErrorMsg.
+             * an appropriate error message has been set in pTask->mErrorMsg.
              * However since that happens via a callback, the rc status code in
              * this function is not updated.
              */
-            if (!task->mErrorMsg.length())
+            if (!pTask->mErrorMsg.length())
             {
                 /* If the error message is not set but we've got a failure,
                  * convert the VBox status code into a meaningful error message.
@@ -9866,12 +9882,12 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
                  * appropriate error message themselves.
                  */
                 AssertMsgFailed(("Missing error message during powerup for status code %Rrc\n", vrc));
-                task->mErrorMsg = Utf8StrFmt(tr("Failed to start VM execution (%Rrc)"), vrc);
+                pTask->mErrorMsg = Utf8StrFmt(tr("Failed to start VM execution (%Rrc)"), vrc);
             }
 
             /* Set the error message as the COM error.
              * Progress::notifyComplete() will pick it up later. */
-            throw i_setErrorStatic(E_FAIL, task->mErrorMsg.c_str());
+            throw i_setErrorStatic(E_FAIL, pTask->mErrorMsg.c_str());
         }
     }
     catch (HRESULT aRC) { rc = aRC; }
@@ -9909,12 +9925,12 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
     if (SUCCEEDED(rc))
     {
         /* Notify the progress object of the success */
-        task->mProgress->i_notifyComplete(S_OK);
+        pTask->mProgress->i_notifyComplete(S_OK);
     }
     else
     {
         /* The progress object will fetch the current error info */
-        task->mProgress->i_notifyComplete(rc);
+        pTask->mProgress->i_notifyComplete(rc);
         LogRel(("Power up failed (vrc=%Rrc, rc=%Rhrc (%#08X))\n", vrc, rc, rc));
     }
 
@@ -9927,8 +9943,6 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
 #endif
 
     LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
 }
 
 
@@ -10010,27 +10024,21 @@ DECLCALLBACK(int) Console::i_reconfigureMediumAttachment(Console *pThis,
 /**
  * Thread for powering down the Console.
  *
- * @param   Thread      The thread handle.
- * @param   pvUser      Pointer to the VMTask structure.
- * @return  VINF_SUCCESS (ignored).
+ * @param   pTask       The power down task.
  *
  * @note Locks the Console object for writing.
  */
 /*static*/
-DECLCALLBACK(int) Console::i_powerDownThread(RTTHREAD Thread, void *pvUser)
+void Console::i_powerDownThreadTask(VMPowerDownTask *pTask)
 {
+    int rc = VINF_SUCCESS; /* only used in assertion */
     LogFlowFuncEnter();
-
-    int rc = VINF_SUCCESS;
-    //we get pvUser pointer from another thread (see Console::powerDown) where one was allocated.
-    //and here we are in charge of correct deletion this pointer.
-    VMPowerDownTask* task = static_cast<VMPowerDownTask *>(pvUser);
     try
     {
-        if (task->isOk() == false)
+        if (pTask->isOk() == false)
             rc = VERR_GENERAL_FAILURE;
 
-        const ComObjPtr<Console> &that = task->mConsole;
+        const ComObjPtr<Console> &that = pTask->mConsole;
 
         /* Note: no need to use AutoCaller to protect Console because VMTask does
          * that */
@@ -10039,23 +10047,23 @@ DECLCALLBACK(int) Console::i_powerDownThread(RTTHREAD Thread, void *pvUser)
         AutoWriteLock thatLock(that COMMA_LOCKVAL_SRC_POS);
 
         /* release VM caller to avoid the powerDown() deadlock */
-        task->releaseVMCaller();
+        pTask->releaseVMCaller();
 
         thatLock.release();
 
-        that->i_powerDown(task->mServerProgress);
+        that->i_powerDown(pTask->mServerProgress);
 
         /* complete the operation */
         that->mControl->EndPoweringDown(S_OK, Bstr().raw());
 
     }
-    catch(const std::exception &e)
+    catch (const std::exception &e)
     {
-        AssertMsgFailed(("Exception %s was cought, rc=%Rrc\n", e.what(), rc));
+        AssertMsgFailed(("Exception %s was caught, rc=%Rrc\n", e.what(), rc));
+        NOREF(e); NOREF(rc);
     }
 
     LogFlowFuncLeave();
-    return rc;
 }
 
 /**
@@ -10370,6 +10378,7 @@ DECLCALLBACK(void) Console::i_drvStatus_Destruct(PPDMDRVINS pDrvIns)
  */
 DECLCALLBACK(int) Console::i_drvStatus_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVMAINSTATUS pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINSTATUS);
     LogFlowFunc(("iInstance=%d\n", pDrvIns->iInstance));

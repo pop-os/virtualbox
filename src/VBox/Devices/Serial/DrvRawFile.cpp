@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,7 +63,7 @@ typedef struct DRVRAWFILE
 
 /* -=-=-=-=- PDMISTREAM -=-=-=-=- */
 
-/** @copydoc PDMISTREAM::pfnWrite */
+/** @interface_method_impl{PDMISTREAM,pfnWrite} */
 static DECLCALLBACK(int) drvRawFileWrite(PPDMISTREAM pInterface, const void *pvBuf, size_t *pcbWrite)
 {
     int rc = VINF_SUCCESS;
@@ -154,8 +154,9 @@ static DECLCALLBACK(void) drvRawFileDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvRawFileConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVRAWFILE pThis = PDMINS_2_DATA(pDrvIns, PDRVRAWFILE);
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVRAWFILE pThis = PDMINS_2_DATA(pDrvIns, PDRVRAWFILE);
 
     /*
      * Init the static parts.

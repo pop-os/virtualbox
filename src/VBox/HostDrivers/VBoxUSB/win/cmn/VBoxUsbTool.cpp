@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -334,7 +334,8 @@ VBOXUSBTOOL_DECL(PIRP) VBoxUsbToolIoBuildAsyncInternalCtl(PDEVICE_OBJECT pDevObj
     return pIrp;
 }
 
-VBOXUSBTOOL_DECL(NTSTATUS) VBoxUsbToolIoInternalCtlSendSyncWithTimeout(PDEVICE_OBJECT pDevObj, ULONG uCtl, void *pvArg1, void *pvArg2, ULONG dwTimeoutMs)
+VBOXUSBTOOL_DECL(NTSTATUS) VBoxUsbToolIoInternalCtlSendSyncWithTimeout(PDEVICE_OBJECT pDevObj, ULONG uCtl,
+                                                                       void *pvArg1, void *pvArg2, ULONG dwTimeoutMs)
 {
     /* since we're going to cancel the irp on timeout, we should allocate our own IRP rather than using the threaded one
      * */
@@ -353,13 +354,12 @@ VBOXUSBTOOL_DECL(NTSTATUS) VBoxUsbToolIoInternalCtlSendSyncWithTimeout(PDEVICE_O
 }
 
 VBOXUSBTOOL_DECL(NTSTATUS) VBoxUsbToolIoInternalCtlSendAsync(PDEVICE_OBJECT pDevObj, ULONG uCtl, void *pvArg1, void *pvArg2,
-        PKEVENT pEvent, PIO_STATUS_BLOCK pIoStatus)
+                                                             PKEVENT pEvent, PIO_STATUS_BLOCK pIoStatus)
 {
     NTSTATUS Status;
     PIRP pIrp;
     PIO_STACK_LOCATION pSl;
-    KIRQL Irql = KeGetCurrentIrql();
-    Assert(Irql == PASSIVE_LEVEL);
+    Assert(KeGetCurrentIrql() == PASSIVE_LEVEL);
 
     pIrp = IoBuildDeviceIoControlRequest(uCtl, pDevObj, NULL, 0, NULL, 0, TRUE, pEvent, pIoStatus);
     if (!pIrp)

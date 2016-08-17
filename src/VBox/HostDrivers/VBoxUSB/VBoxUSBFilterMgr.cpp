@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,7 +138,7 @@ int VBoxUSBFilterInit(void)
 #else
         fFlags = RTHANDLETABLE_FLAGS_LOCKED;
 #endif
-        rc = RTHandleTableCreateEx(&g_hHndTableFilters, fFlags, 1 /* uBase */, 32768 /* cMax */,
+        rc = RTHandleTableCreateEx(&g_hHndTableFilters, fFlags, 1 /* uBase */, 8192 /* cMax */,
                                    NULL, NULL);
         if (RT_SUCCESS(rc))
         {
@@ -258,6 +258,8 @@ int VBoxUSBFilterAdd(PCUSBFILTER pFilter, VBOXUSBFILTER_CONTEXT Owner, uintptr_t
 
         VBOXUSBFILTERMGR_UNLOCK();
     }
+    else
+        RTMemFree(pNew);
 
     return rc;
 }
@@ -326,7 +328,7 @@ int VBoxUSBFilterRemove(VBOXUSBFILTER_CONTEXT Owner, uintptr_t uId)
     if (pCur)
     {
         void *pv = RTHandleTableFree(g_hHndTableFilters, pCur->uHnd);
-        Assert(pv == pCur);
+        Assert(pv == pCur); NOREF(pv);
         vboxUSBFilterFree(pCur);
         return VINF_SUCCESS;
     }
@@ -416,7 +418,7 @@ void VBoxUSBFilterRemoveOwner(VBOXUSBFILTER_CONTEXT Owner)
     {
         PVBOXUSBFILTER pNext = pToFree->pNext;
         void *pv = RTHandleTableFree(g_hHndTableFilters, pToFree->uHnd);
-        Assert(pv == pToFree);
+        Assert(pv == pToFree); NOREF(pv);
         vboxUSBFilterFree(pToFree);
         pToFree = pNext;
     }
@@ -502,7 +504,7 @@ VBOXUSBFILTER_CONTEXT VBoxUSBFilterMatchEx(PCUSBFILTER pDevice, uintptr_t *puId,
                     if (fRemoveFltIfOneShot)
                     {
                         void *pv = RTHandleTableFree(g_hHndTableFilters, pCur->uHnd);
-                        Assert(pv == pCur);
+                        Assert(pv == pCur); NOREF(pv);
                         vboxUSBFilterFree(pCur);
                     }
                     if (pfIsOneShot)

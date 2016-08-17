@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,7 +55,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_TIMER
 #define _WIN32_WINNT 0x0500
-#include <Windows.h>
+#include <iprt/win/windows.h>
 
 #include <iprt/timer.h>
 #ifdef USE_CATCH_UP
@@ -242,7 +242,7 @@ static DECLCALLBACK(int) rttimerCallback(RTTHREAD Thread, void *pvArg)
             /*
              * Rearm the timer handler.
              */
-#ifdef USE_CATCH_UP
+# ifdef USE_CATCH_UP
             pTimer->llNext.QuadPart += NSInterval;
             LARGE_INTEGER ll;
             ll.QuadPart = RTTimeNanoTS() - pTimer->llNext.QuadPart;
@@ -250,11 +250,11 @@ static DECLCALLBACK(int) rttimerCallback(RTTHREAD Thread, void *pvArg)
                 ll.QuadPart = ll.QuadPart / 100;
             else
                 ll.QuadPart = -500000 / 100; /* need to catch up, do a minimum wait of 0.5ms. */
-#else
+# else
             LARGE_INTEGER ll = pTimer->llNext;
-#endif
-            BOOL frc = SetWaitableTimer(pTimer->hTimer, &ll, 0, NULL, NULL, FALSE);
-            AssertMsg(frc || pTimer->u32Magic != RTTIMER_MAGIC, ("last error %d\n", GetLastError()));
+# endif
+            BOOL fRc = SetWaitableTimer(pTimer->hTimer, &ll, 0, NULL, NULL, FALSE);
+            AssertMsg(fRc || pTimer->u32Magic != RTTIMER_MAGIC, ("last error %d\n", GetLastError())); NOREF(fRc);
         }
         else
 #endif
@@ -264,7 +264,7 @@ static DECLCALLBACK(int) rttimerCallback(RTTHREAD Thread, void *pvArg)
              */
             int rc2 = GetLastError();
             RTThreadUserSignal(Thread);
-            AssertMsgFailed(("Wait on hTimer failed, rc=%d lasterr=%d\n", rc, rc2));
+            AssertMsgFailed(("Wait on hTimer failed, rc=%d lasterr=%d\n", rc, rc2)); NOREF(rc2);
             return -1;
         }
     }
@@ -285,9 +285,9 @@ RTDECL(int) RTTimerCreate(PRTTIMER *ppTimer, unsigned uMilliesInterval, PFNRTTIM
      * On windows we'll have to set the timer resolution before
      * we start the timer.
      */
-    ULONG ulMax = ~0;
-    ULONG ulMin = ~0;
-    ULONG ulCur = ~0;
+    ULONG ulMax = UINT32_MAX;
+    ULONG ulMin = UINT32_MAX;
+    ULONG ulCur = UINT32_MAX;
     NtQueryTimerResolution(&ulMax, &ulMin, &ulCur);
     Log(("NtQueryTimerResolution -> ulMax=%lu00ns ulMin=%lu00ns ulCur=%lu00ns\n", ulMax, ulMin, ulCur));
     if (ulCur > ulMin && ulCur > 10000 /* = 1ms */)
@@ -311,7 +311,7 @@ RTDECL(int) RTTimerCreate(PRTTIMER *ppTimer, unsigned uMilliesInterval, PFNRTTIM
     /*
      * Create new timer.
      */
-    int rc;
+    int rc = VERR_IPE_UNINITIALIZED_STATUS;
     PRTTIMER pTimer = (PRTTIMER)RTMemAlloc(sizeof(*pTimer));
     if (pTimer)
     {
@@ -325,9 +325,9 @@ RTDECL(int) RTTimerCreate(PRTTIMER *ppTimer, unsigned uMilliesInterval, PFNRTTIM
         pTimer->TimerId     = timeSetEvent(uMilliesInterval, 0, rttimerCallback, (DWORD_PTR)pTimer, TIME_PERIODIC | TIME_CALLBACK_FUNCTION);
         if (pTimer->TimerId)
         {
-            ULONG ulMax = ~0;
-            ULONG ulMin = ~0;
-            ULONG ulCur = ~0;
+            ULONG ulMax = UINT32_MAX;
+            ULONG ulMin = UINT32_MAX;
+            ULONG ulCur = UINT32_MAX;
             NtQueryTimerResolution(&ulMax, &ulMin, &ulCur);
             Log(("NtQueryTimerResolution -> ulMax=%lu00ns ulMin=%lu00ns ulCur=%lu00ns\n", ulMax, ulMin, ulCur));
 
@@ -341,7 +341,7 @@ RTDECL(int) RTTimerCreate(PRTTIMER *ppTimer, unsigned uMilliesInterval, PFNRTTIM
         /*
          * Create Win32 event semaphore.
          */
-        pTimer->iError      = 0;
+        pTimer->iError = 0;
         pTimer->hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
         if (pTimer->hTimer)
         {
@@ -440,7 +440,7 @@ RTR3DECL(int)     RTTimerDestroy(PRTTIMER pTimer)
          */
         rc = RTThreadWait(pTimer->Thread, 1000, NULL);
         if (RT_FAILURE(rc))
-            TerminateThread((HANDLE)RTThreadGetNative(pTimer->Thread), -1);
+            TerminateThread((HANDLE)RTThreadGetNative(pTimer->Thread), UINT32_MAX);
 
         /*
          * Free resource.

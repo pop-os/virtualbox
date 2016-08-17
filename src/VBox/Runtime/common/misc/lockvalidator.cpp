@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -396,7 +396,7 @@ static const char *rtLockValidatorNameThreadHandle(RTTHREAD volatile *phThread)
 /**
  * Launch a simple assertion like complaint w/ panic.
  *
- * @param   SRC_POS             The source position where call is being made from. 
+ * @param   SRC_POS             The source position where call is being made from.
  * @param   pszWhat             What we're complaining about.
  * @param   ...                 Format arguments.
  */
@@ -1568,6 +1568,7 @@ RTDECL(int) RTLockValidatorRecMakeSiblings(PRTLOCKVALRECCORE pRec1, PRTLOCKVALRE
 }
 
 
+#if 0 /* unused */
 /**
  * Gets the lock name for the given record.
  *
@@ -1605,8 +1606,10 @@ DECL_FORCE_INLINE(const char *) rtLockValidatorRecName(PRTLOCKVALRECUNION pRec)
             return "unknown";
     }
 }
+#endif /* unused */
 
 
+#if 0 /* unused */
 /**
  * Gets the class for this locking record.
  *
@@ -1664,7 +1667,7 @@ DECLINLINE(RTLOCKVALCLASSINT *) rtLockValidatorRecGetClass(PRTLOCKVALRECUNION pR
             return NIL_RTLOCKVALCLASS;
     }
 }
-
+#endif /* unused */
 
 /**
  * Gets the class for this locking record and the pointer to the one below it in
@@ -3060,7 +3063,7 @@ RTDECL(void) RTLockValidatorRecExclSetOwner(PRTLOCKVALRECEXCL pRec, RTTHREAD hTh
 
     if (pRecU->Excl.hThread == hThreadSelf)
     {
-        Assert(!fFirstRecursion);
+        Assert(!fFirstRecursion); RT_NOREF_PV(fFirstRecursion);
         pRecU->Excl.cRecursion++;
         rtLockValidatorStackPushRecursion(hThreadSelf, pRecU, pSrcPos);
     }
@@ -3097,7 +3100,7 @@ static void  rtLockValidatorRecExclReleaseOwnerUnchecked(PRTLOCKVALRECUNION pRec
     else
     {
         Assert(c < UINT32_C(0xffff0000));
-        Assert(!fFinalRecursion);
+        Assert(!fFinalRecursion); RT_NOREF_PV(fFinalRecursion);
         rtLockValidatorStackPopRecursion(pThread, pRec);
     }
 }

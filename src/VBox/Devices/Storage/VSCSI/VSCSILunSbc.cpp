@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,7 +79,7 @@ static DECLCALLBACK(int) vscsiLunSbcInit(PVSCSILUNINT pVScsiLun)
                                           VSCSI_VPD_DEVID_SIZE, (uint8_t **)&pDevIdPage);
         if (RT_SUCCESS(rc))
         {
-            /** @todo: Not conforming to the SPC spec but Solaris needs at least a stub to work. */
+            /** @todo Not conforming to the SPC spec but Solaris needs at least a stub to work. */
             pDevIdPage->u5PeripheralDeviceType = SCSI_INQUIRY_DATA_PERIPHERAL_DEVICE_TYPE_DIRECT_ACCESS;
             pDevIdPage->u3PeripheralQualifier  = SCSI_INQUIRY_DATA_PERIPHERAL_QUALIFIER_CONNECTED;
             pDevIdPage->u16PageLength          = RT_H2BE_U16(0x0);
@@ -427,7 +427,6 @@ static DECLCALLBACK(int) vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQ
         }
         case SCSI_LOG_SENSE:
         {
-            uint16_t cbMax = vscsiBE2HU16(&pVScsiReq->pbCDB[7]);
             uint8_t uPageCode = pVScsiReq->pbCDB[2] & 0x3f;
             uint8_t uSubPageCode = pVScsiReq->pbCDB[3];
 

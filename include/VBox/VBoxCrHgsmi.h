@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,13 +38,14 @@ RT_C_DECLS_BEGIN
 # define VBOXCRHGSMI_DECL(a_Type) a_Type RTCALL
 #endif
 
-VBOXCRHGSMI_DECL(int) VBoxCrHgsmiInit();
+VBOXCRHGSMI_DECL(int) VBoxCrHgsmiInit(void);
 VBOXCRHGSMI_DECL(PVBOXUHGSMI) VBoxCrHgsmiCreate(void);
 VBOXCRHGSMI_DECL(void) VBoxCrHgsmiDestroy(PVBOXUHGSMI pHgsmi);
 VBOXCRHGSMI_DECL(int) VBoxCrHgsmiTerm(void);
 
 VBOXCRHGSMI_DECL(int) VBoxCrHgsmiCtlConGetClientID(PVBOXUHGSMI pHgsmi, uint32_t *pu32ClientID);
 VBOXCRHGSMI_DECL(int) VBoxCrHgsmiCtlConGetHostCaps(PVBOXUHGSMI pHgsmi, uint32_t *pu32HostCaps);
+struct VBoxGuestHGCMCallInfo;
 VBOXCRHGSMI_DECL(int) VBoxCrHgsmiCtlConCall(PVBOXUHGSMI pHgsmi, struct VBoxGuestHGCMCallInfo *pCallInfo, int cbCallInfo);
 
 RT_C_DECLS_END

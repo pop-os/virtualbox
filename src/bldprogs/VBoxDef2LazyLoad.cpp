@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,12 +67,14 @@ static PMYEXPORT   *g_ppExpNext = &g_pExpHead;
 
 
 
+#if 0 /* unused */
 static const char *leftStrip(const char *psz)
 {
     while (isspace(*psz))
         psz++;
     return psz;
 }
+#endif
 
 
 static char *leftStrip(char *psz)
@@ -998,7 +1000,7 @@ static int usage(const char *pszArgv0)
            "  --explicit-load-function, --no-explicit-load-function\n"
            "    Whether to include the explicit load function, default is not to.\n"
            "\n"
-           "Copyright (C) 2013-2015 Oracle Corporation\n"
+           "Copyright (C) 2013-2016 Oracle Corporation\n"
            , pszArgv0);
 
     return RTEXITCODE_SUCCESS;
@@ -1049,7 +1051,7 @@ int main(int argc, char **argv)
             else if (   !strcmp(psz, "--version")
                      || !strcmp(psz, "-V"))
             {
-                printf("$Revision: 105110 $\n");
+                printf("$Revision: 109812 $\n");
                 return RTEXITCODE_SUCCESS;
             }
             else

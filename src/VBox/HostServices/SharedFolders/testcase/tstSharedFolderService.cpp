@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2011-2013 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -115,20 +115,21 @@ static void bufferFromPath(void *pvDest, size_t cb, const char *pcszSrc)
 *   Stub functions and data                                                                                                      *
 *********************************************************************************************************************************/
 
-static PRTDIR testRTDirClosepDir;
+static PRTDIR g_testRTDirClosepDir;
 
 extern int testRTDirClose(PRTDIR pDir)
 {
  /* RTPrintf("%s: pDir=%p\n", __PRETTY_FUNCTION__, pDir); */
-    testRTDirClosepDir = pDir;
+    g_testRTDirClosepDir = pDir;
     return VINF_SUCCESS;
 }
 
 static char testRTDirCreatePath[256];
-static RTFMODE testRTDirCreateMode;
+//static RTFMODE testRTDirCreateMode; - unused
 
 extern int testRTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
 {
+    RT_NOREF2(fMode, fCreate);
  /* RTPrintf("%s: pszPath=%s, fMode=0x%llx\n", __PRETTY_FUNCTION__, pszPath,
              LLUIFY(fMode)); */
     ARRAY_FROM_PATH(testRTDirCreatePath, pszPath);
@@ -157,44 +158,47 @@ extern int testRTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER
     return VINF_SUCCESS;
 }
 
-static PRTDIR testRTDirQueryInfoDir;
+static PRTDIR g_testRTDirQueryInfoDir;
 static RTTIMESPEC testRTDirQueryInfoATime;
 
-extern int testRTDirQueryInfo(PRTDIR pDir, PRTFSOBJINFO pObjInfo,
-                               RTFSOBJATTRADD enmAdditionalAttribs)
+extern int testRTDirQueryInfo(PRTDIR pDir, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs)
 {
+    RT_NOREF1(enmAdditionalAttribs);
  /* RTPrintf("%s: pDir=%p, enmAdditionalAttribs=0x%llx\n", __PRETTY_FUNCTION__,
              pDir, LLUIFY(enmAdditionalAttribs)); */
-    testRTDirQueryInfoDir = pDir;
+    g_testRTDirQueryInfoDir = pDir;
     RT_ZERO(*pObjInfo);
     pObjInfo->AccessTime = testRTDirQueryInfoATime;
     RT_ZERO(testRTDirQueryInfoATime);
     return VINF_SUCCESS;
 }
 
-extern int testRTDirRemove(const char *pszPath) { RTPrintf("%s\n", __PRETTY_FUNCTION__); return 0; }
-
-static PRTDIR testRTDirReadExDir;
-
-extern int testRTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry,
-                            size_t *pcbDirEntry,
-                            RTFSOBJATTRADD enmAdditionalAttribs,
-                            uint32_t fFlags)
+extern int testRTDirRemove(const char *pszPath)
 {
+    RT_NOREF1(pszPath);
+    RTPrintf("%s\n", __PRETTY_FUNCTION__);
+    return 0;
+}
+
+static PRTDIR g_testRTDirReadExDir;
+
+extern int testRTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry,
+                           RTFSOBJATTRADD enmAdditionalAttribs, uint32_t fFlags)
+{
+    RT_NOREF4(pDirEntry, pcbDirEntry, enmAdditionalAttribs, fFlags);
  /* RTPrintf("%s: pDir=%p, pcbDirEntry=%d, enmAdditionalAttribs=%llu, fFlags=0x%llx\n",
              __PRETTY_FUNCTION__, pDir, pcbDirEntry ? (int) *pcbDirEntry : -1,
              LLUIFY(enmAdditionalAttribs), LLUIFY(fFlags)); */
-    testRTDirReadExDir = pDir;
+    g_testRTDirReadExDir = pDir;
     return VERR_NO_MORE_FILES;
 }
 
 static RTTIMESPEC testRTDirSetTimesATime;
 
-extern int testRTDirSetTimes(PRTDIR pDir, PCRTTIMESPEC pAccessTime,
-                                PCRTTIMESPEC pModificationTime,
-                                PCRTTIMESPEC pChangeTime,
-                                PCRTTIMESPEC pBirthTime)
+extern int testRTDirSetTimes(PRTDIR pDir, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
+                             PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime)
 {
+    RT_NOREF4(pDir, pModificationTime, pChangeTime, pBirthTime);
  /* RTPrintf("%s: pDir=%p, *pAccessTime=%lli, *pModificationTime=%lli, *pChangeTime=%lli, *pBirthTime=%lli\n",
              __PRETTY_FUNCTION__, pDir,
              pAccessTime ? (long long)RTTimeSpecGetNano(pAccessTime) : -1,
@@ -209,38 +213,42 @@ extern int testRTDirSetTimes(PRTDIR pDir, PCRTTIMESPEC pAccessTime,
     return VINF_SUCCESS;
 }
 
-static RTFILE testRTFileCloseFile;
+static RTFILE g_testRTFileCloseFile;
 
 extern int  testRTFileClose(RTFILE File)
 {
  /* RTPrintf("%s: File=%p\n", __PRETTY_FUNCTION__, File); */
-    testRTFileCloseFile = File;
+    g_testRTFileCloseFile = File;
     return 0;
 }
 
-extern int  testRTFileDelete(const char *pszFilename) { RTPrintf("%s\n", __PRETTY_FUNCTION__); return 0; }
+extern int  testRTFileDelete(const char *pszFilename)
+{
+    RT_NOREF1(pszFilename);
+    RTPrintf("%s\n", __PRETTY_FUNCTION__);
+    return 0;
+}
 
-static RTFILE testRTFileFlushFile;
+static RTFILE g_testRTFileFlushFile;
 
 extern int  testRTFileFlush(RTFILE File)
 {
  /* RTPrintf("%s: File=%p\n", __PRETTY_FUNCTION__, File); */
-    testRTFileFlushFile = File;
+    g_testRTFileFlushFile = File;
     return VINF_SUCCESS;
 }
 
-static RTFILE testRTFileLockFile;
+static RTFILE g_testRTFileLockFile;
 static unsigned testRTFileLockfLock;
 static int64_t testRTFileLockOffset;
 static uint64_t testRTFileLockSize;
 
-extern int  testRTFileLock(RTFILE hFile, unsigned fLock, int64_t offLock,
-                            uint64_t cbLock)
+extern int  testRTFileLock(RTFILE hFile, unsigned fLock, int64_t offLock, uint64_t cbLock)
 {
  /* RTPrintf("%s: hFile=%p, fLock=%u, offLock=%lli, cbLock=%llu\n",
              __PRETTY_FUNCTION__, hFile, fLock, (long long) offLock,
              LLUIFY(cbLock)); */
-    testRTFileLockFile = hFile;
+    g_testRTFileLockFile = hFile;
     testRTFileLockfLock = fLock;
     testRTFileLockOffset = offLock;
     testRTFileLockSize = cbLock;
@@ -251,8 +259,7 @@ static char testRTFileOpenName[256];
 static uint64_t testRTFileOpenFlags;
 static RTFILE testRTFileOpenpFile;
 
-extern int  testRTFileOpen(PRTFILE pFile, const char *pszFilename,
-                            uint64_t fOpen)
+extern int  testRTFileOpen(PRTFILE pFile, const char *pszFilename, uint64_t fOpen)
 {
  /* RTPrintf("%s, pszFilename=%s, fOpen=0x%llx\n", __PRETTY_FUNCTION__,
              pszFilename, LLUIFY(fOpen)); */
@@ -263,15 +270,16 @@ extern int  testRTFileOpen(PRTFILE pFile, const char *pszFilename,
     return VINF_SUCCESS;
 }
 
-static RTFILE testRTFileQueryInfoFile;
+static RTFILE g_testRTFileQueryInfoFile;
 static RTTIMESPEC testRTFileQueryInfoATime;
 static uint32_t testRTFileQueryInfoFMode;
 
 extern int  testRTFileQueryInfo(RTFILE hFile, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs)
 {
+    RT_NOREF1(enmAdditionalAttribs);
  /* RTPrintf("%s, hFile=%p, enmAdditionalAttribs=0x%llx\n",
              __PRETTY_FUNCTION__, hFile, LLUIFY(enmAdditionalAttribs)); */
-    testRTFileQueryInfoFile = hFile;
+    g_testRTFileQueryInfoFile = hFile;
     RT_ZERO(*pObjInfo);
     pObjInfo->AccessTime = testRTFileQueryInfoATime;
     RT_ZERO(testRTDirQueryInfoATime);
@@ -282,9 +290,9 @@ extern int  testRTFileQueryInfo(RTFILE hFile, PRTFSOBJINFO pObjInfo, RTFSOBJATTR
 
 static const char *testRTFileReadData;
 
-extern int  testRTFileRead(RTFILE File, void *pvBuf, size_t cbToRead,
-                            size_t *pcbRead)
+extern int  testRTFileRead(RTFILE File, void *pvBuf, size_t cbToRead, size_t *pcbRead)
 {
+    RT_NOREF1(File);
  /* RTPrintf("%s : File=%p, cbToRead=%llu\n", __PRETTY_FUNCTION__, File,
              LLUIFY(cbToRead)); */
     bufferFromPath(pvBuf, cbToRead, testRTFileReadData);
@@ -294,9 +302,9 @@ extern int  testRTFileRead(RTFILE File, void *pvBuf, size_t cbToRead,
     return VINF_SUCCESS;
 }
 
-extern int testRTFileSeek(RTFILE hFile, int64_t offSeek, unsigned uMethod,
-                           uint64_t *poffActual)
+extern int testRTFileSeek(RTFILE hFile, int64_t offSeek, unsigned uMethod, uint64_t *poffActual)
 {
+    RT_NOREF3(hFile, offSeek, uMethod);
  /* RTPrintf("%s : hFile=%p, offSeek=%llu, uMethod=%u\n", __PRETTY_FUNCTION__,
              hFile, LLUIFY(offSeek), uMethod); */
     if (poffActual)
@@ -308,30 +316,30 @@ static uint64_t testRTFileSetFMode;
 
 extern int testRTFileSetMode(RTFILE File, RTFMODE fMode)
 {
+    RT_NOREF1(File);
  /* RTPrintf("%s: fMode=%llu\n", __PRETTY_FUNCTION__, LLUIFY(fMode)); */
     testRTFileSetFMode = fMode;
     return VINF_SUCCESS;
 }
 
-static RTFILE testRTFileSetSizeFile;
+static RTFILE g_testRTFileSetSizeFile;
 static RTFOFF testRTFileSetSizeSize;
 
 extern int  testRTFileSetSize(RTFILE File, uint64_t cbSize)
 {
  /* RTPrintf("%s: File=%llu, cbSize=%llu\n", __PRETTY_FUNCTION__, LLUIFY(File),
              LLUIFY(cbSize)); */
-    testRTFileSetSizeFile = File;
+    g_testRTFileSetSizeFile = File;
     testRTFileSetSizeSize = (RTFOFF) cbSize; /* Why was this signed before? */
     return VINF_SUCCESS;
 }
 
 static RTTIMESPEC testRTFileSetTimesATime;
 
-extern int testRTFileSetTimes(RTFILE File, PCRTTIMESPEC pAccessTime,
-                               PCRTTIMESPEC pModificationTime,
-                               PCRTTIMESPEC pChangeTime,
-                               PCRTTIMESPEC pBirthTime)
+extern int testRTFileSetTimes(RTFILE File, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
+                              PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime)
 {
+    RT_NOREF4(File, pModificationTime, pChangeTime, pBirthTime);
  /* RTPrintf("%s: pFile=%p, *pAccessTime=%lli, *pModificationTime=%lli, *pChangeTime=%lli, *pBirthTime=%lli\n",
              __PRETTY_FUNCTION__,
              pAccessTime ? (long long)RTTimeSpecGetNano(pAccessTime) : -1,
@@ -346,7 +354,7 @@ extern int testRTFileSetTimes(RTFILE File, PCRTTIMESPEC pAccessTime,
     return VINF_SUCCESS;
 }
 
-static RTFILE testRTFileUnlockFile;
+static RTFILE g_testRTFileUnlockFile;
 static int64_t testRTFileUnlockOffset;
 static uint64_t testRTFileUnlockSize;
 
@@ -354,7 +362,7 @@ extern int  testRTFileUnlock(RTFILE File, int64_t offLock, uint64_t cbLock)
 {
  /* RTPrintf("%s: hFile=%p, ofLock=%lli, cbLock=%llu\n", __PRETTY_FUNCTION__,
              File, (long long) offLock, LLUIFY(cbLock)); */
-    testRTFileUnlockFile = File;
+    g_testRTFileUnlockFile = File;
     testRTFileUnlockOffset = offLock;
     testRTFileUnlockSize = cbLock;
     return VINF_SUCCESS;
@@ -362,9 +370,9 @@ extern int  testRTFileUnlock(RTFILE File, int64_t offLock, uint64_t cbLock)
 
 static char testRTFileWriteData[256];
 
-extern int  testRTFileWrite(RTFILE File, const void *pvBuf, size_t cbToWrite,
-                             size_t *pcbWritten)
+extern int  testRTFileWrite(RTFILE File, const void *pvBuf, size_t cbToWrite, size_t *pcbWritten)
 {
+    RT_NOREF2(File, cbToWrite);
  /* RTPrintf("%s: File=%p, pvBuf=%.*s, cbToWrite=%llu\n", __PRETTY_FUNCTION__,
              File, cbToWrite, (const char *)pvBuf, LLUIFY(cbToWrite)); */
     ARRAY_FROM_PATH(testRTFileWriteData, (const char *)pvBuf);
@@ -373,9 +381,9 @@ extern int  testRTFileWrite(RTFILE File, const void *pvBuf, size_t cbToWrite,
     return VINF_SUCCESS;
 }
 
-extern int testRTFsQueryProperties(const char *pszFsPath,
-                                      PRTFSPROPERTIES pProperties)
+extern int testRTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProperties)
 {
+    RT_NOREF1(pszFsPath);
  /* RTPrintf("%s, pszFsPath=%s\n", __PRETTY_FUNCTION__, pszFsPath);
     RT_ZERO(*pProperties); */
     pProperties->cbMaxComponent = 256;
@@ -384,16 +392,21 @@ extern int testRTFsQueryProperties(const char *pszFsPath,
 }
 
 extern int testRTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
-{ RTPrintf("%s\n", __PRETTY_FUNCTION__); return 0; }
-extern int testRTFsQuerySizes(const char *pszFsPath, PRTFOFF pcbTotal,
-                                 RTFOFF *pcbFree, uint32_t *pcbBlock,
-                                 uint32_t *pcbSector) { RTPrintf("%s\n", __PRETTY_FUNCTION__); return 0; }
-
-extern int testRTPathQueryInfoEx(const char *pszPath,
-                                    PRTFSOBJINFO pObjInfo,
-                                    RTFSOBJATTRADD enmAdditionalAttribs,
-                                    uint32_t fFlags)
 {
+    RT_NOREF2(pszFsPath, pu32Serial);
+    RTPrintf("%s\n", __PRETTY_FUNCTION__);
+    return 0;
+}
+extern int testRTFsQuerySizes(const char *pszFsPath, PRTFOFF pcbTotal, RTFOFF *pcbFree, uint32_t *pcbBlock, uint32_t *pcbSector)
+{
+    RT_NOREF5(pszFsPath, pcbTotal, pcbFree, pcbBlock, pcbSector);
+    RTPrintf("%s\n", __PRETTY_FUNCTION__);
+    return 0;
+}
+
+extern int testRTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs, uint32_t fFlags)
+{
+    RT_NOREF3(pszPath, enmAdditionalAttribs, fFlags);
  /* RTPrintf("%s: pszPath=%s, enmAdditionalAttribs=0x%x, fFlags=0x%x\n",
              __PRETTY_FUNCTION__, pszPath, (unsigned) enmAdditionalAttribs,
              (unsigned) fFlags); */
@@ -402,10 +415,18 @@ extern int testRTPathQueryInfoEx(const char *pszPath,
 }
 
 extern int testRTSymlinkDelete(const char *pszSymlink, uint32_t fDelete)
-{ RTPrintf("%s\n", __PRETTY_FUNCTION__); return 0; }
-extern int testRTSymlinkRead(const char *pszSymlink, char *pszTarget,
-                              size_t cbTarget, uint32_t fRead)
-{ RTPrintf("%s\n", __PRETTY_FUNCTION__); return 0; }
+{
+    RT_NOREF2(pszSymlink, fDelete);
+    RTPrintf("%s\n", __PRETTY_FUNCTION__);
+    return 0;
+}
+
+extern int testRTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget, uint32_t fRead)
+{
+    RT_NOREF4(pszSymlink, pszTarget, cbTarget, fRead);
+    RTPrintf("%s\n", __PRETTY_FUNCTION__);
+    return 0;
+}
 
 
 /*********************************************************************************************************************************
@@ -413,71 +434,71 @@ extern int testRTSymlinkRead(const char *pszSymlink, char *pszTarget,
 *********************************************************************************************************************************/
 
 /* Sub-tests for testMappingsQuery(). */
-void testMappingsQuerySimple(RTTEST hTest) {}
-void testMappingsQueryTooFewBuffers(RTTEST hTest) {}
-void testMappingsQueryAutoMount(RTTEST hTest) {}
-void testMappingsQueryArrayWrongSize(RTTEST hTest) {}
+void testMappingsQuerySimple(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMappingsQueryTooFewBuffers(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMappingsQueryAutoMount(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMappingsQueryArrayWrongSize(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testMappingsQueryName(). */
-void testMappingsQueryNameValid(RTTEST hTest) {}
-void testMappingsQueryNameInvalid(RTTEST hTest) {}
-void testMappingsQueryNameBadBuffer(RTTEST hTest) {}
+void testMappingsQueryNameValid(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMappingsQueryNameInvalid(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMappingsQueryNameBadBuffer(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testMapFolder(). */
-void testMapFolderValid(RTTEST hTest) {}
-void testMapFolderInvalid(RTTEST hTest) {}
-void testMapFolderTwice(RTTEST hTest) {}
-void testMapFolderDelimiter(RTTEST hTest) {}
-void testMapFolderCaseSensitive(RTTEST hTest) {}
-void testMapFolderCaseInsensitive(RTTEST hTest) {}
-void testMapFolderBadParameters(RTTEST hTest) {}
+void testMapFolderValid(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMapFolderInvalid(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMapFolderTwice(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMapFolderDelimiter(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMapFolderCaseSensitive(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMapFolderCaseInsensitive(RTTEST hTest) { RT_NOREF1(hTest); }
+void testMapFolderBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testUnmapFolder(). */
-void testUnmapFolderValid(RTTEST hTest) {}
-void testUnmapFolderInvalid(RTTEST hTest) {}
-void testUnmapFolderBadParameters(RTTEST hTest) {}
+void testUnmapFolderValid(RTTEST hTest) { RT_NOREF1(hTest); }
+void testUnmapFolderInvalid(RTTEST hTest) { RT_NOREF1(hTest); }
+void testUnmapFolderBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testCreate(). */
-void testCreateBadParameters(RTTEST hTest) {}
+void testCreateBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testClose(). */
-void testCloseBadParameters(RTTEST hTest) {}
+void testCloseBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testRead(). */
-void testReadBadParameters(RTTEST hTest) {}
+void testReadBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testWrite(). */
-void testWriteBadParameters(RTTEST hTest) {}
+void testWriteBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testLock(). */
-void testLockBadParameters(RTTEST hTest) {}
+void testLockBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testFlush(). */
-void testFlushBadParameters(RTTEST hTest) {}
+void testFlushBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testDirList(). */
-void testDirListBadParameters(RTTEST hTest) {}
+void testDirListBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testReadLink(). */
-void testReadLinkBadParameters(RTTEST hTest) {}
+void testReadLinkBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testFSInfo(). */
-void testFSInfoBadParameters(RTTEST hTest) {}
+void testFSInfoBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testRemove(). */
-void testRemoveBadParameters(RTTEST hTest) {}
+void testRemoveBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testRename(). */
-void testRenameBadParameters(RTTEST hTest) {}
+void testRenameBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testSymlink(). */
-void testSymlinkBadParameters(RTTEST hTest) {}
+void testSymlinkBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testMappingsAdd(). */
-void testMappingsAddBadParameters(RTTEST hTest) {}
+void testMappingsAddBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 /* Sub-tests for testMappingsRemove(). */
-void testMappingsRemoveBadParameters(RTTEST hTest) {}
+void testMappingsRemoveBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
 struct TESTSHFLSTRING
 {
@@ -541,6 +562,7 @@ static SHFLROOT initWithWritableMapping(RTTEST hTest,
 static void unmapAndRemoveMapping(RTTEST hTest, VBOXHGCMSVCFNTABLE *psvcTable,
                                   SHFLROOT root, const char *pcszFolderName)
 {
+    RT_NOREF1(hTest);
     VBOXHGCMSVCPARM aParms[RT_MAX(SHFL_CPARMS_UNMAP_FOLDER,
                                   SHFL_CPARMS_REMOVE_MAPPING)];
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
@@ -736,8 +758,8 @@ void testCreateFileSimple(RTTEST hTest)
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, testRTFileCloseFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileCloseFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile,
+                     (hTest, "File=%u\n", (uintptr_t)g_testRTFileCloseFile));
 }
 
 void testCreateDirSimple(RTTEST hTest)
@@ -767,9 +789,7 @@ void testCreateDirSimple(RTTEST hTest)
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest,
-                     testRTDirClosepDir == pcDir,
-                     (hTest, "pDir=%llu\n", LLUIFY(testRTDirClosepDir)));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pcDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
 }
 
 void testReadFileSimple(RTTEST hTest)
@@ -792,7 +812,7 @@ void testReadFileSimple(RTTEST hTest)
                     &Handle, NULL);
     RTTEST_CHECK_RC_OK(hTest, rc);
     testRTFileReadData = pcszReadData;
-    rc = readFile(&svcTable, Root, Handle, 0, strlen(pcszReadData) + 1,
+    rc = readFile(&svcTable, Root, Handle, 0, (uint32_t)strlen(pcszReadData) + 1,
                   &cbRead, acBuf, (uint32_t)sizeof(acBuf));
     RTTEST_CHECK_RC_OK(hTest, rc);
     RTTEST_CHECK_MSG(hTest,
@@ -801,8 +821,7 @@ void testReadFileSimple(RTTEST hTest)
     RTTEST_CHECK_MSG(hTest, cbRead == strlen(pcszReadData) + 1,
                      (hTest, "cbRead=%llu\n", LLUIFY(cbRead)));
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
-    RTTEST_CHECK_MSG(hTest, testRTFileCloseFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileCloseFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile, (hTest, "File=%u\n", g_testRTFileCloseFile));
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
 }
@@ -835,8 +854,7 @@ void testWriteFileSimple(RTTEST hTest)
     RTTEST_CHECK_MSG(hTest, cbWritten == cbToWrite,
                      (hTest, "cbWritten=%llu\n", LLUIFY(cbWritten)));
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
-    RTTEST_CHECK_MSG(hTest, testRTFileCloseFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileCloseFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile, (hTest, "File=%u\n", g_testRTFileCloseFile));
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
 }
@@ -859,13 +877,11 @@ void testFlushFileSimple(RTTEST hTest)
     RTTEST_CHECK_RC_OK(hTest, rc);
     rc = flushFile(&svcTable, Root, Handle);
     RTTEST_CHECK_RC_OK(hTest, rc);
-    RTTEST_CHECK_MSG(hTest, testRTFileFlushFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileFlushFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileFlushFile == hcFile, (hTest, "File=%u\n", g_testRTFileFlushFile));
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, testRTFileCloseFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileCloseFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile, (hTest, "File=%u\n", g_testRTFileCloseFile));
 }
 
 void testDirListEmpty(RTTEST hTest)
@@ -889,16 +905,13 @@ void testDirListEmpty(RTTEST hTest)
     rc = listDir(&svcTable, Root, Handle, 0, sizeof (SHFLDIRINFO), NULL,
                  &DirInfo, sizeof(DirInfo), 0, &cFiles);
     RTTEST_CHECK_RC(hTest, rc, VERR_NO_MORE_FILES);
-    RTTEST_CHECK_MSG(hTest, testRTDirReadExDir == pcDir,
-                     (hTest, "Dir=%llu\n", LLUIFY(testRTDirReadExDir)));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirReadExDir == pcDir, (hTest, "Dir=%p\n", g_testRTDirReadExDir));
     RTTEST_CHECK_MSG(hTest, cFiles == 0,
                      (hTest, "cFiles=%llu\n", LLUIFY(cFiles)));
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest,
-                     testRTDirClosepDir == pcDir,
-                     (hTest, "pDir=%llu\n", LLUIFY(testRTDirClosepDir)));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pcDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
 }
 
 void testFSInfoQuerySetFMode(RTTEST hTest)
@@ -924,8 +937,7 @@ void testFSInfoQuerySetFMode(RTTEST hTest)
     rc = sfInformation(&svcTable, Root, Handle, SHFL_INFO_FILE, sizeof(Info),
                        &Info);
     RTTEST_CHECK_RC_OK(hTest, rc);
-    RTTEST_CHECK_MSG(hTest, testRTFileQueryInfoFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileQueryInfoFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileQueryInfoFile == hcFile, (hTest, "File=%u\n", g_testRTFileQueryInfoFile));
     RTTEST_CHECK_MSG(hTest, Info.Attr.fMode == fMode,
                      (hTest, "cbObject=%llu\n", LLUIFY(Info.cbObject)));
     RT_ZERO(Info);
@@ -938,8 +950,7 @@ void testFSInfoQuerySetFMode(RTTEST hTest)
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, testRTFileCloseFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileCloseFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile, (hTest, "File=%u\n", g_testRTFileCloseFile));
 }
 
 void testFSInfoQuerySetDirATime(RTTEST hTest)
@@ -965,8 +976,7 @@ void testFSInfoQuerySetDirATime(RTTEST hTest)
     rc = sfInformation(&svcTable, Root, Handle, SHFL_INFO_FILE, sizeof(Info),
                        &Info);
     RTTEST_CHECK_RC_OK(hTest, rc);
-    RTTEST_CHECK_MSG(hTest, testRTDirQueryInfoDir == pcDir,
-                     (hTest, "Dir=%llu\n", LLUIFY(testRTDirQueryInfoDir)));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirQueryInfoDir == pcDir, (hTest, "Dir=%p\n", g_testRTDirQueryInfoDir));
     RTTEST_CHECK_MSG(hTest, RTTimeSpecGetNano(&Info.AccessTime) == ccAtimeNano,
                      (hTest, "ATime=%llu\n",
                       LLUIFY(RTTimeSpecGetNano(&Info.AccessTime))));
@@ -982,8 +992,7 @@ void testFSInfoQuerySetDirATime(RTTEST hTest)
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, testRTDirClosepDir == pcDir,
-                     (hTest, "File=%llu\n", LLUIFY(testRTDirClosepDir)));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pcDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
 }
 
 void testFSInfoQuerySetFileATime(RTTEST hTest)
@@ -1009,8 +1018,7 @@ void testFSInfoQuerySetFileATime(RTTEST hTest)
     rc = sfInformation(&svcTable, Root, Handle, SHFL_INFO_FILE, sizeof(Info),
                        &Info);
     RTTEST_CHECK_RC_OK(hTest, rc);
-    RTTEST_CHECK_MSG(hTest, testRTFileQueryInfoFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileQueryInfoFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileQueryInfoFile == hcFile, (hTest, "File=%u\n", g_testRTFileQueryInfoFile));
     RTTEST_CHECK_MSG(hTest, RTTimeSpecGetNano(&Info.AccessTime) == ccAtimeNano,
                      (hTest, "ATime=%llu\n",
                       LLUIFY(RTTimeSpecGetNano(&Info.AccessTime))));
@@ -1026,8 +1034,7 @@ void testFSInfoQuerySetFileATime(RTTEST hTest)
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, testRTFileCloseFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileCloseFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile, (hTest, "File=%u\n", g_testRTFileCloseFile));
 }
 
 void testFSInfoQuerySetEndOfFile(RTTEST hTest)
@@ -1053,15 +1060,13 @@ void testFSInfoQuerySetEndOfFile(RTTEST hTest)
     rc = sfInformation(&svcTable, Root, Handle, SHFL_INFO_SET | SHFL_INFO_SIZE,
                        sizeof(Info), &Info);
     RTTEST_CHECK_RC_OK(hTest, rc);
-    RTTEST_CHECK_MSG(hTest, testRTFileSetSizeFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileSetSizeFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileSetSizeFile == hcFile, (hTest, "File=%u\n", g_testRTFileSetSizeFile));
     RTTEST_CHECK_MSG(hTest, testRTFileSetSizeSize == cbNew,
                      (hTest, "Size=%llu\n", LLUIFY(testRTFileSetSizeSize)));
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, testRTFileCloseFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileCloseFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile, (hTest, "File=%u\n", g_testRTFileCloseFile));
 }
 
 void testLockFileSimple(RTTEST hTest)
@@ -1085,8 +1090,7 @@ void testLockFileSimple(RTTEST hTest)
     rc = lockFile(&svcTable, Root, Handle, offLock, cbLock, SHFL_LOCK_SHARED);
     RTTEST_CHECK_RC_OK(hTest, rc);
 #ifdef RT_OS_WINDOWS  /* Locking is a no-op elsewhere. */
-    RTTEST_CHECK_MSG(hTest, testRTFileLockFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileLockFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileLockFile == hcFile, (hTest, "File=%u\n", g_testRTFileLockFile));
     RTTEST_CHECK_MSG(hTest, testRTFileLockfLock == 0,
                      (hTest, "fLock=%u\n", testRTFileLockfLock));
     RTTEST_CHECK_MSG(hTest, testRTFileLockOffset == offLock,
@@ -1097,8 +1101,7 @@ void testLockFileSimple(RTTEST hTest)
     rc = lockFile(&svcTable, Root, Handle, offLock, cbLock, SHFL_LOCK_CANCEL);
     RTTEST_CHECK_RC_OK(hTest, rc);
 #ifdef RT_OS_WINDOWS
-    RTTEST_CHECK_MSG(hTest, testRTFileUnlockFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileUnlockFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileUnlockFile == hcFile, (hTest, "File=%u\n", g_testRTFileUnlockFile));
     RTTEST_CHECK_MSG(hTest, testRTFileUnlockOffset == offLock,
                      (hTest, "Offs=%llu\n",
                       (long long) testRTFileUnlockOffset));
@@ -1108,8 +1111,7 @@ void testLockFileSimple(RTTEST hTest)
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, testRTFileCloseFile == hcFile,
-                     (hTest, "File=%llu\n", LLUIFY(testRTFileCloseFile)));
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile, (hTest, "File=%u\n", g_testRTFileCloseFile));
 }
 
 
@@ -1142,8 +1144,8 @@ static void testAPI(RTTEST hTest)
 
 int main(int argc, char **argv)
 {
-    RTEXITCODE rcExit = RTTestInitAndCreate(RTPathFilename(argv[0]),
-                                            &g_hTest);
+    RT_NOREF1(argc);
+    RTEXITCODE rcExit = RTTestInitAndCreate(RTPathFilename(argv[0]), &g_hTest);
     if (rcExit != RTEXITCODE_SUCCESS)
         return rcExit;
     RTTestBanner(g_hTest);

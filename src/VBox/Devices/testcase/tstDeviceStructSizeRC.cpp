@@ -67,9 +67,9 @@
 #endif
 #undef LOG_GROUP
 #ifdef VBOX_WITH_NEW_IOAPIC
-# include "../PC/DevIOAPIC_New.cpp"
-#else
 # include "../PC/DevIoApic.cpp"
+#else
+# include "../PC/DevIoApic_Old.cpp"
 #endif
 #undef LOG_GROUP
 #include "../Storage/DevATA.cpp"
@@ -113,17 +113,10 @@
 #endif
 #undef LOG_GROUP
 #include "../PC/DevHPET.cpp"
-#ifdef VBOX_WITH_AUDIO_50
-# undef LOG_GROUP
-# include "../Audio_old/DevIchAc97.cpp"
-# undef LOG_GROUP
-# include "../Audio_old/DevIchHda.cpp"
-#else
 # undef LOG_GROUP
 # include "../Audio/DevIchAc97.cpp"
 # undef LOG_GROUP
 # include "../Audio/DevIchHda.cpp"
-#endif
 #ifdef VBOX_WITH_NVME_IMPL
 # undef LOG_GROUP
 # include "../Storage/DevNVMe.cpp"
@@ -424,38 +417,10 @@ int main()
 #endif
 
     /* Input/pckbd.c */
-#ifndef VBOX_WITH_NEW_PS2M
-    GEN_CHECK_SIZE(MouseCmdQueue);
-    GEN_CHECK_OFF(MouseCmdQueue, data);
-    GEN_CHECK_OFF(MouseCmdQueue, rptr);
-    GEN_CHECK_OFF(MouseCmdQueue, wptr);
-    GEN_CHECK_OFF(MouseCmdQueue, count);
-    GEN_CHECK_SIZE(MouseEventQueue);
-    GEN_CHECK_OFF(MouseEventQueue, data);
-    GEN_CHECK_OFF(MouseEventQueue, rptr);
-    GEN_CHECK_OFF(MouseEventQueue, wptr);
-    GEN_CHECK_OFF(MouseEventQueue, count);
-#endif
     GEN_CHECK_SIZE(KBDState);
     GEN_CHECK_OFF(KBDState, write_cmd);
     GEN_CHECK_OFF(KBDState, status);
     GEN_CHECK_OFF(KBDState, mode);
-#ifndef VBOX_WITH_NEW_PS2M
-    GEN_CHECK_OFF(KBDState, mouse_command_queue);
-    GEN_CHECK_OFF(KBDState, mouse_event_queue);
-    GEN_CHECK_OFF(KBDState, mouse_write_cmd);
-    GEN_CHECK_OFF(KBDState, mouse_status);
-    GEN_CHECK_OFF(KBDState, mouse_resolution);
-    GEN_CHECK_OFF(KBDState, mouse_sample_rate);
-    GEN_CHECK_OFF(KBDState, mouse_wrap);
-    GEN_CHECK_OFF(KBDState, mouse_type);
-    GEN_CHECK_OFF(KBDState, mouse_detect_state);
-    GEN_CHECK_OFF(KBDState, mouse_dx);
-    GEN_CHECK_OFF(KBDState, mouse_dy);
-    GEN_CHECK_OFF(KBDState, mouse_dz);
-    GEN_CHECK_OFF(KBDState, mouse_dw);
-    GEN_CHECK_OFF(KBDState, mouse_buttons);
-#endif
     GEN_CHECK_OFF(KBDState, pDevInsR3);
     GEN_CHECK_OFF(KBDState, pDevInsR0);
     GEN_CHECK_OFF(KBDState, pDevInsRC);
@@ -487,7 +452,6 @@ int main()
     GEN_CHECK_OFF(PS2K, Keyboard.IPort);
     GEN_CHECK_OFF(PS2K, Keyboard.pDrvBase);
     GEN_CHECK_OFF(PS2K, Keyboard.pDrv);
-#ifdef VBOX_WITH_NEW_PS2M
     /* Input/PS2M.c */
     GEN_CHECK_SIZE(PS2M);
     GEN_CHECK_OFF(PS2M, u8State);
@@ -516,12 +480,6 @@ int main()
     GEN_CHECK_OFF(PS2M, Mouse.IPort);
     GEN_CHECK_OFF(PS2M, Mouse.pDrvBase);
     GEN_CHECK_OFF(PS2M, Mouse.pDrv);
-#else
-    GEN_CHECK_OFF(KBDState, Mouse.IBase);
-    GEN_CHECK_OFF(KBDState, Mouse.IPort);
-    GEN_CHECK_OFF(KBDState, Mouse.pDrvBase);
-    GEN_CHECK_OFF(KBDState, Mouse.pDrv);
-#endif
 
     /* Network/DevPCNet.cpp */
     GEN_CHECK_SIZE(PCNETSTATE);
@@ -635,12 +593,16 @@ int main()
     GEN_CHECK_OFF(ACPIState, u32CpuEventType);
     GEN_CHECK_OFF(ACPIState, u32CpuEvent);
     GEN_CHECK_OFF(ACPIState, fCpuHotPlug);
+    GEN_CHECK_OFF(ACPIState, u32NicPciAddress);
+    GEN_CHECK_OFF(ACPIState, u32HbcPciAddress);
+    GEN_CHECK_OFF(ACPIState, u64PciConfigMMioAddress);
     GEN_CHECK_OFF(ACPIState, IBase);
     GEN_CHECK_OFF(ACPIState, IACPIPort);
     GEN_CHECK_OFF(ACPIState, pDevInsR3);
     GEN_CHECK_OFF(ACPIState, pDevInsR0);
     GEN_CHECK_OFF(ACPIState, pDrvBase);
     GEN_CHECK_OFF(ACPIState, pDrv);
+    GEN_CHECK_OFF(ACPIState, u16SMBusSlvDat);
 
     /* PC/DevPIC.cpp */
     GEN_CHECK_SIZE(PICSTATE);
@@ -873,7 +835,7 @@ int main()
 #endif  /* VBOX_WITH_NEW_APIC */
 
 #ifdef VBOX_WITH_NEW_IOAPIC
-    /* PC/DevIOAPIC_New.cpp */
+    /* PC/DevIoApic.cpp */
     GEN_CHECK_SIZE(IOAPIC);
     GEN_CHECK_OFF(IOAPIC, pDevInsR3);
     GEN_CHECK_OFF(IOAPIC, pIoApicHlpR3);
@@ -897,7 +859,7 @@ int main()
     GEN_CHECK_OFF(IOAPIC, StatSetEoiR3);
 # endif
 #else
-    /* PC/DevIoApic.cpp */
+    /* PC/DevIoApic_Old.cpp */
     GEN_CHECK_SIZE(IOAPIC);
     GEN_CHECK_OFF(IOAPIC, id);
     GEN_CHECK_OFF(IOAPIC, ioregsel);
@@ -1957,11 +1919,9 @@ int main()
     GEN_CHECK_OFF(AC97DRIVER, MicIn);
     GEN_CHECK_OFF(AC97DRIVER, Out);
 
-#ifndef VBOX_WITH_AUDIO_50
     GEN_CHECK_SIZE(HDAMIXERSTREAM);
     GEN_CHECK_OFF(HDAMIXERSTREAM, DestSource);
     GEN_CHECK_OFF(HDAMIXERSTREAM, pMixStrm);
-#endif
 
     GEN_CHECK_SIZE(HDADRIVER);
     GEN_CHECK_OFF(HDADRIVER, Node);
@@ -1974,9 +1934,7 @@ int main()
 #ifdef VBOX_WITH_HDA_MIC_IN
     GEN_CHECK_OFF(HDADRIVER, MicIn);
 #endif
-#ifndef VBOX_WITH_AUDIO_50
     GEN_CHECK_OFF(HDADRIVER, Front);
-#endif
 #ifdef VBOX_WITH_HDA_51_SURROUND
     GEN_CHECK_OFF(HDADRIVER, CenterLFE);
     GEN_CHECK_OFF(HDADRIVER, Rear);
@@ -1999,9 +1957,7 @@ int main()
     GEN_CHECK_OFF(HDASTREAMSTATE, BDLE);
 
     GEN_CHECK_SIZE(HDASTREAM);
-#ifndef VBOX_WITH_AUDIO_50
     GEN_CHECK_OFF(HDASTREAM, u8SD);
-#endif
     GEN_CHECK_OFF(HDASTREAM, u64BDLBase);
     GEN_CHECK_OFF(HDASTREAM, u16FMT);
     GEN_CHECK_OFF(HDASTREAM, u16FIFOS);
@@ -2016,13 +1972,9 @@ int main()
     GEN_CHECK_OFF(HDASTATE, IBase);
     GEN_CHECK_OFF(HDASTATE, MMIOBaseAddr);
     GEN_CHECK_OFF(HDASTATE, au32Regs[0]);
-#ifdef VBOX_WITH_AUDIO_50
-    GEN_CHECK_OFF(HDASTATE, au32Regs[HDA_NREGS]);
-#else
     GEN_CHECK_OFF(HDASTATE, au32Regs[HDA_NUM_REGS]);
     GEN_CHECK_OFF(HDASTATE, aStreams);
     GEN_CHECK_OFF(HDASTATE, aTags);
-#endif
     GEN_CHECK_OFF(HDASTATE, u64CORBBase);
     GEN_CHECK_OFF(HDASTATE, u64RIRBBase);
     GEN_CHECK_OFF(HDASTATE, u64DPBase);
@@ -2048,16 +2000,12 @@ int main()
     GEN_CHECK_OFF(HDASTATE, pCodec);
     GEN_CHECK_OFF(HDASTATE, lstDrv);
     GEN_CHECK_OFF(HDASTATE, pMixer);
-#ifndef VBOX_WITH_AUDIO_50
     GEN_CHECK_OFF(HDASTATE, SinkFront);
-#endif
 #ifdef VBOX_WITH_HDA_51_SURROUND
     GEN_CHECK_OFF(HDASTATE, SinkCenterLFE);
     GEN_CHECK_OFF(HDASTATE, SinkRear);
 #endif
-#ifndef VBOX_WITH_AUDIO_50
     GEN_CHECK_OFF(HDASTATE, SinkLineIn);
-#endif
 #ifdef VBOX_WITH_HDA_MIC_IN
     GEN_CHECK_OFF(HDASTATE, SinkMicIn);
 #endif
@@ -2112,14 +2060,13 @@ int main()
     GEN_CHECK_OFF(NVME, cWrkThrdsMax);
     GEN_CHECK_OFF(NVME, cCompQueuesWaitersMax);
     GEN_CHECK_OFF(NVME, cNamespaces);
-    GEN_CHECK_OFF(NVME, aszSerialNumber);
-    GEN_CHECK_OFF(NVME, aszModelNumber);
-    GEN_CHECK_OFF(NVME, aszFirmwareRevision);
+    GEN_CHECK_OFF(NVME, szSerialNumber);
+    GEN_CHECK_OFF(NVME, szModelNumber);
+    GEN_CHECK_OFF(NVME, szFirmwareRevision);
     GEN_CHECK_OFF(NVME, fRCEnabled);
     GEN_CHECK_OFF(NVME, fR0Enabled);
     GEN_CHECK_OFF(NVME, enmState);
     GEN_CHECK_OFF(NVME, u32IntrMask);
-    GEN_CHECK_OFF(NVME, u32IntrSts);
     GEN_CHECK_OFF(NVME, aIntrVecs);
     GEN_CHECK_OFF(NVME, u32IoCompletionQueueEntrySize);
     GEN_CHECK_OFF(NVME, u32IoSubmissionQueueEntrySize);

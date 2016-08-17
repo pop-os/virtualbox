@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -415,6 +415,8 @@ static void usbProxyLinuxUrbFreeSplitList(PUSBPROXYDEV pProxyDev, PUSBPROXYURBLN
  */
 static int usbProxyLinuxFindActiveConfigUsbfs(PUSBPROXYDEV pProxyDev, const char *pszDevNode, int *piFirstCfg)
 {
+    RT_NOREF(pProxyDev);
+
     /*
      * Set return defaults.
      */
@@ -1277,7 +1279,7 @@ static void usbProxyLinuxCleanupFailedSubmit(PUSBPROXYDEV pProxyDev, PUSBPROXYUR
  */
 static int usbProxyLinuxSubmitURB(PUSBPROXYDEV pProxyDev, PUSBPROXYURBLNX pCur, PVUSBURB pUrb, bool *pfUnplugged)
 {
-    int rc = VINF_SUCCESS;
+    RT_NOREF(pUrb);
     PUSBPROXYDEVLNX pDevLnx = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVLNX);
     unsigned        cTries = 0;
 
@@ -1376,7 +1378,7 @@ static int usbProxyLinuxUrbQueueSplit(PUSBPROXYDEV pProxyDev, PUSBPROXYURBLNX pU
         case VUSBXFERTYPE_ISOC:
             AssertMsgFailed(("We can't split isochronous URBs!\n"));
             usbProxyLinuxUrbFree(pProxyDev, pUrbLnx);
-            return VERR_INVALID_PARAMETER; /** @todo: Better status code. */
+            return VERR_INVALID_PARAMETER; /** @todo Better status code. */
     }
     pUrbLnx->KUrb.endpoint          = pUrb->EndPt;
     if (pUrb->enmDir == VUSBDIRECTION_IN)
@@ -1448,7 +1450,7 @@ static int usbProxyLinuxUrbQueueSplit(PUSBPROXYDEV pProxyDev, PUSBPROXYURBLNX pU
 
 
 /**
- * @copydoc USBPROXYBACK::pfnUrbQueue
+ * @interface_method_impl{USBPROXYBACK,pfnUrbQueue}
  */
 static DECLCALLBACK(int) usbProxyLinuxUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
 {
@@ -1501,16 +1503,23 @@ static DECLCALLBACK(int) usbProxyLinuxUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB 
             unsigned i;
             for (i = 0; i < pUrb->cIsocPkts; i++)
             {
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
                 pUrbLnx->KUrb.iso_frame_desc[i].length = pUrb->aIsocPkts[i].cb;
                 pUrbLnx->KUrb.iso_frame_desc[i].actual_length = 0;
                 pUrbLnx->KUrb.iso_frame_desc[i].status = 0x7fff;
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic pop
+#endif
             }
             break;
         case VUSBXFERTYPE_INTR:
             pUrbLnx->KUrb.type = USBDEVFS_URB_TYPE_INTERRUPT;
             break;
         default:
-            rc = VERR_INVALID_PARAMETER; /** @todo: better status code. */
+            rc = VERR_INVALID_PARAMETER; /** @todo better status code. */
     }
 
     /*
@@ -1820,10 +1829,17 @@ static DECLCALLBACK(PVUSBURB) usbProxyLinuxUrbReap(PUSBPROXYDEV pProxyDev, RTMSI
                 unsigned i, off;
                 for (i = 0, off = 0; i < pUrb->cIsocPkts; i++)
                 {
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
                     pUrb->aIsocPkts[i].enmStatus = vusbProxyLinuxStatusToVUsbStatus(pUrbLnx->KUrb.iso_frame_desc[i].status);
                     Assert(pUrb->aIsocPkts[i].off == off);
                     pUrb->aIsocPkts[i].cb = pUrbLnx->KUrb.iso_frame_desc[i].actual_length;
                     off += pUrbLnx->KUrb.iso_frame_desc[i].length;
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic pop
+#endif
                 }
             }
             usbProxyLinuxUrbUnlinkInFlight(pDevLnx, pUrbLnx);
@@ -1872,7 +1888,7 @@ static DECLCALLBACK(int) usbProxyLinuxUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB
                 continue;
             if (errno == ENODEV)
                 break;
-            /** @todo: Think about how to handle errors wrt. to the status code. */
+            /** @todo Think about how to handle errors wrt. to the status code. */
             Log(("usb-linux: Discard URB %p failed, errno=%d. pProxyDev=%s!!! (split)\n",
                  pUrb, errno, usbProxyGetName(pProxyDev)));
         }

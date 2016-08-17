@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -400,6 +400,7 @@ static bool rtZipTarHasEscapeSequence(const char *pszName)
     return false;
 }
 
+#if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
 
 /**
  * Queries the user ID to use when extracting a member.
@@ -462,6 +463,7 @@ static RTEXITCODE rtZipTarQueryExtractGroup(PRTZIPTARCMDOPS pOpts, PCRTFSOBJINFO
     return rcExit;
 }
 
+#endif /* !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2) */
 
 
 /**
@@ -546,6 +548,8 @@ static RTEXITCODE rtZipTarCmdExtractFile(PRTZIPTARCMDOPS pOpts, RTVFSOBJ hVfsObj
                         rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "%s: Error owner/group: %Rrc", pszDst, rc);
                 }
             }
+#else
+            RT_NOREF_PV(pOwner); RT_NOREF_PV(pGroup);
 #endif
 
             RTFMODE fMode = (pUnixInfo->Attr.fMode & pOpts->fFileModeAndMask) | pOpts->fFileModeOrMask;
@@ -595,7 +599,6 @@ static RTEXITCODE rtZipTarCmdExtractCallback(PRTZIPTARCMDOPS pOpts, RTVFSOBJ hVf
                               "RTVfsObjQueryInfo(,,UNIX_OWNER) returned %Rrc on '%s'",
                               rc, pszName);
 
-    const char *pszLinkType = NULL;
     char szTarget[RTPATH_MAX];
     szTarget[0] = '\0';
     RTVFSSYMLINK hVfsSymlink = RTVfsObjToSymlink(hVfsObj);

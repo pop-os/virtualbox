@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -509,7 +509,7 @@ static int rtAioMgrReqPrepareNonBuffered(PRTAIOMGRFILEINT pFile, PRTAIOMGRREQ pR
      * need to be on a 512 boundary.
      */
     if (   !fAlignedReq
-        /** @todo: || ((pEpClassFile->uBitmaskAlignment & (RTR3UINTPTR)pvBuf) != (RTR3UINTPTR)pvBuf) */)
+        /** @todo || ((pEpClassFile->uBitmaskAlignment & (RTR3UINTPTR)pvBuf) != (RTR3UINTPTR)pvBuf) */)
     {
         /* Create bounce buffer. */
         pReq->cbBounceBuffer = cbToTransfer;
@@ -518,7 +518,7 @@ static int rtAioMgrReqPrepareNonBuffered(PRTAIOMGRFILEINT pFile, PRTAIOMGRREQ pR
                   pReq->off, offStart));
         pReq->offBounceBuffer = pReq->off - offStart;
 
-        /** @todo: I think we need something like a RTMemAllocAligned method here.
+        /** @todo I think we need something like a RTMemAllocAligned method here.
          * Current assumption is that the maximum alignment is 4096byte
          * (GPT disk on Windows)
          * so we can use RTMemPageAlloc here.
@@ -734,7 +734,6 @@ static int rtAioMgrQueueWaitingReqs(PRTAIOMGRINT pThis, PRTAIOMGRFILEINT pFile)
 static int rtAioMgrQueueReqs(PRTAIOMGRINT pThis, PRTAIOMGRFILEINT pFile)
 {
     int rc = VINF_SUCCESS;
-    PRTAIOMGRFILEINT pReqsHead = NULL;
 
     /* Check the pending list first */
     if (!RTListIsEmpty(&pFile->AioMgr.ListWaitingReqs))
@@ -849,7 +848,7 @@ static int rtAioMgrProcessBlockingEvent(PRTAIOMGRINT pThis)
 static DECLCALLBACK(int) rtAioMgrWorker(RTTHREAD hThreadSelf, void *pvUser)
 {
     PRTAIOMGRINT pThis = (PRTAIOMGRINT)pvUser;
-    bool fRunning = true;
+    /*bool fRunning = true;*/
     int rc = VINF_SUCCESS;
 
     do
@@ -867,7 +866,7 @@ static DECLCALLBACK(int) rtAioMgrWorker(RTTHREAD hThreadSelf, void *pvUser)
         else if (RT_FAILURE(rc))
         {
             /* Something bad happened. */
-            /** @todo: */
+            /** @todo */
         }
         else
         {
@@ -878,9 +877,10 @@ static DECLCALLBACK(int) rtAioMgrWorker(RTTHREAD hThreadSelf, void *pvUser)
             /* Check files for new requests and queue waiting requests. */
             rc = rtAioMgrCheckFiles(pThis);
         }
-    } while (   fRunning
-             && RT_SUCCESS(rc));
+    } while (   /*fRunning - never modified
+             && */ RT_SUCCESS(rc));
 
+    RT_NOREF_PV(hThreadSelf);
     return rc;
 }
 
@@ -1075,7 +1075,7 @@ static int rtAioMgrFileIoReqCreate(RTAIOMGRFILE hAioMgrFile, RTFOFF off, PRTSGBU
         }
         else
         {
-            /** @todo: Real S/G buffer support. */
+            /** @todo Real S/G buffer support. */
             rtAioMgrReqFree(pAioMgr, pReq);
             rc = VERR_NOT_SUPPORTED;
         }
@@ -1097,6 +1097,7 @@ static int rtAioMgrFileIoReqCreate(RTAIOMGRFILE hAioMgrFile, RTFOFF off, PRTSGBU
 static DECLCALLBACK(int) rtAioMgrReqCtor(RTMEMCACHE hMemCache, void *pvObj, void *pvUser)
 {
     PRTAIOMGRREQ pReq = (PRTAIOMGRREQ)pvObj;
+    RT_NOREF_PV(hMemCache); RT_NOREF_PV(pvUser);
 
     memset(pReq, 0, sizeof(RTAIOMGRREQ));
     return RTFileAioReqCreate(&pReq->hReqIo);
@@ -1113,8 +1114,9 @@ static DECLCALLBACK(void) rtAioMgrReqDtor(RTMEMCACHE hMemCache, void *pvObj, voi
 {
     PRTAIOMGRREQ pReq = (PRTAIOMGRREQ)pvObj;
     int rc = RTFileAioReqDestroy(pReq->hReqIo);
-
     AssertRC(rc);
+
+    RT_NOREF_PV(hMemCache); RT_NOREF_PV(pvUser);
 }
 
 RTDECL(int) RTAioMgrCreate(PRTAIOMGR phAioMgr, uint32_t cReqsMax)

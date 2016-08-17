@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -150,7 +150,7 @@ int main(int argc, char **argv)
                     }
 
                     case 'V':
-                        printf("%s\n", "$Revision: 104490 $");
+                        printf("%s\n", "$Revision: 109040 $");
                         free(paInputs);
                         return 0;
 

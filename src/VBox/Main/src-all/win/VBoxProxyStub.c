@@ -26,7 +26,7 @@
 #define PROXY_DELEGATION                                                                             /* see generated dlldata.c */
 #include <iprt/nt/nt-and-windows.h>
 #include <rpcproxy.h>
-#include <Shlwapi.h>
+#include <iprt/win/shlwapi.h>
 #include <stdio.h>
 
 #include "VirtualBox.h"
@@ -743,7 +743,7 @@ static LSTATUS vbpsSetRegValueAA(VBPSREGSTATE *pState, HKEY hkey, const char *ps
         DWORD cbExistingData = cbValue + 128;
         char *pszExistingData = alloca(cbExistingData);
         DWORD dwExistingType;
-        rc = RegQueryValueExA(hkey, pszValueNm, 0 /*Reserved*/, &dwExistingType, pszExistingData, &cbExistingData);
+        rc = RegQueryValueExA(hkey, pszValueNm, 0 /*Reserved*/, &dwExistingType, (PBYTE)pszExistingData, &cbExistingData);
         if (rc == ERROR_SUCCESS)
         {
             if (   dwExistingType == REG_SZ
@@ -770,7 +770,7 @@ static LSTATUS vbpsSetRegValueAA(VBPSREGSTATE *pState, HKEY hkey, const char *ps
     /*
      * Set the value.
      */
-    rc = RegSetValueExA(hkey, pszValueNm, 0 /*Reserved*/, REG_SZ, pszValue, cbValue);
+    rc = RegSetValueExA(hkey, pszValueNm, 0 /*Reserved*/, REG_SZ, (PBYTE)pszValue, cbValue);
     if (rc == ERROR_SUCCESS)
     {
         VBSP_LOG_SET_VALUE(("vbpsSetRegValueAA: %ls/%s=%s (at %d)\n",
@@ -1169,6 +1169,7 @@ LSTATUS VbpsRegisterClassId(VBPSREGSTATE *pState, const CLSID *pClsId, const cha
 {
     LSTATUS rc;
     char szClsId[CURLY_UUID_STR_BUF_SIZE];
+    RT_NOREF(pszAppId);
 
     Assert(!pszAppId || *pszAppId == '{');
     Assert((pwszVBoxDir == NULL && !pState->fUpdate) || pwszVBoxDir[RTUtf16Len(pwszVBoxDir) - 1] == '\\');
@@ -1323,6 +1324,7 @@ static void vbpsUpdateTypeLibRegistration(VBPSREGSTATE *pState, PCRTUTF16 pwszVB
     HKEY hkeyTypeLibs;
     HKEY hkeyTypeLibId;
     LSTATUS rc;
+    RT_NOREF(fIs32On64);
 
     Assert(pState->fUpdate && !pState->fDelete);
 
@@ -1404,6 +1406,7 @@ static void vbpsUpdateProxyStubRegistration(VBPSREGSTATE *pState, PCRTUTF16 pwsz
      * It's simple compared to the VBox classes, thus all the NULL parameters.
      */
     const char *pszPsDll = VBPS_PROXY_STUB_FILE(fIs32On64);
+    RT_NOREF(fIs32On64);
     Assert(pState->fUpdate && !pState->fDelete);
     VbpsRegisterClassId(pState, &g_ProxyClsId, "PSFactoryBuffer", NULL /*pszAppId*/,
                         NULL /*pszClassName*/, NULL /*pszCurClassNameVerSuffix*/, NULL /*pTypeLibId*/,

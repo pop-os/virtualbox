@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -353,9 +353,9 @@ bool UIVMItem::switchTo()
         Log(("GUI: Failed to bring %#RX64 to front. rc=%#x\n", id, rc));
     return !rc;
 
-#endif
-
+#else
     return false;
+#endif
 
     /// @todo Below is the old method of switching to the console window
     //  based on the process ID of the console process. It should go away

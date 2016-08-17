@@ -6,14 +6,16 @@
 
 #ifdef WINDOWS
 #define WIN32_LEAN_AND_MEAN
+# ifdef VBOX
+#  include <iprt/win/winsock2.h>
+# else /* !VBOX */
 #pragma warning( push, 3 )
 #include <winsock2.h>
 #pragma warning( pop )
 #pragma warning( disable : 4514 )
 #pragma warning( disable : 4127 )
-# ifndef VBOX
 typedef int ssize_t;
-# endif
+# endif /* !VBOX */
 #else
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -59,7 +61,9 @@ typedef int socklen_t;
 #endif
 
 #ifdef WINDOWS
+# undef EADDRINUSE
 #define EADDRINUSE   WSAEADDRINUSE
+# undef ECONNREFUSED
 #define ECONNREFUSED WSAECONNREFUSED
 #endif
 
@@ -514,6 +518,7 @@ crTCPIPAccept( CRConnection *conn, const char *hostname, unsigned short port )
     struct sockaddr_storage addr;
     char            host[NI_MAXHOST];
 #endif
+    (void)hostname;
 
     cr_tcpip.server_sock = CreateListeningSocket(port);
 
@@ -1273,9 +1278,9 @@ crTCPIPDoConnect( CRConnection *conn )
         conn->tcp_socket = socket( cur->ai_family, cur->ai_socktype, cur->ai_protocol );
         if ( conn->tcp_socket < 0 )
         {
-            int err = crTCPIPErrno( );
-            if (err != EAFNOSUPPORT)
-                crWarning( "socket error: %s, trying another way", crTCPIPErrorString( err ) );
+            int err2 = crTCPIPErrno( );
+            if (err2 != EAFNOSUPPORT)
+                crWarning( "socket error: %s, trying another way", crTCPIPErrorString( err2 ) );
             cur=cur->ai_next;
             continue;
         }

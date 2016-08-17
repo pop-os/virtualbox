@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 #include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
 
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #include <process.h>
 #include <aclapi.h>
 
@@ -196,6 +196,8 @@ static RTEXITCODE vgsvcWinSetDesc(SC_HANDLE hService)
         VGSvcError("Cannot set the service description! Error: %ld\n", GetLastError());
         return RTEXITCODE_FAILURE;
     }
+#else
+    RT_NOREF(hService);
 #endif
     return RTEXITCODE_SUCCESS;
 }
@@ -459,14 +461,14 @@ static VOID WINAPI vgsvcWinCtrlHandler(DWORD dwControl)
 static DWORD WINAPI vgsvcWinCtrlHandler(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext)
 #endif
 {
-    DWORD rcRet = NO_ERROR;
-
 #ifdef TARGET_NT4
     VGSvcVerbose(2, "Control handler: Control=%#x\n", dwControl);
 #else
+    RT_NOREF1(lpContext);
     VGSvcVerbose(2, "Control handler: Control=%#x, EventType=%#x\n", dwControl, dwEventType);
 #endif
 
+    DWORD rcRet = NO_ERROR;
     switch (dwControl)
     {
         case SERVICE_CONTROL_INTERROGATE:
@@ -523,6 +525,7 @@ static DWORD WINAPI vgsvcWinCtrlHandler(DWORD dwControl, DWORD dwEventType, LPVO
 
 static void WINAPI vgsvcWinMain(DWORD argc, LPTSTR *argv)
 {
+    RT_NOREF2(argc, argv);
     VGSvcVerbose(2, "Registering service control handler ...\n");
 #ifdef TARGET_NT4
     g_hWinServiceStatus = RegisterServiceCtrlHandler(VBOXSERVICE_NAME, vgsvcWinCtrlHandler);

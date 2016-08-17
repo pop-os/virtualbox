@@ -41,13 +41,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#define LOG_GROUP LOG_GROUP_DRV_AUDIO
-#include <VBox/log.h>
+#include <iprt/alloc.h>
 #include <iprt/asm-math.h>
 #include <iprt/assert.h>
-#include <iprt/uuid.h>
+#include <iprt/dir.h>
+#include <iprt/file.h>
 #include <iprt/string.h>
-#include <iprt/alloc.h>
+#include <iprt/uuid.h>
 
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdm.h>
@@ -60,6 +60,38 @@
 #include "DrvAudio.h"
 #include "AudioMixBuffer.h"
 
+#pragma pack(1)
+/**
+ * Structure for building up a .WAV file header.
+ */
+typedef struct AUDIOWAVFILEHDR
+{
+    uint32_t u32RIFF;
+    uint32_t u32Size;
+    uint32_t u32WAVE;
+
+    uint32_t u32Fmt;
+    uint32_t u32Size1;
+    uint16_t u16AudioFormat;
+    uint16_t u16NumChannels;
+    uint32_t u32SampleRate;
+    uint32_t u32ByteRate;
+    uint16_t u16BlockAlign;
+    uint16_t u16BitsPerSample;
+
+    uint32_t u32ID2;
+    uint32_t u32Size2;
+} AUDIOWAVFILEHDR, *PAUDIOWAVFILEHDR;
+#pragma pack()
+
+/**
+ * Structure for keeeping the internal .WAV file data
+ */
+typedef struct AUDIOWAVFILEDATA
+{
+    /** The file header/footer. */
+    AUDIOWAVFILEHDR Hdr;
+} AUDIOWAVFILEDATA, *PAUDIOWAVFILEDATA;
 
 /**
  * Retrieves the matching PDMAUDIOFMT for given bits + signing flag.
@@ -105,7 +137,7 @@ PDMAUDIOFMT DrvAudioAudFmtBitsToAudFmt(uint8_t cBits, bool fSigned)
  * @param   cbBuf                   Size (in bytes) of the buffer.
  * @param   cSamples                Number of audio samples to clear in the buffer.
  */
-void DrvAudioHlpClearBuf(PPDMPCMPROPS pPCMProps, void *pvBuf, size_t cbBuf, uint32_t cSamples)
+void DrvAudioHlpClearBuf(PPDMAUDIOPCMPROPS pPCMProps, void *pvBuf, size_t cbBuf, uint32_t cSamples)
 {
     AssertPtrReturnVoid(pPCMProps);
     AssertPtrReturnVoid(pvBuf);
@@ -169,6 +201,12 @@ void DrvAudioHlpClearBuf(PPDMPCMPROPS pPCMProps, void *pvBuf, size_t cbBuf, uint
     }
 }
 
+/**
+ * Converts a recording source enumeration to a string.
+ *
+ * @returns Stringified recording source, or "Unknown", if not found.
+ * @param   enmRecSrc           Recording source to convert.
+ */
 const char *DrvAudioHlpRecSrcToStr(PDMAUDIORECSOURCE enmRecSrc)
 {
     switch (enmRecSrc)
@@ -248,6 +286,12 @@ uint8_t DrvAudioHlpAudFmtToBits(PDMAUDIOFMT enmFmt)
     return 0;
 }
 
+/**
+ * Converts an audio format to a string.
+ *
+ * @returns Stringified audio format, or "Unknown", if not found.
+ * @param   enmFmt              Audio format to convert.
+ */
 const char *DrvAudioHlpAudFmtToStr(PDMAUDIOFMT enmFmt)
 {
     switch (enmFmt)
@@ -275,9 +319,15 @@ const char *DrvAudioHlpAudFmtToStr(PDMAUDIOFMT enmFmt)
     }
 
     AssertMsgFailed(("Bogus audio format %ld\n", enmFmt));
-    return "Invalid";
+    return "Unknown";
 }
 
+/**
+ * Converts a given string to an audio format.
+ *
+ * @returns Audio format for the given string, or PDMAUDIOFMT_INVALID if not found.
+ * @param   pszFmt              String to convert to an audio format.
+ */
 PDMAUDIOFMT DrvAudioHlpStrToAudFmt(const char *pszFmt)
 {
     AssertPtrReturn(pszFmt, PDMAUDIOFMT_INVALID);
@@ -299,7 +349,15 @@ PDMAUDIOFMT DrvAudioHlpStrToAudFmt(const char *pszFmt)
     return PDMAUDIOFMT_INVALID;
 }
 
-bool DrvAudioHlpPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
+/**
+ * Checks whether the given PCM properties are equal with the given
+ * stream configuration.
+ *
+ * @returns @true if equal, @false if not.
+ * @param   pProps              PCM properties to compare.
+ * @param   pCfg                Stream configuration to compare.
+ */
+bool DrvAudioHlpPCMPropsAreEqual(PPDMAUDIOPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
 {
     AssertPtrReturn(pProps, false);
     AssertPtrReturn(pCfg,   false);
@@ -339,10 +397,20 @@ bool DrvAudioHlpPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
     return fEqual;
 }
 
-bool DrvAudioHlpPCMPropsAreEqual(PPDMPCMPROPS pProps1, PPDMPCMPROPS pProps2)
+/**
+ * Checks whether two given PCM properties are equal.
+ *
+ * @returns @true if equal, @false if not.
+ * @param   pProps1             First properties to compare.
+ * @param   pProps2             Second properties to compare.
+ */
+bool DrvAudioHlpPCMPropsAreEqual(PPDMAUDIOPCMPROPS pProps1, PPDMAUDIOPCMPROPS pProps2)
 {
     AssertPtrReturn(pProps1, false);
     AssertPtrReturn(pProps2, false);
+
+    if (pProps1 == pProps2) /* If the pointers match, take a shortcut. */
+        return true;
 
     return    pProps1->uHz         == pProps2->uHz
            && pProps1->cChannels   == pProps2->cChannels
@@ -358,7 +426,7 @@ bool DrvAudioHlpPCMPropsAreEqual(PPDMPCMPROPS pProps1, PPDMPCMPROPS pProps2)
  * @param   pPCMProps           Pointer to PCM properties to convert.
  * @param   pCfg                Pointer to audio stream configuration to store result into.
  */
-int DrvAudioHlpPCMPropsToStreamCfg(PPDMPCMPROPS pPCMProps, PPDMAUDIOSTREAMCFG pCfg)
+int DrvAudioHlpPCMPropsToStreamCfg(PPDMAUDIOPCMPROPS pPCMProps, PPDMAUDIOSTREAMCFG pCfg)
 {
     AssertPtrReturn(pPCMProps, VERR_INVALID_POINTER);
     AssertPtrReturn(pCfg,      VERR_INVALID_POINTER);
@@ -372,6 +440,12 @@ int DrvAudioHlpPCMPropsToStreamCfg(PPDMPCMPROPS pPCMProps, PPDMAUDIOSTREAMCFG pC
     return VINF_SUCCESS;
 }
 
+/**
+ * Checks whether a given stream configuration is valid or not.
+ *
+ * Returns @true if configuration is valid, @false if not.
+ * @param   pCfg                Stream configuration to check.
+ */
 bool DrvAudioHlpStreamCfgIsValid(PPDMAUDIOSTREAMCFG pCfg)
 {
     bool fValid = (   pCfg->cChannels == 1
@@ -400,8 +474,8 @@ bool DrvAudioHlpStreamCfgIsValid(PPDMAUDIOSTREAMCFG pCfg)
         }
     }
 
-    /** @todo Check for defined frequencies supported. */
     fValid |= pCfg->uHz > 0;
+    /** @todo Check for defined frequencies supported. */
 
     return fValid;
 }
@@ -413,7 +487,7 @@ bool DrvAudioHlpStreamCfgIsValid(PPDMAUDIOSTREAMCFG pCfg)
  * @param   pCfg                    Audio stream configuration to convert.
  * @param   pProps                  PCM properties to save result to.
  */
-int DrvAudioHlpStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
+int DrvAudioHlpStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOPCMPROPS pProps)
 {
     AssertPtrReturn(pCfg,   VERR_INVALID_POINTER);
     AssertPtrReturn(pProps, VERR_INVALID_POINTER);
@@ -455,16 +529,20 @@ int DrvAudioHlpStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
         pProps->uHz         = pCfg->uHz;
         pProps->cBits       = cBits;
         pProps->fSigned     = fSigned;
-        pProps->cChannels   = pCfg->cChannels;
         pProps->cShift      = (pCfg->cChannels == 2) + cShift;
+        pProps->cChannels   = pCfg->cChannels;
         pProps->uAlign      = (1 << pProps->cShift) - 1;
-        pProps->cbBitrate   = (pProps->cBits * pProps->uHz * pProps->cChannels) / 8;
         pProps->fSwapEndian = pCfg->enmEndianness != PDMAUDIOHOSTENDIANNESS;
     }
 
     return rc;
 }
 
+/**
+ * Prints an audio stream configuration to the debug log.
+ *
+ * @param   pCfg                Stream configuration to log.
+ */
 void DrvAudioHlpStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg)
 {
     AssertPtrReturnVoid(pCfg);
@@ -509,5 +587,321 @@ void DrvAudioHlpStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg)
             LogFlow(("invalid\n"));
             break;
     }
+}
+
+/**
+ * Calculates the audio bit rate of the given bits per sample, the Hz and the number
+ * of audio channels.
+ *
+ * Divide the result by 8 to get the byte rate.
+ *
+ * @returns The calculated bit rate.
+ * @param   cBits               Number of bits per sample.
+ * @param   uHz                 Hz (Hertz) rate.
+ * @param   cChannels           Number of audio channels.
+ */
+uint32_t DrvAudioHlpCalcBitrate(uint8_t cBits, uint32_t uHz, uint8_t cChannels)
+{
+    return (cBits * uHz * cChannels);
+}
+
+/**
+ * Calculates the audio bit rate out of a given audio stream configuration.
+ *
+ * Divide the result by 8 to get the byte rate.
+ *
+ * @returns The calculated bit rate.
+ * @param   pCfg                Audio stream configuration to calculate bit rate for.
+ *
+ * @remark
+ */
+uint32_t DrvAudioHlpCalcBitrate(PPDMAUDIOSTREAMCFG pCfg)
+{
+    return DrvAudioHlpCalcBitrate(DrvAudioHlpAudFmtToBits(pCfg->enmFormat), pCfg->uHz, pCfg->cChannels);
+}
+
+/**
+ * Sanitizes the file name component so that unsupported characters
+ * will be replaced by an underscore ("_").
+ *
+ * @return  IPRT status code.
+ * @param   pszPath             Path to sanitize.
+ * @param   cbPath              Size (in bytes) of path to sanitize.
+ */
+int DrvAudioHlpSanitizeFileName(char *pszPath, size_t cbPath)
+{
+    RT_NOREF(cbPath);
+    int rc = VINF_SUCCESS;
+#ifdef RT_OS_WINDOWS
+    /* Filter out characters not allowed on Windows platforms, put in by
+       RTTimeSpecToString(). */
+    /** @todo Use something like RTPathSanitize() if available later some time. */
+    static RTUNICP const s_uszValidRangePairs[] =
+    {
+        ' ', ' ',
+        '(', ')',
+        '-', '.',
+        '0', '9',
+        'A', 'Z',
+        'a', 'z',
+        '_', '_',
+        0xa0, 0xd7af,
+        '\0'
+    };
+    ssize_t cReplaced = RTStrPurgeComplementSet(pszPath, s_uszValidRangePairs, '_' /* Replacement */);
+    if (cReplaced < 0)
+        rc = VERR_INVALID_UTF8_ENCODING;
+#else
+    RT_NOREF(pszPath);
+#endif
+    return rc;
+}
+
+/**
+ * Constructs an unique file name, based on the given path and the audio file type.
+ *
+ * @returns IPRT status code.
+ * @param   pszFile             Where to store the constructed file name.
+ * @param   cchFile             Size (in characters) of the file name buffer.
+ * @param   pszPath             Base path to use.
+ * @param   pszName             A name for better identifying the file. Optional.
+ * @param   enmType             Audio file type to construct file name for.
+ */
+int DrvAudioHlpGetFileName(char *pszFile, size_t cchFile, const char *pszPath, const char *pszName, PDMAUDIOFILETYPE enmType)
+{
+    AssertPtrReturn(pszFile, VERR_INVALID_POINTER);
+    AssertReturn(cchFile,    VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
+    /* pszName is optional. */
+
+    int rc;
+
+    do
+    {
+        char szFilePath[RTPATH_MAX];
+        RTStrPrintf(szFilePath, sizeof(szFilePath), "%s", pszPath);
+
+        /* Create it when necessary. */
+        if (!RTDirExists(szFilePath))
+        {
+            rc = RTDirCreateFullPath(szFilePath, RTFS_UNIX_IRWXU);
+            if (RT_FAILURE(rc))
+                break;
+        }
+
+        /* The actually drop directory consist of the current time stamp and a
+         * unique number when necessary. */
+        char pszTime[64];
+        RTTIMESPEC time;
+        if (!RTTimeSpecToString(RTTimeNow(&time), pszTime, sizeof(pszTime)))
+        {
+            rc = VERR_BUFFER_OVERFLOW;
+            break;
+        }
+
+        rc = DrvAudioHlpSanitizeFileName(pszTime, sizeof(pszTime));
+        if (RT_FAILURE(rc))
+            break;
+
+        rc = RTPathAppend(szFilePath, sizeof(szFilePath), pszTime);
+        if (RT_FAILURE(rc))
+            break;
+
+        if (pszName) /* Optional name given? */
+        {
+            rc = RTStrCat(szFilePath, sizeof(szFilePath), "-");
+            if (RT_FAILURE(rc))
+                break;
+
+            rc = RTStrCat(szFilePath, sizeof(szFilePath), pszName);
+            if (RT_FAILURE(rc))
+                break;
+        }
+
+        switch (enmType)
+        {
+            case PDMAUDIOFILETYPE_WAV:
+                rc = RTStrCat(szFilePath, sizeof(szFilePath), ".wav");
+                break;
+
+            default:
+                AssertFailedStmt(rc = VERR_NOT_IMPLEMENTED);
+        }
+
+        if (RT_FAILURE(rc))
+            break;
+
+        RTStrPrintf(pszFile, cchFile, "%s", szFilePath);
+
+    } while (0);
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+/**
+ * Opens or creates a wave (.WAV) file.
+ *
+ * @returns IPRT status code.
+ * @param   pFile               Pointer to audio file handle to use.
+ * @param   pszFile             File path of file to open or create.
+ * @param   fOpen               Open flags.
+ * @param   pProps              PCM properties to use.
+ * @param   fFlags              Audio file flags.
+ */
+int DrvAudioHlpWAVFileOpen(PPDMAUDIOFILE pFile, const char *pszFile, uint32_t fOpen, PPDMAUDIOPCMPROPS pProps,
+                           PDMAUDIOFILEFLAGS fFlags)
+{
+    AssertPtrReturn(pFile,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pszFile, VERR_INVALID_POINTER);
+    /** @todo Validate fOpen flags. */
+    AssertPtrReturn(pProps,  VERR_INVALID_POINTER);
+    RT_NOREF(fFlags); /** @todo Validate fFlags flags. */
+
+    Assert(pProps->cChannels);
+    Assert(pProps->uHz);
+    Assert(pProps->cBits);
+
+    pFile->pvData = (PAUDIOWAVFILEDATA)RTMemAllocZ(sizeof(AUDIOWAVFILEDATA));
+    if (!pFile->pvData)
+        return VERR_NO_MEMORY;
+    pFile->cbData = sizeof(PAUDIOWAVFILEDATA);
+
+    PAUDIOWAVFILEDATA pData = (PAUDIOWAVFILEDATA)pFile->pvData;
+    AssertPtr(pData);
+
+    /* Header. */
+    pData->Hdr.u32RIFF          = AUDIO_MAKE_FOURCC('R','I','F','F');
+    pData->Hdr.u32Size          = 36;
+    pData->Hdr.u32WAVE          = AUDIO_MAKE_FOURCC('W','A','V','E');
+
+    pData->Hdr.u32Fmt           = AUDIO_MAKE_FOURCC('f','m','t',' ');
+    pData->Hdr.u32Size1         = 16; /* Means PCM. */
+    pData->Hdr.u16AudioFormat   = 1;  /* PCM, linear quantization. */
+    pData->Hdr.u16NumChannels   = pProps->cChannels;
+    pData->Hdr.u32SampleRate    = pProps->uHz;
+    pData->Hdr.u32ByteRate      = DrvAudioHlpCalcBitrate(pProps->cBits, pProps->uHz, pProps->cChannels) / 8;
+    pData->Hdr.u16BlockAlign    = pProps->cChannels * pProps->cBits / 8;
+    pData->Hdr.u16BitsPerSample = pProps->cBits;
+
+    /* Data chunk. */
+    pData->Hdr.u32ID2           = AUDIO_MAKE_FOURCC('d','a','t','a');
+    pData->Hdr.u32Size2         = 0;
+
+    int rc = RTFileOpen(&pFile->hFile, pszFile, fOpen);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTFileWrite(pFile->hFile, &pData->Hdr, sizeof(pData->Hdr), NULL);
+        if (RT_FAILURE(rc))
+        {
+            RTFileClose(pFile->hFile);
+            pFile->hFile = NIL_RTFILE;
+        }
+    }
+
+    if (RT_SUCCESS(rc))
+    {
+        pFile->enmType = PDMAUDIOFILETYPE_WAV;
+
+        RTStrPrintf(pFile->szName, RT_ELEMENTS(pFile->szName), "%s", pszFile);
+    }
+    else
+    {
+        RTMemFree(pFile->pvData);
+        pFile->pvData = NULL;
+        pFile->cbData = 0;
+    }
+
+    return rc;
+}
+
+/**
+ * Closes a wave (.WAV) audio file.
+ *
+ * @returns IPRT status code.
+ * @param   pFile               Audio file handle to close.
+ */
+int DrvAudioHlpWAVFileClose(PPDMAUDIOFILE pFile)
+{
+    AssertPtrReturn(pFile, VERR_INVALID_POINTER);
+
+    Assert(pFile->enmType == PDMAUDIOFILETYPE_WAV);
+
+    if (pFile->hFile != NIL_RTFILE)
+    {
+        PAUDIOWAVFILEDATA pData = (PAUDIOWAVFILEDATA)pFile->pvData;
+        AssertPtr(pData);
+
+        /* Update the header with the current data size. */
+        RTFileWriteAt(pFile->hFile, 0, &pData->Hdr, sizeof(pData->Hdr), NULL);
+
+        RTFileClose(pFile->hFile);
+        pFile->hFile = NIL_RTFILE;
+    }
+
+    if (pFile->pvData)
+    {
+        RTMemFree(pFile->pvData);
+        pFile->pvData = NULL;
+    }
+
+    pFile->cbData  = 0;
+    pFile->enmType = PDMAUDIOFILETYPE_UNKNOWN;
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Returns the raw PCM audio data size of a wave file.
+ * This does *not* include file headers and other data which does
+ * not belong to the actual PCM audio data.
+ *
+ * @returns Size (in bytes) of the raw PCM audio data.
+ * @param   pFile               Audio file handle to retrieve the audio data size for.
+ */
+size_t DrvAudioHlpWAVFileGetDataSize(PPDMAUDIOFILE pFile)
+{
+    AssertPtrReturn(pFile, 0);
+
+    Assert(pFile->enmType == PDMAUDIOFILETYPE_WAV);
+
+    PAUDIOWAVFILEDATA pData = (PAUDIOWAVFILEDATA)pFile->pvData;
+    AssertPtr(pData);
+
+    return pData->Hdr.u32Size2;
+}
+
+/**
+ * Write PCM data to a wave (.WAV) file.
+ *
+ * @returns IPRT status code.
+ * @param   pFile               Audio file handle to write PCM data to.
+ * @param   pvBuf               Audio data to write.
+ * @param   cbBuf               Size (in bytes) of audio data to write.
+ * @param   fFlags              Additional write flags. Not being used at the moment and must be 0.
+ */
+int DrvAudioHlpWAVFileWrite(PPDMAUDIOFILE pFile, const void *pvBuf, size_t cbBuf, uint32_t fFlags)
+{
+    AssertPtrReturn(pFile, VERR_INVALID_POINTER);
+    AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
+
+    AssertReturn(fFlags == 0, VERR_INVALID_PARAMETER); /** @todo fFlags are currently not implemented. */
+
+    Assert(pFile->enmType == PDMAUDIOFILETYPE_WAV);
+
+    if (!cbBuf)
+        return VINF_SUCCESS;
+
+    PAUDIOWAVFILEDATA pData = (PAUDIOWAVFILEDATA)pFile->pvData;
+    AssertPtr(pData);
+
+    int rc = RTFileWrite(pFile->hFile, pvBuf, cbBuf, NULL);
+    if (RT_SUCCESS(rc))
+    {
+        pData->Hdr.u32Size  += (uint32_t)cbBuf;
+        pData->Hdr.u32Size2 += (uint32_t)cbBuf;
+    }
+
+    return rc;
 }
 

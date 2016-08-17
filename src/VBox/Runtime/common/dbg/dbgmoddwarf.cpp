@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1030,6 +1030,7 @@ static int rtDwarfInfo_ParseDie(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie, PCRTDWAR
 
 #if defined(LOG_ENABLED) || defined(RT_STRICT)
 
+# if 0 /* unused */
 /**
  * Turns a tag value into a string for logging purposes.
  *
@@ -1049,6 +1050,7 @@ static const char *rtDwarfLog_GetTagName(uint32_t uTag)
     RTStrPrintf(s_szStatic, sizeof(s_szStatic),"DW_TAG_%#x", uTag);
     return s_szStatic;
 }
+# endif
 
 
 /**
@@ -2460,7 +2462,14 @@ static int rtDwarfLine_RunProgram(PRTDWARFLINESTATE pLnState, PRTDWARFCURSOR pCu
                   offOpCode, bLogOpCode, cLineDelta, pLnState->Regs.uLine, cAddressDelta, pLnState->Regs.uAddress,
                   cOpIndexDelta, pLnState->Regs.idxOp));
 
-            rc = rtDwarfLine_AddLine(pLnState, offOpCode);
+            /*
+             * LLVM emits debug info for global constructors (_GLOBAL__I_a) which are not part of source
+             * code but are inserted by the compiler: The resulting line number will be 0
+             * because they are not part of the source file obviously (see https://reviews.llvm.org/rL205999),
+             * so skip adding them when they are encountered.
+             */
+            if (pLnState->Regs.uLine)
+                rc = rtDwarfLine_AddLine(pLnState, offOpCode);
         }
         else
         {
@@ -2471,7 +2480,9 @@ static int rtDwarfLine_RunProgram(PRTDWARFLINESTATE pLnState, PRTDWARFCURSOR pCu
                  */
                 case DW_LNS_copy:
                     Log2(("%08x: DW_LNS_copy\n", offOpCode));
-                    rc = rtDwarfLine_AddLine(pLnState, offOpCode);
+                    /* See the comment about LLVM above. */
+                    if (pLnState->Regs.uLine)
+                        rc = rtDwarfLine_AddLine(pLnState, offOpCode);
                     break;
 
                 case DW_LNS_advance_pc:
@@ -3527,6 +3538,8 @@ static int rtDwarfLoc_Push(PRTDWARFLOCST pLoc, uint64_t uValue)
 
 static int rtDwarfLoc_Evaluate(PRTDWARFLOCST pLoc, void *pvLater, void *pvUser)
 {
+    RT_NOREF_PV(pvLater); RT_NOREF_PV(pvUser);
+
     while (!rtDwarfCursor_IsAtEndOfUnit(&pLoc->Cursor))
     {
         /* Read the next opcode.*/
@@ -4421,7 +4434,7 @@ static DECLCALLBACK(int) rtDwarfSyms_EnumSymbolsCallback(RTLDRMOD hLdrMod, const
                                                          RTLDRADDR Value, void *pvUser)
 {
     PRTDBGMODDWARF pThis = (PRTDBGMODDWARF)pvUser;
-    NOREF(hLdrMod);
+    RT_NOREF_PV(hLdrMod); RT_NOREF_PV(uSymbol);
     Assert(pThis->iWatcomPass != 1);
 
     RTLDRADDR uRva = Value - RTDBGDWARF_SYM_ENUM_BASE_ADDRESS;
@@ -4553,7 +4566,7 @@ static DECLCALLBACK(int) rtDbgModDwarf_SymbolByName(PRTDBGMODINT pMod, const cha
                                                     PRTDBGSYMBOL pSymInfo)
 {
     PRTDBGMODDWARF pThis = (PRTDBGMODDWARF)pMod->pvDbgPriv;
-    Assert(!pszSymbol[cchSymbol]);
+    Assert(!pszSymbol[cchSymbol]); RT_NOREF_PV(cchSymbol);
     return RTDbgModSymbolByName(pThis->hCnt, pszSymbol/*, cchSymbol*/, pSymInfo);
 }
 
@@ -4667,6 +4680,8 @@ static DECLCALLBACK(int) rtDbgModDwarf_Close(PRTDBGMODINT pMod)
 /** @callback_method_impl{FNRTLDRENUMDBG} */
 static DECLCALLBACK(int) rtDbgModDwarfEnumCallback(RTLDRMOD hLdrMod, PCRTLDRDBGINFO pDbgInfo, void *pvUser)
 {
+    RT_NOREF_PV(hLdrMod);
+
     /*
      * Skip stuff we can't handle.
      */

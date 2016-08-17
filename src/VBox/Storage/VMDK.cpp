@@ -1019,6 +1019,7 @@ out:
  */
 static int vmdkAllocGrainDirectory(PVMDKIMAGE pImage, PVMDKEXTENT pExtent)
 {
+    RT_NOREF1(pImage);
     int rc = VINF_SUCCESS;
     size_t cbGD = pExtent->cGDEntries * sizeof(uint32_t);
     /** @todo r=bird: This code is unnecessarily confusing pointer states with
@@ -1456,7 +1457,7 @@ static int vmdkDescSetStr(PVMDKIMAGE pImage, PVMDKDESCRIPTOR pDescriptor,
                           unsigned uStart,
                           const char *pszKey, const char *pszValue)
 {
-    char *pszTmp;
+    char *pszTmp = NULL; /* (MSC naturally cannot figure this isn't used uninitialized) */
     size_t cbKey = strlen(pszKey);
     unsigned uLast = 0;
 
@@ -1471,6 +1472,8 @@ static int vmdkDescSetStr(PVMDKIMAGE pImage, PVMDKDESCRIPTOR pDescriptor,
             if (*pszTmp == '=')
             {
                 pszTmp++;
+                /** @todo r=bird: Doesn't skipping trailing blanks here just cause unecessary
+                 *        bloat and potentially out of space error? */
                 while (*pszTmp == ' ' || *pszTmp == '\t')
                     pszTmp++;
                 break;
@@ -1489,8 +1492,8 @@ static int vmdkDescSetStr(PVMDKIMAGE pImage, PVMDKDESCRIPTOR pDescriptor,
             size_t cbNewVal = strlen(pszValue);
             ssize_t cbDiff = cbNewVal - cbOldVal;
             /* Check for buffer overflow. */
-            if (    pDescriptor->aLines[pDescriptor->cLines]
-                -   pDescriptor->aLines[0] > (ptrdiff_t)pDescriptor->cbDescAlloc - cbDiff)
+            if (  pDescriptor->aLines[pDescriptor->cLines] - pDescriptor->aLines[0]
+                > (ptrdiff_t)pDescriptor->cbDescAlloc - cbDiff)
                 return vdIfError(pImage->pIfError, VERR_BUFFER_OVERFLOW, RT_SRC_POS, N_("VMDK: descriptor too big in '%s'"), pImage->pszFilename);
 
             memmove(pszTmp + cbNewVal, pszTmp + cbOldVal,
@@ -1614,6 +1617,7 @@ static int vmdkDescBaseSetStr(PVMDKIMAGE pImage, PVMDKDESCRIPTOR pDescriptor,
 static void vmdkDescExtRemoveDummy(PVMDKIMAGE pImage,
                                    PVMDKDESCRIPTOR pDescriptor)
 {
+    RT_NOREF1(pImage);
     unsigned uEntry = pDescriptor->uFirstExtent;
     ssize_t cbDiff;
 
@@ -3203,7 +3207,7 @@ static int vmdkOpenImage(PVMDKIMAGE pImage, unsigned uOpenFlags)
             goto out;
         }
 
-#if 0 /** @todo: Revisit */
+#if 0 /** @todo Revisit */
         cbRead += sizeof(u32Magic);
         if (cbRead == pImage->cbDescAlloc)
         {
@@ -3218,37 +3222,6 @@ static int vmdkOpenImage(PVMDKIMAGE pImage, unsigned uOpenFlags)
                                  pImage->cbDescAlloc);
         if (RT_FAILURE(rc))
             goto out;
-
-        /*
-         * We have to check for the asynchronous open flag. The
-         * extents are parsed and the type of all are known now.
-         * Check if every extent is either FLAT or ZERO.
-         */
-        if (uOpenFlags & VD_OPEN_FLAGS_ASYNC_IO)
-        {
-            unsigned cFlatExtents = 0;
-
-            for (unsigned i = 0; i < pImage->cExtents; i++)
-            {
-                pExtent = &pImage->pExtents[i];
-
-                if ((    pExtent->enmType != VMDKETYPE_FLAT
-                     &&  pExtent->enmType != VMDKETYPE_ZERO
-                     &&  pExtent->enmType != VMDKETYPE_VMFS)
-                    || ((pImage->pExtents[i].enmType == VMDKETYPE_FLAT) && (cFlatExtents > 0)))
-                {
-                    /*
-                     * Opened image contains at least one none flat or zero extent.
-                     * Return error but don't set error message as the caller
-                     * has the chance to open in non async I/O mode.
-                     */
-                    rc = VERR_NOT_SUPPORTED;
-                    goto out;
-                }
-                if (pExtent->enmType == VMDKETYPE_FLAT)
-                    cFlatExtents++;
-            }
-        }
 
         for (unsigned i = 0; i < pImage->cExtents; i++)
         {
@@ -3745,7 +3718,8 @@ static int vmdkCreateRegularImage(PVMDKIMAGE pImage, uint64_t cbSize,
         if (uImageFlags & VD_IMAGE_FLAGS_FIXED)
         {
             rc = vdIfIoIntFileSetAllocationSize(pImage->pIfIo, pExtent->pFile->pStorage, cbExtent,
-                                                0 /* fFlags */, pfnProgress, pvUser, uPercentStart + cbOffset * uPercentSpan / cbSize, uPercentSpan / cExtents);
+                                                0 /* fFlags */, pfnProgress, pvUser, uPercentStart + cbOffset * uPercentSpan / cbSize,
+                                                cbExtent * uPercentSpan / cbSize);
             if (RT_FAILURE(rc))
                 return vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VMDK: could not set size of new file '%s'"), pExtent->pszFullname);
         }
@@ -3857,6 +3831,7 @@ static int vmdkCreateStreamImage(PVMDKIMAGE pImage, uint64_t cbSize,
                                  PFNVDPROGRESS pfnProgress, void *pvUser,
                                  unsigned uPercentStart, unsigned uPercentSpan)
 {
+    RT_NOREF5(uImageFlags, pfnProgress, pvUser, uPercentStart, uPercentSpan);
     int rc;
 
     rc = vmdkCreateExtents(pImage, 1);
@@ -4352,7 +4327,7 @@ static int vmdkFreeImage(PVMDKIMAGE pImage, bool fDelete)
                 AssertRC(rc);
             }
         }
-        else
+        else if (!fDelete)
             vmdkFlushImage(pImage, NULL);
 
         if (pImage->pExtents != NULL)
@@ -4800,10 +4775,10 @@ static int vmdkAllocGrainGTUpdate(PVMDKIMAGE pImage, PVMDKEXTENT pExtent, PVDIOC
  */
 static int vmdkAllocGrainComplete(void *pBackendData, PVDIOCTX pIoCtx, void *pvUser, int rcReq)
 {
+    RT_NOREF1(rcReq);
     int rc = VINF_SUCCESS;
     PVMDKIMAGE pImage = (PVMDKIMAGE)pBackendData;
     PVMDKGRAINALLOCASYNC pGrainAlloc = (PVMDKGRAINALLOCASYNC)pvUser;
-    PVMDKEXTENT pExtent = pGrainAlloc->pExtent;
 
     LogFlowFunc(("pBackendData=%#p pIoCtx=%#p pvUser=%#p rcReq=%Rrc\n",
                  pBackendData, pIoCtx, pvUser, rcReq));
@@ -4828,7 +4803,7 @@ static int vmdkAllocGrainComplete(void *pBackendData, PVDIOCTX pIoCtx, void *pvU
 static int vmdkAllocGrain(PVMDKIMAGE pImage, PVMDKEXTENT pExtent, PVDIOCTX pIoCtx,
                           uint64_t uSector, uint64_t cbWrite)
 {
-    PVMDKGTCACHE pCache = pImage->pGTCache;
+    PVMDKGTCACHE pCache = pImage->pGTCache; NOREF(pCache);
     uint64_t uGDIndex, uGTSector, uRGTSector;
     uint64_t uFileOffset;
     PVMDKGRAINALLOCASYNC pGrainAlloc = NULL;

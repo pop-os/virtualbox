@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,12 +20,12 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QDesktopWidget>
 # include <QMouseEvent>
 # include <QTimer>
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
 # include "UIMessageCenter.h"
 # include "UIPopupCenter.h"
@@ -183,7 +183,7 @@ void UIMouseHandler::captureMouse(ulong uScreenId)
         QRect visibleRectangle = m_viewports[m_iMouseCaptureViewIndex]->visibleRegion().boundingRect();
         QPoint visibleRectanglePos = m_views[m_iMouseCaptureViewIndex]->mapToGlobal(m_viewports[m_iMouseCaptureViewIndex]->pos());
         visibleRectangle.translate(visibleRectanglePos);
-        visibleRectangle = visibleRectangle.intersected(vboxGlobal().availableGeometry(machineLogic()->machineWindows()[m_iMouseCaptureViewIndex]));
+        visibleRectangle = visibleRectangle.intersected(gpDesktop->availableGeometry(machineLogic()->machineWindows()[m_iMouseCaptureViewIndex]));
 
 #ifdef VBOX_WS_WIN
         /* Move the mouse to the center of the visible area: */
@@ -880,8 +880,8 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
         else
             m_lastMousePos = globalPos;
 #else /* VBOX_WS_WIN */
-        int iWe = QApplication::desktop()->width() - 1;
-        int iHe = QApplication::desktop()->height() - 1;
+        int iWe = gpDesktop->overallDesktopWidth() - 1;
+        int iHe = gpDesktop->overallDesktopHeight() - 1;
         QPoint p = globalPos;
         if (globalPos.x() == 0)
             p.setX(iWe - 1);
@@ -1118,7 +1118,7 @@ void UIMouseHandler::updateMouseCursorClipping()
         /* Get full-viewport-rectangle in global coordinates: */
         viewportRectangle.translate(viewportRectangleGlobalPos);
         /* Trim full-viewport-rectangle by available geometry: */
-        viewportRectangle = viewportRectangle.intersected(vboxGlobal().availableGeometry(machineLogic()->machineWindows()[m_iMouseCaptureViewIndex]));
+        viewportRectangle = viewportRectangle.intersected(gpDesktop->availableGeometry(machineLogic()->machineWindows()[m_iMouseCaptureViewIndex]));
         /* Trim partial-viewport-rectangle by top-most windows: */
         QRegion viewportRegion(viewportRectangle);
         QRegion topMostRegion(NativeWindowSubsystem::areaCoveredByTopMostWindows());

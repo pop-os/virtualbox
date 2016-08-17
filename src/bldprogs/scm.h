@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,6 +106,7 @@ FNSCMREWRITER rewrite_SvnKeywords;
 FNSCMREWRITER rewrite_Makefile_kup;
 FNSCMREWRITER rewrite_Makefile_kmk;
 FNSCMREWRITER rewrite_FixFlowerBoxMarkers;
+FNSCMREWRITER rewrite_Fix_C_and_CPP_Todos;
 FNSCMREWRITER rewrite_C_and_CPP;
 
 /** @}  */
@@ -146,6 +147,9 @@ typedef struct SCMSETTINGSBASE
     bool            fFixFlowerBoxMarkers;
     /** The minimum number of blank lines we want before flowerbox markers. */
     uint8_t         cMinBlankLinesBeforeFlowerBoxMakers;
+
+    /** Whether to fix C/C++ todos. */
+    bool            fFixTodos;
 
     /** Only process files that are part of a SVN working copy. */
     bool            fOnlySvnFiles;

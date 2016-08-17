@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,6 +51,8 @@
  */
 PDMBOTHCBDECL(int) vmmdevTestingMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
+    RT_NOREF_PV(pvUser);
+
     switch (GCPhysAddr)
     {
         case VMMDEV_TESTING_MMIO_NOP_R3:
@@ -126,6 +128,8 @@ PDMBOTHCBDECL(int) vmmdevTestingMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGC
  */
 PDMBOTHCBDECL(int) vmmdevTestingMmioRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
+    RT_NOREF_PV(pvUser);
+
     switch (GCPhysAddr)
     {
         case VMMDEV_TESTING_MMIO_NOP_R3:
@@ -143,10 +147,10 @@ PDMBOTHCBDECL(int) vmmdevTestingMmioRead(PPDMDEVINS pDevIns, void *pvUser, RTGCP
                     *(uint32_t *)pv = VMMDEV_TESTING_NOP_RET;
                     break;
                 case 2:
-                    *(uint16_t *)pv = (uint16_t)VMMDEV_TESTING_NOP_RET;
+                    *(uint16_t *)pv = RT_LO_U16(VMMDEV_TESTING_NOP_RET);
                     break;
                 case 1:
-                    *(uint8_t *)pv  = (uint8_t)VMMDEV_TESTING_NOP_RET;
+                    *(uint8_t *)pv  = (uint8_t)(VMMDEV_TESTING_NOP_RET & UINT8_MAX);
                     break;
                 default:
                     AssertFailed();
@@ -291,6 +295,7 @@ static void vmmdevTestingCmdExec_ValueReg(PPDMDEVINS pDevIns, VMMDevState *pThis
 PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     VMMDevState *pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
+    RT_NOREF_PV(pvUser);
 
     switch (Port)
     {
@@ -590,6 +595,7 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 PDMBOTHCBDECL(int) vmmdevTestingIoRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     VMMDevState *pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
+    RT_NOREF_PV(pvUser);
 
     switch (Port)
     {

@@ -38,6 +38,7 @@
 
 #include "UsbTestServiceGadgetInternal.h"
 
+
 /*********************************************************************************************************************************
 *   Constants And Macros, Structures and Typedefs                                                                                *
 *********************************************************************************************************************************/
@@ -172,7 +173,7 @@ DECLHIDDEN(uint32_t) utsGadgetGetDevId(UTSGADGET hGadget)
     PUTSGADGETINT pThis = hGadget;
 
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    return 1; /** @todo: Current assumption which is true on Linux with dummy_hcd. */
+    return 1; /** @todo Current assumption which is true on Linux with dummy_hcd. */
 }
 
 

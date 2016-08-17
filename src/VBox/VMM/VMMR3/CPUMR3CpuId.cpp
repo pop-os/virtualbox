@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -567,6 +567,7 @@ static PCPUMCPUIDLEAF cpumR3CpuIdGetLeaf(PCPUMCPUIDLEAF paLeaves, uint32_t cLeav
 }
 
 
+#ifndef IN_VBOX_CPU_REPORT
 /**
  * Gets a matching leaf in the CPUID leaf array, converted to a CPUMCPUID.
  *
@@ -591,6 +592,7 @@ static bool cpumR3CpuIdGetLeafLegacy(PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, 
     }
     return false;
 }
+#endif /* IN_VBOX_CPU_REPORT */
 
 
 /**
@@ -884,6 +886,7 @@ static int cpumR3CpuIdInsert(PVM pVM, PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLea
 }
 
 
+#ifndef IN_VBOX_CPU_REPORT
 /**
  * Removes a range of CPUID leaves.
  *
@@ -928,7 +931,7 @@ static void cpumR3CpuIdRemoveRange(PCPUMCPUIDLEAF paLeaves, uint32_t *pcLeaves, 
 
     cpumR3CpuIdAssertOrder(paLeaves, *pcLeaves);
 }
-
+#endif /* IN_VBOX_CPU_REPORT */
 
 
 /**
@@ -2018,26 +2021,6 @@ static int cpumR3CpuIdInitLoadOverrideSet(uint32_t uStart, PCPUMCPUID paLeaves, 
     return VINF_SUCCESS;
 }
 
-/**
- * Init a set of host CPUID leaves.
- *
- * @returns VBox status code.
- * @param   paLeaves            The leaf array.
- * @param   cLeaves             The number of leaves.
- * @param   uStart              The start leaf number.
- * @param   pCfgNode            The /CPUM/HostCPUID/ node.
- */
-static int cpumR3CpuIdInitHostSet(uint32_t uStart, PCPUMCPUID paLeaves, uint32_t cLeaves, PCFGMNODE pCfgNode)
-{
-    /* Using the ECX variant for all of them can't hurt... */
-    for (uint32_t i = 0; i < cLeaves; i++)
-        ASMCpuIdExSlow(uStart + i, 0, 0, 0, &paLeaves[i].uEax, &paLeaves[i].uEbx, &paLeaves[i].uEcx, &paLeaves[i].uEdx);
-
-    /* Load CPUID leaf override; we currently don't care if the user
-       specifies features the host CPU doesn't support. */
-    return cpumR3CpuIdInitLoadOverrideSet(uStart, paLeaves, cLeaves, pCfgNode);
-}
-
 
 /**
  * Installs the CPUID leaves and explods the data into structures like
@@ -2235,45 +2218,6 @@ typedef struct CPUMCPUIDCONFIG
 } CPUMCPUIDCONFIG;
 /** Pointer to CPUID config (from CFGM). */
 typedef CPUMCPUIDCONFIG *PCPUMCPUIDCONFIG;
-
-
-/**
- * Insert hypervisor identification leaves.
- *
- * We only return minimal information, primarily ensuring that the
- * 0x40000000 function returns 0x40000001 and identifying ourselves.
- * Hypervisor-specific interface is supported through GIM which will
- * modify these leaves if required depending on the GIM provider.
- *
- * @returns VBox status code.
- * @param   pCpum       The CPUM instance data.
- * @param   pConfig     The CPUID configuration we've read from CFGM.
- */
-static int cpumR3CpuIdPlantHypervisorLeaves(PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
-{
-    CPUMCPUIDLEAF NewLeaf;
-    NewLeaf.uLeaf        = UINT32_C(0x40000000);
-    NewLeaf.uSubLeaf     = 0;
-    NewLeaf.fSubLeafMask = 0;
-    NewLeaf.uEax         = UINT32_C(0x40000001);
-    NewLeaf.uEbx         = 0x786f4256 /* 'VBox' */;
-    NewLeaf.uEcx         = 0x786f4256 /* 'VBox' */;
-    NewLeaf.uEdx         = 0x786f4256 /* 'VBox' */;
-    NewLeaf.fFlags       = 0;
-    int rc = cpumR3CpuIdInsert(NULL /* pVM */, &pCpum->GuestInfo.paCpuIdLeavesR3, &pCpum->GuestInfo.cCpuIdLeaves, &NewLeaf);
-    AssertLogRelRCReturn(rc, rc);
-
-    NewLeaf.uLeaf        = UINT32_C(0x40000001);
-    NewLeaf.uEax         = 0x656e6f6e;                            /* 'none' */
-    NewLeaf.uEbx         = 0;
-    NewLeaf.uEcx         = 0;
-    NewLeaf.uEdx         = 0;
-    NewLeaf.fFlags       = 0;
-    rc = cpumR3CpuIdInsert(NULL /* pVM */, &pCpum->GuestInfo.paCpuIdLeavesR3, &pCpum->GuestInfo.cCpuIdLeaves, &NewLeaf);
-    AssertLogRelRCReturn(rc, rc);
-
-    return VINF_SUCCESS;
-}
 
 
 /**
@@ -2926,7 +2870,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
         if (pConfig->enmMWaitExtensions)
         {
             pCurLeaf->uEcx = X86_CPUID_MWAIT_ECX_EXT | X86_CPUID_MWAIT_ECX_BREAKIRQIF0;
-            /** @todo: for now we just expose host's MWAIT C-states, although conceptually
+            /** @todo for now we just expose host's MWAIT C-states, although conceptually
                it shall be part of our power management virtualization model */
 #if 0
             /* MWAIT sub C-states */
@@ -4032,12 +3976,6 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
     }
 
     /*
-     * Plant our own hypervisor CPUID leaves.
-     */
-    if (RT_SUCCESS(rc))
-        rc = cpumR3CpuIdPlantHypervisorLeaves(pCpum, &Config);
-
-    /*
      * MSR fudging.
      */
     if (RT_SUCCESS(rc))
@@ -4094,12 +4032,6 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
         AssertRCReturn(rc, rc);
         if (fEnable)
             CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
-
-        /* We don't enable the Hypervisor Present bit by default, but it may be needed by some guests. */
-        rc = CFGMR3QueryBoolDef(pCpumCfg, "EnableHVP", &fEnable, false);
-        AssertRCReturn(rc, rc);
-        if (fEnable)
-            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_HVP);
 
         return VINF_SUCCESS;
     }
@@ -6045,14 +5977,11 @@ static void cpumR3CpuIdInfoVerboseCompareListU32(PCDBGFINFOHLP pHlp, uint32_t uV
  * Produces a detailed summary of standard leaf 0x00000001.
  *
  * @param   pHlp        The info helper functions.
- * @param   paLeaves    The CPUID leaves array.
- * @param   cLeaves     The number of leaves in the array.
  * @param   pCurLeaf    The 0x00000001 leaf.
  * @param   fVerbose    Whether to be very verbose or not.
  * @param   fIntel      Set if intel CPU.
  */
-static void cpumR3CpuIdInfoStdLeaf1Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves,
-                                           PCCPUMCPUIDLEAF pCurLeaf, bool fVerbose, bool fIntel)
+static void cpumR3CpuIdInfoStdLeaf1Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF pCurLeaf, bool fVerbose, bool fIntel)
 {
     Assert(pCurLeaf); Assert(pCurLeaf->uLeaf == 1);
     static const char * const s_apszTypes[4] = { "primary", "overdrive", "MP", "reserved" };
@@ -6162,6 +6091,7 @@ static void cpumR3CpuIdInfoStdLeaf7Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF p
 static void cpumR3CpuIdInfoStdLeaf13Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves,
                                             PCCPUMCPUIDLEAF pCurLeaf, bool fVerbose)
 {
+    RT_NOREF_PV(fVerbose);
     Assert(pCurLeaf); Assert(pCurLeaf->uLeaf == 13);
     pHlp->pfnPrintf(pHlp, "Processor Extended State Enumeration (leaf 0xd):\n");
     for (uint32_t uSubLeaf = 0; uSubLeaf < 64; uSubLeaf++)
@@ -6370,7 +6300,7 @@ DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
                         "Supports:", paLeaves[0].uEax);
 
     if (iVerbosity && (pCurLeaf = cpumR3CpuIdGetLeaf(paLeaves, cLeaves, UINT32_C(0x00000001), 0)) != NULL)
-        cpumR3CpuIdInfoStdLeaf1Details(pHlp, paLeaves, cLeaves, pCurLeaf, iVerbosity > 1, fIntel);
+        cpumR3CpuIdInfoStdLeaf1Details(pHlp, pCurLeaf, iVerbosity > 1, fIntel);
 
     if (iVerbosity && (pCurLeaf = cpumR3CpuIdGetLeaf(paLeaves, cLeaves, UINT32_C(0x00000007), 0)) != NULL)
         cpumR3CpuIdInfoStdLeaf7Details(pHlp, paLeaves, cLeaves, pCurLeaf, iVerbosity > 1);
@@ -6779,6 +6709,7 @@ VMMR3_INT_DECL(RCPTRTYPE(PCCPUMCPUID)) CPUMR3GetGuestCpuIdPatmDefRCPtr(PVM pVM)
  */
 VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmStdMax(PVM pVM)
 {
+    RT_NOREF_PV(pVM);
     return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmStd);
 }
 
@@ -6792,6 +6723,7 @@ VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmStdMax(PVM pVM)
  */
 VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmExtMax(PVM pVM)
 {
+    RT_NOREF_PV(pVM);
     return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmExt);
 }
 
@@ -6805,6 +6737,7 @@ VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmExtMax(PVM pVM)
  */
 VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmCentaurMax(PVM pVM)
 {
+    RT_NOREF_PV(pVM);
     return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmCentaur);
 }
 

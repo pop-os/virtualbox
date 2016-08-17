@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,6 +74,7 @@ static RTEXITCODE HandleVersion(int cArgs, char **papszArgs);
  */
 static RTEXITCODE HelpExtractExeSignerCert(PRTSTREAM pStrm, RTSIGNTOOLHELP enmLevel)
 {
+    RT_NOREF_PV(enmLevel);
     RTStrmPrintf(pStrm, "extract-exe-signer-cert [--ber|--cer|--der] [--exe|-e] <exe> [--output|-o] <outfile.cer>\n");
     return RTEXITCODE_SUCCESS;
 }
@@ -244,6 +245,7 @@ static RTEXITCODE HandleExtractExeSignerCert(int cArgs, char **papszArgs)
  */
 static RTEXITCODE HelpVerifyExe(PRTSTREAM pStrm, RTSIGNTOOLHELP enmLevel)
 {
+    RT_NOREF_PV(enmLevel);
     RTStrmPrintf(pStrm,
                  "verify-exe [--verbose|--quiet] [--kernel] [--root <root-cert.der>] [--additional <supp-cert.der>]\n"
                  "        [--type <win|osx>] <exe1> [exe2 [..]]\n");
@@ -381,6 +383,8 @@ static DECLCALLBACK(int) VerifyExeCallback(RTLDRMOD hLdrMod, RTLDRSIGNATURETYPE 
                                            PRTERRINFO pErrInfo, void *pvUser)
 {
     VERIFYEXESTATE *pState = (VERIFYEXESTATE *)pvUser;
+    RT_NOREF_PV(hLdrMod); RT_NOREF_PV(cbSignature);
+
     switch (enmSignature)
     {
         case RTLDRSIGNATURETYPE_PKCS7_SIGNED_DATA:
@@ -412,7 +416,6 @@ static DECLCALLBACK(int) VerifyExeCallback(RTLDRMOD hLdrMod, RTLDRSIGNATURETYPE 
         default:
             return RTErrInfoSetF(pErrInfo, VERR_NOT_SUPPORTED, "Unsupported signature type: %d", enmSignature);
     }
-    return VINF_SUCCESS;
 }
 
 /** Worker for HandleVerifyExe. */
@@ -613,6 +616,7 @@ static RTEXITCODE HandleVerifyExe(int cArgs, char **papszArgs)
  */
 static RTEXITCODE HelpMakeTaInfo(PRTSTREAM pStrm, RTSIGNTOOLHELP enmLevel)
 {
+    RT_NOREF_PV(enmLevel);
     RTStrmPrintf(pStrm,
                  "make-tainfo [--verbose|--quiet] [--cert <cert.der>]  [-o|--output] <tainfo.der>\n");
     return RTEXITCODE_SUCCESS;
@@ -630,6 +634,7 @@ typedef struct MAKETAINFOSTATE
 /** @callback_method_impl{FNRTASN1ENCODEWRITER}  */
 static DECLCALLBACK(int) handleMakeTaInfoWriter(const void *pvBuf, size_t cbToWrite, void *pvUser, PRTERRINFO pErrInfo)
 {
+    RT_NOREF_PV(pErrInfo);
     return RTStrmWrite((PRTSTREAM)pvUser, pvBuf, cbToWrite);
 }
 
@@ -647,7 +652,6 @@ static RTEXITCODE HandleMakeTaInfo(int cArgs, char **papszArgs)
         { "--quiet",        'q', RTGETOPT_REQ_NOTHING },
     };
 
-    RTLDRARCH       enmLdrArch = RTLDRARCH_WHATEVER;
     MAKETAINFOSTATE State = { 0, NULL, NULL };
 
     RTGETOPTSTATE GetState;
@@ -823,12 +827,14 @@ static RTEXITCODE HandleMakeTaInfo(int cArgs, char **papszArgs)
  */
 static RTEXITCODE HelpVersion(PRTSTREAM pStrm, RTSIGNTOOLHELP enmLevel)
 {
+    RT_NOREF_PV(enmLevel);
     RTStrmPrintf(pStrm, "version\n");
     return RTEXITCODE_SUCCESS;
 }
 
 static RTEXITCODE HandleVersion(int cArgs, char **papszArgs)
 {
+    RT_NOREF_PV(cArgs); RT_NOREF_PV(papszArgs);
 #ifndef IN_BLD_PROG  /* RTBldCfgVersion or RTBldCfgRevision in build time IPRT lib. */
     RTPrintf("%s\n", RTBldCfgVersion());
     return RTEXITCODE_SUCCESS;
@@ -883,6 +889,7 @@ const g_aCommands[] =
  */
 static RTEXITCODE HelpHelp(PRTSTREAM pStrm, RTSIGNTOOLHELP enmLevel)
 {
+    RT_NOREF_PV(enmLevel);
     RTStrmPrintf(pStrm, "help [cmd-patterns]\n");
     return RTEXITCODE_SUCCESS;
 }

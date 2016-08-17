@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,6 +41,8 @@ static RTTEST g_hTest;
 
 static DECLCALLBACK(int) test3Server(RTSOCKET hSocket, void *pvUser)
 {
+    RT_NOREF_PV(pvUser);
+
     RTTestSetDefault(g_hTest, NULL);
     char szBuf[4096];
 
@@ -73,9 +75,10 @@ void test3()
     {
         PRTTCPSERVER pServer;
         int rc = RTTcpServerCreate("localhost", 9999, RTTHREADTYPE_DEFAULT, "server-2", test3Server, NULL, &pServer);
-#ifdef RT_OS_SOLARIS
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_LINUX)
         /** @todo testboxsh1 occationally hits this for some stupid reason. i=21 in
-         *        one occurrence. Fudge a bit for now and see if it helps. */
+         *        one occurrence. Fudge a bit for now and see if it helps.
+         *        Same for testboxopt, i=98 in another case. */
         if (rc == VERR_NET_ADDRESS_IN_USE)
         {
             RTThreadSleep(500);
@@ -113,6 +116,8 @@ void test3()
 
 static DECLCALLBACK(int) test2Server(RTSOCKET hSocket, void *pvUser)
 {
+    RT_NOREF_PV(pvUser);
+
     RTTestSetDefault(g_hTest, NULL);
     char szBuf[512];
 

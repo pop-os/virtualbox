@@ -1,11 +1,10 @@
 /** @file
- *
  * VBox Host Guest Shared Memory Interface (HGSMI).
  * OS-independent guest structures.
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,19 +25,17 @@
  */
 
 
-#ifndef __HGSMI_GUEST_h__
-#define __HGSMI_GUEST_h__
+#ifndef ___VBox_VBoxVideoGuest_h___
+#define ___VBox_VBoxVideoGuest_h___
 
 #include <VBox/HGSMI/HGSMI.h>
 #include <VBox/HGSMI/HGSMIChSetup.h>
 #include <VBox/VBoxVideo.h>
 
 #ifdef VBOX_XPDM_MINIPORT
-RT_C_DECLS_BEGIN
-# include "miniport.h"
-# include "ntddvdeo.h"
-# include <Video.h>
-RT_C_DECLS_END
+# include <iprt/nt/miniport.h>
+# include <ntddvdeo.h> /* sdk, clean */
+# include <iprt/nt/Video.h>
 #elif defined VBOX_GUESTR3XORGMOD
 # include <compiler.h>
 #else
@@ -204,95 +201,95 @@ DECLINLINE(void) VBoxHGSMIClearIrq(PHGSMIHOSTCOMMANDCONTEXT pCtx)
     VBoxVideoCmnPortWriteUlong(pCtx->port, HGSMIOFFSET_VOID);
 }
 
-RTDECL(void)     VBoxHGSMIHostCmdComplete(PHGSMIHOSTCOMMANDCONTEXT pCtx,
-                                          void *pvMem);
-RTDECL(void)     VBoxHGSMIProcessHostQueue(PHGSMIHOSTCOMMANDCONTEXT pCtx);
-RTDECL(bool)     VBoxHGSMIIsSupported(void);
-RTDECL(void *)   VBoxHGSMIBufferAlloc(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                      HGSMISIZE cbData,
-                                      uint8_t u8Ch,
-                                      uint16_t u16Op);
-RTDECL(void)     VBoxHGSMIBufferFree(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                     void *pvBuffer);
-RTDECL(int)      VBoxHGSMIBufferSubmit(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                       void *pvBuffer);
-RTDECL(void)     VBoxHGSMIGetBaseMappingInfo(uint32_t cbVRAM,
-                                             uint32_t *poffVRAMBaseMapping,
-                                             uint32_t *pcbMapping,
-                                             uint32_t *poffGuestHeapMemory,
-                                             uint32_t *pcbGuestHeapMemory,
-                                             uint32_t *poffHostFlags);
-RTDECL(int)      VBoxHGSMIReportFlagsLocation(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                              HGSMIOFFSET offLocation);
-RTDECL(int)      VBoxHGSMISendCapsInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                       uint32_t fCaps);
+DECLHIDDEN(void)     VBoxHGSMIHostCmdComplete(PHGSMIHOSTCOMMANDCONTEXT pCtx,
+                                              void *pvMem);
+DECLHIDDEN(void)     VBoxHGSMIProcessHostQueue(PHGSMIHOSTCOMMANDCONTEXT pCtx);
+DECLHIDDEN(bool)     VBoxHGSMIIsSupported(void);
+DECLHIDDEN(void *)   VBoxHGSMIBufferAlloc(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                          HGSMISIZE cbData,
+                                          uint8_t u8Ch,
+                                          uint16_t u16Op);
+DECLHIDDEN(void)     VBoxHGSMIBufferFree(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                         void *pvBuffer);
+DECLHIDDEN(int)      VBoxHGSMIBufferSubmit(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                           void *pvBuffer);
+DECLHIDDEN(void)     VBoxHGSMIGetBaseMappingInfo(uint32_t cbVRAM,
+                                                 uint32_t *poffVRAMBaseMapping,
+                                                 uint32_t *pcbMapping,
+                                                 uint32_t *poffGuestHeapMemory,
+                                                 uint32_t *pcbGuestHeapMemory,
+                                                 uint32_t *poffHostFlags);
+DECLHIDDEN(int)      VBoxHGSMIReportFlagsLocation(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                                  HGSMIOFFSET offLocation);
+DECLHIDDEN(int)      VBoxHGSMISendCapsInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                           uint32_t fCaps);
 /** @todo we should provide a cleanup function too as part of the API */
-RTDECL(int)      VBoxHGSMISetupGuestContext(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                            void *pvGuestHeapMemory,
-                                            uint32_t cbGuestHeapMemory,
-                                            uint32_t offVRAMGuestHeapMemory,
-                                            const HGSMIENV *pEnv);
-RTDECL(void)     VBoxHGSMIGetHostAreaMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                             uint32_t cbVRAM,
-                                             uint32_t offVRAMBaseMapping,
-                                             uint32_t *poffVRAMHostArea,
-                                             uint32_t *pcbHostArea);
-RTDECL(void)     VBoxHGSMISetupHostContext(PHGSMIHOSTCOMMANDCONTEXT pCtx,
-                                           void *pvBaseMapping,
-                                           uint32_t offHostFlags,
-                                           void *pvHostAreaMapping,
-                                           uint32_t offVRAMHostArea,
-                                           uint32_t cbHostArea);
-RTDECL(int)      VBoxHGSMISendHostCtxInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                          HGSMIOFFSET offVRAMFlagsLocation,
-                                          uint32_t fCaps,
-                                          uint32_t offVRAMHostArea,
-                                          uint32_t cbHostArea);
-RTDECL(int)      VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+DECLHIDDEN(int)      VBoxHGSMISetupGuestContext(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                                void *pvGuestHeapMemory,
+                                                uint32_t cbGuestHeapMemory,
+                                                uint32_t offVRAMGuestHeapMemory,
+                                                const HGSMIENV *pEnv);
+DECLHIDDEN(void)     VBoxHGSMIGetHostAreaMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                                 uint32_t cbVRAM,
+                                                 uint32_t offVRAMBaseMapping,
+                                                 uint32_t *poffVRAMHostArea,
+                                                 uint32_t *pcbHostArea);
+DECLHIDDEN(void)     VBoxHGSMISetupHostContext(PHGSMIHOSTCOMMANDCONTEXT pCtx,
+                                               void *pvBaseMapping,
+                                               uint32_t offHostFlags,
+                                               void *pvHostAreaMapping,
+                                               uint32_t offVRAMHostArea,
+                                               uint32_t cbHostArea);
+DECLHIDDEN(int)      VBoxHGSMISendHostCtxInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                              HGSMIOFFSET offVRAMFlagsLocation,
+                                              uint32_t fCaps,
+                                              uint32_t offVRAMHostArea,
+                                              uint32_t cbHostArea);
+DECLHIDDEN(int)      VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                     uint32_t u32Index, uint32_t *pulValue);
-RTDECL(int)      VBoxQueryConfHGSMIDef(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                       uint32_t u32Index, uint32_t u32DefValue, uint32_t *pulValue);
-RTDECL(int)      VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                             uint32_t fFlags,
-                                             uint32_t cHotX,
-                                             uint32_t cHotY,
-                                             uint32_t cWidth,
-                                             uint32_t cHeight,
-                                             uint8_t *pPixels,
-                                             uint32_t cbLength);
-RTDECL(int)      VBoxHGSMICursorPosition(PHGSMIGUESTCOMMANDCONTEXT pCtx, bool fReportPosition, uint32_t x, uint32_t y,
-                                         uint32_t *pxHost, uint32_t *pyHost);
+DECLHIDDEN(int)      VBoxQueryConfHGSMIDef(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                           uint32_t u32Index, uint32_t u32DefValue, uint32_t *pulValue);
+DECLHIDDEN(int)      VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                                 uint32_t fFlags,
+                                                 uint32_t cHotX,
+                                                 uint32_t cHotY,
+                                                 uint32_t cWidth,
+                                                 uint32_t cHeight,
+                                                 uint8_t *pPixels,
+                                                 uint32_t cbLength);
+DECLHIDDEN(int)      VBoxHGSMICursorPosition(PHGSMIGUESTCOMMANDCONTEXT pCtx, bool fReportPosition, uint32_t x, uint32_t y,
+                                             uint32_t *pxHost, uint32_t *pyHost);
 
 /** @}  */
 
 /** @name VBVA APIs
  * @{ */
-RTDECL(bool) VBoxVBVAEnable(PVBVABUFFERCONTEXT pCtx,
-                            PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx,
-                            struct VBVABUFFER *pVBVA, int32_t cScreen);
-RTDECL(void) VBoxVBVADisable(PVBVABUFFERCONTEXT pCtx,
-                             PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx,
-                             int32_t cScreen);
-RTDECL(bool) VBoxVBVABufferBeginUpdate(PVBVABUFFERCONTEXT pCtx,
-                                       PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx);
-RTDECL(void) VBoxVBVABufferEndUpdate(PVBVABUFFERCONTEXT pCtx);
-RTDECL(bool) VBoxVBVAWrite(PVBVABUFFERCONTEXT pCtx,
-                           PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx,
-                           const void *pv, uint32_t cb);
-RTDECL(bool) VBoxVBVAOrderSupported(PVBVABUFFERCONTEXT pCtx, unsigned code);
-RTDECL(void) VBoxVBVASetupBufferContext(PVBVABUFFERCONTEXT pCtx,
-                                        uint32_t offVRAMBuffer,
-                                        uint32_t cbBuffer);
+DECLHIDDEN(bool) VBoxVBVAEnable(PVBVABUFFERCONTEXT pCtx,
+                                PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx,
+                                struct VBVABUFFER *pVBVA, int32_t cScreen);
+DECLHIDDEN(void) VBoxVBVADisable(PVBVABUFFERCONTEXT pCtx,
+                                 PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx,
+                                 int32_t cScreen);
+DECLHIDDEN(bool) VBoxVBVABufferBeginUpdate(PVBVABUFFERCONTEXT pCtx,
+                                           PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx);
+DECLHIDDEN(void) VBoxVBVABufferEndUpdate(PVBVABUFFERCONTEXT pCtx);
+DECLHIDDEN(bool) VBoxVBVAWrite(PVBVABUFFERCONTEXT pCtx,
+                               PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx,
+                               const void *pv, uint32_t cb);
+DECLHIDDEN(bool) VBoxVBVAOrderSupported(PVBVABUFFERCONTEXT pCtx, unsigned code);
+DECLHIDDEN(void) VBoxVBVASetupBufferContext(PVBVABUFFERCONTEXT pCtx,
+                                            uint32_t offVRAMBuffer,
+                                            uint32_t cbBuffer);
 
 /** @}  */
 
 /** @name Modesetting APIs
  * @{ */
 
-RTDECL(uint32_t) VBoxHGSMIGetMonitorCount(PHGSMIGUESTCOMMANDCONTEXT pCtx);
-RTDECL(uint32_t) VBoxVideoGetVRAMSize(void);
-RTDECL(bool)     VBoxVideoAnyWidthAllowed(void);
-RTDECL(uint16_t) VBoxHGSMIGetScreenFlags(PHGSMIGUESTCOMMANDCONTEXT pCtx);
+DECLHIDDEN(uint32_t) VBoxHGSMIGetMonitorCount(PHGSMIGUESTCOMMANDCONTEXT pCtx);
+DECLHIDDEN(uint32_t) VBoxVideoGetVRAMSize(void);
+DECLHIDDEN(bool)     VBoxVideoAnyWidthAllowed(void);
+DECLHIDDEN(uint16_t) VBoxHGSMIGetScreenFlags(PHGSMIGUESTCOMMANDCONTEXT pCtx);
 
 struct VBVAINFOVIEW;
 /**
@@ -311,37 +308,38 @@ typedef DECLCALLBACK(int) FNHGSMIFILLVIEWINFO(void *pvData,
 /** Pointer to a FNHGSMIFILLVIEWINFO callback */
 typedef FNHGSMIFILLVIEWINFO *PFNHGSMIFILLVIEWINFO;
 
-RTDECL(int)      VBoxHGSMISendViewInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                       uint32_t u32Count,
-                                       PFNHGSMIFILLVIEWINFO pfnFill,
-                                       void *pvData);
-RTDECL(void)     VBoxVideoSetModeRegisters(uint16_t cWidth, uint16_t cHeight,
-                                           uint16_t cVirtWidth, uint16_t cBPP,
-                                           uint16_t fFlags,
-                                           uint16_t cx, uint16_t cy);
-RTDECL(bool)     VBoxVideoGetModeRegisters(uint16_t *pcWidth,
-                                           uint16_t *pcHeight,
-                                           uint16_t *pcVirtWidth,
-                                           uint16_t *pcBPP,
-                                           uint16_t *pfFlags);
-RTDECL(void)     VBoxVideoDisableVBE(void);
-RTDECL(void)     VBoxHGSMIProcessDisplayInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                             uint32_t cDisplay,
-                                             int32_t  cOriginX,
-                                             int32_t  cOriginY,
-                                             uint32_t offStart,
-                                             uint32_t cbPitch,
-                                             uint32_t cWidth,
-                                             uint32_t cHeight,
-                                             uint16_t cBPP,
-                                             uint16_t fFlags);
-RTDECL(int)      VBoxHGSMIUpdateInputMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx, int32_t  cOriginX, int32_t  cOriginY,
-                                             uint32_t cWidth, uint32_t cHeight);
-RTDECL(int) VBoxHGSMIGetModeHints(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                  unsigned cScreens, VBVAMODEHINT *paHints);
+DECLHIDDEN(int)      VBoxHGSMISendViewInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                           uint32_t u32Count,
+                                           PFNHGSMIFILLVIEWINFO pfnFill,
+                                           void *pvData);
+DECLHIDDEN(void)     VBoxVideoSetModeRegisters(uint16_t cWidth, uint16_t cHeight,
+                                               uint16_t cVirtWidth, uint16_t cBPP,
+                                               uint16_t fFlags,
+                                               uint16_t cx, uint16_t cy);
+DECLHIDDEN(bool)     VBoxVideoGetModeRegisters(uint16_t *pcWidth,
+                                               uint16_t *pcHeight,
+                                               uint16_t *pcVirtWidth,
+                                               uint16_t *pcBPP,
+                                               uint16_t *pfFlags);
+DECLHIDDEN(void)     VBoxVideoDisableVBE(void);
+DECLHIDDEN(void)     VBoxHGSMIProcessDisplayInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                                 uint32_t cDisplay,
+                                                 int32_t  cOriginX,
+                                                 int32_t  cOriginY,
+                                                 uint32_t offStart,
+                                                 uint32_t cbPitch,
+                                                 uint32_t cWidth,
+                                                 uint32_t cHeight,
+                                                 uint16_t cBPP,
+                                                 uint16_t fFlags);
+DECLHIDDEN(int)      VBoxHGSMIUpdateInputMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx, int32_t  cOriginX, int32_t  cOriginY,
+                                                 uint32_t cWidth, uint32_t cHeight);
+DECLHIDDEN(int) VBoxHGSMIGetModeHints(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                      unsigned cScreens, VBVAMODEHINT *paHints);
 
 /** @}  */
 
 RT_C_DECLS_END
 
-#endif /* __HGSMI_GUEST_h__*/
+#endif
+

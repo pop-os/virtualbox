@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,10 +56,10 @@
 #  undef _WIN32_WINNT
 #  define _WIN32_WINNT 0x0500
 # endif
-# include <winsock2.h>
-# include <iphlpapi.h>
-# include <ws2tcpip.h>
-# include <windows.h>
+# include <iprt/win/winsock2.h>
+# include <iprt/win/iphlpapi.h>
+# include <iprt/win/ws2tcpip.h>
+# include <iprt/win/windows.h>
 # include <Ntsecapi.h>
 #else
 # define __STDC_LIMIT_MACROS
@@ -72,7 +72,7 @@
 # include <pwd.h> /* getpwuid */
 # include <unistd.h>
 # if !defined(RT_OS_OS2) && !defined(RT_OS_FREEBSD) && !defined(RT_OS_HAIKU)
-#  include <utmpx.h> /* @todo FreeBSD 9 should have this. */
+#  include <utmpx.h> /** @todo FreeBSD 9 should have this. */
 # endif
 # ifdef RT_OS_OS2
 #  include <net/if_dl.h>
@@ -81,7 +81,7 @@
 #  include <sys/sockio.h>
 #  include <net/if_arp.h>
 # endif
-# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
+# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD)
 #  include <ifaddrs.h> /* getifaddrs, freeifaddrs */
 #  include <net/if_dl.h> /* LLADDR */
 #  include <netdb.h> /* getnameinfo */
@@ -935,7 +935,6 @@ static int vgsvcVMInfoWriteUsers(void)
  */
 static int vgsvcVMInfoWriteNetwork(void)
 {
-    int         rc = VINF_SUCCESS;
     uint32_t    cIfsReported = 0;
     char        szPropPath[256];
 
@@ -1089,11 +1088,11 @@ static int vgsvcVMInfoWriteNetwork(void)
     /** @todo Haiku: implement network info. retreival */
     return VERR_NOT_IMPLEMENTED;
 
-#elif defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
+#elif defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD)
     struct ifaddrs *pIfHead = NULL;
 
     /* Get all available interfaces */
-    rc = getifaddrs(&pIfHead);
+    int rc = getifaddrs(&pIfHead);
     if (rc < 0)
     {
         rc = RTErrConvertFromErrno(errno);
@@ -1107,7 +1106,7 @@ static int vgsvcVMInfoWriteNetwork(void)
         /*
          * Only AF_INET and no loopback interfaces
          */
-        /** @todo: IPv6 interfaces */
+        /** @todo IPv6 interfaces */
         if (   pIfCurr->ifa_addr->sa_family == AF_INET
             && !(pIfCurr->ifa_flags & IFF_LOOPBACK))
         {
@@ -1171,7 +1170,7 @@ static int vgsvcVMInfoWriteNetwork(void)
     int sd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sd < 0)
     {
-        rc = RTErrConvertFromErrno(errno);
+        int rc = RTErrConvertFromErrno(errno);
         VGSvcError("VMInfo/Network: Failed to get a socket: Error %Rrc\n", rc);
         return rc;
     }
@@ -1181,7 +1180,7 @@ static int vgsvcVMInfoWriteNetwork(void)
     int             cbBuf   = s_cbBuf;
     char           *pchBuf;
     struct ifconf   IfConf;
-    rc = VINF_SUCCESS;
+    int rc = VINF_SUCCESS;
     for (;;)
     {
         pchBuf = (char *)RTMemTmpAllocZ(cbBuf);

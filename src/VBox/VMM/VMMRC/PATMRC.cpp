@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,7 +52,7 @@
 DECLEXPORT(VBOXSTRICTRC) patmRCVirtPagePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pCtxCore,
                                                  RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange, void *pvUser)
 {
-    NOREF(pVCpu); NOREF(uErrorCode); NOREF(pCtxCore); NOREF(pvFault); NOREF(pvRange); NOREF(offRange);
+    NOREF(pVCpu); NOREF(uErrorCode); NOREF(pCtxCore); NOREF(pvFault); NOREF(pvRange); NOREF(offRange); RT_NOREF_PV(pvUser);
 
     Assert(pvUser);
     Assert(!((uintptr_t)pvUser & PAGE_OFFSET_MASK));

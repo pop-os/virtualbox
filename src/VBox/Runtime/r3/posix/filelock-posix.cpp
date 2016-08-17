@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -127,7 +127,7 @@ RTR3DECL(int)  RTFileUnlock(RTFILE hFile, int64_t offLock, uint64_t cbLock)
     if (fcntl(RTFileToNative(hFile), F_SETLK, &fl) >= 0)
         return VINF_SUCCESS;
 
-    /* @todo check error codes for non existing lock. */
+    /** @todo check error codes for non existing lock. */
     int iErr = errno;
     if (    iErr == EAGAIN
         ||  iErr == EACCES)

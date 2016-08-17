@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@
 #include "DevVGA-SVGA3d.h"
 
 #ifdef RT_OS_WINDOWS
-# include <Windows.h>
+# include <iprt/win/windows.h>
 # ifdef VMSVGA3D_DIRECT3D
 #  include <d3d9.h>
 #  include <iprt/avl.h>
@@ -136,7 +136,7 @@ typedef void (APIENTRYP PFNGLGETPROGRAMIVARBPROC) (GLenum target, GLenum pname, 
         if ((pState)->idActiveContext != (pContext)->id) \
         { \
             BOOL fMakeCurrentRc = wglMakeCurrent((pContext)->hdc, (pContext)->hglrc); \
-            Assert(fMakeCurrentRc == TRUE); \
+            Assert(fMakeCurrentRc == TRUE); RT_NOREF_PV(fMakeCurrentRc); \
             LogFlowFunc(("Changing context: %#x -> %#x\n", (pState)->idActiveContext, (pContext)->id)); \
             (pState)->idActiveContext = (pContext)->id; \
         } \
@@ -160,7 +160,7 @@ typedef void (APIENTRYP PFNGLGETPROGRAMIVARBPROC) (GLenum target, GLenum pname, 
             Bool fMakeCurrentRc = glXMakeCurrent((pState)->display, \
                                                  (pContext)->window, \
                                                  (pContext)->glxContext); \
-            Assert(fMakeCurrentRc == True); \
+            Assert(fMakeCurrentRc == True); RT_NOREF_PV(fMakeCurrentRc); \
             LogFlowFunc(("Changing context: %#x -> %#x\n", (pState)->idActiveContext, (pContext)->id)); \
             (pState)->idActiveContext = (pContext)->id; \
         } \
@@ -863,7 +863,7 @@ typedef struct VMSVGA3DSTATE
 #endif
 
 #ifdef VMSVGA3D_OPENGL
-    float                   fGLVersion;
+    float                   rsGLVersion;
     /* Current active context. */
     uint32_t                idActiveContext;
 
@@ -950,7 +950,7 @@ typedef struct VMSVGA3DSTATE
      * bunch of others when using a OpenGL core profile instead of a legacy one */
     R3PTRTYPE(char *)       pszOtherExtensions;
     /** The version of the other GL profile. */
-    float                   fOtherGLVersion;
+    float                   rsOtherGLVersion;
 
     /** Shader talk back interface. */
     VBOXVMSVGASHADERIF      ShaderIf;
@@ -971,7 +971,7 @@ typedef struct VMSVGA3DSTATE
 static SSMFIELD const g_aVMSVGA3DSTATEFields[] =
 {
 # ifdef VMSVGA3D_OPENGL
-    SSMFIELD_ENTRY(                 VMSVGA3DSTATE, fGLVersion), /** @todo Why are we saving the GL version?? */
+    SSMFIELD_ENTRY(                 VMSVGA3DSTATE, rsGLVersion), /** @todo Why are we saving the GL version?? */
 # endif
     SSMFIELD_ENTRY(                 VMSVGA3DSTATE, cContexts),
     SSMFIELD_ENTRY(                 VMSVGA3DSTATE, cSurfaces),
@@ -1040,8 +1040,8 @@ void vmsvga3dSurfaceFormat2OGL(PVMSVGA3DSURFACE pSurface, SVGA3dSurfaceFormat fo
 
 
 /* DevVGA-SVGA3d-shared.cpp: */
-uint32_t vmsvga3dSaveShaderConst(PVMSVGA3DCONTEXT pContext, uint32_t reg, SVGA3dShaderType type, SVGA3dShaderConstType ctype,
-                                 uint32_t val1, uint32_t val2, uint32_t val3, uint32_t val4);
+int vmsvga3dSaveShaderConst(PVMSVGA3DCONTEXT pContext, uint32_t reg, SVGA3dShaderType type, SVGA3dShaderConstType ctype,
+                            uint32_t val1, uint32_t val2, uint32_t val3, uint32_t val4);
 
 
 

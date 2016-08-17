@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,7 +76,7 @@ enum VBoxNetAdpState
     kVBoxNetAdpState_Invalid,
     kVBoxNetAdpState_Transitional,
     kVBoxNetAdpState_Active,
-    kVBoxNetAdpState_U32Hack = 0xFFFFFFFF
+    kVBoxNetAdpState_32BitHack = 0x7FFFFFFF
 };
 typedef enum VBoxNetAdpState VBOXNETADPSTATE;
 

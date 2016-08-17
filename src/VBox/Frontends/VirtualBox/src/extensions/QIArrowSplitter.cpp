@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,8 +29,8 @@
 # include "QIArrowSplitter.h"
 # include "QIArrowButtonSwitch.h"
 # include "QIArrowButtonPress.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIIconPool.h"
-# include "VBoxGlobal.h"
 
 /* Other VBox includes: */
 # include "iprt/assert.h"
@@ -82,7 +82,7 @@ QSize QIDetailsBrowser::minimumSizeHint() const
     documentSize.setHeight(documentSize.height() + iDocumentMargin);
 
     /* Get 40% of the screen-area to limit the resulting hint: */
-    const QSize screenGeometryDot4 = vboxGlobal().screenGeometry(this).size() * .4;
+    const QSize screenGeometryDot4 = gpDesktop->screenGeometry(this).size() * .4;
 
     /* Calculate minimum size-hint which is document-size limited by screen-area: */
     QSize mSizeHint = documentSize.boundedTo(screenGeometryDot4);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1251,8 +1251,8 @@ VMMR3DECL(int) PGMR3PhysEnumDirtyFTPages(PVM pVM, PFNPGMENUMDIRTYFTPAGES pfnEnum
                         if (   !PGM_PAGE_IS_WRITTEN_TO(pPage)  /* not very recently updated? */
                             && PGM_PAGE_IS_FT_DIRTY(pPage))
                         {
-                            unsigned       cbPageRange = PAGE_SIZE;
-                            unsigned       iPageClean  = iPage + 1;
+                            uint32_t       cbPageRange = PAGE_SIZE;
+                            uint32_t       iPageClean  = iPage + 1;
                             RTGCPHYS       GCPhysPage  = pRam->GCPhys + iPage * PAGE_SIZE;
                             uint8_t       *pu8Page     = NULL;
                             PGMPAGEMAPLOCK Lock;
@@ -1284,10 +1284,8 @@ VMMR3DECL(int) PGMR3PhysEnumDirtyFTPages(PVM pVM, PFNPGMENUMDIRTYFTPAGES pfnEnum
                                 PGMPhysReleasePageMappingLock(pVM, &Lock);
                             }
 
-                            for (iPage; iPage < iPageClean; iPage++)
-                                PGM_PAGE_CLEAR_FT_DIRTY(&pRam->aPages[iPage]);
-
-                            iPage = iPageClean - 1;
+                            for (uint32_t iTmp = iPage; iTmp < iPageClean; iTmp++)
+                                PGM_PAGE_CLEAR_FT_DIRTY(&pRam->aPages[iTmp]);
                         }
                         break;
                 }
@@ -1508,7 +1506,7 @@ static DECLCALLBACK(bool) pgmR3PhysRamRangeRelocate(PVM pVM, RTGCPTR GCPtrOld, R
 {
     PPGMRAMRANGE pRam = (PPGMRAMRANGE)pvUser;
     Assert(pRam->fFlags & PGM_RAM_RANGE_FLAGS_FLOATING);
-    Assert(pRam->pSelfRC == GCPtrOld + PAGE_SIZE);
+    Assert(pRam->pSelfRC == GCPtrOld + PAGE_SIZE); RT_NOREF_PV(GCPtrOld);
 
     switch (enmMode)
     {
@@ -2541,75 +2539,77 @@ VMMR3DECL(int) PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iReg
     int rc = MMR3AdjustFixedReservation(pVM, cPages, pszDesc);
     if (RT_SUCCESS(rc))
     {
-        void *pvPages;
         PSUPPAGE paPages = (PSUPPAGE)RTMemTmpAlloc(cPages * sizeof(SUPPAGE));
         if (RT_SUCCESS(rc))
-            rc = SUPR3PageAllocEx(cPages, 0 /*fFlags*/, &pvPages, NULL /*pR0Ptr*/, paPages);
-        if (RT_SUCCESS(rc))
         {
-            memset(pvPages, 0, cPages * PAGE_SIZE);
-
-            /*
-             * Create the MMIO2 range record for it.
-             */
-            const size_t cbRange = RT_OFFSETOF(PGMMMIO2RANGE, RamRange.aPages[cPages]);
-            PPGMMMIO2RANGE pNew;
-            rc = MMR3HyperAllocOnceNoRel(pVM, cbRange, 0, MM_TAG_PGM_PHYS, (void **)&pNew);
-            AssertLogRelMsgRC(rc, ("cbRamRange=%zu\n", cbRange));
+            void *pvPages;
+            rc = SUPR3PageAllocEx(cPages, 0 /*fFlags*/, &pvPages, NULL /*pR0Ptr*/, paPages);
             if (RT_SUCCESS(rc))
             {
-                pNew->pDevInsR3             = pDevIns;
-                pNew->pvR3                  = pvPages;
-                //pNew->pNext               = NULL;
-                //pNew->fMapped             = false;
-                //pNew->fOverlapping        = false;
-                pNew->iRegion               = iRegion;
-                pNew->idSavedState          = UINT8_MAX;
-                pNew->idMmio2               = idMmio2;
-                pNew->RamRange.pSelfR0      = MMHyperCCToR0(pVM, &pNew->RamRange);
-                pNew->RamRange.pSelfRC      = MMHyperCCToRC(pVM, &pNew->RamRange);
-                pNew->RamRange.GCPhys       = NIL_RTGCPHYS;
-                pNew->RamRange.GCPhysLast   = NIL_RTGCPHYS;
-                pNew->RamRange.pszDesc      = pszDesc;
-                pNew->RamRange.cb           = cb;
-                pNew->RamRange.fFlags       = PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO2;
-                pNew->RamRange.pvR3         = pvPages;
-                //pNew->RamRange.paLSPages    = NULL;
-
-                uint32_t iPage = cPages;
-                while (iPage-- > 0)
-                {
-                    PGM_PAGE_INIT(&pNew->RamRange.aPages[iPage],
-                                  paPages[iPage].Phys,
-                                  PGM_MMIO2_PAGEID_MAKE(idMmio2, iPage),
-                                  PGMPAGETYPE_MMIO2, PGM_PAGE_STATE_ALLOCATED);
-                }
-
-                /* update page count stats */
-                pVM->pgm.s.cAllPages     += cPages;
-                pVM->pgm.s.cPrivatePages += cPages;
+                memset(pvPages, 0, cPages * PAGE_SIZE);
 
                 /*
-                 * Link it into the list.
-                 * Since there is no particular order, just push it.
+                 * Create the MMIO2 range record for it.
                  */
-                /** @todo we can save us the linked list now, just search the lookup table... */
-                pgmLock(pVM);
-                Assert(pVM->pgm.s.apMmio2RangesR3[idMmio2 - 1] == NULL);
-                Assert(pVM->pgm.s.apMmio2RangesR0[idMmio2 - 1] == NIL_RTR0PTR);
-                pNew->pNextR3 = pVM->pgm.s.pMmio2RangesR3;
-                pVM->pgm.s.pMmio2RangesR3 = pNew;
-                pVM->pgm.s.apMmio2RangesR3[idMmio2 - 1] = pNew;
-                pVM->pgm.s.apMmio2RangesR0[idMmio2 - 1] = MMHyperCCToR0(pVM, pNew);
-                pgmUnlock(pVM);
+                const size_t cbRange = RT_OFFSETOF(PGMMMIO2RANGE, RamRange.aPages[cPages]);
+                PPGMMMIO2RANGE pNew;
+                rc = MMR3HyperAllocOnceNoRel(pVM, cbRange, 0, MM_TAG_PGM_PHYS, (void **)&pNew);
+                AssertLogRelMsgRC(rc, ("cbRamRange=%zu\n", cbRange));
+                if (RT_SUCCESS(rc))
+                {
+                    pNew->pDevInsR3             = pDevIns;
+                    pNew->pvR3                  = pvPages;
+                    //pNew->pNext               = NULL;
+                    //pNew->fMapped             = false;
+                    //pNew->fOverlapping        = false;
+                    pNew->iRegion               = iRegion;
+                    pNew->idSavedState          = UINT8_MAX;
+                    pNew->idMmio2               = idMmio2;
+                    pNew->RamRange.pSelfR0      = MMHyperCCToR0(pVM, &pNew->RamRange);
+                    pNew->RamRange.pSelfRC      = MMHyperCCToRC(pVM, &pNew->RamRange);
+                    pNew->RamRange.GCPhys       = NIL_RTGCPHYS;
+                    pNew->RamRange.GCPhysLast   = NIL_RTGCPHYS;
+                    pNew->RamRange.pszDesc      = pszDesc;
+                    pNew->RamRange.cb           = cb;
+                    pNew->RamRange.fFlags       = PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO2;
+                    pNew->RamRange.pvR3         = pvPages;
+                    //pNew->RamRange.paLSPages    = NULL;
 
-                *ppv = pvPages;
-                RTMemTmpFree(paPages);
-                pgmPhysInvalidatePageMapTLB(pVM);
-                return VINF_SUCCESS;
+                    uint32_t iPage = cPages;
+                    while (iPage-- > 0)
+                    {
+                        PGM_PAGE_INIT(&pNew->RamRange.aPages[iPage],
+                                      paPages[iPage].Phys,
+                                      PGM_MMIO2_PAGEID_MAKE(idMmio2, iPage),
+                                      PGMPAGETYPE_MMIO2, PGM_PAGE_STATE_ALLOCATED);
+                    }
+
+                    /* update page count stats */
+                    pVM->pgm.s.cAllPages     += cPages;
+                    pVM->pgm.s.cPrivatePages += cPages;
+
+                    /*
+                     * Link it into the list.
+                     * Since there is no particular order, just push it.
+                     */
+                    /** @todo we can save us the linked list now, just search the lookup table... */
+                    pgmLock(pVM);
+                    Assert(pVM->pgm.s.apMmio2RangesR3[idMmio2 - 1] == NULL);
+                    Assert(pVM->pgm.s.apMmio2RangesR0[idMmio2 - 1] == NIL_RTR0PTR);
+                    pNew->pNextR3 = pVM->pgm.s.pMmio2RangesR3;
+                    pVM->pgm.s.pMmio2RangesR3 = pNew;
+                    pVM->pgm.s.apMmio2RangesR3[idMmio2 - 1] = pNew;
+                    pVM->pgm.s.apMmio2RangesR0[idMmio2 - 1] = MMHyperCCToR0(pVM, pNew);
+                    pgmUnlock(pVM);
+
+                    *ppv = pvPages;
+                    RTMemTmpFree(paPages);
+                    pgmPhysInvalidatePageMapTLB(pVM);
+                    return VINF_SUCCESS;
+                }
+
+                SUPR3PageFreeEx(pvPages, cPages);
             }
-
-            SUPR3PageFreeEx(pvPages, cPages);
         }
         RTMemTmpFree(paPages);
         MMR3AdjustFixedReservation(pVM, -(int32_t)cPages, pszDesc);
@@ -2870,7 +2870,9 @@ VMMR3DECL(int) PGMR3PhysMMIO2Map(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, 
     }
     else
     {
+#ifdef VBOX_WITH_REM
         RTGCPHYS cb = pCur->RamRange.cb;
+#endif
 
         /* Clear the tracking data of pages we're going to reactivate. */
         PPGMPAGE pPageSrc = &pCur->RamRange.aPages[0];
@@ -4272,6 +4274,7 @@ VMMR3DECL(int) PGMR3PhysAllocateLargeHandyPage(PVM pVM, RTGCPHYS GCPhys)
     pgmUnlock(pVM);
     return rc;
 #else
+    RT_NOREF(pVM, GCPhys);
     return VERR_NOT_IMPLEMENTED;
 #endif /* PGM_WITH_LARGE_PAGES */
 }
@@ -4323,7 +4326,7 @@ VMMR3DECL(int) PGMR3PhysAllocateHandyPages(PVM pVM)
             rc = VMMR3CallR0(pVM, VMMR0_DO_PGM_ALLOCATE_HANDY_PAGES, 0, NULL);
     }
 
-    /* todo: we should split this up into an allocate and flush operation. sometimes you want to flush and not allocate more (which will trigger the vm account limit error) */
+    /** @todo we should split this up into an allocate and flush operation. sometimes you want to flush and not allocate more (which will trigger the vm account limit error) */
     if (    rc == VERR_GMM_HIT_VM_ACCOUNT_LIMIT
         &&  pVM->pgm.s.cHandyPages > 0)
     {
@@ -4350,11 +4353,11 @@ VMMR3DECL(int) PGMR3PhysAllocateHandyPages(PVM pVM)
             RTAssertMsg1Weak(NULL, __LINE__, __FILE__, __FUNCTION__);
             RTAssertMsg2Weak("i=%d iClear=%d cHandyPages=%d\n", i, iClear, pVM->pgm.s.cHandyPages);
             for (uint32_t j = iClear; j < pVM->pgm.s.cHandyPages; j++)
-                RTAssertMsg2Add(("%03d: idPage=%d HCPhysGCPhys=%RHp idSharedPage=%d%\n", j,
-                                 pVM->pgm.s.aHandyPages[j].idPage,
-                                 pVM->pgm.s.aHandyPages[j].HCPhysGCPhys,
-                                 pVM->pgm.s.aHandyPages[j].idSharedPage,
-                                 j == i ? " <---" : ""));
+                RTAssertMsg2Add("%03d: idPage=%d HCPhysGCPhys=%RHp idSharedPage=%d%\n", j,
+                                pVM->pgm.s.aHandyPages[j].idPage,
+                                pVM->pgm.s.aHandyPages[j].HCPhysGCPhys,
+                                pVM->pgm.s.aHandyPages[j].idSharedPage,
+                                j == i ? " <---" : "");
             RTAssertPanic();
         }
 #endif

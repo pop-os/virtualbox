@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,11 @@
 #endif
 
 #if defined(_MSC_VER) && RT_INLINE_ASM_USES_INTRIN
+# pragma warning(push)
+# pragma warning(disable:4668) /* Several incorrect __cplusplus uses. */
+# pragma warning(disable:4255) /* Incorrect __slwpcb prototype. */
 # include <intrin.h>
+# pragma warning(pop)
   /* Emit the intrinsics at all optimization levels. */
 # pragma intrinsic(_ReadWriteBarrier)
 # pragma intrinsic(__cpuid)
@@ -152,6 +156,8 @@
 #ifndef RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
 # if defined(DOXYGEN_RUNNING) || defined(__WATCOMC__) /* Watcom has trouble with the expression below */
 #  define RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC 1
+# elif defined(_MSC_VER) /* Visual C++ has trouble too, but it'll only tell us when C4688 is enabled. */
+#  define RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC 0
 # else
 #  define RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC \
     (   (defined(PIC) || defined(__PIC__)) \
@@ -3933,7 +3939,7 @@ DECLINLINE(bool) ASMMemIsZeroPage(void const *pvPage)
     return uAX.f;
 # else
    uintptr_t const *puPtr = (uintptr_t const *)pvPage;
-   int              cLeft = RT_ASM_PAGE_SIZE / sizeof(uintptr_t) / 8;
+   size_t           cLeft = RT_ASM_PAGE_SIZE / sizeof(uintptr_t) / 8;
    Assert(!((uintptr_t)pvPage & 15));
    for (;;)
    {
@@ -3953,7 +3959,6 @@ DECLINLINE(bool) ASMMemIsZeroPage(void const *pvPage)
            return true;
        puPtr += 8;
    }
-   return true;
 # endif
 }
 

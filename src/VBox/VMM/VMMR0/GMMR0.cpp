@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1849,6 +1849,7 @@ DECLINLINE(PGMMPAGE) gmmR0GetPage(PGMM pGMM, uint32_t idPage)
 }
 
 
+#if 0 /* unused */
 /**
  * Gets the host physical address for a page given by it's ID.
  *
@@ -1863,6 +1864,7 @@ DECLINLINE(RTHCPHYS) gmmR0GetPageHCPhys(PGMM pGMM,  uint32_t idPage)
         return RTR0MemObjGetPagePhysAddr(pChunk->hMemObj, idPage & GMM_PAGEID_IDX_MASK);
     return NIL_RTHCPHYS;
 }
+#endif /* unused */
 
 
 /**

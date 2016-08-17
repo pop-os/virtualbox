@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -379,7 +379,7 @@ RTDECL(uint32_t) RTMemPoolRelease(RTMEMPOOL hMemPool, void *pv) RT_NO_THROW_DEF
     RTMEMPOOL_VALID_ENTRY_RETURN_RC(pEntry, UINT32_MAX);
     Assert(    hMemPool == NIL_RTMEMPOOL
            ||  hMemPool == pEntry->pMemPool
-           ||  (hMemPool == RTMEMPOOL_DEFAULT && pEntry->pMemPool == &g_rtMemPoolDefault));
+           ||  (hMemPool == RTMEMPOOL_DEFAULT && pEntry->pMemPool == &g_rtMemPoolDefault)); RT_NOREF_PV(hMemPool);
     AssertReturn(pEntry->cRefs > 0, UINT32_MAX);
 
     uint32_t cRefs = ASMAtomicDecU32(&pEntry->cRefs);

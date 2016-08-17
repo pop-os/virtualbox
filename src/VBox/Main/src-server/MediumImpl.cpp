@@ -23,7 +23,7 @@
 
 #include "AutoCaller.h"
 #include "Logging.h"
-
+#include "ThreadTask.h"
 #include "VBox/com/MultiResult.h"
 #include "VBox/com/ErrorInfo.h"
 
@@ -46,6 +46,12 @@
 #include <openssl/rand.h>
 
 typedef std::list<Guid> GuidList;
+
+
+#ifdef VBOX_WITH_EXTPACK
+static const char g_szVDPlugin[] = "VDPluginCrypt";
+#endif
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -210,11 +216,12 @@ typedef struct VDSOCKETINT
  * @note The constructor of this class adds a caller on the managed Medium
  *       object which is automatically released upon destruction.
  */
-class Medium::Task
+class Medium::Task : public ThreadTask
 {
 public:
     Task(Medium *aMedium, Progress *aProgress)
-        : mVDOperationIfaces(NULL),
+        : ThreadTask("Medium::Task"),
+          mVDOperationIfaces(NULL),
           mMedium(aMedium),
           mMediumCaller(aMedium),
           mThread(NIL_RTTHREAD),
@@ -250,28 +257,65 @@ public:
 
     // Make all destructors virtual. Just in case.
     virtual ~Task()
-    {}
+    {
+        /* send the notification of completion.*/
+        if (!mProgress.isNull())
+            mProgress->i_notifyComplete(mRC);
+    }
 
     HRESULT rc() const { return mRC; }
     bool isOk() const { return SUCCEEDED(rc()); }
 
-    static DECLCALLBACK(int) fntMediumTask(RTTHREAD aThread, void *pvUser);
-
     bool isAsync() { return mThread != NIL_RTTHREAD; }
+
+    const ComPtr<Progress>& GetProgressObject() const {return mProgress;}
+
+    /**
+     * Runs Medium::Task::executeTask() on the current thread
+     * instead of creating a new one.
+     */
+    HRESULT runNow()
+    {
+        LogFlowFuncEnter();
+
+        mRC = executeTask();
+
+        LogFlowFunc(("rc=%Rhrc\n", mRC));
+        LogFlowFuncLeave();
+        return mRC;
+    }
+
+    /**
+     * Implementation code for the "create base" task.
+     * Used as function for execution from a standalone thread.
+     */
+    void handler()
+    {
+        LogFlowFuncEnter();
+        try
+        {
+            mRC = executeTask(); /* (destructor picks up mRC, see above) */
+            LogFlowFunc(("rc=%Rhrc\n", mRC));
+        }
+        catch (...)
+        {
+            LogRel(("Some exception in the function Medium::Task:handler()\n"));
+        }
+
+        LogFlowFuncLeave();
+    }
 
     PVDINTERFACE mVDOperationIfaces;
 
     const ComObjPtr<Medium> mMedium;
     AutoCaller mMediumCaller;
 
-    friend HRESULT Medium::i_runNow(Medium::Task*);
-
 protected:
     HRESULT mRC;
     RTTHREAD mThread;
 
 private:
-    virtual HRESULT handler() = 0;
+    virtual HRESULT executeTask() = 0;
 
     const ComObjPtr<Progress> mProgress;
 
@@ -288,6 +332,11 @@ private:
     AutoCaller mVirtualBoxCaller;
 };
 
+HRESULT Medium::Task::executeTask()
+{
+    return E_NOTIMPL;//ReturnComNotImplemented()
+}
+
 class Medium::CreateBaseTask : public Medium::Task
 {
 public:
@@ -298,13 +347,15 @@ public:
         : Medium::Task(aMedium, aProgress),
           mSize(aSize),
           mVariant(aVariant)
-    {}
+    {
+        m_strTaskName = "createBase";
+    }
 
     uint64_t mSize;
     MediumVariant_T mVariant;
 
 private:
-    virtual HRESULT handler();
+    HRESULT executeTask();
 };
 
 class Medium::CreateDiffTask : public Medium::Task
@@ -327,6 +378,7 @@ public:
         mRC = mTargetCaller.rc();
         if (FAILED(mRC))
             return;
+        m_strTaskName = "createDiff";
     }
 
     ~CreateDiffTask()
@@ -341,8 +393,7 @@ public:
     MediumVariant_T mVariant;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     AutoCaller mTargetCaller;
     bool mfKeepMediumLockList;
 };
@@ -384,6 +435,7 @@ public:
             return;
         AssertReturnVoidStmt(aSourceMediumLockList != NULL, mRC = E_FAIL);
         AssertReturnVoidStmt(aTargetMediumLockList != NULL, mRC = E_FAIL);
+        m_strTaskName = "createClone";
     }
 
     ~CloneTask()
@@ -403,8 +455,7 @@ public:
     uint32_t midxDstImageSame;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     AutoCaller mTargetCaller;
     AutoCaller mParentCaller;
     bool mfKeepSourceMediumLockList;
@@ -425,6 +476,7 @@ public:
           mfKeepMediumLockList(fKeepMediumLockList)
     {
         AssertReturnVoidStmt(aMediumLockList != NULL, mRC = E_FAIL);
+        m_strTaskName = "createMove";
     }
 
     ~MoveTask()
@@ -437,8 +489,7 @@ public:
     MediumVariant_T mVariant;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     bool mfKeepMediumLockList;
 };
 
@@ -454,6 +505,7 @@ public:
           mfKeepMediumLockList(fKeepMediumLockList)
     {
         AssertReturnVoidStmt(aMediumLockList != NULL, mRC = E_FAIL);
+        m_strTaskName = "createCompact";
     }
 
     ~CompactTask()
@@ -465,8 +517,7 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     bool mfKeepMediumLockList;
 };
 
@@ -484,6 +535,7 @@ public:
           mfKeepMediumLockList(fKeepMediumLockList)
     {
         AssertReturnVoidStmt(aMediumLockList != NULL, mRC = E_FAIL);
+        m_strTaskName = "createResize";
     }
 
     ~ResizeTask()
@@ -496,8 +548,7 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     bool mfKeepMediumLockList;
 };
 
@@ -511,7 +562,9 @@ public:
         : Medium::Task(aMedium, aProgress),
           mpMediumLockList(aMediumLockList),
           mfKeepMediumLockList(fKeepMediumLockList)
-    {}
+    {
+        m_strTaskName = "createReset";
+    }
 
     ~ResetTask()
     {
@@ -522,8 +575,7 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     bool mfKeepMediumLockList;
 };
 
@@ -537,7 +589,9 @@ public:
         : Medium::Task(aMedium, aProgress),
           mpMediumLockList(aMediumLockList),
           mfKeepMediumLockList(fKeepMediumLockList)
-    {}
+    {
+        m_strTaskName = "createDelete";
+    }
 
     ~DeleteTask()
     {
@@ -548,8 +602,7 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     bool mfKeepMediumLockList;
 };
 
@@ -575,6 +628,7 @@ public:
           mfKeepMediumLockList(fKeepMediumLockList)
     {
         AssertReturnVoidStmt(aMediumLockList != NULL, mRC = E_FAIL);
+        m_strTaskName = "createMerge";
     }
 
     ~MergeTask()
@@ -594,8 +648,7 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     AutoCaller mTargetCaller;
     AutoCaller mParentForTargetCaller;
     bool mfKeepMediumLockList;
@@ -632,6 +685,7 @@ public:
                                      sizeof(VDINTERFACEIO), &mVDImageIfaces);
             AssertRCReturnVoidStmt(vrc, mRC = E_FAIL);
         }
+        m_strTaskName = "createExport";
     }
 
     ~ExportTask()
@@ -648,8 +702,7 @@ public:
     SecretKeyStore *m_pSecretKeyStore;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     bool mfKeepSourceMediumLockList;
 };
 
@@ -690,6 +743,7 @@ public:
                              VDINTERFACETYPE_IO, mpVfsIoIf,
                              sizeof(VDINTERFACEIO), &mVDImageIfaces);
         AssertRCReturnVoidStmt(vrc, mRC = E_FAIL);
+        m_strTaskName = "createImport";
     }
 
     ~ImportTask()
@@ -712,8 +766,7 @@ public:
     PVDINTERFACEIO mpVfsIoIf; /**< Pointer to the VFS I/O stream to VD I/O interface wrapper. */
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     AutoCaller mParentCaller;
     bool mfKeepTargetMediumLockList;
 };
@@ -742,6 +795,7 @@ public:
             return;
 
         mVDImageIfaces = aMedium->m->vdImageIfaces;
+        m_strTaskName = "createEncrypt";
     }
 
     ~EncryptTask()
@@ -764,8 +818,7 @@ public:
     PVDINTERFACE    mVDImageIfaces;
 
 private:
-    virtual HRESULT handler();
-
+    HRESULT executeTask();
     AutoCaller mParentCaller;
 };
 
@@ -804,44 +857,6 @@ struct Medium::CryptoFilterSettings
 };
 
 /**
- * Thread function for time-consuming medium tasks.
- *
- * @param pvUser    Pointer to the Medium::Task instance.
- */
-/* static */
-DECLCALLBACK(int) Medium::Task::fntMediumTask(RTTHREAD aThread, void *pvUser)
-{
-    LogFlowFuncEnter();
-    AssertReturn(pvUser, (int)E_INVALIDARG);
-    Medium::Task *pTask = static_cast<Medium::Task *>(pvUser);
-
-    pTask->mThread = aThread;
-
-    HRESULT rc = pTask->handler();
-
-    /*
-     * save the progress reference if run asynchronously, since we want to
-     * destroy the task before we send out the completion notification.
-     * see @bugref{7763}
-     */
-    ComObjPtr<Progress> pProgress;
-    if (pTask->isAsync())
-        pProgress = pTask->mProgress;
-
-    /* pTask is no longer needed, delete it. */
-    delete pTask;
-
-    /* complete the progress if run asynchronously */
-    if (!pProgress.isNull())
-        pProgress->i_notifyComplete(rc);
-
-    LogFlowFunc(("rc=%Rhrc\n", rc));
-    LogFlowFuncLeave();
-
-    return (int)rc;
-}
-
-/**
  * PFNVDPROGRESS callback handler for Task operations.
  *
  * @param pvUser      Pointer to the Progress instance.
@@ -872,7 +887,7 @@ DECLCALLBACK(int) Medium::Task::vdProgressCall(void *pvUser, unsigned uPercent)
 /**
  * Implementation code for the "create base" task.
  */
-HRESULT Medium::CreateBaseTask::handler()
+HRESULT Medium::CreateBaseTask::executeTask()
 {
     return mMedium->i_taskCreateBaseHandler(*this);
 }
@@ -880,7 +895,7 @@ HRESULT Medium::CreateBaseTask::handler()
 /**
  * Implementation code for the "create diff" task.
  */
-HRESULT Medium::CreateDiffTask::handler()
+HRESULT Medium::CreateDiffTask::executeTask()
 {
     return mMedium->i_taskCreateDiffHandler(*this);
 }
@@ -888,7 +903,7 @@ HRESULT Medium::CreateDiffTask::handler()
 /**
  * Implementation code for the "clone" task.
  */
-HRESULT Medium::CloneTask::handler()
+HRESULT Medium::CloneTask::executeTask()
 {
     return mMedium->i_taskCloneHandler(*this);
 }
@@ -896,7 +911,7 @@ HRESULT Medium::CloneTask::handler()
 /**
  * Implementation code for the "move" task.
  */
-HRESULT Medium::MoveTask::handler()
+HRESULT Medium::MoveTask::executeTask()
 {
     return mMedium->i_taskMoveHandler(*this);
 }
@@ -904,7 +919,7 @@ HRESULT Medium::MoveTask::handler()
 /**
  * Implementation code for the "compact" task.
  */
-HRESULT Medium::CompactTask::handler()
+HRESULT Medium::CompactTask::executeTask()
 {
     return mMedium->i_taskCompactHandler(*this);
 }
@@ -912,7 +927,7 @@ HRESULT Medium::CompactTask::handler()
 /**
  * Implementation code for the "resize" task.
  */
-HRESULT Medium::ResizeTask::handler()
+HRESULT Medium::ResizeTask::executeTask()
 {
     return mMedium->i_taskResizeHandler(*this);
 }
@@ -921,7 +936,7 @@ HRESULT Medium::ResizeTask::handler()
 /**
  * Implementation code for the "reset" task.
  */
-HRESULT Medium::ResetTask::handler()
+HRESULT Medium::ResetTask::executeTask()
 {
     return mMedium->i_taskResetHandler(*this);
 }
@@ -929,7 +944,7 @@ HRESULT Medium::ResetTask::handler()
 /**
  * Implementation code for the "delete" task.
  */
-HRESULT Medium::DeleteTask::handler()
+HRESULT Medium::DeleteTask::executeTask()
 {
     return mMedium->i_taskDeleteHandler(*this);
 }
@@ -937,7 +952,7 @@ HRESULT Medium::DeleteTask::handler()
 /**
  * Implementation code for the "merge" task.
  */
-HRESULT Medium::MergeTask::handler()
+HRESULT Medium::MergeTask::executeTask()
 {
     return mMedium->i_taskMergeHandler(*this);
 }
@@ -945,7 +960,7 @@ HRESULT Medium::MergeTask::handler()
 /**
  * Implementation code for the "export" task.
  */
-HRESULT Medium::ExportTask::handler()
+HRESULT Medium::ExportTask::executeTask()
 {
     return mMedium->i_taskExportHandler(*this);
 }
@@ -953,7 +968,7 @@ HRESULT Medium::ExportTask::handler()
 /**
  * Implementation code for the "import" task.
  */
-HRESULT Medium::ImportTask::handler()
+HRESULT Medium::ImportTask::executeTask()
 {
     return mMedium->i_taskImportHandler(*this);
 }
@@ -961,7 +976,7 @@ HRESULT Medium::ImportTask::handler()
 /**
  * Implementation code for the "encrypt" task.
  */
-HRESULT Medium::EncryptTask::handler()
+HRESULT Medium::EncryptTask::executeTask()
 {
     return mMedium->i_taskEncryptHandler(*this);
 }
@@ -2623,7 +2638,7 @@ HRESULT Medium::createBaseStorage(LONG64 aLogicalSize,
 
     if (SUCCEEDED(rc))
     {
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -2931,7 +2946,7 @@ HRESULT Medium::cloneTo(const ComPtr<IMedium> &aTarget,
 
     if (SUCCEEDED(rc))
     {
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -3171,7 +3186,7 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
 
     if (SUCCEEDED(rc))
     {
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -3243,7 +3258,7 @@ HRESULT Medium::compact(ComPtr<IProgress> &aProgress)
 
     if (SUCCEEDED(rc))
     {
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -3313,7 +3328,7 @@ HRESULT Medium::resize(LONG64 aLogicalSize,
 
     if (SUCCEEDED(rc))
     {
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -3402,7 +3417,7 @@ HRESULT Medium::reset(AutoCaller &autoCaller, ComPtr<IProgress> &aProgress)
 
     if (SUCCEEDED(rc))
     {
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -3538,7 +3553,7 @@ HRESULT Medium::changeEncryption(const com::Utf8Str &aCurrentPassword, const com
 
     if (SUCCEEDED(rc))
     {
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -3551,6 +3566,9 @@ HRESULT Medium::changeEncryption(const com::Utf8Str &aCurrentPassword, const com
 
 HRESULT Medium::getEncryptionSettings(com::Utf8Str &aCipher, com::Utf8Str &aPasswordId)
 {
+#ifndef VBOX_WITH_EXTPACK
+    RT_NOREF(aCipher, aPasswordId);
+#endif
     HRESULT rc = S_OK;
 
     try
@@ -3564,14 +3582,12 @@ HRESULT Medium::getEncryptionSettings(com::Utf8Str &aCipher, com::Utf8Str &aPass
             throw VBOX_E_NOT_SUPPORTED;
 
 # ifdef VBOX_WITH_EXTPACK
-        static const Utf8Str strExtPackPuel("Oracle VM VirtualBox Extension Pack");
-        static const char *s_pszVDPlugin = "VDPluginCrypt";
         ExtPackManager *pExtPackManager = m->pVirtualBox->i_getExtPackManager();
-        if (pExtPackManager->i_isExtPackUsable(strExtPackPuel.c_str()))
+        if (pExtPackManager->i_isExtPackUsable(ORACLE_PUEL_EXTPACK_NAME))
         {
             /* Load the plugin */
             Utf8Str strPlugin;
-            rc = pExtPackManager->i_getLibraryPathForExtPack(s_pszVDPlugin, &strExtPackPuel, &strPlugin);
+            rc = pExtPackManager->i_getLibraryPathForExtPack(g_szVDPlugin, ORACLE_PUEL_EXTPACK_NAME, &strPlugin);
             if (SUCCEEDED(rc))
             {
                 int vrc = VDPluginLoadFromFilename(strPlugin.c_str());
@@ -3583,12 +3599,12 @@ HRESULT Medium::getEncryptionSettings(com::Utf8Str &aCipher, com::Utf8Str &aPass
             else
                 throw setError(VBOX_E_NOT_SUPPORTED,
                                tr("Encryption is not supported because the extension pack '%s' is missing the encryption plugin (old extension pack installed?)"),
-                               strExtPackPuel.c_str());
+                               ORACLE_PUEL_EXTPACK_NAME);
         }
         else
             throw setError(VBOX_E_NOT_SUPPORTED,
                            tr("Encryption is not supported because the extension pack '%s' is missing"),
-                           strExtPackPuel.c_str());
+                           ORACLE_PUEL_EXTPACK_NAME);
 
         PVBOXHDD pDisk = NULL;
         int vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &pDisk);
@@ -3642,14 +3658,12 @@ HRESULT Medium::checkEncryptionPassword(const com::Utf8Str &aPassword)
                            tr("The given password must not be empty"));
 
 # ifdef VBOX_WITH_EXTPACK
-        static const Utf8Str strExtPackPuel("Oracle VM VirtualBox Extension Pack");
-        static const char *s_pszVDPlugin = "VDPluginCrypt";
         ExtPackManager *pExtPackManager = m->pVirtualBox->i_getExtPackManager();
-        if (pExtPackManager->i_isExtPackUsable(strExtPackPuel.c_str()))
+        if (pExtPackManager->i_isExtPackUsable(ORACLE_PUEL_EXTPACK_NAME))
         {
             /* Load the plugin */
             Utf8Str strPlugin;
-            rc = pExtPackManager->i_getLibraryPathForExtPack(s_pszVDPlugin, &strExtPackPuel, &strPlugin);
+            rc = pExtPackManager->i_getLibraryPathForExtPack(g_szVDPlugin, ORACLE_PUEL_EXTPACK_NAME, &strPlugin);
             if (SUCCEEDED(rc))
             {
                 int vrc = VDPluginLoadFromFilename(strPlugin.c_str());
@@ -3661,12 +3675,12 @@ HRESULT Medium::checkEncryptionPassword(const com::Utf8Str &aPassword)
             else
                 throw setError(VBOX_E_NOT_SUPPORTED,
                                tr("Encryption is not supported because the extension pack '%s' is missing the encryption plugin (old extension pack installed?)"),
-                               strExtPackPuel.c_str());
+                               ORACLE_PUEL_EXTPACK_NAME);
         }
         else
             throw setError(VBOX_E_NOT_SUPPORTED,
                            tr("Encryption is not supported because the extension pack '%s' is missing"),
-                           strExtPackPuel.c_str());
+                           ORACLE_PUEL_EXTPACK_NAME);
 
         PVBOXHDD pDisk = NULL;
         int vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &pDisk);
@@ -3935,7 +3949,7 @@ bool Medium::i_removeRegistry(const Guid &id)
 
     bool fRemove = false;
 
-    // @todo r=klaus eliminate this code, replace it by using find.
+    /// @todo r=klaus eliminate this code, replace it by using find.
     for (GuidList::iterator it = m->llRegistryIDs.begin();
          it != m->llRegistryIDs.end();
          ++it)
@@ -3991,7 +4005,7 @@ bool Medium::i_removeRegistryRecursive(const Guid &id)
  */
 bool Medium::i_isInRegistry(const Guid &id)
 {
-    // @todo r=klaus eliminate this code, replace it by using find.
+    /// @todo r=klaus eliminate this code, replace it by using find.
     for (GuidList::const_iterator it = m->llRegistryIDs.begin();
          it != m->llRegistryIDs.end();
          ++it)
@@ -4817,9 +4831,13 @@ HRESULT Medium::i_createDiffStorage(ComObjPtr<Medium> &aTarget,
     if (SUCCEEDED(rc))
     {
         if (aWait)
-            rc = i_runNow(pTask);
+        {
+            rc = pTask->runNow();
+
+            delete pTask;
+        }
         else
-            rc = i_startThread(pTask);
+            rc = pTask->createThread();
 
         if (SUCCEEDED(rc) && aProgress != NULL)
             *aProgress = pProgress;
@@ -5148,9 +5166,13 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
     if (SUCCEEDED(rc))
     {
         if (aWait)
-            rc = i_runNow(pTask);
+        {
+            rc = pTask->runNow();
+
+            delete pTask;
+        }
         else
-            rc = i_startThread(pTask);
+            rc = pTask->createThread();
 
         if (SUCCEEDED(rc) && aProgress != NULL)
             *aProgress = pProgress;
@@ -5831,9 +5853,13 @@ HRESULT Medium::i_mergeTo(const ComObjPtr<Medium> &pTarget,
     if (SUCCEEDED(rc))
     {
         if (aWait)
-            rc = i_runNow(pTask);
+        {
+            rc = pTask->runNow();
+
+            delete pTask;
+        }
         else
-            rc = i_startThread(pTask);
+            rc = pTask->createThread();
 
         if (SUCCEEDED(rc) && aProgress != NULL)
             *aProgress = pProgress;
@@ -6062,7 +6088,7 @@ HRESULT Medium::i_exportFile(const char *aFilename,
     catch (HRESULT aRC) { rc = aRC; }
 
     if (SUCCEEDED(rc))
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
     else if (pTask != NULL)
         delete pTask;
 
@@ -6160,7 +6186,7 @@ HRESULT Medium::i_importFile(const char *aFilename,
     catch (HRESULT aRC) { rc = aRC; }
 
     if (SUCCEEDED(rc))
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
     else if (pTask != NULL)
         delete pTask;
 
@@ -6305,7 +6331,7 @@ HRESULT Medium::i_cloneToEx(const ComObjPtr<Medium> &aTarget, ULONG aVariant,
 
     if (SUCCEEDED(rc))
     {
-        rc = i_startThread(pTask);
+        rc = pTask->createThread();
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress);
@@ -6396,6 +6422,7 @@ HRESULT Medium::i_preparationForMoving(const Utf8Str &aLocation)
  */
 bool Medium::i_isMoveOperation(const ComObjPtr<Medium> &aTarget) const
 {
+    RT_NOREF(aTarget);
     return (m->fMoveThisMedium == true) ? true:false;
 }
 
@@ -7761,66 +7788,6 @@ DECLCALLBACK(int) Medium::i_vdCryptoKeyStoreReturnParameters(void *pvUser, const
     pSettings->cbDek             = cbDek;
 
     return pSettings->pszCipherReturned ? VINF_SUCCESS : VERR_NO_MEMORY;
-}
-
-/**
- * Starts a new thread driven by the appropriate Medium::Task::handler() method.
- *
- * @note When the task is executed by this method, IProgress::notifyComplete()
- *       is automatically called for the progress object associated with this
- *       task when the task is finished to signal the operation completion for
- *       other threads asynchronously waiting for it.
- */
-HRESULT Medium::i_startThread(Medium::Task *pTask)
-{
-#ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    /* Extreme paranoia: The calling thread should not hold the medium
-     * tree lock or any medium lock. Since there is no separate lock class
-     * for medium objects be even more strict: no other object locks. */
-    Assert(!AutoLockHoldsLocksInClass(LOCKCLASS_LISTOFMEDIA));
-    Assert(!AutoLockHoldsLocksInClass(getLockingClass()));
-#endif
-
-    /// @todo use a more descriptive task name
-    int vrc = RTThreadCreate(NULL, Medium::Task::fntMediumTask, pTask,
-                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                             "Medium::Task");
-    if (RT_FAILURE(vrc))
-    {
-        delete pTask;
-        return setError(E_FAIL, "Could not create Medium::Task thread (%Rrc)\n",  vrc);
-    }
-
-    return S_OK;
-}
-
-/**
- * Runs Medium::Task::handler() on the current thread instead of creating
- * a new one.
- *
- * This call implies that it is made on another temporary thread created for
- * some asynchronous task. Avoid calling it from a normal thread since the task
- * operations are potentially lengthy and will block the calling thread in this
- * case.
- *
- * @note When the task is executed by this method, IProgress::notifyComplete()
- *       is not called for the progress object associated with this task when
- *       the task is finished. Instead, the result of the operation is returned
- *       by this method directly and it's the caller's responsibility to
- *       complete the progress object in this case.
- */
-HRESULT Medium::i_runNow(Medium::Task *pTask)
-{
-#ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    /* Extreme paranoia: The calling thread should not hold the medium
-     * tree lock or any medium lock. Since there is no separate lock class
-     * for medium objects be even more strict: no other object locks. */
-    Assert(!AutoLockHoldsLocksInClass(LOCKCLASS_LISTOFMEDIA));
-    Assert(!AutoLockHoldsLocksInClass(getLockingClass()));
-#endif
-
-    /* NIL_RTTHREAD indicates synchronous call. */
-    return (HRESULT)Medium::Task::fntMediumTask(NIL_RTTHREAD, pTask);
 }
 
 /**
@@ -9452,14 +9419,12 @@ HRESULT Medium::i_taskExportHandler(Medium::ExportTask &task)
                 settings::StringsMap::iterator itKeyId = pBase->m->mapProperties.find("CRYPT/KeyId");
 
 #ifdef VBOX_WITH_EXTPACK
-                static const Utf8Str strExtPackPuel("Oracle VM VirtualBox Extension Pack");
-                static const char *s_pszVDPlugin = "VDPluginCrypt";
                 ExtPackManager *pExtPackManager = m->pVirtualBox->i_getExtPackManager();
-                if (pExtPackManager->i_isExtPackUsable(strExtPackPuel.c_str()))
+                if (pExtPackManager->i_isExtPackUsable(ORACLE_PUEL_EXTPACK_NAME))
                 {
                     /* Load the plugin */
                     Utf8Str strPlugin;
-                    rc = pExtPackManager->i_getLibraryPathForExtPack(s_pszVDPlugin, &strExtPackPuel, &strPlugin);
+                    rc = pExtPackManager->i_getLibraryPathForExtPack(g_szVDPlugin, ORACLE_PUEL_EXTPACK_NAME, &strPlugin);
                     if (SUCCEEDED(rc))
                     {
                         vrc = VDPluginLoadFromFilename(strPlugin.c_str());
@@ -9471,12 +9436,12 @@ HRESULT Medium::i_taskExportHandler(Medium::ExportTask &task)
                     else
                         throw setError(VBOX_E_NOT_SUPPORTED,
                                        tr("Encryption is not supported because the extension pack '%s' is missing the encryption plugin (old extension pack installed?)"),
-                                       strExtPackPuel.c_str());
+                                       ORACLE_PUEL_EXTPACK_NAME);
                 }
                 else
                     throw setError(VBOX_E_NOT_SUPPORTED,
                                    tr("Encryption is not supported because the extension pack '%s' is missing"),
-                                   strExtPackPuel.c_str());
+                                   ORACLE_PUEL_EXTPACK_NAME);
 #else
                 throw setError(VBOX_E_NOT_SUPPORTED,
                                tr("Encryption is not supported because extension pack support is not built in"));
@@ -9923,6 +9888,9 @@ void Medium::i_taskEncryptSettingsSetup(CryptoFilterSettings *pSettings, const c
  */
 HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
 {
+# ifndef VBOX_WITH_EXTPACK
+    RT_NOREF(task);
+# endif
     HRESULT rc = S_OK;
 
     /* Lock all in {parent,child} order. The lock is also used as a
@@ -9934,14 +9902,12 @@ HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
     try
     {
 # ifdef VBOX_WITH_EXTPACK
-        static const Utf8Str strExtPackPuel("Oracle VM VirtualBox Extension Pack");
-        static const char *s_pszVDPlugin = "VDPluginCrypt";
         ExtPackManager *pExtPackManager = m->pVirtualBox->i_getExtPackManager();
-        if (pExtPackManager->i_isExtPackUsable(strExtPackPuel.c_str()))
+        if (pExtPackManager->i_isExtPackUsable(ORACLE_PUEL_EXTPACK_NAME))
         {
             /* Load the plugin */
             Utf8Str strPlugin;
-            rc = pExtPackManager->i_getLibraryPathForExtPack(s_pszVDPlugin, &strExtPackPuel, &strPlugin);
+            rc = pExtPackManager->i_getLibraryPathForExtPack(g_szVDPlugin, ORACLE_PUEL_EXTPACK_NAME, &strPlugin);
             if (SUCCEEDED(rc))
             {
                 int vrc = VDPluginLoadFromFilename(strPlugin.c_str());
@@ -9953,12 +9919,12 @@ HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
             else
                 throw setError(VBOX_E_NOT_SUPPORTED,
                                tr("Encryption is not supported because the extension pack '%s' is missing the encryption plugin (old extension pack installed?)"),
-                               strExtPackPuel.c_str());
+                               ORACLE_PUEL_EXTPACK_NAME);
         }
         else
             throw setError(VBOX_E_NOT_SUPPORTED,
                            tr("Encryption is not supported because the extension pack '%s' is missing"),
-                           strExtPackPuel.c_str());
+                           ORACLE_PUEL_EXTPACK_NAME);
 
         PVBOXHDD pDisk = NULL;
         int vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &pDisk);

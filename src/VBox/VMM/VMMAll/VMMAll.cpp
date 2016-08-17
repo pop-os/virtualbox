@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -459,6 +459,8 @@ VMM_INT_DECL(void) VMMHypercallsEnable(PVMCPU pVCpu)
 #ifndef IN_RC
     if (HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         HMHypercallsEnable(pVCpu);
+#else
+    RT_NOREF_PV(pVCpu);
 #endif
 }
 
@@ -474,6 +476,8 @@ VMM_INT_DECL(void) VMMHypercallsDisable(PVMCPU pVCpu)
 #ifndef IN_RC
     if (HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         HMHypercallsDisable(pVCpu);
+#else
+    RT_NOREF_PV(pVCpu);
 #endif
 }
 

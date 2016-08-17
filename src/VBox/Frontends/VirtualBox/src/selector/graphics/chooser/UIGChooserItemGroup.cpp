@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1337,6 +1337,7 @@ bool UIGChooserItemGroup::isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, Dra
                 /* Make sure there is no other item with such id: */
                 return !isContainsMachine(pItem->toMachineItem()->id());
             }
+            default: break; /* Shut up, MSC! */
         }
     }
     /* That was invalid mime: */

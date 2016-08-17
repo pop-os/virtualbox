@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -200,7 +200,7 @@ static void findTopLeftBorder(const uint8_t *pu8AndMask, const uint8_t *pu8XorMa
     /*
      * Find the top border of the AND mask. First assign to special value.
      */
-    uint32_t ySkipAnd = ~0;
+    uint32_t ySkipAnd = UINT32_MAX;
 
     const uint8_t *pu8And = pu8AndMask;
     const uint32_t cbAndRow = (width + 7) / 8;
@@ -241,7 +241,7 @@ static void findTopLeftBorder(const uint8_t *pu8AndMask, const uint8_t *pu8XorMa
     /*
      * Find the left border of the AND mask.
      */
-    uint32_t xSkipAnd = ~0;
+    uint32_t xSkipAnd = UINT32_MAX;
 
     /* For all bit columns. */
     for (x = 0; x < width && xSkipAnd == ~(uint32_t)0; x++)
@@ -267,7 +267,7 @@ static void findTopLeftBorder(const uint8_t *pu8AndMask, const uint8_t *pu8XorMa
     /*
      * Find the XOR mask top border.
      */
-    uint32_t ySkipXor = ~0;
+    uint32_t ySkipXor = UINT32_MAX;
 
     uint32_t *pu32XorStart = (uint32_t *)pu8XorMask;
 
@@ -788,7 +788,7 @@ DECLCALLBACK(int) ConsoleVRDPServer::VRDPCallbackQueryProperty(void *pvCallback,
                 || RTStrICmp(pFeature->achInfo, "Client/DisableClipboard") == 0
                )
             {
-                /* @todo these features should be per client. */
+                /** @todo these features should be per client. */
                 NOREF(pFeature->u32ClientId);
 
                 /* These features are mapped to "VRDE/Feature/NAME" extra data. */
@@ -1037,6 +1037,7 @@ DECLCALLBACK(int) ConsoleVRDPServer::VRDPCallbackIntercept(void *pvCallback, uin
 DECLCALLBACK(int) ConsoleVRDPServer::VRDPCallbackUSB(void *pvCallback, void *pvIntercept, uint32_t u32ClientId,
                                                      uint8_t u8Code, const void *pvRet, uint32_t cbRet)
 {
+    RT_NOREF(pvCallback);
 #ifdef VBOX_WITH_USB
     return USBClientResponseCallback(pvIntercept, u32ClientId, u8Code, pvRet, cbRet);
 #else
@@ -1048,6 +1049,7 @@ DECLCALLBACK(int) ConsoleVRDPServer::VRDPCallbackClipboard(void *pvCallback, voi
                                                            uint32_t u32Function, uint32_t u32Format,
                                                            const void *pvData, uint32_t cbData)
 {
+    RT_NOREF(pvCallback);
     return ClipboardCallback(pvIntercept, u32ClientId, u32Function, u32Format, pvData, cbData);
 }
 
@@ -1283,6 +1285,7 @@ DECLCALLBACK(void) ConsoleVRDPServer::VRDECallbackAudioIn(void *pvCallback,
                                                           const void *pvData,
                                                           uint32_t cbData)
 {
+    RT_NOREF(u32ClientId);
     ConsoleVRDPServer *pServer = static_cast<ConsoleVRDPServer*>(pvCallback);
     AssertPtrReturnVoid(pServer);
 
@@ -1838,7 +1841,7 @@ typedef struct H3DORInstance
     Assert(p);
     Assert(p->pThis);
 
-    /* @todo find out what to do if size changes to 0x0 from non zero */
+    /** @todo find out what to do if size changes to 0x0 from non zero */
     if (w == 0 || h == 0)
     {
         /* Do nothing. */
@@ -1888,7 +1891,7 @@ typedef struct H3DORInstance
     if (!p->hImageBitmap)
     {
         /* Create a new bitmap handle. */
-        uint32_t u32ScreenId = 0; /* @todo clip to corresponding screens.
+        uint32_t u32ScreenId = 0; /** @todo clip to corresponding screens.
                                    * Clipping can be done here or in VRDP server.
                                    * If VRDP does clipping, then uScreenId parameter
                                    * is not necessary and coords must be global.
@@ -2035,6 +2038,7 @@ typedef struct H3DORInstance
 /* static */ DECLCALLBACK(int) ConsoleVRDPServer::H3DORContextProperty(const void *pvContext, uint32_t index,
                                                                        void *pvBuffer, uint32_t cbBuffer, uint32_t *pcbOut)
 {
+    RT_NOREF(pvContext, pvBuffer);
     int rc = VINF_SUCCESS;
 
     H3DORLOG(("H3DORContextProperty: index %d\n", index));
@@ -2142,6 +2146,7 @@ void ConsoleVRDPServer::remote3DRedirect(bool fEnable)
                                                                      void *pvData,
                                                                      uint32_t cbData)
 {
+    RT_NOREF(hVideo);
     H3DORLOG(("H3DOR: VRDEImageCbNotify: pvContext %p, pvUser %p, hVideo %p, u32Id %u, pvData %p, cbData %d\n",
               pvContext, pvUser, hVideo, u32Id, pvData, cbData));
 
@@ -2165,7 +2170,7 @@ void ConsoleVRDPServer::remote3DRedirect(bool fEnable)
 
         if (u32StreamId != 0)
         {
-            p->fCreated = true; // @todo not needed?
+            p->fCreated = true; /// @todo not needed?
         }
         else
         {
@@ -2325,7 +2330,7 @@ void ConsoleVRDPServer::tsmfUnlock(void)
 
     if (RT_SUCCESS(rc))
     {
-        /* @todo contexts should be in a list for accounting. */
+        /** @todo contexts should be in a list for accounting. */
         *ppvChannel = pHostChCtx;
     }
     else
@@ -2456,6 +2461,7 @@ void ConsoleVRDPServer::tsmfUnlock(void)
                                                                          uint32_t cbData,
                                                                          uint32_t *pcbDataReturned)
 {
+    RT_NOREF(pvParm, cbParm, pvData, cbData);
     LogFlowFunc(("u32Code %u\n", u32Code));
 
     if (!pvChannel)
@@ -2529,7 +2535,7 @@ void ConsoleVRDPServer::setupTSMF(void)
     return;
 }
 
-/* @todo these defines must be in a header, which is used by guest component as well. */
+/** @todo these defines must be in a header, which is used by guest component as well. */
 #define VBOX_TSMF_HCH_CREATE_ACCEPTED (VBOX_HOST_CHANNEL_EVENT_USER + 0)
 #define VBOX_TSMF_HCH_CREATE_DECLINED (VBOX_HOST_CHANNEL_EVENT_USER + 1)
 #define VBOX_TSMF_HCH_DISCONNECTED    (VBOX_HOST_CHANNEL_EVENT_USER + 2)
@@ -2540,6 +2546,7 @@ void ConsoleVRDPServer::setupTSMF(void)
                                                                     const void *pvParm,
                                                                     uint32_t cbParm)
 {
+    RT_NOREF(cbParm);
     int rc = VINF_SUCCESS;
 
     ConsoleVRDPServer *pThis = static_cast<ConsoleVRDPServer*>(pvContext);
@@ -2867,7 +2874,7 @@ int ConsoleVRDPServer::VideoInControl(void *pvUser, const VRDEVIDEOINDEVICEHANDL
             }
             else if (pHeader->u16EventId == VRDEINPUT_EVENTID_DISMISS_HOVERING_CONTACT)
             {
-                /* @todo */
+                /** @todo */
             }
             else
             {
@@ -3311,6 +3318,7 @@ DECLCALLBACK(int) ConsoleVRDPServer::ClipboardServiceExtension(void *pvExtension
                                                                void *pvParms,
                                                                uint32_t cbParms)
 {
+    RT_NOREF(cbParms);
     LogFlowFunc(("pvExtension = %p, u32Function = %d, pvParms = %p, cbParms = %d\n",
                  pvExtension, u32Function, pvParms, cbParms));
 
@@ -3380,6 +3388,7 @@ DECLCALLBACK(int) ConsoleVRDPServer::ClipboardServiceExtension(void *pvExtension
 
 void ConsoleVRDPServer::ClipboardCreate(uint32_t u32ClientId)
 {
+    RT_NOREF(u32ClientId);
     int rc = lockConsoleVRDPServer();
 
     if (RT_SUCCESS(rc))
@@ -3400,6 +3409,7 @@ void ConsoleVRDPServer::ClipboardCreate(uint32_t u32ClientId)
 
 void ConsoleVRDPServer::ClipboardDelete(uint32_t u32ClientId)
 {
+    RT_NOREF(u32ClientId);
     int rc = lockConsoleVRDPServer();
 
     if (RT_SUCCESS(rc))
@@ -3762,6 +3772,7 @@ int ConsoleVRDPServer::SendAudioInputBegin(void **ppvUserCtx,
 
 void ConsoleVRDPServer::SendAudioInputEnd(void *pvUserCtx)
 {
+    RT_NOREF(pvUserCtx);
     if (mpEntryPoints && mhServer && mpEntryPoints->VRDEAudioInClose)
     {
         uint32_t u32ClientId = ASMAtomicReadU32(&mu32AudioInputClientId);
@@ -3927,7 +3938,7 @@ void VRDEServerInfo::uninit()
 #define IMPL_GETTER_BOOL(_aType, _aName, _aIndex)                         \
     HRESULT VRDEServerInfo::get##_aName(_aType *a##_aName)                \
     {                                                                     \
-        /* todo: Not sure if a AutoReadLock would be sufficient. */       \
+        /** @todo Not sure if a AutoReadLock would be sufficient. */       \
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                  \
                                                                           \
         uint32_t value;                                                   \
@@ -3945,7 +3956,7 @@ void VRDEServerInfo::uninit()
 #define IMPL_GETTER_SCALAR(_aType, _aName, _aIndex, _aValueMask)          \
     HRESULT VRDEServerInfo::get##_aName(_aType *a##_aName)                \
     {                                                                     \
-        /* todo: Not sure if a AutoReadLock would be sufficient. */       \
+        /** @todo Not sure if a AutoReadLock would be sufficient. */       \
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                  \
                                                                           \
         _aType value;                                                     \
@@ -3964,7 +3975,7 @@ void VRDEServerInfo::uninit()
 #define IMPL_GETTER_UTF8STR(_aType, _aName, _aIndex)                      \
     HRESULT VRDEServerInfo::get##_aName(_aType &a##_aName)                \
     {                                                                     \
-        /* todo: Not sure if a AutoReadLock would be sufficient. */       \
+        /** @todo Not sure if a AutoReadLock would be sufficient. */       \
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                  \
                                                                           \
         uint32_t cbOut = 0;                                               \

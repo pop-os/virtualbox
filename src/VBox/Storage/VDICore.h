@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -467,6 +467,10 @@ DECLINLINE(void) setImageBlocksAllocated(PVDIHEADER ph, unsigned cBlocks)
     AssertFailed();
 }
 
+#ifdef _MSC_VER
+# pragma warning(disable:4366) /* (harmless "misalignment") */
+#endif
+
 DECLINLINE(PRTUUID) getImageCreationUUID(PVDIHEADER ph)
 {
     switch (GET_MAJOR_HEADER_VERSION(ph))
@@ -509,6 +513,10 @@ DECLINLINE(PRTUUID) getImageParentModificationUUID(PVDIHEADER ph)
     AssertFailed();
     return NULL;
 }
+
+#ifdef _MSC_VER
+# pragma warning(default:4366)
+#endif
 
 /**
  * Image structure

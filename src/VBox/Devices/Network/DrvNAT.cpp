@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -233,6 +233,9 @@ DECLINLINE(void) drvNATUpdateDNS(PDRVNAT pThis, bool fFlapLink);
 static DECLCALLBACK(int) drvNATReinitializeHostNameResolving(PDRVNAT pThis);
 
 
+/**
+ * @callback_method_impl{FNPDMTHREADDRV}
+ */
 static DECLCALLBACK(int) drvNATRecv(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
@@ -250,8 +253,12 @@ static DECLCALLBACK(int) drvNATRecv(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 }
 
 
+/**
+ * @callback_method_impl{FNPDMTHREADWAKEUPDRV}
+ */
 static DECLCALLBACK(int) drvNATRecvWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pThread);
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
     int rc;
     rc = RTSemEventSignal(pThis->EventRecv);
@@ -260,6 +267,10 @@ static DECLCALLBACK(int) drvNATRecvWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @callback_method_impl{FNPDMTHREADDRV}
+ */
 static DECLCALLBACK(int) drvNATUrgRecv(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
@@ -279,14 +290,20 @@ static DECLCALLBACK(int) drvNATUrgRecv(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @callback_method_impl{FNPDMTHREADWAKEUPDRV}
+ */
 static DECLCALLBACK(int) drvNATUrgRecvWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pThread);
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
     int rc = RTSemEventSignal(pThis->EventUrgRecv);
     AssertRC(rc);
 
     return VINF_SUCCESS;
 }
+
 
 static DECLCALLBACK(void) drvNATUrgRecvWorker(PDRVNAT pThis, uint8_t *pu8Buf, int cb, struct mbuf *m)
 {
@@ -422,7 +439,7 @@ static void drvNATSendWorker(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
             uint8_t const  *pbFrame = (uint8_t const *)pSgBuf->aSegs[0].pvSeg;
             PCPDMNETWORKGSO pGso    = (PCPDMNETWORKGSO)pSgBuf->pvUser;
             uint32_t const  cSegs   = PDMNetGsoCalcSegmentCount(pGso, pSgBuf->cbUsed);  Assert(cSegs > 1);
-            for (size_t iSeg = 0; iSeg < cSegs; iSeg++)
+            for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
             {
                 size_t cbSeg;
                 void  *pvSeg;
@@ -458,6 +475,7 @@ static void drvNATSendWorker(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
  */
 static DECLCALLBACK(int) drvNATNetworkUp_BeginXmit(PPDMINETWORKUP pInterface, bool fOnWorkerThread)
 {
+    RT_NOREF(fOnWorkerThread);
     PDRVNAT pThis = RT_FROM_MEMBER(pInterface, DRVNAT, INetworkUp);
     int rc = RTCritSectTryEnter(&pThis->XmitLock);
     if (RT_FAILURE(rc))
@@ -571,6 +589,7 @@ static DECLCALLBACK(int) drvNATNetworkUp_FreeBuf(PPDMINETWORKUP pInterface, PPDM
  */
 static DECLCALLBACK(int) drvNATNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGATHER pSgBuf, bool fOnWorkerThread)
 {
+    RT_NOREF(fOnWorkerThread);
     PDRVNAT pThis = RT_FROM_MEMBER(pInterface, DRVNAT, INetworkUp);
     Assert((pSgBuf->fFlags & PDMSCATTERGATHER_FLAGS_OWNER_MASK) == PDMSCATTERGATHER_FLAGS_OWNER_1);
     Assert(RTCritSectIsOwner(&pThis->XmitLock));
@@ -612,6 +631,7 @@ static DECLCALLBACK(void) drvNATNetworkUp_EndXmit(PPDMINETWORKUP pInterface)
  */
 static void drvNATNotifyNATThread(PDRVNAT pThis, const char *pszWho)
 {
+    RT_NOREF(pszWho);
     int rc;
 #ifndef RT_OS_WINDOWS
     /* kick poll() */
@@ -629,6 +649,7 @@ static void drvNATNotifyNATThread(PDRVNAT pThis, const char *pszWho)
  */
 static DECLCALLBACK(void) drvNATNetworkUp_SetPromiscuousMode(PPDMINETWORKUP pInterface, bool fPromiscuous)
 {
+    RT_NOREF(pInterface, fPromiscuous);
     LogFlow(("drvNATNetworkUp_SetPromiscuousMode: fPromiscuous=%d\n", fPromiscuous));
     /* nothing to do */
 }
@@ -848,7 +869,8 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
         DWORD dwEvent = WSAWaitForMultipleEvents(nFDs, phEvents, FALSE,
                                                  slirp_get_timeout_ms(pThis->pNATState),
                                                  /* :fAlertable */ TRUE);
-        if (   (dwEvent < WSA_WAIT_EVENT_0 || dwEvent > WSA_WAIT_EVENT_0 + nFDs - 1)
+        AssertCompile(WSA_WAIT_EVENT_0 == 0);
+        if (   (/*dwEvent < WSA_WAIT_EVENT_0 ||*/ dwEvent > WSA_WAIT_EVENT_0 + nFDs - 1)
             && dwEvent != WSA_WAIT_TIMEOUT && dwEvent != WSA_WAIT_IO_COMPLETION)
         {
             int error = WSAGetLastError();
@@ -890,6 +912,7 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
  */
 static DECLCALLBACK(int) drvNATAsyncIoWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pThread);
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
 
     drvNATNotifyNATThread(pThis, "drvNATAsyncIoWakeup");
@@ -925,6 +948,7 @@ static DECLCALLBACK(int) drvNATReqQueueInterrupt()
 
 static DECLCALLBACK(int) drvNATHostResWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pThread);
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
     Assert(pThis != NULL);
 
@@ -943,6 +967,7 @@ static DECLCALLBACK(int) drvNATHostResWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
  */
 int slirp_can_output(void *pvUser)
 {
+    RT_NOREF(pvUser);
     return 1;
 }
 
@@ -957,8 +982,6 @@ void slirp_urg_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int c
 {
     PDRVNAT pThis = (PDRVNAT)pvUser;
     Assert(pThis);
-
-    PRTREQ pReq = NULL;
 
     /* don't queue new requests when the NAT thread is about to stop */
     if (pThis->pSlirpThread->enmState != PDMTHREADSTATE_RUNNING)
@@ -993,8 +1016,6 @@ void slirp_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int cb)
 
     LogFlow(("slirp_output BEGIN %p %d\n", pu8Buf, cb));
     Log6(("slirp_output: pu8Buf=%p cb=%#x (pThis=%p)\n%.*Rhxd\n", pu8Buf, cb, pThis, cb, pu8Buf));
-
-    PRTREQ pReq = NULL;
 
     /* don't queue new requests when the NAT thread is about to stop */
     if (pThis->pSlirpThread->enmState != PDMTHREADSTATE_RUNNING)
@@ -1060,6 +1081,7 @@ int slirp_call_hostres(void *pvUser, PRTREQ *ppReq, RTMSINTERVAL cMillies,
 }
 
 
+#if HAVE_NOTIFICATION_FOR_DNS_UPDATE && !defined(RT_OS_DARWIN)
 /**
  * @interface_method_impl{PDMINETWORKNATCONFIG,pfnNotifyDnsChanged}
  *
@@ -1072,7 +1094,7 @@ static DECLCALLBACK(void) drvNATNotifyDnsChanged(PPDMINETWORKNATCONFIG pInterfac
     PDRVNAT pThis = RT_FROM_MEMBER(pInterface, DRVNAT, INetworkNATCfg);
     drvNATUpdateDNS(pThis, /* fFlapLink */ true);
 }
-
+#endif
 
 #ifdef RT_OS_DARWIN
 /**
@@ -1122,6 +1144,8 @@ static DECLCALLBACK(void) drvNatDnsChanged(SCDynamicStoreRef hDynStor, CFArrayRe
             }
             else
                 LogRel(("NAT: DNS server list is empty (2)\n"));
+#else
+            RT_NOREF(hDynStor);
 #endif
             drvNATUpdateDNS(pThis, /* fFlapLink */ true);
         }
@@ -1161,6 +1185,8 @@ static void drvNATSetMac(PDRVNAT pThis)
         RTMAC Mac;
         pThis->pIAboveConfig->pfnGetMac(pThis->pIAboveConfig, &Mac);
     }
+#else
+    RT_NOREF(pThis);
 #endif
 }
 
@@ -1170,8 +1196,9 @@ static void drvNATSetMac(PDRVNAT pThis)
  * Otherwise the guest is not reachable until it performs a DHCP request or an ARP request
  * (usually done during guest boot).
  */
-static DECLCALLBACK(int) drvNATLoadDone(PPDMDRVINS pDrvIns, PSSMHANDLE pSSMHandle)
+static DECLCALLBACK(int) drvNATLoadDone(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
     drvNATSetMac(pThis);
     return VINF_SUCCESS;
@@ -1291,6 +1318,7 @@ static DECLCALLBACK(void) drvNATInfo(PPDMDRVINS pDrvIns, PCDBGFINFOHLP pHlp, con
 #ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
 static int drvNATConstructDNSMappings(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pMappingsCfg)
 {
+    RT_NOREF(iInstance);
     int rc = VINF_SUCCESS;
     LogFlowFunc(("ENTER: iInstance:%d\n", iInstance));
     for (PCFGMNODE pNode = CFGMR3GetFirstChild(pMappingsCfg); pNode; pNode = CFGMR3GetNextChild(pNode))
@@ -1316,6 +1344,7 @@ static int drvNATConstructDNSMappings(unsigned iInstance, PDRVNAT pThis, PCFGMNO
             fPattern = true;
         }
         struct in_addr HostIP;
+        RT_ZERO(HostIP);
         GETIP_DEF(rc, pThis, pNode, HostIP, INADDR_ANY);
         if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         {
@@ -1338,6 +1367,8 @@ static int drvNATConstructDNSMappings(unsigned iInstance, PDRVNAT pThis, PCFGMNO
  */
 static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCfg, PRTNETADDRIPV4 pNetwork)
 {
+    RT_NOREF(pNetwork); /** @todo figure why pNetwork isn't used */
+
     /*
      * Enumerate redirections.
      */
@@ -1392,10 +1423,12 @@ static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCf
 
         /* host address ("BindIP" name is rather unfortunate given "HostPort" to go with it) */
         struct in_addr BindIP;
+        RT_ZERO(BindIP);
         GETIP_DEF(rc, pThis, pNode, BindIP, INADDR_ANY);
 
         /* guest address */
         struct in_addr GuestIP;
+        RT_ZERO(GuestIP);
         GETIP_DEF(rc, pThis, pNode, GuestIP, INADDR_ANY);
 
         /*
@@ -1479,9 +1512,10 @@ static DECLCALLBACK(void) drvNATDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
     LogFlow(("drvNATConstruct:\n"));
-    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Init the static parts.

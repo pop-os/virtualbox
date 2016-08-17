@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,7 +55,7 @@ trpmGuestIDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
 {
     Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
     Log(("trpmGuestIDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
-    NOREF(pvPtr); NOREF(pvUser); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser);
+    NOREF(pvPtr); NOREF(pvUser); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser); RT_NOREF_PV(pVM);
     Assert(!HMIsEnabled(pVM));
 
     /** @todo Check which IDT entry and keep the update cost low in TRPMR3SyncIDT() and CSAMCheckGates(). */

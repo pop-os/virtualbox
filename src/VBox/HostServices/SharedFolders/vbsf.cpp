@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -451,7 +451,7 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATE
             if (cErrors < 32)
             {
                 LogRel(("SharedFolders host service: Cannot open '%s' -- too many open files.\n", pszPath));
-#if defined RT_OS_LINUX || RT_OS_SOLARIS
+#if defined RT_OS_LINUX || defined(RT_OS_SOLARIS)
                 if (cErrors < 1)
                     LogRel(("SharedFolders host service: Try to increase the limit for open files (ulimit -n)\n"));
 #endif
@@ -475,7 +475,7 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATE
                 == BIT_FLAG(pParms->CreateFlags, SHFL_CF_ACT_MASK_IF_EXISTS)))
         {
             /* For now, we do not treat a failure here as fatal. */
-            /* @todo Also set the size for SHFL_CF_ACT_CREATE_IF_NEW if
+            /** @todo Also set the size for SHFL_CF_ACT_CREATE_IF_NEW if
                      SHFL_CF_ACT_FAIL_IF_EXISTS is set. */
             RTFileSetSize(pHandle->file.Handle, pParms->Info.cbObject);
             pParms->Result = SHFL_FILE_REPLACED;
@@ -488,7 +488,7 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATE
             pParms->Result = SHFL_FILE_CREATED;
         }
 #if 0
-        /* @todo */
+        /** @todo */
         /* Set new attributes. */
         if (   (   SHFL_CF_ACT_REPLACE_IF_EXISTS
                 == BIT_FLAG(pParms->CreateFlags, SHFL_CF_ACT_MASK_IF_EXISTS))
@@ -901,8 +901,10 @@ void testClose(RTTEST hTest)
     /* Add tests as required... */
 }
 #endif
+
 int vbsfClose(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle)
 {
+    RT_NOREF1(root);
     int rc = VINF_SUCCESS;
 
     LogFlow(("vbsfClose: pClient = %p, Handle = %RX64\n",
@@ -967,7 +969,7 @@ int vbsfRead  (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64
         return VERR_ACCESS_DENIED;
 
     if (*pcbBuffer == 0)
-        return VINF_SUCCESS; /* @todo correct? */
+        return VINF_SUCCESS; /** @todo correct? */
 
 
     rc = RTFileSeek(pHandle->file.Handle, offset, RTFILE_SEEK_BEGIN, NULL);
@@ -1045,8 +1047,10 @@ void testFlush(RTTEST hTest)
     /* Add tests as required... */
 }
 #endif
+
 int vbsfFlush(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle)
 {
+    RT_NOREF1(root);
     SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     int rc = VINF_SUCCESS;
 
@@ -1337,8 +1341,10 @@ int vbsfReadLink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint
     return rc;
 }
 
-int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
+int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags,
+                      uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
+    RT_NOREF2(root, flags);
     uint32_t type = vbsfQueryHandleType(pClient, Handle);
     int            rc = VINF_SUCCESS;
     SHFLFSOBJINFO   *pObjInfo = (SHFLFSOBJINFO *)pBuffer;
@@ -1354,7 +1360,7 @@ int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle,
         return VERR_INVALID_PARAMETER;
     }
 
-    /* @todo other options */
+    /** @todo other options */
     Assert(flags == (SHFL_INFO_GET|SHFL_INFO_FILE));
 
     *pcbBuffer  = 0;
@@ -1384,8 +1390,10 @@ int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle,
     return rc;
 }
 
-static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
+static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags,
+                           uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
+    RT_NOREF2(root, flags);
     uint32_t type = vbsfQueryHandleType(pClient, Handle);
     int             rc = VINF_SUCCESS;
     SHFLFSOBJINFO  *pSFDEntry;
@@ -1460,7 +1468,7 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
             }
         }
     }
-    /* TODO: mode for directories */
+    /** @todo mode for directories */
 
     if (rc == VINF_SUCCESS)
     {
@@ -1479,8 +1487,10 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
 }
 
 
-static int vbsfSetEndOfFile(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
+static int vbsfSetEndOfFile(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags,
+                            uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
+    RT_NOREF2(root, flags);
     SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     int             rc = VINF_SUCCESS;
     SHFLFSOBJINFO  *pSFDEntry;
@@ -1526,6 +1536,7 @@ static int vbsfSetEndOfFile(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE H
 
 int vbsfQueryVolumeInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
+    RT_NOREF2(root, flags);
     int            rc = VINF_SUCCESS;
     SHFLVOLINFO   *pSFDEntry;
     char          *pszFullPath = NULL;
@@ -1537,7 +1548,7 @@ int vbsfQueryVolumeInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, uint32_t flags, 
         return VERR_INVALID_PARAMETER;
     }
 
-    /* @todo other options */
+    /** @todo other options */
     Assert(flags == (SHFL_INFO_GET|SHFL_INFO_VOLUME));
 
     *pcbBuffer  = 0;
@@ -1651,8 +1662,10 @@ void testLock(RTTEST hTest)
     /* Add tests as required... */
 }
 #endif
+
 int vbsfLock(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_t offset, uint64_t length, uint32_t flags)
 {
+    RT_NOREF1(root);
     SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     uint32_t        fRTLock = 0;
     int             rc;
@@ -1701,12 +1714,14 @@ int vbsfLock(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_t
 #else
     Log(("vbsfLock: Pretend success handle=%x\n", Handle));
     rc = VINF_SUCCESS;
+    RT_NOREF2(offset,  length);
 #endif
     return rc;
 }
 
 int vbsfUnlock(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_t offset, uint64_t length, uint32_t flags)
 {
+    RT_NOREF1(root);
     SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     int             rc;
 
@@ -1730,6 +1745,7 @@ int vbsfUnlock(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64
 #else
     Log(("vbsfUnlock: Pretend success handle=%x\n", Handle));
     rc = VINF_SUCCESS;
+    RT_NOREF2(offset,  length);
 #endif
 
     return rc;
@@ -1880,7 +1896,6 @@ int vbsfSymlink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pNewPath, SH
 
     char *pszFullNewPath = NULL;
     char *pszFullOldPath = NULL;
-    const char *pszOldPath = (const char *)pOldPath->String.utf8;
 
     /* XXX: no support for UCS2 at the moment. */
     if (!BIT_FLAG(pClient->fu32Flags, SHFL_CF_UTF8))

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2013-2015 Oracle Corporation
+# Copyright (C) 2013-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@ include $(KBUILD_PATH)/subheader.kmk
 LIBRARIES += VBox-liblightdm-gobject
 
 VBox-liblightdm-gobject_TEMPLATE = VBOXGUESTR3NPLIB
+VBox-liblightdm-gobject_SDKS = VBoxGlib20WithIo
 VBox-liblightdm-gobject_INCS = \
 	/usr/include/glib-2.0 \
 	/usr/lib/i386-linux-gnu/glib-2.0/include \

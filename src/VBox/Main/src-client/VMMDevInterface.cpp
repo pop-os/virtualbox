@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -459,13 +459,13 @@ DECLCALLBACK(int) vmmdevSetVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32
     return VINF_SUCCESS;
 }
 
-DECLCALLBACK(int) vmmdevQueryVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcRect, PRTRECT pRect)
+DECLCALLBACK(int) vmmdevQueryVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcRects, PRTRECT paRects)
 {
     PDRVMAINVMMDEV pDrv = RT_FROM_MEMBER(pInterface, DRVMAINVMMDEV, Connector);
     Console *pConsole = pDrv->pVMMDev->getParent();
 
     /* Forward to Display, which calls corresponding framebuffers. */
-    pConsole->i_getDisplay()->i_handleQueryVisibleRegion(pcRect, pRect);
+    pConsole->i_getDisplay()->i_handleQueryVisibleRegion(pcRects, paRects);
 
     return VINF_SUCCESS;
 }
@@ -655,6 +655,7 @@ static DECLCALLBACK(int) iface_hgcmCall(PPDMIHGCMCONNECTOR pInterface, PVBOXHGCM
  */
 static DECLCALLBACK(int) iface_hgcmSave(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pDrvIns);
     Log9(("Enter\n"));
     return HGCMHostSaveState(pSSM);
 }
@@ -671,6 +672,7 @@ static DECLCALLBACK(int) iface_hgcmSave(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) iface_hgcmLoad(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    RT_NOREF(pDrvIns);
     LogFlowFunc(("Enter\n"));
 
     if (uVersion != HGCM_SSM_VERSION)
@@ -750,9 +752,10 @@ DECLCALLBACK(void *) VMMDev::drvQueryInterface(PPDMIBASE pInterface, const char 
  */
 DECLCALLBACK(void) VMMDev::drvReset(PPDMDRVINS pDrvIns)
 {
+    RT_NOREF(pDrvIns);
     LogFlow(("VMMDev::drvReset: iInstance=%d\n", pDrvIns->iInstance));
 #ifdef VBOX_WITH_HGCM
-    HGCMHostReset ();
+    HGCMHostReset();
 #endif /* VBOX_WITH_HGCM */
 }
 
@@ -777,6 +780,7 @@ DECLCALLBACK(void) VMMDev::drvDestruct(PPDMDRVINS pDrvIns)
  */
 DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVMAINVMMDEV pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINVMMDEV);
     LogFlow(("Keyboard::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));

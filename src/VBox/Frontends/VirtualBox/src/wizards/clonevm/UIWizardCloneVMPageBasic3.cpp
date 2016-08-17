@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@ void UIWizardCloneVMPage3::setCloneMode(KCloneMode cloneMode)
         case KCloneMode_MachineState: m_pMachineRadio->setChecked(true); break;
         case KCloneMode_MachineAndChildStates: m_pMachineAndChildsRadio->setChecked(true); break;
         case KCloneMode_AllStates: m_pAllRadio->setChecked(true); break;
+        case KCloneMode_Max: break; /* Shut up, MSC! */
     }
 }
 

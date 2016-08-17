@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,6 +94,8 @@ typedef RTEXITCODE (*PFNDOWITHMEMBER)(PRTZIPUNZIPCMDOPS pOpts, RTVFSOBJ hVfsObj,
 static RTEXITCODE rtZipUnzipCmdListCallback(PRTZIPUNZIPCMDOPS pOpts, RTVFSOBJ hVfsObj,
                                             const char *pszName, RTEXITCODE rcExit, PRTFOFF pcBytes)
 {
+    RT_NOREF_PV(pOpts);
+
     /*
      * Query all the information.
      */
@@ -476,6 +478,4 @@ RTDECL(RTEXITCODE) RTZipUnzipCmd(unsigned cArgs, char **papszArgs)
         default:
             return rtZipUnzipDoWithMembers(&Opts, rtZipUnzipCmdExtractCallback, &cFiles, &cBytes);
     }
-
-    return RTEXITCODE_SUCCESS;
 }

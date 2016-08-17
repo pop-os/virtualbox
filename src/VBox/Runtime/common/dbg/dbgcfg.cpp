@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -739,8 +739,9 @@ static int rtDbgCfgTryDownloadAndOpen(PRTDBGCFGINT pThis, const char *pszServer,
                                       PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2)
 {
 #ifdef IPRT_WITH_HTTP
-    NOREF(pszUuidMappingSubDir); /** @todo do we bother trying pszUuidMappingSubDir? */
-    NOREF(pszCacheSuffix); /** @todo do we bother trying pszUuidMappingSubDir? */
+    RT_NOREF_PV(pszUuidMappingSubDir); /** @todo do we bother trying pszUuidMappingSubDir? */
+    RT_NOREF_PV(pszCacheSuffix); /** @todo do we bother trying pszUuidMappingSubDir? */
+    RT_NOREF_PV(fFlags);
 
     if (pThis->fFlags & RTDBGCFG_FLAGS_NO_SYM_SRV)
         return VWRN_NOT_FOUND;
@@ -869,6 +870,9 @@ static int rtDbgCfgTryDownloadAndOpen(PRTDBGCFGINT pThis, const char *pszServer,
     return rc;
 
 #else  /* !IPRT_WITH_HTTP */
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pszServer); RT_NOREF_PV(pszPath); RT_NOREF_PV(pszCacheSubDir);
+    RT_NOREF_PV(pszUuidMappingSubDir); RT_NOREF_PV(pSplitFn); RT_NOREF_PV(pszCacheSuffix); RT_NOREF_PV(fFlags);
+    RT_NOREF_PV(pfnCallback); RT_NOREF_PV(pvUser1); RT_NOREF_PV(pvUser2);
     return VWRN_NOT_FOUND;
 #endif /* !IPRT_WITH_HTTP */
 }
@@ -877,6 +881,9 @@ static int rtDbgCfgTryDownloadAndOpen(PRTDBGCFGINT pThis, const char *pszServer,
 static int rtDbgCfgCopyFileToCache(PRTDBGCFGINT pThis, char const *pszSrc, const char *pchCache, size_t cchCache,
                                    const char *pszCacheSubDir, const char *pszUuidMappingSubDir, PRTPATHSPLIT pSplitFn)
 {
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pszSrc); RT_NOREF_PV(pchCache); RT_NOREF_PV(cchCache);
+    RT_NOREF_PV(pszUuidMappingSubDir); RT_NOREF_PV(pSplitFn);
+
     if (!pszCacheSubDir || !*pszCacheSubDir)
         return VINF_SUCCESS;
 
@@ -1314,6 +1321,7 @@ RTDECL(int) RTDbgCfgOpenPdb70(RTDBGCFG hDbgCfg, const char *pszFilename, PCRTUUI
 RTDECL(int) RTDbgCfgOpenPdb20(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t cbImage, uint32_t uTimestamp, uint32_t uAge,
                               PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2)
 {
+    RT_NOREF_PV(cbImage);
     /** @todo test this! */
     char szSubDir[32];
     RTStrPrintf(szSubDir, sizeof(szSubDir), "%08X%x", uTimestamp, uAge);
@@ -1400,7 +1408,6 @@ static int rtDbgCfgTryOpenDsymBundleInDir(PRTDBGCFGINT pThis, char *pszPath, PRT
                 rc2 = VERR_FILE_NOT_FOUND;
         if (RT_SUCCESS(rc2))
         {
-            size_t cchCurPath = cchPath + strlen(&pszPath[cchPath]);
             for (uint32_t iSuffix = 0; papszSuffixes[iSuffix]; iSuffix++)
             {
                 if (   !rtDbgCfgIsDirAndFixCase2(pszPath, pszName, papszSuffixes[iSuffix], fCaseInsensitive)
@@ -1865,6 +1872,8 @@ static void rtDbgCfgFreeStrList(PRTLISTANCHOR pList)
 static int rtDbgCfgChangeStringList(PRTDBGCFGINT pThis, RTDBGCFGOP enmOp, const char *pszValue, bool fPaths,
                                     PRTLISTANCHOR pList)
 {
+    RT_NOREF_PV(pThis); RT_NOREF_PV(fPaths);
+
     if (enmOp == RTDBGCFGOP_SET)
         rtDbgCfgFreeStrList(pList);
 
@@ -1939,8 +1948,9 @@ static int rtDbgCfgChangeStringList(PRTDBGCFGINT pThis, RTDBGCFGOP enmOp, const 
 static int rtDbgCfgChangeStringU64(PRTDBGCFGINT pThis, RTDBGCFGOP enmOp, const char *pszValue,
                                    PCRTDBGCFGU64MNEMONIC paMnemonics, uint64_t *puValue)
 {
-    uint64_t    uNew = enmOp == RTDBGCFGOP_SET ? 0 : *puValue;
+    RT_NOREF_PV(pThis);
 
+    uint64_t    uNew = enmOp == RTDBGCFGOP_SET ? 0 : *puValue;
     char        ch;
     while ((ch = *pszValue))
     {
@@ -2095,6 +2105,8 @@ RTDECL(int) RTDbgCfgChangeUInt(RTDBGCFG hDbgCfg, RTDBGCFGPROP enmProp, RTDBGCFGO
 static int rtDbgCfgQueryStringList(RTDBGCFG hDbgCfg, PRTLISTANCHOR pList,
                                    char *pszValue, size_t cbValue)
 {
+    RT_NOREF_PV(hDbgCfg);
+
     /*
      * Check the length first.
      */
@@ -2135,6 +2147,8 @@ static int rtDbgCfgQueryStringList(RTDBGCFG hDbgCfg, PRTLISTANCHOR pList,
 static int rtDbgCfgQueryStringU64(RTDBGCFG hDbgCfg, uint64_t uValue, PCRTDBGCFGU64MNEMONIC paMnemonics,
                                   char *pszValue, size_t cbValue)
 {
+    RT_NOREF_PV(hDbgCfg);
+
     /*
      * If no mnemonics, just return the hex value.
      */

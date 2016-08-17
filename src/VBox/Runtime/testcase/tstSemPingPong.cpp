@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,9 @@ static volatile uint32_t g_cErrors = 0;
 
 static DECLCALLBACK(int) tstSemPingPongThread(RTTHREAD hThread, void *pvPP)
 {
-    int rc;
+    RT_NOREF_PV(hThread);
+
+    int rc = VINF_SUCCESS; /* (MSC powers of deduction are rather weak. sigh) */
     PRTPINGPONG pPP = (PRTPINGPONG)pvPP;
     for (uint32_t i = 0; i < TSTSEMPINGPONG_ITERATIONS; i++)
     {

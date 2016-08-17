@@ -5,7 +5,7 @@
  *  A template to generate a MS IDL compatible interface definition file
  *  from the generic interface definition expressed in XML.
 
-    Copyright (C) 2006-2015 Oracle Corporation
+    Copyright (C) 2006-2016 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -52,9 +52,17 @@
  *  Source    : src/VBox/Main/idl/VirtualBox.xidl
  *  Generator : src/VBox/Main/idl/midl.xsl
  */
-  </xsl:text>
-  <xsl:text>&#x0A;</xsl:text>
-  <xsl:text>import "unknwn.idl";&#x0A;&#x0A;</xsl:text>
+
+#if (__midl >= 501)
+midl_pragma warning(disable:2039) /* Disable warning MIDL2039 regarding interface not being automation
+                                     marshaling conformant and requiring NT 4.0 SP4 or greater. */
+midl_pragma warning(disable:2456) /* Disable warning MIDL2456 regarding SAFEARRAY(interface pointer). */
+midl_pragma warning(disable:2111) /* Disable warning MIDL2111 regarding identifier lengths exceeding 31 chars. */
+#endif
+
+import "unknwn.idl";
+
+</xsl:text>
   <xsl:apply-templates/>
 </xsl:template>
 

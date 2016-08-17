@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -748,7 +748,7 @@ VMMR3_INT_DECL(int) DBGFR3EventBreakpoint(PVM pVM, DBGFEVENTTYPE enmEvent)
 #if 0   /** @todo get flat PC api! */
         uint32_t eip = CPUMGetGuestEIP(pVM);
 #else
-        /* @todo SMP support!! */
+        /** @todo SMP support!! */
         PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(VMMGetCpu(pVM));
         RTGCPTR  eip = pCtx->rip + pCtx->cs.u64Base;
 #endif

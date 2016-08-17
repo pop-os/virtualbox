@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -95,6 +95,7 @@ RTDECL(int)  RTSemEventCreate(PRTSEMEVENT phEventSem)
 
 RTDECL(int)  RTSemEventCreateEx(PRTSEMEVENT phEventSem, uint32_t fFlags, RTLOCKVALCLASS hClass, const char *pszNameFmt, ...)
 {
+    RT_NOREF(hClass, pszNameFmt);
     AssertCompile(sizeof(RTSEMEVENTINTERNAL) > sizeof(void *));
     AssertReturn(!(fFlags & ~(RTSEMEVENT_FLAGS_NO_LOCK_VAL | RTSEMEVENT_FLAGS_BOOTSTRAP_HACK)), VERR_INVALID_PARAMETER);
     Assert(!(fFlags & RTSEMEVENT_FLAGS_BOOTSTRAP_HACK) || (fFlags & RTSEMEVENT_FLAGS_NO_LOCK_VAL));
@@ -135,7 +136,7 @@ RTDECL(int)  RTSemEventCreateEx(PRTSEMEVENT phEventSem, uint32_t fFlags, RTLOCKV
 DECLINLINE(void) rtR0SemEventDarwinRetain(PRTSEMEVENTINTERNAL pThis)
 {
     uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
-    Assert(cRefs && cRefs < 100000);
+    Assert(cRefs && cRefs < 100000); RT_NOREF_PV(cRefs);
 }
 
 
@@ -244,6 +245,8 @@ RTDECL(int)  RTSemEventSignal(RTSEMEVENT hEventSem)
 static int rtR0SemEventDarwinWait(PRTSEMEVENTINTERNAL pThis, uint32_t fFlags, uint64_t uTimeout,
                                   PCRTLOCKVALSRCPOS pSrcPos)
 {
+    RT_NOREF(pSrcPos);
+
     /*
      * Validate the input.
      */

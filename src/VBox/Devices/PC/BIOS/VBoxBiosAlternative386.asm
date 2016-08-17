@@ -10,7 +10,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2015 Oracle Corporation
+;  Copyright (C) 2004-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 ; Source file: bios.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@
 ; Source file: print.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -108,7 +108,7 @@
 ; Source file: ata.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -150,7 +150,7 @@
 ; Source file: floppy.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -196,7 +196,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2015 Oracle Corporation
+;  Copyright (C) 2011-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -210,7 +210,7 @@
 ; Source file: eltorito.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -252,7 +252,7 @@
 ; Source file: boot.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -294,7 +294,7 @@
 ; Source file: keyboard.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -336,7 +336,7 @@
 ; Source file: disk.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -378,7 +378,7 @@
 ; Source file: serial.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -466,7 +466,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2013-2015 Oracle Corporation
+;  Copyright (C) 2013-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -480,7 +480,7 @@
 ; Source file: timepci.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -522,7 +522,7 @@
 ; Source file: ps2mouse.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -564,7 +564,7 @@
 ; Source file: parallel.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -610,7 +610,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2015 Oracle Corporation
+;  Copyright (C) 2004-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -628,7 +628,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2015 Oracle Corporation
+;  Copyright (C) 2004-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -646,7 +646,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2015 Oracle Corporation
+;  Copyright (C) 2011-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -664,7 +664,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2015 Oracle Corporation
+;  Copyright (C) 2004-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -682,7 +682,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2015 Oracle Corporation
+;  Copyright (C) 2004-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -699,7 +699,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2015 Oracle Corporation
+;  Copyright (C) 2011-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -716,7 +716,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2011-2015 Oracle Corporation
+;  Copyright (C) 2011-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -734,7 +734,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2015 Oracle Corporation
+;  Copyright (C) 2012-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -772,7 +772,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2015 Oracle Corporation
+;  Copyright (C) 2012-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -791,7 +791,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2015 Oracle Corporation
+;  Copyright (C) 2012-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -810,7 +810,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2015 Oracle Corporation
+;  Copyright (C) 2012-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -829,7 +829,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2012-2015 Oracle Corporation
+;  Copyright (C) 2012-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -844,7 +844,7 @@
 ; Source file: pcibio32.asm
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -860,7 +860,7 @@
 ; Source file: apm_pm.asm
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -879,7 +879,7 @@
 ; Source file: orgs.asm
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -926,7 +926,7 @@
 ;  
 ;  
 ;  
-;  Copyright (C) 2004-2015 Oracle Corporation
+;  Copyright (C) 2004-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -1078,7 +1078,7 @@ section CONST progbits vstart=0xb0 align=1 ; size=0xcde class=DATA group=DGROUP
 
 section CONST2 progbits vstart=0xd8e align=1 ; size=0x3fa class=DATA group=DGROUP
 _bios_cvs_version_string:                    ; 0xf0d8e LB 0x12
-    db  'VirtualBox 5.1.2', 000h, 000h
+    db  'VirtualBox 5.1.4', 000h, 000h
 _bios_prefix_string:                         ; 0xf0da0 LB 0x8
     db  'BIOS: ', 000h, 000h
 _isotag:                                     ; 0xf0da8 LB 0x6
@@ -17197,4 +17197,4 @@ biosorg_check_before_or_at_0FFEEh:           ; 0xfff80 LB 0x70
     db  'XM'
 cpu_reset:                                   ; 0xffff0 LB 0x10
     jmp far 0f000h:0e05bh                     ; ea 5b e0 00 f0
-    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fch, 01ah
+    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fch, 018h

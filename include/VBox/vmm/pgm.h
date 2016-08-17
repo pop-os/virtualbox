@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -140,12 +140,12 @@ typedef enum PGMACCESSTYPE
  */
 #if defined(IN_RC) || defined(IN_RING0)
 # ifdef __cplusplus
-#  define PGM_ALL_CB_DECL(type)     extern "C" DECLEXPORT(type)
+#  define PGM_ALL_CB_DECL(type)     extern "C" DECLCALLBACK(DECLEXPORT(type))
 # else
-#  define PGM_ALL_CB_DECL(type)     DECLEXPORT(type)
+#  define PGM_ALL_CB_DECL(type)     DECLCALLBACK(DECLEXPORT(type))
 # endif
 #else
-# define PGM_ALL_CB_DECL(type)      static type
+# define PGM_ALL_CB_DECL(type)      static DECLCALLBACK(type)
 #endif
 
 /** @def PGM_ALL_CB2_DECL
@@ -155,12 +155,28 @@ typedef enum PGMACCESSTYPE
  */
 #if defined(IN_RC) || defined(IN_RING0)
 # ifdef __cplusplus
-#  define PGM_ALL_CB2_DECL(type)    extern "C" DECLEXPORT(type)
+#  define PGM_ALL_CB2_DECL(type)    extern "C" DECLCALLBACK(DECLEXPORT(type))
 # else
-#  define PGM_ALL_CB2_DECL(type)    DECLEXPORT(type)
+#  define PGM_ALL_CB2_DECL(type)    DECLCALLBACK(DECLEXPORT(type))
 # endif
 #else
-# define PGM_ALL_CB2_DECL(type)     DECLHIDDEN(type)
+# define PGM_ALL_CB2_DECL(type)     DECLCALLBACK(DECLHIDDEN(type))
+#endif
+
+/** @def PGM_ALL_CB2_PROTO
+ * Macro for declaring a handler callback for all contexts.  The handler
+ * callback is hidden in ring-3, and exported in RC and R0.
+ * @param   fnType      The callback function type.
+ * @sa PGM_ALL_CB2_DECL.
+ */
+#if defined(IN_RC) || defined(IN_RING0)
+# ifdef __cplusplus
+#  define PGM_ALL_CB2_PROTO(fnType)    extern "C" DECLEXPORT(fnType)
+# else
+#  define PGM_ALL_CB2_PROTO(fnType)    DECLEXPORT(fnType)
+# endif
+#else
+# define PGM_ALL_CB2_PROTO(fnType)     DECLHIDDEN(fnType)
 #endif
 
 

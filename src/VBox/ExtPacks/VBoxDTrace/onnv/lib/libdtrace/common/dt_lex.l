@@ -43,6 +43,14 @@
 #  undef UINT32_MAX
 #  undef UINT64_MAX
 # endif
+# ifdef _MSC_VER
+#  pragma warning(disable:4668 4131 4255)
+# endif
+# ifdef __GNUC__
+#  if ((__GNUC__ << 16) + __GNUC_MINOR__) >= 0x4002
+#   pragma GCC diagnostic ignored "-Wunused-function"
+#  endif
+# endif
 # include <iprt/ctype.h>
 # define isdigit(a_ch) RT_C_IS_DIGIT(a_ch)
 #endif /* VBOX */
@@ -305,7 +313,11 @@ if (yypcb->pcb_token != 0) {
 				errno = 0;
 				yylval.l_int = strtoull(v, &p, 0);
 #else
-				rc = RTStrToUInt64Ex(v, &p, 0, &yylval.l_int);
+ 				{
+                                   uint64_t uTmp = 0;
+				    rc = RTStrToUInt64Ex(v, &p, 0, &uTmp);
+				    yylval.l_int = uTmp;
+ 				}
 #endif
 				(void) strncpy(yyintsuffix, p,
 				    sizeof (yyintsuffix));
@@ -394,7 +406,9 @@ if (yypcb->pcb_token != 0) {
 			errno = 0;
 			yylval.l_int = strtoull(yytext, &p, 0);
 #else
-			int rc = RTStrToUInt64Ex(yytext, &p, 0, &yylval.l_int);
+			uint64_t uTmp = 0;
+			int rc = RTStrToUInt64Ex(yytext, &p, 0, &uTmp);
+			yylval.l_int = uTmp;
 #endif
 			yyintprefix = 0;
 			(void) strncpy(yyintsuffix, p, sizeof (yyintsuffix));

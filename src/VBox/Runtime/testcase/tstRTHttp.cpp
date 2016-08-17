@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -194,7 +194,7 @@ static void checkError(RTHTTP hHttp, int rc, const char *pszFile)
 
 int main(int argc, char **argv)
 {
-    unsigned cErrors = 0;
+    //unsigned cErrors = 0;
 
     RTR3InitExe(argc, &argv, 0);
 

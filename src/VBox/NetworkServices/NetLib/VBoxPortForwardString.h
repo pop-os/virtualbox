@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,7 +48,7 @@ typedef struct PORTFORWARDRULE
     uint16_t   u16PfrGuestPort;
 } PORTFORWARDRULE, *PPORTFORWARDRULE;
 
-int netPfStrToPf(const char *pcszStrPortForward,int fIPv6, PPORTFORWARDRULE pPfr);
+int netPfStrToPf(const char *pszStrPortForward, bool fIPv6, PPORTFORWARDRULE pPfr);
 
 RT_C_DECLS_END
 

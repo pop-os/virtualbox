@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,20 +46,20 @@
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu);
+int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu);
 
 
 /**
  * The emulation thread main function.
  *
  * @returns Thread exit code.
- * @param   ThreadSelf  The handle to the executing thread.
+ * @param   hThreadSelf The handle to the executing thread.
  * @param   pvArgs      Pointer to the user mode per-VCpu structure (UVMPCU).
  */
-DECLCALLBACK(int) vmR3EmulationThread(RTTHREAD ThreadSelf, void *pvArgs)
+DECLCALLBACK(int) vmR3EmulationThread(RTTHREAD hThreadSelf, void *pvArgs)
 {
     PUVMCPU pUVCpu = (PUVMCPU)pvArgs;
-    return vmR3EmulationThreadWithId(ThreadSelf, pUVCpu, pUVCpu->idCpu);
+    return vmR3EmulationThreadWithId(hThreadSelf, pUVCpu, pUVCpu->idCpu);
 }
 
 
@@ -67,14 +67,15 @@ DECLCALLBACK(int) vmR3EmulationThread(RTTHREAD ThreadSelf, void *pvArgs)
  * The emulation thread main function, with Virtual CPU ID for debugging.
  *
  * @returns Thread exit code.
- * @param   ThreadSelf  The handle to the executing thread.
+ * @param   hThreadSelf The handle to the executing thread.
  * @param   pUVCpu      Pointer to the user mode per-VCpu structure.
  * @param   idCpu       The virtual CPU ID, for backtrace purposes.
  */
-int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu)
+int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu)
 {
     PUVM    pUVM = pUVCpu->pUVM;
     int     rc;
+    RT_NOREF_PV(hThreadSelf);
 
     AssertReleaseMsg(VALID_PTR(pUVM) && pUVM->u32Magic == UVM_MAGIC,
                      ("Invalid arguments to the emulation thread!\n"));
@@ -90,7 +91,7 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
      * The request loop.
      */
     rc = VINF_SUCCESS;
-    Log(("vmR3EmulationThread: Emulation thread starting the days work... Thread=%#x pUVM=%p\n", ThreadSelf, pUVM));
+    Log(("vmR3EmulationThread: Emulation thread starting the days work... Thread=%#x pUVM=%p\n", hThreadSelf, pUVM));
     VMSTATE enmBefore = VMSTATE_CREATED; /* (only used for logging atm.) */
     for (;;)
     {
@@ -246,7 +247,7 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
      * Cleanup and exit.
      */
     Log(("vmR3EmulationThread: Terminating emulation thread! Thread=%#x pUVM=%p rc=%Rrc enmBefore=%d enmVMState=%d\n",
-         ThreadSelf, pUVM, rc, enmBefore, pUVM->pVM ? pUVM->pVM->enmVMState : VMSTATE_TERMINATED));
+         hThreadSelf, pUVM, rc, enmBefore, pUVM->pVM ? pUVM->pVM->enmVMState : VMSTATE_TERMINATED));
     if (   idCpu == 0
         && pUVM->pVM)
     {
@@ -960,6 +961,8 @@ static DECLCALLBACK(void) vmR3DefaultNotifyCpuFF(PUVMCPU pUVCpu, uint32_t fFlags
              && pUVCpu->pVCpu
              && pUVCpu->pVCpu->enmState == VMCPUSTATE_STARTED_EXEC_REM)
         REMR3NotifyFF(pUVCpu->pVM);
+#else
+    RT_NOREF(fFlags);
 #endif
 }
 

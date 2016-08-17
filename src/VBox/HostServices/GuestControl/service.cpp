@@ -82,7 +82,6 @@
 #include <string>
 #include <list>
 
-#include "gctrl.h"
 
 namespace guestControl {
 
@@ -791,8 +790,8 @@ typedef struct ClientState
         return rc;
     }
 
-    int SendReply(const ClientConnection *pConnection,
-                        HostCommand      *pHostCmd)
+    int SendReply(ClientConnection const *pConnection,
+                  HostCommand            *pHostCmd)
     {
         AssertPtrReturn(pConnection, VERR_INVALID_POINTER);
         AssertPtrReturn(pHostCmd, VERR_INVALID_POINTER);
@@ -1027,6 +1026,8 @@ private:
     int hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     int sessionClose(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     int uninit(void);
+
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(Service);
 };
 
 /**
@@ -1038,6 +1039,7 @@ private:
  */
 int Service::clientConnect(uint32_t u32ClientID, void *pvClient)
 {
+    RT_NOREF1(pvClient);
     LogFlowFunc(("[Client %RU32] Connected\n", u32ClientID));
 #ifdef VBOX_STRICT
     ClientStateMapIterConst it = mClientStateMap.find(u32ClientID);
@@ -1065,6 +1067,7 @@ int Service::clientConnect(uint32_t u32ClientID, void *pvClient)
  */
 int Service::clientDisconnect(uint32_t u32ClientID, void *pvClient)
 {
+    RT_NOREF1(pvClient);
     LogFlowFunc(("[Client %RU32] Disconnected (%zu clients total)\n",
                  u32ClientID, mClientStateMap.size()));
 
@@ -1168,6 +1171,8 @@ int Service::clientGetCommand(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandl
 int Service::clientSetMsgFilterSet(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle,
                                    uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
+    RT_NOREF1(callHandle);
+
     /*
      * Lookup client in our list so that we can assign the context ID of
      * a command to that client.
@@ -1181,28 +1186,34 @@ int Service::clientSetMsgFilterSet(uint32_t u32ClientID, VBOXHGCMCALLHANDLE call
     if (cParms != 4)
         return VERR_INVALID_PARAMETER;
 
-    uint32_t uValue, uMaskAdd, uMaskRemove;
+    uint32_t uValue;
     int rc = paParms[0].getUInt32(&uValue);
     if (RT_SUCCESS(rc))
-        rc = paParms[1].getUInt32(&uMaskAdd);
-    if (RT_SUCCESS(rc))
-        rc = paParms[2].getUInt32(&uMaskRemove);
-    /** @todo paParm[3] (flags) not used yet. */
-    if (RT_SUCCESS(rc))
     {
-        ClientState &clientState = itClientState->second;
+        uint32_t uMaskAdd;
+        rc = paParms[1].getUInt32(&uMaskAdd);
+        if (RT_SUCCESS(rc))
+        {
+            uint32_t uMaskRemove;
+            rc = paParms[2].getUInt32(&uMaskRemove);
+            /** @todo paParm[3] (flags) not used yet. */
+            if (RT_SUCCESS(rc))
+            {
+                ClientState &clientState = itClientState->second;
 
-        clientState.mFlags |= CLIENTSTATE_FLAG_CONTEXTFILTER;
-        if (uMaskAdd)
-            clientState.mFilterMask |= uMaskAdd;
-        if (uMaskRemove)
-            clientState.mFilterMask &= ~uMaskRemove;
+                clientState.mFlags |= CLIENTSTATE_FLAG_CONTEXTFILTER;
+                if (uMaskAdd)
+                    clientState.mFilterMask |= uMaskAdd;
+                if (uMaskRemove)
+                    clientState.mFilterMask &= ~uMaskRemove;
 
-        clientState.mFilterValue = uValue;
+                clientState.mFilterValue = uValue;
 
-        LogFlowFunc(("[Client %RU32] Setting message filterMask=0x%x, filterVal=%RU32 set (flags=0x%x, maskAdd=0x%x, maskRemove=0x%x)\n",
-                     u32ClientID, clientState.mFilterMask, clientState.mFilterValue,
-                     clientState.mFlags, uMaskAdd, uMaskRemove));
+                LogFlowFunc(("[Client %RU32] Setting message filterMask=0x%x, filterVal=%RU32 set (flags=0x%x, maskAdd=0x%x, maskRemove=0x%x)\n",
+                             u32ClientID, clientState.mFilterMask, clientState.mFilterValue,
+                             clientState.mFlags, uMaskAdd, uMaskRemove));
+            }
+        }
     }
 
     return rc;
@@ -1211,6 +1222,8 @@ int Service::clientSetMsgFilterSet(uint32_t u32ClientID, VBOXHGCMCALLHANDLE call
 int Service::clientSetMsgFilterUnset(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle,
                                      uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
+    RT_NOREF2(callHandle, paParms);
+
     /*
      * Lookup client in our list so that we can assign the context ID of
      * a command to that client.
@@ -1237,6 +1250,8 @@ int Service::clientSetMsgFilterUnset(uint32_t u32ClientID, VBOXHGCMCALLHANDLE ca
 int Service::clientSkipMsg(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle,
                            uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
+    RT_NOREF2(callHandle, paParms);
+
     /*
      * Lookup client in our list so that we can assign the context ID of
      * a command to that client.
@@ -1559,6 +1574,7 @@ int Service::hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPar
  */
 int Service::sessionClose(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
+    RT_NOREF2(u32ClientID, callHandle);
     if (cParms < 2)
         return VERR_INVALID_PARAMETER;
 
@@ -1573,7 +1589,7 @@ int Service::sessionClose(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle, u
         rc = hostProcessCommand(HOST_SESSION_CLOSE, cParms, paParms);
 
     LogFlowFunc(("Closing guest session ID=%RU32 (from client ID=%RU32) returned with rc=%Rrc\n",
-                 uSessionID, u32ClientID, rc));
+                 uSessionID, u32ClientID, rc)); NOREF(uSessionID);
     return rc;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -895,7 +895,7 @@ VMMR3DECL(int) PDMR3DeviceDetach(PUVM pUVM, const char *pszDevice, unsigned iIns
  */
 VMMR3_INT_DECL(PPDMCRITSECT) PDMR3DevGetCritSect(PVM pVM, PPDMDEVINS pDevIns)
 {
-    VM_ASSERT_EMT(pVM);
+    VM_ASSERT_EMT(pVM); RT_NOREF_PV(pVM);
     VM_ASSERT_STATE(pVM, VMSTATE_CREATING);
     AssertPtr(pDevIns);
 

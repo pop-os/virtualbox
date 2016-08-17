@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,7 @@ int CollectorFreeBSD::getHostCpuMHz(ULONG *mhz)
     int CpuMHz = 0;
     size_t cbParameter = sizeof(CpuMHz);
 
-    /** @todo: Howto support more than one CPU? */
+    /** @todo Howto support more than one CPU? */
     if (sysctlbyname("dev.cpu.0.freq", &CpuMHz, &cbParameter, NULL, 0))
         return VERR_NOT_SUPPORTED;
 

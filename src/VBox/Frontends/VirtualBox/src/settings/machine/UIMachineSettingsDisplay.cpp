@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@
 /* GUI includes: */
 # include "QIWidgetValidator.h"
 # include "UIMachineSettingsDisplay.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
 # include "UIConverter.h"
 # include "VBoxGlobal.h"
@@ -762,7 +763,7 @@ void UIMachineSettingsDisplay::prepareScreenTab()
     m_iMinVRAM = sys.GetMinGuestVRAM();
     m_iMaxVRAM = sys.GetMaxGuestVRAM();
     m_iMaxVRAMVisible = m_iMaxVRAM;
-    const uint cHostScreens = vboxGlobal().screenCount();
+    const uint cHostScreens = gpDesktop->screenCount();
     m_pSliderVideoMemorySize->setMinimum(m_iMinVRAM);
     m_pSliderVideoMemorySize->setMaximum(m_iMaxVRAMVisible);
     m_pSliderVideoMemorySize->setPageStep(calcPageStep(m_iMaxVRAMVisible));

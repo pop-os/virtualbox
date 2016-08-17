@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,12 +67,14 @@ static int VBoxHGCMParmUInt32Get(VBOXHGCMSVCPARM *pParm, uint32_t *pu32)
     return VERR_INVALID_PARAMETER;
 }
 
+#if 0 /* unused */
 static void VBoxHGCMParmPtrSet(VBOXHGCMSVCPARM *pParm, void *pv, uint32_t cb)
 {
     pParm->type             = VBOX_HGCM_SVC_PARM_PTR;
     pParm->u.pointer.size   = cb;
     pParm->u.pointer.addr   = pv;
 }
+#endif
 
 static int VBoxHGCMParmPtrGet(VBOXHGCMSVCPARM *pParm, void **ppv, uint32_t *pcb)
 {
@@ -167,7 +169,7 @@ static DECLCALLBACK(int) svcUnload(void *pvService)
 
 static DECLCALLBACK(int) svcDisconnect(void *pvService, uint32_t u32ClientID, void *pvClient)
 {
-    NOREF(pvService);
+    RT_NOREF2(pvService, u32ClientID);
 
     VBOXHOSTCHCLIENT *pClient = (VBOXHOSTCHCLIENT *)pvClient;
 
@@ -180,6 +182,7 @@ static DECLCALLBACK(int) svcDisconnect(void *pvService, uint32_t u32ClientID, vo
 
 static DECLCALLBACK(int) svcConnect(void *pvService, uint32_t u32ClientID, void *pvClient)
 {
+    RT_NOREF1(pvService);
     VBOXHOSTCHCLIENT *pClient = (VBOXHOSTCHCLIENT *)pvClient;
 
     int rc = VINF_SUCCESS;
@@ -258,7 +261,7 @@ static DECLCALLBACK(void) svcCall(void *pvService,
                     {
                         uint32_t u32Handle = 0;
 
-                        /* @todo make sure that pvName is a nul terminated */
+                        /** @todo make sure that pvName is a nul terminated */
                         rc = vboxHostChannelAttach(pClient, &u32Handle, (const char *)pvName, u32Flags);
 
                         if (RT_SUCCESS(rc))
@@ -529,7 +532,7 @@ static DECLCALLBACK(void) svcCall(void *pvService,
                             {
                                 uint32_t u32SizeDataReturned = 0;
 
-                                /* @todo make sure that pvName is a nul terminated */
+                                /** @todo make sure that pvName is a nul terminated */
                                 rc = vboxHostChannelQuery(pClient, (const char *)pvName, u32Code,
                                                           pvParm, cbParm,
                                                           pvData, cbData, &u32SizeDataReturned);

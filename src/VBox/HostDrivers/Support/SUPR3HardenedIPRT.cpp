@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -95,40 +95,42 @@ DECLHIDDEN(int) supR3HardenedPathAppBin(char *pszPath, size_t cchPath)
 }
 
 
-DECLHIDDEN(void)   supR3HardenedFatalMsgV(const char *pszWhere, SUPINITOP enmWhat, int rc, const char *pszMsgFmt, va_list va)
+DECL_NO_RETURN(DECLHIDDEN(void)) supR3HardenedFatalMsgV(const char *pszWhere, SUPINITOP enmWhat, int rc,
+                                                        const char *pszMsgFmt, va_list va)
 {
     va_list vaCopy;
     va_copy(vaCopy, va);
     AssertFatalMsgFailed(("%s (rc=%Rrc): %N", pszWhere, rc, pszMsgFmt, &vaCopy));
-    va_end(vaCopy);
     NOREF(enmWhat);
+    /* not reached */
 }
 
 
-DECLHIDDEN(void)   supR3HardenedFatalMsg(const char *pszWhere, SUPINITOP enmWhat, int rc, const char *pszMsgFmt, ...)
+DECL_NO_RETURN(DECLHIDDEN(void)) supR3HardenedFatalMsg(const char *pszWhere, SUPINITOP enmWhat, int rc,
+                                                       const char *pszMsgFmt, ...)
 {
     va_list va;
     va_start(va, pszMsgFmt);
     supR3HardenedFatalMsgV(pszWhere, enmWhat, rc, pszMsgFmt, va);
-    va_end(va);
+    /* not reached */
 }
 
 
-DECLHIDDEN(void) supR3HardenedFatalV(const char *pszFormat, va_list va)
+DECL_NO_RETURN(DECLHIDDEN(void)) supR3HardenedFatalV(const char *pszFormat, va_list va)
 {
     va_list vaCopy;
     va_copy(vaCopy, va);
     AssertFatalMsgFailed(("%N", pszFormat, &vaCopy));
-    va_end(vaCopy);
+    /* not reached */
 }
 
 
-DECLHIDDEN(void) supR3HardenedFatal(const char *pszFormat, ...)
+DECL_NO_RETURN(DECLHIDDEN(void)) supR3HardenedFatal(const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
     supR3HardenedFatalV(pszFormat, va);
-    va_end(va);
+    /* not reached */
 }
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -755,7 +755,6 @@ static int txsDoUnpackFile(PCTXSPKTHDR pPktHdr)
     char *pszDirectory = NULL;
 
     /* Packet cursor. */
-    const char *pchEnd = (const char *)pPktHdr + pPktHdr->cb;
     const char *pch = (const char *)(pPktHdr + 1);
 
     if (txsIsStringValid(pPktHdr, "file", pch, &pszFile, &pch, &rc))
@@ -2490,6 +2489,7 @@ static int txsDoExecHlp(PCTXSPKTHDR pPktHdr, uint32_t fFlags, const char *pszExe
                         const char *pszUsername, RTMSINTERVAL cMillies)
 {
     int     rc2;
+    RT_NOREF_PV(fFlags);
 
     /*
      * Input validation, filter out things we don't yet support..
@@ -3261,7 +3261,6 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
     bool        fAutoUpgrade    = true;
     bool        fDaemonize      = true;
     bool        fDaemonized     = false;
-    bool        fTransportFixed = false;
     const char *pszUpgrading    = NULL;
 
     /*
@@ -3367,7 +3366,7 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 108663 $\n");
+                RTPrintf("$Revision: 109470 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 

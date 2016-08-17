@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -154,7 +154,7 @@ tstVMMLdrEnum(PVM pVM, const char *pszFilename, const char *pszName, RTUINTPTR I
 static DECLCALLBACK(int)
 tstVMMConfigConstructor(PUVM pUVM, PVM pVM, void *pvUser)
 {
-    NOREF(pvUser);
+    RT_NOREF2(pUVM, pvUser);
     int rc = CFGMR3ConstructDefaultTree(pVM);
     if (RT_SUCCESS(rc))
     {
@@ -198,6 +198,8 @@ tstVMMConfigConstructor(PUVM pUVM, PVM pVM, void *pvUser)
  */
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
+    RT_NOREF1(envp);
+
     /*
      * Init runtime and the test environment.
      */
@@ -259,7 +261,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 108770 $\n");
+                RTPrintf("$Revision: 109362 $\n");
                 return 0;
 
             default:

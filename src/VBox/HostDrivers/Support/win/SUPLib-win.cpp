@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -259,6 +259,8 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
             else
                 pErrInfo->pszMsg[0] = '\0';
         }
+#else
+        RT_NOREF1(penmWhat);
 #endif
         return rc;
     }
@@ -456,6 +458,8 @@ int suplibOsDeleteService(void)
         }
         CloseServiceHandle(hSMgr);
     }
+    else
+        rc = RTErrConvertFromWin32(dwErr);
     return rc;
 }
 
@@ -569,7 +573,7 @@ static int suplibOsStartService(void)
          */
         SERVICE_STATUS Status;
         BOOL fRc = QueryServiceStatus(hService, &Status);
-        Assert(fRc);
+        Assert(fRc); NOREF(fRc);
         if (Status.dwCurrentState == SERVICE_RUNNING)
             rc = VINF_ALREADY_INITIALIZED;
         else
@@ -651,6 +655,8 @@ int suplibOsTerm(PSUPLIBDATA pThis)
 
 int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
 {
+    RT_NOREF1(cbReq);
+
     /*
      * Issue the device I/O control.
      */
@@ -740,7 +746,7 @@ static int suplibConvertWin32Err(int rc)
 {
     /* Conversion program (link with ntdll.lib from ddk):
         #define _WIN32_WINNT 0x0501
-        #include <windows.h>
+        #include <iprt/win/windows.h>
         #include <ntstatus.h>
         #include <winternl.h>
         #include <stdio.h>

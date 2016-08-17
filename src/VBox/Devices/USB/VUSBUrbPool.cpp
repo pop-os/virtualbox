@@ -27,6 +27,7 @@
 
 #include "VUSBInternal.h"
 
+
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
@@ -36,6 +37,7 @@
 
 /** Convert from an URB to the URB header. */
 #define VUSBURBPOOL_URB_2_URBHDR(a_pUrb) RT_FROM_MEMBER(a_pUrb, VUSBURBHDR, Urb);
+
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -66,9 +68,11 @@ typedef VUSBURBHDR *PVUSBURBHDR;
 
 AssertCompileSizeAlignment(VUSBURBHDR, 8);
 
+
 /*********************************************************************************************************************************
 *   Static Variables                                                                                                             *
 *********************************************************************************************************************************/
+
 
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
@@ -113,6 +117,9 @@ DECLHIDDEN(PVUSBURB) vusbUrbPoolAlloc(PVUSBURBPOOL pUrbPool, VUSBXFERTYPE enmTyp
                                       VUSBDIRECTION enmDir, size_t cbData, size_t cbHci,
                                       size_t cbHciTd, unsigned cTds)
 {
+    Assert((uint32_t)cbData == cbData);
+    Assert((uint32_t)cbHci == cbHci);
+
     /*
      * Reuse or allocate a new URB.
      */
@@ -183,7 +190,7 @@ DECLHIDDEN(PVUSBURB) vusbUrbPoolAlloc(PVUSBURBPOOL pUrbPool, VUSBXFERTYPE enmTyp
     /*
      * (Re)init the URB
      */
-    uint32_t offAlloc = cbData;
+    uint32_t offAlloc = (uint32_t)cbData;
     PVUSBURB pUrb = &pHdr->Urb;
     pUrb->u32Magic               = VUSBURB_MAGIC;
     pUrb->enmState               = VUSBURBSTATE_ALLOCATED;
@@ -199,14 +206,14 @@ DECLHIDDEN(PVUSBURB) vusbUrbPoolAlloc(PVUSBURBPOOL pUrbPool, VUSBXFERTYPE enmTyp
     pUrb->pVUsb->pvBuffered      = NULL;
     pUrb->Dev.pvPrivate          = NULL;
     pUrb->Dev.pNext              = NULL;
-    pUrb->EndPt                  = ~0;
+    pUrb->EndPt                  = UINT8_MAX;
     pUrb->enmType                = enmType;
     pUrb->enmDir                 = enmDir;
     pUrb->fShortNotOk            = false;
     pUrb->enmStatus              = VUSBSTATUS_INVALID;
-    pUrb->cbData                 = cbData;
+    pUrb->cbData                 = (uint32_t)cbData;
     pUrb->pHci                   = cbHci ? (PVUSBURBHCI)&pUrb->abData[offAlloc] : NULL;
-    offAlloc += cbHci;
+    offAlloc += (uint32_t)cbHci;
     pUrb->paTds                  = (cbHciTd && cTds) ? (PVUSBURBHCITD)&pUrb->abData[offAlloc] : NULL;
 
     return pUrb;

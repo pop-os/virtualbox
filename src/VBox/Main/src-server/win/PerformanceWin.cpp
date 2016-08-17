@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 #endif /* _WIN32_WINNT < 0x0500 */
 #endif /* !_WIN32_WINNT */
 
-#include <windows.h>
+#include <iprt/win/windows.h>
 #include <winternl.h>
 #include <psapi.h>
 extern "C" {
@@ -194,6 +194,7 @@ int CollectorWin::preCollect(const CollectorHints& hints, uint64_t /* iTick */)
 
 int CollectorWin::getHostCpuLoad(ULONG *user, ULONG *kernel, ULONG *idle)
 {
+    RT_NOREF(user, kernel, idle);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -312,6 +313,7 @@ int CollectorWin::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *available
 
 int CollectorWin::getProcessCpuLoad(RTPROCESS process, ULONG *user, ULONG *kernel)
 {
+    RT_NOREF(process, user, kernel);
     return VERR_NOT_IMPLEMENTED;
 }
 

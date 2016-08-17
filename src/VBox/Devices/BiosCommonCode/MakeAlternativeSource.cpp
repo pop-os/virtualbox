@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -337,6 +337,7 @@ static bool disIsString(uint32_t uFlatAddr, uint32_t cb)
 }
 
 
+#if 0 /* unused */
 /**
  * Checks if a dword could be a far 16:16 BIOS address.
  *
@@ -355,6 +356,7 @@ static bool disIsFarBiosAddr(uint32_t uFlatAddr)
         return false;
     return true;
 }
+#endif
 
 
 static bool disByteData(uint32_t uFlatAddr, uint32_t cb)
@@ -810,6 +812,8 @@ static bool disDataSegment(uint32_t iSeg)
 
 static bool disIsCodeAndAdjustSize(uint32_t uFlatAddr, PRTDBGSYMBOL pSym, PBIOSSEG pSeg)
 {
+    RT_NOREF_PV(uFlatAddr);
+
     switch (g_enmBiosType)
     {
         /*
@@ -851,6 +855,7 @@ static bool disIsCodeAndAdjustSize(uint32_t uFlatAddr, PRTDBGSYMBOL pSym, PBIOSS
 
 static bool disIs16BitCode(const char *pszSymbol)
 {
+    RT_NOREF_PV(pszSymbol);
     return true;
 }
 
@@ -923,6 +928,8 @@ static size_t disHandleYasmDifferences(PDISCPUSTATE pCpuState, uint32_t uFlatAdd
  */
 static DECLCALLBACK(int) disReadOpcodeBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead)
 {
+    RT_NOREF_PV(cbMinRead);
+
     RTUINTPTR   offBios  = pDis->uInstrAddr + offInstr - g_uBiosFlatBase;
     size_t      cbToRead = cbMaxRead;
     if (offBios + cbToRead > g_cbImg)
@@ -2030,7 +2037,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                char szRev[] = "$Revision: 108956 $";
+                char szRev[] = "$Revision: 109163 $";
                 char *psz = szRev;
                 while (*psz && !RT_C_IS_DIGIT(*psz))
                     psz++;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,7 +81,7 @@ DECLINLINE(IEMMODE) iomDisModeToIemMode(DISCPUMODE enmDisMode)
  */
 static VBOXSTRICTRC iomRCInterpretIN(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu)
 {
-    STAM_COUNTER_INC(&pVM->iom.s.StatInstIn);
+    STAM_COUNTER_INC(&pVM->iom.s.StatInstIn); RT_NOREF_PV(pVM);
     Assert(pCpu->Param2.fUse & (DISUSE_IMMEDIATE8 | DISUSE_REG_GEN16));
     uint16_t u16Port = pCpu->Param2.fUse & DISUSE_REG_GEN16 ? pRegFrame->dx : (uint16_t)pCpu->Param2.uValue;
 
@@ -113,7 +113,7 @@ static VBOXSTRICTRC iomRCInterpretIN(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFra
  */
 static VBOXSTRICTRC iomRCInterpretOUT(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu)
 {
-    STAM_COUNTER_INC(&pVM->iom.s.StatInstOut);
+    STAM_COUNTER_INC(&pVM->iom.s.StatInstOut); RT_NOREF_PV(pVM);
     Assert(pCpu->Param1.fUse & (DISUSE_IMMEDIATE8 | DISUSE_REG_GEN16));
     uint16_t const u16Port = pCpu->Param1.fUse & DISUSE_REG_GEN16 ? pRegFrame->dx : (uint16_t)pCpu->Param1.uValue;
 
@@ -139,12 +139,10 @@ static VBOXSTRICTRC iomRCInterpretOUT(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFr
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
- * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pRegFrame   Pointer to CPUMCTXCORE guest registers structure.
  * @param   pCpu        Disassembler CPU state.
  */
-static VBOXSTRICTRC iomRCInterpretINS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu)
+static VBOXSTRICTRC iomRCInterpretINS(PVMCPU pVCpu, PDISCPUSTATE pCpu)
 {
     uint8_t cbValue = pCpu->pCurInstr->uOpcode == OP_INSB ? 1
                     : pCpu->uOpMode == DISCPUMODE_16BIT ? 2 : 4;       /* dword in both 32 & 64 bits mode */
@@ -173,12 +171,10 @@ static VBOXSTRICTRC iomRCInterpretINS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFr
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
- * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pRegFrame   Pointer to CPUMCTXCORE guest registers structure.
  * @param   pCpu        Disassembler CPU state.
  */
-static VBOXSTRICTRC iomRCInterpretOUTS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu)
+static VBOXSTRICTRC iomRCInterpretOUTS(PVMCPU pVCpu, PDISCPUSTATE pCpu)
 {
     uint8_t cbValue = pCpu->pCurInstr->uOpcode == OP_OUTSB ? 1
                     : pCpu->uOpMode == DISCPUMODE_16BIT ? 2 : 4;       /* dword in both 32 & 64 bits mode */
@@ -228,11 +224,11 @@ VMMRCDECL(VBOXSTRICTRC) IOMRCIOPortHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE p
 
         case OP_INSB:
         case OP_INSWD:
-            return iomRCInterpretINS(pVM, pVCpu, pRegFrame, pCpu);
+            return iomRCInterpretINS(pVCpu, pCpu);
 
         case OP_OUTSB:
         case OP_OUTSWD:
-            return iomRCInterpretOUTS(pVM, pVCpu, pRegFrame, pCpu);
+            return iomRCInterpretOUTS(pVCpu, pCpu);
 
         /*
          * The opcode wasn't know to us, freak out.

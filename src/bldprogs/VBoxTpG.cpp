@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1020,8 +1020,6 @@ static RTEXITCODE generateHeader(PSCMSTREAM pStrm)
 
         RTListForEach(&pProv->ProbeHead, pProbe, VTGPROBE, ListEntry)
         {
-            PVTGARG const pFirstArg = RTListGetFirst(&pProbe->ArgHead, VTGARG, ListEntry);
-
             ScmStreamPrintf(pStrm,
                             "extern uint32_t const volatile g_cVTGProbeEnabled_%s_%s;\n"
                             "extern VTGDESCPROBE            g_VTGProbeData_%s_%s;\n"
@@ -1201,8 +1199,6 @@ static RTEXITCODE generateWrapperHeader(PSCMSTREAM pStrm)
     {
         RTListForEach(&pProv->ProbeHead, pProbe, VTGPROBE, ListEntry)
         {
-            PVTGARG const pFirstArg = RTListGetFirst(&pProbe->ArgHead, VTGARG, ListEntry);
-
             generateProbeDefineName(szTmp, sizeof(szTmp), pProv->pszName, pProbe->pszMangledName);
             ScmStreamPrintf(pStrm,
                             "# define %s("
@@ -2378,7 +2374,7 @@ static RTEXITCODE parseArguments(int argc,  char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 104525 $";
+                static const char s_szRev[] = "$Revision: 109096 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return RTEXITCODE_SUCCESS;

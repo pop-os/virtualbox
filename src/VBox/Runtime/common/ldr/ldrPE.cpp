@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -672,8 +672,9 @@ static DECLCALLBACK(int) rtldrPEResolveImports32(PRTLDRMODPE pModPe, const void 
             else if (   pThunk->u1.Ordinal > 0
                      && pThunk->u1.Ordinal < pModPe->cbImage)
             {
-                rc = pfnGetImport(&pModPe->Core, pszModName, PE_RVA2TYPE(pvBitsR, (char*)(uintptr_t)pThunk->u1.AddressOfData + 2, const char *),
-                                  ~0, &Value, pvUser);
+                rc = pfnGetImport(&pModPe->Core, pszModName,
+                                  PE_RVA2TYPE(pvBitsR, (char*)(uintptr_t)pThunk->u1.AddressOfData + 2, const char *),
+                                  ~0U, &Value, pvUser);
                 Log4((RT_SUCCESS(rc) ? "RTLdrPE:  %RTptr %s\n" : "RTLdrPE:  %08RX32 %s rc=%Rrc\n",
                       (uint32_t)Value, PE_RVA2TYPE(pvBitsR, (char*)(uintptr_t)pThunk->u1.AddressOfData + 2, const char *), rc));
             }
@@ -712,7 +713,8 @@ typedef IMAGE_THUNK_DATA64 *PIMAGE_THUNK_DATA64;
 
 
 /** @copydoc RTLDROPSPE::pfnResolveImports */
-static DECLCALLBACK(int) rtldrPEResolveImports64(PRTLDRMODPE pModPe, const void *pvBitsR, void *pvBitsW, PFNRTLDRIMPORT pfnGetImport, void *pvUser)
+static DECLCALLBACK(int) rtldrPEResolveImports64(PRTLDRMODPE pModPe, const void *pvBitsR, void *pvBitsW,
+                                                 PFNRTLDRIMPORT pfnGetImport, void *pvUser)
 {
     /*
      * Check if there is actually anything to work on.
@@ -765,7 +767,7 @@ static DECLCALLBACK(int) rtldrPEResolveImports64(PRTLDRMODPE pModPe, const void 
             {
                 /** @todo add validation of the string pointer! */
                 rc = pfnGetImport(&pModPe->Core, pszModName, PE_RVA2TYPE(pvBitsR, (uintptr_t)pThunk->u1.AddressOfData + 2, const char *),
-                                  ~0, &Value, pvUser);
+                                  ~0U, &Value, pvUser);
                 Log4((RT_SUCCESS(rc) ? "RTLdrPE:  %016RX64 %s\n" : "RTLdrPE:  %016RX64 %s rc=%Rrc\n",
                       (uint64_t)Value, PE_RVA2TYPE(pvBitsR, (uintptr_t)pThunk->u1.AddressOfData + 2, const char *), rc));
             }
@@ -787,7 +789,8 @@ static DECLCALLBACK(int) rtldrPEResolveImports64(PRTLDRMODPE pModPe, const void 
 /**
  * Applies fixups.
  */
-static int rtldrPEApplyFixups(PRTLDRMODPE pModPe, const void *pvBitsR, void *pvBitsW, RTUINTPTR BaseAddress, RTUINTPTR OldBaseAddress)
+static int rtldrPEApplyFixups(PRTLDRMODPE pModPe, const void *pvBitsR, void *pvBitsW, RTUINTPTR BaseAddress,
+                              RTUINTPTR OldBaseAddress)
 {
     if (    !pModPe->RelocDir.VirtualAddress
         ||  !pModPe->RelocDir.Size)
@@ -2036,6 +2039,7 @@ static void rtLdrPE_HashFinalize(PRTLDRPEHASHCTXUNION pHashCtx, RTDIGESTTYPE enm
 }
 
 
+#ifndef IPRT_WITHOUT_LDR_VERIFY
 /**
  * Returns the digest size for the given digest type.
  *
@@ -2053,6 +2057,7 @@ static uint32_t rtLdrPE_HashGetHashSize(RTDIGESTTYPE enmDigest)
         default:                   AssertReleaseFailedReturn(0);
     }
 }
+#endif
 
 
 /**
@@ -2377,6 +2382,7 @@ static int rtldrPE_VerifySignatureRead(PRTLDRMODPE pModPe, PRTLDRPESIGNATURE *pp
  */
 static void rtldrPE_VerifySignatureDestroy(PRTLDRMODPE pModPe, PRTLDRPESIGNATURE pSignature)
 {
+    RT_NOREF_PV(pModPe);
     RTCrPkcs7ContentInfo_Delete(&pSignature->ContentInfo);
     RTMemTmpFree(pSignature);
 }
@@ -2395,6 +2401,7 @@ static int rtldrPE_VerifySignatureDecode(PRTLDRMODPE pModPe, PRTLDRPESIGNATURE p
     WIN_CERTIFICATE const  *pEntry = pSignature->pRawData;
     AssertReturn(pEntry->wCertificateType == WIN_CERT_TYPE_PKCS_SIGNED_DATA, VERR_INTERNAL_ERROR_2);
     AssertReturn(pEntry->wRevision        == WIN_CERT_REVISION_2_0, VERR_INTERNAL_ERROR_2);
+    RT_NOREF_PV(pModPe);
 
     RTASN1CURSORPRIMARY PrimaryCursor;
     RTAsn1CursorInitPrimary(&PrimaryCursor,
@@ -2760,6 +2767,7 @@ static DECLCALLBACK(int) rtldrPE_VerifySignature(PRTLDRMODINTERNAL pMod, PFNRTLD
     }
     return rc;
 #else
+    RT_NOREF_PV(pMod); RT_NOREF_PV(pfnCallback); RT_NOREF_PV(pvUser); RT_NOREF_PV(pErrInfo);
     return VERR_NOT_SUPPORTED;
 #endif
 }
@@ -3048,6 +3056,8 @@ static const char *rtldrPEGetArchName(uint16_t uMachine)
  */
 static int rtldrPEValidateFileHeader(PIMAGE_FILE_HEADER pFileHdr, uint32_t fFlags, const char *pszLogName, PRTLDRARCH penmArch)
 {
+    RT_NOREF_PV(pszLogName);
+
     size_t cbOptionalHeader;
     switch (pFileHdr->Machine)
     {
@@ -3109,6 +3119,8 @@ static int rtldrPEValidateFileHeader(PIMAGE_FILE_HEADER pFileHdr, uint32_t fFlag
 static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr, const char *pszLogName, RTFOFF offNtHdrs,
                                          const IMAGE_FILE_HEADER *pFileHdr, RTFOFF cbRawImage, uint32_t fFlags)
 {
+    RT_NOREF_PV(pszLogName);
+
     const uint16_t CorrectMagic = pFileHdr->SizeOfOptionalHeader == sizeof(IMAGE_OPTIONAL_HEADER32)
                                 ? IMAGE_NT_OPTIONAL_HDR32_MAGIC : IMAGE_NT_OPTIONAL_HDR64_MAGIC;
     if (pOptHdr->Magic != CorrectMagic)
@@ -3300,6 +3312,8 @@ static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr,
 static int rtldrPEValidateSectionHeaders(const IMAGE_SECTION_HEADER *paSections, unsigned cSections, const char *pszLogName,
                                          const IMAGE_OPTIONAL_HEADER64 *pOptHdr, RTFOFF cbRawImage, uint32_t fFlags, bool fNoCode)
 {
+    RT_NOREF_PV(pszLogName);
+
     const uint32_t              cbImage  = pOptHdr->SizeOfImage;
     const IMAGE_SECTION_HEADER *pSH      = &paSections[0];
     uint32_t                    uRvaPrev = pOptHdr->SizeOfHeaders;
@@ -3362,7 +3376,7 @@ static int rtldrPEValidateSectionHeaders(const IMAGE_SECTION_HEADER *paSections,
 #endif
         }
 
-        ///@todo only if SizeOfRawData > 0 ?
+        /// @todo only if SizeOfRawData > 0 ?
         if (    pSH->PointerToRawData > cbRawImage /// @todo pSH->PointerToRawData >= cbRawImage ?
             ||  pSH->SizeOfRawData > cbRawImage
             ||  pSH->PointerToRawData + pSH->SizeOfRawData > cbRawImage)

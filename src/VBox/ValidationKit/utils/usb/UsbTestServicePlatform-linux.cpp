@@ -45,6 +45,7 @@
 
 #include "UsbTestServicePlatform.h"
 
+
 /*********************************************************************************************************************************
 *   Constants And Macros, Structures and Typedefs                                                                                *
 *********************************************************************************************************************************/
@@ -87,6 +88,7 @@ typedef struct UTSPLATFORMLNXDUMMYHCD
 } UTSPLATFORMLNXDUMMYHCD;
 /** Pointer to a dummy HCD entry. */
 typedef UTSPLATFORMLNXDUMMYHCD *PUTSPLATFORMLNXDUMMYHCD;
+
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
@@ -279,7 +281,7 @@ DECLHIDDEN(int) utsPlatformInit(void)
     int rc = utsPlatformModuleLoad("libcomposite", NULL, 0);
     if (RT_SUCCESS(rc))
     {
-        const char *apszArg[] = { "num=20" }; /** @todo: Make configurable from config. */
+        const char *apszArg[] = { "num=20" }; /** @todo Make configurable from config. */
         rc = utsPlatformModuleLoad("dummy_hcd", &apszArg[0], RT_ELEMENTS(apszArg));
         if (RT_SUCCESS(rc))
             rc = utsPlatformModuleLoad("dummy_hcd_ss", &apszArg[0], RT_ELEMENTS(apszArg));
@@ -329,7 +331,7 @@ DECLHIDDEN(int) utsPlatformModuleLoad(const char *pszModule, const char **papszA
             /* Evaluate the process status. */
             if (   ProcSts.enmReason != RTPROCEXITREASON_NORMAL
                 || ProcSts.iStatus != 0)
-                rc = VERR_UNRESOLVED_ERROR; /** @todo: Log and give finer grained status code. */
+                rc = VERR_UNRESOLVED_ERROR; /** @todo Log and give finer grained status code. */
         }
     }
 
@@ -357,7 +359,7 @@ DECLHIDDEN(int) utsPlatformModuleUnload(const char *pszModule)
             /* Evaluate the process status. */
             if (   ProcSts.enmReason != RTPROCEXITREASON_NORMAL
                 || ProcSts.iStatus != 0)
-                rc = VERR_UNRESOLVED_ERROR; /** @todo: Log and give finer grained status code. */
+                rc = VERR_UNRESOLVED_ERROR; /** @todo Log and give finer grained status code. */
         }
     }
 

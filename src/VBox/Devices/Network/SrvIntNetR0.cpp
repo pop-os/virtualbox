@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -885,6 +885,7 @@ DECLINLINE(bool) intnetR0IPv6AddrIsGood(RTNETADDRIPV6 addr)
 }
 
 
+#if 0 /* unused */
 /**
  * Checks if the IPv4 address is a broadcast address.
  * @returns true/false.
@@ -895,6 +896,7 @@ DECLINLINE(bool) intnetR0IPv4AddrIsBroadcast(RTNETADDRIPV4 Addr)
     /* Just check for 255.255.255.255 atm. */
     return Addr.u == UINT32_MAX;
 }
+#endif /* unused */
 
 
 /**
@@ -1030,6 +1032,7 @@ DECLINLINE(int) intnetR0IfAddrCacheLookupLikely(PCINTNETADDRCACHE pCache, PCRTNE
     return intnetR0IfAddrCacheLookup(pCache, pAddr, cbAddr);
 }
 
+#if 0 /* unused */
 
 /**
  * Worker for intnetR0IfAddrCacheLookupUnlikely that performs
@@ -1097,6 +1100,8 @@ DECLINLINE(int) intnetR0IfAddrCacheLookupUnlikely(PCINTNETADDRCACHE pCache, PCRT
     return intnetR0IfAddrCacheInCacheUnlikelySlow(pCache, pAddr, cbAddr);
 }
 
+#endif /* unused */
+
 
 /**
  * Deletes a specific cache entry.
@@ -1130,6 +1135,8 @@ static void intnetR0IfAddrCacheDeleteIt(PINTNETIF pIf, PINTNETADDRCACHE pCache, 
                  pIf->hIf, &pIf->MacAddr, enmAddrType, iEntry, pCache->cbAddress, pAddr, pszMsg));
             break;
     }
+#else
+    RT_NOREF2(pIf, pszMsg);
 #endif
 
     pCache->cEntries--;
@@ -1210,6 +1217,7 @@ DECLINLINE(void) intnetR0NetworkAddrCacheDelete(PINTNETNETWORK pNetwork, PCRTNET
 }
 
 
+#if 0 /* unused */
 /**
  * Deletes the address from all the interface caches except the specified one.
  *
@@ -1241,6 +1249,7 @@ DECLINLINE(void) intnetR0NetworkAddrCacheDeleteMinusIf(PINTNETNETWORK pNetwork, 
 
     RTSpinlockRelease(pNetwork->hAddrSpinlock);
 }
+#endif /* unused */
 
 
 /**
@@ -1403,8 +1412,10 @@ static void intnetR0IfAddrCacheAddIt(PINTNETIF pIf, INTNETADDRTYPE enmAddrType, 
 
     PINTNETADDRCACHE pCache = &pIf->aAddrCache[enmAddrType];
 
+#if defined(LOG_ENABLED) || defined(VBOX_STRICT)
     const uint8_t cbAddr = pCache->cbAddress;
     Assert(cbAddr == intnetR0AddrSize(enmAddrType));
+#endif
 
     RTSpinlockAcquire(pNetwork->hAddrSpinlock);
 
@@ -1473,6 +1484,8 @@ static void intnetR0IfAddrCacheAddIt(PINTNETIF pIf, INTNETADDRTYPE enmAddrType, 
                  pIf->hIf, &pIf->MacAddr, enmAddrType, pCache->cEntries, pCache->cbAddress, pAddr, pszMsg));
             break;
     }
+#else
+    RT_NOREF1(pszMsg);
 #endif
     pCache->cEntries++;
     Assert(pCache->cEntries <= pCache->cEntriesAlloc);
@@ -4873,6 +4886,7 @@ static DECLCALLBACK(void) intnetR0IfDestruct(void *pvObj, void *pvUser1, void *p
     PINTNETIF pIf     = (PINTNETIF)pvUser1;
     PINTNET   pIntNet = (PINTNET)pvUser2;
     Log(("intnetR0IfDestruct: pvObj=%p pIf=%p pIntNet=%p hIf=%RX32\n", pvObj, pIf, pIntNet, pIf->hIf));
+    RT_NOREF1(pvObj);
 
     /*
      * For paranoid reasons we must now mark the interface as destroyed.
@@ -5225,7 +5239,7 @@ static int intnetR0NetworkCreateIf(PINTNETNETWORK pNetwork, PSUPDRVSESSION pSess
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnSetSGPhys */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnSetSGPhys} */
 static DECLCALLBACK(bool) intnetR0TrunkIfPortSetSGPhys(PINTNETTRUNKSWPORT pSwitchPort, bool fEnable)
 {
     PINTNETTRUNKIF pThis = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
@@ -5234,7 +5248,7 @@ static DECLCALLBACK(bool) intnetR0TrunkIfPortSetSGPhys(PINTNETTRUNKSWPORT pSwitc
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnReportMacAddress */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnReportMacAddress} */
 static DECLCALLBACK(void) intnetR0TrunkIfPortReportMacAddress(PINTNETTRUNKSWPORT pSwitchPort, PCRTMAC pMacAddr)
 {
     PINTNETTRUNKIF pThis = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
@@ -5260,7 +5274,7 @@ static DECLCALLBACK(void) intnetR0TrunkIfPortReportMacAddress(PINTNETTRUNKSWPORT
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnReportPromiscuousMode */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnReportPromiscuousMode} */
 static DECLCALLBACK(void) intnetR0TrunkIfPortReportPromiscuousMode(PINTNETTRUNKSWPORT pSwitchPort, bool fPromiscuous)
 {
     PINTNETTRUNKIF pThis = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
@@ -5286,7 +5300,7 @@ static DECLCALLBACK(void) intnetR0TrunkIfPortReportPromiscuousMode(PINTNETTRUNKS
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnReportGsoCapabilities */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnReportGsoCapabilities} */
 static DECLCALLBACK(void) intnetR0TrunkIfPortReportGsoCapabilities(PINTNETTRUNKSWPORT pSwitchPort,
                                                                    uint32_t fGsoCapabilities, uint32_t fDst)
 {
@@ -5305,7 +5319,7 @@ static DECLCALLBACK(void) intnetR0TrunkIfPortReportGsoCapabilities(PINTNETTRUNKS
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnReportNoPreemptDsts */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnReportNoPreemptDsts} */
 static DECLCALLBACK(void) intnetR0TrunkIfPortReportNoPreemptDsts(PINTNETTRUNKSWPORT pSwitchPort, uint32_t fNoPreemptDsts)
 {
     PINTNETTRUNKIF pThis = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
@@ -5315,7 +5329,7 @@ static DECLCALLBACK(void) intnetR0TrunkIfPortReportNoPreemptDsts(PINTNETTRUNKSWP
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnDisconnect */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnDisconnect} */
 static DECLCALLBACK(void) intnetR0TrunkIfPortDisconnect(PINTNETTRUNKSWPORT pSwitchPort, PINTNETTRUNKIFPORT pIfPort,
                                                         PFNINTNETTRUNKIFPORTRELEASEBUSY pfnReleaseBusy)
 {
@@ -5374,7 +5388,7 @@ static DECLCALLBACK(void) intnetR0TrunkIfPortDisconnect(PINTNETTRUNKSWPORT pSwit
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnPreRecv */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnPreRecv} */
 static DECLCALLBACK(INTNETSWDECISION) intnetR0TrunkIfPortPreRecv(PINTNETTRUNKSWPORT pSwitchPort,
                                                                  void const *pvSrc, size_t cbSrc, uint32_t fSrc)
 {
@@ -5416,7 +5430,7 @@ static DECLCALLBACK(INTNETSWDECISION) intnetR0TrunkIfPortPreRecv(PINTNETTRUNKSWP
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnRecv */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnRecv} */
 static DECLCALLBACK(bool) intnetR0TrunkIfPortRecv(PINTNETTRUNKSWPORT pSwitchPort, void *pvIf, PINTNETSG pSG, uint32_t fSrc)
 {
     PINTNETTRUNKIF pThis = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
@@ -5532,7 +5546,7 @@ static DECLCALLBACK(bool) intnetR0TrunkIfPortRecv(PINTNETTRUNKSWPORT pSwitchPort
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnSGRetain */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnSGRetain} */
 static DECLCALLBACK(void) intnetR0TrunkIfPortSGRetain(PINTNETTRUNKSWPORT pSwitchPort, PINTNETSG pSG)
 {
     PINTNETTRUNKIF pThis = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
@@ -5549,7 +5563,7 @@ static DECLCALLBACK(void) intnetR0TrunkIfPortSGRetain(PINTNETTRUNKSWPORT pSwitch
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnSGRelease */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnSGRelease} */
 static DECLCALLBACK(void) intnetR0TrunkIfPortSGRelease(PINTNETTRUNKSWPORT pSwitchPort, PINTNETSG pSG)
 {
     PINTNETTRUNKIF pThis = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
@@ -5571,7 +5585,7 @@ static DECLCALLBACK(void) intnetR0TrunkIfPortSGRelease(PINTNETTRUNKSWPORT pSwitc
 }
 
 
-/** @copydoc INTNETTRUNKSWPORT::pfnNotifyHostAddress */
+/** @interface_method_impl{INTNETTRUNKSWPORT,pfnNotifyHostAddress} */
 static DECLCALLBACK(void) intnetR0NetworkNotifyHostAddress(PINTNETTRUNKSWPORT pSwitchPort,
                                                            bool fAdded,
                                                            INTNETADDRTYPE enmType, const void *pvAddr)
@@ -5893,6 +5907,7 @@ static DECLCALLBACK(void) intnetR0NetworkDestruct(void *pvObj, void *pvUser1, vo
     PINTNET         pIntNet  = (PINTNET)pvUser2;
     Log(("intnetR0NetworkDestruct: pvObj=%p pNetwork=%p pIntNet=%p %s\n", pvObj, pNetwork, pIntNet, pNetwork->szName));
     Assert(pNetwork->pIntNet == pIntNet);
+    RT_NOREF1(pvObj);
 
     /* Take the big create/open/destroy sem. */
     RTSemMutexRequest(pIntNet->hMtxCreateOpenDestroy, RT_INDEFINITE_WAIT);
@@ -6212,7 +6227,7 @@ static int intnetR0OpenNetwork(PINTNET pIntNet, PSUPDRVSESSION pSession, const c
             int rc;
             if (   enmTrunkType == kIntNetTrunkType_WhateverNone
 #ifdef VBOX_WITH_NAT_SERVICE
-                || enmTrunkType == kIntNetTrunkType_SrvNat /* @todo: what does it mean */
+                || enmTrunkType == kIntNetTrunkType_SrvNat /** @todo what does it mean */
 #endif
                 || (   pCur->enmTrunkType == enmTrunkType
                     && !strcmp(pCur->szTrunk, pszTrunk)))

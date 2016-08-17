@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,7 +76,7 @@
 # define _interlockedbittestandreset    they_messed_it_up_in_winnt_h_this_time_sigh__interlockedbittestandreset
 # define _interlockedbittestandset64    they_messed_it_up_in_winnt_h_this_time_sigh__interlockedbittestandset64
 # define _interlockedbittestandreset64  they_messed_it_up_in_winnt_h_this_time_sigh__interlockedbittestandreset64
-# include <Windows.h>
+# include <iprt/win/windows.h>
 # include <winioctl.h>
 # include <ntddscsi.h>
 # pragma warning(default : 4163)
@@ -124,7 +124,7 @@ static int solarisExitRootMode(uid_t *pEffUserID);
 #endif
 
 
-/** @copydoc PDMIMOUNT::pfnUnmount */
+/** @interface_method_impl{PDMIMOUNT,pfnUnmount} */
 static DECLCALLBACK(int) drvHostDvdUnmount(PPDMIMOUNT pInterface, bool fForce, bool fEject)
 {
     PDRVHOSTBASE pThis = PDMIMOUNT_2_DRVHOSTBASE(pInterface);
@@ -414,11 +414,12 @@ static DECLCALLBACK(int) drvHostDvdPoll(PDRVHOSTBASE pThis)
 #endif /* USE_MEDIA_POLLING */
 
 
-/** @copydoc PDMIMEDIA::pfnSendCmd */
+/** @interface_method_impl{PDMIMEDIA,pfnSendCmd} */
 static DECLCALLBACK(int) drvHostDvdSendCmd(PPDMIMEDIA pInterface, const uint8_t *pbCmd,
                                            PDMMEDIATXDIR enmTxDir, void *pvBuf, uint32_t *pcbBuf,
                                            uint8_t *pabSense, size_t cbSense, uint32_t cTimeoutMillies)
 {
+    RT_NOREF(cbSense);
     PDRVHOSTBASE pThis = PDMIMEDIA_2_DRVHOSTBASE(pInterface);
     int rc;
     LogFlow(("%s: cmd[0]=%#04x txdir=%d pcbBuf=%d timeout=%d\n", __FUNCTION__, pbCmd[0], enmTxDir, *pcbBuf, cTimeoutMillies));
@@ -748,6 +749,7 @@ static DECLCALLBACK(void) drvHostDvdDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvHostDvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PDRVHOSTBASE pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTBASE);
     LogFlow(("drvHostDvdConstruct: iInstance=%d\n", pDrvIns->iInstance));
 

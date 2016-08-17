@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -698,7 +698,7 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                     pNew->Internal.s.pVMR0          = pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_R0 ? pVM->pVMR0 : NIL_RTR0PTR;
                     pNew->Internal.s.pVMRC          = pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_RC ? pVM->pVMRC : NIL_RTRCPTR;
                     //pNew->Internal.s.fDetaching     = false;
-                    pNew->Internal.s.fVMSuspended   = true; /** @todo: should be 'false', if driver is attached at runtime. */
+                    pNew->Internal.s.fVMSuspended   = true; /** @todo should be 'false', if driver is attached at runtime. */
                     //pNew->Internal.s.fVMReset       = false;
                     pNew->Internal.s.fHyperHeap     = fHyperHeap;
                     //pNew->Internal.s.pfnAsyncNotify = NULL;
@@ -992,6 +992,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_Attach(PPDMDRVINS pDrvIns, uint32_t fFlags,
     VM_ASSERT_EMT(pVM);
     LogFlow(("pdmR3DrvHlp_Attach: caller='%s'/%d: fFlags=%#x\n", pDrvIns->pReg->szName, pDrvIns->iInstance, fFlags));
     Assert(!(fFlags & ~(PDM_TACH_FLAGS_NOT_HOT_PLUG)));
+    RT_NOREF_PV(fFlags);
 
     /*
      * Check that there isn't anything attached already.
@@ -1375,12 +1376,14 @@ static DECLCALLBACK(int) pdmR3DrvHlp_DBGFInfoDeregister(PPDMDRVINS pDrvIns, cons
 
 
 /** @interface_method_impl{PDMDRVHLPR3,pfnSTAMRegister} */
-static DECLCALLBACK(void) pdmR3DrvHlp_STAMRegister(PPDMDRVINS pDrvIns, void *pvSample, STAMTYPE enmType, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
+static DECLCALLBACK(void) pdmR3DrvHlp_STAMRegister(PPDMDRVINS pDrvIns, void *pvSample, STAMTYPE enmType, const char *pszName,
+                                                   STAMUNIT enmUnit, const char *pszDesc)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     VM_ASSERT_EMT(pDrvIns->Internal.s.pVMR3);
 
     STAM_REG(pDrvIns->Internal.s.pVMR3, pvSample, enmType, pszName, enmUnit, pszDesc);
+    RT_NOREF6(pDrvIns, pvSample, enmType, pszName, enmUnit, pszDesc);
     /** @todo track the samples so they can be dumped & deregistered when the driver instance is destroyed.
      * For now we just have to be careful not to use this call for drivers which can be unloaded. */
 }
@@ -1429,6 +1432,8 @@ static DECLCALLBACK(int) pdmR3DrvHlp_SUPCallVMMR0Ex(PPDMDRVINS pDrvIns, unsigned
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     LogFlow(("pdmR3DrvHlp_SSMCallVMMR0Ex: caller='%s'/%d: uOperation=%u pvArg=%p cbArg=%d\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, uOperation, pvArg, cbArg));
+    RT_NOREF_PV(cbArg);
+
     int rc;
     if (    uOperation >= VMMR0_DO_SRV_START
         &&  uOperation <  VMMR0_DO_SRV_END)

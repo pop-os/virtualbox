@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -313,6 +313,9 @@ RTDECL(uint64_t) rtTimeNanoTSInternalRef(PRTTIMENANOTSDATA pData)
                 /*
                  * No joy must try again.
                  */
+#ifdef _MSC_VER
+# pragma warning(disable: 4702)
+#endif
 #ifndef IN_RING3
                 ASMSetFlags(uFlags);
 #endif

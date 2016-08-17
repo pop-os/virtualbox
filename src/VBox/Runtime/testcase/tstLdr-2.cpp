@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,8 +70,10 @@ bool MyDisBlock(uint8_t const *pbCodeBlock, int32_t cbMax)
  * @param   pValue          Where to store the symbol value (address).
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) testGetImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser)
+static DECLCALLBACK(int) testGetImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol,
+                                       RTUINTPTR *pValue, void *pvUser)
 {
+    RT_NOREF5(hLdrMod, pszModule, pszSymbol, uSymbol, pvUser);
     /* check the name format and only permit certain names */
     *pValue = 0xf0f0f0f0;
     return VINF_SUCCESS;

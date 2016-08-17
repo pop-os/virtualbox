@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -432,7 +432,7 @@ void createVM(IVirtualBox *virtualBox)
 // main
 ///////////////////////////////////////////////////////////////////////////////
 
-int main(int argc, char *argv[])
+int main()
 {
     /*
      * Check that PRUnichar is equal in size to what compiler composes L""

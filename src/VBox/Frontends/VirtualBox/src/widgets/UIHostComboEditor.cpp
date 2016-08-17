@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -254,13 +254,15 @@ bool UINativeHotKey::isValidKey(int iKeyCode)
 
 #elif defined(VBOX_WS_WIN)
 
-    return ((iKeyCode >= VK_SHIFT && iKeyCode <= VK_CAPITAL) ||
-            (iKeyCode >= VK_LSHIFT && iKeyCode <= VK_RMENU) ||
-            (iKeyCode >= VK_F1 && iKeyCode <= VK_F24) ||
-            iKeyCode == VK_NUMLOCK || iKeyCode == VK_SCROLL ||
-            iKeyCode == VK_LWIN || iKeyCode == VK_RWIN ||
-            iKeyCode == VK_APPS ||
-            iKeyCode == VK_PRINT);
+    return (iKeyCode >= VK_SHIFT  && iKeyCode <= VK_CAPITAL)
+        || (iKeyCode >= VK_LSHIFT && iKeyCode <= VK_RMENU)
+        || (iKeyCode >= VK_F1     && iKeyCode <= VK_F24)
+        || iKeyCode == VK_NUMLOCK
+        || iKeyCode == VK_SCROLL
+        || iKeyCode == VK_LWIN
+        || iKeyCode == VK_RWIN
+        || iKeyCode == VK_APPS
+        || iKeyCode == VK_PRINT;
 
 #elif defined(VBOX_WS_X11)
 
@@ -275,9 +277,8 @@ bool UINativeHotKey::isValidKey(int iKeyCode)
 
 # warning "port me!"
 
-#endif
-
     return false;
+#endif
 }
 
 unsigned UINativeHotKey::modifierToSet1ScanCode(int iKeyCode)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -344,6 +344,7 @@ static void qedTableConvertToHostEndianess(uint64_t *paTbl, uint32_t cEntries)
     }
 }
 
+#if defined(RT_BIG_ENDIAN)
 /**
  * Convert table entries from host to little endian format.
  *
@@ -362,6 +363,7 @@ static void qedTableConvertFromHostEndianess(uint64_t *paTblImg, uint64_t *paTbl
         paTblImg++;
     }
 }
+#endif
 
 /**
  * Creates the L2 table cache.
@@ -453,7 +455,6 @@ static void qedL2TblCacheEntryRelease(PQEDL2CACHEENTRY pL2Entry)
 static PQEDL2CACHEENTRY qedL2TblCacheEntryAlloc(PQEDIMAGE pImage)
 {
     PQEDL2CACHEENTRY pL2Entry = NULL;
-    int rc = VINF_SUCCESS;
 
     if (pImage->cbL2Cache + pImage->cbTable <= QED_L2_CACHE_MEMORY_MAX)
     {
@@ -560,6 +561,7 @@ static void qedL2TblCacheEntryInsert(PQEDIMAGE pImage, PQEDL2CACHEENTRY pL2Entry
     }
 }
 
+#if 0 /* unused */
 /**
  * Fetches the L2 from the given offset trying the LRU cache first and
  * reading it from the image after a cache miss.
@@ -611,6 +613,7 @@ static int qedL2TblCacheFetch(PQEDIMAGE pImage, uint64_t offL2Tbl, PQEDL2CACHEEN
     LogFlowFunc(("returns rc=%Rrc\n", rc));
     return rc;
 }
+#endif
 
 /**
  * Fetches the L2 from the given offset trying the LRU cache first and
@@ -1318,6 +1321,7 @@ static int qedCreateImage(PQEDIMAGE pImage, uint64_t cbSize,
                           PFNVDPROGRESS pfnProgress, void *pvUser,
                           unsigned uPercentStart, unsigned uPercentSpan)
 {
+    RT_NOREF1(pszComment);
     int rc;
     int32_t fOpen;
 
@@ -1397,6 +1401,7 @@ out:
  */
 static int qedAsyncClusterAllocRollback(PQEDIMAGE pImage, PVDIOCTX pIoCtx, PQEDCLUSTERASYNCALLOC pClusterAlloc)
 {
+    RT_NOREF1(pIoCtx);
     int rc = VINF_SUCCESS;
 
     switch (pClusterAlloc->enmAllocState)
@@ -1536,6 +1541,7 @@ static DECLCALLBACK(int) qedAsyncClusterAllocUpdate(void *pBackendData, PVDIOCTX
 static DECLCALLBACK(int) qedCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
                                          PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
 {
+    RT_NOREF1(pVDIfsDisk);
     LogFlowFunc(("pszFilename=\"%s\" pVDIfsDisk=%#p pVDIfsImage=%#p\n", pszFilename, pVDIfsDisk, pVDIfsImage));
     PVDIOSTORAGE pStorage = NULL;
     uint64_t cbFile;
@@ -1560,25 +1566,26 @@ static DECLCALLBACK(int) qedCheckIfValid(const char *pszFilename, PVDINTERFACE p
                                                       false /* fCreate */),
                            &pStorage);
     if (RT_SUCCESS(rc))
-        rc = vdIfIoIntFileGetSize(pIfIo, pStorage, &cbFile);
-
-    if (   RT_SUCCESS(rc)
-        && cbFile > sizeof(QedHeader))
     {
-        QedHeader Header;
-
-        rc = vdIfIoIntFileReadSync(pIfIo, pStorage, 0, &Header, sizeof(Header));
+        rc = vdIfIoIntFileGetSize(pIfIo, pStorage, &cbFile);
         if (   RT_SUCCESS(rc)
-            && qedHdrConvertToHostEndianess(&Header))
+            && cbFile > sizeof(QedHeader))
         {
-            *penmType = VDTYPE_HDD;
-            rc = VINF_SUCCESS;
+            QedHeader Header;
+
+            rc = vdIfIoIntFileReadSync(pIfIo, pStorage, 0, &Header, sizeof(Header));
+            if (   RT_SUCCESS(rc)
+                && qedHdrConvertToHostEndianess(&Header))
+            {
+                *penmType = VDTYPE_HDD;
+                rc = VINF_SUCCESS;
+            }
+            else
+                rc = VERR_VD_GEN_INVALID_HEADER;
         }
         else
             rc = VERR_VD_GEN_INVALID_HEADER;
     }
-    else
-        rc = VERR_VD_GEN_INVALID_HEADER;
 
     if (pStorage)
         vdIfIoIntFileClose(pIfIo, pStorage);
@@ -1647,6 +1654,7 @@ static DECLCALLBACK(int) qedCreate(const char *pszFilename, uint64_t cbSize,
                                    PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
                                    void **ppBackendData)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%d ppBackendData=%#p",
                  pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
     int rc;
@@ -1895,8 +1903,6 @@ static DECLCALLBACK(int) qedWrite(void *pBackendData, uint64_t uOffset, size_t c
 
             do
             {
-                uint64_t idxUpdateLe = 0;
-
                 /* Check if we have to allocate a new cluster for L2 tables. */
                 if (!pImage->paL1Table[idxL1])
                 {
@@ -2282,6 +2288,7 @@ out:
 static DECLCALLBACK(int) qedGetComment(void *pBackendData, char *pszComment,
                                        size_t cbComment)
 {
+    RT_NOREF2(pszComment, cbComment);
     LogFlowFunc(("pBackendData=%#p pszComment=%#p cbComment=%zu\n", pBackendData, pszComment, cbComment));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2300,6 +2307,7 @@ static DECLCALLBACK(int) qedGetComment(void *pBackendData, char *pszComment,
 /** @copydoc VBOXHDDBACKEND::pfnSetComment */
 static DECLCALLBACK(int) qedSetComment(void *pBackendData, const char *pszComment)
 {
+    RT_NOREF1(pszComment);
     LogFlowFunc(("pBackendData=%#p pszComment=\"%s\"\n", pBackendData, pszComment));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2323,6 +2331,7 @@ static DECLCALLBACK(int) qedSetComment(void *pBackendData, const char *pszCommen
 /** @copydoc VBOXHDDBACKEND::pfnGetUuid */
 static DECLCALLBACK(int) qedGetUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2341,6 +2350,7 @@ static DECLCALLBACK(int) qedGetUuid(void *pBackendData, PRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnSetUuid */
 static DECLCALLBACK(int) qedSetUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2365,6 +2375,7 @@ static DECLCALLBACK(int) qedSetUuid(void *pBackendData, PCRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnGetModificationUuid */
 static DECLCALLBACK(int) qedGetModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2383,6 +2394,7 @@ static DECLCALLBACK(int) qedGetModificationUuid(void *pBackendData, PRTUUID pUui
 /** @copydoc VBOXHDDBACKEND::pfnSetModificationUuid */
 static DECLCALLBACK(int) qedSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2406,6 +2418,7 @@ static DECLCALLBACK(int) qedSetModificationUuid(void *pBackendData, PCRTUUID pUu
 /** @copydoc VBOXHDDBACKEND::pfnGetParentUuid */
 static DECLCALLBACK(int) qedGetParentUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2424,6 +2437,7 @@ static DECLCALLBACK(int) qedGetParentUuid(void *pBackendData, PRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnSetParentUuid */
 static DECLCALLBACK(int) qedSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2447,6 +2461,7 @@ static DECLCALLBACK(int) qedSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnGetParentModificationUuid */
 static DECLCALLBACK(int) qedGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2465,6 +2480,7 @@ static DECLCALLBACK(int) qedGetParentModificationUuid(void *pBackendData, PRTUUI
 /** @copydoc VBOXHDDBACKEND::pfnSetParentModificationUuid */
 static DECLCALLBACK(int) qedSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc;
@@ -2576,10 +2592,9 @@ static DECLCALLBACK(int) qedResize(void *pBackendData, uint64_t cbSize,
                                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                                    PVDINTERFACE pVDIfsOperation)
 {
+    RT_NOREF7(pPCHSGeometry, pLCHSGeometry, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation);
     PQEDIMAGE pImage = (PQEDIMAGE)pBackendData;
     int rc = VINF_SUCCESS;
-
-    PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
 
     /* Making the image smaller is not supported at the moment. */
     if (cbSize < pImage->cbSize)

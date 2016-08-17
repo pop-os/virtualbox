@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -190,7 +190,7 @@ PVIRTIOQUEUE VirtioGetQueue(PVIRTIODEVICE pDevice, uint16_t Index)
     AssertReturn(pQueue->pQueue, NULL);
     AssertReturn(pQueue->Ring.cDesc > 0, NULL);
 
-    /* @todo enable interrupt. */
+    /** @todo enable interrupt. */
 
     return pQueue;
 }

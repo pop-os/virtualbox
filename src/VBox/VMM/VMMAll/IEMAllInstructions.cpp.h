@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,11 @@
 *   Global Variables                                                           *
 *******************************************************************************/
 extern const PFNIEMOP g_apfnOneByteMap[256]; /* not static since we need to forward declare it. */
+
+#ifdef _MSC_VER
+# pragma warning(push)
+# pragma warning(disable: 4702) /* Unreachable code like return in iemOp_Grp6_lldt. */
+#endif
 
 
 /**
@@ -537,6 +542,7 @@ FNIEMOP_DEF(iemOp_Invalid)
 /** Invalid with RM byte . */
 FNIEMOPRM_DEF(iemOp_InvalidWithRM)
 {
+    RT_NOREF_PV(bRm);
     IEMOP_MNEMONIC("InvalidWithRM");
     return IEMOP_RAISE_INVALID_OPCODE();
 }
@@ -1206,16 +1212,14 @@ FNIEMOP_DEF_1(iemOpCommonLarLsl_Gv_Ew, bool, fIsLar)
         {
             case IEMMODE_16BIT:
             {
-                IEM_MC_BEGIN(4, 0);
+                IEM_MC_BEGIN(3, 0);
                 IEM_MC_ARG(uint16_t *,  pu16Dst,           0);
                 IEM_MC_ARG(uint16_t,    u16Sel,            1);
-                IEM_MC_ARG(uint32_t *,  pEFlags,           2);
-                IEM_MC_ARG_CONST(bool,  fIsLarArg, fIsLar, 3);
+                IEM_MC_ARG_CONST(bool,  fIsLarArg, fIsLar, 2);
 
                 IEM_MC_REF_GREG_U16(pu16Dst, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
                 IEM_MC_FETCH_GREG_U16(u16Sel, (bRm & X86_MODRM_RM_MASK) | pVCpu->iem.s.uRexB);
-                IEM_MC_REF_EFLAGS(pEFlags);
-                IEM_MC_CALL_CIMPL_4(iemCImpl_LarLsl_u16, pu16Dst, u16Sel, pEFlags, fIsLarArg);
+                IEM_MC_CALL_CIMPL_3(iemCImpl_LarLsl_u16, pu16Dst, u16Sel, fIsLarArg);
 
                 IEM_MC_END();
                 return VINF_SUCCESS;
@@ -1224,16 +1228,14 @@ FNIEMOP_DEF_1(iemOpCommonLarLsl_Gv_Ew, bool, fIsLar)
             case IEMMODE_32BIT:
             case IEMMODE_64BIT:
             {
-                IEM_MC_BEGIN(4, 0);
+                IEM_MC_BEGIN(3, 0);
                 IEM_MC_ARG(uint64_t *,  pu64Dst,           0);
                 IEM_MC_ARG(uint16_t,    u16Sel,            1);
-                IEM_MC_ARG(uint32_t *,  pEFlags,           2);
-                IEM_MC_ARG_CONST(bool,  fIsLarArg, fIsLar, 3);
+                IEM_MC_ARG_CONST(bool,  fIsLarArg, fIsLar, 2);
 
                 IEM_MC_REF_GREG_U64(pu64Dst, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
                 IEM_MC_FETCH_GREG_U16(u16Sel, (bRm & X86_MODRM_RM_MASK) | pVCpu->iem.s.uRexB);
-                IEM_MC_REF_EFLAGS(pEFlags);
-                IEM_MC_CALL_CIMPL_4(iemCImpl_LarLsl_u64, pu64Dst, u16Sel, pEFlags, fIsLarArg);
+                IEM_MC_CALL_CIMPL_3(iemCImpl_LarLsl_u64, pu64Dst, u16Sel, fIsLarArg);
 
                 IEM_MC_END();
                 return VINF_SUCCESS;
@@ -1248,11 +1250,10 @@ FNIEMOP_DEF_1(iemOpCommonLarLsl_Gv_Ew, bool, fIsLar)
         {
             case IEMMODE_16BIT:
             {
-                IEM_MC_BEGIN(4, 1);
+                IEM_MC_BEGIN(3, 1);
                 IEM_MC_ARG(uint16_t *,  pu16Dst,           0);
                 IEM_MC_ARG(uint16_t,    u16Sel,            1);
-                IEM_MC_ARG(uint32_t *,  pEFlags,           2);
-                IEM_MC_ARG_CONST(bool,  fIsLarArg, fIsLar, 3);
+                IEM_MC_ARG_CONST(bool,  fIsLarArg, fIsLar, 2);
                 IEM_MC_LOCAL(RTGCPTR,   GCPtrEffSrc);
 
                 IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
@@ -1260,8 +1261,7 @@ FNIEMOP_DEF_1(iemOpCommonLarLsl_Gv_Ew, bool, fIsLar)
 
                 IEM_MC_FETCH_MEM_U16(u16Sel, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
                 IEM_MC_REF_GREG_U16(pu16Dst, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
-                IEM_MC_REF_EFLAGS(pEFlags);
-                IEM_MC_CALL_CIMPL_4(iemCImpl_LarLsl_u16, pu16Dst, u16Sel, pEFlags, fIsLarArg);
+                IEM_MC_CALL_CIMPL_3(iemCImpl_LarLsl_u16, pu16Dst, u16Sel, fIsLarArg);
 
                 IEM_MC_END();
                 return VINF_SUCCESS;
@@ -1270,11 +1270,10 @@ FNIEMOP_DEF_1(iemOpCommonLarLsl_Gv_Ew, bool, fIsLar)
             case IEMMODE_32BIT:
             case IEMMODE_64BIT:
             {
-                IEM_MC_BEGIN(4, 1);
+                IEM_MC_BEGIN(3, 1);
                 IEM_MC_ARG(uint64_t *,  pu64Dst,           0);
                 IEM_MC_ARG(uint16_t,    u16Sel,            1);
-                IEM_MC_ARG(uint32_t *,  pEFlags,           2);
-                IEM_MC_ARG_CONST(bool,  fIsLarArg, fIsLar, 3);
+                IEM_MC_ARG_CONST(bool,  fIsLarArg, fIsLar, 2);
                 IEM_MC_LOCAL(RTGCPTR,   GCPtrEffSrc);
 
                 IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
@@ -1283,8 +1282,7 @@ FNIEMOP_DEF_1(iemOpCommonLarLsl_Gv_Ew, bool, fIsLar)
 
                 IEM_MC_FETCH_MEM_U16(u16Sel, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
                 IEM_MC_REF_GREG_U64(pu64Dst, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
-                IEM_MC_REF_EFLAGS(pEFlags);
-                IEM_MC_CALL_CIMPL_4(iemCImpl_LarLsl_u64, pu64Dst, u16Sel, pEFlags, fIsLarArg);
+                IEM_MC_CALL_CIMPL_3(iemCImpl_LarLsl_u64, pu64Dst, u16Sel, fIsLarArg);
 
                 IEM_MC_END();
                 return VINF_SUCCESS;
@@ -5432,6 +5430,7 @@ FNIEMOP_STUB_1(iemOp_Grp15_clflush,  uint8_t, bRm);
 /** Opcode 0x0f 0xae 11b/5. */
 FNIEMOP_DEF_1(iemOp_Grp15_lfence,   uint8_t, bRm)
 {
+    RT_NOREF_PV(bRm);
     IEMOP_MNEMONIC("lfence");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     if (!IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSse2)
@@ -5451,6 +5450,7 @@ FNIEMOP_DEF_1(iemOp_Grp15_lfence,   uint8_t, bRm)
 /** Opcode 0x0f 0xae 11b/6. */
 FNIEMOP_DEF_1(iemOp_Grp15_mfence,   uint8_t, bRm)
 {
+    RT_NOREF_PV(bRm);
     IEMOP_MNEMONIC("mfence");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     if (!IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSse2)
@@ -5470,6 +5470,7 @@ FNIEMOP_DEF_1(iemOp_Grp15_mfence,   uint8_t, bRm)
 /** Opcode 0x0f 0xae 11b/7. */
 FNIEMOP_DEF_1(iemOp_Grp15_sfence,   uint8_t, bRm)
 {
+    RT_NOREF_PV(bRm);
     IEMOP_MNEMONIC("sfence");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     if (!IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSse2)
@@ -18077,3 +18078,6 @@ const PFNIEMOP g_apfnOneByteMap[256] =
 
 /** @} */
 
+#ifdef _MSC_VER
+# pragma warning(pop)
+#endif

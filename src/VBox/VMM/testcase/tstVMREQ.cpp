@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -211,7 +211,7 @@ static DECLCALLBACK(int) Thread(RTTHREAD hThreadSelf, void *pvUser)
 static DECLCALLBACK(int)
 tstVMREQConfigConstructor(PUVM pUVM, PVM pVM, void *pvUser)
 {
-    NOREF(pvUser);
+    RT_NOREF2(pUVM, pvUser);
     return CFGMR3ConstructDefaultTree(pVM);
 }
 
@@ -220,6 +220,7 @@ tstVMREQConfigConstructor(PUVM pUVM, PVM pVM, void *pvUser)
  */
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
+    RT_NOREF1(envp);
     RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     RTPrintf(TESTCASE ": TESTING...\n");
     RTStrmFlush(g_pStdOut);

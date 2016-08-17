@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 108543 $"
+__version__ = "$Revision: 109027 $"
 
 
 # Standard python imports.
@@ -1032,5 +1032,4 @@ class TestBoxScript(object):
 
 if __name__ == '__main__':
     sys.exit(TestBoxScript.main());
-
 

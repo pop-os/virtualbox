@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -304,7 +304,7 @@ VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
                 return VINF_SUCCESS;
             }
         }
-        /** @todo: Need failure cleanup. */
+        /** @todo Need failure cleanup. */
 
         //more todo in here?
         //if (RT_SUCCESS(rc))
@@ -445,6 +445,8 @@ static int vmmR3InitLoggers(PVM pVM)
  */
 static void vmmR3InitRegisterStats(PVM pVM)
 {
+    RT_NOREF_PV(pVM);
+
     /*
      * Statistics.
      */
@@ -1406,7 +1408,7 @@ VMMR3_INT_DECL(int) VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu)
 #endif
         } while (rc == VINF_EM_RAW_INTERRUPT_HYPER);
 
-#if 0 /* todo triggers too often */
+#if 0 /** @todo triggers too often */
         Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_TO_R3));
 #endif
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,7 @@
 #  if QT_VERSION >= 0x050000
 #   include "iprt/cpp/utils.h"
 #  endif /* QT_VERSION >= 0x050000 */
-# endif /* VBOX_WS_MAC */ 
+# endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -314,7 +314,7 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
          * use the Qt method to grab the keyboard,
          * disable global hot keys and
          * enable watching modifiers (for right/left separation). */
-        // TODO: Is that really needed?
+        /// @todo Is that really needed?
         ::DarwinDisableGlobalHotKeys(true);
         m_views[uScreenId]->grabKeyboard();
 
@@ -442,7 +442,7 @@ void UIKeyboardHandler::releaseKeyboard()
          * use the Qt method to release the keyboard,
          * enable global hot keys and
          * disable watching modifiers (for right/left separation). */
-        // TODO: Is that really needed?
+        /// @todo Is that really needed?
         ::DarwinDisableGlobalHotKeys(false);
         m_views[m_iKeyboardCaptureViewIndex]->releaseKeyboard();
 
@@ -1730,7 +1730,7 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
                     {
                         /* Disable mouse and keyboard event compression/delaying
                          * to make sure we *really* get all of the events: */
-                        ::CGSetLocalEventsSuppressionInterval(0.0);
+                        ::CGSetLocalEventsSuppressionInterval(0.0); /** @todo replace with CGEventSourceSetLocalEventsSuppressionInterval ? */
                         ::darwinSetMouseCoalescingEnabled(false);
 
                         /* Bring the caps lock state up to date,

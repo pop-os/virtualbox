@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -244,7 +244,6 @@ int rtldrNativeLoadSystem(const char *pszFilename, const char *pszExt, uint32_t 
                  * returns a system32 path for some reason).
                  */
                 unsigned cMatchingComponents = 0;
-                unsigned cSlashes = 0;
                 size_t   off = 0;
                 while (off < pUniStrResult->Length)
                 {

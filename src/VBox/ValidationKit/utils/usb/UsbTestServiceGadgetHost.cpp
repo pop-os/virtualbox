@@ -39,6 +39,7 @@
 #include "UsbTestServiceGadget.h"
 #include "UsbTestServiceGadgetHostInternal.h"
 
+
 /*********************************************************************************************************************************
 *   Constants And Macros, Structures and Typedefs                                                                                *
 *********************************************************************************************************************************/
@@ -69,6 +70,7 @@ static const PCUTSGADGETHOSTIF g_apUtsGadgetHostIf[] =
     &g_UtsGadgetHostIfUsbIp,
 };
 
+
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
@@ -82,7 +84,7 @@ static const PCUTSGADGETHOSTIF g_apUtsGadgetHostIf[] =
  */
 static void utsGadgetHostDestroy(PUTSGADGETHOSTINT pThis)
 {
-    /** @todo: Remove all gadgets. */
+    /** @todo Remove all gadgets. */
     pThis->pHstIf->pfnTerm((PUTSGADGETHOSTTYPEINT)&pThis->abIfInst[0]);
     RTMemFree(pThis);
 }

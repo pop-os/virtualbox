@@ -33,9 +33,10 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 105679 $"
+__version__ = "$Revision: 109861 $"
 
 
+import gc
 import os
 import sys
 import traceback
@@ -3567,6 +3568,7 @@ def main(argv):
                     sPath = sCurLoc
                     break
         if sPath:
+            sCurLoc = sPath
             sTmp = os.path.join(sCurLoc, 'bindings', 'xpcom', 'python')
             if os.path.isdir(sTmp):
                 sys.path.append(sTmp)
@@ -3575,7 +3577,7 @@ def main(argv):
 
 
     #
-    # Set up the shell interpreter context and
+    # Set up the shell interpreter context and start working.
     #
     from vboxapi import VirtualBoxManager
     oVBoxMgr = VirtualBoxManager(style, params)
@@ -3597,6 +3599,15 @@ def main(argv):
         'interrupt':    False,
     }
     interpret(ctx)
+
+    #
+    # Release the interfaces references in ctx before cleaning up.
+    #
+    for sKey in list(ctx.keys()):
+        del ctx[sKey];
+    ctx = None;
+    gc.collect();
+
     oVBoxMgr.deinit()
     del oVBoxMgr
 

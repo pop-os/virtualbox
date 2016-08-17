@@ -19,74 +19,111 @@
 #include "VirtualBoxBase.h"
 #include "ThreadTask.h"
 
-/**
- *  The function takes ownership of "this" instance (object
- *  instance which calls this function).
- *  And the function is responsible for deletion of "this"
- *  pointer in all cases.
- *  Possible way of usage:
- *
- *  int vrc = VINF_SUCCESS;
- *  HRESULT hr = S_OK;
- *
- *  SomeTaskInheritedFromThreadTask* pTask = NULL;
- *  try
- *  {
- *      pTask = new SomeTaskInheritedFromThreadTask(this);
- *      if (!pTask->Init())//some init procedure
- *      {
- *          delete pTask;
- *          throw E_FAIL;
- *      }
- *      //this function delete pTask in case of exceptions, so
- *      there is no need the call of delete operator
- *
- *      hr = pTask->createThread();
- *  }
- *  catch(...)
- *  {
- *      vrc = E_FAIL;
- *  }
- */
-HRESULT ThreadTask::createThread(PRTTHREAD pThread, RTTHREADTYPE enmType)
-{
-    HRESULT rc = S_OK;
 
-    m_pThread = pThread;
-    int vrc = RTThreadCreate(m_pThread,
-                             taskHandler,
+/**
+ * Starts the task (on separate thread), consuming @a this.
+ *
+ * The function takes ownership of "this" instance (object instance which calls
+ * this function). And the function is responsible for deletion of "this"
+ * pointer in all cases.
+ *
+ * Possible way of usage:
+ * @code{.cpp}
+        HRESULT hr;
+        SomeTaskInheritedFromThreadTask *pTask = NULL;
+        try
+        {
+            pTask = new SomeTaskInheritedFromThreadTask(this);
+            if (!pTask->Init()) // some init procedure
+                throw E_FAIL;
+        }
+        catch (...)
+        {
+            if (pTask);
+                delete pTask;
+            return E_FAIL;
+        }
+        return pTask->createThread(); // pTask is always consumed
+   @endcode
+ *
+ * @sa createThreadWithType, createThreadWithRaceCondition
+ */
+HRESULT ThreadTask::createThread(void)
+{
+    return createThreadInternal(RTTHREADTYPE_MAIN_WORKER, NULL /*phThread*/);
+}
+
+
+/**
+ * Same ThreadTask::createThread(), except it takes a thread type parameter.
+ *
+ * @param   enmType     The thread type.
+ */
+HRESULT ThreadTask::createThreadWithType(RTTHREADTYPE enmType)
+{
+    return createThreadInternal(enmType, NULL /*phThread*/);
+}
+
+
+/**
+ * Same ThreadTask::createThread(), except it returns a thread handle.
+ *
+ * If the task thread is incorrectly mananged, the caller may easily race the
+ * completion and termination of the task thread!  Use with care!
+ *
+ * @param   phThread    Handle of the worker thread.
+ */
+HRESULT ThreadTask::createThreadWithRaceCondition(PRTTHREAD phThread)
+{
+    return createThreadInternal(RTTHREADTYPE_MAIN_WORKER, phThread);
+}
+
+
+/**
+ * Internal worker for ThreadTask::createThread,
+ * ThreadTask::createThreadWithType, ThreadTask::createThreadwithRaceCondition.
+ *
+ * @note Always consumes @a this!
+ */
+HRESULT ThreadTask::createThreadInternal(RTTHREADTYPE enmType, PRTTHREAD phThread)
+{
+    int vrc = RTThreadCreate(&m_hThread,
+                             taskHandlerThreadProc,
                              (void *)this,
                              0,
                              enmType,
                              0,
                              this->getTaskName().c_str());
-
-    if (RT_FAILURE(vrc))
+    if (RT_SUCCESS(vrc))
     {
-        delete this;
-        return E_FAIL;
+        if (phThread)
+            *phThread = m_hThread;
+        return S_OK;
     }
 
-    return rc;
+    delete this;
+    return E_FAIL;
 }
+
 
 /**
  * Static method that can get passed to RTThreadCreate to have a
  * thread started for a Task.
  */
-/* static */ DECLCALLBACK(int) ThreadTask::taskHandler(RTTHREAD /* thread */, void *pvUser)
+/* static */ DECLCALLBACK(int) ThreadTask::taskHandlerThreadProc(RTTHREAD /* thread */, void *pvUser)
 {
     if (pvUser == NULL)
-        return VERR_INVALID_POINTER;
+        return VERR_INVALID_POINTER; /* nobody cares */
 
     ThreadTask *pTask = static_cast<ThreadTask *>(pvUser);
 
     /*
-    *  handler shall catch and process all possible cases as errors and exceptions.
-    */
+     *  handler shall catch and process all possible cases as errors and exceptions.
+     */
     pTask->handler();
 
+    pTask->m_hThread = NIL_RTTHREAD; /* unnecessary, but whatever. */
     delete pTask;
-
     return VINF_SUCCESS;
 }
+

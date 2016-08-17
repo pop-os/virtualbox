@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -36,9 +36,7 @@ VBOX_DEVICES_TESTS_FEATURES = \
 	$(if $(VBOX_WITH_LSILOGIC),VBOX_WITH_LSILOGIC,) \
 	$(if $(VBOX_WITH_NEW_APIC),VBOX_WITH_NEW_APIC,) \
 	$(if $(VBOX_WITH_NEW_IOAPIC),VBOX_WITH_NEW_IOAPIC,) \
-	$(if $(VBOX_WITH_NEW_PS2M),VBOX_WITH_NEW_PS2M,) \
 	$(if $(VBOX_WITH_NVME_IMPL),VBOX_WITH_NVME_IMPL,) \
-	$(if $(VBOX_WITH_AUDIO_50),VBOX_WITH_AUDIO_50,) \
 	$(if $(VBOX_WITH_PCI_PASSTHROUGH_IMPL),VBOX_WITH_PCI_PASSTHROUGH_IMPL,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
 	$(if $(VBOX_WITH_SCSI),VBOX_WITH_SCSI,) \

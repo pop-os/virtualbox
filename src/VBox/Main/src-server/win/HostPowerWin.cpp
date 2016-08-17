@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <windows.h>
+#include <iprt/win/windows.h>
 /* Some SDK versions lack the extern "C" and thus cause linking failures.
  * This workaround isn't pretty, but there are not many options. */
 extern "C" {
@@ -62,8 +62,9 @@ HostPowerServiceWin::~HostPowerServiceWin()
 
 
 
-DECLCALLBACK(int) HostPowerServiceWin::NotificationThread(RTTHREAD ThreadSelf, void *pInstance)
+DECLCALLBACK(int) HostPowerServiceWin::NotificationThread(RTTHREAD hThreadSelf, void *pInstance)
 {
+    RT_NOREF(hThreadSelf);
     HostPowerServiceWin *pPowerObj = (HostPowerServiceWin *)pInstance;
     HWND                 hwnd = 0;
 
@@ -213,7 +214,7 @@ LRESULT CALLBACK HostPowerServiceWin::WndProc(HWND hwnd, UINT msg, WPARAM wParam
             SetWindowLongPtr(hwnd, 0, 0);
             PostQuitMessage(0);
             return 0;
-        } 
+        }
 
         default:
             return DefWindowProc(hwnd, msg, wParam, lParam);

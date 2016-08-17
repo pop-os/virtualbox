@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,6 +117,7 @@ RTDECL(void *)  RTMemAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     PRTMEMHDR pHdr;
     RT_ASSERT_INTS_ON();
+    RT_NOREF_PV(pszTag);
 
     pHdr = rtR0MemAlloc(cb + RTR0MEM_FENCE_EXTRA, 0);
     if (pHdr)
@@ -136,6 +137,7 @@ RTDECL(void *)  RTMemAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     PRTMEMHDR pHdr;
     RT_ASSERT_INTS_ON();
+    RT_NOREF_PV(pszTag);
 
     pHdr = rtR0MemAlloc(cb + RTR0MEM_FENCE_EXTRA, RTMEMHDR_FLAG_ZEROED);
     if (pHdr)
@@ -284,6 +286,8 @@ RTDECL(void *)    RTMemExecAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_D
 #else
     RT_ASSERT_PREEMPTIBLE();
 #endif
+    RT_NOREF_PV(pszTag);
+
 
     pHdr = rtR0MemAlloc(cb + RTR0MEM_FENCE_EXTRA, RTMEMHDR_FLAG_EXEC);
     if (pHdr)
@@ -303,6 +307,7 @@ RTDECL(void)      RTMemExecFree(void *pv, size_t cb) RT_NO_THROW_DEF
 {
     PRTMEMHDR pHdr;
     RT_ASSERT_INTS_ON();
+    RT_NOREF_PV(cb);
 
     if (!pv)
         return;
@@ -334,6 +339,7 @@ RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, cons
     uint32_t    fHdrFlags = RTMEMHDR_FLAG_ALLOC_EX;
     PRTMEMHDR   pHdr;
     int         rc;
+    RT_NOREF_PV(pszTag);
 
     RT_ASSERT_PREEMPT_CPUID_VAR();
     if (!(fFlags & RTMEMALLOCEX_FLAGS_ANY_CTX_ALLOC))
@@ -396,6 +402,7 @@ RT_EXPORT_SYMBOL(RTMemAllocExTag);
 RTDECL(void) RTMemFreeEx(void *pv, size_t cb) RT_NO_THROW_DEF
 {
     PRTMEMHDR pHdr;
+    RT_NOREF_PV(cb);
 
     if (!pv)
         return;

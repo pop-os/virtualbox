@@ -49,7 +49,7 @@
 # define pthread_yield() pthread_yield_np()
 #endif
 
-#if defined(RT_OS_SOLARIS) || defined(RT_OS_HAIKU)
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_HAIKU) || defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD)
 # include <sched.h>
 # define pthread_yield() sched_yield()
 #endif
@@ -150,6 +150,8 @@ RTDECL(int)  RTSemEventCreateEx(PRTSEMEVENT phEventSem, uint32_t fFlags, RTLOCKV
                     va_end(va);
                 }
                 pThis->fEverHadSignallers = false;
+#else
+                RT_NOREF_PV(hClass); RT_NOREF_PV(pszNameFmt);
 #endif
 
                 *phEventSem = pThis;
@@ -499,6 +501,8 @@ RTDECL(void) RTSemEventSetSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread)
 
     ASMAtomicWriteBool(&pThis->fEverHadSignallers, true);
     RTLockValidatorRecSharedResetOwner(&pThis->Signallers, hThread, NULL);
+#else
+    RT_NOREF_PV(hEventSem); RT_NOREF_PV(hThread);
 #endif
 }
 
@@ -513,6 +517,8 @@ RTDECL(void) RTSemEventAddSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread)
 
     ASMAtomicWriteBool(&pThis->fEverHadSignallers, true);
     RTLockValidatorRecSharedAddOwner(&pThis->Signallers, hThread, NULL);
+#else
+    RT_NOREF_PV(hEventSem); RT_NOREF_PV(hThread);
 #endif
 }
 
@@ -526,6 +532,8 @@ RTDECL(void) RTSemEventRemoveSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread)
     AssertReturnVoid(u32 == EVENT_STATE_NOT_SIGNALED || u32 == EVENT_STATE_SIGNALED);
 
     RTLockValidatorRecSharedRemoveOwner(&pThis->Signallers, hThread);
+#else
+    RT_NOREF_PV(hEventSem); RT_NOREF_PV(hThread);
 #endif
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -367,7 +367,7 @@ int HGSMIBufferProcess(const HGSMIAREA *pArea,
     AssertPtrReturn(pChannelInfo, VERR_INVALID_PARAMETER);
 
     /* Guest has prepared a command description at 'offBuffer'. */
-    HGSMIBUFFERCONTEXT bufferContext;
+    HGSMIBUFFERCONTEXT bufferContext = { NULL, NULL, 0 }; /* Makes old GCC happier. */
     int rc = hgsmiVerifyBuffer(pArea, offBuffer, &bufferContext);
     if (RT_SUCCESS(rc))
     {

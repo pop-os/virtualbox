@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,8 @@
 
 static void doMemSaferScramble(RTTEST hTest, void *pvBuf, size_t cbAlloc)
 {
+    RT_NOREF_PV(hTest);
+
     /*
      * Fill it with random bytes and make a reference copy of these.
      */

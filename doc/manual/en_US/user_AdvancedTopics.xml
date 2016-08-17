@@ -3263,7 +3263,7 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
       service use the following command: <screen>launchctl load ~/Library/LaunchAgents/org.virtualbox.vboxwebsrv.plist</screen>
       For additional information on how launchd services could be
       configured see <literal><ulink
-      url="http://developer.apple.com/mac/library/documentation/MacOSX/Conceptual/BPSystemStartup/BPSystemStartup.html">http://developer.apple.com/mac/library/documentation/MacOSX/Conceptual/BPSystemStartup/BPSystemStartup.html</ulink></literal>.</para>
+      url="https://developer.apple.com/library/mac/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html">https://developer.apple.com/library/mac/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html</ulink></literal>.</para>
     </sect2>
   </sect1>
 
@@ -4010,7 +4010,7 @@ VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
           <para>Specify the UDP port number where the remote debugger is connected.</para>
         </listitem>
         <listitem>
-          <para>Key: <emphasis role="bold"><computeroutput>vendorid</computeroutput></emphasis></para>
+          <para>Key: <emphasis role="bold"><computeroutput>vendor</computeroutput></emphasis></para>
           <para>Value: Hyper-V vendor signature reported via CPUID to the guest</para>
           <para>Default: When debugging is enabled: <computeroutput>Microsoft Hv</computeroutput>,
           otherwise: <computeroutput>VBoxVBoxVBox</computeroutput></para>

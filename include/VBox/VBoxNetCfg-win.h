@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,10 +36,10 @@
  */
 #define VBOXNETCFG_DELAYEDRENAME
 
-#include <winsock2.h>
-#include <Windows.h>
+#include <iprt/win/winsock2.h>
+#include <iprt/win/windows.h>
 #include <Netcfgn.h>
-#include <Setupapi.h>
+#include <iprt/win/Setupapi.h>
 #include <VBox/cdefs.h>
 
 /** @defgroup grp_vboxnetcfgwin     The Windows Network Configration Library

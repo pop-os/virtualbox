@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -450,20 +450,20 @@ static DECLCALLBACK(void) pci_default_write_config(PCIDevice *d, uint32_t addres
         if (addr == 0x05)       /* Command register, bits 8-15. */
         {
             /* don't change reserved bits (11-15) */
-            val &= UINT32_C(~0xf8);
+            val &= ~UINT32_C(0xf8);
             d->config[addr] = val;
         }
         else if (addr == 0x06)  /* Status register, bits 0-7. */
         {
             /* don't change read-only bits => actually all lower bits are read-only */
-            val &= UINT32_C(~0xff);
+            val &= ~UINT32_C(0xff);
             /* status register, low part: clear bits by writing a '1' to the corresponding bit */
             d->config[addr] &= ~val;
         }
         else if (addr == 0x07)  /* Status register, bits 8-15. */
         {
             /* don't change read-only bits */
-            val &= UINT32_C(~0x06);
+            val &= ~UINT32_C(0x06);
             /* status register, high part: clear bits by writing a '1' to the corresponding bit */
             d->config[addr] &= ~val;
         }
@@ -513,6 +513,7 @@ static int pci_data_write(PPCIGLOBALS pGlobals, uint32_t addr, uint32_t val, int
                 pBridgeDevice->Int.s.pfnBridgeConfigWrite(pBridgeDevice->pDevIns, iBus, iDevice, config_addr, val, len);
             }
 #else
+            RT_NOREF2(val, len);
             return VINF_IOM_R3_IOPORT_WRITE;
 #endif
         }
@@ -1156,7 +1157,7 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
 PDMBOTHCBDECL(int) pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     Log(("pciIOPortAddressWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
-    NOREF(pvUser);
+    RT_NOREF2(Port, pvUser);
     if (cb == 4)
     {
         PPCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
@@ -1175,7 +1176,7 @@ PDMBOTHCBDECL(int) pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
  */
 PDMBOTHCBDECL(int) pciIOPortAddressRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
-    NOREF(pvUser);
+    RT_NOREF2(Port, pvUser);
     if (cb == 4)
     {
         PPCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
@@ -1288,7 +1289,7 @@ static DECLCALLBACK(int) pciR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutU32(pSSM, pThis->acpi_irq_level);
     SSMR3PutS32(pSSM, pThis->acpi_irq);
 
-    SSMR3PutU32(pSSM, ~0);        /* separator */
+    SSMR3PutU32(pSSM, UINT32_MAX);      /* separator */
 
     /*
      * Join paths with pcibridgeR3SaveExec.
@@ -2139,6 +2140,7 @@ static DECLCALLBACK(void) pciR3Reset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int)   pciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+    RT_NOREF1(iInstance);
     Assert(iInstance == 0);
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 

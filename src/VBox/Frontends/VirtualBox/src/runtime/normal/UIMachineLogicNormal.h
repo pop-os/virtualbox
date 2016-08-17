@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,6 +67,9 @@ private slots:
     void sltHandleActionTriggerViewScreenToggle(int iIndex, bool fEnabled);
     /** Handles guest-screen resize requests. */
     void sltHandleActionTriggerViewScreenResize(int iIndex, const QSize &size);
+
+    /** Handles host-screen available-area change. */
+    virtual void sltHostScreenAvailableAreaChange() /* override */;
 
 private:
 

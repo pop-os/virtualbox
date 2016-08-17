@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,11 +79,11 @@ VBOXDRVTOOL_DECL(NTSTATUS) VBoxDrvToolRegQueryValueDword(IN HANDLE hKey, IN PWCH
     UNICODE_STRING RtlStr;
     RtlInitUnicodeString(&RtlStr, pName);
     NTSTATUS Status = ZwQueryValueKey(hKey,
-                &RtlStr,
-                KeyValuePartialInformation,
-                &Buf.Info,
-                sizeof(Buf),
-                &cbBuf);
+                                      &RtlStr,
+                                      KeyValuePartialInformation,
+                                      &Buf.Info,
+                                      sizeof(Buf),
+                                      &cbBuf);
     if (Status == STATUS_SUCCESS)
     {
         if (Buf.Info.Type == REG_DWORD)
@@ -110,6 +110,7 @@ VBOXDRVTOOL_DECL(NTSTATUS) VBoxDrvToolRegSetValueDword(IN HANDLE hKey, IN PWCHAR
 
 static NTSTATUS vboxDrvToolIoCompletionSetEvent(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp, IN PVOID pvContext)
 {
+    RT_NOREF2(pDevObj, pIrp);
     PKEVENT pEvent = (PKEVENT)pvContext;
     KeSetEvent(pEvent, 0, FALSE);
     return STATUS_MORE_PROCESSING_REQUIRED;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -186,7 +186,7 @@ dhcp6ds_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     msg_type = msg_header[0];
     msg_tid = (msg_header[1] << 16) | (msg_header[2] << 8) | msg_header[3];
     DPRINTF(("%s: type %u, tid 0x%6x\n", __func__, msg_type, msg_tid));
-    if (msg_type != DHCP6_INFORMATION_REQUEST) { /* TODO:? RELAY_FORW */
+    if (msg_type != DHCP6_INFORMATION_REQUEST) { /** @todo ? RELAY_FORW */
         pbuf_free(p);
         return;
     }
@@ -292,13 +292,14 @@ dhcp6ds_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     memcpy(dhcp6ds_reply_buf + roff, dhcp6ds_dns, sizeof(dhcp6ds_dns));
     roff += sizeof(dhcp6ds_dns);
 
-    q = pbuf_alloc(PBUF_RAW, roff, PBUF_RAM);
+    Assert(roff == (u16_t)roff);
+    q = pbuf_alloc(PBUF_RAW, (u16_t)roff, PBUF_RAM);
     if (q == NULL) {
         DPRINTF(("%s: pbuf_alloc(%d) failed\n", __func__, (int)roff));
         return;
     }
 
-    error = pbuf_take(q, dhcp6ds_reply_buf, roff);
+    error = pbuf_take(q, dhcp6ds_reply_buf, (u16_t)roff);
     if (error != ERR_OK) {
         DPRINTF(("%s: pbuf_take(%d) failed: %s\n",
                  __func__, (int)roff, proxy_lwip_strerr(error)));

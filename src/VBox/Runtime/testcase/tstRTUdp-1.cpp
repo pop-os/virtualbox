@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015 Oracle Corporation
+ * Copyright (C) 2015-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 /* Server address must be "localhost" */
 #define RT_TEST_UDP_LOCAL_HOST         "localhost"
 #define RT_TEST_UDP_SERVER_PORT        52000
+
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *

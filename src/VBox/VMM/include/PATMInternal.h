@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -684,6 +684,6 @@ void patmR3DbgTerm(PVM pVM);
 void patmR3DbgReset(PVM pVM);
 void patmR3DbgAddPatch(PVM pVM, PPATMPATCHREC pPatchRec);
 
-PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER) patmVirtPageHandler;
+PGM_ALL_CB2_PROTO(FNPGMVIRTHANDLER) patmVirtPageHandler;
 
 #endif

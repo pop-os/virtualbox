@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -90,7 +90,10 @@ DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enm
     }
 
     sched_setscheduler(current, iSchedClass, &Param);
+#else
+    RT_NOREF_PV(enmType);
 #endif
+    RT_NOREF_PV(pThread);
 
     return VINF_SUCCESS;
 }
@@ -98,6 +101,7 @@ DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enm
 
 DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
+    RT_NOREF_PV(pThread);
     return VERR_NOT_IMPLEMENTED;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,7 +78,7 @@ static volatile uint32_t    g_iUnknownMsgs;
  */
 RTDECL(PCRTSTATUSMSG) RTErrGet(int rc)
 {
-    unsigned iFound = ~0;
+    unsigned iFound = ~0U;
     unsigned i;
     for (i = 0; i < RT_ELEMENTS(g_aStatusMsgs) - 1; i++)
     {

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: DevIchHdaCommon.h $ */
 /** @file
  * DevIchHdaCommon.h - Shared defines / functions between controller and codec.
  */

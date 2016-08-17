@@ -13,7 +13,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,13 +37,13 @@
 #define ___VBox_com_VirtualBox_h
 
 // generated VirtualBox COM library definition file
-#if !defined (VBOXCOM_NOINCLUDE)
-# if !defined (VBOX_WITH_XPCOM)
+#if !defined(VBOXCOM_NOINCLUDE)
+# if !defined(VBOX_WITH_XPCOM)
 #  include <VirtualBox.h>
 # else
 #  include <VirtualBox_XPCOM.h>
 # endif
-#endif // !defined (VBOXCOM_NOINCLUDE)
+#endif
 
 // for convenience
 #include "VBox/com/defs.h"

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -642,7 +642,8 @@ static void suplibHardenedPrintStrN(const char *pch, size_t cch)
         }
     }
 #else
-    (void)write(2, pch, cch);
+    int res = write(2, pch, cch);
+    NOREF(res);
 #endif
 }
 
@@ -668,6 +669,7 @@ static void suplibHardenedPrintChr(char ch)
     suplibHardenedPrintStrN(&ch, 1);
 }
 
+#ifndef IPRT_NO_CRT
 
 /**
  * Writes a decimal number to stdard error.
@@ -754,7 +756,7 @@ static void suplibHardenedPrintWideStr(PCRTUTF16 pwsz)
     }
 }
 
-#ifdef IPRT_NO_CRT
+#else /* IPRT_NO_CRT */
 
 /** Buffer structure used by suplibHardenedOutput. */
 struct SUPLIBHARDENEDOUTPUTBUF
@@ -1125,7 +1127,6 @@ DECLHIDDEN(char *) supR3HardenedPathFilename(const char *pszPath)
     }
 
     /* will never get here */
-    return NULL;
 }
 
 
@@ -1333,7 +1334,7 @@ DECLHIDDEN(int) supR3HardenedPathAppBin(char *pszPath, size_t cchPath)
     }
 
     supR3HardenedFatal("supR3HardenedPathAppBin: Buffer too small (%u < %u)\n", cchPath, cch);
-    return VERR_BUFFER_OVERFLOW;
+    /* not reached */
 }
 
 
@@ -1352,7 +1353,9 @@ DECLHIDDEN(void) supR3HardenedOpenLog(int *pcArgs, char **papszArgs)
     for (int iArg = 1; iArg < cArgs; iArg++)
         if (strncmp(papszArgs[iArg], s_szLogOption, sizeof(s_szLogOption) - 1) == 0)
         {
+#ifdef RT_OS_WINDOWS
             const char *pszLogFile = &papszArgs[iArg][sizeof(s_szLogOption) - 1];
+#endif
 
             /*
              * Drop the argument from the vector (has trailing NULL entry).
@@ -1398,6 +1401,7 @@ DECLHIDDEN(void) supR3HardenedOpenLog(int *pcArgs, char **papszArgs)
                     g_hStartupLog = NULL;
             }
 #else
+            RT_NOREF(g_hStartupLog, g_cbStartupLog);
             //g_hStartupLog = open()
 #endif
         }
@@ -1430,6 +1434,7 @@ DECLHIDDEN(void) supR3HardenedLogV(const char *pszFormat, va_list va)
                     &Ios, szBuf, (ULONG)cch, &Offset, NULL /*Key*/);
     }
 #else
+    RT_NOREF(pszFormat, va);
     /* later */
 #endif
 }
@@ -1523,7 +1528,8 @@ static void suplibHardenedPrintPrefix(void)
 }
 
 
-DECLHIDDEN(void)   supR3HardenedFatalMsgV(const char *pszWhere, SUPINITOP enmWhat, int rc, const char *pszMsgFmt, va_list va)
+DECL_NO_RETURN(DECLHIDDEN(void)) supR3HardenedFatalMsgV(const char *pszWhere, SUPINITOP enmWhat, int rc,
+                                                        const char *pszMsgFmt, va_list va)
 {
     /*
      * First to the log.
@@ -1634,16 +1640,17 @@ DECLHIDDEN(void)   supR3HardenedFatalMsgV(const char *pszWhere, SUPINITOP enmWha
 }
 
 
-DECLHIDDEN(void)   supR3HardenedFatalMsg(const char *pszWhere, SUPINITOP enmWhat, int rc, const char *pszMsgFmt, ...)
+DECL_NO_RETURN(DECLHIDDEN(void)) supR3HardenedFatalMsg(const char *pszWhere, SUPINITOP enmWhat, int rc,
+                                                       const char *pszMsgFmt, ...)
 {
     va_list va;
     va_start(va, pszMsgFmt);
     supR3HardenedFatalMsgV(pszWhere, enmWhat, rc, pszMsgFmt, va);
-    va_end(va);
+    /* not reached */
 }
 
 
-DECLHIDDEN(void) supR3HardenedFatalV(const char *pszFormat, va_list va)
+DECL_NO_RETURN(DECLHIDDEN(void)) supR3HardenedFatalV(const char *pszFormat, va_list va)
 {
     supR3HardenedLog("Fatal error:\n");
     va_list vaCopy;
@@ -1678,12 +1685,12 @@ DECLHIDDEN(void) supR3HardenedFatalV(const char *pszFormat, va_list va)
 }
 
 
-DECLHIDDEN(void) supR3HardenedFatal(const char *pszFormat, ...)
+DECL_NO_RETURN(DECLHIDDEN(void)) supR3HardenedFatal(const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
     supR3HardenedFatalV(pszFormat, va);
-    va_end(va);
+    /* not reached */
 }
 
 
@@ -1861,8 +1868,6 @@ static void supR3HardenedMainGrabCapabilites(void)
  */
 static void supR3GrabOptions(void)
 {
-    const char *pszOpt;
-
 # ifdef RT_OS_LINUX
     g_uCaps = 0;
 
@@ -1878,7 +1883,7 @@ static void supR3GrabOptions(void)
          * Default: enabled.
          * Can be disabled with 'export VBOX_HARD_CAP_NET_RAW=0'.
          */
-        pszOpt = getenv("VBOX_HARD_CAP_NET_RAW");
+        const char *pszOpt = getenv("VBOX_HARD_CAP_NET_RAW");
         if (   !pszOpt
             || memcmp(pszOpt, "0", sizeof("0")) != 0)
             g_uCaps = CAP_TO_MASK(CAP_NET_RAW);
@@ -1934,8 +1939,10 @@ static void supR3HardenedMainDropPrivileges(void)
 # else
     /* This is the preferred one, full control no questions about semantics.
        PORTME: If this isn't work, try join one of two other gangs above. */
-    setresgid(g_gid, g_gid, g_gid);
-    setresuid(g_uid, g_uid, g_uid);
+    int res = setresgid(g_gid, g_gid, g_gid);
+    NOREF(res);
+    res = setresuid(g_uid, g_uid, g_uid);
+    NOREF(res);
     if (getresuid(&ruid, &euid, &suid) != 0)
     {
         euid = geteuid();
@@ -2108,6 +2115,8 @@ static int supR3HardenedMainGetTrustedLib(const char *pszProgName, uint32_t fMai
 #ifdef RT_OS_DARWIN
     if (fMainFlags & SUPSECMAIN_FLAGS_OSX_VM_APP)
         pszProgName = "VirtualBox";
+#else
+    RT_NOREF1(fMainFlags);
 #endif
     size_t cch = suplibHardenedStrLen(pszPath);
     return suplibHardenedStrCopyEx(&pszPath[cch], cbPath - cch, pszSubDirSlash, pszProgName, SUPLIB_DLL_SUFF, NULL);

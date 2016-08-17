@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -216,6 +216,7 @@ static int hmR0FirstRcGetStatus(PHMR0FIRSTRC pFirstRc)
 
 
 #ifdef VBOX_STRICT
+# ifndef DEBUG_bird
 /**
  * Get the CPU ID on which the failure status code was reported.
  *
@@ -226,6 +227,7 @@ static RTCPUID hmR0FirstRcGetCpuId(PHMR0FIRSTRC pFirstRc)
 {
     return pFirstRc->idCpu;
 }
+# endif
 #endif /* VBOX_STRICT */
 
 

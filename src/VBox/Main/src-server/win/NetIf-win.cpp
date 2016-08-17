@@ -29,9 +29,9 @@
 #include <list>
 
 #define _WIN32_DCOM
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <windows.h>
+#include <iprt/win/winsock2.h>
+#include <iprt/win/ws2tcpip.h>
+#include <iprt/win/windows.h>
 #include <tchar.h>
 
 #ifdef VBOX_WITH_NETFLT
@@ -39,7 +39,7 @@
 # include "devguid.h"
 #endif
 
-#include <iphlpapi.h>
+#include <iprt/win/iphlpapi.h>
 
 #include "Logging.h"
 #include "HostNetworkInterfaceImpl.h"
@@ -58,9 +58,9 @@
 #define INITGUID
 #include <guiddef.h>
 #include <devguid.h>
-#include <objbase.h>
-#include <setupapi.h>
-#include <shlobj.h>
+#include <iprt/win/objbase.h>
+#include <iprt/win/setupapi.h>
+#include <iprt/win/shlobj.h>
 #include <cfgmgr32.h>
 
 #define VBOX_APP_NAME L"VirtualBox"
@@ -96,8 +96,8 @@ static int getDefaultInterfaceIndex()
 
 static int collectNetIfInfo(Bstr &strName, Guid &guid, PNETIFINFO pInfo, int iDefault)
 {
-    DWORD dwRc;
-    int rc = VINF_SUCCESS;
+    RT_NOREF(strName);
+
     /*
      * Most of the hosts probably have less than 10 adapters,
      * so we'll mostly succeed from the first attempt.
@@ -106,7 +106,7 @@ static int collectNetIfInfo(Bstr &strName, Guid &guid, PNETIFINFO pInfo, int iDe
     PIP_ADAPTER_ADDRESSES pAddresses = (PIP_ADAPTER_ADDRESSES)RTMemAlloc(uBufLen);
     if (!pAddresses)
         return VERR_NO_MEMORY;
-    dwRc = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, NULL, pAddresses, &uBufLen);
+    DWORD dwRc = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, NULL, pAddresses, &uBufLen);
     if (dwRc == ERROR_BUFFER_OVERFLOW)
     {
         /* Impressive! More than 10 adapters! Get more memory and try again. */
@@ -195,7 +195,7 @@ static int collectNetIfInfo(Bstr &strName, Guid &guid, PNETIFINFO pInfo, int iDe
                         memcpy(pInfo->MACAddress.au8, pAdapter->PhysicalAddress, sizeof(pInfo->MACAddress));
                     pInfo->enmMediumType = NETIF_T_ETHERNET;
                     pInfo->enmStatus = pAdapter->OperStatus == IfOperStatusUp ? NETIF_S_UP : NETIF_S_DOWN;
-                    pInfo->bIsDefault = (pAdapter->IfIndex == iDefault);
+                    pInfo->bIsDefault = (pAdapter->IfIndex == (DWORD)iDefault);
                     RTStrFree(pszUuid);
                     break;
                 }
@@ -349,7 +349,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
                     default:
                     {
                         endLoop = true;
-                        rc = E_FAIL;//TODO: ComAssertMsgFailedBreak((
+                        rc = E_FAIL;/// @todo ComAssertMsgFailedBreak((
                             //"Invalid message code %d (%08lX)\n",
                             //reply, reply),
                             //rc = E_FAIL);
@@ -403,7 +403,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
                     default:
                     {
                         endLoop = true;
-                        rc = E_FAIL; // TODO: ComAssertMsgFailedBreak((
+                        rc = E_FAIL; /// @todo ComAssertMsgFailedBreak((
                             //"Invalid message code %d (%08lX)\n",
                             //reply, reply),
                             //rc = E_FAIL);
@@ -457,7 +457,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
                     default:
                     {
                         endLoop = true;
-                        rc = E_FAIL; // TODO: ComAssertMsgFailedBreak((
+                        rc = E_FAIL; /// @todo ComAssertMsgFailedBreak((
                             //"Invalid message code %d (%08lX)\n",
                             //reply, reply),
                             //rc = E_FAIL);
@@ -515,7 +515,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
                     default:
                     {
                         endLoop = true;
-                        rc = E_FAIL; // TODO: ComAssertMsgFailedBreak((
+                        rc = E_FAIL; /// @todo ComAssertMsgFailedBreak((
                             //"Invalid message code %d (%08lX)\n",
                             //reply, reply),
                             //rc = E_FAIL);
@@ -573,7 +573,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
                     default:
                     {
                         endLoop = true;
-                        rc = E_FAIL; // TODO: ComAssertMsgFailedBreak((
+                        rc = E_FAIL; /// @todo ComAssertMsgFailedBreak((
                             //"Invalid message code %d (%08lX)\n",
                             //reply, reply),
                             //rc = E_FAIL);
@@ -627,7 +627,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
                     default:
                     {
                         endLoop = true;
-                        rc = E_FAIL; // TODO: ComAssertMsgFailedBreak((
+                        rc = E_FAIL; /// @todo ComAssertMsgFailedBreak((
                             //"Invalid message code %d (%08lX)\n",
                             //reply, reply),
                             //rc = E_FAIL);
@@ -638,7 +638,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
             break;
         }
         default:
-            rc = E_FAIL; // TODO: ComAssertMsgFailedBreak((
+            rc = E_FAIL; /// @todo ComAssertMsgFailedBreak((
 //                "Invalid message code %d (%08lX)\n",
 //                d->msgCode, d->msgCode),
 //                rc = E_FAIL);
@@ -980,14 +980,13 @@ static int vboxNetWinAddComponent(std::list<ComObjPtr<HostNetworkInterface> > * 
         Assert(hr == S_OK);
         if (hr == S_OK)
         {
+            Guid guidIfCopy(IfGuid);
             NETIFINFO Info;
             RT_ZERO(Info);
-            Info.Uuid = *(Guid(IfGuid).raw());
-            rc = collectNetIfInfo(name, Guid(IfGuid), &Info, iDefaultInterface);
+            Info.Uuid = *guidIfCopy.raw();
+            rc = collectNetIfInfo(name, guidIfCopy, &Info, iDefaultInterface);
             if (RT_FAILURE(rc))
-            {
                 LogRel(("vboxNetWinAddComponent: collectNetIfInfo() -> %Rrc\n", rc));
-            }
             Log(("vboxNetWinAddComponent: adding %ls\n", lpszName));
             /* create a new object and add it to the list */
             ComObjPtr<HostNetworkInterface> iface;
@@ -1112,11 +1111,12 @@ int NetIfGetConfigByName(PNETIFINFO)
  *
  * @returns VBox status code.
  *
- * @param   pcszIfName  Interface name.
+ * @param   pszIfName   Interface name.
  * @param   penmState   Where to store the retrieved state.
  */
-int NetIfGetState(const char *pcszIfName, NETIFSTATUS *penmState)
+int NetIfGetState(const char *pszIfName, NETIFSTATUS *penmState)
 {
+    RT_NOREF(pszIfName, penmState);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -1126,19 +1126,21 @@ int NetIfGetState(const char *pcszIfName, NETIFSTATUS *penmState)
  *
  * @returns VBox status code.
  *
- * @param   pcszIfName  Interface name.
+ * @param   pszIfName  Interface name.
  * @param   puMbits     Where to store the link speed.
  */
-int NetIfGetLinkSpeed(const char * /*pcszIfName*/, uint32_t * /*puMbits*/)
+int NetIfGetLinkSpeed(const char *pszIfName, uint32_t *puMbits)
 {
+    RT_NOREF(pszIfName, puMbits);
     return VERR_NOT_IMPLEMENTED;
 }
 
 int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVirtualBox,
                                         IHostNetworkInterface **aHostNetworkInterface,
                                         IProgress **aProgress,
-                                        const char *pcszName)
+                                        const char *pszName)
 {
+    RT_NOREF(pszName);
 #ifndef VBOX_WITH_NETFLT
     return VERR_NOT_IMPLEMENTED;
 #else
@@ -1226,12 +1228,12 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVirtualBox, IN_GUID aId,
 
 int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULONG aOldIp, ULONG ip, ULONG mask)
 {
+    RT_NOREF(aOldIp);
 #ifndef VBOX_WITH_NETFLT
     return VERR_NOT_IMPLEMENTED;
 #else
-    HRESULT rc;
     Bstr guid;
-    rc = pIf->COMGETTER(Id)(guid.asOutParam());
+    HRESULT rc = pIf->COMGETTER(Id)(guid.asOutParam());
     if (SUCCEEDED(rc))
     {
 //        ComPtr<VirtualBox> vBox;
@@ -1284,12 +1286,12 @@ int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULON
 int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN_BSTR aOldIPV6Address,
                                 IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength)
 {
+    RT_NOREF(aOldIPV6Address);
 #ifndef VBOX_WITH_NETFLT
     return VERR_NOT_IMPLEMENTED;
 #else
-    HRESULT rc;
     Bstr guid;
-    rc = pIf->COMGETTER(Id)(guid.asOutParam());
+    HRESULT rc = pIf->COMGETTER(Id)(guid.asOutParam());
     if (SUCCEEDED(rc))
     {
 //        ComPtr<VirtualBox> vBox;
@@ -1553,7 +1555,7 @@ static HRESULT netIfGetBoundAdapters(std::list<BoundAdapter> &boundAdapters)
                     INetCfgBindingInterface     *pBi;
                     if (pBp->IsEnabled() != S_OK)
                     {
-                        /* @todo some id of disabled path could be useful. */
+                        /** @todo some id of disabled path could be useful. */
                         netIfLog(("netIfGetBoundAdapters: INetCfgBindingPath is disabled (0x%x)\n", hr));
                         pBp->Release();
                         continue;
@@ -1864,7 +1866,7 @@ int NetIfList(std::list<ComObjPtr<HostNetworkInterface> > &list)
                 if (pAdapter)
                 {
                     info.enmStatus = pAdapter->OperStatus == IfOperStatusUp ? NETIF_S_UP : NETIF_S_DOWN;
-                    info.bIsDefault = (pAdapter->IfIndex == iDefault);
+                    info.bIsDefault = (pAdapter->IfIndex == (DWORD)iDefault);
                     info.bDhcpEnabled = pAdapter->Flags & IP_ADAPTER_DHCP_ENABLED;
                     netIfFillInfoWithAddresses(&info, pAdapter);
                 }

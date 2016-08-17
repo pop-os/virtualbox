@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1350,7 +1350,7 @@ static void pgmRZDynMapReleasePage(PPGMRZDYNMAP pThis, uint32_t iPage, uint32_t 
  */
 static uint32_t pgmR0DynMapPageSlow(PPGMRZDYNMAP pThis, RTHCPHYS HCPhys, uint32_t iPage, PVMCPU pVCpu, bool *pfNew)
 {
-    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZDynMapPageSlow);
+    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZDynMapPageSlow); RT_NOREF_PV(pVCpu);
 
     /*
      * Check if any of the first 3 pages are unreferenced since the caller

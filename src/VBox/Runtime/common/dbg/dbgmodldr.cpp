@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,6 +88,7 @@ static DECLCALLBACK(RTLDRFMT) rtDbgModLdr_GetFormat(PRTDBGMODINT pMod)
 static DECLCALLBACK(int) rtDbgModLdr_ReadAt(PRTDBGMODINT pMod, uint32_t iDbgInfoHint, RTFOFF off, void *pvBuf, size_t cb)
 {
     PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
+    RT_NOREF_PV(iDbgInfoHint);
     return rtLdrReadAt(pThis->hLdrMod, pvBuf, UINT32_MAX /** @todo iDbgInfo*/, off, cb);
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,6 +67,7 @@ static VBOXSTRICTRC iomMmioRing3WritePending(PVMCPU pVCpu, RTGCPHYS GCPhys, void
     pVCpu->iom.s.PendingMmioWrite.cbValue = (uint32_t)cbBuf;
     memcpy(pVCpu->iom.s.PendingMmioWrite.abValue, pvBuf, cbBuf);
     VMCPU_FF_SET(pVCpu, VMCPU_FF_IOM);
+    RT_NOREF_PV(pRange);
     return VINF_IOM_R3_MMIO_COMMIT_WRITE;
 }
 #endif
@@ -92,6 +93,7 @@ static VBOXSTRICTRC iomMmioRing3WritePending(PVMCPU pVCpu, RTGCPHYS GCPhys, void
 static VBOXSTRICTRC iomMMIODoComplicatedWrite(PVM pVM, PVMCPU pVCpu, PIOMMMIORANGE pRange, RTGCPHYS GCPhys,
                                               void const *pvValue, unsigned cbValue)
 {
+    RT_NOREF_PV(pVCpu);
     AssertReturn(   (pRange->fFlags & IOMMMIO_FLAGS_WRITE_MODE) != IOMMMIO_FLAGS_WRITE_PASSTHRU
                  && (pRange->fFlags & IOMMMIO_FLAGS_WRITE_MODE) <= IOMMMIO_FLAGS_WRITE_DWORD_QWORD_READ_MISSING,
                  VERR_IOM_MMIO_IPE_1);
@@ -548,39 +550,6 @@ DECLINLINE(VBOXSTRICTRC) iomMMIODoRead(PVM pVM, PVMCPU pVCpu, PIOMMMIORANGE pRan
     return rcStrict;
 }
 
-
-/**
- * Internal - statistics only.
- */
-DECLINLINE(void) iomMMIOStatLength(PVM pVM, unsigned cb)
-{
-#ifdef VBOX_WITH_STATISTICS
-    switch (cb)
-    {
-        case 1:
-            STAM_COUNTER_INC(&pVM->iom.s.StatRZMMIO1Byte);
-            break;
-        case 2:
-            STAM_COUNTER_INC(&pVM->iom.s.StatRZMMIO2Bytes);
-            break;
-        case 4:
-            STAM_COUNTER_INC(&pVM->iom.s.StatRZMMIO4Bytes);
-            break;
-        case 8:
-            STAM_COUNTER_INC(&pVM->iom.s.StatRZMMIO8Bytes);
-            break;
-        default:
-            /* No way. */
-            AssertMsgFailed(("Invalid data length %d\n", cb));
-            break;
-    }
-#else
-    NOREF(pVM); NOREF(cb);
-#endif
-}
-
-
-
 /**
  * Common worker for the \#PF handler and IOMMMIOPhysHandler (APIC+VT-x).
  *
@@ -596,6 +565,7 @@ DECLINLINE(void) iomMMIOStatLength(PVM pVM, unsigned cb)
 static VBOXSTRICTRC iomMmioCommonPfHandler(PVM pVM, PVMCPU pVCpu, uint32_t uErrorCode, PCPUMCTXCORE pCtxCore,
                                            RTGCPHYS GCPhysFault, void *pvUser)
 {
+    RT_NOREF_PV(uErrorCode);
     int rc = IOM_LOCK_SHARED(pVM);
 #ifndef IN_RING3
     if (rc == VERR_SEM_BUSY)

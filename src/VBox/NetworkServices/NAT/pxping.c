@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -334,7 +334,7 @@ pxping_init(struct netif *netif, SOCKET sock4, SOCKET sock6)
         }
 
 #ifdef IPV6_RECVTCLASS  /* new in RFC 3542, there's no RFC 2292 counterpart */
-        /* TODO: IPV6_RECVTCLASS */
+        /** @todo IPV6_RECVTCLASS */
 #endif
 
         g_pxping.pmhdl6.callback = pxping_pmgr_pump;
@@ -556,7 +556,7 @@ pxping_recv4(void *arg, struct pbuf *p)
         /* control DF flag via setsockopt(2) */
 #define USE_DF_OPTION(_Optname)                         \
         const int dfopt = _Optname;                     \
-        const char * const dfoptname = #_Optname;
+        const char * const dfoptname = #_Optname; NOREF(dfoptname)
 #if   defined(RT_OS_LINUX)
         USE_DF_OPTION(IP_MTU_DISCOVER);
         df = df ? IP_PMTUDISC_DO : IP_PMTUDISC_DONT;
@@ -721,7 +721,7 @@ pxping_recv6(void *arg, struct pbuf *p)
      */
     icmph->id = pcb->host_id;
 
-    /* TODO: use control messages to save a syscall? */
+    /** @todo use control messages to save a syscall? */
     if (hopl != pxping->hopl) {
         status = setsockopt(pxping->sock6, IPPROTO_IPV6, IPV6_UNICAST_HOPS,
                             (char *)&hopl, sizeof(hopl));
@@ -1246,6 +1246,7 @@ pxping_pmgr_icmp4_echo(struct pxping *pxping,
     u16_t guest_id;
     u16_t oipsum;
     u32_t sum;
+    RT_NOREF(peer);
 
     iph = (struct ip_hdr *)pollmgr_udpbuf;
     icmph = (struct icmp_echo_hdr *)(pollmgr_udpbuf + IP_HLEN);
@@ -1347,6 +1348,7 @@ pxping_pmgr_icmp4_error(struct pxping *pxping,
     struct ping_pcb *pcb;
     u16_t guest_id;
     u32_t sum;
+    RT_NOREF(peer);
 
     iph = (struct ip_hdr *)pollmgr_udpbuf;
     icmph = (struct icmp_echo_hdr *)(pollmgr_udpbuf + IP_HLEN);
@@ -1511,11 +1513,13 @@ pxping_pmgr_icmp6(struct pxping *pxping)
     static u8_t cmsgbuf[128];
     struct cmsghdr *cmh;
     struct sockaddr_in6 sin6;
-    socklen_t salen = sizeof(sin6);
+    /* socklen_t salen = sizeof(sin6); - unused */
     struct icmp6_echo_hdr *icmph;
     struct in6_pktinfo *pktinfo;
     int hopl, tclass;
+#ifdef RT_OS_WINDOWS
     int status;
+#endif
 
     /*
      * Reads from raw IPv6 sockets deliver only the payload.  Full

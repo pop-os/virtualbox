@@ -273,8 +273,9 @@ typedef struct
 static DECLCALLBACK(void) displaySaveScreenshotReport(void *pvCtx, uint32_t uScreen,
                                                       uint32_t x, uint32_t y, uint32_t uBitsPerPixel,
                                                       uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
-                                                      uint8_t *pu8BufferAddress, uint64_t u64TimeStamp)
+                                                      uint8_t *pu8BufferAddress, uint64_t u64Timestamp)
 {
+    RT_NOREF(uScreen, x, y, uBitsPerPixel,uBytesPerLine, u64Timestamp);
     VBOX_DISPLAY_SAVESCREENSHOT_DATA *pData = (VBOX_DISPLAY_SAVESCREENSHOT_DATA*)pvCtx;
     displayMakeThumbnail(pu8BufferAddress, uGuestWidth, uGuestHeight, &pData->pu8Thumbnail,
                          &pData->cbThumbnail, &pData->cxThumbnail, &pData->cyThumbnail);
@@ -468,6 +469,7 @@ DECLCALLBACK(void) Display::i_displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pv
 DECLCALLBACK(int)
 Display::i_displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass)
 {
+    RT_NOREF(pvUser);
     if (uVersion != sSSMDisplayScreenshotVer)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
@@ -781,6 +783,7 @@ int Display::i_registerSSM(PUVM pUVM)
 
 DECLCALLBACK(void) Display::i_displayCrCmdFree(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion)
 {
+    RT_NOREF(pCmd, cbCmd, rc);
     Assert(pvCompletion);
     RTMemFree(pvCompletion);
 }
@@ -837,6 +840,7 @@ int Display::i_crOglWindowsShow(bool fShow)
 
 int Display::i_notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM)
 {
+    RT_NOREF(pView);
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
     if (maFramebuffers[pScreen->u32ViewIndex].fRenderThreadMode)
         return VINF_SUCCESS; /* nop it */
@@ -877,7 +881,9 @@ int Display::i_notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREE
 
         return rc;
     }
-#endif /* #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL) */
+#else /* !VBOX_WITH_HGCM || !VBOX_WITH_CROGL */
+    RT_NOREF(pScreen, pvVRAM);
+#endif
     return VINF_SUCCESS;
 }
 
@@ -935,7 +941,7 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
 
     if (!maFramebuffers[uScreenId].pFramebuffer.isNull())
     {
-        HRESULT hr = maFramebuffers[uScreenId].pFramebuffer->NotifyChange(uScreenId, 0, 0, w, h); /* @todo origin */
+        HRESULT hr = maFramebuffers[uScreenId].pFramebuffer->NotifyChange(uScreenId, 0, 0, w, h); /** @todo origin */
         LogFunc(("NotifyChange hr %08X\n", hr));
         NOREF(hr);
     }
@@ -1393,9 +1399,11 @@ int Display::i_handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
     return VINF_SUCCESS;
 }
 
-int Display::i_handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect)
+int Display::i_handleQueryVisibleRegion(uint32_t *pcRects, PRTRECT paRects)
 {
-    // @todo Currently not used by the guest and is not implemented in framebuffers. Remove?
+    /// @todo Currently not used by the guest and is not implemented in
+    /// framebuffers. Remove?
+    RT_NOREF(pcRects, paRects);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -1525,7 +1533,7 @@ void Display::i_VideoAccelVRDP(bool fEnable)
 
         mfVideoAccelVRDP = true;
         /* Supporting all orders. */
-        mfu32SupportedOrders = ~0;
+        mfu32SupportedOrders = UINT32_MAX;
 
         i_vbvaSetMemoryFlags(pVideoAccel->pVbvaMemory, pVideoAccel->fVideoAccelEnabled, mfVideoAccelVRDP, mfu32SupportedOrders,
                              maFramebuffers, mcMonitors);
@@ -2577,7 +2585,7 @@ HRESULT Display::drawToScreen(ULONG aScreenId, BYTE *aAddress, ULONG aX, ULONG a
     else if (RT_FAILURE(rcVBox))
         rc = setError(VBOX_E_IPRT_ERROR,
                       tr("Could not draw to the screen (%Rrc)"), rcVBox);
-//@todo
+/// @todo
 //    else
 //    {
 //        /* All ok. Redraw the screen. */
@@ -3300,11 +3308,11 @@ int Display::i_handleVHWACommandProcess(PVBOXVHWACMD pCommand)
     HRESULT hr = pFramebuffer->ProcessVHWACommand((BYTE*)pCommand);
     if (hr == S_FALSE)
         return VINF_SUCCESS;
-    else if (SUCCEEDED(hr))
+    if (SUCCEEDED(hr))
         return VINF_CALLBACK_RETURN;
-    else if (hr == E_ACCESSDENIED)
+    if (hr == E_ACCESSDENIED)
         return VERR_INVALID_STATE; /* notify we can not handle request atm */
-    else if (hr == E_NOTIMPL)
+    if (hr == E_NOTIMPL)
         return VERR_NOT_IMPLEMENTED;
     return VERR_GENERAL_FAILURE;
 }
@@ -3320,12 +3328,14 @@ DECLCALLBACK(int) Display::i_displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pIn
 #ifdef VBOX_WITH_CRHGSMI
 void Display::i_handleCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam)
 {
+    RT_NOREF(u32Function);
     mpDrv->pVBVACallbacks->pfnCrHgsmiCommandCompleteAsync(mpDrv->pVBVACallbacks,
                                                           (PVBOXVDMACMD_CHROMIUM_CMD)pParam->u.pointer.addr, result);
 }
 
 void Display::i_handleCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam)
 {
+    RT_NOREF(u32Function);
     PVBOXVDMACMD_CHROMIUM_CTL pCtl = (PVBOXVDMACMD_CHROMIUM_CTL)pParam->u.pointer.addr;
     mpDrv->pVBVACallbacks->pfnCrHgsmiControlCompleteAsync(mpDrv->pVBVACallbacks, pCtl, result);
 }
@@ -3445,6 +3455,7 @@ DECLCALLBACK(void) Display::i_displayCrHgsmiControlCompletion(int32_t result, ui
 DECLCALLBACK(void)  Display::i_displayCrHgcmCtlSubmitCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam,
                                                                 void *pvContext)
 {
+    RT_NOREF(u32Function);
     VBOXCRCMDCTL *pCmd = (VBOXCRCMDCTL*)pParam->u.pointer.addr;
     if (pCmd->u.pfnInternal)
         ((PFNCRCTLCOMPLETION)pCmd->u.pfnInternal)(pCmd, pParam->u.pointer.size, result, pvContext);
@@ -3554,24 +3565,29 @@ int Display::i_crCtlSubmitSyncIfHasDataForScreen(uint32_t u32ScreenID, struct VB
     return rc;
 }
 
-bool  Display::i_handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64TimeStamp)
+bool  Display::i_handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64Timestamp)
 {
+    /** @todo r=bird: u64Timestamp - using the 'u64' prefix add nothing.
+     *        However, using one of the prefixes indicating the timestamp unit
+     *        would be very valuable!  */
 # if VBOX_WITH_VPX
-    return VideoRecIsReady(mpVideoRecCtx, uScreen, u64TimeStamp);
+    return VideoRecIsReady(mpVideoRecCtx, uScreen, u64Timestamp);
 # else
+    RT_NOREF(uScreen, u64Timestamp);
     return false;
 # endif
 }
 
-void  Display::i_handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64TimeStamp)
+void  Display::i_handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64Timestamp)
 {
+    RT_NOREF(uScreen, u64Timestamp);
 }
 
 void  Display::i_handleCrVRecScreenshotPerform(uint32_t uScreen,
                                                uint32_t x, uint32_t y, uint32_t uPixelFormat,
                                                uint32_t uBitsPerPixel, uint32_t uBytesPerLine,
                                                uint32_t uGuestWidth, uint32_t uGuestHeight,
-                                               uint8_t *pu8BufferAddress, uint64_t u64TimeStamp)
+                                               uint8_t *pu8BufferAddress, uint64_t u64Timestamp)
 {
     Assert(mfCrOglVideoRecState == CRVREC_STATE_SUBMITTED);
 # if VBOX_WITH_VPX
@@ -3579,7 +3595,7 @@ void  Display::i_handleCrVRecScreenshotPerform(uint32_t uScreen,
                                   uPixelFormat,
                                   uBitsPerPixel, uBytesPerLine,
                                   uGuestWidth, uGuestHeight,
-                                  pu8BufferAddress, u64TimeStamp);
+                                  pu8BufferAddress, u64Timestamp);
     NOREF(rc);
     Assert(rc == VINF_SUCCESS /* || rc == VERR_TRY_AGAIN || rc == VINF_TRY_AGAIN*/);
 # endif
@@ -3661,10 +3677,12 @@ HRESULT Display::notifyScaleFactorChange(ULONG aScreenId, ULONG aScaleFactorWMul
 # endif
 
     return hr;
-#else
+
+#else /* !VBOX_WITH_HGCM || !VBOX_WITH_CROGL */
+    RT_NOREF(aScreenId, aScaleFactorWMultiplied, aScaleFactorHMultiplied);
     AssertMsgFailed(("Attempt to specify OpenGL content scale factor while corresponding functionality is disabled."));
     return E_UNEXPECTED;
-#endif /* VBOX_WITH_HGCM && VBOX_WITH_CROGL */
+#endif /* !VBOX_WITH_HGCM || !VBOX_WITH_CROGL */
 }
 
 HRESULT Display::notifyHiDPIOutputPolicyChange(BOOL fUnscaledHiDPI)
@@ -3726,10 +3744,12 @@ HRESULT Display::notifyHiDPIOutputPolicyChange(BOOL fUnscaledHiDPI)
     }
 
     return hr;
-#else
+
+#else /* !VBOX_WITH_HGCM || !VBOX_WITH_CROGL */
+    RT_NOREF(fUnscaledHiDPI);
     AssertMsgFailed(("Attempt to notify OpenGL about HiDPI output scaling policy change while corresponding functionality is disabled."));
     return E_UNEXPECTED;
-#endif /* VBOX_WITH_HGCM && VBOX_WITH_CROGL */
+#endif /* !VBOX_WITH_HGCM || !VBOX_WITH_CROGL */
 }
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
@@ -3737,29 +3757,30 @@ DECLCALLBACK(void) Display::i_displayCrVRecScreenshotPerform(void *pvCtx, uint32
                                                              uint32_t x, uint32_t y,
                                                              uint32_t uBitsPerPixel, uint32_t uBytesPerLine,
                                                              uint32_t uGuestWidth, uint32_t uGuestHeight,
-                                                             uint8_t *pu8BufferAddress, uint64_t u64TimeStamp)
+                                                             uint8_t *pu8BufferAddress, uint64_t u64Timestamp)
 {
     Display *pDisplay = (Display *)pvCtx;
     pDisplay->i_handleCrVRecScreenshotPerform(uScreen,
                                               x, y, BitmapFormat_BGR, uBitsPerPixel,
                                               uBytesPerLine, uGuestWidth, uGuestHeight,
-                                              pu8BufferAddress, u64TimeStamp);
+                                              pu8BufferAddress, u64Timestamp);
 }
 
-DECLCALLBACK(bool) Display::i_displayCrVRecScreenshotBegin(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp)
+DECLCALLBACK(bool) Display::i_displayCrVRecScreenshotBegin(void *pvCtx, uint32_t uScreen, uint64_t u64Timestamp)
 {
     Display *pDisplay = (Display *)pvCtx;
-    return pDisplay->i_handleCrVRecScreenshotBegin(uScreen, u64TimeStamp);
+    return pDisplay->i_handleCrVRecScreenshotBegin(uScreen, u64Timestamp);
 }
 
-DECLCALLBACK(void) Display::i_displayCrVRecScreenshotEnd(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp)
+DECLCALLBACK(void) Display::i_displayCrVRecScreenshotEnd(void *pvCtx, uint32_t uScreen, uint64_t u64Timestamp)
 {
     Display *pDisplay = (Display *)pvCtx;
-    pDisplay->i_handleCrVRecScreenshotEnd(uScreen, u64TimeStamp);
+    pDisplay->i_handleCrVRecScreenshotEnd(uScreen, u64Timestamp);
 }
 
-DECLCALLBACK(void) Display::i_displayVRecCompletion(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion)
+DECLCALLBACK(void) Display::i_displayVRecCompletion(struct VBOXCRCMDCTL *pCmd, uint32_t cbCmd, int rc, void *pvCompletion)
 {
+    RT_NOREF(pCmd, cbCmd, rc);
     Display *pDisplay = (Display *)pvCompletion;
     pDisplay->i_handleVRecCompletion();
 }
@@ -3839,6 +3860,7 @@ DECLCALLBACK(void) Display::i_displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterfac
 
 DECLCALLBACK(void) Display::i_displayVBVAUpdateBegin(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId)
 {
+    RT_NOREF(uScreenId);
     LogFlowFunc(("uScreenId %d\n", uScreenId));
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
@@ -3928,7 +3950,7 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pIn
     pHdrUnconst->x -= (int16_t)pFBInfo->xOrigin;
     pHdrUnconst->y -= (int16_t)pFBInfo->yOrigin;
 
-    /* @todo new SendUpdate entry which can get a separate cmd header or coords. */
+    /** @todo new SendUpdate entry which can get a separate cmd header or coords. */
     pThis->mParent->i_consoleVRDPServer()->SendUpdate(uScreenId, pCmd, (uint32_t)cbCmd);
 
     *pHdrUnconst = hdrSaved;
@@ -3943,7 +3965,7 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateEnd(PPDMIDISPLAYCONNECTOR pInterf
     Display *pThis = pDrv->pDisplay;
     DISPLAYFBINFO *pFBInfo = &pThis->maFramebuffers[uScreenId];
 
-    /* @todo handleFramebufferUpdate (uScreenId,
+    /** @todo handleFramebufferUpdate (uScreenId,
      *                                x - pThis->maFramebuffers[uScreenId].xOrigin,
      *                                y - pThis->maFramebuffers[uScreenId].yOrigin,
      *                                cx, cy);
@@ -4245,6 +4267,7 @@ DECLCALLBACK(void) Display::i_drvDestruct(PPDMDRVINS pDrvIns)
  */
 DECLCALLBACK(int) Display::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVMAINDISPLAY pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINDISPLAY);
     LogRelFlowFunc(("iInstance=%d\n", pDrvIns->iInstance));

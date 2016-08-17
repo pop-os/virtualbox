@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -209,7 +209,7 @@ typedef struct PS2K
     /** Typematic timer - R0 Ptr. */
     PTMTIMERR0          pKbdTypematicTimerR0;
 
-    scan_state_t        XlatState;      ///@todo: temporary
+    scan_state_t        XlatState;      /// @todo temporary
     uint32_t            Alignment1;
 
     /**
@@ -266,6 +266,11 @@ typedef struct {
     uint8_t keyMatic;    /* Set 3 typematic default. */
 } key_def;
 
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+#ifdef IN_RING3
 /* USB to PS/2 conversion table for regular keys. */
 static const   key_def   aPS2Keys[] = {
     /* 00 */ {NONE, NONE, NONE, KF_NB, T_U }, /* Key N/A: No Event */
@@ -460,15 +465,8 @@ static const   key_def   aPS2ModKeys[] = {
     /* E7 */ {0x5C, 0x27, UNKN, KF_E0, T_U }, /* Key 128: Right GUI */
 };
 
+#endif /* IN_RING3 */
 
-/*********************************************************************************************************************************
-*   Global Variables                                                                                                             *
-*********************************************************************************************************************************/
-
-
-/*********************************************************************************************************************************
-*   Internal Functions                                                                                                           *
-*********************************************************************************************************************************/
 
 
 /**
@@ -686,7 +684,7 @@ int PS2KByteToKbd(PPS2K pThis, uint8_t cmd)
         case KCMD_ALL_MK_BRK:
         case KCMD_ALL_MAKE:
         case KCMD_ALL_TMB:
-            ///@todo Set the key types here.
+            /// @todo Set the key types here.
             ps2kInsertQueue((GeneriQ *)&pThis->cmdQ, KRSP_ACK);
             pThis->u8CurrCmd = 0;
             break;
@@ -696,7 +694,7 @@ int PS2KByteToKbd(PPS2K pThis, uint8_t cmd)
         case KCMD_RESET:
             pThis->u8ScanSet = 2;
             ps2kSetDefaults(pThis);
-            ///@todo reset more?
+            /// @todo reset more?
             ps2kInsertQueue((GeneriQ *)&pThis->cmdQ, KRSP_ACK);
             pThis->u8CurrCmd = cmd;
             /* Delay BAT completion; the test may take hundreds of ms. */
@@ -888,7 +886,7 @@ static int ps2kProcessKeyEvent(PPS2K pThis, uint8_t u8HidCode, bool fKeyDown)
                 }
             }
             /* Feed the bytes to the queue if there is room. */
-            ///@todo check empty space!
+            /// @todo check empty space!
             while (abCodes[i])
                 ps2kInsertQueue((GeneriQ *)&pThis->keyQ, abCodes[i++]);
             Assert(i < sizeof(abCodes));
@@ -956,7 +954,7 @@ static int ps2kProcessKeyEvent(PPS2K pThis, uint8_t u8HidCode, bool fKeyDown)
             }
 
             /* Feed any additional bytes to the queue if there is room. */
-            ///@todo check empty space!
+            /// @todo check empty space!
             while (abCodes[i])
                 ps2kInsertQueue((GeneriQ *)&pThis->keyQ, abCodes[i++]);
             Assert(i < sizeof(abCodes));
@@ -973,7 +971,7 @@ static int ps2kProcessKeyEvent(PPS2K pThis, uint8_t u8HidCode, bool fKeyDown)
         else
         {
             /* Send a key release code unless it's a make only key. */
-            ///@todo Look up the current typematic setting, not the default!
+            /// @todo Look up the current typematic setting, not the default!
             if (pKeyDef->keyMatic != T_M)
             {
                 ps2kInsertQueue((GeneriQ *)&pThis->keyQ, 0xF0);
@@ -997,8 +995,8 @@ static int ps2kProcessKeyEvent(PPS2K pThis, uint8_t u8HidCode, bool fKeyDown)
     {
         pThis->u8TypematicKey    = 0;
         pThis->enmTypematicState = KBD_TMS_IDLE;
-        ///@todo Cancel timer right away?
-        ///@todo Cancel timer before pushing key up code!?
+        /// @todo Cancel timer right away?
+        /// @todo Cancel timer before pushing key up code!?
     }
 
     /* Poke the KBC to update its state. */
@@ -1012,7 +1010,8 @@ static int ps2kProcessKeyEvent(PPS2K pThis, uint8_t u8HidCode, bool fKeyDown)
  */
 static DECLCALLBACK(void) ps2kTypematicTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PPS2K pThis = (PS2K *)pvUser; NOREF(pDevIns);
+    RT_NOREF2(pDevIns, pTimer);
+    PPS2K pThis = (PS2K *)pvUser;
     LogFlowFunc(("Typematic state=%d, key %02X\n", pThis->enmTypematicState, pThis->u8TypematicKey));
 
     /* If the current typematic key is zero, the repeat was canceled just when
@@ -1036,7 +1035,8 @@ static DECLCALLBACK(void) ps2kTypematicTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
  */
 static DECLCALLBACK(void) ps2kDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PPS2K pThis = (PS2K *)pvUser; NOREF(pDevIns);
+    RT_NOREF2(pDevIns, pTimer);
+    PPS2K pThis = (PS2K *)pvUser;
 
     LogFlowFunc(("Delay timer: cmd %02X\n", pThis->u8CurrCmd));
 
@@ -1045,7 +1045,7 @@ static DECLCALLBACK(void) ps2kDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, vo
     pThis->fScanning = true;    /* BAT completion enables scanning! */
     pThis->u8CurrCmd = 0;
 
-    ///@todo Might want a PS2KCompleteCommand() to push last response, clear command, and kick the KBC...
+    /// @todo Might want a PS2KCompleteCommand() to push last response, clear command, and kick the KBC...
     /* Give the KBC a kick. */
     KBCUpdateInterrupts(pThis->pParent);
 }
@@ -1348,6 +1348,8 @@ int PS2KLoadState(PPS2K pThis, PSSMHANDLE pSSM, uint32_t uVersion)
 
 int PS2KLoadDone(PPS2K pThis, PSSMHANDLE pSSM)
 {
+    RT_NOREF1(pSSM);
+
     /* This *must* be done after the inital load because it may trigger
      * interrupts and change the interrupt controller state.
      */
@@ -1379,6 +1381,7 @@ void PS2KReset(PPS2K pThis)
 
 void PS2KRelocate(PPS2K pThis, RTGCINTPTR offDelta, PPDMDEVINS pDevIns)
 {
+    RT_NOREF1(pDevIns);
     LogFlowFunc(("Relocating PS2K\n"));
     pThis->pKbdDelayTimerRC     = TMTimerRCPtr(pThis->pKbdDelayTimerR3);
     pThis->pKbdTypematicTimerRC = TMTimerRCPtr(pThis->pKbdTypematicTimerR3);
@@ -1387,8 +1390,7 @@ void PS2KRelocate(PPS2K pThis, RTGCINTPTR offDelta, PPDMDEVINS pDevIns)
 
 int PS2KConstruct(PPS2K pThis, PPDMDEVINS pDevIns, void *pParent, int iInstance)
 {
-    int     rc;
-
+    RT_NOREF2(pDevIns, iInstance);
     LogFlowFunc(("iInstance=%d\n", iInstance));
 
     pThis->pParent = pParent;
@@ -1409,8 +1411,8 @@ int PS2KConstruct(PPS2K pThis, PPDMDEVINS pDevIns, void *pParent, int iInstance)
      * Create the typematic delay/repeat timer. Does not use virtual time!
      */
     PTMTIMER pTimer;
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_REAL, ps2kTypematicTimer, pThis,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "PS2K Typematic Timer", &pTimer);
+    int rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_REAL, ps2kTypematicTimer, pThis,
+                                    TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "PS2K Typematic Timer", &pTimer);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1440,7 +1442,7 @@ int PS2KConstruct(PPS2K pThis, PPDMDEVINS pDevIns, void *pParent, int iInstance)
 
 #endif
 
-///@todo The following should live with the KBC implementation.
+/// @todo The following should live with the KBC implementation.
 
 /* Table used by the keyboard controller to optionally translate the incoming
  * keyboard data. Note that the translation is designed for essentially taking

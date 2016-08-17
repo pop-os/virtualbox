@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -322,6 +322,7 @@ RTDECL(int) RTCrStoreConvertToOpenSslCertStore(RTCRSTORE hStore, uint32_t fFlags
     PRTCRSTOREINT pThis = (PRTCRSTOREINT)hStore;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTCRSTOREINT_MAGIC, VERR_INVALID_HANDLE);
+    RT_NOREF_PV(fFlags);
 
     /*
      * Use the pfnCertFindAll method to add all certificates to the store we're returning.
@@ -375,6 +376,7 @@ RTDECL(int) RTCrStoreConvertToOpenSslCertStack(RTCRSTORE hStore, uint32_t fFlags
     PRTCRSTOREINT pThis = (PRTCRSTOREINT)hStore;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTCRSTOREINT_MAGIC, VERR_INVALID_HANDLE);
+    RT_NOREF_PV(fFlags);
 
     /*
      * Use the pfnCertFindAll method to add all certificates to the store we're returning.

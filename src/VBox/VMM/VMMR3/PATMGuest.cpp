@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -243,6 +243,5 @@ int patmR3InstallGuestSpecificPatch(PVM pVM, PDISCPUSTATE pCpu, RTGCPTR32 pInstr
         AssertMsgFailed(("PATMInstallGuestSpecificPatch: unknown opcode %d\n", pCpu->pCurInstr->uOpcode));
         return VERR_PATCHING_REFUSED;
     }
-    return VERR_PATCHING_REFUSED;
 }
 

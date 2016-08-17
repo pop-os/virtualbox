@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -273,6 +273,8 @@ typedef struct VNetCtlHdr VNETCTLHDR;
 typedef VNETCTLHDR *PVNETCTLHDR;
 AssertCompileSize(VNETCTLHDR, 2);
 
+#ifdef IN_RING3
+
 /** Returns true if large packets are written into several RX buffers. */
 DECLINLINE(bool) vnetMergeableRxBuffers(PVNETSTATE pThis)
 {
@@ -289,8 +291,12 @@ DECLINLINE(void) vnetCsLeave(PVNETSTATE pThis)
     vpciCsLeave(&pThis->VPCI);
 }
 
+#endif /* IN_RING3 */
+
 DECLINLINE(int) vnetCsRxEnter(PVNETSTATE pThis, int rcBusy)
 {
+    RT_NOREF_PV(pThis);
+    RT_NOREF_PV(rcBusy);
     // STAM_PROFILE_START(&pThis->CTXSUFF(StatCsRx), a);
     // int rc = PDMCritSectEnter(&pThis->csRx, rcBusy);
     // STAM_PROFILE_STOP(&pThis->CTXSUFF(StatCsRx), a);
@@ -300,25 +306,30 @@ DECLINLINE(int) vnetCsRxEnter(PVNETSTATE pThis, int rcBusy)
 
 DECLINLINE(void) vnetCsRxLeave(PVNETSTATE pThis)
 {
+    RT_NOREF_PV(pThis);
     // PDMCritSectLeave(&pThis->csRx);
 }
 
+#ifdef IN_RING3
 /**
  * Dump a packet to debug log.
  *
- * @param   pThis      The device state structure.
- * @param   cpPacket    The packet.
+ * @param   pThis       The device state structure.
+ * @param   pbPacket    The packet.
  * @param   cb          The size of the packet.
- * @param   cszText     A string denoting direction of packet transfer.
+ * @param   pszText     A string denoting direction of packet transfer.
  */
-DECLINLINE(void) vnetPacketDump(PVNETSTATE pThis, const uint8_t *cpPacket, size_t cb, const char *cszText)
+DECLINLINE(void) vnetPacketDump(PVNETSTATE pThis, const uint8_t *pbPacket, size_t cb, const char *pszText)
 {
-#ifdef DEBUG
+# ifdef DEBUG
     Log(("%s %s packet #%d (%d bytes):\n",
-         INSTANCE(pThis), cszText, ++pThis->u32PktNo, cb));
-    Log3(("%.*Rhxd\n", cb, cpPacket));
-#endif
+         INSTANCE(pThis), pszText, ++pThis->u32PktNo, cb));
+    Log3(("%.*Rhxd\n", cb, pbPacket));
+# else
+    RT_NOREF4(pThis, pbPacket, cb, pszText);
+# endif
 }
+#endif /* IN_RING3 */
 
 /**
  * Print features given in uFeatures to debug log.
@@ -361,11 +372,15 @@ DECLINLINE(void) vnetPrintFeatures(PVNETSTATE pThis, uint32_t fFeatures, const c
         if (s_aFeatures[i].uMask & fFeatures)
             Log3(("%s --> %s\n", INSTANCE(pThis), s_aFeatures[i].pcszDesc));
     }
-#endif /* DEBUG */
+#else  /* !DEBUG */
+    RT_NOREF3(pThis, fFeatures, pcszText);
+#endif /* !DEBUG */
 }
 
 static DECLCALLBACK(uint32_t) vnetIoCb_GetHostFeatures(void *pvState)
 {
+    RT_NOREF_PV(pvState);
+
     /* We support:
      * - Host-provided MAC address
      * - Link status reporting in config space
@@ -397,6 +412,7 @@ static DECLCALLBACK(uint32_t) vnetIoCb_GetHostFeatures(void *pvState)
 
 static DECLCALLBACK(uint32_t) vnetIoCb_GetHostMinimalFeatures(void *pvState)
 {
+    RT_NOREF_PV(pvState);
     return VNET_F_MAC;
 }
 
@@ -454,7 +470,7 @@ static DECLCALLBACK(int) vnetIoCb_Reset(void *pvState)
     vpciReset(&pThis->VPCI);
     vnetCsRxLeave(pThis);
 
-    // TODO: Implement reset
+    /// @todo Implement reset
     if (pThis->fCableConnected)
         STATUS = VNET_S_LINK_UP;
     else
@@ -528,6 +544,7 @@ static void vnetTempLinkDown(PVNETSTATE pThis)
  */
 static DECLCALLBACK(void) vnetLinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pTimer);
     PVNETSTATE pThis = (PVNETSTATE)pvUser;
 
     int rc = vnetCsEnter(pThis, VERR_SEM_BUSY);
@@ -548,6 +565,7 @@ static DECLCALLBACK(void) vnetLinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, v
  */
 static DECLCALLBACK(bool) vnetCanRxQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem)
 {
+    RT_NOREF(pItem);
     vnetWakeupReceive(pDevIns);
     return true;
 }
@@ -760,7 +778,7 @@ static bool vnetAddressFilter(PVNETSTATE pThis, const void *pvBuf, size_t cb)
             return true;
 
     Log2(("%s vnetAddressFilter: failed all tests, returning false, packet dump follows:\n", INSTANCE(pThis)));
-    vnetPacketDump(pThis, (const uint8_t*)pvBuf, cb, "<-- Incoming");
+    vnetPacketDump(pThis, (const uint8_t *)pvBuf, cb, "<-- Incoming");
 
     return false;
 }
@@ -822,7 +840,7 @@ static int vnetHandleRxPacket(PVNETSTATE pThis, const void *pvBuf, size_t cb,
     else
         uHdrLen = sizeof(VNETHDR);
 
-    vnetPacketDump(pThis, (const uint8_t*)pvBuf, cb, "<-- Incoming");
+    vnetPacketDump(pThis, (const uint8_t *)pvBuf, cb, "<-- Incoming");
 
     unsigned int uOffset = 0;
     unsigned int nElem;
@@ -1057,6 +1075,7 @@ static DECLCALLBACK(int) vnetSetLinkState(PPDMINETWORKCONFIG pInterface, PDMNETW
 
 static DECLCALLBACK(void) vnetQueueReceive(void *pvState, PVQUEUE pQueue)
 {
+    RT_NOREF(pQueue);
     PVNETSTATE pThis = (PVNETSTATE)pvState;
     Log(("%s Receive buffers has been added, waking up receive thread.\n", INSTANCE(pThis)));
     vnetWakeupReceive(pThis->VPCI.CTX_SUFF(pDevIns));
@@ -1219,7 +1238,7 @@ static void vnetTransmitPendingPackets(PVNETSTATE pThis, PVQUEUE pQueue, bool fO
                         uOffset += elem.aSegsOut[i].cb;
                     }
                     pSgBuf->cbUsed = uSize;
-                    vnetPacketDump(pThis, (uint8_t*)pSgBuf->aSegs[0].pvSeg, uSize, "--> Outgoing");
+                    vnetPacketDump(pThis, (uint8_t *)pSgBuf->aSegs[0].pvSeg, uSize, "--> Outgoing");
                     if (pGso)
                     {
                         /* Some guests (RHEL) may report HdrLen excluding transport layer header! */
@@ -1309,7 +1328,7 @@ static DECLCALLBACK(void) vnetQueueTransmit(void *pvState, PVQUEUE pQueue)
 
     if (TMTimerIsActive(pThis->CTX_SUFF(pTxTimer)))
     {
-        int rc = TMTimerStop(pThis->CTX_SUFF(pTxTimer));
+        TMTimerStop(pThis->CTX_SUFF(pTxTimer));
         Log3(("%s vnetQueueTransmit: Got kicked with notification disabled, re-enable notification and flush TX queue\n", INSTANCE(pThis)));
         vnetTransmitPendingPackets(pThis, pQueue, false /*fOnWorkerThread*/);
         if (RT_FAILURE(vnetCsEnter(pThis, VERR_SEM_BUSY)))
@@ -1339,6 +1358,7 @@ static DECLCALLBACK(void) vnetQueueTransmit(void *pvState, PVQUEUE pQueue)
  */
 static DECLCALLBACK(void) vnetTxTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     PVNETSTATE pThis = (PVNETSTATE)pvUser;
 
     uint32_t u32MicroDiff = (uint32_t)((RTTimeNanoTS() - pThis->u64NanoTS)/1000);
@@ -1527,7 +1547,6 @@ static DECLCALLBACK(void) vnetQueueControl(void *pvState, PVQUEUE pQueue)
     VQUEUEELEM elem;
     while (vqueueGet(&pThis->VPCI, pQueue, &elem))
     {
-        unsigned int uOffset = 0;
         if (elem.nOut < 1 || elem.aSegsOut[0].cb < sizeof(VNETCTLHDR))
         {
             Log(("%s vnetQueueControl: The first 'out' segment is not the header! (%u < 1 || %u < %u).\n",
@@ -1591,6 +1610,7 @@ static void vnetSaveConfig(PVNETSTATE pThis, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) vnetLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF(uPass);
     PVNETSTATE pThis = PDMINS_2_DATA(pDevIns, PVNETSTATE);
     vnetSaveConfig(pThis, pSSM);
     return VINF_SSM_DONT_CALL_AGAIN;
@@ -1602,6 +1622,7 @@ static DECLCALLBACK(int) vnetLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint3
  */
 static DECLCALLBACK(int) vnetSavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PVNETSTATE pThis = PDMINS_2_DATA(pDevIns, PVNETSTATE);
 
     int rc = vnetCsRxEnter(pThis, VERR_SEM_BUSY);
@@ -1650,6 +1671,7 @@ static DECLCALLBACK(int) vnetSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) vnetLoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PVNETSTATE pThis = PDMINS_2_DATA(pDevIns, PVNETSTATE);
 
     int rc = vnetCsRxEnter(pThis, VERR_SEM_BUSY);
@@ -1728,6 +1750,7 @@ static DECLCALLBACK(int) vnetLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint3
  */
 static DECLCALLBACK(int) vnetLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PVNETSTATE pThis = PDMINS_2_DATA(pDevIns, PVNETSTATE);
 
     if (pThis->pDrv)
@@ -1749,9 +1772,9 @@ static DECLCALLBACK(int) vnetLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int) vnetMap(PPCIDEVICE pPciDev, int iRegion,
-                                 RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) vnetMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
 {
+    RT_NOREF(iRegion);
     PVNETSTATE pThis = PDMINS_2_DATA(pPciDev->pDevIns, PVNETSTATE);
     int       rc;
 
@@ -1788,6 +1811,7 @@ static DECLCALLBACK(int) vnetMap(PPCIDEVICE pPciDev, int iRegion,
  */
 static DECLCALLBACK(void) vnetDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PVNETSTATE pThis = PDMINS_2_DATA(pDevIns, PVNETSTATE);
     Log(("%s vnetDetach:\n", INSTANCE(pThis)));
 
@@ -1815,6 +1839,7 @@ static DECLCALLBACK(void) vnetDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t
  */
 static DECLCALLBACK(int) vnetAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PVNETSTATE pThis = PDMINS_2_DATA(pDevIns, PVNETSTATE);
     LogFlow(("%s vnetAttach:\n",  INSTANCE(pThis)));
 
@@ -2055,7 +2080,7 @@ static DECLCALLBACK(int) vnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     pThis->pTxTimerRC = TMTimerRCPtr(pThis->pTxTimerR3);
 
     pThis->u32i = pThis->u32AvgDiff = pThis->u32MaxDiff = 0;
-    pThis->u32MinDiff = ~0;
+    pThis->u32MinDiff = UINT32_MAX;
 #endif /* VNET_TX_DELAY */
 
     rc = PDMDevHlpDriverAttach(pDevIns, 0, &pThis->VPCI.IBase, &pThis->pDrvBase, "Network Port");

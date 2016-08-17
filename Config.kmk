@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 1
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 2
+VBOX_VERSION_BUILD = 4
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -227,7 +227,6 @@ VBOX_VERSION_PRERELEASE =
 # Force the additions.sh script to get an exact additions build when we're doing the release.
 ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
   VBOX_RELEASE_EXACT_MATCH=1
-  # Decide whether to use the stable (5.0) audio code or not.
 endif
 ifneq ($(VBOX_RELEASE_EXACT_MATCH),)
  export VBOX_ADDITIONS_SH_MODE     = release
@@ -300,8 +299,6 @@ VBOX_PACKAGE_STRING = $(VBOX_PACKAGE_OS)_$(VBOX_PACKAGE_ARCH)_$(VBOX_PACKAGE_DIS
 ifeq ($(KBUILD_HOST),darwin)
  if !defined(VBOX_WITH_NEW_XCODE) && !defined(VBOX_WITHOUT_NEW_XCODE) && $(KBUILD_HOST_VERSION_MAJOR) >= 13 # (OS X 10.9 Mavericks)
   VBOX_WITH_NEW_XCODE = 1
-  # broken by TOOL_VBoxXcode62_ENV_SETUP
-  NO_COMPILE_CMDS_DEPS = 1
  endif
 endif
 
@@ -430,19 +427,21 @@ VBOX_WITH_NAT_SERVICE = 1
 VBOX_WITH_E1000 = 1
 # Enable the Virtio feature.
 VBOX_WITH_VIRTIO = 1
-# Enable new PS/2 mouse emulation.
-VBOX_WITH_NEW_PS2M = 1
 ifn1of ($(KBUILD_TARGET), win darwin)
  # Enable OSS audio support.
- VBOX_WITH_OSS = 1
+ VBOX_WITH_AUDIO_OSS = 1
 endif
 if1of ($(KBUILD_TARGET), linux)
  # Enable ALSA audio support.
- VBOX_WITH_ALSA = 1
+ VBOX_WITH_AUDIO_ALSA = 1
 endif
 if1of ($(KBUILD_TARGET), linux)
  # Enable PulseAudio audio support.
- VBOX_WITH_PULSE = 1
+ VBOX_WITH_AUDIO_PULSE = 1
+endif
+ifeq ($(KBUILD_TYPE),debug)
+ ## @todo Only build if running on test boxes?
+ VBOX_WITH_AUDIO_DEBUG =
 endif
 # Enable PCI passthrough support.
 VBOX_WITH_PCI_PASSTHROUGH = 1
@@ -694,8 +693,6 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
 endif
 # Enable audio support for VRDE.
 VBOX_WITH_VRDE_AUDIO = 1
-# Enable to use the VBox 5.0 audio framework
-#VBOX_WITH_AUDIO_50 := 1
 # Use the VRDE external authentication library from VBoxSVC.
 if1of ($(KBUILD_TARGET), win)
  VBOX_WITH_VRDEAUTH_IN_VBOXSVC = 1
@@ -1167,18 +1164,6 @@ ifdef VBOX_OSE
 endif
 
 #
-# Audio: Which code base to use.
-# This can be overriden in LocalConfig.kmk.
-#
-ifdef VBOX_WITH_AUDIO_50
- VBOX_AUDIO_PATH_SOURCES=Audio_old
- VBOX_AUDIO_FILE_SUFFIX=_old
-else
- VBOX_AUDIO_PATH_SOURCES=Audio
- VBOX_AUDIO_FILE_SUFFIX=
-endif
-
-#
 # VBOX_WITHOUT_HARDENING is for developers (put in LocalConfig.kmk).
 # Note that this is a bit rough since hardening governs more than one
 # variable...  Also note that we allow VBOX_WITH_HARDENING=1 on the
@@ -1586,75 +1571,6 @@ USES += dtrace
 
 
 #
-# Compiler optimization flags.
-#
-VBOX_GCC_WARN     ?= -Wall $(VBOX_GCC_Wextra) $(VBOX_GCC_Wno-missing-field-initializers) -Wno-unused -Wno-trigraphs \
-	$(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-unused-parameter) $(VBOX_GCC_Wno-language-extension-token) \
-	$(VBOX_GCC_Wno-extended-offsetof) $(VBOX_GCC_Wno-gnu-folding-constant) $(VBOX_GCC_Wlogical-op) \
-	$(VBOX_GCC_Wno-string-plus-int) $(VBOX_GCC_Wno-nested-anon-types)
-VBOX_GCC_WARN_PEDANTIC = -Wshadow $(VBOX_GCC_WARN) -Wno-long-long
-ifdef VBOX_WITH_MASOCHISTIC_WARNINGS
- VBOX_GCC_WARN_PEDANTIC += -Wunused-variable -Wunused-function -Wunused-label -Wunused-parameter
-endif
-VBOX_GCC_PEDANTIC_CXX ?= -pedantic $(VBOX_GCC_WARN_PEDANTIC) $(VBOX_GCC_Wno-return-type-c-linkage)
-VBOX_GCC_PEDANTIC_C   ?= -pedantic $(VBOX_GCC_WARN_PEDANTIC) -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations -Werror-implicit-function-declaration
-ifeq ($(KBUILD_TARGET),win)
- VBOX_C_CXX_FLAGS_NO_UNUSED_PARAMETERS = #-Wdxxxx
-else
- VBOX_C_CXX_FLAGS_NO_UNUSED_PARAMETERS = -Wno-unused-parameter
-endif
-ifeq ($(KBUILD_TYPE),debug)
- VBOX_GCC_FP     ?= -fno-omit-frame-pointer
- VBOX_GCC_OPT    ?= -O0
- VBOX_VCC_FP     ?= -Oy-
- VBOX_VCC_OPT    ?=
- VBOX_GCC_R0_FP  ?= -fno-omit-frame-pointer -fno-optimize-sibling-calls
- VBOX_GCC_R0_OPT ?= -O2
- VBOX_VCC_R0_FP  ?= -Oy-
- VBOX_VCC_R0_OPT ?=
- VBOX_GCC_GC_FP  ?= -fno-omit-frame-pointer -fno-optimize-sibling-calls
- VBOX_GCC_GC_OPT ?= -O2
- VBOX_VCC_GC_FP  ?= -Oy-
- VBOX_VCC_GC_OPT ?=
-else
- # We should use -fomit-frame-pointer for GCC / -Oy for VCC.
- # -funwind-tables provides support for backtraces in gdb then.
- VBOX_GCC_FP     ?= -fno-omit-frame-pointer
- VBOX_GCC_OPT    ?= -O2 $(VBOX_GCC_mtune-generic)
- VBOX_VCC_FP     ?= -Oy-
- VBOX_VCC_OPT    ?= -O2
- VBOX_GCC_R0_FP  ?= -fno-omit-frame-pointer
- VBOX_GCC_R0_OPT ?= -O2 $(VBOX_GCC_mtune-generic)
- VBOX_VCC_R0_FP  ?= -Oy-
- VBOX_VCC_R0_OPT ?= -O2
- VBOX_GCC_GC_FP  ?= -fno-omit-frame-pointer
- VBOX_GCC_GC_OPT ?= -O2 $(VBOX_GCC_mtune-generic)
- VBOX_VCC_GC_FP  ?= -Oy-
- VBOX_VCC_GC_OPT ?= -O2
-endif
-ifeq ($(KBUILD_TARGET_ARCH),x86)
- ifneq ($(KBUILD_TARGET),darwin)
-  # (The '<=' operator is for prepending (kmk specific).)
-  VBOX_GCC_OPT <= -march=i586
- endif
-endif
-
-
-#
-# Select the CRT type we're using with Microsoft Visual C++.
-#
-if1of ($(KBUILD_TYPE), debug dbgopt strict)
-#not yet# VBOX_WITH_DEBUG_VCC_CRT = 1
-endif
-ifdef VBOX_WITH_DEBUG_VCC_CRT
- VBOX_VCC_CRT_TYPE   = d
- VBOX_VCC_CRT_TYPE_N =
-else
- VBOX_VCC_CRT_TYPE   =
- VBOX_VCC_CRT_TYPE_N = d
-endif
-
-#
 # Decide which Windows DDK to use by default.
 #
 ifeq ($(VBOX_VCC_TOOL_STEM),VCC110)
@@ -2001,7 +1917,7 @@ VBOX_CHECK_IMPORTS ?= $(PATH_OBJ)/VBoxCheckImports/VBoxCheckImports$(HOSTSUFF_EX
 # GNU tar if present.
 if1of ($(KBUILD_TARGET), linux os2 win)
  VBOX_GTAR ?= tar
-else if1of ($(KBUILD_TARGET), freebsd solaris)
+else if1of ($(KBUILD_TARGET), freebsd netbsd solaris)
  VBOX_GTAR ?= gtar
 endif
 
@@ -2044,10 +1960,12 @@ VBOX_PATH_DIFX      ?= $(KBUILD_DEVTOOLS)/win.$(KBUILD_TARGET_ARCH)/DIFx/v2.1-r3
 VBOX_PATH_CABSDK    ?= $(KBUILD_DEVTOOLS)/win.x86/cabsdk/r1
 VBOX_PATH_MAKECAB   ?= $(VBOX_PATH_CABSDK)/BIN/MAKECAB.EXE
 
-# We need to export YASM for OSE, but since it was converted to .zip we need to
-# allow for the location used by the zip to be properly cleaned up first.
-if1of ($(KBUILD_HOST).$(KBUILD_HOST_ARCH), linux.x86 solaris.x86 win.x86)
- PATH_TOOL_YASM ?= $(KBUILD_DEVTOOLS_HST)/bin
+ifdef VBOX_OSE ## @todo try get rid of this crap! People can use the latest and greatest Yasm release, no need to check in the binary for OSE.
+ # We need to export YASM for OSE, but since it was converted to .zip we need to
+ # allow for the location used by the zip to be properly cleaned up first.
+ if1of ($(KBUILD_HOST).$(KBUILD_HOST_ARCH), linux.x86 solaris.x86 win.x86)
+  PATH_TOOL_YASM ?= $(KBUILD_DEVTOOLS_HST)/bin
+ endif
 endif
 
 # The Microsoft IDL compiler (the SDK build needs this on non-Windows).
@@ -2527,10 +2445,10 @@ else
             -nostdlib -o /dev/null -xc /dev/null > /dev/null 2>&1; \
     then echo "-Wl,$(2)"; else echo "$(3)"; fi; )
 
- VBOX_GCC_CHECK_CC    = $(call VBOX_GCC_CHECK_EX_CC,  $(TOOL_$(VBOX_GCC_TOOL)_CC),$1,$2)
- VBOX_GCC_CHECK_CXX   = $(call VBOX_GCC_CHECK_EX_CXX, $(TOOL_$(VBOX_GCC_TOOL)_CXX),$1,$2)
- VBOX_GCC_CHECK_LD    = $(call VBOX_GCC_CHECK_EX_LD,  $(TOOL_$(VBOX_GCC_TOOL)_LD),$1,$2)
- VBOX_GCC32_CHECK_CXX = $(call VBOX_GCC_CHECK_EX_CXX, $(TOOL_$(VBOX_GCC32_TOOL)_CXX),$1,$2)
+ VBOX_GCC_CHECK_CC    = $(call VBOX_GCC_CHECK_EX_CC,  $(TOOL_$(VBOX_GCC_TOOL)_ENV_SETUP) $(TOOL_$(VBOX_GCC_TOOL)_CC),$1,$2)
+ VBOX_GCC_CHECK_CXX   = $(call VBOX_GCC_CHECK_EX_CXX, $(TOOL_$(VBOX_GCC_TOOL)_ENV_SETUP) $(TOOL_$(VBOX_GCC_TOOL)_CXX),$1,$2)
+ VBOX_GCC_CHECK_LD    = $(call VBOX_GCC_CHECK_EX_LD,  $(TOOL_$(VBOX_GCC_TOOL)_ENV_SETUP) $(TOOL_$(VBOX_GCC_TOOL)_LD),$1,$2)
+ VBOX_GCC32_CHECK_CXX = $(call VBOX_GCC_CHECK_EX_CXX, $(TOOL_$(VBOX_GCC32_TOOL)_ENV_SETUP) $(TOOL_$(VBOX_GCC32_TOOL)_CXX),$1,$2)
 endif
 
 ifeq ($(KBUILD_HOST),win) ## @todo can drop this now, we're not using cygwin.
@@ -2644,11 +2562,17 @@ $(PATH_OUT)/DynamicConfig.kmk: \
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-delete-non-virtual-dtor    ?= $(call VBOX_GCC_CHECK_CXX,-Wno-delete-non-virtual-dtor,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-int-to-pointer-cast        ?= $(call VBOX_GCC_CHECK_CC,-Wno-int-to-pointer-cast,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-invalid-offsetof           ?= $(call VBOX_GCC_CHECK_CXX,-Wno-invalid-offsetof,)'
+if $(KBUILD_TARGET) != "darwin" || !defined(VBOX_WITH_NEW_XCODE) ## @todo somthing goes entirely sideways with the detection. clang doesn't know the option, but only complains when we use it in webservices/Makefile.kmk!
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-literal-suffix             ?= $(call VBOX_GCC_CHECK_CXX,-Wno-literal-suffix,)'
+else
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-literal-suffix             ?='
+endif
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-missing-field-initializers ?= $(call VBOX_GCC_CHECK_CC,-Wno-missing-field-initializers,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-pointer-to-int-cast        ?= $(call VBOX_GCC_CHECK_CC,-Wno-pointer-to-int-cast,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-variadic-macros   ?= $(call VBOX_GCC_CHECK_CXX,-Wno-variadic-macros,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-vla               ?= $(call VBOX_GCC_CHECK_CXX,-Wno-vla,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-overlength-strings?= $(call VBOX_GCC_CHECK_CC,-Wno-overlength-strings,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-overloaded-virtual?= $(call VBOX_GCC_CHECK_CXX,-Wno-overloaded-virtual,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-stack-protector   ?= $(call VBOX_GCC_CHECK_CC,-fno-stack-protector,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-dwarf2-cfi-asm    ?= $(call VBOX_GCC_CHECK_CC,-fno-dwarf2-cfi-asm,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_m64                   ?= $(call VBOX_GCC_CHECK_CC,-m64,)'
@@ -2728,6 +2652,7 @@ ifeq ($(KBUILD_HOST),darwin)
 	$(QUIET)$(APPEND) '$@' 'VBOX_LD_no_compact_linkedit    ?= $(call VBOX_GCC_CHECK_LD,-no_compact_linkedit,)'
 endif
 # YASM
+	$(QUIET)$(APPEND) '$@' '# debug: TOOL_YASM_AS="$(TOOL_YASM_AS)"'
 	$(QUIET)$(APPEND) '$@' 'VBOX_YASM_Wno-segreg-in-64bit  ?= $(call VBOX_YASM_CHECK,-Wno-segreg-in-64bit,)'
 # NASM (--allow-64-bit: 2.12rc2)
 	$(QUIET)$(APPEND) '$@' 'VBOX_NASM_allow_64_bit         ?= $(call VBOX_NASM_CHECK,--allow-64-bit,)'
@@ -2781,6 +2706,153 @@ endif
 include $(PATH_OUT)/DynamicConfig.kmk
 endif # !VBOX_NOINC_DYNAMIC_CONFIG_KMK
 
+
+#
+# Compiler warning control.
+#
+VBOX_GCC_WARN     ?= -Wall $(VBOX_GCC_Wextra) $(VBOX_GCC_Wno-missing-field-initializers) -Wno-unused -Wno-trigraphs \
+	$(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-unused-parameter) $(VBOX_GCC_Wno-language-extension-token) \
+	$(VBOX_GCC_Wno-extended-offsetof) $(VBOX_GCC_Wno-gnu-folding-constant) $(VBOX_GCC_Wlogical-op) \
+	$(VBOX_GCC_Wno-string-plus-int) $(VBOX_GCC_Wno-nested-anon-types) $(VBOX_GCC_Wno-variadic-macros)
+VBOX_GCC_WARN_PEDANTIC = -Wshadow $(VBOX_GCC_WARN) -Wno-long-long
+if $(VBOX_GCC_VERSION_CXX) >= 40200 || defined(VBOX_WITH_MASOCHISTIC_WARNINGS) # gcc 4.2.x+ (4.1.2 is causing trouble with the extpack & add builds)
+ VBOX_GCC_WARN_MASOCHISTIC ?= -Wunused-variable -Wunused-function -Wunused-label -Wunused-parameter
+endif
+if   $(KBUILD_TARGET) == "linux" \
+  || ($(KBUILD_TARGET) == "darwin" && defined(VBOX_WITH_NEW_XCODE)) \
+  || defined(VBOX_WITH_MASOCHISTIC_WARNINGS)
+ VBOX_GCC_WARN_PEDANTIC += $(VBOX_GCC_WARN_MASOCHISTIC)
+endif
+
+VBOX_GCC_PEDANTIC_CXX ?= -pedantic $(VBOX_GCC_WARN_PEDANTIC) $(VBOX_GCC_Wno-return-type-c-linkage) $(VBOX_GCC_Wno-overloaded-virtual)
+VBOX_GCC_PEDANTIC_C   ?= -pedantic $(VBOX_GCC_WARN_PEDANTIC) -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations -Werror-implicit-function-declaration
+
+VBOX_GCC_NON_PEDANTIC_CXX ?= -Wno-sign-compare
+VBOX_GCC_NON_PEDANTIC_C   ?= -Wno-sign-compare -Werror-implicit-function-declaration
+
+# Disabled Visual C++ warnings, W4:
+#      -wd4065: switch statement contains 'default' but no 'case' labels
+#      -wd4996: deprecated / insecure.
+#      -wd4127: conditional expression is constant [level 4]
+#      -wd4706: assignment within conditional expression [level 4]
+#      -wd4201: nonstandard extension used : nameless struct/union [level 4]
+#      -wd4214: nonstandard extension used : bit field types other than int [level 4]
+#      -wd4510: 'VM::<unnamed-tag>' : default constructor could not be generated
+#      -wd4512: 'VM' : assignment operator could not be generated
+#      -wd4610: union 'VM::<unnamed-tag>' can never be instantiated - user defined constructor required
+# Disabled Visual C++ warnings, Wall:
+#      -wd4514: unreferenced inline function has been removed
+#      -wd4820: 'RTSTRSPACECORE' : '7' bytes padding added after data member 'RTSTRSPACECORE::uchHeight'
+#      -wd4365: '=' : conversion from 'unsigned char' to 'char', signed/unsigned mismatch
+#      -wd4987: nonstandard extension used: 'throw (...)' (setjmp.h + our stuff)
+#      -wd4710: 'std::string std::_Narrow_str(std::wstring)' : function not inlined
+#      -wd4061: enumerator 'RTASN1TYPE_END' in switch of enum 'RTASN1TYPE' is not explicitly handled by a case label
+#               Note! C4062 checks for the same but includes the 'default' case, just like gcc.  So, no trouble disabling this.
+#      -wd4986: 'operator new[]': exception specification does not match previous declaration (crtdbg.h vs new, exception specification only)
+#      -wd4191: 'type cast' : unsafe conversion from 'int (__cdecl *)(gzFile)' to 'PFNRT'
+#      -wd4574: 'INCL_WINSOCK_API_TYPEDEFS' is defined to be '0': did you mean to use '#if INCL_WINSOCK_API_TYPEDEFS'?
+#      -wd4917: 'OLE_XPOS_HIMETRIC' : a GUID can only be associated with a class, interface or namespace
+#      -wd4711: function 'void __cdecl rtMemCacheFreeOne(struct RTMEMCACHEINT * __ptr64,void * __ptr64)' selected for automatic inline expansion
+#      -wd4571: Informational: catch(...) semantics changed since Visual C++ 7.1; structured exceptions (SEH) are no longer caught
+#      -wd4611: interaction between '_setjmp' and C++ object destruction is non-portable
+#      -wd4324: '_TDI_PNP_CONTEXT_XP' : structure was padded due to __declspec(align())
+#      -wd4505: VBoxNetFltNobj.h(45) : warning C4505: 'VBoxNetFltNobj::Release' : unreferenced local function has been removed
+#               Probably related to http://stackoverflow.com/questions/3051992/compiler-warning-at-c-template-base-class
+#      -wd4263: 'int VRDPChannelClipboard::SendPacket(const void *,uint32_t)' : member function does not override any base class virtual member function
+#               Probably useful, but impractical, just like the next one.
+#      -wd4264: 'int VRDPOutputCtx::SendPacket(void)' : no override available for virtual member function from base 'VRDPOutputCtx'; function is hidden
+#      -wd4738: storing 32-bit float result in memory, possible loss of performance
+# Want to enable these:
+#      -wd4242: '=' : conversion from 'uint32_t' to 'uint8_t', possible loss of data
+#      -wd4244: 'conversion' conversion from 'type1' to 'type2', possible loss of data
+VBOX_VCC_WARN_ALL ?= -W4 -Wall -wd4065 -wd4996 -wd4127 -wd4706 -wd4201 -wd4214 -wd4510 -wd4512 -wd4610 \
+	-wd4514 -wd4820 -wd4365 -wd4987 -wd4710 -wd4061 -wd4986 -wd4191 -wd4574 -wd4917 -wd4711 -wd4611 -wd4571 -wd4324 -wd4505 \
+	-wd4263 -wd4264 -wd4738
+#ifndef VBOX_WITH_MASOCHISTIC_WARNINGS
+# VBOX_VCC_WARN_ALL +=
+#endif
+VBOX_VCC_WARN_ALL += -wd4242 -wd4244
+
+# Disable pedantic warnings for NP/NonPedantic templates.
+#      -wd4131: 'bi_flush' : uses old-style declarator
+#      -wd4255: 'tr_static_init' : no function prototype given: converting '()' to '(void)'
+#      -wd4668: '_WIN32_WCE' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'/
+#      -wd4100: 'cinfo' : unreferenced formal parameter
+#      -wd4189: 'sz' : local variable is initialized but not referenced
+#      -wd4132: 'xmlStringComment' : const object should be initialized
+#      -wd4152: nonstandard extension, function/data pointer conversion in expression
+#      -wd4702: unreachable code
+#      -wd4057: '=' : 'xmlChar *' differs in indirection to slightly different base types from 'char *'
+#      -wd4296: '>=' : expression is always true
+#      -wd4389: '==' : signed/unsigned mismatch
+#      -wd4018: '<=' : signed/unsigned mismatch
+#      -wd4245: '=' : conversion from 'int' to 'unsigned int', signed/unsigned mismatch
+#      -wd4267: '+=' : conversion from 'size_t' to 'long', possible loss of data
+#      -wd4295: 'vendor_string' : array is too small to include a terminating null character
+VBOX_VCC_NON_PEDANTIC = -wd4131 -wd4255 -wd4668 -wd4100 -wd4189 -wd4132 -wd4152 -wd4702 -wd4057 -wd4296 -wd4389 -wd4018 -wd4245 \
+	-wd4267 -wd4295
+
+ifeq ($(KBUILD_TARGET),win)
+ VBOX_C_CXX_FLAGS_NO_UNUSED_PARAMETERS = -wd4100
+else
+ VBOX_C_CXX_FLAGS_NO_UNUSED_PARAMETERS = -Wno-unused-parameter
+endif
+
+#
+# Compiler optimization flags.
+#
+ifeq ($(KBUILD_TYPE),debug)
+ VBOX_GCC_FP     ?= -fno-omit-frame-pointer
+ VBOX_GCC_OPT    ?= -O0
+ VBOX_VCC_FP     ?= -Oy-
+ VBOX_VCC_OPT    ?=
+ VBOX_GCC_R0_FP  ?= -fno-omit-frame-pointer -fno-optimize-sibling-calls
+ VBOX_GCC_R0_OPT ?= -O2
+ VBOX_VCC_R0_FP  ?= -Oy-
+ VBOX_VCC_R0_OPT ?=
+ VBOX_GCC_GC_FP  ?= -fno-omit-frame-pointer -fno-optimize-sibling-calls
+ VBOX_GCC_GC_OPT ?= -O2
+ VBOX_VCC_GC_FP  ?= -Oy-
+ VBOX_VCC_GC_OPT ?=
+else
+ # We should use -fomit-frame-pointer for GCC / -Oy for VCC.
+ # -funwind-tables provides support for backtraces in gdb then.
+ VBOX_GCC_FP     ?= -fno-omit-frame-pointer
+ VBOX_GCC_OPT    ?= -O2 $(VBOX_GCC_mtune-generic)
+ VBOX_VCC_FP     ?= -Oy-
+ VBOX_VCC_OPT    ?= -O2
+ VBOX_GCC_R0_FP  ?= -fno-omit-frame-pointer
+ VBOX_GCC_R0_OPT ?= -O2 $(VBOX_GCC_mtune-generic)
+ VBOX_VCC_R0_FP  ?= -Oy-
+ VBOX_VCC_R0_OPT ?= -O2
+ VBOX_GCC_GC_FP  ?= -fno-omit-frame-pointer
+ VBOX_GCC_GC_OPT ?= -O2 $(VBOX_GCC_mtune-generic)
+ VBOX_VCC_GC_FP  ?= -Oy-
+ VBOX_VCC_GC_OPT ?= -O2
+endif
+ifeq ($(KBUILD_TARGET_ARCH),x86)
+ ifneq ($(KBUILD_TARGET),darwin)
+  # (The '<=' operator is for prepending (kmk specific).)
+  VBOX_GCC_OPT <= -march=i586
+ endif
+endif
+
+
+#
+# Select the CRT type we're using with Microsoft Visual C++.
+#
+if1of ($(KBUILD_TYPE), debug dbgopt strict)
+#not yet# VBOX_WITH_DEBUG_VCC_CRT = 1
+endif
+ifdef VBOX_WITH_DEBUG_VCC_CRT
+ VBOX_VCC_CRT_TYPE   = d
+ VBOX_VCC_CRT_TYPE_N =
+else
+ VBOX_VCC_CRT_TYPE   =
+ VBOX_VCC_CRT_TYPE_N = d
+endif
+
+
 #
 # Warnings as errors.
 #
@@ -2793,6 +2865,27 @@ ifdef VBOX_WITH_WARNINGS_AS_ERRORS
  endif
  VBOX_VCC_WERR ?= -WX
  VBOX_VCC_LD_WERR ?= ## @todo later also: -WX
+endif
+
+#
+# The general GCC/Clang no warning policy.
+#
+# Note! This doesn't control everything.  Instead set VBOX_GCC_WERR=$(NO_SUCH_VARIABLE) to
+#       completely disable -Werror.
+#
+if !defined(VBOX_WITHOUT_NO_GCC_WARNING_POLICY) && !defined(VBOX_WITH_NO_GCC_WARNING_POLICY)
+ if defined(VBOX_WITH_MASOCHISTIC_WARNINGS) # gcc 4.6.x+
+  VBOX_WITH_NO_GCC_WARNING_POLICY = 1
+ else if $(KBUILD_TARGET) == "darwin" && defined(VBOX_WITH_NEW_XCODE)
+   VBOX_WITH_NO_GCC_WARNING_POLICY = 1
+ else if1of ($(KBUILD_TARGET), linux)
+  if $(VBOX_GCC_VERSION_CXX) >= 40600 # gcc 4.6.x+
+   VBOX_WITH_NO_GCC_WARNING_POLICY = 1
+  endif
+ endif
+endif
+ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+ $(info build debug: VBOX_WITH_NO_GCC_WARNING_POLICY is enabled)
 endif
 
 
@@ -3607,7 +3700,7 @@ ifeq ($(KBUILD_TARGET),solaris)
   VBOX_WITH_ADDITIONS =
  else ifeq ($(VBOX_SOLARIS_VERSION),511)
   # OSS audio support for Solaris
-  VBOX_WITH_OSS := $(if-expr $(VBOX_SOLARIS_11_VERSION) >= 115,1,)
+  VBOX_WITH_AUDIO_OSS := $(if-expr $(VBOX_SOLARIS_11_VERSION) >= 115,1,)
  endif
 
  # XPCOM namespace cleanup issue with Solaris GCC 4.5.2 and newer, see @bugref{5838}.
@@ -3673,6 +3766,9 @@ ifdef VBOX_WITH_RAW_MODE
  #
  # Template for building RC things.
  #
+ # Disabled Visual C++ warnings:
+ #     -wd4505: 'iemRaisePageFaultJmp' : unreferenced local function has been removed
+ #
  TEMPLATE_VBoxRc = VBox Raw-Mode Context
  TEMPLATE_VBoxRc_ASTOOL              = $(VBOX_ASTOOL)
  TEMPLATE_VBoxRc_ASFLAGS             = $(VBOX_ASFLAGS32)
@@ -3695,11 +3791,8 @@ ifdef VBOX_WITH_RAW_MODE
  ifeq ($(VBOX_LDR_FMT32),pe)
   TEMPLATE_VBoxRc_TOOL               = $(VBOX_VCC_TOOL_STEM)X86
   TEMPLATE_VBoxRc_RCDEFS             = VBOX_SVN_REV=$(VBOX_SVN_REV) VBOX_SVN_REV_MOD_5K=$(expr $(VBOX_SVN_REV) % 50000)
-  ifdef TODO_MORE_WARNINGS
-   TEMPLATE_VBoxRc_CXXFLAGS          = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- -Gs8192 $(VBOX_VCC_GC_OPT) $(VBOX_VCC_GC_FP) -W4 -wd4244 -wd4996 -wd4127 -wd4100 -wd4214 -wd4706 $(VBOX_VCC_WERR)
-  else
-   TEMPLATE_VBoxRc_CXXFLAGS          = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- -Gs8192 $(VBOX_VCC_GC_OPT) $(VBOX_VCC_GC_FP) -W3 -wd4244 -wd4996 $(VBOX_VCC_WERR)
-  endif
+  TEMPLATE_VBoxRc_CXXFLAGS          = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- -Gs8192 $(VBOX_VCC_GC_OPT) $(VBOX_VCC_GC_FP) \
+  	$(VBOX_VCC_WARN_ALL) -wd4505 $(VBOX_VCC_WERR)
   TEMPLATE_VBoxRc_CFLAGS             = $(TEMPLATE_VBoxRc_CXXFLAGS)
   TEMPLATE_VBoxRc_LDFLAGS            =  -Ignore:4197 \
   	-Driver -Subsystem:NATIVE -Incremental:NO -Align:64 -MapInfo:Exports -NoD $(VBOX_VCC_LD_WERR) -Release -Debug -Opt:Ref -Opt:Icf \
@@ -3728,7 +3821,7 @@ ifdef VBOX_WITH_RAW_MODE
   endif
   ifn1of ($(KBUILD_TARGET), solaris freebsd)
    TEMPLATE_VBoxRc_LIBS               = \
-	$(VBOX_GCC32_LIBGCC) # instricts
+	$(VBOX_GCC32_LIBGCC) # intrinsics
   endif
   if1of ($(KBUILD_TARGET),linux)
    TEMPLATE_VBoxRc_POST_CMDS         = $(if $(eq $(tool_do),LINK_SYSMOD),if readelf -S $(out)|grep -q "[cd]tors"; then echo "Found ctors/dtors in $(out)!"; exit 1; fi)
@@ -3810,6 +3903,9 @@ endif # VBOX_WITH_RAW_MODE
 #
 # Template for building R0 things.
 #
+# Disabled Visual C++ warnings:
+#      -wd4505: 'iemRaisePageFaultJmp' : unreferenced local function has been removed
+#
 TEMPLATE_VBoxR0 = VBox Ring 0
 TEMPLATE_VBoxR0_ASTOOL              = $(VBOX_ASTOOL)
 TEMPLATE_VBoxR0_ASFLAGS             = $(VBOX_ASFLAGS)
@@ -3831,11 +3927,8 @@ endif
 ifeq ($(VBOX_LDR_FMT),pe)
 TEMPLATE_VBoxR0_TOOL                = $(VBOX_VCC_TOOL)
 TEMPLATE_VBoxR0_RCDEFS              = VBOX_SVN_REV=$(VBOX_SVN_REV) VBOX_SVN_REV_MOD_5K=$(expr $(VBOX_SVN_REV) % 50000)
- ifdef TODO_MORE_WARNINGS
-TEMPLATE_VBoxR0_CXXFLAGS            = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP) -W4 -wd4244 -wd4127 -wd4100 -wd4214 -wd4706 -wd4996 $(VBOX_VCC_WERR)
- else
-TEMPLATE_VBoxR0_CXXFLAGS            = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP) -W3 -wd4244 -wd4996 $(VBOX_VCC_WERR)
- endif
+TEMPLATE_VBoxR0_CXXFLAGS            = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP) \
+  	$(VBOX_VCC_WARN_ALL) -wd4505 $(VBOX_VCC_WERR)
 TEMPLATE_VBoxR0_CFLAGS              = $(TEMPLATE_VBoxR0_CXXFLAGS)
 TEMPLATE_VBoxR0_LDFLAGS             = -Ignore:4197 \
 	-Driver -Subsystem:NATIVE -Incremental:NO -Align:4096 -MapInfo:Exports -NoD $(VBOX_VCC_LD_WERR) -Release -Debug -Opt:Ref -Opt:Icf \
@@ -3879,7 +3972,7 @@ else
 endif
 ifn1of ($(KBUILD_TARGET),solaris freebsd)
  TEMPLATE_VBoxR0_LIBS               = \
-	$(VBOX_GCC_LIBGCC) # instricts
+	$(VBOX_GCC_LIBGCC) # intrinsics
 endif
 if1of ($(KBUILD_TARGET),linux)
  TEMPLATE_VBoxR0_POST_CMDS          =  $(if $(eq $(tool_do),LINK_SYSMOD),if readelf -S $(out)|grep -q "[cd]tors"; then echo "Found ctors/dtors in $(out)!"; exit 1; fi)
@@ -3920,6 +4013,16 @@ endif
 #
 # Template for building SUPDRV R0 things.
 #
+# Disabled Visual C++ warnings:
+#     -wd4996: deprecated / insecure.
+#     -wd4127: conditional expression is constant [level 4]
+#     -wd4201: nonstandard extension used : nameless struct/union [level 4]
+#     -wd4214: nonstandard extension used : bit field types other than int [level 4]
+#     -wd4706: assignment within conditional expression [level 4]
+#     -wd4324: '_TDI_PNP_CONTEXT_XP' : structure was padded due to __declspec(align())
+#
+#     -wd4100: 'identifier' : unreferenced formal parameter [level 4] --- TODO: Enable this one!
+#
 TEMPLATE_VBOXR0DRV                     = VBox SUPDRV Ring 0
 TEMPLATE_VBOXR0DRV_ASTOOL              = $(VBOX_ASTOOL)
 TEMPLATE_VBOXR0DRV_ASFLAGS             = $(VBOX_ASFLAGS)
@@ -3942,7 +4045,8 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR0DRV_DEFS.x86          += NO_INTERLOCKED_INTRINSICS # Avoids intrisic VC/WDK trouble
  TEMPLATE_VBOXR0DRV_DEFS.x86          += WIN9X_COMPAT_SPINLOCK     # Avoid multiply defined _KeInitializeSpinLock@4
  TEMPLATE_VBOXR0DRV_DEFS.amd64         = _AMD64_
- TEMPLATE_VBOXR0DRV_CXXFLAGS           = -Zi -Zl -GR- -EHs- -GF -Gz -W3 -GS- -wd4996 -Zc:wchar_t- -Gs4096 $(VBOX_VCC_OPT) $(VBOX_VCC_FP)
+ TEMPLATE_VBOXR0DRV_CXXFLAGS           = -Zi -Zl -GR- -EHs- -GF -Gz -GS- -Zc:wchar_t- $(VBOX_VCC_FP) -Gs4096 $(VBOX_VCC_OPT) \
+	$(VBOX_VCC_WARN_ALL) $(VBOX_VCC_WERR)
  TEMPLATE_VBOXR0DRV_CFLAGS             = $(TEMPLATE_VBOXR0DRV_CXXFLAGS)
  TEMPLATE_VBOXR0DRV_LDFLAGS            = -Ignore:4197 \
  	-Driver -Subsystem:NATIVE -Incremental:NO -Align:4096 -MapInfo:Exports -NoD -Release -Debug -Opt:Ref -Opt:Icf \
@@ -3999,8 +4103,11 @@ TEMPLATE_VBOXR0DRV_INCS               += \
 	$(VBOX_PATH_MACOSX_SDK)/System/Library/Frameworks/Kernel.framework/PrivateHeaders \
 	$(VBOX_PATH_MACOSX_SDK)/System/Library/Frameworks/Kernel.framework/Headers
 ## @todo try use VBOX_GCC_PEDANTIC_CXX
+# -Wno-c++11-extensions -Wno-c99-extensions -Wno-extra-semi -Wno-zero-length-array
 TEMPLATE_VBOXR0DRV_CXXFLAGS            = $(VBOX_DARWIN_DEF_SDK_CXXFLAGS) -mkernel \
-	-g $(VBOX_GCC_pipe) $(VBOX_GCC_WARN) -Wno-long-long $(VBOX_GCC_fdiagnostics-show-option) \
+	-g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) -Wno-long-long $(VBOX_GCC_fdiagnostics-show-option) \
+	-Wno-c++11-extensions -Wno-c99-extensions -Wno-extra-semi -Wno-zero-length-array \
+	-Wno-gnu-zero-variadic-macro-arguments -Wno-four-char-constants \
 	-fno-common -nostdinc -fno-builtin $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) \
 	-fno-exceptions -msoft-float -fapple-kext -fno-rtti -mkernel \
 	-fmodules -fmodules-prune-interval=86400 -fmodules-prune-after=345600 -Wnon-modular-include-in-framework-module \
@@ -4019,7 +4126,7 @@ TEMPLATE_VBOXR0DRV_CXXFLAGS            = $(VBOX_DARWIN_DEF_SDK_CXXFLAGS) -mkerne
 TEMPLATE_VBOXR0DRV_CXXFLAGS.amd64      = -m64 -mno-red-zone
 TEMPLATE_VBOXR0DRV_CXXFLAGS.x86        = -m32
 TEMPLATE_VBOXR0DRV_CFLAGS              = $(VBOX_DARWIN_DEF_SDK_CFLAGS) -mkernel \
-	-g $(VBOX_GCC_pipe) $(VBOX_GCC_WARN) -Wno-long-long $(VBOX_GCC_fdiagnostics-show-option) \
+	-g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C) -Wno-long-long $(VBOX_GCC_fdiagnostics-show-option) \
 	-fno-common -nostdinc -fno-builtin $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) \
 	-fno-exceptions -msoft-float -fapple-kext -fno-rtti  \
 	-fmodules -fmodules-prune-interval=86400 -fmodules-prune-after=345600 -Wnon-modular-include-in-framework-module \
@@ -4027,6 +4134,10 @@ TEMPLATE_VBOXR0DRV_CFLAGS              = $(VBOX_DARWIN_DEF_SDK_CFLAGS) -mkernel 
 	$(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fasm-blocks -fno-strict-aliasing
 TEMPLATE_VBOXR0DRV_CFLAGS.amd64        = -m64 -mno-red-zone
 TEMPLATE_VBOXR0DRV_CFLAGS.x86          = -m32
+  if 1
+   TEMPLATE_VBOXR0DRV_CFLAGS          += $(VBOX_GCC_WERR)
+   TEMPLATE_VBOXR0DRV_CXXFLAGS        += $(VBOX_GCC_WERR)
+  endif
 TEMPLATE_VBOXR0DRV_LDFLAGS             =  $(filter-out $(VBOX_DARWIN_NO_COMPACT_LINKEDIT),$(VBOX_DARWIN_DEF_SDK_LDFLAGS)) \
 	-nostdlib -stdlib=libc++ -Wl,-kext -Wl,-keep_private_externs
 TEMPLATE_VBOXR0DRV_LDFLAGS.amd64       = -m64
@@ -4189,6 +4300,74 @@ endef
 
 endif # FreeBSD
 
+ifeq ($(KBUILD_TARGET),netbsd)
+
+# The location of the NetBSD sources.
+VBOX_NETBSD_SRC ?= /usr/src
+
+# NetBSD uses "i386" for 32-bit, "x86" for common 32- and 64-bit code.
+ifeq ($(KBUILD_TARGET_ARCH),amd64)
+VBOX_NETBSD_TARGET_ARCH=amd64
+else
+VBOX_NETBSD_TARGET_ARCH=i386
+endif
+
+VBOX_NETBSD_TARGET_SRC=$(VBOX_NETBSD_SRC)/sys/arch/$(VBOX_NETBSD_TARGET_ARCH)
+
+TEMPLATE_VBOXR0DRV_TOOL                = $(VBOX_GCC_TOOL)
+TEMPLATE_VBOXR0DRV_DEFS               += _KERNEL _MODULE
+TEMPLATE_VBOXR0DRV_INCS                = \
+	$(VBOX_NETBSD_SRC)/sys \
+	$(VBOX_NETBSD_SRC)/common/include \
+	$(PATH_OBJ)/netbsd/include
+
+TEMPLATE_VBOXR0DRV_CFLAGS              =  \
+	$(VBOX_GCC_WARN) -Wpointer-arith -Winline $(VBOX_GCC_Wno-pointer-sign) \
+	$(VBOX_GCC_fdiagnostics-show-option) \
+	-Wstrict-prototypes -Wmissing-prototypes -Wstrict-prototypes \
+	-Wimplicit-function-declaration -Werror-implicit-function-declaration \
+	-O2 -ffreestanding -fno-strict-aliasing -fno-common -finline-limit=8000 \
+	$(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) \
+	-nostdinc -std=c99 -msoft-float
+TEMPLATE_VBOXR0DRV_CFLAGS.x86          = -m32 \
+    -mpreferred-stack-boundary=2 -mno-mmx -mno-sse -mno-avx \
+    -mno-fp-ret-in-387
+TEMPLATE_VBOXR0DRV_CFLAGS.amd64        = -m64 --param inline-unit-growth=100 \
+    --param large-function-growth=1000 -fno-omit-frame-pointer \
+    -mcmodel=kernel -mno-red-zone -mno-sse -mno-mmx -mno-avx \
+	-fno-asynchronous-unwind-tables -mno-fp-ret-in-387
+TEMPLATE_VBOXR0DRV_CXXFLAGS            = -fno-exceptions -fno-rtti \
+	$(VBOX_GCC_WARN) -Wpointer-arith -Winline \
+	-O2 -fno-strict-aliasing -fno-common -finline-limit=8000 \
+	$(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) \
+	-nostdinc -msoft-float
+TEMPLATE_VBOXR0DRV_CXXFLAGS.x86        = $(TEMPLATE_VBOXR0DRV_CFLAGS.x86)
+TEMPLATE_VBOXR0DRV_CXXFLAGS.amd64      = $(TEMPLATE_VBOXR0DRV_CFLAGS.amd64)
+TEMPLATE_VBOXR0DRV_SYSSUFF             = .kmod
+TEMPLATE_VBOXR0DRV_LDFLAGS             = -d --warn-common
+TEMPLATE_VBOXR0DRV_LDFLAGS.x86         = -m elf_i386
+TEMPLATE_VBOXR0DRV_LDFLAGS.amd64       = -m elf_x86_64
+
+# symlink kernel includes
+TEMPLATE_VBOXR0DRV_ORDERDEPS += \
+	$(PATH_OBJ)/netbsd/include/$(VBOX_NETBSD_TARGET_ARCH) \
+	$(PATH_OBJ)/netbsd/include/x86 \
+	$(PATH_OBJ)/netbsd/include/machine
+
+$$(PATH_OBJ)/netbsd/include/$(VBOX_NETBSD_TARGET_ARCH):
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(LN_SYMLINK) $(VBOX_NETBSD_TARGET_SRC)/include $@
+
+$$(PATH_OBJ)/netbsd/include/x86:
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(LN_SYMLINK) $(VBOX_NETBSD_SRC)/sys/arch/x86/include $@
+
+$$(PATH_OBJ)/netbsd/include/machine:
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(LN_SYMLINK) $(VBOX_NETBSD_TARGET_ARCH) $@
+
+endif # NetBSD
+
 ifeq ($(KBUILD_TARGET),haiku)
 ## The Haiku include directories
 VBOX_HAIKU_SYS_INCS ?= /boot/develop/headers/os/kernel /boot/develop/headers/os/drivers
@@ -4241,6 +4420,11 @@ TEMPLATE_VBoxR0DrvLib_INSTTYPE.linux = stage
 # Template for building R3 executables and static libraries which are linked into executables.
 # Note! This is the base template for a whole lot of other ones, so be careful when changing it.
 #
+# Disabled Visual C++ warnings:
+#      -wd4065: switch statement contains 'default' but no 'case' labels
+#      -wd4244: 'conversion' conversion from 'type1' to 'type2', possible loss of data
+#      -wd4996: deprecated / insecure.
+#
 TEMPLATE_VBOXR3EXE                     = VBox Ring 3 Exe
 TEMPLATE_VBOXR3EXE_ASTOOL              = $(VBOX_ASTOOL)
 TEMPLATE_VBOXR3EXE_ASFLAGS.x86         = $(VBOX_ASFLAGS32)
@@ -4270,7 +4454,8 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR3EXE_TOOL.win.amd64     = $(VBOX_VCC_TOOL_STEM)AMD64
  TEMPLATE_VBOXR3EXE_RCDEFS             = VBOX_SVN_REV=$(VBOX_SVN_REV) VBOX_SVN_REV_MOD_5K=$(expr $(VBOX_SVN_REV) % 50000)
  TEMPLATE_VBOXR3EXE_SDKS               = ReorderCompilerIncs $(VBOX_WINPSDK)
- TEMPLATE_VBOXR3EXE_CXXFLAGS           = -Zi -Zl -GR- -EHsc -GF -MD$(VBOX_VCC_CRT_TYPE) -W3 -wd4065 -wd4244 -wd4996 -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP)
+ TEMPLATE_VBOXR3EXE_CXXFLAGS           = -Zi -Zl -GR- -EHsc -GF -MD$(VBOX_VCC_CRT_TYPE) -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP) \
+ 	$(VBOX_VCC_WARN_ALL) $(VBOX_VCC_WERR)
  TEMPLATE_VBOXR3EXE_CXXFLAGS.debug     = -RTCsu
  TEMPLATE_VBOXR3EXE_CXXFLAGS.dbgopt    = $(NO_SUCH_VARIABLE)
  TEMPLATE_VBOXR3EXE_CXXFLAGS.kprofile  = -Gh -GH
@@ -4320,13 +4505,20 @@ ifeq ($(KBUILD_TARGET),win)
 
 else # the gcc guys
 TEMPLATE_VBOXR3EXE_TOOL                = $(VBOX_GCC_TOOL)
-TEMPLATE_VBOXR3EXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
+TEMPLATE_VBOXR3EXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_OPT) \
+ 	$(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
+ ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+  TEMPLATE_VBOXR3EXE_CXXFLAGS         += $(VBOX_GCC_WERR)
+ endif
 TEMPLATE_VBOXR3EXE_CXXFLAGS.x86        = -m32
 TEMPLATE_VBOXR3EXE_CXXFLAGS.amd64      = -m64
 TEMPLATE_VBOXR3EXE_CXXFLAGS.sparc32    = -m32
 TEMPLATE_VBOXR3EXE_CXXFLAGS.sparc64    = -m64
 TEMPLATE_VBOXR3EXE_CXXFLAGS.kprofile   = -finstrument-functions
 TEMPLATE_VBOXR3EXE_CFLAGS              = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
+ ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+  TEMPLATE_VBOXR3EXE_CFLAGS           += $(VBOX_GCC_WERR)
+ endif
 TEMPLATE_VBOXR3EXE_CFLAGS.x86          = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.x86)
 TEMPLATE_VBOXR3EXE_CFLAGS.amd64        = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.amd64)
 TEMPLATE_VBOXR3EXE_CFLAGS.sparc32      = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.sparc32)
@@ -4378,7 +4570,7 @@ TEMPLATE_VBOXR3EXE_LIBPATH            += \
 TEMPLATE_VBOXR3EXE_CFLAGS             += -fno-pic
 TEMPLATE_VBOXR3EXE_CXXFLAGS           += -fno-pic
 TEMPLATE_VBOXR3EXE_LDFLAGS            += -fno-pic
- else if1of ($(KBUILD_TARGET), freebsd netbsd openbsd)
+ else if1of ($(KBUILD_TARGET), freebsd openbsd)
 TEMPLATE_VBOXR3EXE_TOOL                = GXX3
 TEMPLATE_VBOXR3EXE_LIBS                = pthread
 TEMPLATE_VBOXR3EXE_INCS               += \
@@ -4389,6 +4581,15 @@ TEMPLATE_VBOXR3EXE_LIBPATH            += \
 	/usr/lib \
 	/usr/X11R6/lib \
 	/usr/local/lib
+ else ifeq ($(KBUILD_TARGET),netbsd)
+TEMPLATE_VBOXR3EXE_TOOL                = GXX3
+TEMPLATE_VBOXR3EXE_LIBS                = pthread
+TEMPLATE_VBOXR3EXE_INCS               += \
+	/usr/include \
+	/usr/X11R7/include
+TEMPLATE_VBOXR3EXE_LIBPATH            += \
+	/usr/lib \
+	/usr/X11R7/lib
  else ifeq ($(KBUILD_TARGET),solaris)
 TEMPLATE_VBOXR3EXE_TOOL                = GXX3PLAIN
 TEMPLATE_VBOXR3EXE_DEFS               += LIBICONV_PLUG _REENTRANT # Avoid the GNU libiconv, for now at least.
@@ -4432,7 +4633,7 @@ ifeq ($(KBUILD_TARGET),haiku)
 endif
 
 #
-# Temporary: Renaming the template and warnings will be errors (soon).
+# Temporary: Renaming the template and warnings will be errors ("soon").
 #
 TEMPLATE_VBoxR3Dll                     += VBox ring-3 SO/DLLs, no warnings
 TEMPLATE_VBoxR3Dll_EXTENDS             += VBOXR3
@@ -4473,10 +4674,10 @@ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), linux.x86 freebsd.x86)
  TEMPLATE_VBoxR3DllNoPic_CXXFLAGS          = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) $(VBOX_GCC_WERR)
  TEMPLATE_VBoxR3DllNoPic_LDFLAGS           = $(TEMPLATE_VBOXR3EXE_LDFLAGS)
 else ifeq ($(KBUILD_TARGET),win)
- TEMPLATE_VBoxR3DllNoPic_CFLAGS            = $(TEMPLATE_VBOXR3_CFLAGS)   $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxR3DllNoPic_CFLAGS            = $(filter-out -W3 -wd%,$(TEMPLATE_VBOXR3_CFLAGS)) $(VBOX_VCC_WARN_ALL) $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3DllNoPic_CFLAGS.debug      = $(filter-out -RTC%,$(TEMPLATE_VBOXR3_CFLAGS.debug))
  TEMPLATE_VBoxR3DllNoPic_CFLAGS.release    = $(TEMPLATE_VBOXR3_CFLAGS.release) -GS-
- TEMPLATE_VBoxR3DllNoPic_CXXFLAGS          = $(TEMPLATE_VBOXR3_CXXFLAGS) $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxR3DllNoPic_CXXFLAGS          = $(filter-out -W3 -wd%,$(TEMPLATE_VBOXR3_CXXFLAGS)) $(VBOX_VCC_WARN_ALL) $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3DllNoPic_CXXFLAGS.debug    = $(filter-out -RTC%,$(TEMPLATE_VBOXR3_CXXFLAGS.debug)) # RTCsu Prevents IEM opt.
  TEMPLATE_VBoxR3DllNoPic_CXXFLAGS.release  = $(TEMPLATE_VBOXR3_CXXFLAGS.release) -GS-
  TEMPLATE_VBoxR3DllNoPic_LDFLAGS           = $(TEMPLATE_VBOXR3_LDFLAGS)  $(VBOX_VCC_LD_WERR)
@@ -4588,6 +4789,22 @@ else
  else ifeq ($(KBUILD_TARGET),solaris)
   TEMPLATE_VBoxR3Static_LIBS       += kstat
  endif
+endif
+
+#
+# Non-pedantic variation of VBoxR3Static
+#
+TEMPLATE_VBoxR3StaticNonPedantic            = VBox Static Ring-3 EXE, non-pedantic.
+TEMPLATE_VBoxR3StaticNonPedantic_EXTENDS   = VBoxR3Static
+ifeq ($(KBUILD_TARGET),win)
+ TEMPLATE_VBoxR3StaticNonPedantic_CXXFLAGS = $(TEMPLATE_VBoxR3Static_CXXFLAGS) $(VBOX_VCC_NON_PEDANTIC)
+ TEMPLATE_VBoxR3StaticNonPedantic_CFLAGS   = $(TEMPLATE_VBoxR3Static_CFLAGS)   $(VBOX_VCC_NON_PEDANTIC)
+else # gcc:
+ TEMPLATE_VBoxR3StaticNonPedantic_TOOL     = $(VBOX_GCC_TOOL)
+ TEMPLATE_VBoxR3StaticNonPedantic_CXXFLAGS = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBoxR3Static_CXXFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
+ TEMPLATE_VBoxR3StaticNonPedantic_CFLAGS   = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBoxR3Static_CFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
 endif
 
 
@@ -4815,8 +5032,10 @@ TEMPLATE_VBOXR3TSTNPEXE  = VBox Ring 3 Testcase Exe Non-pedantic
 TEMPLATE_VBOXR3TSTNPEXE_EXTENDS = VBOXR3TSTEXE
 ifneq ($(KBUILD_TARGET),win) # (only gcc)
  TEMPLATE_VBOXR3TSTNPEXE_TOOL             = $(VBOX_GCC_TOOL)
- TEMPLATE_VBOXR3TSTNPEXE_CXXFLAGS         = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXR3TSTEXE_CXXFLAGS)) -Wno-sign-compare
- TEMPLATE_VBOXR3TSTNPEXE_CFLAGS           = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXR3TSTEXE_CFLAGS)) -Wno-sign-compare
+ TEMPLATE_VBOXR3TSTNPEXE_CXXFLAGS         = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3TSTEXE_CXXFLAGS)) \
+ 	-Wno-sign-compare
+ TEMPLATE_VBOXR3TSTNPEXE_CFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3TSTEXE_CFLAGS)) \
+ 	-Wno-sign-compare
 endif
 
 
@@ -4851,9 +5070,10 @@ TEMPLATE_VBOXR3NPEXE                     = VBox Ring 3 Non-pedantic
 TEMPLATE_VBOXR3NPEXE_EXTENDS             = VBOXR3EXE
 ifneq ($(KBUILD_TARGET),win) # (only gcc)
  TEMPLATE_VBOXR3NPEXE_TOOL               = $(VBOX_GCC_TOOL)
- TEMPLATE_VBOXR3NPEXE_CXXFLAGS           = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) -Wno-sign-compare
- TEMPLATE_VBOXR3NPEXE_CFLAGS             = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXR3EXE_CFLAGS)) \
-	-Wno-sign-compare -Werror-implicit-function-declaration
+ TEMPLATE_VBOXR3NPEXE_CXXFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
+ TEMPLATE_VBOXR3NPEXE_CFLAGS             = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3EXE_CFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_C)
 endif
 
 
@@ -4867,11 +5087,12 @@ TEMPLATE_VBOXR3NP = VBox Ring 3 Non-pedantic
 TEMPLATE_VBOXR3NP_EXTENDS = VBOXR3
 ifneq ($(KBUILD_TARGET),win) # (only gcc)
  TEMPLATE_VBOXR3NP_TOOL                  = $(VBOX_GCC_TOOL)
- TEMPLATE_VBOXR3NP_CXXFLAGS              = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXR3_CXXFLAGS)) -Wno-sign-compare
- TEMPLATE_VBOXR3NP_CFLAGS                = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXR3_CFLAGS)) \
-	-Wno-sign-compare -Werror-implicit-function-declaration
- TEMPLATE_VBOXR3NP_OBJCFLAGS             = $(filter-out -pedantic -Wstrict-prototypes,$(TEMPLATE_VBOXR3_OBJCFLAGS))
- TEMPLATE_VBOXR3NP_OBJCXXFLAGS           = $(filter-out -pedantic,$(TEMPLATE_VBOXR3_OBJCXXFLAGS))
+ TEMPLATE_VBOXR3NP_CXXFLAGS              = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3_CXXFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
+ TEMPLATE_VBOXR3NP_CFLAGS                = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3_CFLAGS)) \
+	$(VBOX_GCC_NON_PEDANTIC_C)
+ TEMPLATE_VBOXR3NP_OBJCFLAGS             = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) -pedantic -Wstrict-prototypes,$(TEMPLATE_VBOXR3_OBJCFLAGS))
+ TEMPLATE_VBOXR3NP_OBJCXXFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) -pedantic,$(TEMPLATE_VBOXR3_OBJCXXFLAGS))
 endif
 
 
@@ -4881,18 +5102,22 @@ endif
 #
 TEMPLATE_VBoxR3DllNonPedantic               = VBox ring-3 Non-pedantic, with warnings.
 TEMPLATE_VBoxR3DllNonPedantic_EXTENDS       = VBOXR3
-ifneq ($(KBUILD_TARGET),win) # (only gcc)
+ifeq ($(KBUILD_TARGET),win)
+ TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS     = $(TEMPLATE_VBOXR3_CXXFLAGS) $(VBOX_VCC_NON_PEDANTIC)
+ TEMPLATE_VBoxR3DllNonPedantic_CFLAGS       = $(TEMPLATE_VBOXR3_CFLAGS)   $(VBOX_VCC_NON_PEDANTIC)
+else # gcc:
  TEMPLATE_VBoxR3DllNonPedantic_TOOL         = $(VBOX_GCC_TOOL)
- TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS     = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXR3_CXXFLAGS)) -Wno-sign-compare
- TEMPLATE_VBoxR3DllNonPedantic_CFLAGS       = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXR3_CFLAGS)) \
-	-Wno-sign-compare -Werror-implicit-function-declaration
+ TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS     = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3_CXXFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
+ TEMPLATE_VBoxR3DllNonPedantic_CFLAGS       = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3_CFLAGS)) \
+	$(VBOX_GCC_NON_PEDANTIC_C)
 endif
 
 # x86 edition of the above template for use on AMD64 targets.
 TEMPLATE_VBoxR3DllNonPedantic-x86           = 32-bit VBox ring-3 SO/DLLs, no warnings
 TEMPLATE_VBoxR3DllNonPedantic-x86_EXTENDS   = VBoxR3DllNonPedantic
 TEMPLATE_VBoxR3DllNonPedantic-x86_BLD_TRG_ARCH = x86
-TEMPLATE_VBoxR3DllNonPedantic-x86_DEFS      = $(filter-out HC_ARCH_BITS%,$(TEMPLATE_VBoxR3Dll_DEFS)) \
+TEMPLATE_VBoxR3DllNonPedantic-x86_DEFS      = $(filter-out HC_ARCH_BITS%,$(TEMPLATE_VBoxR3DllNonPedantic_DEFS)) \
 	HC_ARCH_BITS=32 ARCH_BITS=32
 
 
@@ -4940,7 +5165,7 @@ TEMPLATE_VBoxNoCrtGccLib_CFLAGS.release    = -O2 -fno-strict-aliasing
 TEMPLATE_VBoxNoCrtGccLib_CFLAGS.profile    = $(TEMPLATE_VBoxNoCrtGccLib_CFLAGS.release)
 TEMPLATE_VBoxNoCrtGccLib_CFLAGS.kprofile   = $(TEMPLATE_VBoxNoCrtGccLib_CFLAGS.release)
 TEMPLATE_VBoxNoCrtGccLib_CFLAGS.darwin     = -static
-TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS          = $(TEMPLATE_VBoxNoCrtGccLib_CFLAGS)
+TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS          = $(filter-out -Werror-implicit-function-declaration,$(TEMPLATE_VBoxNoCrtGccLib_CFLAGS))
 TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS.$(KBUILD_TARGET) = $(TEMPLATE_VBoxNoCrtGccLib_CFLAGS.$(KBUILD_TARGET))
 TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS.$(KBUILD_TARGET_ARCH) = $(TEMPLATE_VBoxNoCrtGccLib_CFLAGS.$(KBUILD_TARGET_ARCH))
 TEMPLATE_VBoxNoCrtGccLib_INCS              = $(PATH_ROOT)/include/iprt/nocrt
@@ -4949,7 +5174,7 @@ ifeq (disabled-by-mingw-w64 $(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),win.amd64)
  # cross compile to 64-bit ELF (linux).
  TEMPLATE_VBoxNoCrtGccLib_TOOL             = XGCCAMD64LINUX
  TEMPLATE_VBoxNoCrtGccLib_ASTOOL           = YASM
- TEMPLATE_VBoxNoCrtGccLib_ASFLAGS          = -f elf64 -DASM_FORMAT_ELF -D__YASM__ -w+orphan-labels -g dwarf2
+ TEMPLATE_VBoxNoCrtGccLib_ASFLAGS          = -f elf64 -DASM_FORMAT_ELF -D__YASM__ -g dwarf2 -w+orphan-labels $(VBOX_YASM_Wno-segreg-in-64bit)
  TEMPLATE_VBoxNoCrtGccLib_LIBS             = $(KBUILD_DEVTOOLS)/win.x86/x86_64-unknown-linux-gnu/20060701-r2/lib/gcc/x86_64-unknown-linux-gnu/3.4.6/libgcc.a
  TEMPLATE_VBoxNoCrtGccLib_LDFLAGS          = -nostdlib
 
@@ -5036,13 +5261,15 @@ endif
 
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXMAINEXE_SDKS               = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
- # Note: C4250 is the dominance warning, see r32789.
- #       C4065 is about default only switches.
- #       C4996 is about deprected function (CRT only?).
  #TEMPLATE_VBOXMAINEXE_TOOL               = $(VBOX_VCC_TOOL)
  TEMPLATE_VBOXMAINEXE_TOOL.win.x86       = $(VBOX_VCC_TOOL_STEM)X86
  TEMPLATE_VBOXMAINEXE_TOOL.win.amd64     = $(VBOX_VCC_TOOL_STEM)AMD64
- TEMPLATE_VBOXMAINEXE_CXXFLAGS           = -Zi -Zl -GR -EHsc -GF -MD$(VBOX_VCC_CRT_TYPE) -W3 -wd4065 -wd4996 -wd4250 -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP)
+ TEMPLATE_VBOXMAINEXE_CXXFLAGS           = -Zi -Zl -GR -EHsc -GF -MD$(VBOX_VCC_CRT_TYPE) -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP)
+ #    -wd4625: 'DisplaySourceBitmap' : copy constructor could not be generated because a base class copy constructor is inaccessible
+ #    -wd4626: 'DisplaySourceBitmap' : assignment operator could not be generated because a base class assignment operator is inaccessible
+ #             The two above can be cured by adding private: DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(xxxx); but too much work.
+ #    -wd4355: 'this' : used in base member initializer list (e.g. VirtualBoxBase.cpp)
+ TEMPLATE_VBOXMAINEXE_CXXFLAGS          += $(VBOX_VCC_WARN_ALL) -wd4625 -wd4626 -wd4355 $(VBOX_VCC_WERR)
  TEMPLATE_VBOXMAINEXE_CXXFLAGS.debug     = -RTCsu
  TEMPLATE_VBOXMAINEXE_CXXFLAGS.dbgopt    = $(NO_SUCH_VARIABLE)
  TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile  = -Gh -GH
@@ -5085,14 +5312,20 @@ TEMPLATE_VBOXMAINEXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) \
 	$(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) -Wshadow \
 	-fshort-wchar -fpermissive -fexceptions -frtti $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing \
 	$(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_std) $(VBOX_GCC_IPRT_FMT_CHECK)
-ifdef VBOX_WITH_DTRACE_R3_MAIN
- TEMPLATE_VBOXMAINEXE_CXXFLAGS := $(filter-out -pedantic,$(TEMPLATE_VBOXMAINEXE_CXXFLAGS)) -fdollars-in-identifiers # annoying gcc option precedence.
-endif
+ ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+  TEMPLATE_VBOXMAINEXE_CXXFLAGS         += $(VBOX_GCC_WERR)
+ endif
+ ifdef VBOX_WITH_DTRACE_R3_MAIN
+  TEMPLATE_VBOXMAINEXE_CXXFLAGS := $(filter-out -pedantic,$(TEMPLATE_VBOXMAINEXE_CXXFLAGS)) -fdollars-in-identifiers # annoying gcc option precedence.
+ endif
 TEMPLATE_VBOXMAINEXE_CXXFLAGS.x86        = -m32
 TEMPLATE_VBOXMAINEXE_CXXFLAGS.amd64      = -m64
 TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile   = -finstrument-functions
 TEMPLATE_VBOXMAINEXE_CFLAGS              = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C) $(VBOX_GCC_Wno-variadic-macros) \
 	$(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
+ ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+  TEMPLATE_VBOXMAINEXE_CFLAGS           += $(VBOX_GCC_WERR)
+ endif
 TEMPLATE_VBOXMAINEXE_CFLAGS.x86          = -m32
 TEMPLATE_VBOXMAINEXE_CFLAGS.amd64        = -m64
 TEMPLATE_VBOXMAINEXE_CFLAGS.kprofile     = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile)
@@ -5125,7 +5358,7 @@ TEMPLATE_VBOXMAINEXE_LIBS                = $(LIB_RUNTIME)
  else ifeq ($(KBUILD_TARGET),haiku)
 TEMPLATE_VBOXMAINEXE_TOOL                = GXX3
 TEMPLATE_VBOXMAINEXE_LIBS                = $(LIB_RUNTIME) network stdc++ supc++
- else if1of ($(KBUILD_TARGET), freebsd netbsd openbsd)
+ else if1of ($(KBUILD_TARGET), freebsd openbsd)
 TEMPLATE_VBOXMAINEXE_TOOL                = GXX3
 TEMPLATE_VBOXMAINEXE_LIBS                = $(LIB_RUNTIME)
 TEMPLATE_VBOXMAINEXE_INCS               += \
@@ -5136,6 +5369,15 @@ TEMPLATE_VBOXMAINEXE_LIBPATH            += \
 	/usr/lib \
 	/usr/X11R6/lib \
 	/usr/local/lib
+ else ifeq ($(KBUILD_TARGET),netbsd)
+TEMPLATE_VBOXMAINEXE_TOOL                = GXX3
+TEMPLATE_VBOXMAINEXE_LIBS                = $(LIB_RUNTIME)
+TEMPLATE_VBOXMAINEXE_INCS               += \
+	/usr/include \
+	/usr/X11R7/include
+TEMPLATE_VBOXMAINEXE_LIBPATH            += \
+	/usr/lib \
+	/usr/X11R7/lib
 else ifeq ($(KBUILD_TARGET),solaris)
 TEMPLATE_VBOXMAINEXE_TOOL                = GXX3PLAIN
 TEMPLATE_VBOXMAINEXE_DEFS               += _REENTRANT
@@ -5570,7 +5812,16 @@ ifdef VBOX_WITH_QTGUI
      _WIN32_WINNT=0x0500 UNICODE _UNICODE \
      QT_DLL _CRT_SECURE_NO_DEPRECATE \
      $(QMAKE_PRL_DEFINES)
-  TEMPLATE_VBOXQTGUIEXE_CXXFLAGS = -nologo -Zm200 -W3 -MD -Zi -EHsc -Zc:wchar_t-
+  TEMPLATE_VBOXQTGUIEXE_CXXFLAGS = -nologo -Zm200 -MD -Zi -EHsc -Zc:wchar_t-
+  #    -wd4481: nonstandard extension used: override specifier 'override'
+  #    -wd4625: 'QRubberBand' : copy constructor could not be generated because a base class copy constructor is inaccessible
+  #    -wd4626: 'QRubberBand' : assignment operator could not be generated because a base class assignment operator is inaccessible
+  #    -wd4640: qmetatype.h(2210): warning C4640: 'f' : construction of local static object is not thread-safe [too bad]
+  #    -wd4350: behavior change: 'int QStringList::indexOf(const QRegExp &,int) const' called instead of 'int QStringList::indexOf(QRegExp &,int) const'
+  #    -wd4371: UIActionPool.h(393) : warning C4371: 'UIActionPool::PointerToFunction' : layout of class may have changed from a previous version of the compiler due to better packing of member 'UIActionPool::PointerToFunction::ptfr'
+  #    -wd4121: UIActionPool.h(393) : warning C4121: 'UIActionPool::PointerToFunction' : alignment of a member was sensitive to packing
+  #    -wd4718: qmap.h(222) : warning C4718: 'QMapNode<enum DetailsElementType,bool>::destroySubTree' : recursive call has no side effects, deleting
+  TEMPLATE_VBOXQTGUIEXE_CXXFLAGS += $(VBOX_VCC_WARN_ALL) -wd4481 -wd4625 -wd4626 -wd4640 -wd4350 -wd4371 -wd4121 -wd4718 $(VBOX_VCC_WERR)
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.debug = -RTCsu
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.dbgopt = $(NO_SUCH_VARIABLE)
   TEMPLATE_VBOXQTGUIEXE_LDFLAGS = -Ignore:4197 \
@@ -5603,6 +5854,9 @@ ifdef VBOX_WITH_QTGUI
 	-Wno-long-long -fshort-wchar -fno-strict-aliasing \
 	$(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) \
 	$(VBOX_GCC_Wno-return-type-c-linkage) $(VBOX_GCC_std) $(VBOX_GCC_IPRT_FMT_CHECK)
+  ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS += $(VBOX_GCC_WERR)
+  endif
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.x86 = -m32
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.amd64 = -m64
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.linux = -pthread
@@ -5612,6 +5866,9 @@ ifdef VBOX_WITH_QTGUI
   TEMPLATE_VBOXQTGUIEXE_OBJCXXFLAGS = \
 	-g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) \
 	-frtti -fno-exceptions $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
+  ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+   TEMPLATE_VBOXQTGUIEXE_OBJCXXFLAGS += $(VBOX_GCC_WERR)
+  endif
   TEMPLATE_VBOXQTGUIEXE_OBJCXXFLAGS.x86 = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.x86)
   TEMPLATE_VBOXQTGUIEXE_OBJCXXFLAGS.amd64 = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.amd64)
   TEMPLATE_VBOXQTGUIEXE_LDFLAGS.x86 = -m32
@@ -5742,7 +5999,6 @@ TEMPLATE_VBoxDbgSyms_INST = $(INST_VBOXDBG_SYMS)
 
 #
 # Template for building build bldprogs.
-#
 # HACK ALERT! The BLD_TRG_* is a hack to allow building libraries as well.
 #
 TEMPLATE_VBoxBldProg  = VBox Build Program
@@ -5757,7 +6013,7 @@ ifeq ($(KBUILD_TARGET),$(KBUILD_HOST))
  TEMPLATE_VBoxBldProg_ASFLAGS.amd64     := $(VBOX_ASFLAGS64)
 else
  TEMPLATE_VBoxBldProg_ASTOOL            := YASM
- TEMPLATE_VBoxBldProg_ASFLAGS           := -D__YASM__ -Worphan-labels
+ TEMPLATE_VBoxBldProg_ASFLAGS           := -D__YASM__ -Worphan-labels $(VBOX_YASM_Wno-segreg-in-64bit)
  if1of ($(KBUILD_HOST),win)
   TEMPLATE_VBoxBldProg_ASFLAGS          += -g cv8 -DASM_FORMAT_ELF
   TEMPLATE_VBoxBldProg_ASFLAGS.x86      := -f win32
@@ -5771,12 +6027,12 @@ else
   TEMPLATE_VBoxBldProg_ASFLAGS.x86      := -f elf32
   TEMPLATE_VBoxBldProg_ASFLAGS.amd64    := -f elf64
  endif
-  TEMPLATE_VBoxBldProg_ASFLAGS.amd64    += $(VBOX_YASM_Wno-segreg-in-64bit)
 endif
 ifeq ($(KBUILD_HOST),win)
  TEMPLATE_VBoxBldProg_TOOL              := $(VBOX_VCC_TOOL_STEM)$(toupper $(KBUILD_HOST_ARCH))
  TEMPLATE_VBoxBldProg_SDKS              := ReorderCompilerIncs $(VBOX_WINPSDK)
- TEMPLATE_VBoxBldProg_CXXFLAGS          := -Zi -Zl -GR- -EHsc -GF -W3 -wd4065 -wd4244 -wd4996 -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP) -MT$(VBOX_VCC_CRT_TYPE)
+ TEMPLATE_VBoxBldProg_CXXFLAGS          := -Zi -Zl -GR- -EHsc -GF -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP) -MT$(VBOX_VCC_CRT_TYPE) \
+	$(VBOX_VCC_WARN_ALL) $(VBOX_VCC_WERR)
  TEMPLATE_VBoxBldProg_CXXFLAGS.debug    := -RTCsu
  TEMPLATE_VBoxBldProg_CXXFLAGS.dbgopt    = $(NO_SUCH_VARIABLE)
  TEMPLATE_VBoxBldProg_CXXFLAGS.profile   = $(TEMPLATE_VBoxBldProg_CXXFLAGS.release)
@@ -5805,6 +6061,9 @@ else
 # (gcc of some kind )
 TEMPLATE_VBoxBldProg_TOOL                = GXX3
 TEMPLATE_VBoxBldProg_CFLAGS              = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C) $(VBOX_GCC_Wno-variadic-macros)
+ ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+  TEMPLATE_VBoxBldProg_CFLAGS           += $(VBOX_GCC_WERR)
+ endif
 TEMPLATE_VBoxBldProg_CFLAGS.x86          = -m32
 TEMPLATE_VBoxBldProg_CFLAGS.sparc32      = -m32
 TEMPLATE_VBoxBldProg_CFLAGS.amd64        = -m64
@@ -5813,6 +6072,9 @@ TEMPLATE_VBoxBldProg_CFLAGS.release      = -O2 -fno-omit-frame-pointer -fno-stri
 TEMPLATE_VBoxBldProg_CFLAGS.profile      = $(TEMPLATE_VBoxBldProg_CXXFLAGS.profile)
 TEMPLATE_VBoxBldProg_CFLAGS.kprofile     = $(TEMPLATE_VBoxBldProg_CXXFLAGS.kprofile)
 TEMPLATE_VBoxBldProg_CXXFLAGS            = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros)
+ ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
+  TEMPLATE_VBoxBldProg_CXXFLAGS         += $(VBOX_GCC_WERR)
+ endif
 TEMPLATE_VBoxBldProg_CXXFLAGS.x86        = -m32
 TEMPLATE_VBoxBldProg_CXXFLAGS.sparc32    = -m32
 TEMPLATE_VBoxBldProg_CXXFLAGS.amd64      = -m64
@@ -5878,7 +6140,7 @@ TEMPLATE_VBoxBldProg_TOOL                = GXX3
 TEMPLATE_VBoxBldProg_LIBS                = network iconv
 TEMPLATE_VBoxBldProg_LIBPATH            += \
 	/boot/common/lib
- else if1of ($(KBUILD_HOST), freebsd netbsd openbsd)
+ else if1of ($(KBUILD_HOST), freebsd openbsd)
 TEMPLATE_VBoxBldProg_TOOL                = GXX3
 TEMPLATE_VBoxBldProg_LIBS                = pthread
 TEMPLATE_VBoxBldProg_INCS               += \
@@ -5889,6 +6151,15 @@ TEMPLATE_VBoxBldProg_LIBPATH            += \
 	/usr/lib \
 	/usr/X11R6/lib \
 	/usr/local/lib
+ else ifeq ($(KBUILD_HOST),netbsd)
+TEMPLATE_VBoxBldProg_TOOL                = GXX3
+TEMPLATE_VBoxBldProg_LIBS                = pthread
+TEMPLATE_VBoxBldProg_INCS               += \
+	/usr/include \
+	/usr/X11R7/include
+TEMPLATE_VBoxBldProg_LIBPATH            += \
+	/usr/lib \
+	/usr/X11R7/lib
  else ifeq ($(KBUILD_HOST),solaris)
 TEMPLATE_VBoxBldProg_TOOL                = GXX3PLAIN
 TEMPLATE_VBoxBldProg_LIBS                = rt
@@ -5990,7 +6261,7 @@ ifeq ($(KBUILD_TARGET),win)
   TEMPLATE_VBOXGUESTR3EXE_LIBS.win.x86 = $(NO_SUCH_VARIABLE)# Ditch RuntimeR3VccTricks2
  endif
 else # the gcc guys
- ifneq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
+ ifdef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
   ifneq ($(KBUILD_TARGET),linux)
    override VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE :=
   endif
@@ -5999,15 +6270,21 @@ else # the gcc guys
  TEMPLATE_VBOXGUESTR3EXE_TOOL    := $(subst GXX,GCC,$(TEMPLATE_VBOXR3EXE_TOOL))
  TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) -fno-exceptions
  TEMPLATE_VBOXGUESTR3EXE_LDFLAGS.linux = $(filter-out $(VBOX_GCC_ORIGIN_OPT),$(TEMPLATE_VBOXR3EXE_LDFLAGS.linux))
- ifneq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
+ ifdef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
   ifeq ($(KBUILD_TARGET_ARCH),x86)
    TEMPLATE_VBOXGUESTR3EXE_TOOL         := VBoxXGccX86RedHatLinux
   else ifeq ($(KBUILD_TARGET_ARCH),amd64)
    TEMPLATE_VBOXGUESTR3EXE_TOOL         := VBoxXGccAmd64LinuxGnu
    TEMPLATE_VBOXGUESTR3EXE_TOOL.x86     := VBoxXGccX86RedHatLinux
   endif
-  TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS      := $(filter-out $(VBOX_GCC_pipe) $(VBOX_GCC_Wextra) $(VBOX_GCC_Wno-missing-field-initializers) $(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_mtune-generic) $(VBOX_GCC_Wlogical-op),$(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS)) -pipe
-  TEMPLATE_VBOXGUESTR3EXE_CFLAGS        := $(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS)
+  TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS      := $(filter-out $(VBOX_GCC_Wextra) $(VBOX_GCC_WERR) \
+  	$(VBOX_GCC_Wno-missing-field-initializers) $(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-variadic-macros) \
+	$(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_mtune-generic) $(VBOX_GCC_Wlogical-op)\
+	,$(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS)) -pipe
+  TEMPLATE_VBOXGUESTR3EXE_CFLAGS      := $(filter-out $(VBOX_GCC_Wextra) $(VBOX_GCC_WERR) \
+  	$(VBOX_GCC_Wno-missing-field-initializers) $(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-variadic-macros) \
+	$(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_mtune-generic) $(VBOX_GCC_Wlogical-op)\
+	,$(TEMPLATE_VBOXGUESTR3EXE_CFLAGS)) -pipe
   TEMPLATE_VBOXGUESTR3EXE_LDFLAGS.linux := $(filter-out $(VBOX_GCC_ORIGIN_OPT) $(VBOX_LD_as_needed),$(TEMPLATE_VBOXGUESTR3EXE_LDFLAGS.linux))
  endif
  TEMPLATE_VBOXGUESTR3EXE_LDFLAGS  = $(filter-out '$(VBOX_GCC_RPATH_OPT)%,$(TEMPLATE_VBOXR3EXE_LDFLAGS))
@@ -6017,7 +6294,7 @@ TEMPLATE_VBOXGUESTR3EXE_DEFS     := $(filter-out $(ARCH_BITS_DEFS), $(TEMPLATE_V
 TEMPLATE_VBOXGUESTR3EXE_DEFS.linux := $(TEMPLATE_VBOXR3EXE_DEFS.linux) LOG_USE_C99 RT_WITHOUT_EXEC_ALLOC
 ifeq ($(KBUILD_TARGET),linux) # As few libs as possible on linux.
  TEMPLATE_VBOXGUESTR3EXE_LIBS     = pthread rt m dl
-else if1of ($(KBUILD_TARGET), darwin freebsd netbsd openbsd)
+else if1of ($(KBUILD_TARGET), darwin freebsd openbsd)
  TEMPLATE_VBOXGUESTR3EXE_LIBS     = $(TEMPLATE_VBOXR3EXE_LIBS) iconv
 else ifeq ($(KBUILD_TARGET), solaris)
  TEMPLATE_VBOXGUESTR3EXE_LIBS     = $(TEMPLATE_VBOXR3EXE_LIBS) nsl
@@ -6033,6 +6310,21 @@ TEMPLATE_NewVBoxGuestR3Exe_LIBS     = \
 	$(VBOX_LIB_VBGL_R3) \
 	$(VBOX_LIB_IPRT_GUEST_R3) \
 	$(TEMPLATE_VBOXGUESTR3EXE_LIBS)
+
+#
+# Template for building normal R3 programs for the guest additions, strict.
+#
+TEMPLATE_VBoxGuestR3Exe = VBox Guest Program w/ IPRT and VBGL.
+TEMPLATE_VBoxGuestR3Exe_EXTENDS  = NewVBoxGuestR3Exe
+TEMPLATE_VBoxGuestR3Exe_EXTENDS_BY = appending
+ifeq ($(KBUILD_TARGET),win)
+ TEMPLATE_VBoxGuestR3Exe_CFLAGS      += $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxGuestR3Exe_CXXFLAGS    += $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxGuestR3Exe_LDFLAGS     += $(VBOX_VCC_LD_WERR)
+else ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
+ TEMPLATE_VBoxGuestR3Exe_CFLAGS      += $(VBOX_GCC_WERR)
+ TEMPLATE_VBoxGuestR3Exe_CXXFLAGS    += $(VBOX_GCC_WERR)
+endif
 
 #
 # Template for building R3 (dynamic) libraries for the guest additions.
@@ -6057,7 +6349,7 @@ TEMPLATE_NewVBoxGuestR3Dll_LIBS     = \
 	$(VBOX_LIB_IPRT_GUEST_R3_SHARED) \
 	$(VBOX_LIB_VBGL_R3_SHARED) \
 	$(VBOX_LIB_IPRT_GUEST_R3_SHARED) \
-	$(TEMPLATE_VBOXGUESTR3EXE_LIBS)
+	$(TEMPLATE_VBOXGUESTR3DLL_LIBS)
 
 #
 # Template for building normal R3 (dynamic) libraries for the guest additions, strict.
@@ -6069,7 +6361,7 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxGuestR3Dll_CFLAGS      += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxGuestR3Dll_CXXFLAGS    += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxGuestR3Dll_LDFLAGS     += $(VBOX_VCC_LD_WERR)
-else ifeq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
+else ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
  TEMPLATE_VBoxGuestR3Dll_CFLAGS      += $(VBOX_GCC_WERR)
  TEMPLATE_VBoxGuestR3Dll_CXXFLAGS    += $(VBOX_GCC_WERR)
 endif
@@ -6092,7 +6384,7 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxGuestR3Lib_CFLAGS      += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxGuestR3Lib_CXXFLAGS    += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxGuestR3Lib_LDFLAGS     += $(VBOX_VCC_LD_WERR)
-else ifeq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
+else ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
  TEMPLATE_VBoxGuestR3Lib_CFLAGS      += $(VBOX_GCC_WERR)
  TEMPLATE_VBoxGuestR3Lib_CXXFLAGS    += $(VBOX_GCC_WERR)
 endif
@@ -6103,8 +6395,10 @@ endif
 TEMPLATE_VBOXGUESTR3NPEXE          = VBox Guest Program Non-pedantic
 TEMPLATE_VBOXGUESTR3NPEXE_EXTENDS  = VBOXGUESTR3EXE
 ifneq ($(KBUILD_TARGET),win) # gcc only
-TEMPLATE_VBOXGUESTR3NPEXE_CXXFLAGS = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS)) -Wno-sign-compare
-TEMPLATE_VBOXGUESTR3NPEXE_CFLAGS   = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXGUESTR3EXE_CFLAGS)) -Wno-sign-compare
+ TEMPLATE_VBOXGUESTR3NPEXE_CXXFLAGS = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS)) \
+ 	-Wno-sign-compare
+ TEMPLATE_VBOXGUESTR3NPEXE_CFLAGS   = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXGUESTR3EXE_CFLAGS)) \
+ 	-Wno-sign-compare
 endif
 
 #
@@ -6146,7 +6440,7 @@ if1of ($(KBUILD_TARGET), dragonfly freebsd linux netbsd openbsd) # the gnu ld gu
 endif
 TEMPLATE_VBOXGUESTR3XF86MOD_CFLAGS  = $(TEMPLATE_VBOXGUESTR3EXE_CFLAGS) -fno-pie -fno-merge-constants -std=c99 -ffreestanding
 TEMPLATE_VBOXGUESTR3XF86MOD_CXXFLAGS= $(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS) -fno-pie -fno-merge-constants -ffreestanding
-ifeq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
+ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
  TEMPLATE_VBOXGUESTR3XF86MOD_CFLAGS   += $(VBOX_GCC_fno-stack-protector)
  TEMPLATE_VBOXGUESTR3XF86MOD_CXXFLAGS += $(VBOX_GCC_fno-stack-protector)
 endif
@@ -6175,7 +6469,7 @@ TEMPLATE_VBOXGUESTR3XORGMOD_LIBS.$(KBUILD_TARGET)   = $(NO_SUCH_VARIABLE)
 TEMPLATE_VBOXGUESTR3XORGMOD_CFLAGS                  = $(TEMPLATE_VBOXGUESTR3DLL_CFLAGS) -std=c99
 if1of ($(KBUILD_TARGET), linux)
  TEMPLATE_VBOXGUESTR3XORGMOD_CFLAGS                += -Wno-conversion -Wno-unused-parameter
- ifeq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
+ ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
   TEMPLATE_VBOXGUESTR3XORGMOD_CFLAGS               += $(VBOX_GCC_Wno-variadic-macros)
  endif
 endif
@@ -6233,17 +6527,17 @@ endif
 # Template for building OpenGL host dlls.
 #
 TEMPLATE_VBOXCROGLR3HOSTDLL                  = VBox OpenGL Host DLLs
-TEMPLATE_VBOXCROGLR3HOSTDLL_EXTENDS          = VBOXR3NP
+TEMPLATE_VBOXCROGLR3HOSTDLL_EXTENDS         := $(if-expr "$(KBUILD_TARGET)" == "win",VBOXR3,VBOXR3NP)
 TEMPLATE_VBOXCROGLR3HOSTDLL_EXTENDS_BY       = prepending
 TEMPLATE_VBOXCROGLR3HOSTDLL_DEFS             = CHROMIUM_THREADSAFE VBOX_WITH_HGCM UNPACKS
 TEMPLATE_VBOXCROGLR3HOSTDLL_DEFS.win         = _WIN32_WINNT=0x0500 WINDOWS=1
 TEMPLATE_VBOXCROGLR3HOSTDLL_DEFS.linux       = Linux=1 _GNU_SOURCE
 TEMPLATE_VBOXCROGLR3HOSTDLL_DEFS.solaris     = SunOS=1 _GNU_SOURCE #GLEXT_64_TYPES_DEFINED
 TEMPLATE_VBOXCROGLR3HOSTDLL_DEFS.darwin      = DARWIN=1 GL_GLEXT_LEGACY _GNU_SOURCE VBOX_WITH_COCOA_QT
-TEMPLATE_VBOXCROGLR3HOSTDLL_LDFLAGS.darwin   = -framework AppKit
 TEMPLATE_VBOXCROGLR3HOSTDLL_DEFS.freebsd     = FreeBSD=1 _GNU_SOURCE
 TEMPLATE_VBOXCROGLR3HOSTDLL_INCS             = $(VBOX_PATH_CROGL_INCLUDE) $(VBOX_PATH_CROGL_GENFILES)
 TEMPLATE_VBOXCROGLR3HOSTDLL_SDKS.darwin      = DARWIN-OPENGL
+TEMPLATE_VBOXCROGLR3HOSTDLL_LDFLAGS.darwin   = -framework AppKit
 TEMPLATE_VBOXCROGLR3HOSTDLL_LDFLAGS.darwin  += \
 	-framework OpenGL \
 	-current_version $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
@@ -6267,22 +6561,30 @@ TEMPLATE_VBOXCROGLR3HOSTLIB_INST    = $(INST_LIB)
 # Template for building OpenGL guest dlls.
 #
 TEMPLATE_VBOXCROGLR3GUESTDLL                  = VBox OpenGL Guest DLLs
+if "$(KBUILD_TARGET)" == "win" || defined(VBOX_WITH_MASOCHISTIC_WARNINGS) || defined(VBOX_WITH_NO_GCC_WARNING_POLICY) ## @todo use VBoxGuestR3Dll everywhere
+TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS          = VBoxGuestR3Dll
+else
 TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS          = VBOXGUESTR3NPDLL
-TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS_BY       = prepending
-TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS             = CHROMIUM_THREADSAFE VBOX_WITH_HGCM
-TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.win         = WINDOWS=1
-TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.linux       = Linux=1 _GNU_SOURCE
-TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.solaris     = SunOS=1 _GNU_SOURCE #GLEXT_64_TYPES_DEFINED
-TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.darwin      = DARWIN=1 GL_GLEXT_LEGACY _GNU_SOURCE VBOX_WITH_COCOA_QT
-TEMPLATE_VBOXCROGLR3GUESTDLL_LDFLAGS.darwin   = -framework AppKit
-TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.freebsd     = FreeBSD=1 _GNU_SOURCE
-TEMPLATE_VBOXCROGLR3GUESTDLL_INCS             = $(VBOX_PATH_CROGL_INCLUDE) $(VBOX_PATH_CROGL_GENFILES)
-TEMPLATE_VBOXCROGLR3GUESTDLL_SDKS.darwin      = DARWIN-OPENGL
-TEMPLATE_VBOXCROGLR3GUESTDLL_LDFLAGS.darwin  += \
+endif
+TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS             = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_DEFS) CHROMIUM_THREADSAFE VBOX_WITH_HGCM
+TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.win         = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_DEFS.win) WINDOWS=1
+TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.linux       = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_DEFS.linux) Linux=1 _GNU_SOURCE
+TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.solaris     = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_DEFS.solaris) SunOS=1 _GNU_SOURCE #GLEXT_64_TYPES_DEFINED
+TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.darwin      = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_DEFS.darwin) DARWIN=1 GL_GLEXT_LEGACY _GNU_SOURCE VBOX_WITH_COCOA_QT
+TEMPLATE_VBOXCROGLR3GUESTDLL_DEFS.freebsd     = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_DEFS.freebsd) FreeBSD=1 _GNU_SOURCE
+TEMPLATE_VBOXCROGLR3GUESTDLL_INCS             = $(VBOX_PATH_CROGL_INCLUDE) $(VBOX_PATH_CROGL_GENFILES) $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_INCS)
+TEMPLATE_VBOXCROGLR3GUESTDLL_SDKS.darwin      = DARWIN-OPENGL $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_SDKS)
+ifneq ($(KBUILD_TARGET),win)
+ TEMPLATE_VBOXCROGLR3GUESTDLL_CFLAGS          = $(filter-out -pedantic, $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_CFLAGS)) \
+ 	$(if-expr !defined(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),$(VBOX_GCC_Wno-overlength-strings),)
+ TEMPLATE_VBOXCROGLR3GUESTDLL_CXXFLAGS        = $(filter-out -pedantic, $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_CXXFLAGS))
+endif
+TEMPLATE_VBOXCROGLR3GUESTDLL_LDFLAGS.darwin   = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_LDFLAGS.darwin)\
+	-framework AppKit \
 	-framework OpenGL \
 	-current_version $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
 	-compatibility_version $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)
-TEMPLATE_VBOXCROGLR3GUESTDLL_BLDDIRS          = $(VBOX_PATH_CROGL_GENFILES)/
+TEMPLATE_VBOXCROGLR3GUESTDLL_BLDDIRS          = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_BLDDIRS) $(VBOX_PATH_CROGL_GENFILES)/
 
 #
 # Template for building OpenGL guest libraries.
@@ -6545,7 +6847,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 108956 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 110228 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -6684,6 +6986,34 @@ VBOX_JAVADOC_OPTS = -encoding UTF-8
 ifneq ($(LOCALCFG),)
  include $(LOCALCFG)
 endif
+
+
+#
+# For efficiently build serveral build types / archs.
+#
+both-debug-release both-release-debug: \
+		build-release-$(KBUILD_TARGET_ARCH) \
+		build-debug-$(KBUILD_TARGET_ARCH)
+both-x86-amd64     both-amd64-x86: \
+		build-$(KBUILD_TYPE)-x86 \
+		build-$(KBUILD_TYPE)-x86
+both-types-archs both-archs-types: \
+		build-debug-x86 \
+		build-release-x86 \
+		build-debug-amd64 \
+		build-release-amd64
+
+build-release-x86:
+	+$(MAKE) KBUILD_TYPE=release KBUILD_TARGET_ARCH=x86
+
+build-debug-x86:
+	+$(MAKE) KBUILD_TYPE=debug KBUILD_TARGET_ARCH=x86
+
+build-release-amd64:
+	+$(MAKE) KBUILD_TYPE=release KBUILD_TARGET_ARCH=amd64
+
+build-debug-amd64:
+	+$(MAKE) KBUILD_TYPE=debug KBUILD_TARGET_ARCH=amd64
 
 
 #

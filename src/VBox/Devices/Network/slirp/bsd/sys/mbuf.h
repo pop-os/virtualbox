@@ -62,7 +62,11 @@ DECLNORETURN(static void) panic (char *fmt, ...)
 /* for non-gnu compilers */
 # define __func__ RT_GCC_EXTENSION __FUNCTION__
 # ifndef __inline
+#  ifdef __GNUC__
+#  define __inline __inline__
+# else
 #  define __inline
+# endif
 # endif
 
 # define bzero(a1, len) memset((a1), 0, (len))
@@ -622,7 +626,7 @@ m_free_fast(PNATState pData, struct mbuf *m)
 {
 	AssertMsg(SLIST_EMPTY(&m->m_pkthdr.tags), ("doing fast free of mbuf with tags"));
 
-	uma_zfree_arg(zone_mbuf, m, (void *)MB_NOTAGS);
+	uma_zfree_arg(zone_mbuf, m, (void *)(uintptr_t)MB_NOTAGS);
 }
 #endif
 

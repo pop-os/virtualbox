@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,7 +94,6 @@ RT_C_DECLS_BEGIN
  *
  * IMPORTANT! Keep the nasm version of this struct up-to-date.
  */
-#pragma pack(4)
 typedef struct TRPM
 {
     /** Offset to the VM structure.
@@ -132,10 +131,10 @@ typedef struct TRPM
 
     /** RC Pointer to the IDT shadow area (aIdt) in HMA. */
     RCPTRTYPE(void *)       pvMonShwIdtRC;
-    /** Current (last) Guest's IDTR. */
-    VBOXIDTR                GuestIdtr;
     /** padding. */
     uint8_t                 au8Padding[2];
+    /** Current (last) Guest's IDTR. */
+    VBOXIDTR                GuestIdtr;
     /** Shadow IDT virtual write access handler type. */
     PGMVIRTHANDLERTYPE      hShadowIdtWriteHandlerType;
     /** Guest IDT virtual write access handler type. */
@@ -176,6 +175,7 @@ typedef struct TRPM
     R3PTRTYPE(PSTAMCOUNTER) paStatHostIrqR3;
 #endif
 } TRPM;
+AssertCompileMemberAlignment(TRPM, GuestIdtr.pIdt, 8);
 
 /** Pointer to TRPM Data. */
 typedef TRPM *PTRPM;
@@ -227,17 +227,14 @@ typedef struct TRPMCPU
     /** Saved trap vector number. */
     RTGCUINT                uSavedVector; /**< @todo don't use RTGCUINT */
 
-    /** Saved trap type. */
-    TRPMEVENT               enmSavedType;
-
     /** Saved errorcode. */
     RTGCUINT                uSavedErrorCode;
 
     /** Saved cr2. */
     RTGCUINTPTR             uSavedCR2;
 
-    /** Previous trap vector # - for debugging. */
-    RTGCUINT                uPrevVector;
+    /** Saved trap type. */
+    TRPMEVENT               enmSavedType;
 
     /** Instruction length for software interrupts and software exceptions
      * (\#BP, \#OF) */
@@ -248,15 +245,16 @@ typedef struct TRPMCPU
 
     /** Padding. */
     uint8_t                 au8Padding[2];
+
+    /** Previous trap vector # - for debugging. */
+    RTGCUINT                uPrevVector;
 } TRPMCPU;
 
 /** Pointer to TRPMCPU Data. */
 typedef TRPMCPU *PTRPMCPU;
 
-#pragma pack()
 
-
-PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER)  trpmGuestIDTWriteHandler;
+PGM_ALL_CB2_PROTO(FNPGMVIRTHANDLER) trpmGuestIDTWriteHandler;
 DECLEXPORT(FNPGMRCVIRTPFHANDLER)    trpmRCGuestIDTWritePfHandler;
 DECLEXPORT(FNPGMRCVIRTPFHANDLER)    trpmRCShadowIDTWritePfHandler;
 

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,6 +60,7 @@ void AdditionsFacility::FinalRelease()
 HRESULT AdditionsFacility::init(Guest *a_pParent, AdditionsFacilityType_T a_enmFacility, AdditionsFacilityStatus_T a_enmStatus,
                                 uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
 {
+    RT_NOREF(a_pParent);
     LogFlowThisFunc(("a_pParent=%p\n", a_pParent));
 
     /* Enclose the state transition NotReady->InInit->Ready. */

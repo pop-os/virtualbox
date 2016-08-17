@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 108947 $)
+# Linux Additions kernel module init script ($Revision: 109440 $)
 #
 
 #
@@ -38,12 +38,6 @@ MODPROBE=/sbin/modprobe
 OLDMODULES="vboxguest vboxadd vboxsf vboxvfs vboxvideo"
 SCRIPTNAME=vboxadd.sh
 QUICKSETUP=
-
-# These are getting hard-coded in more and more places...
-test -z "${KERN_DIR}" && KERN_DIR="/lib/modules/`uname -r`/build"
-test -z "${MODULE_DIR}" && MODULE_DIR="/lib/modules/`uname -r`/misc"
-KERN_DIR_SUFFIX="${KERN_DIR#/lib/modules/}"
-KERN_VER="${KERN_DIR_SUFFIX%/*}"
 
 if $MODPROBE -c 2>/dev/null | grep -q '^allow_unsupported_modules  *0'; then
   MODPROBE="$MODPROBE --allow-unsupported-modules"
@@ -227,32 +221,18 @@ start()
     # Install the guest OpenGL drivers.  For now we don't support
     # multi-architecture installations
     rm -f /etc/ld.so.conf.d/00vboxvideo.conf
-    ldconfig
     if /usr/bin/VBoxClient --check3d 2>/dev/null; then
-        rm -f /var/lib/VBoxGuestAdditions/lib/system/tmp.so
-        mkdir -m 0755 -p /var/lib/VBoxGuestAdditions/lib/system
-        ldconfig -p | while read -r line; do
-            case "${line}" in "libGL.so.1 ${ldconfig_arch} => "*)
-                ln -s "${line#libGL.so.1 ${ldconfig_arch} => }" /var/lib/VBoxGuestAdditions/lib/system/tmp.so
-                mv /var/lib/VBoxGuestAdditions/lib/system/tmp.so /var/lib/VBoxGuestAdditions/lib/system/libGL.so.1
-                break
-            esac
-        done
-        ldconfig -p | while read -r line; do
-            case "${line}" in "libEGL.so.1 ${ldconfig_arch} => "*)
-                ln -s "${line#libEGL.so.1 ${ldconfig_arch} => }" /var/lib/VBoxGuestAdditions/lib/system/tmp.so
-                mv /var/lib/VBoxGuestAdditions/lib/system/tmp.so /var/lib/VBoxGuestAdditions/lib/system/libEGL.so.1
-                break
-            esac
-        done
+        mkdir -p /var/lib/VBoxGuestAdditions/lib
         ln -sf "${INSTALL_DIR}/lib/VBoxOGL.so" /var/lib/VBoxGuestAdditions/lib/libGL.so.1
         ln -sf "${INSTALL_DIR}/lib/VBoxEGL.so" /var/lib/VBoxGuestAdditions/lib/libEGL.so.1
         # SELinux for the OpenGL libraries, so that gdm can load them during the
         # acceleration support check.  This prevents an "Oh no, something has gone
         # wrong!" error when starting EL7 guests.
         if test -e /etc/selinux/config; then
-            semanage fcontext -a -t lib_t "/var/lib/VBoxGuestAdditions/lib/libGL.so.1"
-            semanage fcontext -a -t lib_t "/var/lib/VBoxGuestAdditions/lib/libEGL.so.1"
+            if command -v semanage > /dev/null; then
+                semanage fcontext -a -t lib_t "/var/lib/VBoxGuestAdditions/lib/libGL.so.1"
+                semanage fcontext -a -t lib_t "/var/lib/VBoxGuestAdditions/lib/libEGL.so.1"
+            fi
             chcon -h  -t lib_t "/var/lib/VBoxGuestAdditions/lib/libGL.so.1"
             chcon -h  -t lib_t  "/var/lib/VBoxGuestAdditions/lib/libEGL.so.1"
         fi
@@ -279,14 +259,11 @@ stop()
     if ! umount -a -t vboxsf 2>/dev/null; then
         fail "Cannot unmount vboxsf folders"
     fi
-    if running_vboxsf; then
-        rmmod vboxsf 2>/dev/null || fail "Cannot unload module vboxsf"
-    fi
-    if running_vboxguest; then
-        rmmod vboxguest 2>/dev/null || fail "Cannot unload module vboxguest"
-        rm -f $userdev || fail "Cannot unlink $userdev"
-        rm -f $dev || fail "Cannot unlink $dev"
-    fi
+    modprobe -q -r -a vboxvideo vboxsf vboxguest
+    egrep -q 'vboxguest|vboxsf|vboxvideo' /proc/modules &&
+        echo "You may need to restart your guest system to finish removing the guest drivers."
+    rm -f $userdev || fail "Cannot unlink $userdev"
+    rm -f $dev || fail "Cannot unlink $dev"
     succ_msg
     return 0
 }
@@ -297,39 +274,16 @@ restart()
     return 0
 }
 
-## Update the initramfs.  Debian and Ubuntu put the graphics driver in, and
-# need the touch(1) command below.  Everyone else that I checked just need
-# the right module alias file from depmod(1) and only use the initramfs to
-# load the root filesystem, not the boot splash.  update-initramfs works
-# for the first two and dracut for every one else I checked.  We are only
-# interested in distributions recent enough to use the KMS vboxvideo driver.
-## @param $1  kernel version to update for.
-update_module_dependencies()
-{
-    depmod "${1}"
-    rm -f "/lib/modules/${1}/initrd/vboxvideo"
-    test -d "/lib/modules/${1}/initrd" &&
-        test -f "/lib/modules/${1}/misc/vboxvideo.ko" &&
-        touch "/lib/modules/${1}/initrd/vboxvideo"
-    test -n "${QUICKSETUP}" && return
-    if type dracut >/dev/null 2>&1; then
-        dracut -f "/boot/initramfs-${1}.img" "${1}"
-    elif type update-initramfs >/dev/null 2>&1; then
-        update-initramfs -u -k "${1}"
-    fi
-}
-
 # Remove any existing VirtualBox guest kernel modules from the disk, but not
 # from the kernel as they may still be in use
 cleanup_modules()
 {
     begin "Removing existing VirtualBox kernel modules"
-    # We no longer support DKMS, remove any leftovers.
-    for i in vboxguest vboxadd vboxsf vboxvfs vboxvideo; do
+    for i in ${OLDMODULES}; do
+        # We no longer support DKMS, remove any leftovers.
         rm -rf "/var/lib/dkms/${i}"*
-    done
-    for i in $OLDMODULES; do
-        find /lib/modules -name $i\* | xargs rm 2>/dev/null
+        # And remove old modules.
+        rm -f /lib/modules/*/misc/"${i}"*
     done
     # Remove leftover module folders.
     for i in /lib/modules/*/misc; do
@@ -373,7 +327,7 @@ setup_modules()
         show_error "Look at $LOG to find out what went wrong"
     fi
     succ_msg
-    update_module_dependencies "${KERN_VER}"
+    depmod
     return 0
 }
 
@@ -446,9 +400,9 @@ EOF
     if test -e /etc/selinux/config; then
         # This is correct.  semanage maps this to the real path, and it aborts
         # with an error, telling you what you should have typed, if you specify
-        # the real path.  The "chcon" is there as a back-up in case this is
-        # different on old guests.
-        semanage fcontext -a -t mount_exec_t "/usr/lib/$PACKAGE/mount.vboxsf"
+        # the real path.  The "chcon" is there as a back-up for old guests.
+        command -v semanage > /dev/null &&
+            semanage fcontext -a -t mount_exec_t "/usr/lib/$PACKAGE/mount.vboxsf"
         chcon -t mount_exec_t "$lib_path/$PACKAGE/mount.vboxsf"
     fi
     succ_msg
@@ -502,9 +456,7 @@ cleanup()
 
     # Delete old versions of VBox modules.
     cleanup_modules
-    for i in /lib/modules/*; do
-        update_module_dependencies "${i#/lib/modules/}"
-    done
+    depmod
 
     # Remove old module sources
     for i in $OLDMODULES; do
@@ -521,7 +473,6 @@ cleanup()
     rm -f /etc/kernel/postinst.d/vboxadd /etc/kernel/prerm.d/vboxadd
     rmdir -p /etc/kernel/postinst.d /etc/kernel/prerm.d 2>/dev/null
     rm /etc/udev/rules.d/60-vboxadd.rules 2>/dev/null
-    rm -f /lib/modules/*/initrd/vboxvideo
 }
 
 dmnstatus()

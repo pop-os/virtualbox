@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -134,9 +134,8 @@ proxy_sockerr_rtstrfmt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
                        void *pvUser)
 {
     const int error = (int)(intptr_t)pvValue;
-    size_t cb = 0;
 
-    const char *msg = NULL;
+    const char *msg;
     char buf[128];
 
     NOREF(cchWidth);
@@ -147,13 +146,12 @@ proxy_sockerr_rtstrfmt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
     AssertReturn(strcmp(pszType, "sockerr") == 0, 0);
 
     /* make sure return type mismatch is caught */
+    buf[0] = '\0';
 #if defined(RT_OS_LINUX) && defined(_GNU_SOURCE)
     msg = strerror_r(error, buf, sizeof(buf));
 #else
-    {
-        int status = strerror_r(error, buf, sizeof(buf));
-        msg = buf;
-    }
+    strerror_r(error, buf, sizeof(buf));
+    msg = buf;
 #endif
     return RTStrFormat(pfnOutput, pvArgOutput, NULL, NULL, "%s", msg);
 }
@@ -459,7 +457,7 @@ proxy_connected_socket(int sdom, int stype,
     }
     DPRINTF(("socket %d\n", s));
 
-    /* TODO: needs locking if dynamic modifyvm is allowed */
+    /** @todo needs locking if dynamic modifyvm is allowed */
     if (sdom == PF_INET6) {
         psrc_sa = (const struct sockaddr *)g_proxy_options->src6;
         src_sa_len = sizeof(struct sockaddr_in6);

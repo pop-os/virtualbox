@@ -24,7 +24,7 @@
 #include <typeinfo>
 
 #if !defined(VBOX_WITH_XPCOM)
-#include <windows.h>
+#include <iprt/win/windows.h>
 #include <dbghelp.h>
 #else /* !defined(VBOX_WITH_XPCOM) */
 /// @todo remove when VirtualBoxErrorInfo goes away from here
@@ -252,9 +252,11 @@ HRESULT VirtualBoxBase::handleUnexpectedExceptions(VirtualBoxBase *const aThis, 
                                 true /* aLogIt */);
     }
 
+#ifndef _MSC_VER /* (unreachable) */
     /* should not get here */
     AssertFailed();
     return E_FAIL;
+#endif
 }
 
 /**

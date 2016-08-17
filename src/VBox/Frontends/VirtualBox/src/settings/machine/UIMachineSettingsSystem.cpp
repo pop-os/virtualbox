@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -623,7 +623,7 @@ void UIMachineSettingsSystem::prepareTabMotherboard()
 #endif /* VBOX_WS_MAC */
     /* Install global event filter
      * to handle boot-table focus in/out events: */
-    // TODO: Get rid of that *crap*!
+    /// @todo Get rid of that *crap*!
     qApp->installEventFilter(this);
 
     /* Populate possible boot items list.

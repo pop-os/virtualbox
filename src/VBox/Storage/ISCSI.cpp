@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1041,7 +1041,6 @@ static int iscsiTransportRead(PISCSIIMAGE pImage, PISCSIRES paResponse, unsigned
 static int iscsiTransportWrite(PISCSIIMAGE pImage, PISCSIREQ paRequest, unsigned int cnRequest)
 {
     int rc = VINF_SUCCESS;
-    uint32_t pad = 0;
     unsigned int i;
 
     LogFlowFunc(("cnRequest=%d (%s:%d)\n", cnRequest, pImage->pszHostname, pImage->uPort));
@@ -1218,7 +1217,7 @@ static int iscsiTransportOpen(PISCSIIMAGE pImage)
  */
 static DECLCALLBACK(int) iscsiAttach(void *pvUser)
 {
-    int rc;
+    int rc = VINF_SUCCESS;      /* (MSC is used uninitialized) */
     uint32_t itt;
     uint32_t csg, nsg, substate;
     uint64_t isid_tsih;
@@ -1227,7 +1226,7 @@ static DECLCALLBACK(int) iscsiAttach(void *pvUser)
     bool transit;
     uint8_t pbChallenge[1024];  /* RFC3720 specifies this as maximum. */
     size_t cbChallenge = 0;     /* shut up gcc */
-    uint8_t bChapIdx;
+    uint8_t bChapIdx = 0;       /* (MSC is used uninitialized) */
     uint8_t aResponse[RTMD5HASHSIZE];
     uint32_t cnISCSIReq = 0;
     ISCSIREQ aISCSIReq[4];
@@ -1513,6 +1512,7 @@ restart:
                                 rc = VERR_PARSE_ERROR;
                                 break;
                             case 0x0001:    /* security negotiation, step 1: receive final CHAP variant and challenge. */
+                            {
                                 rc = iscsiUpdateParameters(pImage, bBuf, aISCSIRes[1].cbSeg);
                                 if (RT_FAILURE(rc))
                                     break;
@@ -1539,7 +1539,9 @@ restart:
                                     break;
                                 }
                                 rc = RTStrToUInt8Ex(pcszChapIdxTarget, &pszNext, 0, &bChapIdx);
-                                if ((rc > VINF_SUCCESS) || *pszNext != '\0')
+/** @todo r=bird: Unsafe use of pszNext on failure.  The code should probably
+ *        use RTStrToUInt8Full and check for rc != VINF_SUCCESS. */
+                                if (rc > VINF_SUCCESS || *pszNext != '\0')
                                 {
                                     rc = VERR_PARSE_ERROR;
                                     break;
@@ -1557,6 +1559,7 @@ restart:
                                 substate++;
                                 transit = true;
                                 break;
+                            }
                             case 0x0002:    /* security negotiation, step 2: check authentication success. */
                                 rc = iscsiUpdateParameters(pImage, bBuf, aISCSIRes[1].cbSeg);
                                 if (RT_FAILURE(rc))
@@ -2623,6 +2626,7 @@ static int iscsiRecvPDUProcess(PISCSIIMAGE pImage, PISCSIRES paRes, uint32_t cnR
  */
 static int iscsiValidatePDU(PISCSIRES paRes, uint32_t cnRes)
 {
+    RT_NOREF1(cnRes);
     const uint32_t *pcrgResBHS;
     uint32_t hw0;
     Assert(cnRes >= 1);
@@ -2905,7 +2909,7 @@ static int iscsiRecvPDUUpdateRequest(PISCSIIMAGE pImage, PISCSIRES paRes, uint32
             {
                 /* Copy data from the received PDU into the T2I segments. */
                 size_t cbCopied = RTSgBufCopyFromBuf(&pScsiReq->SgBufT2I, pvData, cbData);
-                Assert(cbCopied == cbData);
+                Assert(cbCopied == cbData); NOREF(cbCopied);
 
                 if (final && (RT_N2H_U32(paResBHS[0]) & ISCSI_STATUS_BIT) != 0)
                 {
@@ -3462,8 +3466,9 @@ static void iscsiReattach(PISCSIIMAGE pImage)
 /**
  * Internal. Main iSCSI I/O worker.
  */
-static DECLCALLBACK(int) iscsiIoThreadWorker(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) iscsiIoThreadWorker(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF1(hThreadSelf);
     PISCSIIMAGE pImage = (PISCSIIMAGE)pvUser;
 
     /* Initialize the initial event mask. */
@@ -3509,7 +3514,7 @@ static DECLCALLBACK(int) iscsiIoThreadWorker(RTTHREAD ThreadSelf, void *pvUser)
                             pImage->fTryReconnect = false;
                             iscsiReattach(pImage);
                         }
-    
+
                         /* If there is no connection complete the command with an error. */
                         if (RT_LIKELY(iscsiIsClientConnected(pImage)))
                         {
@@ -3621,6 +3626,7 @@ static int iscsiCommandAsync(PISCSIIMAGE pImage, PSCSIREQ pScsiReq,
 
 static DECLCALLBACK(void) iscsiCommandCompleteSync(PISCSIIMAGE pImage, int rcReq, void *pvUser)
 {
+    RT_NOREF1(pImage);
     PISCSICMDSYNC pIScsiCmdSync = (PISCSICMDSYNC)pvUser;
 
     pIScsiCmdSync->rcCmd = rcReq;
@@ -3683,6 +3689,7 @@ static int iscsiCommandSync(PISCSIIMAGE pImage, PSCSIREQ pScsiReq, bool fRetry, 
     {
         if (fRetry)
         {
+            rc = VINF_SUCCESS; /* (MSC incorrectly thinks it can be uninitialized) */
             for (unsigned i = 0; i < 10; i++)
             {
                 rc = iscsiCommand(pImage, pScsiReq);
@@ -3810,7 +3817,7 @@ static DECLCALLBACK(void) iscsiCommandAsyncComplete(PISCSIIMAGE pImage, int rcRe
 static int iscsiFreeImage(PISCSIIMAGE pImage, bool fDelete)
 {
     int rc = VINF_SUCCESS;
-    Assert(!fDelete); /* This MUST be false, the flag isn't supported. */
+    Assert(!fDelete); NOREF(fDelete); /* This MUST be false, the flag isn't supported. */
 
     /* Freeing a never allocated image (e.g. because the open failed) is
      * not signalled as an error. After all nothing bad happens. */
@@ -4644,8 +4651,9 @@ out:
 
 /** @copydoc VBOXHDDBACKEND::pfnCheckIfValid */
 static DECLCALLBACK(int) iscsiCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                             PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+                                           PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
 {
+    RT_NOREF4(pszFilename, pVDIfsDisk, pVDIfsImage, penmType);
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
 
     /* iSCSI images can't be checked for validity this way, as the filename
@@ -4730,6 +4738,8 @@ static DECLCALLBACK(int) iscsiCreate(const char *pszFilename, uint64_t cbSize,
                                      PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
                                      void **ppBackendData)
 {
+    RT_NOREF8(pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags);
+    RT_NOREF7(uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData);
     LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
                  pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
     int rc = VERR_NOT_SUPPORTED;
@@ -4882,6 +4892,7 @@ static DECLCALLBACK(int) iscsiWrite(void *pBackendData, uint64_t uOffset, size_t
                                     PVDIOCTX pIoCtx, size_t *pcbWriteProcess, size_t *pcbPreRead,
                                     size_t *pcbPostRead, unsigned fWrite)
 {
+    RT_NOREF3(pcbPreRead, pcbPostRead, fWrite);
     LogFlowFunc(("pBackendData=%p uOffset=%llu pIoCtx=%#p cbToWrite=%u pcbWriteProcess=%p pcbPreRead=%p pcbPostRead=%p fWrite=%u\n",
                  pBackendData, uOffset, pIoCtx, cbToWrite, pcbWriteProcess, pcbPreRead, pcbPostRead, fWrite));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
@@ -5121,6 +5132,7 @@ static DECLCALLBACK(uint64_t) iscsiGetFileSize(void *pBackendData)
 /** @copydoc VBOXHDDBACKEND::pfnGetPCHSGeometry */
 static DECLCALLBACK(int) iscsiGetPCHSGeometry(void *pBackendData, PVDGEOMETRY pPCHSGeometry)
 {
+    RT_NOREF1(pPCHSGeometry);
     LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p\n", pBackendData, pPCHSGeometry));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5139,6 +5151,7 @@ static DECLCALLBACK(int) iscsiGetPCHSGeometry(void *pBackendData, PVDGEOMETRY pP
 /** @copydoc VBOXHDDBACKEND::pfnSetPCHSGeometry */
 static DECLCALLBACK(int) iscsiSetPCHSGeometry(void *pBackendData, PCVDGEOMETRY pPCHSGeometry)
 {
+    RT_NOREF1(pPCHSGeometry);
     LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p PCHS=%u/%u/%u\n", pBackendData, pPCHSGeometry, pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5165,6 +5178,7 @@ out:
 /** @copydoc VBOXHDDBACKEND::pfnGetLCHSGeometry */
 static DECLCALLBACK(int) iscsiGetLCHSGeometry(void *pBackendData, PVDGEOMETRY pLCHSGeometry)
 {
+    RT_NOREF1(pLCHSGeometry);
     LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p\n", pBackendData, pLCHSGeometry));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5183,6 +5197,7 @@ static DECLCALLBACK(int) iscsiGetLCHSGeometry(void *pBackendData, PVDGEOMETRY pL
 /** @copydoc VBOXHDDBACKEND::pfnSetLCHSGeometry */
 static DECLCALLBACK(int) iscsiSetLCHSGeometry(void *pBackendData, PCVDGEOMETRY pLCHSGeometry)
 {
+    RT_NOREF1(pLCHSGeometry);
     LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p LCHS=%u/%u/%u\n", pBackendData, pLCHSGeometry, pLCHSGeometry->cCylinders, pLCHSGeometry->cHeads, pLCHSGeometry->cSectors));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5276,6 +5291,7 @@ static DECLCALLBACK(int) iscsiSetOpenFlags(void *pBackendData, unsigned uOpenFla
 static DECLCALLBACK(int) iscsiGetComment(void *pBackendData, char *pszComment,
                                          size_t cbComment)
 {
+    RT_NOREF2(pszComment, cbComment);
     LogFlowFunc(("pBackendData=%#p pszComment=%#p cbComment=%zu\n", pBackendData, pszComment, cbComment));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5294,6 +5310,7 @@ static DECLCALLBACK(int) iscsiGetComment(void *pBackendData, char *pszComment,
 /** @copydoc VBOXHDDBACKEND::pfnSetComment */
 static DECLCALLBACK(int) iscsiSetComment(void *pBackendData, const char *pszComment)
 {
+    RT_NOREF1(pszComment);
     LogFlowFunc(("pBackendData=%#p pszComment=\"%s\"\n", pBackendData, pszComment));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5317,6 +5334,7 @@ static DECLCALLBACK(int) iscsiSetComment(void *pBackendData, const char *pszComm
 /** @copydoc VBOXHDDBACKEND::pfnGetUuid */
 static DECLCALLBACK(int) iscsiGetUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5335,6 +5353,7 @@ static DECLCALLBACK(int) iscsiGetUuid(void *pBackendData, PRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnSetUuid */
 static DECLCALLBACK(int) iscsiSetUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5359,6 +5378,7 @@ static DECLCALLBACK(int) iscsiSetUuid(void *pBackendData, PCRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnGetModificationUuid */
 static DECLCALLBACK(int) iscsiGetModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5377,6 +5397,7 @@ static DECLCALLBACK(int) iscsiGetModificationUuid(void *pBackendData, PRTUUID pU
 /** @copydoc VBOXHDDBACKEND::pfnSetModificationUuid */
 static DECLCALLBACK(int) iscsiSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5401,6 +5422,7 @@ static DECLCALLBACK(int) iscsiSetModificationUuid(void *pBackendData, PCRTUUID p
 /** @copydoc VBOXHDDBACKEND::pfnGetParentUuid */
 static DECLCALLBACK(int) iscsiGetParentUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5419,6 +5441,7 @@ static DECLCALLBACK(int) iscsiGetParentUuid(void *pBackendData, PRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnSetParentUuid */
 static DECLCALLBACK(int) iscsiSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5443,6 +5466,7 @@ static DECLCALLBACK(int) iscsiSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnGetParentModificationUuid */
 static DECLCALLBACK(int) iscsiGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5461,6 +5485,7 @@ static DECLCALLBACK(int) iscsiGetParentModificationUuid(void *pBackendData, PRTU
 /** @copydoc VBOXHDDBACKEND::pfnSetParentModificationUuid */
 static DECLCALLBACK(int) iscsiSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;

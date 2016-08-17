@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,7 @@
  *
  * @sa @ref grp_hm
  */
+
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -1773,6 +1774,8 @@ VMMR3_INT_DECL(void) HMR3Relocate(PVM pVM)
  */
 VMMR3_INT_DECL(void) HMR3PagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode)
 {
+    RT_NOREF_PV(pVM);
+
     /* Ignore page mode changes during state loading. */
     if (VMR3GetState(pVCpu->pVMR3) == VMSTATE_LOADING)
         return;
@@ -2039,11 +2042,12 @@ VMMR3_INT_DECL(int)  HMR3EnablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cbP
 VMMR3_INT_DECL(int)  HMR3DisablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem)
 {
     Log(("HMR3DisablePatching %RGv size %x\n", pPatchMem, cbPatchMem));
+    RT_NOREF2(pPatchMem, cbPatchMem);
 
     Assert(pVM->hm.s.pGuestPatchMem == pPatchMem);
     Assert(pVM->hm.s.cbGuestPatchMem == cbPatchMem);
 
-    /* @todo Potential deadlock when other VCPUs are waiting on the IOM lock (we own it)!! */
+    /** @todo Potential deadlock when other VCPUs are waiting on the IOM lock (we own it)!! */
     int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONE_BY_ONE, hmR3RemovePatches,
                                 (void *)(uintptr_t)VMMGetCpuId(pVM));
     AssertRC(rc);

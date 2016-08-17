@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,11 +27,13 @@
 #include <VBox/log.h>
 
 #ifdef RT_OS_WINDOWS
-# include <windows.h>
+# include <iprt/win/windows.h>
 # include "cr_environment.h"
 # include "cr_error.h"
 # include "VBox/VBoxGuestLib.h"
 # include "iprt/initterm.h"
+#else
+# include "cr_error.h"
 #endif
 
 #include <signal.h>
@@ -42,6 +44,10 @@
  * Stuff that needs to be dragged into the link because other DLLs needs it.
  * See also VBoxDeps.cpp in iprt and xpcom.
  */
+#ifdef _MSC_VER
+# pragma warning(push)
+# pragma warning(disable:4232) /* nonstandard extension used: 'g_VBoxRTDeps' : address of dllimport 'RTBldCfgRevision' is not static, identiy not guaranteed */
+#endif
 PFNRT g_VBoxRTDeps[] =
 {
     (PFNRT)RTAssertShouldPanic,
@@ -50,6 +56,9 @@ PFNRT g_VBoxRTDeps[] =
     (PFNRT)ASMBitFirstSet,
     (PFNRT)RTBldCfgRevision,
 };
+#ifdef _MSC_VER
+# pragma warning(pop)
+#endif
 
 
 static void logMessageV(const char *pszPrefix, const char *pszFormat, va_list va)
@@ -69,6 +78,7 @@ static void logMessageV(const char *pszPrefix, const char *pszFormat, va_list va
 #endif
 }
 
+#ifdef WINDOWS
 static void logMessage(const char *pszPrefix, const char *pszFormat, ...)
 {
     va_list va;
@@ -77,6 +87,7 @@ static void logMessage(const char *pszPrefix, const char *pszFormat, ...)
     logMessageV(pszPrefix, pszFormat, va);
     va_end(va);
 }
+#endif
 
 DECLEXPORT(void) crError(const char *pszFormat, ...)
 {
@@ -170,7 +181,7 @@ DECLEXPORT(void) crDebug(const char *pszFormat, ...)
 #if defined(RT_OS_WINDOWS)
 BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
 {
-    (void) lpvReserved;
+    (void) lpvReserved; (void) hDLLInst;
 
     switch (fdwReason)
     {

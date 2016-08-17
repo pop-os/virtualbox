@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1577,6 +1577,8 @@ void UIMediumManager::updateTabIcons(UIMediumItem *pMediumItem, Action action)
 
             break;
         }
+
+        case Action_Copy: case Action_Modify: case Action_Release: break; /* Shut up MSC */
     }
 }
 
@@ -1730,7 +1732,7 @@ void UIMediumManager::cleanup()
 
 void UIMediumManager::retranslateUi()
 {
-    // TODO: Rename translation context in .nls files!
+    /// @todo Rename translation context in .nls files!
     /* Most of these translations were moved from VBoxMediaManagerDlg.ui file
      * to keep old translation context.. */
 
@@ -2322,6 +2324,8 @@ bool UIMediumManager::checkMediumFor(UIMediumItem *pItem, Action action)
             /* Releasable if attached but not in snapshots: */
             return pItem->isUsed() && !pItem->isUsedInSnapshots();
         }
+
+        case Action_Add: break; /* Shut up MSC */
     }
 
     AssertFailedReturn(false);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,6 +78,8 @@ RTDECL(bool) RTDirExists(const char *pszPath)
 
 RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
 {
+    RT_NOREF_PV(fCreate);
+
     int rc;
     fMode = rtFsModeNormalize(fMode, pszPath, 0);
     if (rtFsModeIsValidPermissions(fMode))

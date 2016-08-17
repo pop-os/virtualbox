@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -641,7 +641,7 @@ private:
                                          "block/%s/device/vendor", mpcszName);
             if (RT_SUCCESS(rc))
             {
-                rc = RTLinuxSysFsReadStrFile(szModel, sizeof(szModel), NULL, 
+                rc = RTLinuxSysFsReadStrFile(szModel, sizeof(szModel), NULL,
                                              "block/%s/device/model", mpcszName);
                 if (RT_SUCCESS(rc))
                 {

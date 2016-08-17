@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
 # include "UISession.h"
 # include "UIActionPoolRuntime.h"
@@ -320,7 +321,7 @@ void UIMachineWindowFullscreen::placeOnScreen()
     /* Get corresponding host-screen: */
     const int iHostScreen = pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId);
     /* And corresponding working area: */
-    const QRect workingArea = vboxGlobal().screenGeometry(iHostScreen);
+    const QRect workingArea = gpDesktop->screenGeometry(iHostScreen);
     Q_UNUSED(workingArea);
 
 #if defined(VBOX_WS_MAC)

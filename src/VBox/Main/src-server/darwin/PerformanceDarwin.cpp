@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@
 #include "Performance.h"
 
 /* The following declarations are missing in 10.4.x SDK */
-/* @todo Replace them with libproc.h and sys/proc_info.h when 10.4 is no longer supported */
+/** @todo Replace them with libproc.h and sys/proc_info.h when 10.4 is no longer supported */
 extern "C" int proc_pidinfo(int pid, int flavor, uint64_t arg,  void *buffer, int buffersize);
 struct proc_taskinfo {
     uint64_t    pti_virtual_size;       /* virtual memory size (bytes) */

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2007-2015 Oracle Corporation
+# Copyright (C) 2007-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@ VBOX_APPROVED_GUI_LANGUAGES := \
 	cs    \
 	da    \
 	de    \
+	el    \
 	en    \
 	es    \
 	eu    \
@@ -33,6 +34,7 @@ VBOX_APPROVED_GUI_LANGUAGES := \
 	ja    \
 	ko    \
 	nl    \
+	pl    \
 	pt_BR \
 	ru    \
 	sl    \

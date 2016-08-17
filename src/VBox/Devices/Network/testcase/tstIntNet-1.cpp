@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -650,6 +650,8 @@ static int getDefaultIfaceName(char *pszName)
  */
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
+    RT_NOREF(envp);
+
     /*
      * Init the runtime and parse the arguments.
      */
@@ -705,7 +707,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     int rc;
     int ch;
-    int iArg = 1;
     RTGETOPTUNION Value;
     RTGETOPTSTATE GetState;
     RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0 /* fFlags */);
@@ -807,7 +808,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 102121 $\n");
+                RTPrintf("$Revision: 109605 $\n");
                 return 0;
 
             default:

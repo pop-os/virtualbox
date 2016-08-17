@@ -279,6 +279,7 @@
 #ifdef USE_NSOPENGLVIEW
     self = [super initWithFrame:frame pixelFormat:pFmt];
 #else
+    RT_NOREF(pFmt);
     m_cSetViewAttempts = 0;
     m_pCtx = NULL;
     self = [super initWithFrame:frame];
@@ -289,8 +290,8 @@
         self.autoresizingMask = NSViewNotSizable;
 
         /*
-         * Get notifications when we're moved or resized and when we're moved 
-         * to a different screen or GPU or when the GL context simply needs updating. 
+         * Get notifications when we're moved or resized and when we're moved
+         * to a different screen or GPU or when the GL context simply needs updating.
          */
         if (pParentView)
         {
@@ -471,34 +472,37 @@
 
 /**
  * This is called when the bounds change.
- *  
+ *
  * We indicate that the FIFO thread must update the GL context.
  */
 - (void)vboxBoundsDidChange:(NSNotification *)pNotification
 {
+    RT_NOREF(pNotification);
     LogFlow(("OvlView(%p) vboxBoundsDidChange:\n", (void *)self));
     self->m_fUpdateCtx = true;
 }
 
 /**
  * This is called when the frame changes size or position.
- *  
+ *
  * We indicate that the FIFO thread must update the GL context.
  */
 - (void)vboxFrameDidChange:(NSNotification *)pNotification
 {
+    RT_NOREF(pNotification);
     LogFlow(("OvlView(%p) vboxFrameDidChange:\n", (void *)self));
     self->m_fUpdateCtx = true;
 }
 
-/** 
- * This is called when moved to different screen/GPU or/and when the GL context 
+/**
+ * This is called when moved to different screen/GPU or/and when the GL context
  * needs updating.
- *  
+ *
  * We indicate that the FIFO thread must update the GL context.
  */
 - (void)vboxFrameDidChangeGlobal:(NSNotification *)pNotification
 {
+    RT_NOREF(pNotification);
     LogFlow(("OvlView(%p) vboxFrameDidChangeGlobal:\n", (void *)self));
     self->m_fUpdateCtx = true;
 }
@@ -663,6 +667,7 @@
 
 - (void)drawRect:(NSRect)rect
 {
+    RT_NOREF(rect);
 //    if (m_fClear)
 //    {
 //        m_fClear = false;
@@ -829,6 +834,7 @@ VMSVGA3DCOCOA_DECL(void) vmsvga3dCocoaViewInfo(PCDBGFINFOHLP pHlp, NativeNSViewR
 /** @note Not currently used. */
 VMSVGA3DCOCOA_DECL(void) vmsvga3dCocoaViewSetPosition(NativeNSViewRef pView, NativeNSViewRef pParentView, int x, int y)
 {
+    RT_NOREF(pParentView);
     LogFlow(("vmsvga3dCocoaViewSetPosition: pView=%p pParentView=%p (%d,%d)\n", (void *)pView, (void *)pParentView, x, y));
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 

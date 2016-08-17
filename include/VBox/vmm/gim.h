@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,7 +138,7 @@ typedef struct GIMDEBUG
     /** The debug I/O stream driver. */
     PPDMISTREAM             pDbgDrvStream;
     /** Number of bytes pending to be read from the receive buffer. */
-    uint32_t                cbDbgRecvBufRead;
+    size_t                  cbDbgRecvBufRead;
     /** The flag synchronizing reads of the receive buffer from EMT. */
     volatile bool           fDbgRecvBufRead;
     /** The receive thread wakeup semaphore. */

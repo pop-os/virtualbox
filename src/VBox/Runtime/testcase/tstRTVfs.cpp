@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015 Oracle Corporation
+ * Copyright (C) 2015-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,7 @@
 #include <iprt/test.h>
 #include <iprt/file.h>
 #include <iprt/string.h>
+
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -83,6 +84,8 @@ static void tstVfsIoFromStandardHandle(RTTEST hTest, RTHANDLESTD enmHandle)
 
 int main(int argc, char **argv)
 {
+    RT_NOREF2(argc, argv);
+
     /*
      * Initialize IPRT and create the test.
      */

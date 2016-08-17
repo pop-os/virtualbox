@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -323,6 +323,7 @@ RT_EXPORT_SYMBOL(RTSemMutexRequest);
 
 RTDECL(int) RTSemMutexRequestDebug(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
+    RT_NOREF_PV(uId); RT_SRC_POS_NOREF();
     return RTSemMutexRequest(hMutexSem, cMillies);
 }
 RT_EXPORT_SYMBOL(RTSemMutexRequestDebug);
@@ -337,6 +338,7 @@ RT_EXPORT_SYMBOL(RTSemMutexRequestNoResume);
 
 RTDECL(int) RTSemMutexRequestNoResumeDebug(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
+    RT_NOREF_PV(uId); RT_SRC_POS_NOREF();
     return RTSemMutexRequestNoResume(hMutexSem, cMillies);
 }
 RT_EXPORT_SYMBOL(RTSemMutexRequestNoResumeDebug);

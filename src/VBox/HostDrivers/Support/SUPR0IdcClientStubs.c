@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,7 +57,7 @@ static void supR0IdcGetSymbol(PSUPDRVIDCHANDLE pHandle, PFNRT *ppfn, const char 
     Req.u.In.pszModule = NULL;
     rc = supR0IdcNativeCall(pHandle, SUPDRV_IDC_REQ_GET_SYMBOL, &Req.Hdr);
     if (RT_SUCCESS(rc))
-        ASMAtomicWritePtr((void * volatile *)ppfn, Req.u.Out.pfnSymbol);
+        ASMAtomicWritePtr((void * volatile *)ppfn, (void *)(uintptr_t)Req.u.Out.pfnSymbol);
 }
 
 

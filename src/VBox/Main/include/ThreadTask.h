@@ -19,30 +19,42 @@
 
 #include "VBox/com/string.h"
 
-struct ThreadVoidData
-{
-/*
+/**
  * The class ThreadVoidData is used as a base class for any data which we want to pass into a thread
  */
+struct ThreadVoidData
+{
 public:
-    ThreadVoidData(){};
-    virtual ~ThreadVoidData(){};
+    ThreadVoidData() { }
+    virtual ~ThreadVoidData() { }
 };
+
 
 class ThreadTask
 {
 public:
-    ThreadTask(const Utf8Str &t) : m_pThread(NULL), m_strTaskName(t){};
-    virtual ~ThreadTask(){};
-    HRESULT createThread(PRTTHREAD pThread = NULL, RTTHREADTYPE enmType = RTTHREADTYPE_MAIN_WORKER);
-    virtual void handler() = 0;
-    static DECLCALLBACK(int) taskHandler(RTTHREAD thread, void *pvUser);
+    ThreadTask(const Utf8Str &t) : m_hThread(NIL_RTTHREAD), m_strTaskName(t)
+    { }
 
-    inline Utf8Str getTaskName() const {return m_strTaskName;};
+    virtual ~ThreadTask()
+    { }
+
+    HRESULT createThread(void);
+    HRESULT createThreadWithType(RTTHREADTYPE enmType);
+    HRESULT createThreadWithRaceCondition(PRTTHREAD pThread);
+
+    virtual void handler() = 0;
+    inline Utf8Str getTaskName() const { return m_strTaskName; }
 
 protected:
-    ThreadTask():m_pThread(NULL), m_strTaskName("GenericTask"){};
-    PRTTHREAD m_pThread;
+    HRESULT createThreadInternal(RTTHREADTYPE enmType, PRTTHREAD pThread);
+    static DECLCALLBACK(int) taskHandlerThreadProc(RTTHREAD thread, void *pvUser);
+
+    ThreadTask() : m_hThread(NIL_RTTHREAD), m_strTaskName("GenericTask")
+    { }
+
+    /** The worker thread handle (may be invalid if the thread has shut down). */
+    RTTHREAD m_hThread;
     Utf8Str m_strTaskName;
 };
 

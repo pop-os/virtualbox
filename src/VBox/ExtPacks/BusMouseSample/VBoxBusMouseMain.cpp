@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -78,6 +78,8 @@ static PCVBOXEXTPACKHLP g_pHlp;
  */
 static DECLCALLBACK(int)  vboxBusMouseExtPack_VMConfigureVMM(PCVBOXEXTPACKREG pThis, IConsole *pConsole, PVM pVM)
 {
+    RT_NOREF(pThis, pConsole);
+
     /*
      * Find the bus mouse module and tell PDM to load it.
      * ASSUME /PDM/Devices exists.

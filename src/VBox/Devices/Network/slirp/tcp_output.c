@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -438,7 +438,7 @@ send:
          * give data to the user when a buffer fills or
          * a PUSH comes in.)
          */
-        if (off + len == SBUF_LEN(&so->so_snd))
+        if (off + len == (ssize_t)SBUF_LEN(&so->so_snd))
             flags |= TH_PUSH;
     }
     else
@@ -539,7 +539,7 @@ send:
     if (optlen)
     {
         memcpy((caddr_t)(ti + 1), (caddr_t)opt, optlen);
-        ti->ti_off = (sizeof (struct tcphdr) + optlen) >> 2;
+        ti->ti_off = (uint8_t)((sizeof (struct tcphdr) + optlen) >> 2);
     }
     ti->ti_flags = flags;
     /*

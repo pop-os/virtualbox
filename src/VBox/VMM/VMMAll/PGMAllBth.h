@@ -15,7 +15,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1598,7 +1598,8 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackAddref)(PVMCPU pVCpu, PPGMPOOLP
  */
 DECLINLINE(void) PGM_BTH_NAME(SyncHandlerPte)(PVM pVM, PCPGMPAGE pPage, uint64_t fPteSrc, PSHWPTE pPteDst)
 {
-    NOREF(pVM);
+    NOREF(pVM); RT_NOREF_PV(fPteSrc);
+
     /** @todo r=bird: Are we actually handling dirty and access bits for pages with access handlers correctly? No.
      *  Update: \#PF should deal with this before or after calling the handlers. It has all the info to do the job efficiently. */
     if (!PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
@@ -1897,6 +1898,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPU pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPage
     PVM      pVM   = pVCpu->CTX_SUFF(pVM);
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool); NOREF(pPool);
     LogFlow(("SyncPage: GCPtrPage=%RGv cPages=%u uErr=%#x\n", GCPtrPage, cPages, uErr));
+    RT_NOREF_PV(uErr); RT_NOREF_PV(cPages); RT_NOREF_PV(GCPtrPage);
 
     PGM_LOCK_ASSERT_OWNER(pVM);
 
@@ -2386,6 +2388,7 @@ DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnNP)(PVMCPU pVCpu, uint32_t uErr
         TRPMSetErrorCode(pVCpu, uErr & ~(X86_TRAP_PF_RSVD | X86_TRAP_PF_P));
 
     Log(("CheckPageFault: real page fault (notp) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
+    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
     return VINF_EM_RAW_GUEST_TRAP;
 }
 
@@ -2408,6 +2411,7 @@ DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnRSVD)(PVMCPU pVCpu, uint32_t uE
         TRPMSetErrorCode(pVCpu, uErr | X86_TRAP_PF_RSVD | X86_TRAP_PF_P);
 
     Log(("CheckPageFault: real page fault (rsvd) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
+    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
     return VINF_EM_RAW_GUEST_TRAP;
 }
 
@@ -2430,6 +2434,7 @@ DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnProt)(PVMCPU pVCpu, uint32_t uE
         TRPMSetErrorCode(pVCpu, (uErr & ~X86_TRAP_PF_RSVD) | X86_TRAP_PF_P);
 
     Log(("CheckPageFault: real page fault (prot) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
+    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
     return VINF_EM_RAW_GUEST_TRAP;
 }
 
@@ -2641,7 +2646,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPU pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, RT
 #if 0 /* rarely useful; leave for debugging. */
     STAM_COUNTER_INC(&pVCpu->pgm.s.StatSyncPtPD[iPDSrc]);
 #endif
-    LogFlow(("SyncPT: GCPtrPage=%RGv\n", GCPtrPage));
+    LogFlow(("SyncPT: GCPtrPage=%RGv\n", GCPtrPage)); RT_NOREF_PV(GCPtrPage);
 
     PGM_LOCK_ASSERT_OWNER(pVM);
 
@@ -3493,6 +3498,7 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPU pVCpu, RTGCPTR GCPtrPage, unsigne
     PVM pVM = pVCpu->CTX_SUFF(pVM); NOREF(pVM);
 
     LogFlow(("VerifyAccessSyncPage: GCPtrPage=%RGv fPage=%#x uErr=%#x\n", GCPtrPage, fPage, uErr));
+    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(fPage); RT_NOREF_PV(uErr);
 
     Assert(!pVM->pgm.s.fNestedPaging);
 #if   (   PGM_GST_TYPE == PGM_TYPE_32BIT \

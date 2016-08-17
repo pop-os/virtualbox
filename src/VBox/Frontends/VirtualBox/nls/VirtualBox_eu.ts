@@ -4142,7 +4142,7 @@
 <context>
     <name>UIHostComboEditor</name>
     <message>
-        <location filename="../src/widgets/UIHostComboEditor.cpp" line="+204"/>
+        <location filename="../src/widgets/UIHostComboEditor.cpp" line="+209"/>
         <location line="+14"/>
         <source>&lt;key_%1&gt;</source>
         <translation>&lt;key_%1&gt;</translation>
@@ -4158,7 +4158,7 @@
         <translation>Eskuin </translation>
     </message>
     <message>
-        <location line="+173"/>
+        <location line="+231"/>
         <source>Left Shift</source>
         <translation>Ezkerreko Aldatu</translation>
     </message>
@@ -4224,7 +4224,7 @@
     </message>
     <message>
         <location line="+15"/>
-        <location line="+627"/>
+        <location line="+638"/>
         <source>None</source>
         <translation>Ezer ez</translation>
     </message>
@@ -9526,7 +9526,7 @@
 <context>
     <name>UINetworkReplyPrivate</name>
     <message>
-        <location filename="../src/net/UINetworkReply.cpp" line="+954"/>
+        <location filename="../src/net/UINetworkReply.cpp" line="+955"/>
         <source>Host not found</source>
         <translation>Hostalaria ez da aurkitu</translation>
     </message>
@@ -9590,7 +9590,7 @@
 <context>
     <name>UINetworkReplyPrivateThread</name>
     <message>
-        <location line="-577"/>
+        <location line="-578"/>
         <source>During proxy configuration</source>
         <translation>Proxy itxurapenean zehar</translation>
     </message>

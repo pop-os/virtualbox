@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,7 @@
 
 #ifdef RT_OS_WINDOWS
 # include <process.h>
-# include <Windows.h>
+# include <iprt/win/windows.h>
 #else
 # include <unistd.h>
 # ifndef RT_OS_OS2
@@ -142,12 +142,12 @@ RTDATADECL(bool) g_fRTAlignmentChecks = false;
 #endif
 
 
-#if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_HAIKU) \
+#if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD) || defined(RT_OS_HAIKU) \
  || defined(RT_OS_LINUX)  || defined(RT_OS_OS2)     || defined(RT_OS_SOLARIS) /** @todo add host init hooks everywhere. */
 /* Stubs */
-DECLHIDDEN(int)  rtR3InitNativeFirst(uint32_t fFlags) { return VINF_SUCCESS; }
-DECLHIDDEN(int)  rtR3InitNativeFinal(uint32_t fFlags) { return VINF_SUCCESS; }
-DECLHIDDEN(void) rtR3InitNativeObtrusive(uint32_t fFlags) { }
+DECLHIDDEN(int)  rtR3InitNativeFirst(uint32_t fFlags)     { RT_NOREF_PV(fFlags); return VINF_SUCCESS; }
+DECLHIDDEN(int)  rtR3InitNativeFinal(uint32_t fFlags)     { RT_NOREF_PV(fFlags); return VINF_SUCCESS; }
+DECLHIDDEN(void) rtR3InitNativeObtrusive(uint32_t fFlags) { RT_NOREF_PV(fFlags); }
 #endif
 
 

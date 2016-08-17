@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,6 +93,8 @@ RTDECL(bool) RTSymlinkIsDangling(const char *pszSymlink)
 
 RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYMLINKTYPE enmType, uint32_t fCreate)
 {
+    RT_NOREF_PV(fCreate);
+
     /*
      * Validate the input.
      */
@@ -131,6 +133,8 @@ RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYM
 
 RTDECL(int) RTSymlinkDelete(const char *pszSymlink, uint32_t fDelete)
 {
+    RT_NOREF_PV(fDelete);
+
     char const *pszNativeSymlink;
     int rc = rtPathToNative(&pszNativeSymlink, pszSymlink, NULL);
     if (RT_SUCCESS(rc))
@@ -160,6 +164,8 @@ RTDECL(int) RTSymlinkDelete(const char *pszSymlink, uint32_t fDelete)
 
 RTDECL(int) RTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget, uint32_t fRead)
 {
+    RT_NOREF_PV(fRead);
+
     char *pszMyTarget;
     int rc = RTSymlinkReadA(pszSymlink, &pszMyTarget);
     if (RT_SUCCESS(rc))

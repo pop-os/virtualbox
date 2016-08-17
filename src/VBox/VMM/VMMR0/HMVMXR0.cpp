@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -597,6 +597,7 @@ DECLINLINE(int) hmR0VmxReadEntryIntInfoVmcs(PVMXTRANSIENT pVmxTransient)
 }
 
 
+#ifdef VBOX_STRICT
 /**
  * Reads the VM-entry exception error code field from the VMCS into
  * the VMX transient structure.
@@ -612,8 +613,10 @@ DECLINLINE(int) hmR0VmxReadEntryXcptErrorCodeVmcs(PVMXTRANSIENT pVmxTransient)
     AssertRCReturn(rc, rc);
     return VINF_SUCCESS;
 }
+#endif /* VBOX_STRICT */
 
 
+#ifdef VBOX_STRICT
 /**
  * Reads the VM-entry exception error code field from the VMCS into
  * the VMX transient structure.
@@ -629,6 +632,7 @@ DECLINLINE(int) hmR0VmxReadEntryInstrLenVmcs(PVMXTRANSIENT pVmxTransient)
     AssertRCReturn(rc, rc);
     return VINF_SUCCESS;
 }
+#endif /* VBOX_STRICT */
 
 
 /**
@@ -794,7 +798,7 @@ static int hmR0VmxEnterRootMode(PVM pVM, RTHCPHYS HCPhysCpuPage, void *pvCpuPage
     RTCCUINTREG fEFlags = ASMIntDisableFlags();
 
     /* Enable the VMX bit in CR4 if necessary. */
-    RTCCUINTREG uOldCr4 = SUPR0ChangeCR4(X86_CR4_VMXE, ~0);
+    RTCCUINTREG uOldCr4 = SUPR0ChangeCR4(X86_CR4_VMXE, RTCCUINTREG_MAX);
 
     /* Enter VMX root mode. */
     int rc = VMXEnable(HCPhysCpuPage);
@@ -1512,6 +1516,8 @@ static bool hmR0VmxIsLazyGuestMsr(PVMCPU pVCpu, uint32_t uMsr)
                 return true;
         }
     }
+#else
+    RT_NOREF(pVCpu, uMsr);
 #endif
     return false;
 }
@@ -1543,6 +1549,8 @@ static void hmR0VmxLazySaveGuestMsrs(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
             pMixedCtx->msrSFMASK       = ASMRdMsr(MSR_K8_SF_MASK);
             pMixedCtx->msrKERNELGSBASE = ASMRdMsr(MSR_K8_KERNEL_GS_BASE);
         }
+#else
+        NOREF(pMixedCtx);
 #endif
     }
 }
@@ -1587,6 +1595,8 @@ static void hmR0VmxLazyLoadGuestMsrs(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
             VMXLOCAL_LAZY_LOAD_GUEST_MSR(MSR_K8_SF_MASK, SFMASK, SFMask);
             VMXLOCAL_LAZY_LOAD_GUEST_MSR(MSR_K8_KERNEL_GS_BASE, KERNELGSBASE, KernelGSBase);
         }
+#else
+        RT_NOREF(pMixedCtx);
 #endif
         pVCpu->hm.s.vmx.fLazyMsrs |= VMX_LAZY_MSRS_LOADED_GUEST;
     }
@@ -2920,6 +2930,8 @@ DECLINLINE(int) hmR0VmxSaveHostSegmentRegs(PVM pVM, PVMCPU pVCpu)
         VMXRestoreHostState(pVCpu->hm.s.vmx.fRestoreHostFlags, &pVCpu->hm.s.vmx.RestoreHost);
     }
     pVCpu->hm.s.vmx.fRestoreHostFlags = 0;
+#else
+    RT_NOREF(pVCpu);
 #endif
 
     /*
@@ -3381,7 +3393,7 @@ DECLINLINE(int) hmR0VmxLoadGuestExitCtls(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 DECLINLINE(int) hmR0VmxApicSetTprThreshold(PVMCPU pVCpu, uint32_t u32TprThreshold)
 {
     Assert(!(u32TprThreshold & 0xfffffff0));         /* Bits 31:4 MBZ. */
-    Assert(pVCpu->hm.s.vmx.u32ProcCtls & VMX_VMCS_CTRL_PROC_EXEC_USE_TPR_SHADOW);
+    Assert(pVCpu->hm.s.vmx.u32ProcCtls & VMX_VMCS_CTRL_PROC_EXEC_USE_TPR_SHADOW); RT_NOREF_PV(pVCpu);
     return VMXWriteVmcs32(VMX_VMCS32_CTRL_TPR_THRESHOLD, u32TprThreshold);
 }
 
@@ -4832,14 +4844,13 @@ static int hmR0VmxLoadGuestActivityState(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
  * fields.  See @bugref{8432} for details.
  *
  * @returns true if safe, false if must continue to use the 64-bit switcher.
- * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pMixedCtx   Pointer to the guest-CPU context. The data may be
  *                      out-of-sync. Make sure to update the required fields
  *                      before using them.
  *
  * @remarks No-long-jump zone!!!
  */
-static bool hmR0VmxIs32BitSwitcherSafe(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
+static bool hmR0VmxIs32BitSwitcherSafe(PCPUMCTX pMixedCtx)
 {
     if (pMixedCtx->gdtr.pGdt    & UINT64_C(0xffffffff00000000))
         return false;
@@ -4939,7 +4950,7 @@ static int hmR0VmxSetupVMRunHandler(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
         {
             Assert(pVCpu->hm.s.vmx.pfnStartVM == VMXR0SwitcherStartVM64);
             if (   pVCpu->hm.s.vmx.RealMode.fRealOnV86Active
-                || hmR0VmxIs32BitSwitcherSafe(pVCpu, pMixedCtx))
+                || hmR0VmxIs32BitSwitcherSafe(pMixedCtx))
             {
                 pVCpu->hm.s.vmx.fSwitchedTo64on32 = false;
                 pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
@@ -5314,7 +5325,7 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, H
 
     /** @todo replace with hmR0VmxEnterRootMode() and hmR0VmxLeaveRootMode(). */
     /* Make sure the VMX instructions don't cause #UD faults. */
-    SUPR0ChangeCR4(X86_CR4_VMXE, ~0);
+    SUPR0ChangeCR4(X86_CR4_VMXE, RTCCUINTREG_MAX);
 
     /* Re-enter VMX Root Mode */
     int rc2 = VMXEnable(HCPhysCpuPage);
@@ -7095,7 +7106,6 @@ static void hmR0VmxPendingEventToTrpmTrap(PVMCPU pVCpu)
  * (longjmp, preemption, voluntary exits to ring-3) from VT-x.
  *
  * @returns VBox status code.
- * @param   pVM                 The cross context VM structure.
  * @param   pVCpu               The cross context virtual CPU structure.
  * @param   pMixedCtx           Pointer to the guest-CPU context. The data may
  *                              be out-of-sync. Make sure to update the required
@@ -7104,7 +7114,7 @@ static void hmR0VmxPendingEventToTrpmTrap(PVMCPU pVCpu)
  *
  * @remarks No-long-jmp zone!!!
  */
-static int hmR0VmxLeave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, bool fSaveGuestState)
+static int hmR0VmxLeave(PVMCPU pVCpu, PCPUMCTX pMixedCtx, bool fSaveGuestState)
 {
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
     Assert(!VMMRZCallRing3IsEnabled(pVCpu));
@@ -7211,7 +7221,6 @@ static int hmR0VmxLeave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, bool fSaveGue
  * Leaves the VT-x session.
  *
  * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pMixedCtx   Pointer to the guest-CPU context. The data may be
  *                      out-of-sync. Make sure to update the required fields
@@ -7219,7 +7228,7 @@ static int hmR0VmxLeave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, bool fSaveGue
  *
  * @remarks No-long-jmp zone!!!
  */
-DECLINLINE(int) hmR0VmxLeaveSession(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
+DECLINLINE(int) hmR0VmxLeaveSession(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 {
     HM_DISABLE_PREEMPT();
     HMVMX_ASSERT_CPU_SAFE();
@@ -7230,7 +7239,7 @@ DECLINLINE(int) hmR0VmxLeaveSession(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
        and done this from the VMXR0ThreadCtxCallback(). */
     if (!pVCpu->hm.s.fLeaveDone)
     {
-        int rc2 = hmR0VmxLeave(pVM, pVCpu, pMixedCtx, true /* fSaveGuestState */);
+        int rc2 = hmR0VmxLeave(pVCpu, pMixedCtx, true /* fSaveGuestState */);
         AssertRCReturnStmt(rc2, HM_RESTORE_PREEMPT(), rc2);
         pVCpu->hm.s.fLeaveDone = true;
     }
@@ -7259,7 +7268,6 @@ DECLINLINE(int) hmR0VmxLeaveSession(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
  * Does the necessary state syncing before doing a longjmp to ring-3.
  *
  * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pMixedCtx   Pointer to the guest-CPU context. The data may be
  *                      out-of-sync. Make sure to update the required fields
@@ -7267,9 +7275,9 @@ DECLINLINE(int) hmR0VmxLeaveSession(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
  *
  * @remarks No-long-jmp zone!!!
  */
-DECLINLINE(int) hmR0VmxLongJmpToRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
+DECLINLINE(int) hmR0VmxLongJmpToRing3(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 {
-    return hmR0VmxLeaveSession(pVM, pVCpu, pMixedCtx);
+    return hmR0VmxLeaveSession(pVCpu, pMixedCtx);
 }
 
 
@@ -7327,7 +7335,7 @@ static int hmR0VmxExitToRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, VBOXSTR
 #endif
 
     /* Save guest state and restore host state bits. */
-    int rc = hmR0VmxLeaveSession(pVM, pVCpu, pMixedCtx);
+    int rc = hmR0VmxLeaveSession(pVCpu, pMixedCtx);
     AssertRCReturn(rc, rc);
     STAM_COUNTER_DEC(&pVCpu->hm.s.StatSwitchLongJmpToR3);
     /* Thread-context hooks are unregistered at this point!!! */
@@ -7429,7 +7437,7 @@ static DECLCALLBACK(int) hmR0VmxCallRing3Callback(PVMCPU pVCpu, VMMCALLRING3 enm
     Log4(("hmR0VmxCallRing3Callback->hmR0VmxLongJmpToRing3 pVCpu=%p idCpu=%RU32 enmOperation=%d\n", pVCpu, pVCpu->idCpu,
           enmOperation));
 
-    int rc = hmR0VmxLongJmpToRing3(pVCpu->CTX_SUFF(pVM), pVCpu, (PCPUMCTX)pvUser);
+    int rc = hmR0VmxLongJmpToRing3(pVCpu, (PCPUMCTX)pvUser);
     AssertRCReturn(rc, rc);
 
     VMMRZCallRing3Enable(pVCpu);
@@ -7840,6 +7848,7 @@ DECLINLINE(VBOXSTRICTRC) hmR0VmxInjectXcptGP(PVMCPU pVCpu, PCPUMCTX pMixedCtx, b
 }
 
 
+#if 0 /* unused */
 /**
  * Sets a general-protection (\#GP) exception as pending-for-injection into the
  * VM.
@@ -7858,6 +7867,7 @@ DECLINLINE(void) hmR0VmxSetPendingXcptGP(PVMCPU pVCpu, PCPUMCTX pMixedCtx, uint3
     u32IntInfo          |= VMX_EXIT_INTERRUPTION_INFO_ERROR_CODE_VALID;
     hmR0VmxSetPendingEvent(pVCpu, u32IntInfo, 0 /* cbInstr */, u32ErrorCode, 0 /* GCPtrFaultAddress */);
 }
+#endif /* unused */
 
 
 /**
@@ -8209,7 +8219,6 @@ VMMR0DECL(void) VMXR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, 
             Assert(VMMR0ThreadCtxHookIsEnabled(pVCpu));
             VMCPU_ASSERT_EMT(pVCpu);
 
-            PVM      pVM       = pVCpu->CTX_SUFF(pVM);
             PCPUMCTX pMixedCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
             /* No longjmps (logger flushes, locks) in this fragile context. */
@@ -8223,7 +8232,7 @@ VMMR0DECL(void) VMXR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, 
             {
                 /* Do -not- save guest-state here as we might already be in the middle of saving it (esp. bad if we are
                    holding the PGM lock while saving the guest state (see hmR0VmxSaveGuestControlRegs()). */
-                hmR0VmxLeave(pVM, pVCpu, pMixedCtx, false /* fSaveGuestState */);
+                hmR0VmxLeave(pVCpu, pMixedCtx, false /* fSaveGuestState */);
                 pVCpu->hm.s.fLeaveDone = true;
             }
 
@@ -13027,6 +13036,7 @@ static int hmR0VmxExitXcptBP(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
  */
 static int hmR0VmxExitXcptAC(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient)
 {
+    RT_NOREF_PV(pMixedCtx);
     HMVMX_VALIDATE_EXIT_XCPT_HANDLER_PARAMS();
 
     /*
@@ -13297,12 +13307,12 @@ static int hmR0VmxExitXcptGP(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
                 /* Get the stack pointer & pop the contents of the stack onto Eflags. */
                 RTGCPTR   GCPtrStack = 0;
                 X86EFLAGS Eflags;
+                Eflags.u32 = 0;
                 rc = SELMToFlatEx(pVCpu, DISSELREG_SS, CPUMCTX2CORE(pMixedCtx), pMixedCtx->esp & uMask, SELMTOFLAT_FLAGS_CPL0,
                                   &GCPtrStack);
                 if (RT_SUCCESS(rc))
                 {
                     Assert(sizeof(Eflags.u32) >= cbParm);
-                    Eflags.u32 = 0;
                     rc = VBOXSTRICTRC_TODO(PGMPhysRead(pVM, (RTGCPHYS)GCPtrStack, &Eflags.u32, cbParm, PGMACCESSORIGIN_HM));
                     AssertMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc)); /** @todo allow strict return codes here */
                 }
@@ -13484,6 +13494,7 @@ static int hmR0VmxExitXcptGP(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
  */
 static int hmR0VmxExitXcptGeneric(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient)
 {
+    RT_NOREF_PV(pMixedCtx);
     HMVMX_VALIDATE_EXIT_XCPT_HANDLER_PARAMS();
 #ifndef HMVMX_ALWAYS_TRAP_ALL_XCPTS
     Assert(pVCpu->hm.s.fUsingDebugLoop);

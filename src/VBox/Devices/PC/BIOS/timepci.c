@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -142,7 +142,7 @@ void BIOSCALL int70_function(pusha_regs_t regs, uint16_t ds, uint16_t es, iret_a
     eoi_both_pics();
 }
 
-// @todo: the coding style WRT register access is totally inconsistent
+/// @todo the coding style WRT register access is totally inconsistent
 // in the following routines
 
 void BIOSCALL int1a_function(pusha_regs_t regs, uint16_t ds, uint16_t es, iret_addr_t iret_addr)

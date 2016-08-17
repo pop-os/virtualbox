@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -289,12 +289,11 @@ private:
  * @param aSrcBuf   the source image as an array of bytes
  */
 template <class T>
-inline bool colorConvWriteYUV420p(unsigned aWidth, unsigned aHeight,
-                                  uint8_t *aDestBuf, uint8_t *aSrcBuf)
+inline bool colorConvWriteYUV420p(unsigned aWidth, unsigned aHeight, uint8_t *aDestBuf, uint8_t *aSrcBuf)
 {
-    AssertReturn(0 == (aWidth & 1), false);
-    AssertReturn(0 == (aHeight & 1), false);
-    bool rc = true;
+    AssertReturn(!(aWidth & 1), false);
+    AssertReturn(!(aHeight & 1), false);
+    bool fRc = true;
     T iter1(aWidth, aHeight, aSrcBuf);
     T iter2 = iter1;
     iter2.skip(aWidth);
@@ -302,53 +301,50 @@ inline bool colorConvWriteYUV420p(unsigned aWidth, unsigned aHeight,
     unsigned offY = 0;
     unsigned offU = cPixels;
     unsigned offV = cPixels + cPixels / 4;
-    for (unsigned i = 0; (i < aHeight / 2) && rc; ++i)
+    unsigned const cyHalf = aHeight / 2;
+    unsigned const cxHalf = aWidth  / 2;
+    for (unsigned i = 0; i < cyHalf && fRc; ++i)
     {
-        for (unsigned j = 0; (j < aWidth / 2) && rc; ++j)
+        for (unsigned j = 0; j < cxHalf; ++j)
         {
-            unsigned red, green, blue, u, v;
-            rc = iter1.getRGB(&red, &green, &blue);
-            if (rc)
-            {
-                aDestBuf[offY] = ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16;
-                u = (((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128) / 4;
-                v = (((112 * red - 94 * green - 18 * blue + 128) >> 8) + 128) / 4;
-                rc = iter1.getRGB(&red, &green, &blue);
-            }
-            if (rc)
-            {
-                aDestBuf[offY + 1] = ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16;
-                u += (((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128) / 4;
-                v += (((112 * red - 94 * green - 18 * blue + 128) >> 8) + 128) / 4;
-                rc = iter2.getRGB(&red, &green, &blue);
-            }
-            if (rc)
-            {
-                aDestBuf[offY + aWidth] = ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16;
-                u += (((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128) / 4;
-                v += (((112 * red - 94 * green - 18 * blue + 128) >> 8) + 128) / 4;
-                rc = iter2.getRGB(&red, &green, &blue);
-            }
-            if (rc)
-            {
-                aDestBuf[offY + aWidth + 1] = ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16;
-                u += (((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128) / 4;
-                v += (((112 * red - 94 * green - 18 * blue + 128) >> 8) + 128) / 4;
-                aDestBuf[offU] = u;
-                aDestBuf[offV] = v;
-                offY += 2;
-                ++offU;
-                ++offV;
-            }
+            unsigned red, green, blue;
+            fRc = iter1.getRGB(&red, &green, &blue);
+            AssertReturn(fRc, false);
+            aDestBuf[offY] = ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16;
+            unsigned u = (((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128) / 4;
+            unsigned v = (((112 * red - 94 * green -  18 * blue + 128) >> 8) + 128) / 4;
+
+            fRc = iter1.getRGB(&red, &green, &blue);
+            AssertReturn(fRc, false);
+            aDestBuf[offY + 1] = ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16;
+            u += (((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128) / 4;
+            v += (((112 * red - 94 * green -  18 * blue + 128) >> 8) + 128) / 4;
+
+            fRc = iter2.getRGB(&red, &green, &blue);
+            AssertReturn(fRc, false);
+            aDestBuf[offY + aWidth] = ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16;
+            u += (((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128) / 4;
+            v += (((112 * red - 94 * green -  18 * blue + 128) >> 8) + 128) / 4;
+
+            fRc = iter2.getRGB(&red, &green, &blue);
+            AssertReturn(fRc, false);
+            aDestBuf[offY + aWidth + 1] = ((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16;
+            u += (((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128) / 4;
+            v += (((112 * red - 94 * green -  18 * blue + 128) >> 8) + 128) / 4;
+
+            aDestBuf[offU] = u;
+            aDestBuf[offV] = v;
+            offY += 2;
+            ++offU;
+            ++offV;
         }
-        if (rc)
-        {
-            iter1.skip(aWidth);
-            iter2.skip(aWidth);
-            offY += aWidth;
-        }
+
+        iter1.skip(aWidth);
+        iter2.skip(aWidth);
+        offY += aWidth;
     }
-    return rc;
+
+    return true;
 }
 
 /**
@@ -389,8 +385,9 @@ inline bool colorConvWriteRGB24(unsigned aWidth, unsigned aHeight,
  *
  * RGB/YUV conversion and encoding.
  */
-static DECLCALLBACK(int) videoRecThread(RTTHREAD Thread, void *pvUser)
+static DECLCALLBACK(int) videoRecThread(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF(hThreadSelf);
     PVIDEORECCONTEXT pCtx = (PVIDEORECCONTEXT)pvUser;
     for (;;)
     {
@@ -617,7 +614,7 @@ void VideoRecContextClose(PVIDEORECCONTEXT pCtx)
             pStrm->Ebml.close();
             vpx_img_free(&pStrm->VpxRawImage);
             vpx_codec_err_t rcv = vpx_codec_destroy(&pStrm->VpxCodec);
-            Assert(rcv == VPX_CODEC_OK);
+            Assert(rcv == VPX_CODEC_OK); RT_NOREF(rcv);
             RTMemFree(pStrm->pu8RgbBuf);
             pStrm->pu8RgbBuf = NULL;
         }
@@ -638,6 +635,7 @@ void VideoRecContextClose(PVIDEORECCONTEXT pCtx)
  */
 bool VideoRecIsEnabled(PVIDEORECCONTEXT pCtx)
 {
+    RT_NOREF(pCtx);
     uint32_t enmState = ASMAtomicReadU32(&g_enmState);
     return (   enmState == VIDREC_IDLE
             || enmState == VIDREC_COPYING);

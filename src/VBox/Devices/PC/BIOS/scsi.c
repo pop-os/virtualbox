@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2015 Oracle Corporation
+ * Copyright (C) 2004-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -294,7 +294,7 @@ int scsi_write_sectors(bio_dsk_t __far *bios_dsk)
 }
 
 
-//@todo: move
+/// @todo move
 #define ATA_DATA_NO      0x00
 #define ATA_DATA_IN      0x01
 #define ATA_DATA_OUT     0x02

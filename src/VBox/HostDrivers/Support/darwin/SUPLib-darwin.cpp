@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -186,6 +186,8 @@ static int suplibDarwinOpenService(PSUPLIBDATA pThis)
 
 int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
 {
+    RT_NOREF(penmWhat, pErrInfo);
+
     /*
      * Nothing to do if pre-inited.
      */
@@ -263,6 +265,7 @@ int suplibOsUninstall(void)
 
 int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
 {
+    RT_NOREF(cbReq);
     if (RT_LIKELY(ioctl(pThis->hDevice, uFunction, pvReq) >= 0))
         return VINF_SUCCESS;
     return RTErrConvertFromErrno(errno);

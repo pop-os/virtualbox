@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -251,7 +251,7 @@ static void tstRTPipe2(void)
 
     RTPIPE  hPipeR = (RTPIPE)1;
     RTPIPE  hPipeW = (RTPIPE)1;
-    RTTESTI_CHECK_RC(RTPipeCreate(&hPipeR, &hPipeW, ~0), VERR_INVALID_PARAMETER);
+    RTTESTI_CHECK_RC(RTPipeCreate(&hPipeR, &hPipeW, UINT32_MAX), VERR_INVALID_PARAMETER);
     RTTESTI_CHECK_RC(RTPipeCreate(NULL, &hPipeW, 0), VERR_INVALID_POINTER);
     RTTESTI_CHECK_RC(RTPipeCreate(&hPipeR, NULL, 0), VERR_INVALID_POINTER);
     RTTESTI_CHECK(hPipeR == (RTPIPE)1);

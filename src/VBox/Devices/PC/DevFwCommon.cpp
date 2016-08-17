@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1013,6 +1013,8 @@ void FwCommonPlantSmbiosAndDmiHdrs(PPDMDEVINS pDevIns, uint16_t cbDmiTables, uin
  */
 void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, uint16_t cCpus)
 {
+    RT_NOREF1(cbMax);
+
     /* configuration table */
     PMPSCFGTBLHEADER pCfgTab      = (MPSCFGTBLHEADER*)pTable;
     memcpy(pCfgTab->au8Signature, "PCMP", 4);

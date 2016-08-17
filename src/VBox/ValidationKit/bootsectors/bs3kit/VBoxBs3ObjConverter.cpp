@@ -161,7 +161,6 @@ static bool writefile(const char *pszFile, void const *pvFile, size_t cbFile)
 {
     remove(pszFile);
 
-    int rc = -1;
     FILE *pFile = openfile(pszFile, true);
     if (pFile)
     {
@@ -1027,6 +1026,7 @@ static bool omfWriter_LEDataAddU16(POMFWRITER pThis, uint16_t u16)
     return false;
 }
 
+#if 0 /* unused */
 /**
  * LEDATA + FIXUPP - Adds a byte to the LEDATA record, splitting if needed.
  */
@@ -1040,6 +1040,7 @@ static bool omfWriter_LEDataAddU8(POMFWRITER pThis, uint8_t b)
     }
     return false;
 }
+#endif
 
 /**
  * MODEND - End of module, simple variant.
@@ -1502,7 +1503,7 @@ static bool convertElfSectionsToSegDefsAndGrpDefs(POMFWRITER pThis, PCELFDETAILS
      */
     /** @todo do we need to consider missing segments and ordering? */
     uint16_t cGrpNms = 0;
-    uint16_t aiGrpNms[2];
+    uint16_t aiGrpNms[2] = { 0, 0 }; /* Shut up, GCC. */
     if (fHaveData)
         aiGrpNms[cGrpNms++] = idxGrpData;
     for (uint32_t iGrpNm = 0; iGrpNm < cGrpNms; iGrpNm++)
@@ -1690,6 +1691,7 @@ static DECLCALLBACK(int) convertElfCompareRelA(void const *pvElement1, void cons
         return -1;
     if (pReloc1->r_offset > pReloc2->r_offset)
         return 1;
+    RT_NOREF_PV(pvUser);
     return 0;
 }
 
@@ -1698,6 +1700,8 @@ static bool convertElfSectionsToLeDataAndFixupps(POMFWRITER pThis, PCELFDETAILS 
     Elf64_Sym const    *paSymbols = pElfStuff->paSymbols;
     Elf64_Shdr const   *paShdrs   = pElfStuff->paShdrs;
     bool                fRet      = true;
+    RT_NOREF_PV(cbFile);
+
     for (uint32_t i = 1; i < pThis->cSegments; i++)
     {
         if (pThis->paSegments[i].iSegDef == UINT16_MAX)
@@ -1932,10 +1936,6 @@ static bool convertElfToOmf(const char *pszFile, uint8_t const *pbFile, size_t c
      */
     if (omfWriter_BeginModule(pThis, pszFile))
     {
-        Elf64_Ehdr const *pEhdr     = (Elf64_Ehdr const *)pbFile;
-        Elf64_Shdr const *paShdrs   = (Elf64_Shdr const *)&pbFile[pEhdr->e_shoff];
-        const char       *pszStrTab = (const char *)&pbFile[paShdrs[pEhdr->e_shstrndx].sh_offset];
-
         if (   convertElfSectionsToSegDefsAndGrpDefs(pThis, &ElfStuff)
             && convertElfSymbolsToPubDefsAndExtDefs(pThis, &ElfStuff)
             && omfWriter_LinkPassSeparator(pThis)
@@ -2509,6 +2509,10 @@ static bool convertCoffSectionsToLeDataAndFixupps(POMFWRITER pThis, uint8_t cons
                                                   PCIMAGE_SECTION_HEADER paShdrs, uint16_t cSections,
                                                   PCIMAGE_SYMBOL paSymbols, uint16_t cSymbols, const char *pchStrTab)
 {
+    RT_NOREF_PV(cbFile);
+    RT_NOREF_PV(cSections);
+    RT_NOREF_PV(cSymbols);
+
     uint32_t const  cbStrTab = *(uint32_t const *)pchStrTab;
     bool            fRet     = true;
     for (uint32_t i = 0; i < pThis->cSegments; i++)
@@ -3619,8 +3623,6 @@ static bool convertMachoToOmf(const char *pszFile, uint8_t const *pbFile, size_t
     if (omfWriter_BeginModule(pThis, pszFile))
     {
         Elf64_Ehdr const *pEhdr     = (Elf64_Ehdr const *)pbFile;
-        Elf64_Shdr const *paShdrs   = (Elf64_Shdr const *)&pbFile[pEhdr->e_shoff];
-        const char       *pszStrTab = (const char *)&pbFile[paShdrs[pEhdr->e_shstrndx].sh_offset];
 
         if (   convertMachOSectionsToSegDefsAndGrpDefs(pThis, &MachOStuff)
             && convertMachOSymbolsToPubDefsAndExtDefs(pThis, &MachOStuff)
@@ -4585,7 +4587,6 @@ static bool convertOmfWriteDebugData(POMFWRITER pThis, POMFDETAILS pOmfStuff)
         return true;
 
     /* Begin and write the CV version signature. */
-    uint32_t const  cbMaxChunk = RT_ALIGN(OMF_MAX_RECORD_PAYLOAD - 1 - 16, 4); /* keep the data dword aligned */
     if (   !omfWriter_LEDataBegin(pThis, pOmfStuff->iSymbolsSeg, 0)
         || !omfWriter_LEDataAddU32(pThis, RTCVSYMBOLS_SIGNATURE_CV8))
         return false;
@@ -5044,7 +5045,7 @@ int main(int argc, char **argv)
                         break;
 
                     case 'V':
-                        printf("%s\n", "$Revision: 106915 $");
+                        printf("%s\n", "$Revision: 110010 $");
                         return 0;
 
                     case '?':
@@ -5068,5 +5069,4 @@ int main(int argc, char **argv)
 
     return rcExit;
 }
-
 

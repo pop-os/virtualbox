@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -217,6 +217,7 @@ typedef uint32_t E1KCHIP;
 #define E1K_CHIP_82543GC 1
 #define E1K_CHIP_82545EM 2
 
+#ifdef IN_RING3
 /** Different E1000 chips. */
 static const struct E1kChips
 {
@@ -225,20 +226,21 @@ static const struct E1kChips
     uint16_t uPCISubsystemVendorId;
     uint16_t uPCISubsystemId;
     const char *pcszName;
-} g_Chips[] =
+} g_aChips[] =
 {
     /* Vendor Device SSVendor SubSys  Name */
     { 0x8086,
       /* Temporary code, as MSI-aware driver dislike 0x100E. How to do that right? */
-#ifdef E1K_WITH_MSI
+# ifdef E1K_WITH_MSI
       0x105E,
-#else
+# else
       0x100E,
-#endif
+# endif
                       0x8086, 0x001E, "82540EM" }, /* Intel 82540EM-A in Intel PRO/1000 MT Desktop */
     { 0x8086, 0x1004, 0x8086, 0x1004, "82543GC" }, /* Intel 82543GC   in Intel PRO/1000 T  Server */
     { 0x8086, 0x100F, 0x15AD, 0x0750, "82545EM" }  /* Intel 82545EM-A in VMWare Network Adapter */
 };
+#endif /* IN_RING3 */
 
 
 /* The size of register area mapped to I/O space */
@@ -1551,6 +1553,7 @@ DECLINLINE(void) e1kArmTimer(PE1KSTATE pThis, PTMTIMER pTimer, uint32_t uExpireI
     TMTimerSetMicro(pTimer, uExpireIn);
 }
 
+#ifdef IN_RING3
 /**
  * Cancel a timer.
  *
@@ -1563,11 +1566,11 @@ DECLINLINE(void) e1kCancelTimer(PE1KSTATE pThis, PTMTIMER pTimer)
             pThis->szPrf, e1kGetTimerName(pThis, pTimer)));
     int rc = TMTimerStop(pTimer);
     if (RT_FAILURE(rc))
-    {
         E1kLog2(("%s e1kCancelTimer: TMTimerStop() failed with %Rrc\n",
                 pThis->szPrf, rc));
-    }
+    RT_NOREF1(pThis);
 }
+#endif /* IN_RING3 */
 
 #define e1kCsEnter(ps, rc) PDMCritSectEnter(&ps->cs, rc)
 #define e1kCsLeave(ps) PDMCritSectLeave(&ps->cs)
@@ -1657,7 +1660,7 @@ static void e1kHardReset(PE1KSTATE pThis)
  * @param   pThis       The device state structure.
  * @param   cpPacket    The packet.
  * @param   cb          The size of the packet.
- * @param   cszText     A string denoting direction of packet transfer.
+ * @param   pszText     A string denoting direction of packet transfer.
  *
  * @return  The 1's complement of the 1's complement sum.
  *
@@ -1686,16 +1689,16 @@ static uint16_t e1kCSum16(const void *pvBuf, size_t cb)
  * @param   pThis       The device state structure.
  * @param   cpPacket    The packet.
  * @param   cb          The size of the packet.
- * @param   cszText     A string denoting direction of packet transfer.
+ * @param   pszText     A string denoting direction of packet transfer.
  * @thread  E1000_TX
  */
-DECLINLINE(void) e1kPacketDump(PE1KSTATE pThis, const uint8_t *cpPacket, size_t cb, const char *cszText)
+DECLINLINE(void) e1kPacketDump(PE1KSTATE pThis, const uint8_t *cpPacket, size_t cb, const char *pszText)
 {
 #ifdef DEBUG
     if (RT_LIKELY(e1kCsEnter(pThis, VERR_SEM_BUSY) == VINF_SUCCESS))
     {
         Log4(("%s --- %s packet #%d: %RTmac => %RTmac (%d bytes) ---\n",
-                pThis->szPrf, cszText, ++pThis->u32PktNo, cpPacket+6, cpPacket, cb));
+                pThis->szPrf, pszText, ++pThis->u32PktNo, cpPacket+6, cpPacket, cb));
         if (ntohs(*(uint16_t*)(cpPacket+12)) == 0x86DD)
         {
             Log4(("%s --- IPv6: %RTnaipv6 => %RTnaipv6\n",
@@ -1720,15 +1723,16 @@ DECLINLINE(void) e1kPacketDump(PE1KSTATE pThis, const uint8_t *cpPacket, size_t 
     {
         if (ntohs(*(uint16_t*)(cpPacket+12)) == 0x86DD)
             E1kLogRel(("E1000: %s packet #%d, %RTmac => %RTmac, %RTnaipv6 => %RTnaipv6, seq=%x ack=%x\n",
-                       cszText, ++pThis->u32PktNo, cpPacket+6, cpPacket, cpPacket+14+8, cpPacket+14+24,
+                       pszText, ++pThis->u32PktNo, cpPacket+6, cpPacket, cpPacket+14+8, cpPacket+14+24,
                        ntohl(*(uint32_t*)(cpPacket+14+40+4)), ntohl(*(uint32_t*)(cpPacket+14+40+8))));
         else
             E1kLogRel(("E1000: %s packet #%d, %RTmac => %RTmac, %RTnaipv4 => %RTnaipv4, seq=%x ack=%x\n",
-                       cszText, ++pThis->u32PktNo, cpPacket+6, cpPacket,
+                       pszText, ++pThis->u32PktNo, cpPacket+6, cpPacket,
                        *(uint32_t*)(cpPacket+14+12), *(uint32_t*)(cpPacket+14+16),
                        ntohl(*(uint32_t*)(cpPacket+14+20+4)), ntohl(*(uint32_t*)(cpPacket+14+20+8))));
         e1kCsLeave(pThis);
     }
+    RT_NOREF2(cb, pszText);
 #endif
 }
 
@@ -1740,13 +1744,15 @@ DECLINLINE(void) e1kPacketDump(PE1KSTATE pThis, const uint8_t *cpPacket, size_t 
  * @param   pDesc       Pointer to descriptor union.
  * @thread  E1000_TX
  */
-DECLINLINE(int) e1kGetDescType(E1KTXDESC* pDesc)
+DECLINLINE(int) e1kGetDescType(E1KTXDESC *pDesc)
 {
     if (pDesc->legacy.cmd.fDEXT)
         return pDesc->context.dw2.u4DTYP;
     return E1K_DTYP_LEGACY;
 }
 
+
+#if defined(E1K_WITH_RXD_CACHE) && defined(IN_RING3) /* currently only used in ring-3 due to stack space requirements of the caller */
 /**
  * Dump receive descriptor to debug log.
  *
@@ -1754,8 +1760,9 @@ DECLINLINE(int) e1kGetDescType(E1KTXDESC* pDesc)
  * @param   pDesc       Pointer to the descriptor.
  * @thread  E1000_RX
  */
-static void e1kPrintRDesc(PE1KSTATE pThis, E1KRXDESC* pDesc)
+static void e1kPrintRDesc(PE1KSTATE pThis, E1KRXDESC *pDesc)
 {
+    RT_NOREF2(pThis, pDesc);
     E1kLog2(("%s <-- Receive Descriptor (%d bytes):\n", pThis->szPrf, pDesc->u16Length));
     E1kLog2(("        Address=%16LX Length=%04X Csum=%04X\n",
              pDesc->u64BufAddr, pDesc->u16Length, pDesc->u16Checksum));
@@ -1775,18 +1782,21 @@ static void e1kPrintRDesc(PE1KSTATE pThis, E1KRXDESC* pDesc)
              E1K_SPEC_VLAN(pDesc->status.u16Special),
              E1K_SPEC_PRI(pDesc->status.u16Special)));
 }
+#endif /* E1K_WITH_RXD_CACHE && IN_RING3 */
 
 /**
  * Dump transmit descriptor to debug log.
  *
  * @param   pThis       The device state structure.
  * @param   pDesc       Pointer to descriptor union.
- * @param   cszDir      A string denoting direction of descriptor transfer
+ * @param   pszDir      A string denoting direction of descriptor transfer
  * @thread  E1000_TX
  */
-static void e1kPrintTDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, const char* cszDir,
+static void e1kPrintTDesc(PE1KSTATE pThis, E1KTXDESC *pDesc, const char *pszDir,
                           unsigned uLevel = RTLOGGRPFLAGS_LEVEL_2)
 {
+    RT_NOREF4(pThis, pDesc, pszDir, uLevel);
+
     /*
      * Unfortunately we cannot use our format handler here, we want R0 logging
      * as well.
@@ -1795,7 +1805,7 @@ static void e1kPrintTDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, const char* cszDir,
     {
         case E1K_DTYP_CONTEXT:
             E1kLogX(uLevel, ("%s %s Context Transmit Descriptor %s\n",
-                    pThis->szPrf, cszDir, cszDir));
+                    pThis->szPrf, pszDir, pszDir));
             E1kLogX(uLevel, ("        IPCSS=%02X IPCSO=%02X IPCSE=%04X TUCSS=%02X TUCSO=%02X TUCSE=%04X\n",
                     pDesc->context.ip.u8CSS, pDesc->context.ip.u8CSO, pDesc->context.ip.u16CSE,
                     pDesc->context.tu.u8CSS, pDesc->context.tu.u8CSO, pDesc->context.tu.u16CSE));
@@ -1812,7 +1822,7 @@ static void e1kPrintTDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, const char* cszDir,
             break;
         case E1K_DTYP_DATA:
             E1kLogX(uLevel, ("%s %s Data Transmit Descriptor (%d bytes) %s\n",
-                    pThis->szPrf, cszDir, pDesc->data.cmd.u20DTALEN, cszDir));
+                    pThis->szPrf, pszDir, pDesc->data.cmd.u20DTALEN, pszDir));
             E1kLogX(uLevel, ("        Address=%16LX DTALEN=%05X\n",
                     pDesc->data.u64BufAddr,
                     pDesc->data.cmd.u20DTALEN));
@@ -1835,7 +1845,7 @@ static void e1kPrintTDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, const char* cszDir,
             break;
         case E1K_DTYP_LEGACY:
             E1kLogX(uLevel, ("%s %s Legacy Transmit Descriptor (%d bytes) %s\n",
-                    pThis->szPrf, cszDir, pDesc->legacy.cmd.u16Length, cszDir));
+                    pThis->szPrf, pszDir, pDesc->legacy.cmd.u16Length, pszDir));
             E1kLogX(uLevel, ("        Address=%16LX DTALEN=%05X\n",
                     pDesc->data.u64BufAddr,
                     pDesc->legacy.cmd.u16Length));
@@ -1858,7 +1868,7 @@ static void e1kPrintTDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, const char* cszDir,
             break;
         default:
             E1kLog(("%s %s Invalid Transmit Descriptor %s\n",
-                    pThis->szPrf, cszDir, cszDir));
+                    pThis->szPrf, pszDir, pszDir));
             break;
     }
 }
@@ -1950,6 +1960,7 @@ DECLINLINE(RTGCPHYS) e1kDescAddr(uint32_t baseHigh, uint32_t baseLow, uint32_t i
     return ((uint64_t)baseHigh << 32) + baseLow + idxDesc * sizeof(E1KRXDESC);
 }
 
+#ifdef IN_RING3 /* currently only used in ring-3 due to stack space requirements of the caller */
 /**
  * Advance the head pointer of the receive descriptor queue.
  *
@@ -1988,8 +1999,10 @@ DECLINLINE(void) e1kAdvanceRDH(PE1KSTATE pThis)
              pThis->szPrf, RDH, RDT, uRQueueLen));
     //e1kCsLeave(pThis);
 }
+#endif /* IN_RING3 */
 
 #ifdef E1K_WITH_RXD_CACHE
+
 /**
  * Return the number of RX descriptor that belong to the hardware.
  *
@@ -2083,6 +2096,8 @@ DECLINLINE(unsigned) e1kRxDPrefetch(PE1KSTATE pThis)
     return nDescsToFetch;
 }
 
+# ifdef IN_RING3 /* currently only used in ring-3 due to stack space requirements of the caller */
+
 /**
  * Obtain the next RX descriptor from RXD cache, fetching descriptors from the
  * RX ring if the cache is empty.
@@ -2107,6 +2122,7 @@ DECLINLINE(E1KRXDESC*) e1kRxDGet(PE1KSTATE pThis)
     /* Out of Rx descriptors. */
     return NULL;
 }
+
 
 /**
  * Return the RX descriptor obtained with e1kRxDGet() and advance the cache
@@ -2149,6 +2165,8 @@ static DECLCALLBACK(void) e1kStoreRxFragment(PE1KSTATE pThis, E1KRXDESC *pDesc, 
     pDesc->u16Length = (uint16_t)cb;                        Assert(pDesc->u16Length == cb);
     STAM_PROFILE_ADV_STOP(&pThis->StatReceiveStore, a);
 }
+
+# endif
 
 #else /* !E1K_WITH_RXD_CACHE */
 
@@ -2200,6 +2218,7 @@ static DECLCALLBACK(void) e1kStoreRxFragment(PE1KSTATE pThis, E1KRXDESC *pDesc, 
     }
     STAM_PROFILE_ADV_STOP(&pThis->StatReceiveStore, a);
 }
+
 #endif /* !E1K_WITH_RXD_CACHE */
 
 /**
@@ -2226,6 +2245,7 @@ DECLINLINE(bool) e1kIsMulticast(const void *pvBuf)
     return (*(char*)pvBuf) & 1;
 }
 
+#ifdef IN_RING3 /* currently only used in ring-3 due to stack space requirements of the caller */
 /**
  * Set IXSM, IPCS and TCPCS flags according to the packet type.
  *
@@ -2245,7 +2265,7 @@ static int e1kRxChecksumOffload(PE1KSTATE pThis, const uint8_t *pFrame, size_t c
      * coming from so we tell the driver to ignore our checksum flags
      * and do verification in software.
      */
-#if 0
+# if 0
     uint16_t uEtherType = ntohs(*(uint16_t*)(pFrame + 12));
 
     E1kLog2(("%s e1kRxChecksumOffload: EtherType=%x\n", pThis->szPrf, uEtherType));
@@ -2270,11 +2290,13 @@ static int e1kRxChecksumOffload(PE1KSTATE pThis, const uint8_t *pFrame, size_t c
             pStatus->fIXSM = true;
             break;
     }
-#else
+# else
     pStatus->fIXSM = true;
-#endif
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pFrame); RT_NOREF_PV(cb);
+# endif
     return VINF_SUCCESS;
 }
+#endif /* IN_RING3 */
 
 /**
  * Pad and store received packet.
@@ -2371,7 +2393,7 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
 
     E1K_INC_ISTAT_CNT(pThis->uStatRxFrm);
 
-#ifdef E1K_WITH_RXD_CACHE
+# ifdef E1K_WITH_RXD_CACHE
     while (cb > 0)
     {
         E1KRXDESC *pDesc = e1kRxDGet(pThis);
@@ -2383,7 +2405,7 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
                     pThis->szPrf, cb, e1kRxDInCache(pThis), RDH, RDT));
             break;
         }
-#else /* !E1K_WITH_RXD_CACHE */
+# else /* !E1K_WITH_RXD_CACHE */
     if (RDH == RDT)
     {
         E1kLog(("%s Out of receive buffers, dropping the packet\n",
@@ -2396,7 +2418,7 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
         E1KRXDESC desc, *pDesc = &desc;
         PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), e1kDescAddr(RDBAH, RDBAL, RDH),
                           &desc, sizeof(desc));
-#endif /* !E1K_WITH_RXD_CACHE */
+# endif /* !E1K_WITH_RXD_CACHE */
         if (pDesc->u64BufAddr)
         {
             /* Update descriptor */
@@ -2428,26 +2450,26 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
                 pDesc->status.fEOP = true;
                 e1kCsRxLeave(pThis);
                 e1kStoreRxFragment(pThis, pDesc, ptr, cb);
-#ifdef E1K_WITH_RXD_CACHE
+# ifdef E1K_WITH_RXD_CACHE
                 rc = e1kCsRxEnter(pThis, VERR_SEM_BUSY);
                 if (RT_UNLIKELY(rc != VINF_SUCCESS))
                     return rc;
                 cb = 0;
-#else /* !E1K_WITH_RXD_CACHE */
+# else /* !E1K_WITH_RXD_CACHE */
                 pThis->led.Actual.s.fReading = 0;
                 return VINF_SUCCESS;
-#endif /* !E1K_WITH_RXD_CACHE */
+# endif /* !E1K_WITH_RXD_CACHE */
             }
             /*
              * Note: RDH is advanced by e1kStoreRxFragment if E1K_WITH_RXD_CACHE
              * is not defined.
              */
         }
-#ifdef E1K_WITH_RXD_CACHE
+# ifdef E1K_WITH_RXD_CACHE
         /* Write back the descriptor. */
         pDesc->status.fDD = true;
         e1kRxDPut(pThis, pDesc);
-#else /* !E1K_WITH_RXD_CACHE */
+# else /* !E1K_WITH_RXD_CACHE */
         else
         {
             /* Write back the descriptor. */
@@ -2457,7 +2479,7 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
                                   pDesc, sizeof(E1KRXDESC));
             e1kAdvanceRDH(pThis);
         }
-#endif /* !E1K_WITH_RXD_CACHE */
+# endif /* !E1K_WITH_RXD_CACHE */
     }
 
     if (cb > 0)
@@ -2466,9 +2488,9 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
     pThis->led.Actual.s.fReading = 0;
 
     e1kCsRxLeave(pThis);
-#ifdef E1K_WITH_RXD_CACHE
+# ifdef E1K_WITH_RXD_CACHE
     /* Complete packet has been stored -- it is time to let the guest know. */
-# ifdef E1K_USE_RX_TIMERS
+#  ifdef E1K_USE_RX_TIMERS
     if (RDTR)
     {
         /* Arm the timer to fire in RDTR usec (discard .024) */
@@ -2479,19 +2501,20 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
     }
     else
     {
-# endif /* E1K_USE_RX_TIMERS */
+#  endif /* E1K_USE_RX_TIMERS */
         /* 0 delay means immediate interrupt */
         E1K_INC_ISTAT_CNT(pThis->uStatIntRx);
         e1kRaiseInterrupt(pThis, VERR_SEM_BUSY, ICR_RXT0);
-# ifdef E1K_USE_RX_TIMERS
+#  ifdef E1K_USE_RX_TIMERS
     }
-# endif /* E1K_USE_RX_TIMERS */
-#endif /* E1K_WITH_RXD_CACHE */
+#  endif /* E1K_USE_RX_TIMERS */
+# endif /* E1K_WITH_RXD_CACHE */
 
     return VINF_SUCCESS;
-#else
+#else  /* !IN_RING3 */
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pvBuf); RT_NOREF_PV(cb); RT_NOREF_PV(status);
     return VERR_INTERNAL_ERROR_2;
-#endif
+#endif /* !IN_RING3 */
 }
 
 
@@ -2683,6 +2706,7 @@ static int e1kRegWriteCTRL(PE1KSTATE pThis, uint32_t offset, uint32_t index, uin
  */
 static int e1kRegWriteEECD(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t value)
 {
+    RT_NOREF(offset, index);
 #ifdef IN_RING3
     /* So far we are concerned with lower byte only */
     if ((EECD & EECD_EE_GNT) || pThis->eChip == E1K_CHIP_82543GC)
@@ -2701,6 +2725,7 @@ static int e1kRegWriteEECD(PE1KSTATE pThis, uint32_t offset, uint32_t index, uin
 
     return VINF_SUCCESS;
 #else /* !IN_RING3 */
+    RT_NOREF(pThis, value);
     return VINF_IOM_R3_MMIO_WRITE;
 #endif /* !IN_RING3 */
 }
@@ -2738,6 +2763,7 @@ static int e1kRegReadEECD(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
 
     return rc;
 #else /* !IN_RING3 */
+    RT_NOREF_PV(pThis); RT_NOREF_PV(offset); RT_NOREF_PV(index); RT_NOREF_PV(pu32Value);
     return VINF_IOM_R3_MMIO_READ;
 #endif /* !IN_RING3 */
 }
@@ -2773,6 +2799,7 @@ static int e1kRegWriteEERD(PE1KSTATE pThis, uint32_t offset, uint32_t index, uin
 
     return VINF_SUCCESS;
 #else /* !IN_RING3 */
+    RT_NOREF_PV(pThis); RT_NOREF_PV(offset); RT_NOREF_PV(index); RT_NOREF_PV(value);
     return VINF_IOM_R3_MMIO_WRITE;
 #endif /* !IN_RING3 */
 }
@@ -2846,6 +2873,7 @@ static int e1kRegWriteICR(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
 {
     ICR &= ~value;
 
+    RT_NOREF_PV(pThis); RT_NOREF_PV(offset); RT_NOREF_PV(index);
     return VINF_SUCCESS;
 }
 
@@ -2929,6 +2957,7 @@ static int e1kRegReadICR(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint3
  */
 static int e1kRegWriteICS(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t value)
 {
+    RT_NOREF_PV(offset); RT_NOREF_PV(index);
     E1K_INC_ISTAT_CNT(pThis->uStatIntICS);
     return e1kRaiseInterrupt(pThis, VINF_IOM_R3_MMIO_WRITE, value & g_aE1kRegMap[ICS_IDX].writable);
 }
@@ -2947,6 +2976,8 @@ static int e1kRegWriteICS(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
  */
 static int e1kRegWriteIMS(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t value)
 {
+    RT_NOREF_PV(offset); RT_NOREF_PV(index);
+
     IMS |= value;
     E1kLogRel(("E1000: irq enabled, RDH=%x RDT=%x TDH=%x TDT=%x\n", RDH, RDT, TDH, TDT));
     E1kLog(("%s e1kRegWriteIMS: IRQ enabled\n", pThis->szPrf));
@@ -2969,6 +3000,8 @@ static int e1kRegWriteIMS(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
  */
 static int e1kRegWriteIMC(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t value)
 {
+    RT_NOREF_PV(offset); RT_NOREF_PV(index);
+
     int rc = e1kCsEnter(pThis, VINF_IOM_R3_MMIO_WRITE);
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
         return rc;
@@ -3176,8 +3209,8 @@ DECLINLINE(uint32_t) e1kGetTxLen(PE1KSTATE pThis)
 }
 
 #ifdef IN_RING3
-#ifdef E1K_TX_DELAY
 
+# ifdef E1K_TX_DELAY
 /**
  * Transmit Delay Timer handler.
  *
@@ -3194,17 +3227,17 @@ static DECLCALLBACK(void) e1kTxDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, v
     Assert(PDMCritSectIsOwner(&pThis->csTx));
 
     E1K_INC_ISTAT_CNT(pThis->uStatTxDelayExp);
-#ifdef E1K_INT_STATS
+#  ifdef E1K_INT_STATS
     uint64_t u64Elapsed = RTTimeNanoTS() - pThis->u64ArmedAt;
     if (u64Elapsed > pThis->uStatMaxTxDelay)
         pThis->uStatMaxTxDelay = u64Elapsed;
-#endif
+#  endif
     int rc = e1kXmitPending(pThis, false /*fOnWorkerThread*/);
     AssertMsg(RT_SUCCESS(rc) || rc == VERR_TRY_AGAIN, ("%Rrc\n", rc));
 }
-#endif /* E1K_TX_DELAY */
+# endif /* E1K_TX_DELAY */
 
-#ifdef E1K_USE_TX_TIMERS
+# ifdef E1K_USE_TX_TIMERS
 
 /**
  * Transmit Interrupt Delay Timer handler.
@@ -3222,9 +3255,9 @@ static DECLCALLBACK(void) e1kTxIntDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
 
     E1K_INC_ISTAT_CNT(pThis->uStatTID);
     /* Cancel absolute delay timer as we have already got attention */
-#ifndef E1K_NO_TAD
+#  ifndef E1K_NO_TAD
     e1kCancelTimer(pThis, pThis->CTX_SUFF(pTADTimer));
-#endif /* E1K_NO_TAD */
+#  endif
     e1kRaiseInterrupt(pThis, ICR_TXDW);
 }
 
@@ -3248,8 +3281,8 @@ static DECLCALLBACK(void) e1kTxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
     e1kRaiseInterrupt(pThis, ICR_TXDW);
 }
 
-#endif /* E1K_USE_TX_TIMERS */
-#ifdef E1K_USE_RX_TIMERS
+# endif /* E1K_USE_TX_TIMERS */
+# ifdef E1K_USE_RX_TIMERS
 
 /**
  * Receive Interrupt Delay Timer handler.
@@ -3291,7 +3324,7 @@ static DECLCALLBACK(void) e1kRxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
     e1kRaiseInterrupt(pThis, ICR_RXT0);
 }
 
-#endif /* E1K_USE_RX_TIMERS */
+# endif /* E1K_USE_RX_TIMERS */
 
 /**
  * Late Interrupt Timer handler.
@@ -3303,15 +3336,16 @@ static DECLCALLBACK(void) e1kRxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
  */
 static DECLCALLBACK(void) e1kLateIntTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     PE1KSTATE pThis = (PE1KSTATE )pvUser;
 
     STAM_PROFILE_ADV_START(&pThis->StatLateIntTimer, a);
     STAM_COUNTER_INC(&pThis->StatLateInts);
     E1K_INC_ISTAT_CNT(pThis->uStatIntLate);
-#if 0
+# if 0
     if (pThis->iStatIntLost > -100)
         pThis->iStatIntLost--;
-#endif
+# endif
     e1kRaiseInterrupt(pThis, VERR_SEM_BUSY, 0);
     STAM_PROFILE_ADV_STOP(&pThis->StatLateIntTimer, a);
 }
@@ -3326,6 +3360,7 @@ static DECLCALLBACK(void) e1kLateIntTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, v
  */
 static DECLCALLBACK(void) e1kLinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     PE1KSTATE pThis = (PE1KSTATE )pvUser;
 
     /*
@@ -3430,7 +3465,7 @@ DECLINLINE(void) e1kSetupGsoCtx(PPDMNETWORKGSO pGso, E1KTXCTX const *pCtx)
     }
     else
     {
-        pGso->cbHdrsSeg = pCtx->dw3.u8HDRLEN; /* @todo IPv6 UFO */
+        pGso->cbHdrsSeg = pCtx->dw3.u8HDRLEN; /** @todo IPv6 UFO */
         if (pCtx->dw2.fTCP)
             pGso->u8Type = PDMNETWORKGSOTYPE_IPV6_TCP;
         else
@@ -3690,7 +3725,7 @@ DECLINLINE(bool) e1kXmitIsGsoBuf(PDMSCATTERGATHER const *pTxSg)
  * @param   addr        Physical address in guest context.
  * @thread  E1000_TX
  */
-DECLINLINE(void) e1kLoadDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr)
+DECLINLINE(void) e1kLoadDesc(PE1KSTATE pThis, E1KTXDESC *pDesc, RTGCPHYS addr)
 {
     PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), addr, pDesc, sizeof(E1KTXDESC));
 }
@@ -3770,7 +3805,7 @@ DECLINLINE(bool) e1kTxDLazyLoad(PE1KSTATE pThis)
  * @param   addr        Physical address in guest context.
  * @thread  E1000_TX
  */
-DECLINLINE(void) e1kWriteBackDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr)
+DECLINLINE(void) e1kWriteBackDesc(PE1KSTATE pThis, E1KTXDESC *pDesc, RTGCPHYS addr)
 {
     /* Only the last half of the descriptor has to be written back. */
     e1kPrintTDesc(pThis, pDesc, "^^^");
@@ -3923,6 +3958,8 @@ static void e1kTransmitFrame(PE1KSTATE pThis, bool fOnWorkerThread)
  */
 static void e1kInsertChecksum(PE1KSTATE pThis, uint8_t *pPkt, uint16_t u16PktLen, uint8_t cso, uint8_t css, uint16_t cse)
 {
+    RT_NOREF1(pThis);
+
     if (css >= u16PktLen)
     {
         E1kLog2(("%s css(%X) is greater than packet length-1(%X), checksum is not inserted\n",
@@ -4199,7 +4236,7 @@ static int e1kFallbackAddSegment(PE1KSTATE pThis, RTGCPHYS PhysAddr, uint16_t u1
  * @param   fOnWorkerThread Whether we're on a worker thread or an EMT.
  * @thread  E1000_TX
  */
-static bool e1kFallbackAddToFrame(PE1KSTATE pThis, E1KTXDESC* pDesc, uint32_t cbFragment, bool fOnWorkerThread)
+static bool e1kFallbackAddToFrame(PE1KSTATE pThis, E1KTXDESC *pDesc, uint32_t cbFragment, bool fOnWorkerThread)
 {
     PPDMSCATTERGATHER pTxSg = pThis->CTX_SUFF(pTxSg);
     Assert(e1kGetDescType(pDesc) == E1K_DTYP_DATA);
@@ -4264,13 +4301,14 @@ static bool e1kFallbackAddToFrame(PE1KSTATE pThis, E1KTXDESC* pDesc, uint32_t cb
  * @param   fOnWorkerThread Whether we're on a worker thread or an EMT.
  * @thread  E1000_TX
  */
-static int e1kFallbackAddToFrame(PE1KSTATE pThis, E1KTXDESC* pDesc, bool fOnWorkerThread)
+static int e1kFallbackAddToFrame(PE1KSTATE pThis, E1KTXDESC *pDesc, bool fOnWorkerThread)
 {
-    int rc = VINF_SUCCESS;
+#ifdef VBOX_STRICT
     PPDMSCATTERGATHER pTxSg = pThis->CTX_SUFF(pTxSg);
     Assert(e1kGetDescType(pDesc) == E1K_DTYP_DATA);
     Assert(pDesc->data.cmd.fTSE);
     Assert(!e1kXmitIsGsoBuf(pTxSg));
+#endif
 
     uint16_t u16MaxPktLen = pThis->contextTSE.dw3.u8HDRLEN + pThis->contextTSE.dw3.u16MSS;
     Assert(u16MaxPktLen != 0);
@@ -4279,6 +4317,7 @@ static int e1kFallbackAddToFrame(PE1KSTATE pThis, E1KTXDESC* pDesc, bool fOnWork
     /*
      * Carve out segments.
      */
+    int rc;
     do
     {
         /* Calculate how many bytes we have left in this TCP segment */
@@ -4371,7 +4410,7 @@ static bool e1kAddToFrame(PE1KSTATE pThis, RTGCPHYS PhysAddr, uint32_t cbFragmen
  * @param   addr        Physical address of the descriptor in guest memory.
  * @thread  E1000_TX
  */
-static void e1kDescReport(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr)
+static void e1kDescReport(PE1KSTATE pThis, E1KTXDESC *pDesc, RTGCPHYS addr)
 {
     /*
      * We fake descriptor write-back bursting. Descriptors are written back as they are
@@ -4425,7 +4464,7 @@ static void e1kDescReport(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr)
 # ifndef E1K_NO_TAD
                 /* Cancel both timers if armed and fire immediately. */
                 e1kCancelTimer(pThis, pThis->CTX_SUFF(pTADTimer));
-# endif /* E1K_NO_TAD */
+# endif
 #endif /* E1K_USE_TX_TIMERS */
                 E1K_INC_ISTAT_CNT(pThis->uStatIntTx);
                 e1kRaiseInterrupt(pThis, VERR_SEM_BUSY, ICR_TXDW);
@@ -4456,7 +4495,7 @@ static void e1kDescReport(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr)
  * @param   fOnWorkerThread Whether we're on a worker thread or an EMT.
  * @thread  E1000_TX
  */
-static int e1kXmitDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr, bool fOnWorkerThread)
+static int e1kXmitDesc(PE1KSTATE pThis, E1KTXDESC *pDesc, RTGCPHYS addr, bool fOnWorkerThread)
 {
     int rc = VINF_SUCCESS;
     uint32_t cbVTag = 0;
@@ -4716,11 +4755,10 @@ static int e1kXmitDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr, bool fO
  * @param   cbPacketSize    Size of the packet as previously computed.
  * @thread  E1000_TX
  */
-static int e1kXmitDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr,
+static int e1kXmitDesc(PE1KSTATE pThis, E1KTXDESC *pDesc, RTGCPHYS addr,
                        bool fOnWorkerThread)
 {
     int rc = VINF_SUCCESS;
-    uint32_t cbVTag = 0;
 
     e1kPrintTDesc(pThis, pDesc, "vvv");
 
@@ -4865,7 +4903,7 @@ static int e1kXmitDesc(PE1KSTATE pThis, E1KTXDESC* pDesc, RTGCPHYS addr,
     return rc;
 }
 
-DECLINLINE(void) e1kUpdateTxContext(PE1KSTATE pThis, E1KTXDESC* pDesc)
+DECLINLINE(void) e1kUpdateTxContext(PE1KSTATE pThis, E1KTXDESC *pDesc)
 {
     if (pDesc->context.dw2.fTSE)
     {
@@ -5084,8 +5122,8 @@ static int e1kXmitPending(PE1KSTATE pThis, bool fOnWorkerThread)
             STAM_PROFILE_ADV_STOP(&pThis->CTX_SUFF_Z(StatTransmit), a);
         }
 
-        /// @todo: uncomment: pThis->uStatIntTXQE++;
-        /// @todo: uncomment: e1kRaiseInterrupt(pThis, ICR_TXQE);
+        /// @todo uncomment: pThis->uStatIntTXQE++;
+        /// @todo uncomment: e1kRaiseInterrupt(pThis, ICR_TXQE);
         /*
          * Release the lock.
          */
@@ -5248,8 +5286,8 @@ static int e1kXmitPending(PE1KSTATE pThis, bool fOnWorkerThread)
 out:
         STAM_PROFILE_ADV_STOP(&pThis->CTX_SUFF_Z(StatTransmit), a);
 
-        /// @todo: uncomment: pThis->uStatIntTXQE++;
-        /// @todo: uncomment: e1kRaiseInterrupt(pThis, ICR_TXQE);
+        /// @todo uncomment: pThis->uStatIntTXQE++;
+        /// @todo uncomment: e1kRaiseInterrupt(pThis, ICR_TXQE);
 
         e1kCsTxLeave(pThis);
     }
@@ -5292,9 +5330,10 @@ static DECLCALLBACK(bool) e1kTxQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCO
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, PE1KSTATE);
     E1kLog2(("%s e1kTxQueueConsumer:\n", pThis->szPrf));
 
-    int rc = e1kXmitPending(pThis, false /*fOnWorkerThread*/);
+    int rc = e1kXmitPending(pThis, false /*fOnWorkerThread*/); NOREF(rc);
+#ifndef DEBUG_andy /** @todo r=andy Happens for me a lot, mute this for me. */
     AssertMsg(RT_SUCCESS(rc) || rc == VERR_TRY_AGAIN, ("%Rrc\n", rc));
-
+#endif
     return true;
 }
 
@@ -5303,6 +5342,7 @@ static DECLCALLBACK(bool) e1kTxQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCO
  */
 static DECLCALLBACK(bool) e1kCanRxQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem)
 {
+    RT_NOREF(pItem);
     e1kWakeupReceive(pDevIns);
     return true;
 }
@@ -5495,6 +5535,7 @@ static int e1kRegReadVFTA(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
  */
 static int e1kRegReadUnimplemented(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t *pu32Value)
 {
+    RT_NOREF3(pThis, offset, index);
     E1kLog(("%s At %08X read (00000000) attempt from unimplemented register %s (%s)\n",
             pThis->szPrf, offset, g_aE1kRegMap[index].abbrev, g_aE1kRegMap[index].name));
     *pu32Value = 0;
@@ -5545,6 +5586,8 @@ static int e1kRegReadAutoClear(PE1KSTATE pThis, uint32_t offset, uint32_t index,
  */
 static int e1kRegReadDefault(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t *pu32Value)
 {
+    RT_NOREF_PV(offset);
+
     AssertReturn(index < E1K_NUM_OF_32BIT_REGS, VERR_DEV_IO_ERROR);
     *pu32Value = pThis->auRegs[index] & g_aE1kRegMap[index].readable;
 
@@ -5565,6 +5608,8 @@ static int e1kRegReadDefault(PE1KSTATE pThis, uint32_t offset, uint32_t index, u
 
  static int e1kRegWriteUnimplemented(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t value)
 {
+    RT_NOREF_PV(pThis); RT_NOREF_PV(offset); RT_NOREF_PV(index); RT_NOREF_PV(value);
+
     E1kLog(("%s At %08X write attempt (%08X) to  unimplemented register %s (%s)\n",
             pThis->szPrf, offset, value, g_aE1kRegMap[index].abbrev, g_aE1kRegMap[index].name));
 
@@ -5589,6 +5634,8 @@ static int e1kRegReadDefault(PE1KSTATE pThis, uint32_t offset, uint32_t index, u
 
 static int e1kRegWriteDefault(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t value)
 {
+    RT_NOREF_PV(offset);
+
     AssertReturn(index < E1K_NUM_OF_32BIT_REGS, VERR_DEV_IO_ERROR);
     pThis->auRegs[index] = (value & g_aE1kRegMap[index].writable)
                          | (pThis->auRegs[index] & ~g_aE1kRegMap[index].writable);
@@ -5601,12 +5648,12 @@ static int e1kRegWriteDefault(PE1KSTATE pThis, uint32_t offset, uint32_t index, 
  *
  * @returns Index in the register table or -1 if not found.
  *
- * @param   pThis       The device state structure.
  * @param   offReg      Register offset in memory-mapped region.
  * @thread  EMT
  */
-static int e1kRegLookup(PE1KSTATE pThis, uint32_t offReg)
+static int e1kRegLookup(uint32_t offReg)
 {
+
 #if 0
     int index;
 
@@ -5676,7 +5723,7 @@ static int e1kRegReadUnaligned(PE1KSTATE pThis, uint32_t offReg, void *pv, uint3
     uint32_t    u32    = 0;
     uint32_t    shift;
     int         rc     = VINF_SUCCESS;
-    int         index  = e1kRegLookup(pThis, offReg);
+    int         index  = e1kRegLookup(offReg);
 #ifdef LOG_ENABLED
     char        buf[9];
 #endif
@@ -5765,7 +5812,7 @@ static int e1kRegReadAlignedU32(PE1KSTATE pThis, uint32_t offReg, uint32_t *pu32
      * Lookup the register and check that it's readable.
      */
     int rc     = VINF_SUCCESS;
-    int idxReg = e1kRegLookup(pThis, offReg);
+    int idxReg = e1kRegLookup(offReg);
     if (RT_LIKELY(idxReg != -1))
     {
         if (RT_UNLIKELY(g_aE1kRegMap[idxReg].readable))
@@ -5811,7 +5858,7 @@ static int e1kRegReadAlignedU32(PE1KSTATE pThis, uint32_t offReg, uint32_t *pu32
 static int e1kRegWriteAlignedU32(PE1KSTATE pThis, uint32_t offReg, uint32_t u32Value)
 {
     int         rc    = VINF_SUCCESS;
-    int         index = e1kRegLookup(pThis, offReg);
+    int         index = e1kRegLookup(offReg);
     if (RT_LIKELY(index != -1))
     {
         if (RT_LIKELY(g_aE1kRegMap[index].writable))
@@ -5851,7 +5898,7 @@ static int e1kRegWriteAlignedU32(PE1KSTATE pThis, uint32_t offReg, uint32_t u32V
  */
 PDMBOTHCBDECL(int) e1kMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
-    NOREF(pvUser);
+    RT_NOREF2(pvUser, cb);
     PE1KSTATE pThis  = PDMINS_2_DATA(pDevIns, PE1KSTATE);
     STAM_PROFILE_ADV_START(&pThis->CTX_SUFF_Z(StatMMIORead), a);
 
@@ -5871,7 +5918,7 @@ PDMBOTHCBDECL(int) e1kMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
  */
 PDMBOTHCBDECL(int) e1kMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
-    NOREF(pvUser);
+    RT_NOREF2(pvUser, cb);
     PE1KSTATE pThis  = PDMINS_2_DATA(pDevIns, PE1KSTATE);
     STAM_PROFILE_ADV_START(&pThis->CTX_SUFF_Z(StatMMIOWrite), a);
 
@@ -5894,6 +5941,7 @@ PDMBOTHCBDECL(int) e1kIOPortIn(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort,
     PE1KSTATE   pThis = PDMINS_2_DATA(pDevIns, PE1KSTATE);
     int         rc;
     STAM_PROFILE_ADV_START(&pThis->CTX_SUFF_Z(StatIORead), a);
+    RT_NOREF_PV(pvUser);
 
     uPort -= pThis->IOPortBase;
     if (RT_LIKELY(cb == 4))
@@ -5938,6 +5986,7 @@ PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort
     PE1KSTATE   pThis = PDMINS_2_DATA(pDevIns, PE1KSTATE);
     int         rc;
     STAM_PROFILE_ADV_START(&pThis->CTX_SUFF_Z(StatIOWrite), a);
+    RT_NOREF_PV(pvUser);
 
     E1kLog2(("%s e1kIOPortOut: uPort=%RTiop value=%08x\n", pThis->szPrf, uPort, u32));
     if (RT_LIKELY(cb == 4))
@@ -5988,11 +6037,9 @@ PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort
  */
 static void e1kDumpState(PE1KSTATE pThis)
 {
+    RT_NOREF(pThis);
     for (int i = 0; i < E1K_NUM_OF_32BIT_REGS; ++i)
-    {
-        E1kLog2(("%s %8.8s = %08x\n", pThis->szPrf,
-                g_aE1kRegMap[i].abbrev, pThis->auRegs[i]));
-    }
+        E1kLog2(("%s %8.8s = %08x\n", pThis->szPrf, g_aE1kRegMap[i].abbrev, pThis->auRegs[i]));
 # ifdef E1K_INT_STATS
     LogRel(("%s Interrupt attempts: %d\n", pThis->szPrf, pThis->uStatIntTry));
     LogRel(("%s Interrupts raised : %d\n", pThis->szPrf, pThis->uStatInt));
@@ -6041,6 +6088,7 @@ static void e1kDumpState(PE1KSTATE pThis)
  */
 static DECLCALLBACK(int) e1kMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
 {
+    RT_NOREF(iRegion);
     PE1KSTATE pThis = PDMINS_2_DATA(pPciDev->pDevIns, E1KSTATE*);
     int       rc;
 
@@ -6551,6 +6599,7 @@ static void e1kSaveConfig(PE1KSTATE pThis, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) e1kLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF(uPass);
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE*);
     e1kSaveConfig(pThis, pSSM);
     return VINF_SSM_DONT_CALL_AGAIN;
@@ -6561,6 +6610,7 @@ static DECLCALLBACK(int) e1kLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
  */
 static DECLCALLBACK(int) e1kSavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE*);
 
     int rc = e1kCsEnter(pThis, VERR_SEM_BUSY);
@@ -6637,7 +6687,7 @@ static DECLCALLBACK(int) e1kSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutU8(pSSM, 0);
 #endif
 #endif /* E1K_WITH_TXD_CACHE */
-/**@todo GSO requires some more state here. */
+/** @todo GSO requires some more state here. */
     E1kLog(("%s State has been saved\n", pThis->szPrf));
     return VINF_SUCCESS;
 }
@@ -6665,6 +6715,7 @@ static DECLCALLBACK(int) e1kSaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) e1kLoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE*);
 
     int rc = e1kCsEnter(pThis, VERR_SEM_BUSY);
@@ -6718,7 +6769,7 @@ static DECLCALLBACK(int) e1kLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
         /* the state */
         SSMR3GetMem(pSSM, &pThis->auRegs, sizeof(pThis->auRegs));
         SSMR3GetBool(pSSM, &pThis->fIntRaised);
-        /** @todo: PHY could be made a separate device with its own versioning */
+        /** @todo PHY could be made a separate device with its own versioning */
         Phy::loadState(pSSM, &pThis->phy);
         SSMR3GetU32(pSSM, &pThis->uSelectedReg);
         SSMR3GetMem(pSSM, &pThis->auMTA, sizeof(pThis->auMTA));
@@ -6783,6 +6834,7 @@ static DECLCALLBACK(int) e1kLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
  */
 static DECLCALLBACK(int) e1kLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE*);
 
     /* Update promiscuous mode */
@@ -6820,6 +6872,7 @@ static DECLCALLBACK(size_t) e1kFmtRxDesc(PFNRTSTROUTPUT pfnOutput,
                                          unsigned fFlags,
                                          void *pvUser)
 {
+    RT_NOREF(cchWidth,  cchPrecision,  fFlags, pvUser);
     AssertReturn(strcmp(pszType, "e1krxd") == 0, 0);
     E1KRXDESC* pDesc = (E1KRXDESC*)pvValue;
     if (!pDesc)
@@ -6858,8 +6911,9 @@ static DECLCALLBACK(size_t) e1kFmtTxDesc(PFNRTSTROUTPUT pfnOutput,
                                          unsigned fFlags,
                                          void *pvUser)
 {
+    RT_NOREF(cchWidth, cchPrecision, fFlags, pvUser);
     AssertReturn(strcmp(pszType, "e1ktxd") == 0, 0);
-    E1KTXDESC* pDesc = (E1KTXDESC*)pvValue;
+    E1KTXDESC *pDesc = (E1KTXDESC*)pvValue;
     if (!pDesc)
         return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "NULL_TXD");
 
@@ -6957,6 +7011,7 @@ static int e1kInitDebugHelpers(void)
  */
 static DECLCALLBACK(void) e1kInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF(pszArgs);
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE*);
     unsigned  i;
     // bool        fRcvRing = false;
@@ -6976,7 +7031,7 @@ static DECLCALLBACK(void) e1kInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const 
      */
     pHlp->pfnPrintf(pHlp, "E1000 #%d: port=%RTiop mmio=%RGp mac-cfg=%RTmac %s%s%s\n",
                     pDevIns->iInstance, pThis->IOPortBase, pThis->addrMMReg,
-                    &pThis->macConfigured, g_Chips[pThis->eChip].pcszName,
+                    &pThis->macConfigured, g_aChips[pThis->eChip].pcszName,
                     pThis->fRCEnabled ? " GC" : "", pThis->fR0Enabled ? " R0" : "");
 
     e1kCsEnter(pThis, VERR_INTERNAL_ERROR); /* Not sure why but PCNet does it */
@@ -7117,6 +7172,7 @@ static DECLCALLBACK(void) e1kInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const 
  */
 static DECLCALLBACK(void) e1kR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE*);
     Log(("%s e1kR3Detach:\n", pThis->szPrf));
 
@@ -7124,7 +7180,7 @@ static DECLCALLBACK(void) e1kR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
 
     PDMCritSectEnter(&pThis->cs, VERR_SEM_BUSY);
 
-    /** @todo: r=pritesh still need to check if i missed
+    /** @todo r=pritesh still need to check if i missed
      * to clean something in this function
      */
 
@@ -7153,6 +7209,7 @@ static DECLCALLBACK(void) e1kR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
  */
 static DECLCALLBACK(int) e1kR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE*);
     LogFlow(("%s e1kR3Attach:\n",  pThis->szPrf));
 
@@ -7267,6 +7324,7 @@ static DECLCALLBACK(void) e1kR3Suspend(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) e1kR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
+    RT_NOREF(offDelta);
     PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE*);
     pThis->pDevInsRC     = PDMDEVINS_2_RCPTR(pDevIns);
     pThis->pTxQueueRC    = PDMQueueRCPtr(pThis->pTxQueueR3);
@@ -7330,12 +7388,12 @@ static DECLCALLBACK(int) e1kR3Destruct(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) e1kConfigurePciDev(PPCIDEVICE pPciDev, E1KCHIP eChip)
 {
-    Assert(eChip < RT_ELEMENTS(g_Chips));
+    Assert(eChip < RT_ELEMENTS(g_aChips));
     /* Configure PCI Device, assume 32-bit mode ******************************/
-    PCIDevSetVendorId(pPciDev, g_Chips[eChip].uPCIVendorId);
-    PCIDevSetDeviceId(pPciDev, g_Chips[eChip].uPCIDeviceId);
-    PCIDevSetWord( pPciDev, VBOX_PCI_SUBSYSTEM_VENDOR_ID, g_Chips[eChip].uPCISubsystemVendorId);
-    PCIDevSetWord( pPciDev, VBOX_PCI_SUBSYSTEM_ID, g_Chips[eChip].uPCISubsystemId);
+    PCIDevSetVendorId(pPciDev, g_aChips[eChip].uPCIVendorId);
+    PCIDevSetDeviceId(pPciDev, g_aChips[eChip].uPCIDeviceId);
+    PCIDevSetWord( pPciDev, VBOX_PCI_SUBSYSTEM_VENDOR_ID, g_aChips[eChip].uPCISubsystemVendorId);
+    PCIDevSetWord( pPciDev, VBOX_PCI_SUBSYSTEM_ID, g_aChips[eChip].uPCISubsystemId);
 
     PCIDevSetWord( pPciDev, VBOX_PCI_COMMAND,            0x0000);
     /* DEVSEL Timing (medium device), 66 MHz Capable, New capabilities */
@@ -7459,7 +7517,7 @@ static DECLCALLBACK(int) e1kR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("Invalid configuration for E1000 device"));
 
-    /** @todo: LineSpeed unused! */
+    /** @todo LineSpeed unused! */
 
     pThis->fR0Enabled    = true;
     pThis->fRCEnabled    = true;
@@ -7523,7 +7581,7 @@ static DECLCALLBACK(int) e1kR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
         LogRel(("%s WARNING! Link up delay is disabled!\n", pThis->szPrf));
 
     LogRel(("%s Chip=%s LinkUpDelay=%ums EthernetCRC=%s GSO=%s Itr=%s ItrRx=%s R0=%s GC=%s\n", pThis->szPrf,
-            g_Chips[pThis->eChip].pcszName, pThis->cMsLinkUpDelay,
+            g_aChips[pThis->eChip].pcszName, pThis->cMsLinkUpDelay,
             pThis->fEthernetCRC ? "on" : "off",
             pThis->fGSOEnabled ? "enabled" : "disabled",
             pThis->fItrEnabled ? "enabled" : "disabled",

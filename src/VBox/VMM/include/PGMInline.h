@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -434,7 +434,7 @@ DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE p
     {
         Assert(pPage->idx < pVM->pgm.s.CTX_SUFF(pPool)->cCurPages);
         void *pv;
-        Assert(pVCpu == VMMGetCpu(pVM));
+        Assert(pVCpu == VMMGetCpu(pVM)); RT_NOREF_PV(pVM);
         pgmRZDynMapHCPageInlined(pVCpu, pPage->Core.Key, &pv RTLOG_COMMA_SRC_POS_ARGS);
         return pv;
     }

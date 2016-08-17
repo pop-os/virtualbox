@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,6 +63,8 @@ selmGuestGDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
     NOREF(pvPtr); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser);
 
 #  ifdef IN_RING3
+    RT_NOREF_PV(pVM);
+
     VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
     return VINF_PGM_HANDLER_DO_DEFAULT;
 
@@ -95,7 +97,7 @@ selmGuestLDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
 {
     Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
     Log(("selmGuestLDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
-    NOREF(pvPtr); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser);
+    NOREF(pvPtr); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser); RT_NOREF_PV(pVM);
 
     VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
 #  ifdef IN_RING3
@@ -121,6 +123,8 @@ selmGuestTSSWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
     NOREF(pvBuf); NOREF(GCPtr); NOREF(cbBuf); NOREF(enmOrigin); NOREF(pvUser); NOREF(pvPtr);
 
 #  ifdef IN_RING3
+    RT_NOREF_PV(pVM);
+
     /** @todo This can be optimized by checking for the ESP0 offset and tracking TR
      *        reloads in REM (setting VM_FF_SELM_SYNC_TSS if TR is reloaded). We
      *        should probably also deregister the virtual handler if TR.base/size
@@ -585,6 +589,7 @@ static void selLoadHiddenSelectorRegFromGuestTable(PVMCPU pVCpu, PCCPUMCTX pCtx,
                                                    RTGCPTR GCPtrDesc, RTSEL const Sel, uint32_t const iSReg)
 {
     Assert(!HMIsEnabled(pVCpu->CTX_SUFF(pVM)));
+    RT_NOREF_PV(pCtx); RT_NOREF_PV(Sel);
 
     /*
      * Try read the entry.
