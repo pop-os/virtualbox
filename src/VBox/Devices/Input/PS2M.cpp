@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -171,7 +171,7 @@
 
 DEF_PS2Q_TYPE(AuxEvtQ, AUX_EVT_QUEUE_SIZE);
 DEF_PS2Q_TYPE(AuxCmdQ, AUX_CMD_QUEUE_SIZE);
-#ifndef VBOX_DEVICE_STRUCT_TESTCASE //@todo: hack
+#ifndef VBOX_DEVICE_STRUCT_TESTCASE /// @todo hack
 DEF_PS2Q_TYPE(GeneriQ, 1);
 #endif
 
@@ -413,7 +413,7 @@ static void ps2mReset(PPS2M pThis)
     pThis->enmMode   = AUX_MODE_STD;
     pThis->u8CurrCmd = 0;
 
-    //@todo: move to its proper home!
+    /// @todo move to its proper home!
     ps2mSetDriverState(pThis, true);
 }
 
@@ -696,7 +696,7 @@ int PS2MByteToAux(PPS2M pThis, uint8_t cmd)
             break;
         case ACMD_RESET:
             ps2mSetDefaults(pThis);
-            ///@todo reset more?
+            /// @todo reset more?
             pThis->u8CurrCmd = cmd;
             pThis->enmMode   = AUX_MODE_RESET;
             ps2kInsertQueue((GeneriQ *)&pThis->cmdQ, ARSP_ACK);
@@ -813,11 +813,11 @@ int PS2MByteFromAux(PPS2M pThis, uint8_t *pb)
     AssertPtr(pb);
 
     /* Anything in the command queue has priority over data
-     * in the event queue. Additionally, keystrokes are //@todo: true?
+     * in the event queue. Additionally, keystrokes are /// @todo true?
      * blocked if a command is currently in progress, even if
      * the command queue is empty.
      */
-    //@todo: Probably should flush/not fill queue if stream mode reporting disabled?!
+    /// @todo Probably should flush/not fill queue if stream mode reporting disabled?!
     rc = ps2kRemoveQueue((GeneriQ *)&pThis->cmdQ, pb);
     if (rc != VINF_SUCCESS && !pThis->u8CurrCmd && (pThis->u8State & AUX_STATE_ENABLED))
         rc = ps2kRemoveQueue((GeneriQ *)&pThis->evtQ, pb);
@@ -834,7 +834,8 @@ int PS2MByteFromAux(PPS2M pThis, uint8_t *pb)
  */
 static DECLCALLBACK(void) ps2mThrottleTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PPS2M       pThis = (PS2M *)pvUser; NOREF(pDevIns);
+    RT_NOREF2(pDevIns, pTimer);
+    PPS2M       pThis = (PS2M *)pvUser;
     uint32_t    uHaveEvents;
 
     /* Grab the lock to avoid races with PutEvent(). */
@@ -867,14 +868,15 @@ static DECLCALLBACK(void) ps2mThrottleTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer,
  */
 static DECLCALLBACK(void) ps2mDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PPS2M pThis = (PS2M *)pvUser; NOREF(pDevIns);
+    RT_NOREF2(pDevIns, pTimer);
+    PPS2M pThis = (PS2M *)pvUser;
 
     LogFlowFunc(("Delay timer: cmd %02X\n", pThis->u8CurrCmd));
 
     Assert(pThis->u8CurrCmd == ACMD_RESET);
     ps2mReset(pThis);
 
-    ///@todo Might want a PS2MCompleteCommand() to push last response, clear command, and kick the KBC...
+    /// @todo Might want a PS2MCompleteCommand() to push last response, clear command, and kick the KBC...
     /* Give the KBC a kick. */
     KBCUpdateInterrupts(pThis->pParent);
 }
@@ -941,13 +943,14 @@ static DECLCALLBACK(void *) ps2mQueryInterface(PPDMIBASE pInterface, const char 
 static int ps2mPutEventWorker(PPS2M pThis, int32_t dx, int32_t dy,
                               int32_t dz, int32_t dw, uint32_t fButtons)
 {
+    RT_NOREF1(dw);
     int             rc = VINF_SUCCESS;
 
     /* Update internal accumulators and button state. */
     pThis->iAccumX += dx;
     pThis->iAccumY += dy;
     pThis->iAccumZ += dz;
-    pThis->fAccumB |= fButtons;     //@todo: accumulate based on current protocol?
+    pThis->fAccumB |= fButtons;     /// @todo accumulate based on current protocol?
     pThis->fCurrB   = fButtons;
 
 #if 1
@@ -1078,8 +1081,6 @@ int PS2MAttach(PPS2M pThis, PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 
 void PS2MSaveState(PPS2M pThis, PSSMHANDLE pSSM)
 {
-    uint32_t    cPressed = 0;
-
     LogFlowFunc(("Saving PS2M state\n"));
 
     /* Save the core auxiliary device state. */
@@ -1171,15 +1172,15 @@ void PS2MReset(PPS2M pThis)
 
 void PS2MRelocate(PPS2M pThis, RTGCINTPTR offDelta, PPDMDEVINS pDevIns)
 {
+    RT_NOREF2(pDevIns, offDelta);
     LogFlowFunc(("Relocating PS2M\n"));
     pThis->pDelayTimerRC    = TMTimerRCPtr(pThis->pDelayTimerR3);
     pThis->pThrottleTimerRC = TMTimerRCPtr(pThis->pThrottleTimerR3);
-    NOREF(offDelta);
 }
 
 int PS2MConstruct(PPS2M pThis, PPDMDEVINS pDevIns, void *pParent, int iInstance)
 {
-    int     rc;
+    RT_NOREF1(iInstance);
 
     LogFlowFunc(("iInstance=%d\n", iInstance));
 
@@ -1203,8 +1204,8 @@ int PS2MConstruct(PPS2M pThis, PPDMDEVINS pDevIns, void *pParent, int iInstance)
      * Create the input rate throttling timer. Does not use virtual time!
      */
     PTMTIMER pTimer;
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_REAL, ps2mThrottleTimer, pThis,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "PS2M Throttle Timer", &pTimer);
+    int rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_REAL, ps2mThrottleTimer, pThis,
+                                    TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "PS2M Throttle Timer", &pTimer);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1229,7 +1230,7 @@ int PS2MConstruct(PPS2M pThis, PPDMDEVINS pDevIns, void *pParent, int iInstance)
      */
     PDMDevHlpDBGFInfoRegister(pDevIns, "ps2m", "Display PS/2 mouse state.", ps2mInfoState);
 
-    //@todo: Where should we do this?
+    /// @todo Where should we do this?
     ps2mSetDriverState(pThis, true);
     pThis->u8State = 0;
     pThis->enmMode = AUX_MODE_STD;

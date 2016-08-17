@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -700,7 +700,7 @@ static bool usbProxyOs2ClearHaltedEp(PUSBPROXYDEV pProxyDev, unsigned int EndPt)
 
 
 /**
- * @copydoc USBPROXYBACK::pfnUrbQueue
+ * @interface_method_impl{USBPROXYBACK,pfnUrbQueue}
  */
 static int usbProxyOs2UrbQueue(PVUSBURB pUrb)
 {
@@ -728,7 +728,7 @@ static int usbProxyOs2UrbQueue(PVUSBURB pUrb)
             break;
         case VUSBXFERTYPE_BULK:
             break;
-///@todo        case VUSBXFERTYPE_INTR:
+/// @todo        case VUSBXFERTYPE_INTR:
 //            break;
 //        case VUSBXFERTYPE_ISOC:
 //            break;

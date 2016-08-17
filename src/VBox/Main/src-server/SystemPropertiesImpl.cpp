@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -947,9 +947,10 @@ HRESULT SystemProperties::getDefaultAdditionsISO(com::Utf8Str &aDefaultAdditions
 
 HRESULT SystemProperties::setDefaultAdditionsISO(const com::Utf8Str &aDefaultAdditionsISO)
 {
+    RT_NOREF(aDefaultAdditionsISO);
     /** @todo not yet implemented, settings handling is missing */
     ReturnComNotImplemented();
-
+#if 0 /* not implemented */
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     HRESULT rc = i_setDefaultAdditionsISO(aDefaultAdditionsISO);
     alock.release();
@@ -962,6 +963,7 @@ HRESULT SystemProperties::setDefaultAdditionsISO(const com::Utf8Str &aDefaultAdd
     }
 
     return rc;
+#endif
 }
 
 HRESULT SystemProperties::getDefaultFrontend(com::Utf8Str &aDefaultFrontend)

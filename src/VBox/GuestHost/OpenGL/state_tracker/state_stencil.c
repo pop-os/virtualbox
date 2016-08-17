@@ -41,8 +41,10 @@ static GLint crStateStencilBufferGetIdxAndCount(CRStencilState *s, GLenum face, 
             crStateError(__LINE__,__FILE__,GL_INVALID_ENUM, "crStateStencilBufferGetIdxAndCount");
             return 0;
     }
+#ifndef VBOX /* unreachable */
     crError("should never be here!");
     return 0;
+#endif
 }
 
 void crStateStencilBufferInit(CRStencilBufferState *s)
@@ -99,6 +101,7 @@ void crStateStencilInit(CRContext *ctx)
 
 static void crStateStencilBufferFunc(CRContext *g, CRStencilBufferState *s, GLenum func, GLint ref, GLuint mask)
 {
+    (void)g;
     s->func = func;
     s->ref = ref;
     s->mask = mask;
@@ -168,6 +171,7 @@ void STATE_APIENTRY crStateStencilFunc(GLenum func, GLint ref, GLuint mask)
 
 static void STATE_APIENTRY crStateStencilBufferOp (CRContext *g, CRStencilBufferState *s, GLenum fail, GLenum zfail, GLenum zpass)
 {
+    (void)g;
     s->fail = fail;
     s->passDepthFail = zfail;
     s->passDepthPass = zpass;

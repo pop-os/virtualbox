@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -882,6 +882,7 @@ static DECLCALLBACK(void)  picReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) picRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
+    RT_NOREF1(offDelta);
     PDEVPIC         pThis = PDMINS_2_DATA(pDevIns, PDEVPIC);
     unsigned        i;
 
@@ -897,6 +898,8 @@ static DECLCALLBACK(void) picRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
  */
 static DECLCALLBACK(int)  picConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    RT_NOREF1(iInstance);
     PDEVPIC         pThis = PDMINS_2_DATA(pDevIns, PDEVPIC);
     int             rc;
     bool            fGCEnabled;

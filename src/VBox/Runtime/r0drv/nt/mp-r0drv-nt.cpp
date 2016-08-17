@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -344,6 +344,7 @@ static int rtMpCallUsingBroadcastIpi(PFNRTMPWORKER pfnWorker, void *pvUser1, voi
 static VOID rtmpNtDPCWrapper(IN PKDPC Dpc, IN PVOID DeferredContext, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 {
     PRTMPARGS pArgs = (PRTMPARGS)DeferredContext;
+    RT_NOREF3(Dpc, SystemArgument1, SystemArgument2);
 
     ASMAtomicIncU32(&pArgs->cHits);
     pArgs->pfnWorker(KeGetCurrentProcessorNumber(), pArgs->pvUser1, pArgs->pvUser2);
@@ -372,23 +373,23 @@ static VOID rtmpNtDPCWrapper(IN PKDPC Dpc, IN PVOID DeferredContext, IN PVOID Sy
 static int rtMpCallUsingDpcs(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2,
                              RT_NT_CPUID enmCpuid, RTCPUID idCpu, RTCPUID idCpu2, uint32_t *pcHits)
 {
+#ifdef IPRT_TARGET_NT4
+    RT_NOREF(pfnWorker, pvUser1, pvUser2, enmCpuid, idCpu, idCpu2, pcHits);
+    /* g_pfnrtNt* are not present on NT anyway. */
+    return VERR_NOT_SUPPORTED;
+
+#else  /* !IPRT_TARGET_NT4 */
     PRTMPARGS pArgs;
     KDPC     *paExecCpuDpcs;
 
-#if 0
+# if 0
     /* KeFlushQueuedDpcs must be run at IRQL PASSIVE_LEVEL according to MSDN, but the
      * driver verifier doesn't complain...
      */
     AssertMsg(KeGetCurrentIrql() == PASSIVE_LEVEL, ("%d != %d (PASSIVE_LEVEL)\n", KeGetCurrentIrql(), PASSIVE_LEVEL));
-#endif
+# endif
 
-#ifdef IPRT_TARGET_NT4
-    KAFFINITY Mask;
-    /* g_pfnrtNt* are not present on NT anyway. */
-    return VERR_NOT_SUPPORTED;
-#else
     KAFFINITY Mask = KeQueryActiveProcessors();
-#endif
 
     /* KeFlushQueuedDpcs is not present in Windows 2000; import it dynamically so we can just fail this call. */
     if (!g_pfnrtNtKeFlushQueuedDpcs)
@@ -452,18 +453,18 @@ static int rtMpCallUsingDpcs(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUse
     if (enmCpuid == RT_NT_CPUID_SPECIFIC)
     {
         ASMAtomicIncS32(&pArgs->cRefs);
-        BOOLEAN ret = KeInsertQueueDpc(&paExecCpuDpcs[0], 0, 0);
-        Assert(ret);
+        BOOLEAN fRc = KeInsertQueueDpc(&paExecCpuDpcs[0], 0, 0);
+        Assert(fRc); NOREF(fRc);
     }
     else if (enmCpuid == RT_NT_CPUID_PAIR)
     {
         ASMAtomicIncS32(&pArgs->cRefs);
-        BOOLEAN ret = KeInsertQueueDpc(&paExecCpuDpcs[0], 0, 0);
-        Assert(ret);
+        BOOLEAN fRc = KeInsertQueueDpc(&paExecCpuDpcs[0], 0, 0);
+        Assert(fRc); NOREF(fRc);
 
         ASMAtomicIncS32(&pArgs->cRefs);
-        ret = KeInsertQueueDpc(&paExecCpuDpcs[1], 0, 0);
-        Assert(ret);
+        fRc = KeInsertQueueDpc(&paExecCpuDpcs[1], 0, 0);
+        Assert(fRc); NOREF(fRc);
     }
     else
     {
@@ -475,8 +476,8 @@ static int rtMpCallUsingDpcs(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUse
                 &&  (Mask & RT_BIT_64(i)))
             {
                 ASMAtomicIncS32(&pArgs->cRefs);
-                BOOLEAN ret = KeInsertQueueDpc(&paExecCpuDpcs[i], 0, 0);
-                Assert(ret);
+                BOOLEAN fRc = KeInsertQueueDpc(&paExecCpuDpcs[i], 0, 0);
+                Assert(fRc); NOREF(fRc);
             }
         }
         if (enmCpuid != RT_NT_CPUID_OTHERS)
@@ -503,6 +504,7 @@ static int rtMpCallUsingDpcs(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUse
         ExFreePool(pArgs);
 
     return VINF_SUCCESS;
+#endif /* */
 }
 
 
@@ -604,6 +606,8 @@ static VOID rtMpNtOnSpecificDpcWrapper(IN PKDPC Dpc, IN PVOID DeferredContext,
                                        IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 {
     PRTMPNTONSPECIFICARGS pArgs = (PRTMPNTONSPECIFICARGS)DeferredContext;
+    RT_NOREF3(Dpc, SystemArgument1, SystemArgument2);
+
     ASMAtomicWriteBool(&pArgs->fExecuting, true);
 
     pArgs->CallbackArgs.pfnWorker(KeGetCurrentProcessorNumber(), pArgs->CallbackArgs.pvUser1, pArgs->CallbackArgs.pvUser2);
@@ -701,7 +705,7 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
     if (RTMpIsCpuOnline(idCpu))
     {
         BOOLEAN fRc = KeInsertQueueDpc(&pArgs->Dpc, 0, 0);
-        Assert(fRc);
+        Assert(fRc); NOREF(fRc);
         KeLowerIrql(bOldIrql);
 
         uint64_t const nsRealWaitTS = RTTimeNanoTS();
@@ -812,6 +816,7 @@ static ULONG_PTR rtMpIpiGenericCall(ULONG_PTR Argument)
  */
 int rtMpPokeCpuUsingBroadcastIpi(RTCPUID idCpu)
 {
+    NOREF(idCpu);
     g_pfnrtKeIpiGenericCall(rtMpIpiGenericCall, 0);
     return VINF_SUCCESS;
 }

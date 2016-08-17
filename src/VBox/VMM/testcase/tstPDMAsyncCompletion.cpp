@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,8 +61,8 @@ RTSEMEVENT              g_FinishedEventSem;
 
 static DECLCALLBACK(void) AsyncTaskCompleted(PVM pVM, void *pvUser, void *pvUser2, int rc)
 {
+    RT_NOREF4(pVM, pvUser, pvUser2, rc);
     LogFlow((TESTCASE ": %s: pVM=%p pvUser=%p pvUser2=%p\n", __FUNCTION__, pVM, pvUser, pvUser2));
-    NOREF(rc);
 
     uint32_t cTasksStillLeft = ASMAtomicDecU32(&g_cTasksLeft);
 
@@ -78,6 +78,7 @@ static DECLCALLBACK(void) AsyncTaskCompleted(PVM pVM, void *pvUser, void *pvUser
  */
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
+    RT_NOREF1(envp);
     int rcRet = 0; /* error count */
     PPDMASYNCCOMPLETIONENDPOINT pEndpointSrc, pEndpointDst;
 

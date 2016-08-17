@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -179,7 +179,9 @@ static const uint8_t g_abArpReply[] =
 static int    gimR3HvInitHypercallSupport(PVM pVM);
 static void   gimR3HvTermHypercallSupport(PVM pVM);
 static int    gimR3HvInitDebugSupport(PVM pVM);
+#if 0 /** @todo currently unused, which is probably very wrong */
 static void   gimR3HvTermDebugSupport(PVM pVM);
+#endif
 
 
 /**
@@ -220,8 +222,13 @@ VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM, PCFGMNODE pGimCfg)
     char szVendor[13];
     rc = CFGMR3QueryStringDef(pCfgHv, "VendorID", szVendor, sizeof(szVendor), "VBoxVBoxVBox");
     AssertLogRelRCReturn(rc, rc);
+    AssertLogRelMsgReturn(strlen(szVendor) == 12,
+                          ("The VendorID config value must be exactly 12 chars, '%s' isn't!\n", szVendor),
+                          VERR_INVALID_PARAMETER);
 
     LogRel(("GIM: HyperV: Reporting vendor as '%s'\n", szVendor));
+    /** @todo r=bird: GIM_HV_VENDOR_MICROSOFT is 12 char and the string is max
+     *        12+terminator, so the NCmp is a little bit misleading. */
     if (!RTStrNCmp(szVendor, GIM_HV_VENDOR_MICROSOFT, sizeof(GIM_HV_VENDOR_MICROSOFT) - 1))
     {
         LogRel(("GIM: HyperV: Warning! Posing as the Microsoft vendor may alter guest behaviour!\n"));
@@ -318,13 +325,15 @@ VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM, PCFGMNODE pGimCfg)
                                 | GIM_HV_PART_FLAGS_CPU_PROFILER)));
     Assert((pHv->uBaseFeat & (GIM_HV_BASE_FEAT_HYPERCALL_MSRS | GIM_HV_BASE_FEAT_VP_ID_MSR))
                           == (GIM_HV_BASE_FEAT_HYPERCALL_MSRS | GIM_HV_BASE_FEAT_VP_ID_MSR));
+#ifdef VBOX_STRICT
     for (unsigned i = 0; i < RT_ELEMENTS(pHv->aMmio2Regions); i++)
     {
-        PCGIMMMIO2REGION pcCur = &pHv->aMmio2Regions[i];
-        Assert(!pcCur->fRCMapping);
-        Assert(!pcCur->fMapped);
-        Assert(pcCur->GCPhysPage == NIL_RTGCPHYS);
+        PCGIMMMIO2REGION pCur = &pHv->aMmio2Regions[i];
+        Assert(!pCur->fRCMapping);
+        Assert(!pCur->fMapped);
+        Assert(pCur->GCPhysPage == NIL_RTGCPHYS);
     }
+#endif
 
     /*
      * Expose HVP (Hypervisor Present) bit to the guest.
@@ -435,9 +444,13 @@ VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM, PCFGMNODE pGimCfg)
      * Setup non-zero MSRs.
      */
     if (pHv->uMiscFeat & GIM_HV_MISC_FEAT_GUEST_CRASH_MSRS)
-        pHv->uCrashCtlMsr = MSR_GIM_HV_CRASH_CTL_NOTIFY_BIT;
+        pHv->uCrashCtlMsr = MSR_GIM_HV_CRASH_CTL_NOTIFY;
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
-        pVM->aCpus[i].gim.s.u.HvCpu.uSint2Msr = MSR_GIM_HV_SINT_MASKED_BIT;
+    {
+        PGIMHVCPU pHvCpu = &pVM->aCpus[i].gim.s.u.HvCpu;
+        for (size_t idxSintMsr = 0; idxSintMsr < RT_ELEMENTS(pHvCpu->auSintXMsr); idxSintMsr++)
+            pHvCpu->auSintXMsr[idxSintMsr] = MSR_GIM_HV_SINT_MASKED;
+    }
 
     /*
      * Setup hypercall support.
@@ -553,10 +566,12 @@ VMMR3_INT_DECL(void) gimR3HvReset(PVM pVM)
     pHv->uDbgRecvBufferMsr    = 0;
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[i];
-        pVCpu->gim.s.u.HvCpu.uSint2Msr = MSR_GIM_HV_SINT_MASKED_BIT;
-        pVCpu->gim.s.u.HvCpu.uSimpMsr  = 0;
-        pVCpu->gim.s.u.HvCpu.uApicAssistPageMsr = 0;
+        PGIMHVCPU pHvCpu = &pVM->aCpus[i].gim.s.u.HvCpu;
+        pHvCpu->uSimpMsr  = 0;
+        pHvCpu->uSiefpMsr = 0;
+        pHvCpu->uApicAssistPageMsr = 0;
+        for (size_t idxSintMsr = 0; idxSintMsr < RT_ELEMENTS(pHvCpu->auSintXMsr); idxSintMsr++)
+            pHvCpu->auSintXMsr[idxSintMsr] = MSR_GIM_HV_SINT_MASKED;
     }
 }
 
@@ -653,11 +668,11 @@ VMMR3_INT_DECL(int) gimR3HvGetDebugSetup(PVM pVM, PGIMDEBUGSETUP pDbgSetup)
  *
  * @returns VBox status code.
  * @param   pVM     The cross context VM structure.
- * @param   pSSM    Pointer to the SSM handle.
+ * @param   pSSM    The saved state handle.
  */
 VMMR3_INT_DECL(int) gimR3HvSave(PVM pVM, PSSMHANDLE pSSM)
 {
-    PCGIMHV pcHv = &pVM->gim.s.u.Hv;
+    PCGIMHV pHv = &pVM->gim.s.u.Hv;
 
     /*
      * Save the Hyper-V SSM version.
@@ -667,68 +682,68 @@ VMMR3_INT_DECL(int) gimR3HvSave(PVM pVM, PSSMHANDLE pSSM)
     /*
      * Save per-VM MSRs.
      */
-    SSMR3PutU64(pSSM, pcHv->u64GuestOsIdMsr);
-    SSMR3PutU64(pSSM, pcHv->u64HypercallMsr);
-    SSMR3PutU64(pSSM, pcHv->u64TscPageMsr);
+    SSMR3PutU64(pSSM, pHv->u64GuestOsIdMsr);
+    SSMR3PutU64(pSSM, pHv->u64HypercallMsr);
+    SSMR3PutU64(pSSM, pHv->u64TscPageMsr);
 
     /*
      * Save Hyper-V features / capabilities.
      */
-    SSMR3PutU32(pSSM, pcHv->uBaseFeat);
-    SSMR3PutU32(pSSM, pcHv->uPartFlags);
-    SSMR3PutU32(pSSM, pcHv->uPowMgmtFeat);
-    SSMR3PutU32(pSSM, pcHv->uMiscFeat);
-    SSMR3PutU32(pSSM, pcHv->uHyperHints);
-    SSMR3PutU32(pSSM, pcHv->uHyperCaps);
+    SSMR3PutU32(pSSM, pHv->uBaseFeat);
+    SSMR3PutU32(pSSM, pHv->uPartFlags);
+    SSMR3PutU32(pSSM, pHv->uPowMgmtFeat);
+    SSMR3PutU32(pSSM, pHv->uMiscFeat);
+    SSMR3PutU32(pSSM, pHv->uHyperHints);
+    SSMR3PutU32(pSSM, pHv->uHyperCaps);
 
     /*
      * Save the Hypercall region.
      */
-    PCGIMMMIO2REGION pcRegion = &pcHv->aMmio2Regions[GIM_HV_HYPERCALL_PAGE_REGION_IDX];
-    SSMR3PutU8(pSSM,     pcRegion->iRegion);
-    SSMR3PutBool(pSSM,   pcRegion->fRCMapping);
-    SSMR3PutU32(pSSM,    pcRegion->cbRegion);
-    SSMR3PutGCPhys(pSSM, pcRegion->GCPhysPage);
-    SSMR3PutStrZ(pSSM,   pcRegion->szDescription);
+    PCGIMMMIO2REGION pRegion = &pHv->aMmio2Regions[GIM_HV_HYPERCALL_PAGE_REGION_IDX];
+    SSMR3PutU8(pSSM,     pRegion->iRegion);
+    SSMR3PutBool(pSSM,   pRegion->fRCMapping);
+    SSMR3PutU32(pSSM,    pRegion->cbRegion);
+    SSMR3PutGCPhys(pSSM, pRegion->GCPhysPage);
+    SSMR3PutStrZ(pSSM,   pRegion->szDescription);
 
     /*
      * Save the reference TSC region.
      */
-    pcRegion = &pcHv->aMmio2Regions[GIM_HV_REF_TSC_PAGE_REGION_IDX];
-    SSMR3PutU8(pSSM,     pcRegion->iRegion);
-    SSMR3PutBool(pSSM,   pcRegion->fRCMapping);
-    SSMR3PutU32(pSSM,    pcRegion->cbRegion);
-    SSMR3PutGCPhys(pSSM, pcRegion->GCPhysPage);
-    SSMR3PutStrZ(pSSM,   pcRegion->szDescription);
+    pRegion = &pHv->aMmio2Regions[GIM_HV_REF_TSC_PAGE_REGION_IDX];
+    SSMR3PutU8(pSSM,     pRegion->iRegion);
+    SSMR3PutBool(pSSM,   pRegion->fRCMapping);
+    SSMR3PutU32(pSSM,    pRegion->cbRegion);
+    SSMR3PutGCPhys(pSSM, pRegion->GCPhysPage);
+    SSMR3PutStrZ(pSSM,   pRegion->szDescription);
     /* Save the TSC sequence so we can bump it on restore (as the CPU frequency/offset may change). */
     uint32_t uTscSequence = 0;
-    if (   pcRegion->fMapped
-        && MSR_GIM_HV_REF_TSC_IS_ENABLED(pcHv->u64TscPageMsr))
+    if (   pRegion->fMapped
+        && MSR_GIM_HV_REF_TSC_IS_ENABLED(pHv->u64TscPageMsr))
     {
-        PCGIMHVREFTSC pcRefTsc = (PCGIMHVREFTSC)pcRegion->pvPageR3;
-        uTscSequence = pcRefTsc->u32TscSequence;
+        PCGIMHVREFTSC pRefTsc = (PCGIMHVREFTSC)pRegion->pvPageR3;
+        uTscSequence = pRefTsc->u32TscSequence;
     }
     SSMR3PutU32(pSSM, uTscSequence);
 
     /*
      * Save debug support data.
      */
-    SSMR3PutU64(pSSM, pcHv->uDbgPendingBufferMsr);
-    SSMR3PutU64(pSSM, pcHv->uDbgSendBufferMsr);
-    SSMR3PutU64(pSSM, pcHv->uDbgRecvBufferMsr);
-    SSMR3PutU64(pSSM, pcHv->uDbgStatusMsr);
-    SSMR3PutU32(pSSM, pcHv->enmDbgReply);
-    SSMR3PutU32(pSSM, pcHv->uDbgBootpXId);
-    SSMR3PutU32(pSSM, pcHv->DbgGuestIp4Addr.u);
+    SSMR3PutU64(pSSM, pHv->uDbgPendingBufferMsr);
+    SSMR3PutU64(pSSM, pHv->uDbgSendBufferMsr);
+    SSMR3PutU64(pSSM, pHv->uDbgRecvBufferMsr);
+    SSMR3PutU64(pSSM, pHv->uDbgStatusMsr);
+    SSMR3PutU32(pSSM, pHv->enmDbgReply);
+    SSMR3PutU32(pSSM, pHv->uDbgBootpXId);
+    SSMR3PutU32(pSSM, pHv->DbgGuestIp4Addr.u);
 
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PGIMHVCPU pHvCpu = &pVM->aCpus[i].gim.s.u.HvCpu;
         SSMR3PutU64(pSSM, pHvCpu->uSimpMsr);
-        SSMR3PutU64(pSSM, pHvCpu->uSint2Msr);
+        SSMR3PutU64(pSSM, pHvCpu->auSintXMsr[GIM_HV_VMBUS_MSG_SINT]);
     }
 
-    return SSMR3PutU8(pSSM, UINT8_MAX);;
+    return SSMR3PutU8(pSSM, UINT8_MAX);
 }
 
 
@@ -737,10 +752,9 @@ VMMR3_INT_DECL(int) gimR3HvSave(PVM pVM, PSSMHANDLE pSSM)
  *
  * @returns VBox status code.
  * @param   pVM             The cross context VM structure.
- * @param   pSSM            Pointer to the SSM handle.
- * @param   uSSMVersion     The GIM saved-state version.
+ * @param   pSSM            The saved state handle.
  */
-VMMR3_INT_DECL(int) gimR3HvLoad(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion)
+VMMR3_INT_DECL(int) gimR3HvLoad(PVM pVM, PSSMHANDLE pSSM)
 {
     /*
      * Load the Hyper-V SSM version first.
@@ -751,8 +765,8 @@ VMMR3_INT_DECL(int) gimR3HvLoad(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion)
     if (   uHvSavedStatVersion != GIM_HV_SAVED_STATE_VERSION
         && uHvSavedStatVersion != GIM_HV_SAVED_STATE_VERSION_PRE_DEBUG)
         return SSMR3SetLoadError(pSSM, VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION, RT_SRC_POS,
-                                 N_("Unsupported Hyper-V saved-state version %u (current %u)!"), uHvSavedStatVersion,
-                                 GIM_HV_SAVED_STATE_VERSION);
+                                 N_("Unsupported Hyper-V saved-state version %u (current %u)!"),
+                                 uHvSavedStatVersion, GIM_HV_SAVED_STATE_VERSION);
 
     /*
      * Update the TSC frequency from TM.
@@ -855,7 +869,7 @@ VMMR3_INT_DECL(int) gimR3HvLoad(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion)
         {
             PGIMHVCPU pHvCpu = &pVM->aCpus[i].gim.s.u.HvCpu;
             SSMR3GetU64(pSSM, &pHvCpu->uSimpMsr);
-            SSMR3GetU64(pSSM, &pHvCpu->uSint2Msr);
+            SSMR3GetU64(pSSM, &pHvCpu->auSintXMsr[GIM_HV_VMBUS_MSG_SINT]);
         }
 
         uint8_t bDelim;
@@ -872,11 +886,12 @@ VMMR3_INT_DECL(int) gimR3HvLoad(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion)
  * Enables the Hyper-V APIC-assist page.
  *
  * @returns VBox status code.
- * @param   pVM                     The cross context VM structure.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  * @param   GCPhysApicAssistPage    Where to map the APIC-assist page.
  */
-VMMR3_INT_DECL(int) gimR3HvEnableApicAssistPage(PVM pVM, RTGCPHYS GCPhysApicAssistPage)
+VMMR3_INT_DECL(int) gimR3HvEnableApicAssistPage(PVMCPU pVCpu, RTGCPHYS GCPhysApicAssistPage)
 {
+    PVM             pVM     = pVCpu->CTX_SUFF(pVM);
     PPDMDEVINSR3    pDevIns = pVM->gim.s.pDevInsR3;
     AssertPtrReturn(pDevIns, VERR_GIM_DEVICE_NOT_REGISTERED);
 
@@ -885,7 +900,7 @@ VMMR3_INT_DECL(int) gimR3HvEnableApicAssistPage(PVM pVM, RTGCPHYS GCPhysApicAssi
      */
     /** @todo this is buggy when large pages are used due to a PGM limitation, see
      *        @bugref{7532}. Instead of the overlay style mapping, we just
-     *               rewrite guest memory directly. */
+     *        rewrite guest memory directly. */
     size_t const cbApicAssistPage = PAGE_SIZE;
     void *pvApicAssist = RTMemAllocZ(cbApicAssistPage);
     if (RT_LIKELY(pvApicAssist))
@@ -894,11 +909,11 @@ VMMR3_INT_DECL(int) gimR3HvEnableApicAssistPage(PVM pVM, RTGCPHYS GCPhysApicAssi
         if (RT_SUCCESS(rc))
         {
             /** @todo Inform APIC. */
-            LogRel(("GIM: HyperV: Enabled APIC-assist page at %#RGp\n", GCPhysApicAssistPage));
+            LogRel(("GIM: HyperV%u: Enabled APIC-assist page at %#RGp\n", pVCpu->idCpu, GCPhysApicAssistPage));
         }
         else
         {
-            LogRelFunc(("GIM: HyperV: PGMPhysSimpleWriteGCPhys failed. rc=%Rrc\n", rc));
+            LogRelFunc(("GIM: HyperV%u: PGMPhysSimpleWriteGCPhys failed. rc=%Rrc\n", pVCpu->idCpu, rc));
             rc = VERR_GIM_OPERATION_FAILED;
         }
 
@@ -906,7 +921,7 @@ VMMR3_INT_DECL(int) gimR3HvEnableApicAssistPage(PVM pVM, RTGCPHYS GCPhysApicAssi
         return rc;
     }
 
-    LogRelFunc(("GIM: HyperV: Failed to alloc %u bytes\n", cbApicAssistPage));
+    LogRelFunc(("GIM: HyperV%u: Failed to alloc %u bytes\n", pVCpu->idCpu, cbApicAssistPage));
     return VERR_NO_MEMORY;
 }
 
@@ -915,12 +930,70 @@ VMMR3_INT_DECL(int) gimR3HvEnableApicAssistPage(PVM pVM, RTGCPHYS GCPhysApicAssi
  * Disables the Hyper-V APIC-assist page.
  *
  * @returns VBox status code.
- * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure.
  */
-VMMR3_INT_DECL(int) gimR3HvDisableApicAssistPage(PVM pVM)
+VMMR3_INT_DECL(int) gimR3HvDisableApicAssistPage(PVMCPU pVCpu)
 {
-    LogRel(("GIM: HyperV: Disabled APIC-assist page\n"));
+    LogRel(("GIM: HyperV%u: Disabled APIC-assist page\n", pVCpu->idCpu));
     /** @todo inform APIC */
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Enables the Hyper-V SIEF page.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu           The cross context virtual CPU structure.
+ * @param   GCPhysSiefPage  Where to map the SIEF page.
+ */
+VMMR3_INT_DECL(int) gimR3HvEnableSiefPage(PVMCPU pVCpu, RTGCPHYS GCPhysSiefPage)
+{
+    PVM             pVM     = pVCpu->CTX_SUFF(pVM);
+    PPDMDEVINSR3    pDevIns = pVM->gim.s.pDevInsR3;
+    AssertPtrReturn(pDevIns, VERR_GIM_DEVICE_NOT_REGISTERED);
+
+    /*
+     * Map the SIEF page at the specified address.
+     */
+    /** @todo this is buggy when large pages are used due to a PGM limitation, see
+     *        @bugref{7532}. Instead of the overlay style mapping, we just
+     *        rewrite guest memory directly. */
+    size_t const cbSiefPage = PAGE_SIZE;
+    void *pvSiefPage = RTMemAllocZ(cbSiefPage);
+    if (RT_LIKELY(pvSiefPage))
+    {
+        int rc = PGMPhysSimpleWriteGCPhys(pVM, GCPhysSiefPage, pvSiefPage, cbSiefPage);
+        if (RT_SUCCESS(rc))
+        {
+            /** @todo SIEF setup. */
+            LogRel(("GIM: HyperV%u: Enabled SIEF page at %#RGp\n", pVCpu->idCpu, GCPhysSiefPage));
+        }
+        else
+        {
+            LogRelFunc(("GIM: HyperV%u: PGMPhysSimpleWriteGCPhys failed. rc=%Rrc\n", pVCpu->idCpu, rc));
+            rc = VERR_GIM_OPERATION_FAILED;
+        }
+
+        RTMemFree(pvSiefPage);
+        return rc;
+    }
+
+    LogRelFunc(("GIM: HyperV%u: Failed to alloc %u bytes\n", pVCpu->idCpu, cbSiefPage));
+    return VERR_NO_MEMORY;
+}
+
+
+/**
+ * Disables the Hyper-V SIEF page.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VMMR3_INT_DECL(int) gimR3HvDisableSiefPage(PVMCPU pVCpu)
+{
+    LogRel(("GIM: HyperV%u: Disabled APIC-assist page\n", pVCpu->idCpu));
+    /** @todo SIEF teardown. */
     return VINF_SUCCESS;
 }
 
@@ -965,7 +1038,7 @@ VMMR3_INT_DECL(int) gimR3HvEnableTscPage(PVM pVM, RTGCPHYS GCPhysTscPage, bool f
 
     /** @todo this is buggy when large pages are used due to a PGM limitation, see
      *        @bugref{7532}. Instead of the overlay style mapping, we just
-     *               rewrite guest memory directly. */
+     *        rewrite guest memory directly. */
 #if 0
     rc = gimR3Mmio2Map(pVM, pRegion, GCPhysTscPage);
     if (RT_SUCCESS(rc))
@@ -1039,6 +1112,65 @@ VMMR3_INT_DECL(int) gimR3HvEnableTscPage(PVM pVM, RTGCPHYS GCPhysTscPage, bool f
     return rc;
 #endif
 }
+
+
+/**
+ * Enables the Hyper-V SIM page.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu           The cross context virtual CPU structure.
+ * @param   GCPhysSimPage   Where to map the SIM page.
+ */
+VMMR3_INT_DECL(int) gimR3HvEnableSimPage(PVMCPU pVCpu, RTGCPHYS GCPhysSimPage)
+{
+    PVM             pVM     = pVCpu->CTX_SUFF(pVM);
+    PPDMDEVINSR3    pDevIns = pVM->gim.s.pDevInsR3;
+    AssertPtrReturn(pDevIns, VERR_GIM_DEVICE_NOT_REGISTERED);
+
+    /*
+     * Map the SIMP page at the specified address.
+     */
+    /** @todo this is buggy when large pages are used due to a PGM limitation, see
+     *        @bugref{7532}. Instead of the overlay style mapping, we just
+     *        rewrite guest memory directly. */
+    size_t const cbSimPage = PAGE_SIZE;
+    void *pvSimPage = RTMemAllocZ(cbSimPage);
+    if (RT_LIKELY(pvSimPage))
+    {
+        int rc = PGMPhysSimpleWriteGCPhys(pVM, GCPhysSimPage, pvSimPage, cbSimPage);
+        if (RT_SUCCESS(rc))
+        {
+            /** @todo SIM setup. */
+            LogRel(("GIM: HyperV%u: Enabled SIM page at %#RGp\n", pVCpu->idCpu, GCPhysSimPage));
+        }
+        else
+        {
+            LogRelFunc(("GIM: HyperV%u: PGMPhysSimpleWriteGCPhys failed. rc=%Rrc\n", pVCpu->idCpu, rc));
+            rc = VERR_GIM_OPERATION_FAILED;
+        }
+
+        RTMemFree(pvSimPage);
+        return rc;
+    }
+
+    LogRelFunc(("GIM: HyperV%u: Failed to alloc %u bytes\n", pVCpu->idCpu, cbSimPage));
+    return VERR_NO_MEMORY;
+}
+
+
+/**
+ * Disables the Hyper-V SIM page.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VMMR3_INT_DECL(int) gimR3HvDisableSimPage(PVMCPU pVCpu)
+{
+    LogRel(("GIM: HyperV%u: Disabled SIM page\n", pVCpu->idCpu));
+    /** @todo SIM teardown. */
+    return VINF_SUCCESS;
+}
+
 
 
 /**
@@ -1127,7 +1259,7 @@ VMMR3_INT_DECL(int) gimR3HvEnableHypercallPage(PVM pVM, RTGCPHYS GCPhysHypercall
 
     /** @todo this is buggy when large pages are used due to a PGM limitation, see
      *        @bugref{7532}. Instead of the overlay style mapping, we just
-     *               rewrite guest memory directly. */
+     *        rewrite guest memory directly. */
 #if 0
     int rc = gimR3Mmio2Map(pVM, pRegion, GCPhysHypercallPage);
     if (RT_SUCCESS(rc))
@@ -1217,7 +1349,6 @@ VMMR3_INT_DECL(int) gimR3HvEnableHypercallPage(PVM pVM, RTGCPHYS GCPhysHypercall
  */
 static int gimR3HvInitHypercallSupport(PVM pVM)
 {
-    int rc = VINF_SUCCESS;
     PGIMHV pHv = &pVM->gim.s.u.Hv;
     pHv->pbHypercallIn = (uint8_t *)RTMemAllocZ(GIM_HV_PAGE_SIZE);
     if (RT_LIKELY(pHv->pbHypercallIn))
@@ -1268,6 +1399,7 @@ static int gimR3HvInitDebugSupport(PVM pVM)
 }
 
 
+#if 0 /** @todo currently unused, which is probably very wrong */
 /**
  * Terminates Hyper-V guest debug support.
  *
@@ -1282,6 +1414,7 @@ static void gimR3HvTermDebugSupport(PVM pVM)
         pHv->pvDbgBuffer = NULL;
     }
 }
+#endif
 
 
 /**
@@ -1739,6 +1872,8 @@ VMMR3_INT_DECL(int) gimR3HvHypercallPostDebugData(PVM pVM, int *prcHv)
     /* Currently disabled as Windows 10 guest passes us undocumented flags. */
     if (fFlags & ~GIM_HV_DEBUG_POST_OPTIONS_MASK))
         rcHv = GIM_HV_STATUS_INVALID_PARAMETER;
+#else
+    RT_NOREF1(fFlags);
 #endif
     if (cbWrite > GIM_HV_DEBUG_MAX_DATA_SIZE)
         rcHv = GIM_HV_STATUS_INVALID_PARAMETER;

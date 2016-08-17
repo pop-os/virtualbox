@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -361,7 +361,13 @@ static void rtTimerLnxStartSubTimer(PRTTIMERLNXSUBTIMER pSubTimer, uint64_t u64N
         pSubTimer->u.Std.fFirstAfterChg = true;
 #ifdef CONFIG_SMP
         if (fPinned)
+        {
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+            mod_timer(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
+# else
             mod_timer_pinned(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
+# endif
+        }
         else
 #endif
             mod_timer(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
@@ -796,7 +802,13 @@ static void rtTimerLinuxStdCallback(unsigned long ulUser)
         {
 #ifdef CONFIG_SMP
             if (pTimer->fSpecificCpu || pTimer->fAllCpus)
+            {
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+                mod_timer(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
+# else
                 mod_timer_pinned(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
+# endif
+            }
             else
 #endif
                 mod_timer(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
@@ -853,7 +865,13 @@ static void rtTimerLinuxStdCallback(unsigned long ulUser)
 
 #ifdef CONFIG_SMP
                     if (pTimer->fSpecificCpu || pTimer->fAllCpus)
+                    {
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+                        mod_timer(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
+# else
                         mod_timer_pinned(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
+# endif
+                    }
                     else
 #endif
                         mod_timer(&pSubTimer->u.Std.LnxTimer, pSubTimer->u.Std.ulNextJiffies);
@@ -1177,6 +1195,7 @@ static DECLCALLBACK(void) rtTimerLnxStartOnSpecificCpu(RTCPUID idCpu, void *pvUs
 {
     PRTTIMERLINUXSTARTONCPUARGS pArgs = (PRTTIMERLINUXSTARTONCPUARGS)pvUser2;
     PRTTIMER pTimer = (PRTTIMER)pvUser1;
+    RT_NOREF_PV(idCpu);
     rtTimerLnxStartSubTimer(&pTimer->aSubTimers[0], pArgs->u64Now, pArgs->u64First, true /*fPinned*/, pTimer->fHighRes);
 }
 
@@ -1565,7 +1584,11 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
         else
 #endif
         {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+            init_timer_pinned(&pTimer->aSubTimers[iCpu].u.Std.LnxTimer);
+#else
             init_timer(&pTimer->aSubTimers[iCpu].u.Std.LnxTimer);
+#endif
             pTimer->aSubTimers[iCpu].u.Std.LnxTimer.data        = (unsigned long)&pTimer->aSubTimers[iCpu];
             pTimer->aSubTimers[iCpu].u.Std.LnxTimer.function    = rtTimerLinuxStdCallback;
             pTimer->aSubTimers[iCpu].u.Std.LnxTimer.expires     = jiffies;
@@ -1629,6 +1652,7 @@ RT_EXPORT_SYMBOL(RTTimerGetSystemGranularity);
 
 RTDECL(int) RTTimerRequestSystemGranularity(uint32_t u32Request, uint32_t *pu32Granted)
 {
+    RT_NOREF_PV(u32Request); RT_NOREF_PV(*pu32Granted);
     return VERR_NOT_SUPPORTED;
 }
 RT_EXPORT_SYMBOL(RTTimerRequestSystemGranularity);
@@ -1636,6 +1660,7 @@ RT_EXPORT_SYMBOL(RTTimerRequestSystemGranularity);
 
 RTDECL(int) RTTimerReleaseSystemGranularity(uint32_t u32Granted)
 {
+    RT_NOREF_PV(u32Granted);
     return VERR_NOT_SUPPORTED;
 }
 RT_EXPORT_SYMBOL(RTTimerReleaseSystemGranularity);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2015 Oracle Corporation
+ * Copyright (C) 2005-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -254,7 +254,7 @@ static int vusbHubAttach(PVUSBHUB pHub, PVUSBDEV pDev)
 
 /* -=-=-=-=-=- PDMUSBHUBREG methods -=-=-=-=-=- */
 
-/** @copydoc PDMUSBHUBREG::pfnAttachDevice */
+/** @interface_method_impl{PDMUSBHUBREG,pfnAttachDevice} */
 static DECLCALLBACK(int) vusbPDMHubAttachDevice(PPDMDRVINS pDrvIns, PPDMUSBINS pUsbIns, const char *pszCaptureFilename, uint32_t *piPort)
 {
     PVUSBROOTHUB pThis = PDMINS_2_DATA(pDrvIns, PVUSBROOTHUB);
@@ -271,7 +271,7 @@ static DECLCALLBACK(int) vusbPDMHubAttachDevice(PPDMDRVINS pDrvIns, PPDMUSBINS p
         rc = vusbHubAttach(&pThis->Hub, pDev);
         if (RT_SUCCESS(rc))
         {
-            *piPort = UINT32_MAX; ///@todo implement piPort
+            *piPort = UINT32_MAX; /// @todo implement piPort
             return rc;
         }
 
@@ -283,9 +283,10 @@ static DECLCALLBACK(int) vusbPDMHubAttachDevice(PPDMDRVINS pDrvIns, PPDMUSBINS p
 }
 
 
-/** @copydoc PDMUSBHUBREG::pfnDetachDevice */
+/** @interface_method_impl{PDMUSBHUBREG,pfnDetachDevice} */
 static DECLCALLBACK(int) vusbPDMHubDetachDevice(PPDMDRVINS pDrvIns, PPDMUSBINS pUsbIns, uint32_t iPort)
 {
+    RT_NOREF(pDrvIns, iPort);
     PVUSBDEV pDev = (PVUSBDEV)pUsbIns->pvVUsbDev2;
     Assert(pDev);
 
@@ -391,6 +392,7 @@ static DECLCALLBACK(void) vusbRhFreeUrb(PVUSBURB pUrb)
 static PVUSBURB vusbRhNewUrb(PVUSBROOTHUB pRh, uint8_t DstAddress, PVUSBDEV pDev, VUSBXFERTYPE enmType,
                              VUSBDIRECTION enmDir, uint32_t cbData, uint32_t cTds, const char *pszTag)
 {
+    RT_NOREF(pszTag);
     PVUSBURBPOOL pUrbPool = &pRh->Hub.Dev.UrbPool;
 
     if (!pDev)
@@ -563,6 +565,7 @@ DECLHIDDEN(uint64_t) vusbRhR3ProcessFrame(PVUSBROOTHUB pThis, bool fCallback)
  */
 static DECLCALLBACK(int) vusbRhR3PeriodFrameWorker(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pDrvIns);
     int rc = VINF_SUCCESS;
     PVUSBROOTHUB pThis = (PVUSBROOTHUB)pThread->pvUser;
 
@@ -618,12 +621,13 @@ static DECLCALLBACK(int) vusbRhR3PeriodFrameWorker(PPDMDRVINS pDrvIns, PPDMTHREA
  */
 static DECLCALLBACK(int) vusbRhR3PeriodFrameWorkerWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pThread);
     PVUSBROOTHUB pThis = PDMINS_2_DATA(pDrvIns, PVUSBROOTHUB);
     return RTSemEventMultiSignal(pThis->hSemEventPeriodFrame);
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnSetUrbParams */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnSetUrbParams} */
 static DECLCALLBACK(int) vusbRhSetUrbParams(PVUSBIROOTHUBCONNECTOR pInterface, size_t cbHci, size_t cbHciTd)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
@@ -635,7 +639,7 @@ static DECLCALLBACK(int) vusbRhSetUrbParams(PVUSBIROOTHUBCONNECTOR pInterface, s
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnNewUrb */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnNewUrb} */
 static DECLCALLBACK(PVUSBURB) vusbRhConnNewUrb(PVUSBIROOTHUBCONNECTOR pInterface, uint8_t DstAddress, PVUSBIDEVICE pDev, VUSBXFERTYPE enmType,
                                                VUSBDIRECTION enmDir, uint32_t cbData, uint32_t cTds, const char *pszTag)
 {
@@ -644,17 +648,16 @@ static DECLCALLBACK(PVUSBURB) vusbRhConnNewUrb(PVUSBIROOTHUBCONNECTOR pInterface
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnFreeUrb */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnFreeUrb} */
 static DECLCALLBACK(int) vusbRhConnFreeUrb(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUrb)
 {
-    PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
-
+    RT_NOREF(pInterface);
     pUrb->pVUsb->pfnFree(pUrb);
     return VINF_SUCCESS;
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnSubmitUrb */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnSubmitUrb} */
 static DECLCALLBACK(int) vusbRhSubmitUrb(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUrb, PPDMLED pLed)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
@@ -764,10 +767,10 @@ static DECLCALLBACK(int) vusbRhReapAsyncUrbsWorker(PVUSBDEV pDev, RTMSINTERVAL c
     return VINF_SUCCESS;
 }
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnReapAsyncUrbs */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnReapAsyncUrbs} */
 static DECLCALLBACK(void) vusbRhReapAsyncUrbs(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice, RTMSINTERVAL cMillies)
 {
-    PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
+    PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface); NOREF(pRh);
     PVUSBDEV pDev = (PVUSBDEV)pDevice;
 
     if (RTListIsEmpty(&pDev->LstAsyncUrbs))
@@ -780,14 +783,14 @@ static DECLCALLBACK(void) vusbRhReapAsyncUrbs(PVUSBIROOTHUBCONNECTOR pInterface,
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnCancelUrbsEp */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnCancelUrbsEp} */
 static DECLCALLBACK(int) vusbRhCancelUrbsEp(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUrb)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
     AssertReturn(pRh, VERR_INVALID_PARAMETER);
     AssertReturn(pUrb, VERR_INVALID_PARAMETER);
 
-    //@todo: This method of URB canceling may not work on non-Linux hosts.
+    /// @todo This method of URB canceling may not work on non-Linux hosts.
     /*
      * Cancel and reap the URB(s) on an endpoint.
      */
@@ -827,7 +830,7 @@ static DECLCALLBACK(int) vusbRhCancelAllUrbsWorker(PVUSBDEV pDev)
     return VINF_SUCCESS;
 }
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnCancelAllUrbs */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnCancelAllUrbs} */
 static DECLCALLBACK(void) vusbRhCancelAllUrbs(PVUSBIROOTHUBCONNECTOR pInterface)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
@@ -877,7 +880,7 @@ static DECLCALLBACK(int) vusbRhAbortEpWorker(PVUSBDEV pDev, int EndPt, VUSBDIREC
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnAbortEp */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnAbortEp} */
 static DECLCALLBACK(int) vusbRhAbortEp(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice, int EndPt, VUSBDIRECTION enmDir)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
@@ -895,7 +898,7 @@ static DECLCALLBACK(int) vusbRhAbortEp(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBI
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnAttachDevice */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnAttachDevice} */
 static DECLCALLBACK(int) vusbRhAttachDevice(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
@@ -903,7 +906,7 @@ static DECLCALLBACK(int) vusbRhAttachDevice(PVUSBIROOTHUBCONNECTOR pInterface, P
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnDetachDevice */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnDetachDevice} */
 static DECLCALLBACK(int) vusbRhDetachDevice(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
@@ -913,7 +916,7 @@ static DECLCALLBACK(int) vusbRhDetachDevice(PVUSBIROOTHUBCONNECTOR pInterface, P
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnSetFrameProcessing */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnSetFrameProcessing} */
 static DECLCALLBACK(int) vusbRhSetFrameProcessing(PVUSBIROOTHUBCONNECTOR pInterface, uint32_t uFrameRate)
 {
     int rc = VINF_SUCCESS;
@@ -979,7 +982,7 @@ static DECLCALLBACK(int) vusbRhSetFrameProcessing(PVUSBIROOTHUBCONNECTOR pInterf
 }
 
 
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnGetPeriodicFrameRate */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnGetPeriodicFrameRate} */
 static DECLCALLBACK(uint32_t) vusbRhGetPriodicFrameRate(PVUSBIROOTHUBCONNECTOR pInterface)
 {
     PVUSBROOTHUB pThis = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
@@ -991,10 +994,12 @@ static DECLCALLBACK(uint32_t) vusbRhGetPriodicFrameRate(PVUSBIROOTHUBCONNECTOR p
 
 
 /**
- * @copydoc VUSBIDEVICE::pfnReset
+ * @interface_method_impl{VUSBIDEVICE,pfnReset}
  */
-static DECLCALLBACK(int) vusbRhDevReset(PVUSBIDEVICE pInterface, bool fResetOnLinux, PFNVUSBRESETDONE pfnDone, void *pvUser, PVM pVM)
+static DECLCALLBACK(int) vusbRhDevReset(PVUSBIDEVICE pInterface, bool fResetOnLinux,
+                                        PFNVUSBRESETDONE pfnDone, void *pvUser, PVM pVM)
 {
+    RT_NOREF(pfnDone, pvUser, pVM);
     PVUSBROOTHUB pRh = RT_FROM_MEMBER(pInterface, VUSBROOTHUB, Hub.Dev.IDevice);
     Assert(!pfnDone);
     return pRh->pIRhPort->pfnReset(pRh->pIRhPort, fResetOnLinux); /** @todo change rc from bool to vbox status everywhere! */
@@ -1002,7 +1007,7 @@ static DECLCALLBACK(int) vusbRhDevReset(PVUSBIDEVICE pInterface, bool fResetOnLi
 
 
 /**
- * @copydoc VUSBIDEVICE::pfnPowerOn
+ * @interface_method_impl{VUSBIDEVICE,pfnPowerOn}
  */
 static DECLCALLBACK(int) vusbRhDevPowerOn(PVUSBIDEVICE pInterface)
 {
@@ -1020,7 +1025,7 @@ static DECLCALLBACK(int) vusbRhDevPowerOn(PVUSBIDEVICE pInterface)
 
 
 /**
- * @copydoc VUSBIDEVICE::pfnPowerOff
+ * @interface_method_impl{VUSBIDEVICE,pfnPowerOff}
  */
 static DECLCALLBACK(int) vusbRhDevPowerOff(PVUSBIDEVICE pInterface)
 {
@@ -1048,7 +1053,7 @@ static DECLCALLBACK(int) vusbRhDevPowerOff(PVUSBIDEVICE pInterface)
 }
 
 /**
- * @copydoc VUSBIDEVICE::pfnGetState
+ * @interface_method_impl{VUSBIDEVICE,pfnGetState}
  */
 static DECLCALLBACK(VUSBDEVICESTATE) vusbRhDevGetState(PVUSBIDEVICE pInterface)
 {
@@ -1222,9 +1227,10 @@ static DECLCALLBACK(void) vusbRhDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     LogFlow(("vusbRhConstruct: Instance %d\n", pDrvIns->iInstance));
     PVUSBROOTHUB pThis = PDMINS_2_DATA(pDrvIns, PVUSBROOTHUB);
-    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Validate configuration.

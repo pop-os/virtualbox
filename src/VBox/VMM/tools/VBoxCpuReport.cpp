@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -209,6 +209,7 @@ static bool vbCpuRepSupportsX2Apic(void)
 
 
 
+#if 0 /* unused */
 static bool msrProberWrite(uint32_t uMsr, uint64_t uValue)
 {
     bool fGp;
@@ -216,6 +217,7 @@ static bool msrProberWrite(uint32_t uMsr, uint64_t uValue)
     AssertRC(rc);
     return RT_SUCCESS(rc) && !fGp;
 }
+#endif
 
 
 static bool msrProberRead(uint32_t uMsr, uint64_t *puValue)
@@ -298,6 +300,7 @@ static int msrProberModifyBitChanges(uint32_t uMsr, uint64_t *pfIgnMask, uint64_
 }
 
 
+#if 0 /* currently unused */
 /**
  * Tries to modify one bit.
  *
@@ -338,6 +341,7 @@ static int msrProberModifyBit(uint32_t uMsr, unsigned iBit)
 
     return 0;
 }
+#endif
 
 
 /**
@@ -2617,6 +2621,7 @@ static bool isMsrViaDummy(uint32_t uMsr, uint64_t uValue, uint32_t fFlags)
  */
 static void adjustCanonicalIgnAndGpMasks(uint32_t uMsr, uint64_t *pfIgn, uint64_t *pfGp)
 {
+    RT_NOREF1(pfIgn);
     if (!vbCpuRepSupportsLongMode())
         return;
     switch (uMsr)
@@ -4653,7 +4658,7 @@ static int produceCpuReport(void)
                        " */\n"
                        "\n"
                        "/*\n"
-                       " * Copyright (C) 2013-2015 Oracle Corporation\n"
+                       " * Copyright (C) 2013-2016 Oracle Corporation\n"
                        " *\n"
                        " * This file is part of VirtualBox Open Source Edition (OSE), as\n"
                        " * available from http://www.virtualbox.org. This file is free software;\n"

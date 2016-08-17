@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,8 +45,6 @@
 #endif
 
 #include "SysHlp.h"
-
-#pragma pack(4) /** @todo r=bird: What do we need packing for here? None of these structures are shared between drivers AFAIK. */
 
 struct _VBGLPHYSHEAPBLOCK;
 typedef struct _VBGLPHYSHEAPBLOCK VBGLPHYSHEAPBLOCK;
@@ -123,8 +121,6 @@ typedef struct VBGLDATA
 #endif
 } VBGLDATA;
 
-
-#pragma pack()
 
 #ifndef VBGL_DECL_DATA
 extern VBGLDATA g_vbgldata;

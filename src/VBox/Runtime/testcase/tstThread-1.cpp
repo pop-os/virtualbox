@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,9 +40,9 @@
 static unsigned volatile g_cErrors = 0;
 
 
-static DECLCALLBACK(int) tstThread1ReturnImmediately(RTTHREAD Thread, void *pvUser)
+static DECLCALLBACK(int) tstThread1ReturnImmediately(RTTHREAD hSelf, void *pvUser)
 {
-    NOREF(pvUser);
+    RT_NOREF_PV(hSelf); RT_NOREF_PV(pvUser);
     return VINF_SUCCESS;
 }
 

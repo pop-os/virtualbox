@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -126,8 +126,7 @@ tcp_respond(PNATState pData, struct tcpcb *tp, struct tcpiphdr *ti, struct mbuf 
 {
     register int tlen;
 
-    LogFlowFunc(("ENTER: tp = %R[tcpcb793], ti = %lx, m = %lx, ack = %u, seq = %u, flags = %x\n",
-                 tp, (long)ti, (long)m, ack, seq, flags));
+    LogFlowFunc(("ENTER: tp = %R[tcpcb793], ti = %p, m = %p, ack = %u, seq = %u, flags = %x\n", tp, ti, m, ack, seq, flags));
 
     if (m == 0)
     {
@@ -314,7 +313,7 @@ tcp_close(PNATState pData, register struct tcpcb *tp)
 }
 
 void
-tcp_drain()
+tcp_drain(void)
 {
     /* XXX */
 }
@@ -562,7 +561,7 @@ tcp_connect(PNATState pData, struct socket *inso)
     }
     if (cVerbose > 0)
         LogRel(("NAT: Old socket recv size: %dKB\n", opt / 1024));
-    /* @todo (r-vvl) make it configurable (via extra data) */
+    /** @todo (r-vvl) make it configurable (via extra data) */
     opt = pData->socket_rcv;
     status = setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&opt, sizeof(int));
     if (status < 0)

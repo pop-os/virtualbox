@@ -117,14 +117,14 @@ typedef SOLARISDVD *PSOLARISDVD;
 
 #ifdef RT_OS_WINDOWS
 # define _WIN32_DCOM
-# include <windows.h>
+# include <iprt/win/windows.h>
 # include <shellapi.h>
 # define INITGUID
 # include <guiddef.h>
 # include <devguid.h>
-# include <objbase.h>
-//# include <setupapi.h>
-# include <shlobj.h>
+# include <iprt/win/objbase.h>
+//# include <iprt/win/setupapi.h>
+# include <iprt/win/shlobj.h>
 # include <cfgmgr32.h>
 # include <tchar.h>
 #endif /* RT_OS_WINDOWS */
@@ -702,7 +702,7 @@ HRESULT Host::getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &
 #     ifndef VBOX_WITH_HARDENING
         if (hr != S_OK)
         {
-            /* TODO: try to install the netflt from here */
+            /** @todo try to install the netflt from here */
         }
 #     endif
 
@@ -811,6 +811,7 @@ HRESULT Host::getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &
 # endif
 #else
     /* Not implemented / supported on this platform. */
+    RT_NOREF(aNetworkInterfaces);
     ReturnComNotImplemented();
 #endif
 }
@@ -1790,7 +1791,7 @@ HRESULT Host::i_saveSettings(settings::Host &data)
         pFilter->i_saveSettings(f);
         data.llUSBDeviceFilters.push_back(f);
     }
-    
+
     return m->pUSBProxyService->i_saveSettings(data.llUSBDeviceSources);
 #else
     NOREF(data);

@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -292,8 +292,8 @@ static void vmsvgaSetTraces(PVGASTATE pThis, bool fTraces);
 
 #endif /* IN_RING3 */
 
-
 #ifdef LOG_ENABLED
+
 /**
  * Index register string name lookup
  *
@@ -414,6 +414,7 @@ static const char *vmsvgaIndexToString(PVGASTATE pThis)
     }
 }
 
+#ifdef IN_RING3
 /**
  * FIFO command name lookup
  *
@@ -532,7 +533,9 @@ static const char *vmsvgaFIFOCmdToString(uint32_t u32Cmd)
         return "UNKNOWN";
     }
 }
-#endif
+# endif /* IN_RING3 */
+
+#endif /* LOG_ENABLED */
 
 #ifdef IN_RING3
 /**
@@ -578,6 +581,8 @@ DECLCALLBACK(void) vmsvgaPortSetViewport(PPDMIDISPLAYPORT pInterface, uint32_t u
      */
     if (pThis->svga.f3DEnabled)
         vmsvga3dUpdateHostScreenViewport(pThis, uScreenId, &OldViewport);
+# else
+    RT_NOREF(uScreenId, OldViewport);
 # endif
 }
 #endif /* IN_RING3 */
@@ -848,7 +853,8 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
             /* Go to ring-3 and halt the CPU. */
             rc = VINF_IOM_R3_IOPORT_READ;
             break;
-#elif defined(VMSVGA_USE_EMT_HALT_CODE)
+#else
+# if defined(VMSVGA_USE_EMT_HALT_CODE)
             /* The guest is basically doing a HLT via the device here, but with
                a special wake up condition on FIFO completion. */
             PVMSVGAR3STATE pSVGAState = pThis->svga.pSvgaR3State;
@@ -861,7 +867,7 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
                 rc = VMR3WaitForDeviceReady(pVM, idCpu);
             ASMAtomicDecU32(&pSVGAState->cBusyDelayedEmts);
             VMCPUSET_ATOMIC_DEL(&pSVGAState->BusyDelayedEmts, idCpu);
-#else
+# else
 
             /* Delay the EMT a bit so the FIFO and others can get some work done.
                This used to be a crude 50 ms sleep. The current code tries to be
@@ -890,8 +896,9 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
                 ASMAtomicDecU32(&pSVGAState->cBusyDelayedEmts);
             }
             STAM_REL_PROFILE_STOP(&pSVGAState->StatBusyDelayEmts, EmtDelay);
-#endif
+# endif
             *pu32 = pThis->svga.fBusy != 0;
+#endif
         }
         else
             *pu32 = false;
@@ -1103,7 +1110,7 @@ DECLINLINE(void) vmsvgaSafeFifoBusyRegUpdate(PVGASTATE pThis, bool fState)
  */
 PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
 {
-#ifdef IN_RING3
+#if defined(IN_RING3) && defined(VBOX_WITH_VMSVGA3D)
     PVMSVGAR3STATE pSVGAState = pThis->svga.pSvgaR3State;
 #endif
     int            rc = VINF_SUCCESS;
@@ -1157,9 +1164,11 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
                 rc = vmsvgaChangeMode(pThis);
                 AssertRCReturn(rc, rc);
             }
+# ifdef LOG_ENABLED
             Log(("configured=%d busy=%d\n", pThis->svga.fConfigured, pThis->svga.pFIFOR3[SVGA_FIFO_BUSY]));
             uint32_t *pFIFO = pThis->svga.pFIFOR3;
             Log(("next %x stop %x\n", pFIFO[SVGA_FIFO_NEXT_CMD], pFIFO[SVGA_FIFO_STOP]));
+# endif
 
             /* Disable or enable dirty page tracking according to the current fTraces value. */
             vmsvgaSetTraces(pThis, !!pThis->svga.fTraces);
@@ -1483,13 +1492,13 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
 PDMBOTHCBDECL(int) vmsvgaIORead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     PVGASTATE   pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
-    int rc = VINF_SUCCESS;
+    RT_NOREF_PV(pvUser);
 
     /* Ignore non-dword accesses. */
     if (cb != 4)
     {
         Log(("Ignoring non-dword read at %x cb=%d\n", Port, cb));
-        *pu32 = ~0;
+        *pu32 = UINT32_MAX;
         return VINF_SUCCESS;
     }
 
@@ -1512,7 +1521,8 @@ PDMBOTHCBDECL(int) vmsvgaIORead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
         *pu32 = pThis->svga.u32IrqStatus;
         break;
     }
-    return rc;
+
+    return VINF_SUCCESS;
 }
 
 /**
@@ -1529,7 +1539,7 @@ PDMBOTHCBDECL(int) vmsvgaIORead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
 PDMBOTHCBDECL(int) vmsvgaIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     PVGASTATE   pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
-    int rc = VINF_SUCCESS;
+    RT_NOREF_PV(pvUser);
 
     /* Ignore non-dword accesses. */
     if (cb != 4)
@@ -1562,7 +1572,7 @@ PDMBOTHCBDECL(int) vmsvgaIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
         }
         break;
     }
-    return rc;
+    return VINF_SUCCESS;
 }
 
 #ifdef DEBUG_FIFO_ACCESS
@@ -2627,7 +2637,6 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
         {
             uint32_t cbPayload = 0;
             uint32_t u32IrqStatus = 0;
-            bool     fTriggerIrq = false;
 
             Assert(offCurrentCmd < offFifoMax && offCurrentCmd >= offFifoMin);
 
@@ -2777,25 +2786,29 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 
                     switch (cmd)
                     {
-                    case SVGA_ESCAPE_VMWARE_VIDEO_SET_REGS:
-                    {
-                        SVGAEscapeVideoSetRegs *pVideoCmd = (SVGAEscapeVideoSetRegs *)(pEscape + 1);
-                        AssertBreak(pEscape->size >= sizeof(pVideoCmd->header));
-                        uint32_t cRegs = (pEscape->size - sizeof(pVideoCmd->header)) / sizeof(pVideoCmd->items[0]);
-
-                        Log(("SVGA_ESCAPE_VMWARE_VIDEO_SET_REGS: stream %x\n", pVideoCmd->header.streamId));
-                        for (uint32_t iReg = 0; iReg < cRegs; iReg++)
+                        case SVGA_ESCAPE_VMWARE_VIDEO_SET_REGS:
                         {
-                            Log(("SVGA_ESCAPE_VMWARE_VIDEO_SET_REGS: reg %x val %x\n", pVideoCmd->items[iReg].registerId, pVideoCmd->items[iReg].value));
-                        }
-                        break;
-                    }
+                            SVGAEscapeVideoSetRegs *pVideoCmd = (SVGAEscapeVideoSetRegs *)(pEscape + 1);
+                            AssertBreak(pEscape->size >= sizeof(pVideoCmd->header));
+                            uint32_t cRegs = (pEscape->size - sizeof(pVideoCmd->header)) / sizeof(pVideoCmd->items[0]);
 
-                    case SVGA_ESCAPE_VMWARE_VIDEO_FLUSH:
-                        SVGAEscapeVideoFlush *pVideoCmd = (SVGAEscapeVideoFlush *)(pEscape + 1);
-                        AssertBreak(pEscape->size >= sizeof(*pVideoCmd));
-                        Log(("SVGA_ESCAPE_VMWARE_VIDEO_FLUSH: stream %x\n", pVideoCmd->streamId));
-                        break;
+                            Log(("SVGA_ESCAPE_VMWARE_VIDEO_SET_REGS: stream %x\n", pVideoCmd->header.streamId));
+                            for (uint32_t iReg = 0; iReg < cRegs; iReg++)
+                                Log(("SVGA_ESCAPE_VMWARE_VIDEO_SET_REGS: reg %x val %x\n", pVideoCmd->items[iReg].registerId, pVideoCmd->items[iReg].value));
+
+                            RT_NOREF_PV(pVideoCmd);
+                            break;
+
+                        }
+
+                        case SVGA_ESCAPE_VMWARE_VIDEO_FLUSH:
+                        {
+                            SVGAEscapeVideoFlush *pVideoCmd = (SVGAEscapeVideoFlush *)(pEscape + 1);
+                            AssertBreak(pEscape->size >= sizeof(*pVideoCmd));
+                            Log(("SVGA_ESCAPE_VMWARE_VIDEO_FLUSH: stream %x\n", pVideoCmd->streamId));
+                            RT_NOREF_PV(pVideoCmd);
+                            break;
+                        }
                     }
                 }
                 else
@@ -2898,7 +2911,6 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                     uint64_t            *pPage64 = (uint64_t *)(pCmd + 1);
                     uint32_t             iDescriptor = 0;
                     RTGCPHYS             GCPhys;
-                    PVMSVGAGMRDESCRIPTOR paDescOld = NULL;
                     bool                 fGCPhys64 = !!(pCmd->flags & SVGA_REMAP_GMR2_PPN64);
 
                     if (paNewPage64)
@@ -3093,8 +3105,8 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 
             default:
 # ifdef VBOX_WITH_VMSVGA3D
-                if (    enmCmdId >= SVGA_3D_CMD_BASE
-                    &&  enmCmdId <  SVGA_3D_CMD_MAX)
+                if (    (int)enmCmdId >= SVGA_3D_CMD_BASE
+                    &&  (int)enmCmdId <  SVGA_3D_CMD_MAX)
                 {
                     /* All 3d commands start with a common header, which defines the size of the command. */
                     SVGA3dCmdHeader *pHdr;
@@ -3690,6 +3702,7 @@ int vmsvgaGMRTransfer(PVGASTATE pThis, const SVGA3dTransferType enmTransferType,
  */
 static DECLCALLBACK(int) vmsvgaFIFOLoopWakeUp(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pDevIns);
     PVGASTATE pThis = (PVGASTATE)pThread->pvUser;
     Log(("vmsvgaFIFOLoopWakeUp\n"));
     return SUPSemEventSignal(pThis->svga.pSupDrvSession, pThis->svga.FIFORequestSem);
@@ -3921,6 +3934,7 @@ DECLCALLBACK(void) vmsvgaR3Info3dContext(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
  */
 static DECLCALLBACK(void) vmsvgaR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF(pszArgs);
     PVGASTATE       pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     PVMSVGAR3STATE  pSVGAState = pThis->svga.pSvgaR3State;
 
@@ -3966,6 +3980,7 @@ static DECLCALLBACK(void) vmsvgaR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, c
  */
 int vmsvgaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    RT_NOREF(uVersion, uPass);
     PVGASTATE       pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     PVMSVGAR3STATE  pSVGAState = pThis->svga.pSvgaR3State;
     int             rc;
@@ -4484,13 +4499,11 @@ static const char * const g_apszVmSvgaDevCapNames[] =
  */
 DECLCALLBACK(void) vmsvgaR3PowerOn(PPDMDEVINS pDevIns)
 {
-    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
-    int       rc;
-
 # ifdef VBOX_WITH_VMSVGA3D
+    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     if (pThis->svga.f3DEnabled)
     {
-        rc = vmsvga3dPowerOn(pThis);
+        int rc = vmsvga3dPowerOn(pThis);
 
         if (RT_SUCCESS(rc))
         {
@@ -4536,7 +4549,9 @@ DECLCALLBACK(void) vmsvgaR3PowerOn(PPDMDEVINS pDevIns)
             RTLogRelSetBuffering(fSavedBuffering);
         }
     }
-# endif // VBOX_WITH_VMSVGA3D
+# else  /* !VBOX_WITH_VMSVGA3D */
+    RT_NOREF(pDevIns);
+# endif /* !VBOX_WITH_VMSVGA3D */
 }
 
 #endif /* IN_RING3 */

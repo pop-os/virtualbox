@@ -60,6 +60,15 @@ static int audioMixerSinkUpdateInternal(PAUDMIXSINK pSink);
 static void audioMixerStreamDestroyInternal(PAUDMIXSTREAM pStream);
 
 
+/**
+ * Creates an audio sink and attaches it to the given mixer.
+ *
+ * @returns IPRT status code.
+ * @param   pMixer              Mixer to attach created sink to.
+ * @param   pszName             Name of the sink to create.
+ * @param   enmDir              Direction of the sink to create.
+ * @param   ppSink              Pointer which returns the created sink on success.
+ */
 int AudioMixerCreateSink(PAUDIOMIXER pMixer, const char *pszName, AUDMIXSINKDIR enmDir, PAUDMIXSINK *ppSink)
 {
     AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
@@ -109,10 +118,19 @@ int AudioMixerCreateSink(PAUDIOMIXER pMixer, const char *pszName, AUDMIXSINKDIR 
     return rc;
 }
 
-int AudioMixerCreate(const char *pszName, uint32_t uFlags, PAUDIOMIXER *ppMixer)
+/**
+ * Creates an audio mixer.
+ *
+ * @returns IPRT status code.
+ * @param   pszName             Name of the audio mixer.
+ * @param   fFlags              Creation flags. Not used at the moment and must be 0.
+ * @param   ppMixer             Pointer which returns the created mixer object.
+ */
+int AudioMixerCreate(const char *pszName, uint32_t fFlags, PAUDIOMIXER *ppMixer)
 {
+    RT_NOREF(fFlags);
     AssertPtrReturn(pszName, VERR_INVALID_POINTER);
-    /** @todo Add flag validation. */
+    /** @todo Add fFlags validation. */
     AssertPtrReturn(ppMixer, VERR_INVALID_POINTER);
 
     int rc = VINF_SUCCESS;
@@ -148,8 +166,17 @@ int AudioMixerCreate(const char *pszName, uint32_t uFlags, PAUDIOMIXER *ppMixer)
     return rc;
 }
 
+/**
+ * Helper function for the internal debugger to print the mixer's current
+ * state, along with the attached sinks.
+ *
+ * @param   pMixer              Mixer to print debug output for.
+ * @param   pHlp                Debug info helper to use.
+ * @param   pszArgs             Optional arguments. Not being used at the moment.
+ */
 void AudioMixerDebug(PAUDIOMIXER pMixer, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF(pszArgs);
     PAUDMIXSINK pSink;
     unsigned    iSink = 0;
 
@@ -164,6 +191,11 @@ void AudioMixerDebug(PAUDIOMIXER pMixer, PCDBGFINFOHLP pHlp, const char *pszArgs
     }
 }
 
+/**
+ * Destroys an audio mixer.
+ *
+ * @param   pMixer              Audio mixer to destroy.
+ */
 void AudioMixerDestroy(PAUDIOMIXER pMixer)
 {
     if (!pMixer)
@@ -194,17 +226,12 @@ void AudioMixerDestroy(PAUDIOMIXER pMixer)
     pMixer = NULL;
 }
 
-int AudioMixerGetDeviceFormat(PAUDIOMIXER pMixer, PPDMAUDIOSTREAMCFG pCfg)
-{
-    AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg,   VERR_INVALID_POINTER);
-
-    /** @todo Perform a deep copy, if needed. */
-    *pCfg = pMixer->devFmt;
-
-    return VINF_SUCCESS;
-}
-
+/**
+ * Invalidates all internal data, internal version.
+ *
+ * @returns IPRT status code.
+ * @param   pMixer              Mixer to invalidate data for.
+ */
 int audioMixerInvalidateInternal(PAUDIOMIXER pMixer)
 {
     AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
@@ -222,6 +249,12 @@ int audioMixerInvalidateInternal(PAUDIOMIXER pMixer)
     return VINF_SUCCESS;
 }
 
+/**
+ * Invalidates all internal data.
+ *
+ * @returns IPRT status code.
+ * @param   pMixer              Mixer to invalidate data for.
+ */
 void AudioMixerInvalidate(PAUDIOMIXER pMixer)
 {
     AssertPtrReturnVoid(pMixer);
@@ -232,6 +265,13 @@ void AudioMixerInvalidate(PAUDIOMIXER pMixer)
     AssertRC(rc2);
 }
 
+/**
+ * Removes a formerly attached audio sink for an audio mixer, internal version.
+ *
+ * @returns IPRT status code.
+ * @param   pMixer              Mixer to remove sink from.
+ * @param   pSink               Sink to remove.
+ */
 static int audioMixerRemoveSinkInternal(PAUDIOMIXER pMixer, PAUDMIXSINK pSink)
 {
     AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
@@ -255,29 +295,26 @@ static int audioMixerRemoveSinkInternal(PAUDIOMIXER pMixer, PAUDMIXSINK pSink)
     return VINF_SUCCESS;
 }
 
+/**
+ * Removes a formerly attached audio sink for an audio mixer.
+ *
+ * @returns IPRT status code.
+ * @param   pMixer              Mixer to remove sink from.
+ * @param   pSink               Sink to remove.
+ */
+
 void AudioMixerRemoveSink(PAUDIOMIXER pMixer, PAUDMIXSINK pSink)
 {
     audioMixerSinkRemoveAllStreamsInternal(pSink);
     audioMixerRemoveSinkInternal(pMixer, pSink);
 }
 
-int AudioMixerSetDeviceFormat(PAUDIOMIXER pMixer, PPDMAUDIOSTREAMCFG pCfg)
-{
-    AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
-
-    /** @todo Perform a deep copy, if needed. */
-    pMixer->devFmt = *pCfg;
-
-    return VINF_SUCCESS;
-}
-
 /**
  * Sets the mixer's master volume.
  *
  * @returns IPRT status code.
- * @param   pMixer          Mixer to set master volume for.
- * @param   pVol            Volume to set.
+ * @param   pMixer              Mixer to set master volume for.
+ * @param   pVol                Volume to set.
  */
 int AudioMixerSetMasterVolume(PAUDIOMIXER pMixer, PPDMAUDIOVOLUME pVol)
 {
@@ -297,6 +334,13 @@ int AudioMixerSetMasterVolume(PAUDIOMIXER pMixer, PPDMAUDIOVOLUME pVol)
  * Mixer Sink implementation.
  ********************************************************************************************************************************/
 
+/**
+ * Adds an audio stream to a specific audio sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Sink to add audio stream to.
+ * @param   pStream             Stream to add.
+ */
 int AudioMixerSinkAddStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
 {
     AssertPtrReturn(pSink,   VERR_INVALID_POINTER);
@@ -339,7 +383,7 @@ int AudioMixerSinkAddStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
 #endif /* VBOX_AUDIO_MIXER_WITH_MIXBUF */
         }
         else
-            rc = VERR_WRONG_TYPE;
+            AssertFailedStmt(rc = VERR_WRONG_TYPE);
     }
     else if (pStream->enmDir == PDMAUDIODIR_OUT)
     {
@@ -354,7 +398,7 @@ int AudioMixerSinkAddStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
 #endif /* VBOX_AUDIO_MIXER_WITH_MIXBUF */
         }
         else
-            rc = VERR_WRONG_TYPE;
+            AssertFailedStmt(rc = VERR_WRONG_TYPE);
     }
     else
         AssertFailedStmt(rc = VERR_NOT_IMPLEMENTED);
@@ -383,12 +427,22 @@ int AudioMixerSinkAddStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
     return rc;
 }
 
+/**
+ * Creates an audio mixer stream.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Sink to use for creating the stream.
+ * @param   pConn               Audio connector interface to use.
+ * @param   pCfg                Audio stream configuration to use.
+ * @param   fFlags              Stream creation flags. Currently unused, set to 0.
+ * @param   ppStream            Pointer which receives the the newly created audio stream.
+ */
 int AudioMixerSinkCreateStream(PAUDMIXSINK pSink,
                                PPDMIAUDIOCONNECTOR pConn, PPDMAUDIOSTREAMCFG pCfg, uint32_t fFlags, PAUDMIXSTREAM *ppStream)
 {
-    AssertPtrReturn(pSink,  VERR_INVALID_POINTER);
-    AssertPtrReturn(pConn,  VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    AssertPtrReturn(pConn, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfg,  VERR_INVALID_POINTER);
     /** @todo Validate fFlags. */
     /* ppStream is optional. */
 
@@ -403,7 +457,7 @@ int AudioMixerSinkCreateStream(PAUDMIXSINK pSink,
         return VERR_NO_MEMORY;
     }
 
-    LogFlowFunc(("[%s]: fFlags=0x%x (enmDir=%ld, %s, %RU8 channels, %RU32Hz)\n",
+    LogFlowFunc(("[%s]: fFlags=0x%x (enmDir=%d, %s, %RU8 channels, %RU32Hz)\n",
                  pSink->pszName, fFlags, pCfg->enmDir, DrvAudioHlpAudFmtToStr(pCfg->enmFormat), pCfg->cChannels, pCfg->uHz));
 
     /*
@@ -438,7 +492,7 @@ int AudioMixerSinkCreateStream(PAUDMIXSINK pSink,
 
         /* Increase the stream's reference count to let others know
          * we're reyling on it to be around now. */
-        pConn->pfnStreamAddRef(pConn, pStream);
+        pConn->pfnStreamRetain(pConn, pStream);
     }
 
     if (RT_SUCCESS(rc))
@@ -464,6 +518,13 @@ int AudioMixerSinkCreateStream(PAUDMIXSINK pSink,
     return rc;
 }
 
+/**
+ * Static helper function to translate a sink command
+ * to a PDM audio stream command.
+ *
+ * @returns PDM audio stream command, or PDMAUDIOSTREAMCMD_UNKNOWN if not found.
+ * @param   enmCmd              Mixer sink command to translate.
+ */
 static PDMAUDIOSTREAMCMD audioMixerSinkToStreamCmd(AUDMIXSINKCMD enmCmd)
 {
     switch (enmCmd)
@@ -475,10 +536,17 @@ static PDMAUDIOSTREAMCMD audioMixerSinkToStreamCmd(AUDMIXSINKCMD enmCmd)
         default:                     break;
     }
 
-    AssertMsgFailed(("Unsupported sink command %ld\n", enmCmd));
+    AssertMsgFailed(("Unsupported sink command %d\n", enmCmd));
     return PDMAUDIOSTREAMCMD_UNKNOWN;
 }
 
+/**
+ * Controls a mixer sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Mixer sink to control.
+ * @param   enmSinkCmd          Sink command to set.
+ */
 int AudioMixerSinkCtl(PAUDMIXSINK pSink, AUDMIXSINKCMD enmSinkCmd)
 {
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
@@ -513,10 +581,15 @@ int AudioMixerSinkCtl(PAUDMIXSINK pSink, AUDMIXSINKCMD enmSinkCmd)
     if (!(pSink->fStatus & AUDMIXSINK_STS_RUNNING))
         audioMixerSinkReset(pSink);
 
-    LogFlowFunc(("[%s]: enmCmd=%ld, fStatus=0x%x, rc=%Rrc\n", pSink->pszName, enmSinkCmd, pSink->fStatus, rc));
+    LogFlowFunc(("[%s]: enmCmd=%d, fStatus=0x%x, rc=%Rrc\n", pSink->pszName, enmSinkCmd, pSink->fStatus, rc));
     return rc;
 }
 
+/**
+ * Destroys a mixer sink and removes it from the attached mixer (if any).
+ *
+ * @param   pSink               Mixer sink to destroy.
+ */
 void AudioMixerSinkDestroy(PAUDMIXSINK pSink)
 {
     if (!pSink)
@@ -537,6 +610,11 @@ void AudioMixerSinkDestroy(PAUDMIXSINK pSink)
     audioMixerSinkDestroyInternal(pSink);
 }
 
+/**
+ * Destroys a mixer sink.
+ *
+ * @param   pSink               Mixer sink to destroy.
+ */
 static void audioMixerSinkDestroyInternal(PAUDMIXSINK pSink)
 {
     AssertPtrReturnVoid(pSink);
@@ -569,7 +647,7 @@ static void audioMixerSinkDestroyInternal(PAUDMIXSINK pSink)
  * to AudioMixerSinkUpdate().
  *
  * @returns Amount of bytes ready to be read from the sink.
- * @param   pSink           Sink to return number of available samples for.
+ * @param   pSink               Sink to return number of available samples for.
  */
 uint32_t AudioMixerSinkGetReadable(PAUDMIXSINK pSink)
 {
@@ -590,7 +668,7 @@ uint32_t AudioMixerSinkGetReadable(PAUDMIXSINK pSink)
  * to AudioMixerSinkUpdate().
  *
  * @returns Amount of bytes ready to be written to the sink.
- * @param   pSink           Sink to return number of available samples for.
+ * @param   pSink               Sink to return number of available samples for.
  */
 uint32_t AudioMixerSinkGetWritable(PAUDMIXSINK pSink)
 {
@@ -610,9 +688,7 @@ uint32_t AudioMixerSinkGetWritable(PAUDMIXSINK pSink)
  * Returns the sink's mixing direction.
  *
  * @returns Mixing direction.
- * @param   pSink           Sink to return direction for.
- *
- * @remark
+ * @param   pSink               Sink to return direction for.
  */
 AUDMIXSINKDIR AudioMixerSinkGetDir(PAUDMIXSINK pSink)
 {
@@ -620,6 +696,13 @@ AUDMIXSINKDIR AudioMixerSinkGetDir(PAUDMIXSINK pSink)
     return pSink->enmDir;
 }
 
+/**
+ * Returns a specific mixer stream from a sink, based on its index.
+ *
+ * @returns Mixer stream if found, or NULL if not found.
+ * @param   pSink               Sink to retrieve mixer stream from.
+ * @param   uIndex              Index of the mixer stream to return.
+ */
 PAUDMIXSTREAM AudioMixerSinkGetStream(PAUDMIXSINK pSink, uint8_t uIndex)
 {
     AssertPtrReturn(pSink, NULL);
@@ -638,6 +721,12 @@ PAUDMIXSTREAM AudioMixerSinkGetStream(PAUDMIXSINK pSink, uint8_t uIndex)
     return pStream;
 }
 
+/**
+ * Returns the current status of a mixer sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Mixer sink to return status for.
+ */
 AUDMIXSINKSTS AudioMixerSinkGetStatus(PAUDMIXSINK pSink)
 {
     if (!pSink)
@@ -649,6 +738,12 @@ AUDMIXSINKSTS AudioMixerSinkGetStatus(PAUDMIXSINK pSink)
     return pSink->fStatus;
 }
 
+/**
+ * Returns the number of attached mixer streams to a mixer sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Mixer sink to return number for.
+ */
 uint8_t AudioMixerSinkGetStreamCount(PAUDMIXSINK pSink)
 {
     if (!pSink)
@@ -657,8 +752,19 @@ uint8_t AudioMixerSinkGetStreamCount(PAUDMIXSINK pSink)
     return pSink->cStreams;
 }
 
+/**
+ * Reads audio data from a mixer sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Mixer sink to read data from.
+ * @param   enmOp               Mixer operation to use for reading the data.
+ * @param   pvBuf               Buffer where to store the read data.
+ * @param   cbBuf               Buffer size (in bytes) where to store the data.
+ * @param   pcbRead             Number of bytes read. Optional.
+ */
 int AudioMixerSinkRead(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead)
 {
+    RT_NOREF(enmOp);
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
     AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
     AssertReturn(cbBuf,    VERR_INVALID_PARAMETER);
@@ -743,6 +849,13 @@ int AudioMixerSinkRead(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint32_t 
     return rc;
 }
 
+/**
+ * Removes a mixer stream from a mixer sink, internal version.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Sink to remove mixer stream from.
+ * @param   pStream             Stream to remove.
+ */
 static int audioMixerSinkRemoveStreamInternal(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
 {
     AssertPtrReturn(pSink, VERR_INVALID_PARAMETER);
@@ -772,6 +885,12 @@ static int audioMixerSinkRemoveStreamInternal(PAUDMIXSINK pSink, PAUDMIXSTREAM p
     return VINF_SUCCESS;
 }
 
+/**
+ * Removes a mixer stream from a mixer sink.
+ *
+ * @param   pSink               Sink to remove mixer stream from.
+ * @param   pStream             Stream to remove.
+ */
 void AudioMixerSinkRemoveStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
 {
     int rc = audioMixerSinkRemoveStreamInternal(pSink, pStream);
@@ -785,7 +904,7 @@ void AudioMixerSinkRemoveStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
 /**
  * Removes all attached streams from a given sink.
  *
- * @param pSink         Sink to remove attached streams from.
+ * @param pSink                 Sink to remove attached streams from.
  */
 static void audioMixerSinkRemoveAllStreamsInternal(PAUDMIXSINK pSink)
 {
@@ -802,7 +921,7 @@ static void audioMixerSinkRemoveAllStreamsInternal(PAUDMIXSINK pSink)
 /**
  * Resets the sink's state.
  *
- * @param   pSink       Sink to reset.
+ * @param   pSink               Sink to reset.
  */
 static void audioMixerSinkReset(PAUDMIXSINK pSink)
 {
@@ -838,7 +957,7 @@ static void audioMixerSinkReset(PAUDMIXSINK pSink)
 /**
  * Removes all attached streams from a given sink.
  *
- * @param pSink         Sink to remove attached streams from.
+ * @param pSink                 Sink to remove attached streams from.
  */
 void AudioMixerSinkRemoveAllStreams(PAUDMIXSINK pSink)
 {
@@ -850,7 +969,14 @@ void AudioMixerSinkRemoveAllStreams(PAUDMIXSINK pSink)
     pSink->cStreams = 0;
 }
 
-int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PPDMPCMPROPS pPCMProps)
+/**
+ * Sets the audio format of a mixer sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Sink to set audio format for.
+ * @param   pPCMProps           Audio format (PCM properties) to set.
+ */
+int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PPDMAUDIOPCMPROPS pPCMProps)
 {
     AssertPtrReturn(pSink,     VERR_INVALID_POINTER);
     AssertPtrReturn(pPCMProps, VERR_INVALID_POINTER);
@@ -862,7 +988,7 @@ int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PPDMPCMPROPS pPCMProps)
         LogFlowFunc(("[%s]: Old format: %RU8 bit, %RU8 channels, %RU32Hz\n",
                      pSink->pszName, pSink->PCMProps.cBits, pSink->PCMProps.cChannels, pSink->PCMProps.uHz));
 
-    memcpy(&pSink->PCMProps, pPCMProps, sizeof(PDMPCMPROPS));
+    memcpy(&pSink->PCMProps, pPCMProps, sizeof(PDMAUDIOPCMPROPS));
 
     LogFlowFunc(("[%s]: New format %RU8 bit, %RU8 channels, %RU32Hz\n",
                  pSink->pszName, pSink->PCMProps.cBits, pSink->PCMProps.cChannels, pSink->PCMProps.uHz));
@@ -891,8 +1017,8 @@ int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PPDMPCMPROPS pPCMProps)
  * Set the volume of an individual sink.
  *
  * @returns IPRT status code.
- * @param   pSink           Sink to set volume for.
- * @param   pVol            Volume to set.
+ * @param   pSink               Sink to set volume for.
+ * @param   pVol                Volume to set.
  */
 int AudioMixerSinkSetVolume(PAUDMIXSINK pSink, PPDMAUDIOVOLUME pVol)
 {
@@ -908,6 +1034,12 @@ int AudioMixerSinkSetVolume(PAUDMIXSINK pSink, PPDMAUDIOVOLUME pVol)
     return audioMixerSinkUpdateVolume(pSink, &pSink->pParent->VolMaster);
 }
 
+/**
+ * Updates a mixer sink, internal version.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Mixer sink to update.
+ */
 static int audioMixerSinkUpdateInternal(PAUDMIXSINK pSink)
 {
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
@@ -950,7 +1082,6 @@ static int audioMixerSinkUpdateInternal(PAUDMIXSINK pSink)
         PPDMIAUDIOCONNECTOR pConn = pMixStream->pConn;
         AssertPtr(pConn);
 
-        uint32_t cPlayed   = 0;
         uint32_t cCaptured = 0;
 
         int rc2 = pConn->pfnStreamIterate(pConn, pStream);
@@ -1033,7 +1164,7 @@ static int audioMixerSinkUpdateInternal(PAUDMIXSINK pSink)
             }
         }
 
-        Log3Func(("\t%s: cPlayed=%RU32, cCaptured=%RU32\n", pMixStream->pStream->szName, cPlayed, cCaptured));
+        Log3Func(("\t%s: cCaptured=%RU32\n", pMixStream->pStream->szName, cCaptured));
     }
 
     /* All streams disabled and the sink is in pending disable mode? */
@@ -1052,6 +1183,12 @@ static int audioMixerSinkUpdateInternal(PAUDMIXSINK pSink)
     return rc;
 }
 
+/**
+ * Updates (invalidates) a mixer sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Mixer sink to update.
+ */
 int AudioMixerSinkUpdate(PAUDMIXSINK pSink)
 {
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
@@ -1068,6 +1205,13 @@ int AudioMixerSinkUpdate(PAUDMIXSINK pSink)
     return audioMixerSinkUpdateInternal(pSink);
 }
 
+/**
+ * Updates the (master) volume of a mixer sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Mixer sink to update volume for.
+ * @param   pVolMaster          Master volume to set.
+ */
 static int audioMixerSinkUpdateVolume(PAUDMIXSINK pSink, const PPDMAUDIOVOLUME pVolMaster)
 {
     AssertPtrReturn(pSink,      VERR_INVALID_POINTER);
@@ -1102,8 +1246,19 @@ static int audioMixerSinkUpdateVolume(PAUDMIXSINK pSink, const PPDMAUDIOVOLUME p
     return VINF_SUCCESS;
 }
 
+/**
+ * Writes data to a mixer sink.
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Sink to write data to.
+ * @param   enmOp               Mixer operation to use when writing data to the sink.
+ * @param   pvBuf               Buffer containing the audio data to write.
+ * @param   cbBuf               Size (in bytes) of the buffer containing the audio data.
+ * @param   pcbWritten          Number of bytes written. Optional.
+ */
 int AudioMixerSinkWrite(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten)
 {
+    RT_NOREF(enmOp);
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
     /* pcbWritten is optional. */
 
@@ -1117,7 +1272,7 @@ int AudioMixerSinkWrite(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, ui
     AssertMsg(pSink->enmDir == AUDMIXSINKDIR_OUTPUT,
               ("Can't write to a sink which is not an output sink\n"));
 
-    LogFlowFunc(("%s: enmOp=%ld, cbBuf=%RU32\n", pSink->pszName, enmOp, cbBuf));
+    LogFlowFunc(("%s: enmOp=%d, cbBuf=%RU32\n", pSink->pszName, enmOp, cbBuf));
 
     uint32_t cbProcessed;
 
@@ -1157,16 +1312,30 @@ int AudioMixerSinkWrite(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, ui
  * Mixer Stream implementation.
  ********************************************************************************************************************************/
 
+/**
+ * Controls a mixer stream.
+ *
+ * @returns IPRT status code.
+ * @param   pMixStream          Mixer stream to control.
+ * @param   enmCmd              Mixer stream command to use.
+ * @param   fCtl                Additional control flags. Pass 0.
+ */
 int AudioMixerStreamCtl(PAUDMIXSTREAM pMixStream, PDMAUDIOSTREAMCMD enmCmd, uint32_t fCtl)
 {
+    RT_NOREF(fCtl);
     AssertPtrReturn(pMixStream, VERR_INVALID_POINTER);
     /** @todo Validate fCtl. */
 
-    LogFlowFunc(("[%s] enmCmd=%ld\n", pMixStream->pszName, enmCmd));
+    LogFlowFunc(("[%s] enmCmd=%d\n", pMixStream->pszName, enmCmd));
 
     return pMixStream->pConn->pfnStreamControl(pMixStream->pConn, pMixStream->pStream, enmCmd);
 }
 
+/**
+ * Destroys a mixer stream, internal version.
+ *
+ * @param   pMixStream          Mixer stream to destroy.
+ */
 static void audioMixerStreamDestroyInternal(PAUDMIXSTREAM pMixStream)
 {
     AssertPtrReturnVoid(pMixStream);
@@ -1196,6 +1365,11 @@ static void audioMixerStreamDestroyInternal(PAUDMIXSTREAM pMixStream)
     pMixStream = NULL;
 }
 
+/**
+ * Destroys a mixer stream.
+ *
+ * @param   pMixStream          Mixer stream to destroy.
+ */
 void AudioMixerStreamDestroy(PAUDMIXSTREAM pMixStream)
 {
     if (!pMixStream)
@@ -1227,6 +1401,12 @@ void AudioMixerStreamDestroy(PAUDMIXSTREAM pMixStream)
     LogFlowFunc(("Returning %Rrc\n", rc));
 }
 
+/**
+ * Returns whether a mixer stream currently is active (playing/recording) or not.
+ *
+ * @returns @true if playing/recording, @false if not.
+ * @param   pMixStream          Mixer stream to return status for.
+ */
 bool AudioMixerStreamIsActive(PAUDMIXSTREAM pMixStream)
 {
     bool fIsActive =
@@ -1236,6 +1416,12 @@ bool AudioMixerStreamIsActive(PAUDMIXSTREAM pMixStream)
     return fIsActive;
 }
 
+/**
+ * Returns whether a mixer stream is valid (e.g. initialized and in a working state) or not.
+ *
+ * @returns @true if valid, @false if not.
+ * @param   pMixStream          Mixer stream to return status for.
+ */
 bool AudioMixerStreamIsValid(PAUDMIXSTREAM pMixStream)
 {
     bool fIsValid =

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@
 
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
 /** client token holder thread */
-static DECLCALLBACK(int) ClientTokenHolderThread(RTTHREAD Thread, void *pvUser);
+static DECLCALLBACK(int) ClientTokenHolderThread(RTTHREAD hThreadSelf, void *pvUser);
 #endif
 
 
@@ -237,8 +237,9 @@ bool Session::ClientTokenHolder::isReady()
 
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
 /** client token holder thread */
-DECLCALLBACK(int) ClientTokenHolderThread(RTTHREAD Thread, void *pvUser)
+DECLCALLBACK(int) ClientTokenHolderThread(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF(hThreadSelf);
     LogFlowFuncEnter();
 
     Assert(pvUser);
@@ -270,8 +271,8 @@ DECLCALLBACK(int) ClientTokenHolderThread(RTTHREAD Thread, void *pvUser)
                 ::WaitForSingleObject(finishSem, INFINITE);
                 /* release the token */
                 LogFlow(("ClientTokenHolderThread(): releasing token...\n"));
-                BOOL success = ::ReleaseMutex(mutex);
-                AssertMsg(success, ("cannot release token, err=%d\n", ::GetLastError()));
+                BOOL fRc = ::ReleaseMutex(mutex);
+                AssertMsg(fRc, ("cannot release token, err=%d\n", ::GetLastError())); NOREF(fRc);
                 ::CloseHandle(mutex);
                 ::CloseHandle(finishSem);
             }

@@ -301,7 +301,7 @@ RT_C_DECLS_END
  * @param   expr    Expression which should be true.
  */
 #ifdef __GNUC__
-# define AssertCompileNS(expr)  extern int RTASSERTVAR[1] __attribute__((unused)), RTASSERTVAR[(expr) ? 1 : 0] __attribute__((unused))
+# define AssertCompileNS(expr)  extern int RTASSERTVAR[1] __attribute__((__unused__)), RTASSERTVAR[(expr) ? 1 : 0] __attribute__((__unused__))
 #elif defined(__IBMC__) || defined(__IBMCPP__)
 # define AssertCompileNS(expr)  extern int RTASSERTVAR[(expr) ? 1 : 0]
 #else
@@ -2812,6 +2812,30 @@ RT_C_DECLS_END
         for (var = (first); var < (end); var++) \
             AssertMsg(expr, ("%s = %#RX64 (%RI64)", #var, (uint64_t)var, (int64_t)var)); \
     } while (0)
+
+#ifdef RT_OS_WINDOWS
+
+/** @def AssertNtStatus
+ * Asserts that the NT_SUCCESS() returns true for the given NTSTATUS value.
+ *
+ * @param   a_rcNt  The NTSTATUS to check.  Will be evaluated twice and
+ *                  subjected to NOREF().
+ * @sa      AssertRC()
+ */
+# define AssertNtStatus(a_rcNt) \
+    do { AssertMsg(NT_SUCCESS(a_rcNt), ("%#x\n", (a_rcNt))); NOREF(a_rcNt); } while (0)
+
+/** @def AssertNtStatusSuccess
+ * Asserts that the given NTSTATUS value equals STATUS_SUCCESS.
+ *
+ * @param   a_rcNt  The NTSTATUS to check.  Will be evaluated twice and
+ *                  subjected to NOREF().
+ * @sa      AssertRCSuccess()
+ */
+# define AssertNtStatusSuccess(a_rcNt) \
+    do { AssertMsg((a_rcNt) == STATUS_SUCCESS, ("%#x\n", (a_rcNt))); NOREF(a_rcNt); } while (0)
+
+#endif /* RT_OS_WINDOWS */
 
 /** @} */
 

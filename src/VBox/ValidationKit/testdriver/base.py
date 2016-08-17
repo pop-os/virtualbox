@@ -8,7 +8,7 @@ Base testdriver module.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2015 Oracle Corporation
+Copyright (C) 2010-2016 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 108584 $"
+__version__ = "$Revision: 109382 $"
 
 
 # Standard Python imports.
@@ -849,12 +849,19 @@ class TestDriverBase(object): # pylint: disable=R0902
         else:
             reporter.log('TESTBOX_TIMEOUT_ABS not found in the environment');
 
-
         # Distance from secTimeoutAbs that timeouts should be adjusted to.
         self.secTimeoutFudge = 30;
 
         # List of sub-test drivers (SubTestDriverBase derivatives).
         self.aoSubTstDrvs    = [];
+
+        # Use the scratch path for temporary files.
+        if self.sHost in ['win', 'os2']:
+            os.environ['TMP']     = self.sScratchPath;
+            os.environ['TEMP']    = self.sScratchPath;
+        os.environ['TMPDIR']      = self.sScratchPath;
+        os.environ['IPRT_TMPDIR'] = self.sScratchPath; # IPRT/VBox specific.
+
 
     def dump(self):
         """

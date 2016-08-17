@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,6 +63,7 @@
 # include "UIGDetails.h"
 # include "UIVMItem.h"
 # include "UIExtraDataManager.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "VBoxGlobal.h"
 # ifdef VBOX_WS_MAC
 #  include "VBoxUtils.h"
@@ -133,6 +134,24 @@ UISelectorWindow::~UISelectorWindow()
 {
     m_spInstance = 0;
 }
+
+bool UISelectorWindow::shouldBeMaximized() const
+{
+    return gEDataManager->selectorWindowShouldBeMaximized();
+}
+
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+void UISelectorWindow::sltHandleHostScreenAvailableAreaChange()
+{
+    /* Prevent handling if fake screen detected: */
+    if (gpDesktop->isFakeScreenDetected())
+        return;
+
+    /* Restore the geometry cached by the window: */
+    resize(m_geometry.size());
+    move(m_geometry.topLeft());
+}
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
 void UISelectorWindow::sltShowSelectorWindowContextMenu(const QPoint &position)
 {
@@ -313,7 +332,7 @@ void UISelectorWindow::sltHandleMediumEnumerationFinish()
 void UISelectorWindow::sltOpenUrls(QList<QUrl> list /* = QList<QUrl>() */)
 {
     /* Make sure any pending D&D events are consumed. */
-    // TODO: What? So dangerous method for so cheap purpose?
+    /// @todo What? So dangerous method for so cheap purpose?
     qApp->processEvents();
 
     if (list.isEmpty())
@@ -803,7 +822,7 @@ void UISelectorWindow::sltPerformDetachMachineUI()
         if (!isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_Detach, QList<UIVMItem*>() << pItem))
             continue;
 
-        // TODO: Detach separate UI process..
+        /// @todo Detach separate UI process..
         AssertFailed();
     }
 }
@@ -1065,6 +1084,12 @@ bool UISelectorWindow::event(QEvent *pEvent)
         /* Handle every Resize and Move we keep track of the geometry. */
         case QEvent::Resize:
         {
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+            /* Prevent handling if fake screen detected: */
+            if (gpDesktop->isFakeScreenDetected())
+                break;
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
             if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
             {
                 QResizeEvent *pResizeEvent = static_cast<QResizeEvent*>(pEvent);
@@ -1074,6 +1099,12 @@ bool UISelectorWindow::event(QEvent *pEvent)
         }
         case QEvent::Move:
         {
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+            /* Prevent handling if fake screen detected: */
+            if (gpDesktop->isFakeScreenDetected())
+                break;
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
             if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
             {
 #ifdef VBOX_WS_MAC
@@ -1107,13 +1138,13 @@ bool UISelectorWindow::event(QEvent *pEvent)
             break;
     }
     /* Call to base-class: */
-    return QMainWindow::event(pEvent);
+    return QIMainWindow::event(pEvent);
 }
 
 void UISelectorWindow::showEvent(QShowEvent *pEvent)
 {
     /* Call to base-class: */
-    QMainWindow::showEvent(pEvent);
+    QIMainWindow::showEvent(pEvent);
 
     /* Is polishing required? */
     if (!m_fPolished)
@@ -1137,12 +1168,12 @@ bool UISelectorWindow::eventFilter(QObject *pObject, QEvent *pEvent)
 {
     /* Ignore for non-active window except for FileOpen event which should be always processed: */
     if (!isActiveWindow() && pEvent->type() != QEvent::FileOpen)
-        return QIWithRetranslateUI<QMainWindow>::eventFilter(pObject, pEvent);
+        return QIWithRetranslateUI<QIMainWindow>::eventFilter(pObject, pEvent);
 
     /* Ignore for other objects: */
     if (qobject_cast<QWidget*>(pObject) &&
         qobject_cast<QWidget*>(pObject)->window() != this)
-        return QIWithRetranslateUI<QMainWindow>::eventFilter(pObject, pEvent);
+        return QIWithRetranslateUI<QIMainWindow>::eventFilter(pObject, pEvent);
 
     /* Which event do we have? */
     switch (pEvent->type())
@@ -1158,7 +1189,7 @@ bool UISelectorWindow::eventFilter(QObject *pObject, QEvent *pEvent)
             break;
     }
     /* Call to base-class: */
-    return QIWithRetranslateUI<QMainWindow>::eventFilter(pObject, pEvent);
+    return QIWithRetranslateUI<QIMainWindow>::eventFilter(pObject, pEvent);
 }
 #endif /* VBOX_WS_MAC */
 
@@ -1338,7 +1369,8 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
     /* 'Network Access Manager' action goes to 'File' menu: */
     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
     /* 'Check for Updates' action goes to 'File' menu: */
-    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
+    if (gEDataManager->applicationUpdateEnabled())
+        pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
 # endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
     /* 'Reset Warnings' action goes 'File' menu: */
     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_ResetWarnings));
@@ -1693,6 +1725,11 @@ void UISelectorWindow::prepareWidgets()
 
 void UISelectorWindow::prepareConnections()
 {
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /* Desktop event handlers: */
+    connect(gpDesktop, SIGNAL(sigHostScreenWorkAreaResized(int)), this, SLOT(sltHandleHostScreenAvailableAreaChange()));
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
     /* Medium enumeration connections: */
     connect(&vboxGlobal(), SIGNAL(sigMediumEnumerationFinished()), this, SLOT(sltHandleMediumEnumerationFinish()));
 
@@ -1794,18 +1831,11 @@ void UISelectorWindow::loadSettings()
     {
         /* Load geometry: */
         m_geometry = gEDataManager->selectorWindowGeometry(this);
-#ifdef VBOX_WS_MAC
-        move(m_geometry.topLeft());
-        resize(m_geometry.size());
-#else /* VBOX_WS_MAC */
-        setGeometry(m_geometry);
-#endif /* !VBOX_WS_MAC */
-        LogRel2(("GUI: UISelectorWindow: Geometry loaded to: Origin=%dx%d, Size=%dx%d\n",
-                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
 
-        /* Maximize (if necessary): */
-        if (gEDataManager->selectorWindowShouldBeMaximized())
-            showMaximized();
+        /* Restore geometry: */
+        LogRel2(("GUI: UISelectorWindow: Restoring geometry to: Origin=%dx%d, Size=%dx%d\n",
+                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+        restoreGeometry();
     }
 
     /* Restore splitter handle position: */

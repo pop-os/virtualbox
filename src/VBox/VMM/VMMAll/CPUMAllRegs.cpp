@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,7 @@
 #endif
 
 /** Disable stack frame pointer generation here. */
-#if defined(_MSC_VER) && !defined(DEBUG)
+#if defined(_MSC_VER) && !defined(DEBUG) && defined(RT_ARCH_X86)
 # pragma optimize("y", off)
 #endif
 
@@ -1521,6 +1521,9 @@ VMMDECL(int) CPUMSetGuestDRx(PVMCPU pVCpu, uint32_t iReg, uint64_t Value)
 VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
+#ifndef IN_RING0
+    RT_NOREF_PV(iGstReg);
+#endif
 
     /*
      * Compare the DR7s first.

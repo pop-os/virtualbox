@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -797,8 +797,20 @@ RTDECL(int) RTVfsMemFileCreate(RTVFSIOSTREAM hVfsIos, size_t cbEstimate, PRTVFSF
         pThis->Base.ObjInfo.Attr.fMode = RTFS_DOS_NT_NORMAL | RTFS_TYPE_FILE | RTFS_UNIX_IRWXU;
         rtVfsMemFileInit(pThis, cbEstimate, RTFILE_O_READ | RTFILE_O_WRITE);
 
-        *phVfsFile = hVfsFile;
-        return VINF_SUCCESS;
+        if (hVfsIos != NIL_RTVFSIOSTREAM)
+        {
+            RTVFSIOSTREAM hVfsIosDst = RTVfsFileToIoStream(hVfsFile);
+            rc = RTVfsUtilPumpIoStreams(hVfsIos, hVfsIosDst, pThis->cbExtent);
+            RTVfsIoStrmRelease(hVfsIosDst);
+        }
+
+        if (RT_SUCCESS(rc))
+        {
+            *phVfsFile = hVfsFile;
+            return VINF_SUCCESS;
+        }
+
+        RTVfsFileRelease(hVfsFile);
     }
     return rc;
 }

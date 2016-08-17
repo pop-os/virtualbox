@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,7 +74,7 @@ DECLCALLBACK(int) cpumRCHandleNPAndGP(PVM pVM, PCPUMCTXCORE pRegFrame, uintptr_t
             break;
     }
 
-    AssertMsgFailed(("uUser=%#x eip=%#x\n", uUser, pRegFrame->eip));
+    AssertMsgFailed(("uUser=%#x eip=%#x\n", uUser, pRegFrame->eip)); RT_NOREF_PV(pRegFrame);
     return VERR_TRPM_DONT_PANIC;
 }
 
@@ -87,6 +87,7 @@ DECLCALLBACK(int) cpumRCHandleNPAndGP(PVM pVM, PCPUMCTXCORE pRegFrame, uintptr_t
  */
 DECLASM(void) CPUMRCAssertPreExecutionSanity(PVM pVM)
 {
+#ifdef VBOX_STRICT
     /*
      * Check some important assumptions before resuming guest execution.
      */
@@ -106,6 +107,9 @@ DECLASM(void) CPUMRCAssertPreExecutionSanity(PVM pVM)
     }
     AssertMsg(CPUMIsGuestInRawMode(pVCpu),           ("cs:eip=%04x:%08x ss:esp=%04x:%08x cpl=%u raw/efl=%#x/%#x%s\n", pCtx->cs.Sel, pCtx->eip, pCtx->ss.Sel, pCtx->esp, uRawCpl, u32EFlags, pCtx->eflags.u, fPatch ? " patch" : ""));
     //Log2(("cs:eip=%04x:%08x ss:esp=%04x:%08x cpl=%u raw/efl=%#x/%#x%s\n", pCtx->cs.Sel, pCtx->eip, pCtx->ss.Sel, pCtx->esp, uRawCpl, u32EFlags, pCtx->eflags.u, fPatch ? " patch" : ""));
+#else
+    RT_NOREF_PV(pVM);
+#endif
 }
 
 

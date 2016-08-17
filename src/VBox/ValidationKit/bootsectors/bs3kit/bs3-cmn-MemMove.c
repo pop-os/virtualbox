@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,7 +75,4 @@ BS3_CMN_DEF(void BS3_FAR *, Bs3MemMove,(void BS3_FAR *pvDst, const void BS3_FAR 
     }
     return pvDst;
 }
-
-
-
 

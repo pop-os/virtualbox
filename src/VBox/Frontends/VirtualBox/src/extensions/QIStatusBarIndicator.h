@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -86,7 +86,7 @@ public slots:
     /** Defines int @a state. */
     virtual void setState(int iState) { m_iState = iState; repaint(); }
     /** Defines bool @a state. */
-    virtual void setState(bool fState) { setState((int)fState); }
+    void setState(bool fState) { setState((int)fState); }
 
 protected:
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2014 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,7 +53,7 @@
 #include <QDate>
 #include <QDateTime>
 #include <QDesktopServices>
-#include <QDesktopWidget>
+//#include <QDesktopWidget> -  only used once
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -216,8 +216,8 @@
  * System specific headers.
  */
 #ifdef VBOX_WS_WIN
-# include <shlobj.h>
-# include <Windows.h>
+# include <iprt/win/shlobj.h>
+# include <iprt/win/windows.h>
 #endif
 
 

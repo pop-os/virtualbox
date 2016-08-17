@@ -1,4 +1,4 @@
-/* $Id: kRdrBuffered.cpp 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kRdrBuffered.cpp 79 2016-07-27 14:25:09Z bird $ */
 /** @file
  * kRdrBuffered - Buffered File Provider.
  */
@@ -376,6 +376,8 @@ static int krdrBufDestroy(PKRDR pRdr)
 /** @copydoc KRDROPS::pfnCreate */
 static int krdrBufCreate(PPKRDR ppRdr, const char *pszFilename)
 {
+    K_NOREF(ppRdr);
+    K_NOREF(pszFilename);
     return KERR_NOT_IMPLEMENTED;
 }
 
@@ -646,7 +648,6 @@ KRDR_DECL(int) kRdrBufLineEx(PKRDR pRdr, char *pszLine, KSIZE *pcbLine)
             return 0;
         }
     }
-    return -1;
 }
 
 

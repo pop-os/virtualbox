@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -873,8 +873,9 @@ void TstRTStrPurgeComplementSet(RTTEST hTest)
         char szCopy[MAX_IN_STRING];
         ssize_t cReplacements;
         AssertRC(RTStrCopy(szCopy, RT_ELEMENTS(szCopy), aTests[i].pcszIn));
-        cReplacements = RTStrPurgeComplementSet(szCopy, aTests[i].pcCpSet,
-                                                aTests[i].chReplacement);
+        RTTestDisableAssertions(hTest);
+        cReplacements = RTStrPurgeComplementSet(szCopy, aTests[i].pcCpSet, aTests[i].chReplacement);
+        RTTestRestoreAssertions(hTest);
         if (cReplacements != aTests[i].cExpected)
             RTTestFailed(hTest, "#%u: expected %lld, actual %lld\n", i,
                          (long long) aTests[i].cExpected,
@@ -936,8 +937,11 @@ void TstRTUtf16PurgeComplementSet(RTTEST hTest)
             memcpy(wszInCopy, aTests[i].pcszIn, aTests[i].cwc * 2);
             memcpy(wszOutCopy, aTests[i].pcszOut, aTests[i].cwc * 2);
         }
-        cReplacements = RTUtf16PurgeComplementSet(wszInCopy, aTests[i].pcCpSet,
-                                                  aTests[i].chReplacement);
+
+        RTTestDisableAssertions(hTest);
+        cReplacements = RTUtf16PurgeComplementSet(wszInCopy, aTests[i].pcCpSet, aTests[i].chReplacement);
+        RTTestRestoreAssertions(hTest);
+
         if (cReplacements != aTests[i].cExpected)
             RTTestFailed(hTest, "#%u: expected %lld, actual %lld\n", i,
                          (long long) aTests[i].cExpected,
@@ -1037,11 +1041,12 @@ static void testStrStr(RTTEST hTest)
 #define CHECK(expr, expect) \
     do { \
         const char *pszRet = expr; \
-        if (   (pszRet != NULL && (expect) == NULL) \
-            || (pszRet == NULL && (expect) != NULL) \
-            || strcmp(pszRet, (expect)) \
+        const char *pszExpect = (expect); \
+        if (   (pszRet != NULL && pszExpect == NULL) \
+            || (pszRet == NULL && pszExpect != NULL) \
+            || strcmp(pszRet, pszExpect) \
             ) \
-            RTTestFailed(hTest, "%d: %#x -> %s expected %s", __LINE__, #expr, pszRet, (expect)); \
+            RTTestFailed(hTest, "%d: %#x -> %s expected %s", __LINE__, #expr, pszRet, pszExpect); \
     } while (0)
 
 
@@ -1515,13 +1520,8 @@ int main()
     TstRTStrXCmp(hTest);
     TstRTStrPurgeEncoding(hTest);
     /* TstRT*PurgeComplementSet test conditions which assert. */
-    bool fAreQuiet = RTAssertAreQuiet(), fMayPanic = RTAssertMayPanic();
-    RTAssertSetQuiet(true);
-    RTAssertSetMayPanic(false);
     TstRTStrPurgeComplementSet(hTest);
     TstRTUtf16PurgeComplementSet(hTest);
-    RTAssertSetQuiet(fAreQuiet);
-    RTAssertSetMayPanic(fMayPanic);
     testStrEnd(hTest);
     testStrStr(hTest);
     testUtf8Latin1(hTest);

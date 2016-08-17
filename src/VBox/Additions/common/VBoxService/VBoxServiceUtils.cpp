@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #ifdef RT_OS_WINDOWS
-# include <Windows.h>
+# include <iprt/win/windows.h>
 # include <iprt/param.h>
 # include <iprt/path.h>
 #endif
@@ -55,7 +55,7 @@ int VGSvcReadProp(uint32_t u32ClientId, const char *pszPropName, char **ppszValu
 
     uint32_t    cbBuf = _1K;
     void       *pvBuf = NULL;
-    int         rc;
+    int         rc    = VINF_SUCCESS;  /* MSC can't figure out the loop */
 
     *ppszValue = NULL;
 

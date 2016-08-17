@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -154,7 +154,7 @@ void set_mode(uint8_t mode);
     "int    10h"            \
     parm [al] modify [ax];
 
-//@todo: restore
+/// @todo restore
 //#undef VBOX
 
 #define BX_PCIBIOS  1

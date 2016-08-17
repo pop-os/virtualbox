@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,9 @@ static void test1Hlp1(const char *pszExpect, const char *pszFormat, ...)
     RTCString strTst(pszFormat, va);
     va_end(va);
     RTTESTI_CHECK_MSG(strTst.equals(pszExpect),  ("strTst='%s' expected='%s'\n",  strTst.c_str(), pszExpect));
+#else
+    RT_NOREF_PV(pszExpect);
+    RT_NOREF_PV(pszFormat);
 #endif
 }
 

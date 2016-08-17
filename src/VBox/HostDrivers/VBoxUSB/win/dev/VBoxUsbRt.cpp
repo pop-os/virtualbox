@@ -2,8 +2,9 @@
 /** @file
  * VBox USB R0 runtime
  */
+
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include "VBoxUsbCmn.h"
 #include "../cmn/VBoxUsbIdc.h"
 #include "../cmn/VBoxUsbTool.h"
@@ -21,12 +26,21 @@
 #include <VBox/usblib-win.h>
 #include <iprt/assert.h>
 #include <VBox/log.h>
-#define _USBD_
+
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+#define _USBD_ /** @todo r=bird: What is this?? */
 
 #define USBD_DEFAULT_PIPE_TRANSFER 0x00000008
 
 #define VBOXUSB_MAGIC  0xABCF1423
 
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 typedef struct VBOXUSB_URB_CONTEXT
 {
     PURB pUrb;
@@ -46,32 +60,26 @@ typedef struct VBOXUSB_SETUP
     uint16_t wLength;
 } VBOXUSB_SETUP, *PVBOXUSB_SETUP;
 
+
+
 static bool vboxUsbRtCtxSetOwner(PVBOXUSBDEV_EXT pDevExt, PFILE_OBJECT pFObj)
 {
-    bool bRc = ASMAtomicCmpXchgPtr(&pDevExt->Rt.pOwner, pFObj, NULL);
-    if (bRc)
-    {
+    bool fRc = ASMAtomicCmpXchgPtr(&pDevExt->Rt.pOwner, pFObj, NULL);
+    if (fRc)
         LogFunc(("pDevExt (0x%x) Owner(0x%x) acquired\n", pFObj));
-    }
     else
-    {
         LogFunc(("pDevExt (0x%x) Owner(0x%x) FAILED!!\n", pFObj));
-    }
-    return bRc;
+    return fRc;
 }
 
 static bool vboxUsbRtCtxReleaseOwner(PVBOXUSBDEV_EXT pDevExt, PFILE_OBJECT pFObj)
 {
-    bool bRc = ASMAtomicCmpXchgPtr(&pDevExt->Rt.pOwner, NULL, pFObj);
-    if (bRc)
-    {
+    bool fRc = ASMAtomicCmpXchgPtr(&pDevExt->Rt.pOwner, NULL, pFObj);
+    if (fRc)
         LogFunc(("pDevExt (0x%x) Owner(0x%x) released\n", pFObj));
-    }
     else
-    {
         LogFunc(("pDevExt (0x%x) Owner(0x%x) release: is NOT an owner\n", pFObj));
-    }
-    return bRc;
+    return fRc;
 }
 
 static bool vboxUsbRtCtxIsOwner(PVBOXUSBDEV_EXT pDevExt, PFILE_OBJECT pFObj)
@@ -99,8 +107,11 @@ static NTSTATUS vboxUsbRtIdcInit()
         vboxUsbRtIdcSubmit(VBOXUSBIDC_INTERNAL_IOCTL_GET_VERSION, &Version);
         if (NT_SUCCESS(Status))
         {
-            if (Version.u32Major == VBOXUSBIDC_VERSION_MAJOR
-                    && Version.u32Minor >= VBOXUSBIDC_VERSION_MINOR)
+            if (   Version.u32Major == VBOXUSBIDC_VERSION_MAJOR
+#if VBOXUSBIDC_VERSION_MINOR != 0
+                && Version.u32Minor >= VBOXUSBIDC_VERSION_MINOR
+#endif
+               )
                 return STATUS_SUCCESS;
             AssertFailed();
         }
@@ -407,8 +418,8 @@ static NTSTATUS vboxUsbRtDispatchReleaseDevice(PVBOXUSBDEV_EXT pDevExt, PIRP pIr
     if (vboxUsbRtCtxIsOwner(pDevExt, pFObj))
     {
         vboxUsbRtFreeCachedDescriptors(pDevExt);
-        bool bRc = vboxUsbRtCtxReleaseOwner(pDevExt, pFObj);
-        Assert(bRc);
+        bool fRc = vboxUsbRtCtxReleaseOwner(pDevExt, pFObj);
+        Assert(fRc); NOREF(fRc);
     }
     else
     {
@@ -463,14 +474,14 @@ static NTSTATUS vboxUsbRtGetDeviceDescription(PVBOXUSBDEV_EXT pDevExt)
 static NTSTATUS vboxUsbRtDispatchGetDevice(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
 {
     PIO_STACK_LOCATION pSl = IoGetCurrentIrpStackLocation(pIrp);
-    PUSBSUP_GETDEV pDev  = (PUSBSUP_GETDEV)pIrp->AssociatedIrp.SystemBuffer;
-    NTSTATUS Status = STATUS_SUCCESS;
+    PUSBSUP_GETDEV pDev = (PUSBSUP_GETDEV)pIrp->AssociatedIrp.SystemBuffer;
     ULONG cbOut = 0;
 
     /* don't check for owner since this request is allowed for non-owners as well */
-
-    if (pDev && pSl->Parameters.DeviceIoControl.InputBufferLength == sizeof (*pDev)
-             && pSl->Parameters.DeviceIoControl.OutputBufferLength == sizeof (*pDev))
+    NTSTATUS Status;
+    if (   pDev
+        && pSl->Parameters.DeviceIoControl.InputBufferLength  == sizeof(*pDev)
+        && pSl->Parameters.DeviceIoControl.OutputBufferLength == sizeof(*pDev))
     {
         Status = VBoxUsbToolGetDeviceSpeed(pDevExt->pLowerDO, &pDevExt->Rt.fIsHighSpeed);
         if (NT_SUCCESS(Status))
@@ -482,9 +493,7 @@ static NTSTATUS vboxUsbRtDispatchGetDevice(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
         }
     }
     else
-    {
         Status = STATUS_INVALID_PARAMETER;
-    }
 
     Assert(Status != STATUS_PENDING);
     VBoxDrvToolIoComplete(pIrp, Status, cbOut);
@@ -494,44 +503,42 @@ static NTSTATUS vboxUsbRtDispatchGetDevice(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
 
 static NTSTATUS vboxUsbRtDispatchUsbReset(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
 {
-    PIO_STACK_LOCATION pSl = IoGetCurrentIrpStackLocation(pIrp);
-    PFILE_OBJECT pFObj = pSl->FileObject;
-    PUSBSUP_GETDEV pDev  = (PUSBSUP_GETDEV)pIrp->AssociatedIrp.SystemBuffer;
-    NTSTATUS Status = STATUS_SUCCESS;
-
-    do
+    PIO_STACK_LOCATION  pSl   = IoGetCurrentIrpStackLocation(pIrp);
+    PFILE_OBJECT        pFObj = pSl->FileObject;
+    NTSTATUS            rcNt;
+    if (pFObj)
     {
-        if (!pFObj)
+        if (vboxUsbRtCtxIsOwner(pDevExt, pFObj))
+        {
+            if (   pIrp->AssociatedIrp.SystemBuffer == NULL
+                && pSl->Parameters.DeviceIoControl.InputBufferLength == 0
+                && pSl->Parameters.DeviceIoControl.OutputBufferLength == 0)
+            {
+                rcNt = VBoxUsbToolIoInternalCtlSendSync(pDevExt->pLowerDO, IOCTL_INTERNAL_USB_RESET_PORT, NULL, NULL);
+                Assert(NT_SUCCESS(rcNt));
+            }
+            else
+            {
+                AssertFailed();
+                rcNt = STATUS_INVALID_PARAMETER;
+            }
+        }
+        else
         {
             AssertFailed();
-            Status = STATUS_INVALID_PARAMETER;
-            break;
+            rcNt = STATUS_ACCESS_DENIED;
         }
+    }
+    else
+    {
+        AssertFailed();
+        rcNt = STATUS_INVALID_PARAMETER;
+    }
 
-        if (!vboxUsbRtCtxIsOwner(pDevExt, pFObj))
-        {
-            AssertFailed();
-            Status = STATUS_ACCESS_DENIED;
-            break;
-        }
-
-        if (pIrp->AssociatedIrp.SystemBuffer
-                || pSl->Parameters.DeviceIoControl.InputBufferLength
-                || pSl->Parameters.DeviceIoControl.OutputBufferLength)
-        {
-            AssertFailed();
-            Status = STATUS_INVALID_PARAMETER;
-            break;
-        }
-
-        Status = VBoxUsbToolIoInternalCtlSendSync(pDevExt->pLowerDO, IOCTL_INTERNAL_USB_RESET_PORT, NULL, NULL);
-        Assert(NT_SUCCESS(Status));
-    } while (0);
-
-    Assert(Status != STATUS_PENDING);
-    VBoxDrvToolIoComplete(pIrp, Status, 0);
+    Assert(rcNt != STATUS_PENDING);
+    VBoxDrvToolIoComplete(pIrp, rcNt, 0);
     vboxUsbDdiStateRelease(pDevExt);
-    return Status;
+    return rcNt;
 }
 
 static PUSB_CONFIGURATION_DESCRIPTOR vboxUsbRtFindConfigDesc(PVBOXUSBDEV_EXT pDevExt, uint8_t uConfiguration)
@@ -588,6 +595,10 @@ static NTSTATUS vboxUsbRtSetConfig(PVBOXUSBDEV_EXT pDevExt, uint8_t uConfigurati
         return Status;
     }
 
+/** @todo r=bird: Need to write a script for fixing these kind of clueless use
+ *        of AssertMsgFailed (into AssertMsgReturn).  The __FUNCTION__ is just
+ *        the topping it off - the assertion message includes function, file and
+ *        line number. Duh! */
     PUSB_CONFIGURATION_DESCRIPTOR pCfgDr = vboxUsbRtFindConfigDesc(pDevExt, uConfiguration);
     if (!pCfgDr)
     {
@@ -739,38 +750,23 @@ static NTSTATUS vboxUsbRtDispatchUsbSetConfig(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp
 
 static NTSTATUS vboxUsbRtSetInterface(PVBOXUSBDEV_EXT pDevExt, uint32_t InterfaceNumber, int AlternateSetting)
 {
-    if (!pDevExt->Rt.uConfigValue)
-    {
-        AssertMsgFailed((__FUNCTION__": Can't select an interface without an active configuration\n"));
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    if (InterfaceNumber >= pDevExt->Rt.uNumInterfaces)
-    {
-        AssertMsgFailed((__FUNCTION__": InterfaceNumber %d too high!!\n", InterfaceNumber));
-        return STATUS_INVALID_PARAMETER;
-    }
-
+    AssertMsgReturn(pDevExt->Rt.uConfigValue, ("Can't select an interface without an active configuration\n"),
+                    STATUS_INVALID_PARAMETER);
+    AssertMsgReturn(InterfaceNumber < pDevExt->Rt.uNumInterfaces, ("InterfaceNumber %d too high!!\n", InterfaceNumber),
+                    STATUS_INVALID_PARAMETER);
     PUSB_CONFIGURATION_DESCRIPTOR pCfgDr = vboxUsbRtFindConfigDesc(pDevExt, pDevExt->Rt.uConfigValue);
-    if (!pCfgDr)
-    {
-        AssertMsgFailed((__FUNCTION__": configuration %d not found!!\n", pDevExt->Rt.uConfigValue));
-        return STATUS_INVALID_PARAMETER;
-    }
-
+    AssertMsgReturn(pCfgDr, ("configuration %d not found!!\n", pDevExt->Rt.uConfigValue),
+                    STATUS_INVALID_PARAMETER);
     PUSB_INTERFACE_DESCRIPTOR pIfDr = USBD_ParseConfigurationDescriptorEx(pCfgDr, pCfgDr, InterfaceNumber, AlternateSetting, -1, -1, -1);
-    if (!pIfDr)
-    {
-        AssertMsgFailed((__FUNCTION__": invalid interface %d or alternate setting %d\n", InterfaceNumber, AlternateSetting));
-        return STATUS_UNSUCCESSFUL;
-    }
+    AssertMsgReturn(pIfDr, ("invalid interface %d or alternate setting %d\n", InterfaceNumber, AlternateSetting),
+                    STATUS_UNSUCCESSFUL);
 
     USHORT uUrbSize = GET_SELECT_INTERFACE_REQUEST_SIZE(pIfDr->bNumEndpoints);
     ULONG uTotalIfaceInfoLength = GET_USBD_INTERFACE_SIZE(pIfDr->bNumEndpoints);
     NTSTATUS Status = STATUS_SUCCESS;
     PURB pUrb;
-    PUSBD_INTERFACE_INFORMATION pNewIFInfo;
-    VBOXUSB_PIPE_INFO *pNewPipeInfo;
+    PUSBD_INTERFACE_INFORMATION pNewIFInfo = NULL;
+    VBOXUSB_PIPE_INFO *pNewPipeInfo = NULL;
 
     if (pDevExt->Rt.pVBIfaceInfo[InterfaceNumber].pInterfaceInfo)
     {
@@ -843,13 +839,13 @@ static NTSTATUS vboxUsbRtSetInterface(PVBOXUSBDEV_EXT pDevExt, uint32_t Interfac
     } while (0);
 
     /* Clean up. */
-    if (pUrb) 
+    if (pUrb)
         VBoxUsbToolUrbFree(pUrb);
     if (pNewIFInfo)
         vboxUsbMemFree(pNewIFInfo);
     if (pNewPipeInfo)
         vboxUsbMemFree(pNewPipeInfo);
-    
+
     return Status;
 }
 
@@ -897,9 +893,7 @@ static NTSTATUS vboxUsbRtDispatchUsbSelectInterface(PVBOXUSBDEV_EXT pDevExt, PIR
 static HANDLE vboxUsbRtGetPipeHandle(PVBOXUSBDEV_EXT pDevExt, uint32_t EndPointAddress)
 {
     if (EndPointAddress == 0)
-    {
         return pDevExt->Rt.hPipe0;
-    }
 
     for (ULONG i = 0; i < pDevExt->Rt.uNumInterfaces; i++)
     {
@@ -1025,6 +1019,8 @@ static NTSTATUS vboxUsbRtDispatchUsbAbortEndpoint(PVBOXUSBDEV_EXT pDevExt, PIRP 
 
 static NTSTATUS vboxUsbRtUrbSendCompletion(PDEVICE_OBJECT pDevObj, IRP *pIrp, void *pvContext)
 {
+    RT_NOREF1(pDevObj);
+
     if (!pvContext)
     {
         AssertMsgFailed((__FUNCTION__":  context is NULL\n"));
@@ -1075,7 +1071,7 @@ static NTSTATUS vboxUsbRtUrbSendCompletion(PDEVICE_OBJECT pDevObj, IRP *pIrp, vo
             case USBD_STATUS_DEV_NOT_RESPONDING:
             default:
                 pUrbInfo->error = USBSUP_XFER_DNR;
-            break;
+                break;
         }
 
         switch(pContext->ulTransferType)
@@ -1089,10 +1085,10 @@ static NTSTATUS vboxUsbRtUrbSendCompletion(PDEVICE_OBJECT pDevObj, IRP *pIrp, vo
                 pUrbInfo->len += sizeof (pUrb->UrbControlTransfer.SetupPacket);
 
                 /* If a control URB was successfully completed on the default control
-                 * pipe, stash away the handle. When submitting the URB, we don't need 
-                 * to know (and initially don't have) the handle. If we want to abort 
-                 * the default control pipe, we *have* to have a handle. This is how we 
-                 * find out what the handle is. 
+                 * pipe, stash away the handle. When submitting the URB, we don't need
+                 * to know (and initially don't have) the handle. If we want to abort
+                 * the default control pipe, we *have* to have a handle. This is how we
+                 * find out what the handle is.
                  */
                 if (!pUrbInfo->ep && (pDevExt->Rt.hPipe0 == NULL))
                 {
@@ -1158,7 +1154,7 @@ static NTSTATUS vboxUsbRtUrbSendCompletion(PDEVICE_OBJECT pDevObj, IRP *pIrp, vo
                 Status = STATUS_SUCCESS;
                 break;
             case ((USBD_STATUS)0xC0010000L): // USBD_STATUS_CANCELED - too bad usbdi.h and usb.h aren't consistent!
-                // TODO: What the heck are we really supposed to do here?
+                /// @todo What the heck are we really supposed to do here?
                 pUrbInfo->error = USBSUP_XFER_STALL;
                 Status = STATUS_SUCCESS;
                 break;
@@ -1299,7 +1295,7 @@ static NTSTATUS vboxUsbRtUrbSend(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp, PUSBSUP_URB
                  * the first 8 bytes of the buffer is the setup packet so the real
                  * data length is therefore pUrb->len - 8
                  */
-                PVBOXUSB_SETUP pSetup = (PVBOXUSB_SETUP)pUrb->UrbControlTransfer.SetupPacket;
+                //PVBOXUSB_SETUP pSetup = (PVBOXUSB_SETUP)pUrb->UrbControlTransfer.SetupPacket;
                 memcpy(pUrb->UrbControlTransfer.SetupPacket, pBuffer, min(sizeof (pUrb->UrbControlTransfer.SetupPacket), pUrbInfo->len));
 
                 if (pUrb->UrbControlTransfer.TransferBufferLength <= sizeof (pUrb->UrbControlTransfer.SetupPacket))
@@ -1487,8 +1483,9 @@ static NTSTATUS vboxUsbRtDispatchGetVersion(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
     PUSBSUP_VERSION pVer= (PUSBSUP_VERSION)pIrp->AssociatedIrp.SystemBuffer;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    if (pVer && pSl->Parameters.DeviceIoControl.InputBufferLength == 0
-             && pSl->Parameters.DeviceIoControl.OutputBufferLength == sizeof (*pVer))
+    if (   pVer
+        && pSl->Parameters.DeviceIoControl.InputBufferLength == 0
+        && pSl->Parameters.DeviceIoControl.OutputBufferLength == sizeof(*pVer))
     {
         pVer->u32Major = USBDRV_MAJOR_VERSION;
         pVer->u32Minor = USBDRV_MINOR_VERSION;
@@ -1514,14 +1511,10 @@ static NTSTATUS vboxUsbRtDispatchDefault(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
 
 DECLHIDDEN(NTSTATUS) vboxUsbRtCreate(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
 {
+    RT_NOREF1(pDevExt);
     PIO_STACK_LOCATION pSl = IoGetCurrentIrpStackLocation(pIrp);
     PFILE_OBJECT pFObj = pSl->FileObject;
-    if (!pFObj)
-    {
-        AssertFailed();
-        return STATUS_INVALID_PARAMETER;
-    }
-
+    AssertReturn(pFObj, STATUS_INVALID_PARAMETER);
     return STATUS_SUCCESS;
 }
 
@@ -1542,52 +1535,39 @@ DECLHIDDEN(NTSTATUS) vboxUsbRtDispatch(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
     switch (pSl->Parameters.DeviceIoControl.IoControlCode)
     {
         case SUPUSB_IOCTL_USB_CLAIM_DEVICE:
-        {
             return vboxUsbRtDispatchClaimDevice(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_USB_RELEASE_DEVICE:
-        {
             return vboxUsbRtDispatchReleaseDevice(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_GET_DEVICE:
-        {
             return vboxUsbRtDispatchGetDevice(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_USB_RESET:
-        {
             return vboxUsbRtDispatchUsbReset(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_USB_SET_CONFIG:
-        {
             return vboxUsbRtDispatchUsbSetConfig(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_USB_SELECT_INTERFACE:
-        {
             return vboxUsbRtDispatchUsbSelectInterface(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_USB_CLEAR_ENDPOINT:
-        {
             return vboxUsbRtDispatchUsbClearEndpoint(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_USB_ABORT_ENDPOINT:
-        {
             return vboxUsbRtDispatchUsbAbortEndpoint(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_SEND_URB:
-        {
             return vboxUsbRtDispatchSendUrb(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_IS_OPERATIONAL:
-        {
             return vboxUsbRtDispatchIsOperational(pDevExt, pIrp);
-        }
+
         case SUPUSB_IOCTL_GET_VERSION:
-        {
             return vboxUsbRtDispatchGetVersion(pDevExt, pIrp);
-        }
+
         default:
-        {
             return vboxUsbRtDispatchDefault(pDevExt, pIrp);
-        }
     }
 }

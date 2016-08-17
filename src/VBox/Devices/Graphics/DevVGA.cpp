@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -266,19 +266,9 @@ typedef WINHDR *PWINHDR;
 
 
 /*********************************************************************************************************************************
-*   Internal Functions                                                                                                           *
-*********************************************************************************************************************************/
-#ifndef IN_RING3
-RT_C_DECLS_BEGIN
-DECLEXPORT(FNPGMRZPHYSPFHANDLER)  vgaLbfAccessPfHandler;
-RT_C_DECLS_END
-#endif
-PGM_ALL_CB_DECL(FNPGMPHYSHANDLER) vgaLFBAccessHandler;
-
-
-/*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+#ifdef IN_RING3
 /* "Press F12 to select boot device." bitmap. */
 static const uint8_t g_abLogoF12BootText[] =
 {
@@ -316,6 +306,7 @@ static const uint8_t g_abLogoF12BootText[] =
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
+#endif /* IN_RING3 */
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
@@ -348,6 +339,7 @@ DECLINLINE(bool) vga_is_dirty(PVGASTATE pThis, RTGCPHYS offVRAM)
     return ASMBitTest(&pThis->au32DirtyBitmap[0], offVRAM >> PAGE_SHIFT);
 }
 
+#ifdef IN_RING3
 /**
  * Reset dirty flags in a give range.
  *
@@ -362,6 +354,12 @@ DECLINLINE(void) vga_reset_dirty(PVGASTATE pThis, RTGCPHYS offVRAMStart, RTGCPHY
     Assert(offVRAMStart < offVRAMEnd);
     ASMBitClearRange(&pThis->au32DirtyBitmap[0], offVRAMStart >> PAGE_SHIFT, offVRAMEnd >> PAGE_SHIFT);
 }
+#endif /* IN_RING3 */
+
+#ifdef _MSC_VER
+# pragma warning(push)
+# pragma warning(disable:4310 4245) /* Buggy warnings: cast truncates constant value; conversion from 'int' to 'const uint8_t', signed/unsigned mismatch */
+#endif
 
 /* force some bits to zero */
 static const uint8_t sr_mask[8] = {
@@ -393,6 +391,10 @@ static const uint8_t gr_mask[16] = {
     (uint8_t)~0xff, /* 0x0e */
     (uint8_t)~0xff, /* 0x0f */
 };
+
+#ifdef _MSC_VER
+# pragma warning(pop)
+#endif
 
 #define cbswap_32(__x) \
 ((uint32_t)( \
@@ -446,6 +448,8 @@ static const uint32_t mask16[16] = {
 #define PAT(x) cbswap_32(x)
 #endif
 
+#ifdef IN_RING3
+
 static const uint32_t dmask16[16] = {
     PAT(0x00000000),
     PAT(0x000000ff),
@@ -472,10 +476,10 @@ static const uint32_t dmask4[4] = {
     PAT(0xffffffff),
 };
 
-#if defined(IN_RING3)
 static uint32_t expand4[256];
 static uint16_t expand2[256];
 static uint8_t expand4to8[16];
+
 #endif /* IN_RING3 */
 
 /* Update the values needed for calculating Vertical Retrace and
@@ -1517,7 +1521,8 @@ static int vga_mem_writeb(PVGASTATE pThis, RTGCPHYS addr, uint32_t val)
     return VINF_SUCCESS;
 }
 
-#if defined(IN_RING3)
+#ifdef IN_RING3
+
 typedef void vga_draw_glyph8_func(uint8_t *d, int linesize,
                                   const uint8_t *font_ptr, int h,
                                   uint32_t fgcol, uint32_t bgcol,
@@ -1860,9 +1865,9 @@ static int vga_draw_text(PVGASTATE pThis, bool full_update, bool fFailOnResize, 
       /* if the cursor position changed, we update the old and new
          chars */
         if (pThis->cursor_offset < CH_ATTR_SIZE)
-            pThis->last_ch_attr[pThis->cursor_offset] = ~0;
+            pThis->last_ch_attr[pThis->cursor_offset] = UINT32_MAX;
         if (cursor_offset < CH_ATTR_SIZE)
-            pThis->last_ch_attr[cursor_offset] = ~0;
+            pThis->last_ch_attr[cursor_offset] = UINT32_MAX;
         pThis->cursor_offset = cursor_offset;
         pThis->cursor_start = pThis->cr[0xa];
         pThis->cursor_end = pThis->cr[0xb];
@@ -2100,7 +2105,7 @@ static int vga_resize_graphic(PVGASTATE pThis, int cx, int cy,
         return VERR_INTERNAL_ERROR;
 
 #if 0 //def VBOX_WITH_VDMA
-    /** @todo: we get a second resize here when VBVA is on, while we actually should not */
+    /** @todo we get a second resize here when VBVA is on, while we actually should not */
     /* do not do pfnResize in case VBVA is on since all mode changes are performed over VBVA
      * we are checking for VDMA state here to ensure this code works only for WDDM driver,
      * although we should avoid calling pfnResize for XPDM as well, since pfnResize is actually an extra resize
@@ -2151,7 +2156,8 @@ static int vga_resize_graphic(PVGASTATE pThis, int cx, int cy,
     return VINF_SUCCESS;
 }
 
-#ifdef VBOX_WITH_VMSVGA
+# ifdef VBOX_WITH_VMSVGA
+
 int vgaR3UpdateDisplay(VGAState *s, unsigned xStart, unsigned yStart, unsigned cx, unsigned cy)
 {
     uint32_t v;
@@ -2223,6 +2229,7 @@ int vgaR3UpdateDisplay(VGAState *s, unsigned xStart, unsigned yStart, unsigned c
 static int vmsvga_draw_graphic(PVGASTATE pThis, bool full_update, bool fFailOnResize, bool reset_dirty,
                                PDMIDISPLAYCONNECTOR *pDrv)
 {
+    RT_NOREF1(fFailOnResize);
     int y, page_min, page_max, linesize, y_start;
     int width, height, page0, page1, bwidth, bits;
     int disp_width;
@@ -2330,7 +2337,8 @@ static int vmsvga_draw_graphic(PVGASTATE pThis, bool full_update, bool fFailOnRe
     memset(pThis->invalidated_y_table, 0, ((height + 31) >> 5) * 4);
     return VINF_SUCCESS;
 }
-#endif /* VBOX_WITH_VMSVGA */
+
+# endif /* VBOX_WITH_VMSVGA */
 
 /*
  * graphic modes
@@ -3548,6 +3556,7 @@ static int vgaLFBAccess(PVM pVM, PVGASTATE pThis, RTGCPHYS GCPhys, RTGCPTR GCPtr
 #else /* IN_RING3 : We don't have any virtual page address of the access here. */
         PDMCritSectLeave(&pThis->CritSect);
         Assert(GCPtr == 0);
+        RT_NOREF1(GCPtr);
 #endif
         return VINF_SUCCESS;
     }
@@ -3569,7 +3578,7 @@ PDMBOTHCBDECL(VBOXSTRICTRC) vgaLbfAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUIN
     AssertPtr(pThis);
     Assert(GCPhysFault >= pThis->GCPhysVRAM);
     AssertMsg(uErrorCode & X86_TRAP_PF_RW, ("uErrorCode=%#x\n", uErrorCode));
-    NOREF(pRegFrame);
+    RT_NOREF3(pVCpu, pRegFrame, uErrorCode);
 
     return vgaLFBAccess(pVM, pThis, GCPhysFault, pvFault);
 }
@@ -3620,8 +3629,7 @@ PDMBOTHCBDECL(int) vgaIOPortReadBIOS(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
 PDMBOTHCBDECL(int) vgaIOPortWriteBIOS(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     static int lastWasNotNewline = 0;  /* We are only called in a single-threaded way */
-    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
-    NOREF(pvUser);
+    RT_NOREF2(pDevIns, pvUser);
     Assert(PDMCritSectIsOwner(pDevIns->CTX_SUFF(pCritSectRo)));
 
     /*
@@ -4584,8 +4592,6 @@ static DECLCALLBACK(int) vgaPortQueryStatusLed(PPDMILEDPORTS pInterface, unsigne
             AssertMsgFailed(("Invalid LUN #%d\n", iLUN));
             return VERR_PDM_NO_SUCH_LUN;
     }
-
-    return VERR_PDM_LUN_NOT_FOUND;
 }
 
 /* -=-=-=-=-=- Ring 3: Dummy IDisplayConnector -=-=-=-=-=- */
@@ -4785,7 +4791,7 @@ static DECLCALLBACK(int) vgaPortSetRefreshRate(PPDMIDISPLAYPORT pInterface, uint
 }
 
 
-/** @copydoc PDMIDISPLAYPORT::pfnQueryVideoMode */
+/** @interface_method_impl{PDMIDISPLAYPORT,pfnQueryVideoMode} */
 static DECLCALLBACK(int) vgaPortQueryVideoMode(PPDMIDISPLAYPORT pInterface, uint32_t *pcBits, uint32_t *pcx, uint32_t *pcy)
 {
     PVGASTATE pThis = IDISPLAYPORT_2_VGASTATE(pInterface);
@@ -5401,14 +5407,18 @@ int vgaR3UnregisterVRAMHandler(PVGASTATE pVGAState)
  *                          This address is *NOT* relative to pci_mem_base like earlier!
  * @param   enmType         One of the PCI_ADDRESS_SPACE_* values.
  */
-static DECLCALLBACK(int) vgaR3IORegionMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) vgaR3IORegionMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb,
+                                          PCIADDRESSSPACE enmType)
 {
+    RT_NOREF1(cb);
     int         rc;
     PPDMDEVINS  pDevIns = pPciDev->pDevIns;
     PVGASTATE   pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     Log(("vgaR3IORegionMap: iRegion=%d GCPhysAddress=%RGp cb=%#x enmType=%d\n", iRegion, GCPhysAddress, cb, enmType));
 #ifdef VBOX_WITH_VMSVGA
-    AssertReturn((iRegion == ((pThis->fVMSVGAEnabled) ? 1 : 0)) && (enmType == ((pThis->fVMSVGAEnabled) ? PCI_ADDRESS_SPACE_MEM : PCI_ADDRESS_SPACE_MEM_PREFETCH)), VERR_INTERNAL_ERROR);
+    AssertReturn(   (iRegion == ((pThis->fVMSVGAEnabled) ? 1 : 0))
+                 && (enmType == ((pThis->fVMSVGAEnabled) ? PCI_ADDRESS_SPACE_MEM : PCI_ADDRESS_SPACE_MEM_PREFETCH)),
+                 VERR_INTERNAL_ERROR);
 #else
     AssertReturn(iRegion == 0 && enmType == PCI_ADDRESS_SPACE_MEM_PREFETCH, VERR_INTERNAL_ERROR);
 #endif
@@ -5452,8 +5462,8 @@ static DECLCALLBACK(int) vgaR3IORegionMap(PPCIDEVICE pPciDev, /*unsigned*/ int i
            )
         {
 #endif
-        rc = PGMHandlerPhysicalDeregister(PDMDevHlpGetVM(pDevIns), pThis->GCPhysVRAM);
-        AssertRC(rc);
+            rc = PGMHandlerPhysicalDeregister(PDMDevHlpGetVM(pDevIns), pThis->GCPhysVRAM);
+            AssertRC(rc);
 #ifdef VBOX_WITH_VMSVGA
         }
         else
@@ -5483,7 +5493,7 @@ static void vgaR3SaveConfig(PVGASTATE pThis, PSSMHANDLE pSSM)
 
 
 /**
- * @copydoc FNSSMDEVLIVEEXEC
+ * @callback_method_impl{FNSSMDEVLIVEEXEC}
  */
 static DECLCALLBACK(int) vgaR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
@@ -5495,35 +5505,42 @@ static DECLCALLBACK(int) vgaR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint
 
 
 /**
- * @copydoc FNSSMDEVSAVEPREP
+ * @callback_method_impl{FNSSMDEVSAVEPREP}
  */
 static DECLCALLBACK(int) vgaR3SavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    return vboxVBVASaveStatePrep(pDevIns, pSSM);
+    RT_NOREF(pSSM);
+    return vboxVBVASaveStatePrep(pDevIns);
 #else
-    return VINF_SUCCESS;
-#endif
-}
-
-static DECLCALLBACK(int) vgaR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
-{
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    return vboxVBVASaveStateDone(pDevIns, pSSM);
-#else
+    RT_NOREF(pDevIns, pSSM);
     return VINF_SUCCESS;
 #endif
 }
 
 /**
- * @copydoc FNSSMDEVSAVEEXEC
+ * @callback_method_impl{FNSSMDEVSAVEDONE}
+ */
+static DECLCALLBACK(int) vgaR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+{
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    RT_NOREF(pSSM);
+    return vboxVBVASaveStateDone(pDevIns);
+#else
+    RT_NOREF(pDevIns, pSSM);
+    return VINF_SUCCESS;
+#endif
+}
+
+/**
+ * @callback_method_impl{FNSSMDEVSAVEEXEC}
  */
 static DECLCALLBACK(int) vgaR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
 
 #ifdef VBOX_WITH_VDMA
-    vboxVDMASaveStateExecPrep(pThis->pVdma, pSSM);
+    vboxVDMASaveStateExecPrep(pThis->pVdma);
 #endif
 
     vgaR3SaveConfig(pThis, pSSM);
@@ -5550,7 +5567,7 @@ static DECLCALLBACK(int) vgaR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     AssertRCReturn(rc, rc);
 
 #ifdef VBOX_WITH_VDMA
-    vboxVDMASaveStateExecDone(pThis->pVdma, pSSM);
+    vboxVDMASaveStateExecDone(pThis->pVdma);
 #endif
 
     VGA_SAVED_STATE_PUT_MARKER(pSSM, 5);
@@ -5661,11 +5678,12 @@ static DECLCALLBACK(int) vgaR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint
  */
 static DECLCALLBACK(int) vgaR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     int rc = VINF_SUCCESS;
 
 #ifdef VBOX_WITH_HGSMI
     PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
-    rc = vboxVBVALoadStateDone(pDevIns, pSSM);
+    rc = vboxVBVALoadStateDone(pDevIns);
     AssertRCReturn(rc, rc);
 # ifdef VBOX_WITH_VDMA
     rc = vboxVDMASaveLoadDone(pThis->pVdma);
@@ -5882,14 +5900,13 @@ static DECLCALLBACK(int)  vgaAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
  */
 static DECLCALLBACK(void)  vgaDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF1(fFlags);
+    PVGASTATE   pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
+    AssertMsg(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG, ("VGA device does not support hotplugging\n"));
+
     /*
      * Reset the interfaces and update the controller state.
      */
-    PVGASTATE   pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
-
-    AssertMsg(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG,
-              ("VGA device does not support hotplugging\n"));
-
     switch (iLUN)
     {
         /* LUN #0: Display port. */

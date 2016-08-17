@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -126,6 +126,11 @@ VMM_INT_DECL(uint64_t)  TMVirtualFromNano(PVM pVM, uint64_t u64NanoTS);
 VMM_INT_DECL(uint64_t)  TMVirtualFromMicro(PVM pVM, uint64_t u64MicroTS);
 VMM_INT_DECL(uint64_t)  TMVirtualFromMilli(PVM pVM, uint64_t u64MilliTS);
 VMM_INT_DECL(bool)      TMVirtualIsTicking(PVM pVM);
+
+VMMR3DECL(uint64_t)     TMR3TimeVirtGet(PUVM pUVM);
+VMMR3DECL(uint64_t)     TMR3TimeVirtGetMilli(PUVM pUVM);
+VMMR3DECL(uint64_t)     TMR3TimeVirtGetMicro(PUVM pUVM);
+VMMR3DECL(uint64_t)     TMR3TimeVirtGetNano(PUVM pUVM);
 /** @} */
 
 

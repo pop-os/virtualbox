@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,6 +84,7 @@ public:
             {
                 AssertPtrReturn(mFile, E_POINTER);
                 int rc2 = mFile->signalWaitEvent(aType, aEvent);
+                NOREF(rc2);
 #ifdef DEBUG_andy
                 LogFlowFunc(("Signalling events of type=%RU32, file=%p resulted in rc=%Rrc\n",
                              aType, mFile, rc2));
@@ -444,7 +445,6 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
     pSvcCbData->mpaParms[idx++].getUInt32(&dataCb.uType);
     pSvcCbData->mpaParms[idx++].getUInt32(&dataCb.rc);
 
-    FileStatus_T fileStatus = FileStatus_Undefined;
     int guestRc = (int)dataCb.rc; /* uint32_t vs. int. */
 
     LogFlowFunc(("uType=%RU32, guestRc=%Rrc\n",
@@ -737,17 +737,17 @@ int GuestFile::i_readData(uint32_t uSize, uint32_t uTimeoutMS,
 
     alock.release(); /* Drop write lock before sending. */
 
-    uint32_t cbRead;
     vrc = sendCommand(HOST_FILE_READ, i, paParms);
     if (RT_SUCCESS(vrc))
-        vrc = i_waitForRead(pEvent, uTimeoutMS, pvData, cbData, &cbRead);
-
-    if (RT_SUCCESS(vrc))
     {
-        LogFlowThisFunc(("cbRead=%RU32\n", cbRead));
-
-        if (pcbRead)
-            *pcbRead = cbRead;
+        uint32_t cbRead = 0;
+        vrc = i_waitForRead(pEvent, uTimeoutMS, pvData, cbData, &cbRead);
+        if (RT_SUCCESS(vrc))
+        {
+            LogFlowThisFunc(("cbRead=%RU32\n", cbRead));
+            if (pcbRead)
+                *pcbRead = cbRead;
+        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -793,17 +793,18 @@ int GuestFile::i_readDataAt(uint64_t uOffset, uint32_t uSize, uint32_t uTimeoutM
 
     alock.release(); /* Drop write lock before sending. */
 
-    uint32_t cbRead;
     vrc = sendCommand(HOST_FILE_READ_AT, i, paParms);
     if (RT_SUCCESS(vrc))
-        vrc = i_waitForRead(pEvent, uTimeoutMS, pvData, cbData, &cbRead);
-
-    if (RT_SUCCESS(vrc))
     {
-        LogFlowThisFunc(("cbRead=%RU32\n", cbRead));
+        uint32_t cbRead = 0;
+        vrc = i_waitForRead(pEvent, uTimeoutMS, pvData, cbData, &cbRead);
+        if (RT_SUCCESS(vrc))
+        {
+            LogFlowThisFunc(("cbRead=%RU32\n", cbRead));
 
-        if (pcbRead)
-            *pcbRead = cbRead;
+            if (pcbRead)
+                *pcbRead = cbRead;
+        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -1098,17 +1099,17 @@ int GuestFile::i_writeData(uint32_t uTimeoutMS, void *pvData, uint32_t cbData,
 
     alock.release(); /* Drop write lock before sending. */
 
-    uint32_t cbWritten;
     vrc = sendCommand(HOST_FILE_WRITE, i, paParms);
     if (RT_SUCCESS(vrc))
-        vrc = i_waitForWrite(pEvent, uTimeoutMS, &cbWritten);
-
-    if (RT_SUCCESS(vrc))
     {
-        LogFlowThisFunc(("cbWritten=%RU32\n", cbWritten));
-
-        if (cbWritten)
-            *pcbWritten = cbWritten;
+        uint32_t cbWritten = 0;
+        vrc = i_waitForWrite(pEvent, uTimeoutMS, &cbWritten);
+        if (RT_SUCCESS(vrc))
+        {
+            LogFlowThisFunc(("cbWritten=%RU32\n", cbWritten));
+            if (cbWritten)
+                *pcbWritten = cbWritten;
+        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -1158,17 +1159,17 @@ int GuestFile::i_writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS,
 
     alock.release(); /* Drop write lock before sending. */
 
-    uint32_t cbWritten;
     vrc = sendCommand(HOST_FILE_WRITE_AT, i, paParms);
     if (RT_SUCCESS(vrc))
-        vrc = i_waitForWrite(pEvent, uTimeoutMS, &cbWritten);
-
-    if (RT_SUCCESS(vrc))
     {
-        LogFlowThisFunc(("cbWritten=%RU32\n", cbWritten));
-
-        if (cbWritten)
-            *pcbWritten = cbWritten;
+        uint32_t cbWritten = 0;
+        vrc = i_waitForWrite(pEvent, uTimeoutMS, &cbWritten);
+        if (RT_SUCCESS(vrc))
+        {
+            LogFlowThisFunc(("cbWritten=%RU32\n", cbWritten));
+            if (cbWritten)
+                *pcbWritten = cbWritten;
+        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -1209,11 +1210,13 @@ HRESULT GuestFile::close()
 
 HRESULT GuestFile::queryInfo(ComPtr<IFsObjInfo> &aObjInfo)
 {
+    RT_NOREF(aObjInfo);
     ReturnComNotImplemented();
 }
 
 HRESULT GuestFile::querySize(LONG64 *aSize)
 {
+    RT_NOREF(aSize);
     ReturnComNotImplemented();
 }
 
@@ -1337,11 +1340,13 @@ HRESULT GuestFile::seek(LONG64 aOffset, FileSeekOrigin_T aWhence, LONG64 *aNewOf
 
 HRESULT GuestFile::setACL(const com::Utf8Str &aAcl, ULONG aMode)
 {
+    RT_NOREF(aAcl, aMode);
     ReturnComNotImplemented();
 }
 
 HRESULT GuestFile::setSize(LONG64 aSize)
 {
+    RT_NOREF(aSize);
     ReturnComNotImplemented();
 }
 

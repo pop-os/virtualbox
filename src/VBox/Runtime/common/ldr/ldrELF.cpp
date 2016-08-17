@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -121,6 +121,8 @@ static const char *rtldrElfGetShdrType(uint32_t iType)
 int rtldrELFOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo)
 {
     const char *pszLogName = pReader->pfnLogName(pReader); NOREF(pszLogName);
+
+    RT_NOREF_PV(pErrInfo); /** @todo implement */
 
     /*
      * Read the ident to decide if this is 32-bit or 64-bit

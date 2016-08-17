@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,13 +38,17 @@
  * interesting of course...
  */
 #if defined(IN_RING0) \
- && (defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD))
+ && (   defined(RT_OS_DARWIN) \
+     || defined(RT_OS_FREEBSD) \
+     || defined(RT_OS_LINUX) \
+     || defined(RT_OS_NETBSD) \
+     || defined(RT_OS_SOLARIS))
 /* ASSUMES GNU C */
 # define alloca(cb) __builtin_alloca(cb)
 
 #else
 # include <stdlib.h>
-# if !defined(RT_OS_DARWIN) && !defined(RT_OS_FREEBSD)
+# if !defined(RT_OS_DARWIN) && !defined(RT_OS_FREEBSD) && !defined(RT_OS_NETBSD)
 #  include <malloc.h>
 # endif
 # if defined(RT_OS_SOLARIS) || defined(RT_OS_LINUX)

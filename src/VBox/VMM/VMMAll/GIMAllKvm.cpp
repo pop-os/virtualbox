@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015 Oracle Corporation
+ * Copyright (C) 2015-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -274,7 +274,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMS
             }
 
             /* Is the system-time struct. already enabled? If so, get flags that need preserving. */
-            uint8_t fFlags = 0;
+            /*uint8_t fFlags = 0; - unused */
             GIMKVMSYSTEMTIME SystemTime;
             RT_ZERO(SystemTime);
             if (   MSR_GIM_KVM_SYSTEM_TIME_IS_ENABLED(pKvmCpu->u64SystemTimeMsr)

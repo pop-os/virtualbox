@@ -161,13 +161,15 @@ extern void packspuConnectToServer( CRNetServer *server
 extern void packspuFlush( void *arg );
 extern void packspuHuge( CROpcode opcode, void *buf );
 
-extern void packspuInitStrings();
+extern void packspuInitStrings(void);
 
-extern GLboolean packspuSyncOnFlushes();
+extern GLboolean packspuSyncOnFlushes(void);
 
 extern ThreadInfo *packspuNewThread(
 #if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
                 struct VBOXUHGSMI *pHgsmi
+#else
+                void
 #endif
         );
 

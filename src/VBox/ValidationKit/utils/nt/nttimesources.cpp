@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <Windows.h>
+#include <iprt/win/windows.h>
 
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
@@ -83,6 +83,8 @@ static void DelayMillies(DWORD dwMsStart, DWORD cMillies)
 
 int main(int argc, char **argv)
 {
+    RT_NOREF1(argv);
+
     /*
      * Init, create a test instance and "parse" arguments.
      */

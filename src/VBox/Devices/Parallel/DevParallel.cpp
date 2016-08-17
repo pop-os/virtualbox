@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -322,6 +322,7 @@ PDMBOTHCBDECL(int) parallelIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PPARALLELPORT);
     int           rc = VINF_SUCCESS;
+    RT_NOREF_PV(pvUser);
 
     if (cb == 1)
     {
@@ -428,6 +429,7 @@ PDMBOTHCBDECL(int) parallelIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
     int           rc = VINF_SUCCESS;
+    RT_NOREF_PV(pvUser);
 
     if (cb == 1)
     {
@@ -569,11 +571,12 @@ PDMBOTHCBDECL(int) parallelIOPortReadECP(PPDMDEVINS pDevIns, void *pvUser, RTIOP
  */
 static DECLCALLBACK(int) parallelR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF(uPass);
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
 
     SSMR3PutS32(pSSM, pThis->iIrq);
     SSMR3PutU32(pSSM, pThis->IOBase);
-    SSMR3PutU32(pSSM, ~0); /* sanity/terminator */
+    SSMR3PutU32(pSSM, UINT32_MAX); /* sanity/terminator */
     return VINF_SSM_DONT_CALL_AGAIN;
 }
 
@@ -619,7 +622,7 @@ static DECLCALLBACK(int) parallelR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     int rc = SSMR3GetU32(pSSM, &u32);
     if (RT_FAILURE(rc))
         return rc;
-    AssertMsgReturn(u32 == ~0U, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+    AssertMsgReturn(u32 == UINT32_MAX, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
 
     if (pThis->iIrq != iIrq)
         return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("IRQ changed: config=%#x state=%#x"), pThis->iIrq, iIrq);

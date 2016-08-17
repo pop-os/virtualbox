@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -129,7 +129,7 @@ static uint64_t rtTimerNtQueryInterruptTime(void)
     {
         InterruptTime.HighPart = ((KUSER_SHARED_DATA volatile *)SharedUserData)->InterruptTime.High1Time;
         InterruptTime.LowPart  = ((KUSER_SHARED_DATA volatile *)SharedUserData)->InterruptTime.LowPart;
-    } while (((KUSER_SHARED_DATA volatile *)SharedUserData)->InterruptTime.High2Time != InterruptTime.HighPart);
+    } while (((KUSER_SHARED_DATA volatile *)SharedUserData)->InterruptTime.High2Time != (LONG)InterruptTime.HighPart);
     return InterruptTime.QuadPart;
 # endif
 }
@@ -150,6 +150,7 @@ DECLINLINE(void) rtTimerNtRearmInternval(PRTTIMER pTimer, uint64_t iTick, PKDPC 
 {
 #ifdef RTR0TIMER_NT_MANUAL_RE_ARM
     Assert(pTimer->u64NanoInterval);
+    RT_NOREF1(pMasterDpc);
 
     uint64_t uNtNext = (iTick * pTimer->u64NanoInterval) / 100 - 10; /* 1us fudge */
     LARGE_INTEGER DueTime;
@@ -162,6 +163,8 @@ DECLINLINE(void) rtTimerNtRearmInternval(PRTTIMER pTimer, uint64_t iTick, PKDPC 
         DueTime.QuadPart = -2500; /* 0.25ms */
 
     KeSetTimerEx(&pTimer->NtTimer, DueTime, 0, &pTimer->aSubTimers[0].NtDpc);
+#else
+    RT_NOREF3(pTimer, iTick, pMasterDpc);
 #endif
 }
 
@@ -425,6 +428,7 @@ RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
 {
     AssertPtrReturn(pTimer, VERR_INVALID_HANDLE);
     AssertReturn(pTimer->u32Magic == RTTIMER_MAGIC, VERR_INVALID_HANDLE);
+    RT_NOREF1(u64NanoInterval);
 
     return VERR_NOT_SUPPORTED;
 }

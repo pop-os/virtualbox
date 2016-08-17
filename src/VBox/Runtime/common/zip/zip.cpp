@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -530,7 +530,6 @@ static DECLCALLBACK(int) rtZipZlibCompFinish(PRTZIPCOMP pZip)
         if (rc != Z_OK && rc != Z_STREAM_END)
             return zipErrConvertFromZlib(rc, true /*fCompressing*/);
     }
-    return VINF_SUCCESS;
 }
 
 
@@ -1720,8 +1719,8 @@ RTDECL(int) RTZipBlockCompress(RTZIPTYPE enmType, RTZIPLEVEL enmLevel, uint32_t 
                                void *pvDst, size_t cbDst, size_t *pcbDstActual) RT_NO_THROW_DEF
 {
     /* input validation - the crash and burn approach as speed is essential here. */
-    Assert(enmLevel <= RTZIPLEVEL_MAX && enmLevel >= RTZIPLEVEL_STORE);
-    Assert(!fFlags);
+    Assert(enmLevel <= RTZIPLEVEL_MAX && enmLevel >= RTZIPLEVEL_STORE); RT_NOREF_PV(enmLevel);
+    Assert(!fFlags);                                                    RT_NOREF_PV(fFlags);
 
     /*
      * Deal with flags involving prefixes.
@@ -1836,7 +1835,7 @@ RTDECL(int) RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
                                  void *pvDst, size_t cbDst, size_t *pcbDstActual) RT_NO_THROW_DEF
 {
     /* input validation - the crash and burn approach as speed is essential here. */
-    Assert(!fFlags);
+    Assert(!fFlags); RT_NOREF_PV(fFlags);
 
     /*
      * Deal with flags involving prefixes.

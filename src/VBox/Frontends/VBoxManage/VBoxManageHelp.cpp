@@ -140,7 +140,6 @@ static uint32_t printString(PRTSTREAM pStrm, const char *psz, uint32_t cchMaxWid
     else
     {
         /* Figure the paragraph indent level first. */
-        const char * const pszIndent = psz;
         uint32_t cchIndent = 0;
         while (*psz == ' ')
             cchIndent++, psz++;
@@ -801,20 +800,20 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         if (fLinux || fSolaris)
         {
             RTStrmPrintf(pStrm, ""
-#ifdef VBOX_WITH_OSS
+#ifdef VBOX_WITH_AUDIO_OSS
                                 "|oss"
 #endif
-#ifdef VBOX_WITH_ALSA
+#ifdef VBOX_WITH_AUDIO_ALSA
                                 "|alsa"
 #endif
-#ifdef VBOX_WITH_PULSE
+#ifdef VBOX_WITH_AUDIO_PULSE
                                 "|pulse"
 #endif
                         );
         }
         if (fFreeBSD)
         {
-#ifdef VBOX_WITH_OSS
+#ifdef VBOX_WITH_AUDIO_OSS
             /* Get the line break sorted when dumping all option variants. */
             if (fDumpOpts)
             {
@@ -824,7 +823,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
             else
                 RTStrmPrintf(pStrm, "|oss");
 #endif
-#ifdef VBOX_WITH_PULSE
+#ifdef VBOX_WITH_AUDIO_PULSE
             RTStrmPrintf(pStrm, "|pulse");
 #endif
         }
@@ -1401,7 +1400,9 @@ RTEXITCODE errorSyntax(USAGECATEGORY fCategory, const char *pszFormat, ...)
         printUsageInternal(fCategory, g_pStdErr);
     else
         printUsage(fCategory, ~0U, g_pStdErr);
-#endif /* !VBOX_ONLY_DOCS */
+#else
+    RT_NOREF_PV(fCategory);
+#endif
     va_start(args, pszFormat);
     RTStrmPrintf(g_pStdErr, "\nSyntax error: %N\n", pszFormat, &args);
     va_end(args);
@@ -1421,7 +1422,9 @@ RTEXITCODE errorSyntaxEx(USAGECATEGORY fCategory, uint32_t fSubCategory, const c
         printUsageInternal(fCategory, g_pStdErr);
     else
         printUsage(fCategory, fSubCategory, g_pStdErr);
-#endif /* !VBOX_ONLY_DOCS */
+#else
+    RT_NOREF2(fCategory, fSubCategory);
+#endif
     va_start(args, pszFormat);
     RTStrmPrintf(g_pStdErr, "\nSyntax error: %N\n", pszFormat, &args);
     va_end(args);
@@ -1472,7 +1475,9 @@ RTEXITCODE errorGetOptEx(USAGECATEGORY fCategory, uint32_t fSubCategory, int rc,
         printUsageInternal(fCategory, g_pStdErr);
     else
         printUsage(fCategory, fSubCategory, g_pStdErr);
-#endif /* !VBOX_ONLY_DOCS */
+#else
+    RT_NOREF2(fCategory, fSubCategory);
+#endif
 
     if (rc == VINF_GETOPT_NOT_OPTION)
         return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Invalid parameter '%s'", pValueUnion->psz);

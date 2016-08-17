@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -297,6 +297,7 @@ static int atapiTrackListUpdateFromSendCueSheet(PTRACKLIST pTrackList, const uin
 
 static int atapiTrackListUpdateFromSendDvdStructure(PTRACKLIST pTrackList, const uint8_t *pbCDB, const void *pvBuf)
 {
+    RT_NOREF(pTrackList, pbCDB, pvBuf);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -312,6 +313,7 @@ static int atapiTrackListUpdateFromSendDvdStructure(PTRACKLIST pTrackList, const
 static int atapiTrackListUpdateFromFormattedToc(PTRACKLIST pTrackList, uint8_t iTrack,
                                                 bool fMSF, const uint8_t *pbBuf, uint32_t cbBuffer)
 {
+    RT_NOREF(iTrack, cbBuffer); /** @todo unused parameters */
     int rc = VINF_SUCCESS;
     unsigned cbToc = atapiBE2H_U16(pbBuf);
     uint8_t iTrackFirst = pbBuf[2];
@@ -396,18 +398,23 @@ static int atapiTrackListUpdateFromReadTocPmaAtip(PTRACKLIST pTrackList, const u
 
 static int atapiTrackListUpdateFromReadTrackInformation(PTRACKLIST pTrackList, const uint8_t *pbCDB, const void *pvBuf)
 {
+    RT_NOREF(pTrackList, pbCDB, pvBuf);
     return VERR_NOT_IMPLEMENTED;
 }
 
 static int atapiTrackListUpdateFromReadDvdStructure(PTRACKLIST pTrackList, const uint8_t *pbCDB, const void *pvBuf)
 {
+    RT_NOREF(pTrackList, pbCDB, pvBuf);
     return VERR_NOT_IMPLEMENTED;
 }
 
 static int atapiTrackListUpdateFromReadDiscInformation(PTRACKLIST pTrackList, const uint8_t *pbCDB, const void *pvBuf)
 {
+    RT_NOREF(pTrackList, pbCDB, pvBuf);
     return VERR_NOT_IMPLEMENTED;
 }
+
+#ifdef LOG_ENABLED
 
 /**
  * Converts the given track data form to a string.
@@ -488,6 +495,8 @@ static void atapiTrackListDump(PTRACKLIST pTrackList)
                 pTrack->fFlags & TRACK_FLAGS_LEAD_OUT ? "Lead-Out" : ""));
     }
 }
+
+#endif /* LOG_ENABLED */
 
 DECLHIDDEN(int) ATAPIPassthroughTrackListCreateEmpty(PTRACKLIST *ppTrackList)
 {

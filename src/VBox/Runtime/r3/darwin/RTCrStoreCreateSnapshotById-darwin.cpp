@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,7 +57,7 @@ static bool rtCrStoreIsDarwinCertTrustworthy(SecCertificateRef hCert, SecTrustSe
     OSStatus orc = SecTrustSettingsCopyTrustSettings(hCert, enmTrustDomain, &hTrustSettings);
     if (orc == noErr)
     {
-	CFIndex const cTrustSettings = CFArrayGetCount(hTrustSettings);
+        CFIndex const cTrustSettings = CFArrayGetCount(hTrustSettings);
         for (CFIndex i = 0; i < cTrustSettings; i++)
         {
             CFDictionaryRef hDict = (CFDictionaryRef)CFArrayGetValueAtIndex(hTrustSettings, i);
@@ -245,5 +245,4 @@ RTDECL(int) RTCrStoreCreateSnapshotById(PRTCRSTORE phStore, RTCRSTOREID enmStore
     return rc;
 }
 RT_EXPORT_SYMBOL(RTCrStoreCreateSnapshotById);
-
 

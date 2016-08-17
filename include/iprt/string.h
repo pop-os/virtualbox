@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,33 +45,12 @@
 
 #elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
   RT_C_DECLS_BEGIN
-  /** @todo
-   * XXX: Very ugly hack to get things build on recent FreeBSD builds. They have
-   * memchr now and we need to include param.h to get __FreeBSD_version and make
-   * memchr available based on the version below or we can't compile the kernel
-   * module on older versions anymore.
-   *
-   * But including param.h here opens Pandora's box because we clash with a few
-   * defines namely PVM and PAGE_SIZE. We can safely undefine PVM here but not
-   * PAGE_SIZE because this results in build errors sooner or later. Luckily this
-   * define is in a header included by param.h (machine/param.h). We define the
-   * guards here to prevent inclusion of it if PAGE_SIZE was defined already.
-   *
-   * @todo aeichner: Search for an elegant solution and cleanup this mess ASAP!
-   */
-# ifdef PAGE_SIZE
-#  define _AMD64_INCLUDE_PARAM_H_
-#  define _I386_INCLUDE_PARAM_H_
-#  define _MACHINE_PARAM_H_
-# endif
-# include <sys/param.h> /* __FreeBSD_version */
-# undef PVM
 # include <sys/libkern.h>
-  /*
-   * No memmove on versions < 7.2
-   * Defining a macro using bcopy here
-   */
-# define memmove(dst, src, size) bcopy(src, dst, size)
+  RT_C_DECLS_END
+
+#elif defined(RT_OS_NETBSD) && defined(_KERNEL)
+  RT_C_DECLS_BEGIN
+# include <lib/libkern/libkern.h>
   RT_C_DECLS_END
 
 #elif defined(RT_OS_SOLARIS) && defined(_KERNEL)
@@ -106,14 +85,17 @@ RT_C_DECLS_END
 
 #if defined(RT_OS_FREEBSD) && defined(_KERNEL)
 RT_C_DECLS_BEGIN
-#if __FreeBSD_version < 900000
-void *memchr(const void *pv, int ch, size_t cb);
-#endif
 char *strpbrk(const char *pszStr, const char *pszChars);
 RT_C_DECLS_END
 #endif
 
-#if (!defined(RT_OS_LINUX) || !defined(_GNU_SOURCE)) && !defined(RT_OS_FREEBSD)
+#if defined(RT_OS_NETBSD) && defined(_KERNEL)
+RT_C_DECLS_BEGIN
+char *strpbrk(const char *pszStr, const char *pszChars);
+RT_C_DECLS_END
+#endif
+
+#if (!defined(RT_OS_LINUX) || !defined(_GNU_SOURCE)) && !defined(RT_OS_FREEBSD) && !defined(RT_OS_NETBSD)
 RT_C_DECLS_BEGIN
 void *memrchr(const char *pv, int ch, size_t cb);
 RT_C_DECLS_END
@@ -725,20 +707,23 @@ RTDECL(bool) RTStrIsValidEncoding(const char *psz);
 RTDECL(size_t) RTStrPurgeEncoding(char *psz);
 
 /**
- * Sanitise a (valid) UTF-8 string by replacing all characters outside a white
- * list in-place by an ASCII replacement character.  Multi-byte characters will
- * be replaced byte by byte.
+ * Sanitizes a (valid) UTF-8 string by replacing all characters outside a white
+ * list in-place by an ASCII replacement character.
  *
- * @returns The number of code points replaced, or a negative value if the
- *          string is not correctly encoded.  In this last case the string
- *          may be partially processed.
+ * Multi-byte characters will be replaced byte by byte.
+ *
+ * @returns The number of code points replaced.  In the case of an incorrectly
+ *          encoded string -1 will be returned, and the string is not completely
+ *          processed.  In the case of puszValidPairs having an odd number of
+ *          code points, -1 will be also return but without any modification to
+ *          the string.
  * @param   psz            The string to sanitise.
- * @param   puszValidSet   A zero-terminated array of pairs of Unicode points.
+ * @param   puszValidPairs A zero-terminated array of pairs of Unicode points.
  *                         Each pair is the start and end point of a range,
  *                         and the union of these ranges forms the white list.
  * @param   chReplacement  The ASCII replacement character.
  */
-RTDECL(ssize_t) RTStrPurgeComplementSet(char *psz, PCRTUNICP puszValidSet, char chReplacement);
+RTDECL(ssize_t) RTStrPurgeComplementSet(char *psz, PCRTUNICP puszValidPairs, char chReplacement);
 
 /**
  * Gets the number of code points the string is made up of, excluding

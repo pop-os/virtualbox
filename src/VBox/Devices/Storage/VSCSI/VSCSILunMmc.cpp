@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,10 +54,12 @@ DECLINLINE(void) mmcLBA2MSF(uint8_t *pbBuf, uint32_t iLBA)
     pbBuf[2] = iLBA % 75;
 }
 
+#if 0 /* unused */
 DECLINLINE(uint32_t) mmcMSF2LBA(const uint8_t *pbBuf)
 {
     return (pbBuf[0] * 60 + pbBuf[1]) * 75 + pbBuf[2];
 }
+#endif
 
 
 /* Fabricate normal TOC information. */
@@ -127,7 +129,7 @@ static int mmcReadTOCNormal(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq, uint
 /* Fabricate session information. */
 static int mmcReadTOCMulti(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq, uint16_t cbMaxTransfer, bool fMSF)
 {
-    PVSCSILUNMMC    pVScsiLunMmc = (PVSCSILUNMMC)pVScsiLun;
+    RT_NOREF1(cbMaxTransfer);
     uint8_t         aReply[32];
     uint8_t         *pbBuf = aReply;
 
@@ -171,8 +173,7 @@ static DECLCALLBACK(int) vscsiLunMmcInit(PVSCSILUNINT pVScsiLun)
 
 static DECLCALLBACK(int) vscsiLunMmcDestroy(PVSCSILUNINT pVScsiLun)
 {
-    PVSCSILUNMMC    pVScsiLunMmc = (PVSCSILUNMMC)pVScsiLun;
-
+    RT_NOREF1(pVScsiLun);
     return VINF_SUCCESS;
 }
 
@@ -294,7 +295,7 @@ static DECLCALLBACK(int) vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQ
         }
         case SCSI_MODE_SELECT_6:
         {
-            /* @todo: implement!! */
+            /** @todo implement!! */
             rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
             break;
         }
@@ -367,7 +368,6 @@ static DECLCALLBACK(int) vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQ
         }
         case SCSI_LOG_SENSE:
         {
-            uint16_t cbMax = vscsiBE2HU16(&pVScsiReq->pbCDB[7]);
             uint8_t uPageCode = pVScsiReq->pbCDB[2] & 0x3f;
             uint8_t uSubPageCode = pVScsiReq->pbCDB[3];
 

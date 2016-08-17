@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,11 +43,6 @@ protected:
     UIMachineWindowNormal(UIMachineLogic *pMachineLogic, ulong uScreenId);
 
 private slots:
-
-#ifdef VBOX_WS_X11
-    /** X11: Performs machine-window async geometry normalization. */
-    void sltNormalizeGeometry() { normalizeGeometry(true /* adjust position */); }
-#endif /* VBOX_WS_X11 */
 
     /** Handles machine state change event. */
     void sltMachineStateChanged();
@@ -112,9 +107,12 @@ private:
     /** Updates visibility according to visual-state. */
     void showInNecessaryMode();
 
+    /** Restores cached window geometry. */
+    virtual void restoreCachedGeometry() /* override */;
+
     /** Performs window geometry normalization according to guest-size and host's available geometry.
       * @param  fAdjustPosition  Determines whether is it necessary to adjust position as well. */
-    void normalizeGeometry(bool fAdjustPosition);
+    virtual void normalizeGeometry(bool fAdjustPosition) /* override */;
 
     /** Common update routine. */
     void updateAppearanceOf(int aElement);

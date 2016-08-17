@@ -172,7 +172,7 @@ typedef struct AUDMIXSINK
     /** Sink status of type AUDMIXSINK_STS_XXX. */
     AUDMIXSINKSTS           fStatus;
     /** The sink's PCM format. */
-    PDMPCMPROPS             PCMProps;
+    PDMAUDIOPCMPROPS        PCMProps;
     /** Number of streams assigned. */
     uint8_t                 cStreams;
     /** List of assigned streams.
@@ -196,7 +196,9 @@ typedef enum AUDMIXOP
 {
     /** Invalid operation, do not use. */
     AUDMIXOP_INVALID = 0,
+    /** Copy data from A to B, overwriting data in B. */
     AUDMIXOP_COPY,
+    /** Blend data from A with (existing) data in B. */
     AUDMIXOP_BLEND,
     /** The usual 32-bit hack. */
     AUDMIXOP_32BIT_HACK = 0x7fffffff
@@ -208,10 +210,8 @@ typedef enum AUDMIXOP
 int AudioMixerCreate(const char *pszName, uint32_t uFlags, PAUDIOMIXER *ppMixer);
 int AudioMixerCreateSink(PAUDIOMIXER pMixer, const char *pszName, AUDMIXSINKDIR enmDir, PAUDMIXSINK *ppSink);
 void AudioMixerDestroy(PAUDIOMIXER pMixer);
-int AudioMixerGetDeviceFormat(PAUDIOMIXER pMixer, PPDMAUDIOSTREAMCFG pCfg);
 void AudioMixerInvalidate(PAUDIOMIXER pMixer);
 void AudioMixerRemoveSink(PAUDIOMIXER pMixer, PAUDMIXSINK pSink);
-int AudioMixerSetDeviceFormat(PAUDIOMIXER pMixer, PPDMAUDIOSTREAMCFG pCfg);
 int AudioMixerSetMasterVolume(PAUDIOMIXER pMixer, PPDMAUDIOVOLUME pVol);
 void AudioMixerDebug(PAUDIOMIXER pMixer, PCDBGFINFOHLP pHlp, const char *pszArgs);
 
@@ -228,7 +228,7 @@ uint8_t AudioMixerSinkGetStreamCount(PAUDMIXSINK pSink);
 int AudioMixerSinkRead(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead);
 void AudioMixerSinkRemoveStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream);
 void AudioMixerSinkRemoveAllStreams(PAUDMIXSINK pSink);
-int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PPDMPCMPROPS pPCMProps);
+int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PPDMAUDIOPCMPROPS pPCMProps);
 int AudioMixerSinkSetVolume(PAUDMIXSINK pSink, PPDMAUDIOVOLUME pVol);
 int AudioMixerSinkWrite(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten);
 int AudioMixerSinkUpdate(PAUDMIXSINK pSink);

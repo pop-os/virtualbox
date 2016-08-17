@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_DBGF ///@todo add new log group.
+#define LOG_GROUP LOG_GROUP_DBGF /// @todo add new log group.
 #include "DBGPlugIns.h"
 #include "DBGPlugInCommonELF.h"
 #include <VBox/vmm/dbgf.h>
@@ -371,7 +371,7 @@ static int dbgDiggerLinuxQueryAsciiLogBufferPtrs(PDBGDIGGERLINUX pThis, PUVM pUV
         uint32_t offInstr = 0;
         bool fRet = false;
         DISSTATE DisState;
-        unsigned idxAddressesUsed = 0;
+        unsigned cAddressesUsed = 0;
         struct { size_t cb; RTGCPTR GCPtrOrigSrc; } aAddresses[5];
         RT_ZERO(DisState);
         RT_ZERO(aAddresses);
@@ -419,14 +419,14 @@ static int dbgDiggerLinuxQueryAsciiLogBufferPtrs(PDBGDIGGERLINUX pThis, PUVM pUV
                                 && DISUSE_IS_EFFECTIVE_ADDR(DisState.Param1.fUse))
                             {
                                 RTGCPTR GCPtrLogBuf = 0;
-                                size_t cbLogBuf = 0;
+                                uint32_t cbLogBuf = 0;
 
                                 /*
                                  * We can stop disassembling now and inspect all registers, look for a valid kernel address first.
                                  * Only one of the accessed registers should hold a valid kernel address.
                                  * For the log size look for the biggest non kernel address.
                                  */
-                                for (unsigned i = 0; i < idxAddressesUsed; i++)
+                                for (unsigned i = 0; i < cAddressesUsed; i++)
                                 {
                                     DBGFADDRESS AddrVal;
                                     union { uint8_t abVal[8]; uint32_t u32Val; uint64_t u64Val; } Val;
@@ -513,15 +513,15 @@ static int dbgDiggerLinuxQueryAsciiLogBufferPtrs(PDBGDIGGERLINUX pThis, PUVM pUV
                                     else
                                         AssertMsgFailedBreakStmt(("Invalid displacement\n"), rc = VERR_INVALID_STATE);
 
-                                    if (idxAddressesUsed < RT_ELEMENTS(aAddresses))
+                                    if (cAddressesUsed < RT_ELEMENTS(aAddresses))
                                     {
                                         /* movsxd reads always 32bits. */
                                         if (DisState.pCurInstr->uOpcode == OP_MOVSXD)
-                                            aAddresses[idxAddressesUsed].cb = sizeof(uint32_t);
+                                            aAddresses[cAddressesUsed].cb = sizeof(uint32_t);
                                         else
-                                            aAddresses[idxAddressesUsed].cb = DisState.Param2.cb;
-                                        aAddresses[idxAddressesUsed].GCPtrOrigSrc = GCPtrVal;
-                                        idxAddressesUsed++;
+                                            aAddresses[cAddressesUsed].cb = DisState.Param2.cb;
+                                        aAddresses[cAddressesUsed].GCPtrOrigSrc = GCPtrVal;
+                                        cAddressesUsed++;
                                     }
                                     else
                                     {
@@ -563,17 +563,17 @@ static int dbgDiggerLinuxQueryLogBufferPtrs(PDBGDIGGERLINUX pThis, PUVM pUVM, RT
 {
     int rc = VINF_SUCCESS;
 
-    struct { void *pvVar; size_t cbHost, cbGuest; const char *pszSymbol; } aSymbols[] =
+    struct { void *pvVar; uint32_t cbHost, cbGuest; const char *pszSymbol; } aSymbols[] =
     {
-        { pGCPtrLogBuf, sizeof(RTGCPTR),  pThis->f64Bit ? sizeof(uint64_t) : sizeof(uint32_t), "log_buf_addr_get" },
-        { pcbLogBuf,    sizeof(uint32_t), sizeof(uint32_t),                                    "log_buf_len_get" }
+        { pGCPtrLogBuf, (uint32_t)sizeof(RTGCPTR),  (uint32_t)(pThis->f64Bit ? sizeof(uint64_t) : sizeof(uint32_t)), "log_buf_addr_get" },
+        { pcbLogBuf,    (uint32_t)sizeof(uint32_t), (uint32_t)sizeof(uint32_t),                                      "log_buf_len_get" }
     };
     for (uint32_t i = 0; i < RT_ELEMENTS(aSymbols) && RT_SUCCESS(rc); i++)
     {
         RT_BZERO(aSymbols[i].pvVar, aSymbols[i].cbHost);
         Assert(aSymbols[i].cbHost >= aSymbols[i].cbGuest);
         rc = dbgDiggerLinuxDisassembleSimpleGetter(pThis, pUVM, hMod, aSymbols[i].pszSymbol,
-                                                   aSymbols[i].pvVar,  aSymbols[i].cbGuest);
+                                                   aSymbols[i].pvVar, aSymbols[i].cbGuest);
     }
 
     return rc;
@@ -621,6 +621,7 @@ static int dbgDiggerLinuxLogBufferQueryAscii(PDBGDIGGERLINUX pThis, PUVM pUVM, R
                                              uint32_t fFlags, uint32_t cMessages,
                                              char *pszBuf, size_t cbBuf, size_t *pcbActual)
 {
+    RT_NOREF2(fFlags, cMessages);
     int rc = VINF_SUCCESS;
     RTGCPTR  GCPtrLogBuf;
     uint32_t cbLogBuf;
@@ -700,7 +701,7 @@ static int dbgDiggerLinuxLogBufferQueryAscii(PDBGDIGGERLINUX pThis, PUVM pUVM, R
         return VERR_NOT_FOUND;
     }
 
-    /** @todo: Try to parse where the single messages start to make use of cMessages. */
+    /** @todo Try to parse where the single messages start to make use of cMessages. */
     size_t cchLength = RTStrNLen((const char *)pbLogBuf, cbLogBuf);
     memcpy(&pszBuf[0], pbLogBuf, RT_MIN(cbBuf, cchLength));
 
@@ -734,6 +735,7 @@ static int dbgDiggerLinuxLogBufferQueryRecords(PDBGDIGGERLINUX pThis, PUVM pUVM,
                                                uint32_t fFlags, uint32_t cMessages,
                                                char *pszBuf, size_t cbBuf, size_t *pcbActual)
 {
+    RT_NOREF1(fFlags);
     int rc = VINF_SUCCESS;
     RTGCPTR  GCPtrLogBuf;
     uint32_t cbLogBuf;
@@ -1047,6 +1049,7 @@ static void dbgDiggerLinuxCfgDbDestroy(PDBGDIGGERLINUX pThis)
  */
 static DECLCALLBACK(void *) dbgDiggerLinuxQueryInterface(PUVM pUVM, void *pvData, DBGFOSINTERFACE enmIf)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGERLINUX pThis = (PDBGDIGGERLINUX)pvData;
     switch (enmIf)
     {
@@ -1092,6 +1095,7 @@ static DECLCALLBACK(int)  dbgDiggerLinuxQueryVersion(PUVM pUVM, void *pvData, ch
  */
 static DECLCALLBACK(void)  dbgDiggerLinuxTerm(PUVM pUVM, void *pvData)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGERLINUX pThis = (PDBGDIGGERLINUX)pvData;
     Assert(pThis->fValid);
 
@@ -1728,7 +1732,7 @@ static bool dbgDiggerLinuxIsLikelyNameFragment(PUVM pUVM, PCDBGFADDRESS pHitAddr
  * @param   pabNeedle           The needle to use for searching.
  * @param   cbNeedle            Size of the needle in bytes.
  */
-static int dbgDiggerLinuxFindSymbolTableFromNeedle(PDBGDIGGERLINUX pThis, PUVM pUVM, uint8_t const *pabNeedle, size_t cbNeedle)
+static int dbgDiggerLinuxFindSymbolTableFromNeedle(PDBGDIGGERLINUX pThis, PUVM pUVM, uint8_t const *pabNeedle, uint8_t cbNeedle)
 {
     int rc = VINF_SUCCESS;
 
@@ -1827,7 +1831,7 @@ static const char *dbgDiggerLinuxCfgSkipWhitespace(const char *pszCfg)
  * @param   pszCfg              The config data.
  * @param   ppszCfgNext         Where to store the pointer to the data following the identifier.
  * @param   ppszIde             Where to store the pointer to the identifier on success.
- *                              Free with RTStrFree().         
+ *                              Free with RTStrFree().
  */
 static int dbgDiggerLinuxCfgParseIde(const char *pszCfg, const char **ppszCfgNext, char **ppszIde)
 {
@@ -1882,7 +1886,7 @@ static int dbgDiggerLinuxCfgParseVal(const char *pszCfg, const char **ppszCfgNex
             if (pCfgItem)
             {
                 pCfgItem->enmType = DBGDIGGERLINUXCFGITEMTYPE_NUMBER;
-                pCfgItem->u.i64Num = i64Num; 
+                pCfgItem->u.i64Num = i64Num;
             }
             else
                 rc = VERR_NO_MEMORY;
@@ -1919,7 +1923,7 @@ static int dbgDiggerLinuxCfgParseVal(const char *pszCfg, const char **ppszCfgNex
         if (pCfgItem)
         {
             pCfgItem->enmType = DBGDIGGERLINUXCFGITEMTYPE_FLAG;
-            pCfgItem->u.fModule = *pszCfg == 'm'; 
+            pCfgItem->u.fModule = *pszCfg == 'm';
         }
         else
             rc = VERR_NO_MEMORY;
@@ -2024,7 +2028,7 @@ static int dbgDiggerLinuxCfgParse(PDBGDIGGERLINUX pThis, const char *pszCfg)
     return rc;
 }
 
-/** 
+/**
  * Decompresses the given config and validates the UTF-8 encoding.
  *
  * @returns VBox status code.
@@ -2199,7 +2203,7 @@ static DECLCALLBACK(int)  dbgDiggerLinuxInit(PUVM pUVM, void *pvData)
      * Try to find the compressed kernel config and parse it before we try
      * to get the symbol table, the config database is required to select
      * the method to use.
-     */ 
+     */
     int rc = dbgDiggerLinuxCfgFind(pThis, pUVM);
     if (RT_FAILURE(rc))
         LogFlowFunc(("Failed to find kernel config (%Rrc), no config database available\n", rc));
@@ -2274,7 +2278,7 @@ static DECLCALLBACK(bool)  dbgDiggerLinuxProbe(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(void)  dbgDiggerLinuxDestruct(PUVM pUVM, void *pvData)
 {
-
+    RT_NOREF2(pUVM, pvData);
 }
 
 
@@ -2283,6 +2287,7 @@ static DECLCALLBACK(void)  dbgDiggerLinuxDestruct(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(int)  dbgDiggerLinuxConstruct(PUVM pUVM, void *pvData)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGERLINUX pThis = (PDBGDIGGERLINUX)pvData;
     pThis->IDmesg.u32Magic = DBGFOSIDMESG_MAGIC;
     pThis->IDmesg.pfnQueryKernelLog = dbgDiggerLinuxIDmsg_QueryKernelLog;

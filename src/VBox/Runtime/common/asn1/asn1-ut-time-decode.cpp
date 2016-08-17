@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -304,7 +304,7 @@ static int rtAsn1Time_ConvertGeneralizedTime(PRTASN1CURSOR pCursor, PRTASN1TIME 
 
 RTDECL(int) RTAsn1Time_DecodeAsn1(PRTASN1CURSOR pCursor, uint32_t fFlags, PRTASN1TIME pThis, const char *pszErrorTag)
 {
-    Assert(!(fFlags & RTASN1CURSOR_GET_F_IMPLICIT));
+    Assert(!(fFlags & RTASN1CURSOR_GET_F_IMPLICIT)); RT_NOREF_PV(fFlags);
     int rc = RTAsn1CursorReadHdr(pCursor, &pThis->Asn1Core, pszErrorTag);
     if (RT_SUCCESS(rc))
     {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@
 #include <iprt/assert.h>
 #include <iprt/string.h>  /* RT_ZERO */
 #ifdef RT_OS_WINDOWS
-# include <WinSock2.h>  /* struct timeval */
+# include <iprt/win/winsock2.h>  /* struct timeval */
 #endif
 #include <errno.h>
 #include <time.h>  /* struct timeval */

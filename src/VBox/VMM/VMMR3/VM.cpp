@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -96,13 +96,6 @@
 
 
 /*********************************************************************************************************************************
-*   Global Variables                                                                                                             *
-*********************************************************************************************************************************/
-/** Pointer to the list of VMs. */
-static PUVM         g_pUVMsHead = NULL;
-
-
-/*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 static int                  vmR3CreateUVM(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods, PUVM *ppUVM);
@@ -118,7 +111,6 @@ static int                  vmR3InitDoCompleted(PVM pVM, VMINITCOMPLETED enmWhat
 static DECLCALLBACK(size_t) vmR3LogPrefixCallback(PRTLOGGER pLogger, char *pchBuf, size_t cchBuf, void *pvUser);
 #endif
 static void                 vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait);
-static void                 vmR3AtDtor(PVM pVM);
 static bool                 vmR3ValidateStateTransition(VMSTATE enmStateOld, VMSTATE enmStateNew);
 static void                 vmR3DoAtState(PVM pVM, PUVM pUVM, VMSTATE enmStateNew, VMSTATE enmStateOld);
 static int                  vmR3TrySetState(PVM pVM, const char *pszWho, unsigned cTransitions, ...);
@@ -2712,6 +2704,8 @@ static void vmR3CheckIntegrity(PVM pVM)
 #ifdef VBOX_STRICT
     int rc = PGMR3CheckIntegrity(pVM);
     AssertReleaseRC(rc);
+#else
+    RT_NOREF_PV(pVM);
 #endif
 }
 
@@ -3259,7 +3253,9 @@ VMMR3DECL(const char *) VMR3GetStateName(VMSTATE enmState)
  */
 static bool vmR3ValidateStateTransition(VMSTATE enmStateOld, VMSTATE enmStateNew)
 {
-#ifdef VBOX_STRICT
+#ifndef VBOX_STRICT
+    RT_NOREF2(enmStateOld, enmStateNew);
+#else
     switch (enmStateOld)
     {
         case VMSTATE_CREATING:
@@ -3530,6 +3526,7 @@ static void vmR3SetState(PVM pVM, VMSTATE enmStateNew, VMSTATE enmStateOld)
     PUVM pUVM = pVM->pUVM;
     RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
 
+    RT_NOREF_PV(enmStateOld);
     AssertMsg(pVM->enmVMState == enmStateOld,
               ("%s != %s\n", VMR3GetStateName(pVM->enmVMState), VMR3GetStateName(enmStateOld)));
     vmR3SetStateLocked(pVM, pUVM, enmStateNew, pVM->enmVMState, false /*fSetRatherThanClearFF*/);

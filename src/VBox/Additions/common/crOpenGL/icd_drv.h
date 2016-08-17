@@ -1,12 +1,10 @@
 /* $Id: icd_drv.h $ */
-
 /** @file
- *
  * VirtualBox Windows NT/2000/XP guest OpenGL ICD header
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,12 +15,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __ICDDRV_H__
-#define __ICDDRV_H__
+#ifndef ___ICDDRV_H___
+#define ___ICDDRV_H___
 
-#include <windows.h>
+#include <iprt/win/windows.h>
 
-typedef struct _icdTable 
+typedef struct ICDTABLE
 {
     DWORD size;
     PROC  table[336];
@@ -51,4 +49,4 @@ BOOL APIENTRY DrvRealizeLayerPalette(HDC hdc, int iLayerPlane, BOOL bRealize);
 BOOL APIENTRY DrvSwapLayerBuffers(HDC hdc, UINT fuPlanes);
 BOOL APIENTRY DrvSwapBuffers(HDC hdc);
 
-#endif /* __ICDDRV_H__ */
+#endif /* !___ICDDRV_H___ */

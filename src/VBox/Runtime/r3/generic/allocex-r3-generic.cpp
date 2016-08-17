@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,18 +40,21 @@
 
 DECLHIDDEN(int) rtMemAllocEx16BitReach(size_t cbAlloc, uint32_t fFlags, void **ppv)
 {
+    RT_NOREF(cbAlloc, fFlags, ppv);
     return VERR_NOT_SUPPORTED;
 }
 
 
 DECLHIDDEN(int) rtMemAllocEx32BitReach(size_t cbAlloc, uint32_t fFlags, void **ppv)
 {
+    RT_NOREF(cbAlloc, fFlags, ppv);
     return VERR_NOT_SUPPORTED;
 }
 
 
 DECLHIDDEN(void) rtMemFreeExYyBitReach(void *pv, size_t cb, uint32_t fFlags)
 {
+    RT_NOREF(pv, cb, fFlags);
     AssertFailed();
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -370,6 +370,7 @@ static const SSMFIELD g_aCpumBndCfgFields[] =
     SSMFIELD_ENTRY_TERM()
 };
 
+#if 0 /** @todo */
 /** Saved state field descriptors for X86XSAVEOPMASK. */
 static const SSMFIELD g_aCpumOpmaskFields[] =
 {
@@ -383,6 +384,7 @@ static const SSMFIELD g_aCpumOpmaskFields[] =
     SSMFIELD_ENTRY(         X86XSAVEOPMASK, aKRegs[7]),
     SSMFIELD_ENTRY_TERM()
 };
+#endif
 
 /** Saved state field descriptors for X86XSAVEZMMHI256. */
 static const SSMFIELD g_aCpumZmmHi256Fields[] =
@@ -2333,7 +2335,8 @@ static DECLCALLBACK(int) cpumR3DisasInstrRead(PDISCPUSTATE pDis, uint8_t offInst
  * @param   pszPrefix   String prefix for logging (debug only).
  *
  */
-VMMR3DECL(int) CPUMR3DisasmInstrCPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, RTGCPTR GCPtrPC, PDISCPUSTATE pCpu, const char *pszPrefix)
+VMMR3DECL(int) CPUMR3DisasmInstrCPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, RTGCPTR GCPtrPC, PDISCPUSTATE pCpu,
+                                    const char *pszPrefix)
 {
     CPUMDISASSTATE  State;
     int             rc;
@@ -2386,6 +2389,7 @@ VMMR3DECL(int) CPUMR3DisasmInstrCPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, RTGCPT
      */
     uint32_t cbInstr;
 #ifndef LOG_ENABLED
+    RT_NOREF_PV(pszPrefix);
     rc = DISInstrWithReader(GCPtrPC, enmDisCpuMode, cpumR3DisasInstrRead, &State, pCpu, &cbInstr);
     if (RT_SUCCESS(rc))
     {
@@ -2486,6 +2490,8 @@ VMMR3DECL(void) CPUMR3RemLeave(PVMCPU pVCpu, bool fNoOutOfSyncSels)
 {
     Assert(!pVCpu->cpum.s.fRawEntered);
     Assert(pVCpu->cpum.s.fRemEntered);
+
+    RT_NOREF_PV(fNoOutOfSyncSels);
 
     pVCpu->cpum.s.fRemEntered = false;
 }

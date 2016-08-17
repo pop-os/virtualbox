@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,9 +50,13 @@
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
 #ifndef VBOX
+    RT_NOREF3(argc, argv, envp);
     RTPrintf("tstRTR0Timer: SKIPPED\n");
     return RTEXITCODE_SKIPPED;
+
 #else
+    RT_NOREF1(envp);
+
     /*
      * Init.
      */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,7 +70,7 @@ void MachineDebugger::FinalRelease()
  * @returns COM result indicator
  * @param aParent handle of our parent object
  */
-HRESULT MachineDebugger::init (Console *aParent)
+HRESULT MachineDebugger::init(Console *aParent)
 {
     LogFlowThisFunc(("aParent=%p\n", aParent));
 
@@ -84,13 +84,13 @@ HRESULT MachineDebugger::init (Console *aParent)
 
     for (unsigned i = 0; i < RT_ELEMENTS(maiQueuedEmExecPolicyParams); i++)
         maiQueuedEmExecPolicyParams[i] = UINT8_MAX;
-    mSingleStepQueued = ~0;
-    mRecompileUserQueued = ~0;
-    mRecompileSupervisorQueued = ~0;
-    mPatmEnabledQueued = ~0;
-    mCsamEnabledQueued = ~0;
-    mLogEnabledQueued = ~0;
-    mVirtualTimeRateQueued = ~0;
+    mSingleStepQueued = -1;
+    mRecompileUserQueued = -1;
+    mRecompileSupervisorQueued = -1;
+    mPatmEnabledQueued = -1;
+    mCsamEnabledQueued = -1;
+    mLogEnabledQueued = -1;
+    mVirtualTimeRateQueued = UINT32_MAX;
     mFlushMode = false;
 
     /* Confirm a successful initialization */
@@ -132,7 +132,7 @@ HRESULT MachineDebugger::getSingleStep(BOOL *aSingleStep)
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
     {
-        /** @todo */
+        RT_NOREF(aSingleStep); /** @todo */
         ReturnComNotImplemented();
     }
     return hrc;
@@ -151,7 +151,7 @@ HRESULT MachineDebugger::setSingleStep(BOOL aSingleStep)
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
     {
-        /** @todo */
+        NOREF(aSingleStep); /** @todo */
         ReturnComNotImplemented();
     }
     return hrc;
@@ -301,7 +301,7 @@ HRESULT MachineDebugger::getPATMEnabled(BOOL *aPATMEnabled)
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
     if (ptrVM.isOk())
-        *aPATMEnabled = PATMR3IsEnabled (ptrVM.rawUVM());
+        *aPATMEnabled = PATMR3IsEnabled(ptrVM.rawUVM());
     else
 #endif
         *aPATMEnabled = false;
@@ -749,7 +749,7 @@ HRESULT MachineDebugger::setVirtualTimeRate(ULONG aVirtualTimeRate)
  * This is only temporary (promise) while prototyping the debugger.
  *
  * @returns COM status code
- * @param   a_u64Vm     Where to store the vm handle. Since there is no
+ * @param   aVM         Where to store the vm handle. Since there is no
  *                      uintptr_t in COM, we're using the max integer.
  *                      (No, ULONG is not pointer sized!)
  * @remarks The returned handle must be passed to VMR3ReleaseUVM()!
@@ -771,6 +771,24 @@ HRESULT MachineDebugger::getVM(LONG64 *aVM)
      * Note! ptrVM protection provided by SafeVMPtr is no long effective
      *       after we return from this method.
      */
+    return hrc;
+}
+
+/**
+ * Get the VM uptime in milliseconds.
+ *
+ * @returns COM status code
+ * @param   aUptime     Where to store the uptime.
+ */
+HRESULT MachineDebugger::getUptime(LONG64 *aUptime)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    Console::SafeVMPtr ptrVM(mParent);
+    HRESULT hrc = ptrVM.rc();
+    if (SUCCEEDED(hrc))
+        *aUptime = (int64_t)TMR3TimeVirtGetMilli(ptrVM.rawUVM());
+
     return hrc;
 }
 
@@ -799,6 +817,7 @@ HRESULT MachineDebugger::dumpGuestCore(const com::Utf8Str &aFilename, const com:
 
 HRESULT MachineDebugger::dumpHostProcessCore(const com::Utf8Str &aFilename, const com::Utf8Str &aCompression)
 {
+    RT_NOREF(aFilename, aCompression);
     ReturnComNotImplemented();
 }
 
@@ -1031,21 +1050,25 @@ HRESULT MachineDebugger::modifyLogDestinations(const com::Utf8Str &aSettings)
 
 HRESULT MachineDebugger::readPhysicalMemory(LONG64 aAddress, ULONG aSize, std::vector<BYTE> &aBytes)
 {
+    RT_NOREF(aAddress, aSize, aBytes);
     ReturnComNotImplemented();
 }
 
 HRESULT MachineDebugger::writePhysicalMemory(LONG64 aAddress, ULONG aSize, const std::vector<BYTE> &aBytes)
 {
+    RT_NOREF(aAddress, aSize, aBytes);
     ReturnComNotImplemented();
 }
 
 HRESULT MachineDebugger::readVirtualMemory(ULONG aCpuId, LONG64 aAddress, ULONG aSize, std::vector<BYTE> &aBytes)
 {
+    RT_NOREF(aCpuId, aAddress, aSize, aBytes);
     ReturnComNotImplemented();
 }
 
 HRESULT MachineDebugger::writeVirtualMemory(ULONG aCpuId, LONG64 aAddress, ULONG aSize, const std::vector<BYTE> &aBytes)
 {
+    RT_NOREF(aCpuId, aAddress, aSize, aBytes);
     ReturnComNotImplemented();
 }
 
@@ -1280,6 +1303,8 @@ HRESULT MachineDebugger::getRegister(ULONG aCpuId, const com::Utf8Str &aName, co
 
 HRESULT MachineDebugger::getRegisters(ULONG aCpuId, std::vector<com::Utf8Str> &aNames, std::vector<com::Utf8Str> &aValues)
 {
+    RT_NOREF(aCpuId); /** @todo fix missing aCpuId usage! */
+
     /*
      * The prologue.
      */
@@ -1338,12 +1363,14 @@ HRESULT MachineDebugger::getRegisters(ULONG aCpuId, std::vector<com::Utf8Str> &a
 
 HRESULT MachineDebugger::setRegister(ULONG aCpuId, const com::Utf8Str &aName, const com::Utf8Str &aValue)
 {
+    RT_NOREF(aCpuId, aName, aValue);
     ReturnComNotImplemented();
 }
 
 HRESULT MachineDebugger::setRegisters(ULONG aCpuId, const std::vector<com::Utf8Str> &aNames,
                                       const std::vector<com::Utf8Str> &aValues)
 {
+    RT_NOREF(aCpuId, aNames, aValues);
     ReturnComNotImplemented();
 }
 
@@ -1536,7 +1563,7 @@ HRESULT MachineDebugger::dumpStats(const com::Utf8Str &aPattern)
  */
 HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescriptions, com::Utf8Str &aStats)
 {
-    Console::SafeVMPtrQuiet ptrVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
 
     if (!ptrVM.isOk())
         return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
@@ -1564,10 +1591,10 @@ HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescri
 void MachineDebugger::i_flushQueuedSettings()
 {
     mFlushMode = true;
-    if (mSingleStepQueued != ~0)
+    if (mSingleStepQueued != -1)
     {
         COMSETTER(SingleStep)(mSingleStepQueued);
-        mSingleStepQueued = ~0;
+        mSingleStepQueued = -1;
     }
     for (unsigned i = 0; i < EMEXECPOLICY_END; i++)
         if (maiQueuedEmExecPolicyParams[i] != UINT8_MAX)
@@ -1575,25 +1602,25 @@ void MachineDebugger::i_flushQueuedSettings()
             i_setEmExecPolicyProperty((EMEXECPOLICY)i, RT_BOOL(maiQueuedEmExecPolicyParams[i]));
             maiQueuedEmExecPolicyParams[i] = UINT8_MAX;
         }
-    if (mPatmEnabledQueued != ~0)
+    if (mPatmEnabledQueued != -1)
     {
         COMSETTER(PATMEnabled)(mPatmEnabledQueued);
-        mPatmEnabledQueued = ~0;
+        mPatmEnabledQueued = -1;
     }
-    if (mCsamEnabledQueued != ~0)
+    if (mCsamEnabledQueued != -1)
     {
         COMSETTER(CSAMEnabled)(mCsamEnabledQueued);
-        mCsamEnabledQueued = ~0;
+        mCsamEnabledQueued = -1;
     }
-    if (mLogEnabledQueued != ~0)
+    if (mLogEnabledQueued != -1)
     {
         COMSETTER(LogEnabled)(mLogEnabledQueued);
-        mLogEnabledQueued = ~0;
+        mLogEnabledQueued = -1;
     }
-    if (mVirtualTimeRateQueued != ~(uint32_t)0)
+    if (mVirtualTimeRateQueued != UINT32_MAX)
     {
         COMSETTER(VirtualTimeRate)(mVirtualTimeRateQueued);
-        mVirtualTimeRateQueued = ~0;
+        mVirtualTimeRateQueued = UINT32_MAX;
     }
     mFlushMode = false;
 }

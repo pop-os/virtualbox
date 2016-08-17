@@ -1,11 +1,10 @@
 /* $Id: icd_drv.c $ */
-
 /** @file
  * VBox OpenGL windows ICD driver functions
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +26,7 @@
 # include <VBox/VBoxUhgsmi.h>
 #endif
 
-#include <windows.h>
+#include <iprt/win/windows.h>
 
 //TODO: consider
 /* We can modify chronium dispatch table functions order to match the one required by ICD,
@@ -396,3 +395,4 @@ BOOL APIENTRY DrvSwapBuffers(HDC hdc)
     stubSwapBuffers( window, 0 );
     return 1;
 }
+

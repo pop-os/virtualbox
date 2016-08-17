@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,6 +41,7 @@
 # include "UIMessageCenter.h"
 # include "UISpecialControls.h"
 # include "UIVMLogViewer.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "VBoxGlobal.h"
 # include "VBoxUtils.h"
 
@@ -769,7 +770,7 @@ void UIVMLogViewer::showLogViewerFor(QWidget *pCenterWidget, const CMachine &mac
 }
 
 UIVMLogViewer::UIVMLogViewer(QWidget *pParent, Qt::WindowFlags flags, const CMachine &machine)
-    : QIWithRetranslateUI2<QMainWindow>(pParent, flags)
+    : QIWithRetranslateUI2<QIMainWindow>(pParent, flags)
     , m_fIsPolished(false)
     , m_machine(machine)
 {
@@ -781,6 +782,11 @@ UIVMLogViewer::~UIVMLogViewer()
 {
     /* Cleanup VM Log-Viewer: */
     cleanup();
+}
+
+bool UIVMLogViewer::shouldBeMaximized() const
+{
+    return gEDataManager->logWindowShouldBeMaximized();
 }
 
 void UIVMLogViewer::search()
@@ -883,7 +889,7 @@ bool UIVMLogViewer::close()
     /* Close filter-panel: */
     m_pFilterPanel->hide();
     /* Call to base-class: */
-    return QMainWindow::close();
+    return QIMainWindow::close();
 }
 
 void UIVMLogViewer::save()
@@ -1012,7 +1018,7 @@ void UIVMLogViewer::loadSettings()
     /* Restore window geometry: */
     {
         /* Getting available geometry to calculate default geometry: */
-        const QRect desktopRect = vboxGlobal().availableGeometry(this);
+        const QRect desktopRect = gpDesktop->availableGeometry(this);
         int iDefaultWidth = desktopRect.width() / 2;
         int iDefaultHeight = desktopRect.height() * 3 / 4;
 
@@ -1031,18 +1037,11 @@ void UIVMLogViewer::loadSettings()
 
         /* Load geometry: */
         m_geometry = gEDataManager->logWindowGeometry(this, defaultGeometry);
-#ifdef VBOX_WS_MAC
-        move(m_geometry.topLeft());
-        resize(m_geometry.size());
-#else /* !VBOX_WS_MAC */
-        setGeometry(m_geometry);
-#endif /* !VBOX_WS_MAC */
-        LogRel2(("GUI: UIVMLogViewer: Geometry loaded to: Origin=%dx%d, Size=%dx%d\n",
-                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
 
-        /* Maximize (if necessary): */
-        if (gEDataManager->logWindowShouldBeMaximized())
-            showMaximized();
+        /* Restore geometry: */
+        LogRel2(("GUI: UIVMLogViewer: Restoring geometry to: Origin=%dx%d, Size=%dx%d\n",
+                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+        restoreGeometry();
     }
 }
 
@@ -1091,7 +1090,7 @@ void UIVMLogViewer::retranslateUi()
 
 void UIVMLogViewer::showEvent(QShowEvent *pEvent)
 {
-    QMainWindow::showEvent(pEvent);
+    QIMainWindow::showEvent(pEvent);
 
     /* One may think that QWidget::polish() is the right place to do things
      * below, but apparently, by the time when QWidget::polish() is called,
@@ -1107,7 +1106,7 @@ void UIVMLogViewer::showEvent(QShowEvent *pEvent)
     /* Make sure the log view widget has the focus: */
     QWidget *pCurrentLogPage = currentLogPage();
     if (pCurrentLogPage)
-        pCurrentLogPage->setFocus(); 
+        pCurrentLogPage->setFocus();
 }
 
 void UIVMLogViewer::keyPressEvent(QKeyEvent *pEvent)
@@ -1144,7 +1143,7 @@ void UIVMLogViewer::keyPressEvent(QKeyEvent *pEvent)
         default:
             break;
     }
-    QMainWindow::keyReleaseEvent(pEvent);
+    QIMainWindow::keyReleaseEvent(pEvent);
 }
 
 QTextEdit* UIVMLogViewer::currentLogPage()

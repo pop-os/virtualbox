@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -312,7 +312,7 @@ static void                 supdrvNtErrorInfoCleanupProcess(HANDLE hProcessId);
 *   Exported Functions                                                                                                           *
 *********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
-ULONG _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath);
+NTSTATUS _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath);
 RT_C_DECLS_END
 
 
@@ -483,9 +483,9 @@ static NTSTATUS vboxdrvNtCreateDevices(PDRIVER_OBJECT pDrvObj)
                 IoDeleteDevice(g_pDevObjStub);
                 g_pDevObjUsr = NULL;
             }
-#endif
             IoDeleteDevice(g_pDevObjUsr);
             g_pDevObjUsr = NULL;
+#endif
         }
         IoDeleteDevice(g_pDevObjSys);
         g_pDevObjSys = NULL;
@@ -536,8 +536,10 @@ static void vboxdrvNtDestroyDevices(void)
  * @param   pDrvObj     Pointer to driver object.
  * @param   pRegPath    Registry base path.
  */
-ULONG _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
+NTSTATUS _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
 {
+    RT_NOREF1(pRegPath);
+
     /*
      * Sanity checks.
      */
@@ -1012,6 +1014,8 @@ static BOOLEAN _stdcall VBoxDrvNtFastIoDeviceControl(PFILE_OBJECT pFileObj, BOOL
                                                      PVOID pvOutput, ULONG cbOutput, ULONG uCmd,
                                                      PIO_STATUS_BLOCK pIoStatus, PDEVICE_OBJECT pDevObj)
 {
+    RT_NOREF1(fWait);
+
     /*
      * Only the normal devices, not the stub or error info ones.
      */
@@ -1096,10 +1100,14 @@ static BOOLEAN _stdcall VBoxDrvNtFastIoDeviceControl(PFILE_OBJECT pFileObj, BOOL
                 __except(EXCEPTION_EXECUTE_HANDLER)
                 {
                     rcNt = GetExceptionCode();
+                    Hdr.cbIn = Hdr.cbOut = 0; /* shut up MSC */
                 }
             }
             else
+            {
+                Hdr.cbIn = Hdr.cbOut = 0; /* shut up MSC */
                 rcNt = STATUS_INVALID_PARAMETER;
+            }
             if (NT_SUCCESS(rcNt))
             {
                 /* Verify that the sizes in the request header are correct. */
@@ -1449,6 +1457,7 @@ NTSTATUS _stdcall VBoxDrvNtInternalDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pI
 NTSTATUS _stdcall VBoxDrvNtRead(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
     Log(("VBoxDrvNtRead\n"));
+    RT_NOREF1(pDevObj);
 
     NTSTATUS rcNt;
     pIrp->IoStatus.Information = 0;
@@ -1578,25 +1587,24 @@ NTSTATUS _stdcall VBoxDrvNtNotSupportedStub(PDEVICE_OBJECT pDevObj, PIRP pIrp)
  * ExRegisterCallback handler for power events
  *
  * @param   pCallbackContext    User supplied parameter (pDevObj)
- * @param   pArgument1          First argument
- * @param   pArgument2          Second argument
+ * @param   pvArgument1         First argument
+ * @param   pvArgument2         Second argument
  */
-VOID _stdcall VBoxPowerDispatchCallback(PVOID pCallbackContext, PVOID pArgument1, PVOID pArgument2)
+VOID _stdcall VBoxPowerDispatchCallback(PVOID pCallbackContext, PVOID pvArgument1, PVOID pvArgument2)
 {
-    PDEVICE_OBJECT pDevObj = (PDEVICE_OBJECT)pCallbackContext;
-
-    Log(("VBoxPowerDispatchCallback: %x %x\n", pArgument1, pArgument2));
+    /*PDEVICE_OBJECT pDevObj = (PDEVICE_OBJECT)pCallbackContext;*/ RT_NOREF1(pCallbackContext);
+    Log(("VBoxPowerDispatchCallback: %x %x\n", pvArgument1, pvArgument2));
 
     /* Power change imminent? */
-    if ((unsigned)pArgument1 == PO_CB_SYSTEM_STATE_LOCK)
+    if ((uintptr_t)pvArgument1 == PO_CB_SYSTEM_STATE_LOCK)
     {
-        if ((unsigned)pArgument2 == 0)
+        if (pvArgument2 == NULL)
             Log(("VBoxPowerDispatchCallback: about to go into suspend mode!\n"));
         else
             Log(("VBoxPowerDispatchCallback: resumed!\n"));
 
         /* Inform any clients that have registered themselves with IPRT. */
-        RTPowerSignalEvent(((unsigned)pArgument2 == 0) ? RTPOWEREVENT_SUSPEND : RTPOWEREVENT_RESUME);
+        RTPowerSignalEvent(pvArgument2 == NULL ? RTPOWEREVENT_SUSPEND : RTPOWEREVENT_RESUME);
     }
 }
 
@@ -1615,6 +1623,9 @@ void VBOXCALL supdrvOSCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSess
         supdrvNtProtectRelease(pSession->pNtProtect);
         pSession->pNtProtect = NULL;
     }
+    RT_NOREF1(pDevExt);
+#else
+    RT_NOREF2(pDevExt, pSession);
 #endif
 }
 
@@ -1667,6 +1678,7 @@ bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, c
  */
 bool VBOXCALL  supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 {
+    RT_NOREF1(pDevExt);
     return false;
 }
 
@@ -2130,10 +2142,10 @@ int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uV
     Args.fGp    = true;
 
     if (idCpu == NIL_RTCPUID)
-        supdrvNtMsProberReadOnCpu(idCpu, &Args, NULL);
+        supdrvNtMsProberWriteOnCpu(idCpu, &Args, NULL);
     else
     {
-        int rc = RTMpOnSpecific(idCpu, supdrvNtMsProberReadOnCpu, &Args, NULL);
+        int rc = RTMpOnSpecific(idCpu, supdrvNtMsProberWriteOnCpu, &Args, NULL);
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -2157,6 +2169,7 @@ static DECLCALLBACK(void) supdrvNtMsProberModifyOnCpu(RTCPUID idCpu, void *pvUse
     bool                fAfterGp    = true;
     bool                fRestoreGp  = true;
     RTCCUINTREG         fOldFlags;
+    RT_NOREF2(idCpu, pvUser2);
 
     /*
      * Do the job.
@@ -2826,6 +2839,8 @@ static bool supdrvNtProtectIsAssociatedCsrss(PSUPDRVNTPROTECT pNtProtect, PEPROC
  */
 static bool supdrvNtProtectIsFrigginThemesService(PSUPDRVNTPROTECT pNtProtect, PEPROCESS pAnnoyingProcess)
 {
+    RT_NOREF1(pNtProtect);
+
     /*
      * Check the process name.
      */
@@ -3171,6 +3186,8 @@ supdrvNtProtectCallback_ProcessCreateNotify(HANDLE hParentPid, HANDLE hNewPid, B
 static VOID __stdcall
 supdrvNtProtectCallback_ProcessCreateNotifyEx(PEPROCESS pNewProcess, HANDLE hNewPid, PPS_CREATE_NOTIFY_INFO pInfo)
 {
+    RT_NOREF1(pNewProcess);
+
     /*
      * Is it a new process that needs protection?
      */
@@ -3252,7 +3269,7 @@ AssertCompile((SUPDRV_NT_ALLOW_PROCESS_RIGHTS & SUPDRV_NT_EVIL_PROCESS_RIGHTS) =
 static OB_PREOP_CALLBACK_STATUS __stdcall
 supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMATION pOpInfo)
 {
-    Assert(pvUser == NULL);
+    Assert(pvUser == NULL); RT_NOREF1(pvUser);
     Assert(pOpInfo->Operation == OB_OPERATION_HANDLE_CREATE || pOpInfo->Operation == OB_OPERATION_HANDLE_DUPLICATE);
     Assert(pOpInfo->ObjectType == *PsProcessType);
 
@@ -3504,7 +3521,7 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
 static VOID __stdcall
 supdrvNtProtectCallback_ProcessHandlePost(PVOID pvUser, POB_POST_OPERATION_INFORMATION pOpInfo)
 {
-    Assert(pvUser == NULL);
+    Assert(pvUser == NULL); RT_NOREF1(pvUser);
     Assert(pOpInfo->Operation == OB_OPERATION_HANDLE_CREATE || pOpInfo->Operation == OB_OPERATION_HANDLE_DUPLICATE);
     Assert(pOpInfo->ObjectType == *PsProcessType);
 
@@ -3566,7 +3583,7 @@ AssertCompile((SUPDRV_NT_EVIL_THREAD_RIGHTS & SUPDRV_NT_ALLOWED_THREAD_RIGHTS) =
 static OB_PREOP_CALLBACK_STATUS __stdcall
 supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMATION pOpInfo)
 {
-    Assert(pvUser == NULL);
+    Assert(pvUser == NULL); RT_NOREF1(pvUser);
     Assert(pOpInfo->Operation == OB_OPERATION_HANDLE_CREATE || pOpInfo->Operation == OB_OPERATION_HANDLE_DUPLICATE);
     Assert(pOpInfo->ObjectType == *PsThreadType);
 
@@ -3714,7 +3731,7 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
 static VOID __stdcall
 supdrvNtProtectCallback_ThreadHandlePost(PVOID pvUser, POB_POST_OPERATION_INFORMATION pOpInfo)
 {
-    Assert(pvUser == NULL);
+    Assert(pvUser == NULL); RT_NOREF1(pvUser);
     Assert(pOpInfo->Operation == OB_OPERATION_HANDLE_CREATE || pOpInfo->Operation == OB_OPERATION_HANDLE_DUPLICATE);
     Assert(pOpInfo->ObjectType == *PsThreadType);
 
@@ -3812,7 +3829,7 @@ static void supdrvNtProtectRelease(PSUPDRVNTPROTECT pNtProtect)
         if (pNtProtect->fInTree)
         {
             PSUPDRVNTPROTECT pRemoved = (PSUPDRVNTPROTECT)RTAvlPVRemove(&g_NtProtectTree, pNtProtect->AvlCore.Key);
-            Assert(pRemoved == pNtProtect);
+            Assert(pRemoved == pNtProtect); RT_NOREF_PV(pRemoved);
             pNtProtect->fInTree = false;
         }
 
@@ -3832,7 +3849,7 @@ static void supdrvNtProtectRelease(PSUPDRVNTPROTECT pNtProtect)
                     if (pChild->fInTree)
                     {
                         PSUPDRVNTPROTECT pRemovedChild = (PSUPDRVNTPROTECT)RTAvlPVRemove(&g_NtProtectTree, pChild->AvlCore.Key);
-                        Assert(pRemovedChild == pChild);
+                        Assert(pRemovedChild == pChild); RT_NOREF_PV(pRemovedChild);
                         pChild->fInTree = false;
                     }
                 }
@@ -3905,7 +3922,7 @@ static int supdrvNtProtectVerifyStubForVmProcess(PSUPDRVNTPROTECT pNtProtect, PR
             if (enmStub == kSupDrvNtProtectKind_StubParent)
             {
                 uint32_t cRefs = ASMAtomicIncU32(&pNtStub->cRefs);
-                Assert(cRefs > 0 && cRefs < 1024);
+                Assert(cRefs > 0 && cRefs < 1024); RT_NOREF_PV(cRefs);
             }
             else
                 pNtStub = NULL;
@@ -4381,6 +4398,7 @@ DECLASM(void) supdrvNtQueryVirtualMemory_0x23(void);
 extern "C" NTSYSAPI NTSTATUS NTAPI ZwRequestWaitReplyPort(HANDLE, PVOID, PVOID);
 # endif
 
+
 /**
  * Initalizes the hardening bits.
  *
@@ -4549,18 +4567,21 @@ static NTSTATUS supdrvNtProtectInit(void)
                     static OB_OPERATION_REGISTRATION s_aObOperations[] =
                     {
                         {
-                            PsProcessType,
+                            0, /* PsProcessType - imported, need runtime init, better do it explicitly. */
                             OB_OPERATION_HANDLE_CREATE | OB_OPERATION_HANDLE_DUPLICATE,
                             supdrvNtProtectCallback_ProcessHandlePre,
                             supdrvNtProtectCallback_ProcessHandlePost,
                         },
                         {
-                            PsThreadType,
+                            0, /* PsThreadType - imported, need runtime init, better do it explicitly. */
                             OB_OPERATION_HANDLE_CREATE | OB_OPERATION_HANDLE_DUPLICATE,
                             supdrvNtProtectCallback_ThreadHandlePre,
                             supdrvNtProtectCallback_ThreadHandlePost,
                         },
                     };
+                    s_aObOperations[0].ObjectType = PsProcessType;
+                    s_aObOperations[1].ObjectType = PsThreadType;
+
                     static OB_CALLBACK_REGISTRATION s_ObCallbackReg =
                     {
                         /* .Version                     = */ OB_FLT_REGISTRATION_VERSION,

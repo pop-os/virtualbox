@@ -2,8 +2,9 @@
 /** @file
  * VBoxDrvCfg.cpp - Windows Driver Manipulation API implementation
  */
+
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +14,15 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/VBoxDrvCfg-win.h>
 
-#include <setupapi.h>
-#include <shlobj.h>
+#include <iprt/win/setupapi.h>
+#include <iprt/win/shlobj.h>
 
 #include <string.h>
 
@@ -26,6 +32,10 @@
 
 #include <Newdev.h>
 
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 static PFNVBOXDRVCFG_LOG g_pfnVBoxDrvCfgLog;
 static void *g_pvVBoxDrvCfgLog;
 
@@ -351,7 +361,6 @@ static HRESULT vboxDrvCfgInfQueryFirstPnPId(HINF hInf, LPWSTR *lppszPnPId)
     *lppszPnPId = NULL;
 
     LPWSTR lpszModels;
-    LPWSTR lpszPnPId;
     HRESULT hr = vboxDrvCfgInfQueryModelsSectionName(hInf, &lpszModels, NULL);
     NonStandardLogRelCrap((__FUNCTION__ ": vboxDrvCfgInfQueryModelsSectionName returned lpszModels = (%S)", lpszModels));
     if (hr != S_OK)
@@ -360,6 +369,7 @@ static HRESULT vboxDrvCfgInfQueryFirstPnPId(HINF hInf, LPWSTR *lppszPnPId)
         return hr;
     }
 
+    LPWSTR lpszPnPId = NULL;
     INFCONTEXT InfCtx;
     hr = vboxDrvCfgInfQueryContext(hInf, lpszModels, NULL, &InfCtx);
     if (hr != S_OK)
@@ -443,7 +453,6 @@ VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfUninstall(IN LPCWSTR lpszInfPath, DWORD fF
 static HRESULT vboxDrvCfgCollectInfsSetupDi(const GUID * pGuid, LPCWSTR pPnPId, VBoxDrvCfgStringList & list)
 {
     DWORD dwErr = ERROR_SUCCESS;
-    int counter = 0;
     HDEVINFO hDevInfo = SetupDiCreateDeviceInfoList(
                             pGuid, /* IN LPGUID ClassGuid, OPTIONAL */
                             NULL /*IN HWND hwndParent OPTIONAL */

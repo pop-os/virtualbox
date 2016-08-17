@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1565,6 +1565,7 @@ static DECLCALLBACK(int) rtThreadNameThreadCallback(PAVLPVNODECORE pNode, void *
 {
     PRTTHREADINT pThread = (PRTTHREADINT)pNode;
     rtThreadNativeInformDebugger(pThread);
+    RT_NOREF_PV(pvUser);
     return 0;
 }
 

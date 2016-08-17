@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -247,6 +247,7 @@ DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
 {
     AssertMsgReturn(cb <= _1G, ("%#x\n", cb), VERR_OUT_OF_RANGE); /* for safe size_t -> ULONG */
+    RT_NOREF1(fExecutable);
 
     /*
      * Try allocate the memory and create an MDL for them so
@@ -345,8 +346,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, 
             }
             __except(EXCEPTION_EXECUTE_HANDLER)
             {
+# ifdef LOG_ENABLED
                 NTSTATUS rcNt = GetExceptionCode();
                 Log(("rtR0MemObjNativeAllocLow: Exception Code %#x\n", rcNt));
+# endif
                 /* nothing */
             }
         }
@@ -379,6 +382,7 @@ static int rtR0MemObjNativeAllocContEx(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bo
                                        size_t uAlignment)
 {
     AssertMsgReturn(cb <= _1G, ("%#x\n", cb), VERR_OUT_OF_RANGE); /* for safe size_t -> ULONG */
+    RT_NOREF1(fExecutable);
 #ifdef IPRT_TARGET_NT4
     if (uAlignment != PAGE_SIZE)
         return VERR_NOT_SUPPORTED;
@@ -518,6 +522,7 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t c
     }
     return VERR_NO_MEMORY;
 #else   /* IPRT_TARGET_NT4 */
+    RT_NOREF(ppMem, cb, PhysHighest);
     return VERR_NOT_SUPPORTED;
 #endif  /* IPRT_TARGET_NT4 */
 }
@@ -689,6 +694,7 @@ DECLHIDDEN(int) rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *
     /*
      * MmCreateSection(SEC_RESERVE) + MmMapViewInSystemSpace perhaps?
      */
+    RT_NOREF4(ppMem, pvFixed, cb, uAlignment);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -699,6 +705,7 @@ DECLHIDDEN(int) rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR 
     /*
      * ZeCreateSection(SEC_RESERVE) + ZwMapViewOfSection perhaps?
      */
+    RT_NOREF5(ppMem, R3PtrFixed, cb, uAlignment, R0Process);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -787,8 +794,10 @@ static int rtR0MemObjNtMap(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, voi
         }
         __except(EXCEPTION_EXECUTE_HANDLER)
         {
+#ifdef LOG_ENABLED
             NTSTATUS rcNt = GetExceptionCode();
             Log(("rtR0MemObjNtMap: Exception Code %#x\n", rcNt));
+#endif
 
             /* nothing */
             rc = VERR_MAP_FAILED;
@@ -848,7 +857,9 @@ DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ p
 
 DECLHIDDEN(int) rtR0MemObjNativeProtect(PRTR0MEMOBJINTERNAL pMem, size_t offSub, size_t cbSub, uint32_t fProt)
 {
+#if 0
     PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)pMem;
+#endif
     if (!g_fResolvedDynamicApis)
         rtR0MemObjNtResolveDynamicApis();
 
@@ -966,6 +977,8 @@ DECLHIDDEN(int) rtR0MemObjNativeProtect(PRTR0MEMOBJINTERNAL pMem, size_t offSub,
             return VINF_SUCCESS;
         return RTErrConvertFromNtStatus(rcNt);
     }
+#else
+    RT_NOREF4(pMem, offSub, cbSub, fProt);
 #endif
 
     return VERR_NOT_SUPPORTED;

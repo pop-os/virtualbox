@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -38,12 +38,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <stdint.h>
 #ifndef WIN32
+# include <stdint.h>
 # include <dlfcn.h>
 # include <pthread.h>
 #else /* WIN32 */
-# include <Windows.h>
+# include <iprt/stdint.h>
+# include <iprt/win/windows.h>
 #endif /* WIN32 */
 
 

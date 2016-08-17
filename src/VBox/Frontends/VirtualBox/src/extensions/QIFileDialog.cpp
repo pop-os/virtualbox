@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@
 #  include <QThread>
 
 /* WinAPI includes */
-#  include "shlobj.h"
+#  include <iprt/win/shlobj.h>
 # endif /* !VBOX_WS_WIN */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -94,6 +94,7 @@ static QString winFilter (const QString &aFilter)
  */
 UINT_PTR CALLBACK OFNHookProc (HWND aHdlg, UINT aUiMsg, WPARAM aWParam, LPARAM aLParam)
 {
+    RT_NOREF(aWParam);
     if (aUiMsg == WM_NOTIFY)
     {
         OFNOTIFY *notif = (OFNOTIFY*) aLParam;

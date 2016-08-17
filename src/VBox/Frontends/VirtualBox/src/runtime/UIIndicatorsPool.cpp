@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -863,7 +863,7 @@ private:
                     .arg(VBoxGlobal::tr("Unrestricted Execution"), strUnrestrictExec)
                     .arg(VBoxGlobal::tr("Execution Cap", "details report"), strCPUExecCap));
 
-        // TODO: We had to use that large NLS above for now.
+        /// @todo We had to use that large NLS above for now.
         //       Later it should be reworked to be well-maintainable..
         /* Separately add information about paravirtualization interface feature: */
         tip += QApplication::translate("UIIndicatorsPool", "<br><nobr><b>%1:</b>&nbsp;%2</nobr>", "Virtualization Stuff LED")

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,7 +80,7 @@ bool UIWizardFirstRun::insertMedium()
     /* Get chosen 'dvd' medium to mount: */
     QString mediumId = field("id").toString();
     UIMedium vmedium = vboxGlobal().medium(mediumId);
-    CMedium medium = vmedium.medium(); // @todo r=dj can this be cached somewhere?
+    CMedium medium = vmedium.medium(); /// @todo r=dj can this be cached somewhere?
     /* Mount medium to the predefined port/device: */
     m_machine.MountMedium(cda.GetController(), cda.GetPort(), cda.GetDevice(), medium, false /* force */);
     if (m_machine.isOk())

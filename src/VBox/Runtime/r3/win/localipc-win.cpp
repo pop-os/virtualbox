@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,7 +41,7 @@
 # define _WIN32_WINNT 0x0500
 #endif
 #define UNICODE    /* For the SDDL_ strings. */
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #include <sddl.h>
 
 #include "internal/iprt.h"
@@ -454,7 +454,7 @@ RTDECL(int) RTLocalIpcServerCreate(PRTLOCALIPCSERVER phServer, const char *pszNa
 DECLINLINE(void) rtLocalIpcServerRetain(PRTLOCALIPCSERVERINT pThis)
 {
     uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
-    Assert(cRefs < UINT32_MAX / 2 && cRefs);
+    Assert(cRefs < UINT32_MAX / 2 && cRefs); NOREF(cRefs);
 }
 
 
@@ -902,7 +902,7 @@ static int rtLocalIpcWinCancel(PRTLOCALIPCSESSIONINT pThis)
 DECLINLINE(void) rtLocalIpcSessionRetain(PRTLOCALIPCSESSIONINT pThis)
 {
     uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
-    Assert(cRefs < UINT32_MAX / 2 && cRefs);
+    Assert(cRefs < UINT32_MAX / 2 && cRefs); NOREF(cRefs);
 }
 
 
@@ -1122,7 +1122,7 @@ RTDECL(int) RTLocalIpcSessionRead(RTLOCALIPCSESSION hSession, void *pvBuf, size_
                     }
                     else if (GetLastError() == ERROR_IO_PENDING)
                     {
-                        DWORD rcWait = WaitForSingleObject(pThis->Read.OverlappedIO.hEvent, INFINITE);
+                        WaitForSingleObject(pThis->Read.OverlappedIO.hEvent, INFINITE);
 
                         RTCritSectEnter(&pThis->CritSect);
                         if (GetOverlappedResult(pThis->hNmPipe, &pThis->Read.OverlappedIO, &cbRead, TRUE /*fWait*/))
@@ -1530,7 +1530,7 @@ RTDECL(int) RTLocalIpcSessionWaitForData(RTLOCALIPCSESSION hSession, uint32_t cM
                         rc = VERR_TIMEOUT;
                         break;
                     }
-                    BOOL fRc = ResetEvent(pThis->Read.OverlappedIO.hEvent); Assert(fRc == TRUE);
+                    BOOL fRc = ResetEvent(pThis->Read.OverlappedIO.hEvent); Assert(fRc == TRUE); NOREF(fRc);
                     DWORD cbRead = 0;
                     if (ReadFile(pThis->hNmPipe, pThis->abBuf, 0 /*cbToRead*/, &cbRead, &pThis->Read.OverlappedIO))
                     {
@@ -1552,7 +1552,7 @@ RTDECL(int) RTLocalIpcSessionWaitForData(RTLOCALIPCSESSION hSession, uint32_t cM
                 /*
                  * Check for timeout.
                  */
-                DWORD cMsMaxWait;
+                DWORD cMsMaxWait = INFINITE; /* (MSC maybe used uninitialized) */
                 if (cMillies == RT_INDEFINITE_WAIT)
                     cMsMaxWait = INFINITE;
                 else if (   hWait != INVALID_HANDLE_VALUE
@@ -1621,18 +1621,21 @@ RTDECL(int) RTLocalIpcSessionCancel(RTLOCALIPCSESSION hSession)
 
 RTDECL(int) RTLocalIpcSessionQueryProcess(RTLOCALIPCSESSION hSession, PRTPROCESS pProcess)
 {
+    RT_NOREF_PV(hSession); RT_NOREF_PV(pProcess);
     return VERR_NOT_SUPPORTED;
 }
 
 
 RTDECL(int) RTLocalIpcSessionQueryUserId(RTLOCALIPCSESSION hSession, PRTUID pUid)
 {
+    RT_NOREF_PV(hSession); RT_NOREF_PV(pUid);
     return VERR_NOT_SUPPORTED;
 }
 
 
-RTDECL(int) RTLocalIpcSessionQueryGroupId(RTLOCALIPCSESSION hSession, PRTUID pUid)
+RTDECL(int) RTLocalIpcSessionQueryGroupId(RTLOCALIPCSESSION hSession, PRTGID pGid)
 {
+    RT_NOREF_PV(hSession); RT_NOREF_PV(pGid);
     return VERR_NOT_SUPPORTED;
 }
 

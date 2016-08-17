@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -669,6 +669,8 @@ VMMDECL(void) PGMMapCheck(PVM pVM)
  */
 int pgmMapActivateCR3(PVM pVM, PPGMPOOLPAGE pShwPageCR3)
 {
+    RT_NOREF_PV(pShwPageCR3);
+
     /*
      * Skip this if it doesn't apply.
      */

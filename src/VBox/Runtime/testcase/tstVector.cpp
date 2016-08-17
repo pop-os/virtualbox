@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,6 +56,9 @@ static void deletePVoidValue(void *pv)
 }
 
 /* Start by instantiating each function once for syntax checking */
+#ifdef __clang__
+# pragma GCC diagnostic ignored "-Wunused-function" /* https://llvm.org/bugs/show_bug.cgi?id=22712 */
+#endif
 RTVEC_DECL_STRUCT(tstInstance, void *)
 RTVEC_DECL_STRUCT(tstInstance2, void *)
 
@@ -68,16 +71,14 @@ RTVEC_DECLFN_BEGIN(tstInstance, void *)
 RTVEC_DECLFN_END(tstInstance, void *)
 RTVEC_DECLFN_PUSHBACK(tstInstance, void *)
 RTVEC_DECLFN_POPBACK(tstInstance)
-RTVEC_DECLFN_POPBACK_DELETE(tstInstance2, void *, deletePVoid,
-                            tstInstanceDeleteAdapterId)
+RTVEC_DECLFN_POPBACK_DELETE(tstInstance2, void *, deletePVoid, tstInstanceDeleteAdapterId)
 RTVEC_DECLFN_CLEAR(tstInstance)
-RTVEC_DECLFN_CLEAR_DELETE(tstInstance2, deletePVoid,
-                          tstInstanceDeleteAdapterId)
+RTVEC_DECLFN_CLEAR_DELETE(tstInstance2, deletePVoid, tstInstanceDeleteAdapterId)
 RTVEC_DECLFN_DETACH(tstInstance, void *)
 
 RTVEC_DECL(tstSimple, void *)
 
-static void testVectorSimple(RTTEST hTest)
+static void testVectorSimple(void)
 {
     RTTestISub("Vector structure, no cleanup callback");
 
@@ -141,7 +142,7 @@ static void testVectorSimple(RTTEST hTest)
 
 RTVEC_DECL_DELETE(tstDelete, void *, deletePVoid)
 
-static void testVectorDelete(RTTEST hTest)
+static void testVectorDelete(void)
 {
     RTTestISub("Vector structure with cleanup by pointer callback");
 
@@ -180,7 +181,7 @@ static void testVectorDelete(RTTEST hTest)
 
 RTVEC_DECL_DELETE_BY_VALUE(tstDeleteValue, void *, deletePVoidValue)
 
-static void testVectorDeleteValue(RTTEST hTest)
+static void testVectorDeleteValue(void)
 {
     RTTestISub("Vector structure with cleanup by value callback");
 
@@ -227,9 +228,9 @@ int main()
     if (rcExit != RTEXITCODE_SUCCESS)
         return rcExit;
 
-    testVectorSimple(hTest);
-    testVectorDelete(hTest);
-    testVectorDeleteValue(hTest);
+    testVectorSimple();
+    testVectorDelete();
+    testVectorDeleteValue();
 
     return RTTestSummaryAndDestroy(hTest);
 }

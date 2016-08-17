@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,6 +71,7 @@ RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags, RTLOCKVALCL
 {
     AssertReturn(!(fFlags & ~(RTCRITSECT_FLAGS_NO_NESTING | RTCRITSECT_FLAGS_NO_LOCK_VAL | RTCRITSECT_FLAGS_BOOTSTRAP_HACK | RTCRITSECT_FLAGS_NOP)),
                  VERR_INVALID_PARAMETER);
+    RT_NOREF_PV(hClass); RT_NOREF_PV(uSubClass); RT_NOREF_PV(pszNameFmt);
 
     /*
      * Initialize the structure and
@@ -142,6 +143,7 @@ RTDECL(uint32_t) RTCritSectSetSubClass(PRTCRITSECT pCritSect, uint32_t uSubClass
     AssertReturn(!(pCritSect->fFlags & RTCRITSECT_FLAGS_NOP), RTLOCKVAL_SUB_CLASS_INVALID);
     return RTLockValidatorRecExclSetSubClass(pCritSect->pValidatorRec, uSubClass);
 # else
+    RT_NOREF_PV(pCritSect); RT_NOREF_PV(uSubClass);
     return RTLOCKVAL_SUB_CLASS_INVALID;
 # endif
 }
@@ -157,6 +159,7 @@ DECL_FORCE_INLINE(int) rtCritSectTryEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCP
 #else
     Assert(!(pCritSect->fFlags & RTCRITSECT_FLAGS_RING0));
 #endif
+    RT_NOREF_PV(pSrcPos);
 
     /*
      * Return straight away if NOP.
@@ -237,6 +240,7 @@ DECL_FORCE_INLINE(int) rtCritSectEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCPOS 
 #else
     Assert(!(pCritSect->fFlags & RTCRITSECT_FLAGS_RING0));
 #endif
+    RT_NOREF_PV(pSrcPos);
 
     /*
      * Return straight away if NOP.
@@ -297,7 +301,7 @@ DECL_FORCE_INLINE(int) rtCritSectEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCPOS 
          * Wait for the current owner to release it.
          */
         IPRT_CRITSECT_WAITING(pCritSect, NULL, cLockers, (void *)pCritSect->NativeThreadOwner);
-#ifndef RTCRITSECT_STRICT
+#if !defined(RTCRITSECT_STRICT) && defined(IN_RING3)
         RTTHREAD hThreadSelf = RTThreadSelf();
 #endif
         for (;;)

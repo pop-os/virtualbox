@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,8 +106,8 @@ static HRESULT autostartSaveVMState(ComPtr<IConsole> &console)
 
 DECLHIDDEN(RTEXITCODE) autostartStopMain(PCFGAST pCfgAst)
 {
+    RT_NOREF(pCfgAst);
     RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
-    int vrc = VINF_SUCCESS;
     std::list<AUTOSTOPVM> listVM;
 
     /*

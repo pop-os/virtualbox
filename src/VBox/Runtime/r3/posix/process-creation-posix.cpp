@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -313,6 +313,8 @@ static int rtProcPosixAdjustProfileEnvFromChild(RTENV hEnvToUse, uint32_t fFlags
         else
             rc = VERR_BUFFER_OVERFLOW;
     }
+#else
+    RT_NOREF_PV(hEnvToUse); RT_NOREF_PV(fFlags); RT_NOREF_PV(hEnv);
 #endif
     return rc;
 }

@@ -178,44 +178,44 @@ endif
 
 
 ifndef VBOX_ONLY_SDK
-#
-# Generate library with API class wrappers from the XIDL file.
-#
-LIBRARIES += VBoxAPIWrap
-VBoxAPIWrap_TEMPLATE        = VBoxMainLib
-VBoxAPIWrap_SOURCES         = \
-	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
-	$(VBOX_MAIN_APIWRAPPER_GEN_SRCS)
-VBoxAPIWrap_INTERMEDIATES   = $(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
-VBoxAPIWrap_DEFS.win.x86   += _WIN32_WINNT=0x0500
-VBoxAPIWrap_DEFS.win.amd64 += _WIN32_WINNT=0x0510
-VBoxAPIWrap_INCS           += \
-	include
-VBoxAPIWrap_CLEAN           = \
-	$(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.cpp) \
-	$(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.h) \
-	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d.ts \
-	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
-	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-headers \
-	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-even \
-	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-odd
+ #
+ # Generate library with API class wrappers from the XIDL file.
+ #
+ LIBRARIES += VBoxAPIWrap
+ VBoxAPIWrap_TEMPLATE        = VBoxMainLib
+ VBoxAPIWrap_SOURCES         = \
+ 	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
+ 	$(VBOX_MAIN_APIWRAPPER_GEN_SRCS)
+ VBoxAPIWrap_INTERMEDIATES   = $(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
+ VBoxAPIWrap_DEFS.win.x86   += _WIN32_WINNT=0x0500
+ VBoxAPIWrap_DEFS.win.amd64 += _WIN32_WINNT=0x0510
+ VBoxAPIWrap_INCS           += \
+ 	include
+ VBoxAPIWrap_CLEAN           = \
+ 	$(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.cpp) \
+ 	$(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.h) \
+ 	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d.ts \
+ 	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
+ 	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-headers \
+ 	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-even \
+ 	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-odd
 
-# Two VBox variables used here and/or in the rules generating wrappers.
-VBoxAPIWrap_VBOX_XSLT       = \
-	$(VBOX_PATH_MAIN_SRC)/idl/apiwrap-server.xsl
+ # Two VBox variables used here and/or in the rules generating wrappers.
+ VBoxAPIWrap_VBOX_XSLT       = \
+ 	$(VBOX_PATH_MAIN_SRC)/idl/apiwrap-server.xsl
 
 
-# This include file (generated at the bottom of this file), defines
-# VBOX_MAIN_APIWRAPPER_GEN_SRCS and VBOX_MAIN_APIWRAPPER_GEN_HDRS.
-VBoxAPIWrap_VBOX_KMK_FILE = $(PATH_OUT)/vboxapiwrap.kmk
-include $(VBoxAPIWrap_VBOX_KMK_FILE)
+ # This include file (generated at the bottom of this file), defines
+ # VBOX_MAIN_APIWRAPPER_GEN_SRCS and VBOX_MAIN_APIWRAPPER_GEN_HDRS.
+ VBoxAPIWrap_VBOX_KMK_FILE = $(PATH_OUT)/vboxapiwrap.kmk
+ include $(VBoxAPIWrap_VBOX_KMK_FILE)
 
-ifdef VBOX_WITH_32_ON_64_MAIN_API
-LIBRARIES += VBoxAPIWrap-x86
-VBoxAPIWrap-x86_TEMPLATE = VBoxMainLib-x86
-VBoxAPIWrap-x86_EXTENDS  = VBoxAPIWrap
-VBoxAPIWrap-x86_DTRACE_HDR_FLAGS = -32 # ugly, should be fixed in the tool in Config.kmk
-endif
+ ifdef VBOX_WITH_32_ON_64_MAIN_API
+  LIBRARIES += VBoxAPIWrap-x86
+  VBoxAPIWrap-x86_TEMPLATE = VBoxMainLib-x86
+  VBoxAPIWrap-x86_EXTENDS  = VBoxAPIWrap
+  VBoxAPIWrap-x86_DTRACE_HDR_FLAGS = -32 # ugly, should be fixed in the tool in Config.kmk
+ endif
 
 endif # !VBOX_ONLY_SDK
 
@@ -270,9 +270,10 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_HEADLESS),VBOX_WITH_HEADLESS,) \
 	$(if $(VBOX_WITH_QTGUI),VBOX_WITH_QTGUI,) \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
-	$(if $(VBOX_WITH_OSS),VBOX_WITH_OSS,) \
-	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
-	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE,) \
+	$(if $(VBOX_WITH_AUDIO_OSS),VBOX_WITH_AUDIO_OSS,) \
+	$(if $(VBOX_WITH_AUDIO_ALSA),VBOX_WITH_AUDIO_ALSA,) \
+	$(if $(VBOX_WITH_AUDIO_PULSE),VBOX_WITH_AUDIO_PULSE,) \
+	$(if $(VBOX_WITH_AUDIO_DEBUG),VBOX_WITH_AUDIO_DEBUG,) \
 	$(if $(VBOX_WITH_VRDE_AUDIO),VBOX_WITH_VRDE_AUDIO,) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000,) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO,) \
@@ -304,7 +305,7 @@ VBoxSVC_DEFS.win += _WIN32_WINNT=0x0510
 # VBoxSVC_DEFS.linux += VBOX_USE_LIBHAL
 VBoxSVC_DEFS.solaris += VBOX_USE_LIBHAL
 
-ifneq ($(KBUILD_TARGET),win)
+if $(KBUILD_TARGET) != "win" && $(VBOX_GCC_VERSION_CXX) >= 40900 # gcc 4.9.x (4.8.x is causing endless RT_ELEMENT trouble)
  VBoxSVC_CXXFLAGS = -Wunused -Wconversion
 endif
 
@@ -426,7 +427,6 @@ VBoxSVC_SOURCES.win = \
 	src-server/win/svchlp.cpp \
 	src-server/win/HostPowerWin.cpp \
 	src-server/win/VBoxSVC.rc \
-	src-server/win/VBoxComEvents.cpp \
 	src-server/win/HostDnsServiceWin.cpp
 
 VBoxSVC_SOURCES.linux = \
@@ -641,9 +641,10 @@ VBoxC_DEFS = \
 	$(VBOX_MAIN_DEFS) \
 	VBOX_COM_INPROC \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
-	$(if $(VBOX_WITH_OSS),VBOX_WITH_OSS,) \
-	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
-	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE,) \
+	$(if $(VBOX_WITH_AUDIO_OSS),VBOX_WITH_AUDIO_OSS,) \
+	$(if $(VBOX_WITH_AUDIO_ALSA),VBOX_WITH_AUDIO_ALSA,) \
+	$(if $(VBOX_WITH_AUDIO_PULSE),VBOX_WITH_AUDIO_PULSE,) \
+	$(if $(VBOX_WITH_AUDIO_DEBUG),VBOX_WITH_AUDIO_DEBUG,) \
 	$(if $(VBOX_WITH_VRDE_AUDIO),VBOX_WITH_VRDE_AUDIO,) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000,) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO,) \
@@ -671,7 +672,7 @@ VBoxC_DEFS.darwin.x86 = VBOX_WITH_2X_4GB_ADDR_SPACE
 VBoxC_DEFS.win.x86 += _WIN32_WINNT=0x0500
 VBoxC_DEFS.win.amd64 += _WIN32_WINNT=0x0510
 
-ifneq ($(KBUILD_TARGET),win)
+if $(KBUILD_TARGET) != "win" && $(VBOX_GCC_VERSION_CXX) >= 40900 # gcc 4.9.x (4.8.x is causing endless RT_ELEMENT trouble)
 # VBoxC_CXXFLAGS = -Wunused -Wconversion
 endif
 
@@ -784,12 +785,9 @@ VBoxC_SOURCES = \
 	$(VBOX_XML_SCHEMADEFS_CPP)
 
 # Audio bits.
-VBoxC_DEFS    += \
-	$(if $(VBOX_WITH_AUDIO_50),VBOX_WITH_AUDIO_50,)
-
 VBoxC_SOURCES += \
-	../Devices/$(VBOX_AUDIO_PATH_SOURCES)/AudioMixBuffer.cpp \
-	../Devices/$(VBOX_AUDIO_PATH_SOURCES)/DrvAudioCommon.cpp \
+	../Devices/Audio/AudioMixBuffer.cpp \
+	../Devices/Audio/DrvAudioCommon.cpp \
 	$(if $(VBOX_WITH_VRDE_AUDIO),src-client/DrvAudioVRDE$(VBOX_AUDIO_FILE_SUFFIX).cpp,)
 
 VBoxC_SOURCES.win = \
@@ -1145,6 +1143,24 @@ $(VBoxCOM_0_OUTDIR)/VirtualBox_XPCOM_i.c: $(VBOX_PATH_MAIN_SRC)/idl/xpidl_iid.xs
 	$(call MSG_TOOL,xsltproc,VBoxSVC,$<,$@)
 	$(QUIET)$(VBOX_XSLTPROC) -o $@ $< $(VBOX_XIDL_FILE)
 
+##
+# Edits $1 and adding #pragma directives for disabling warnings windows.h causes.
+# @param 1     The name of the file to edit.
+define def_VBoxMainDisableMscWarnings
+	$(QUIET)$(MV) -f "$1" "$1.tmp"
+	$(QUIET)$(APPEND) -nt "$1" \
+		'#pragma warning(push) /* -Wall and windows.h */' \
+		'#pragma warning(disable:4668 4255)' \
+               ''
+	$(QUIET)$(CAT_EXT) "$1.tmp" >> "$1"
+	$(QUIET)$(APPEND) -n "$1" \
+		'' \
+		'#pragma warning(pop)' \
+               ''
+	$(QUIET)$(RM) -f "$1.tmp"
+
+endef
+
 # Note! Because we've got a different proxy stub DLL for pre windows 7 64-bit hosts, we target windows 7 for AMD64.
 #       The output is different and hopefully more efficient, at least memory wise (using more helpers in OLE32).
 # Note! We're checking for win.amd64 below when setting the target because of the SDK build which happens on linux.amd64
@@ -1153,7 +1169,7 @@ $(if $(VBOX_WITH_MIDL_PROXY_STUB),$(VBoxCOM_0_OUTDIR)/VirtualBox_p.c + $(VBoxCOM
 $(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
 + $(VBoxCOM_0_OUTDIR)/VirtualBox.h \
 + $(VBoxCOM_0_OUTDIR)/VirtualBox.tlb: $(VBOX_IDL_FILE.MSCOM) | $$(dir $$@)
-	$(VBOX_WIN_MIDL) /nologo \
+	$(VBOX_WIN_MIDL) /nologo /W4 \
 		/env $(if-expr "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.amd64" ,amd64,win32) \
 		/robust /protocol all /target $(if-expr defined(VBOX_WITH_MIDL_PROXY_STUB),NT61,NT51) \
 		/out $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM_0_OUTDIR)) \
@@ -1161,6 +1177,9 @@ $(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
 		/I $(call VBOX_FN_MAKE_WIN_PATH,$(PATH_SDK_$(VBOX_WINPSDK)_INC)) \
 		/I idl \
 		$(call VBOX_FN_MAKE_WIN_PATH,$<)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM_0_OUTDIR)/VirtualBox.h)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM_0_OUTDIR)/VirtualBox_p.c)
 
 if defined(VBOX_WITH_MIDL_PROXY_STUB)
 # -Windows Server 2003 AMD64 SP1 does not like the result when using '/protocol all' and '/target NT51'.
@@ -1172,7 +1191,7 @@ $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c \
 + $(VBoxCOM_0_OUTDIR)/legacy/dlldata.c \
 + $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.h \
 + $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.tlb: $(VBOX_IDL_FILE.MSCOM) | $$(dir $$@)
-	$(VBOX_WIN_MIDL) /nologo \
+	$(VBOX_WIN_MIDL) /nologo /W4 \
 		$(if-expr "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.amd64" \
 		,/env amd64 /x64 /target NT50 /robust \
 		,/env win32      /target NT51 /robust /protocol all ) \
@@ -1181,6 +1200,9 @@ $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c \
 		/I $(call VBOX_FN_MAKE_WIN_PATH,$(PATH_SDK_$(VBOX_WINPSDK)_INC)) \
 		/I idl \
 		$(call VBOX_FN_MAKE_WIN_PATH,$<)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.h)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_p.c)
 endif
 
 # The XP targetted 32-bit proxy stub works with all versions of windows (the
@@ -1189,7 +1211,7 @@ $(if $(VBOX_WITH_MIDL_PROXY_STUB),$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c + $(VBo
 $(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c \
 + $(VBoxCOM-x86_0_OUTDIR)/VirtualBox.h \
 + $(VBoxCOM-x86_0_OUTDIR)/VirtualBox-x86.tlb: $(VBOX_IDL_FILE.MSCOM) | $$(dir $$@)
-	$(VBOX_WIN_MIDL) /nologo \
+	$(VBOX_WIN_MIDL) /nologo /W4 \
 		/env win32 /target NT51 /robust /protocol all  \
 		/out $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM-x86_0_OUTDIR)) \
 		/tlb $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM-x86_0_OUTDIR)/VirtualBox-x86.tlb) \
@@ -1197,6 +1219,9 @@ $(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c \
 		/I $(call VBOX_FN_MAKE_WIN_PATH,$(PATH_SDK_$(VBOX_WINPSDK)_INC)) \
 		/I idl \
 		$(call VBOX_FN_MAKE_WIN_PATH,$<)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM-x86_0_OUTDIR)/VirtualBox.h)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c)
+	$(call def_VBoxMainDisableMscWarnings,$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c)
 
 #
 # Translation stuff
@@ -1253,11 +1278,11 @@ $(VBOX_JMSCOM_GEN)/jmscomglue.list: \
 	$(call MSG_L1,Generating Java MSCOM glue files from XIDL)
 	$(QUIET)$(RM) -f $(wildcard $(VBOX_JMSCOM_GEN)/java/*.java)
 	$(QUIET)$(VBOX_XSLTPROC) \
-              --stringparam filelistonly ""                    \
-              --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
-              --stringparam G_vboxGlueStyle mscom              \
-              --stringparam G_vboxDirPrefix ""                 \
-              -o $(VBOX_JMSCOM_GEN)/java/merged.file $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $<
+		--stringparam filelistonly "" \
+		--stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
+		--stringparam G_vboxGlueStyle mscom \
+		--stringparam G_vboxDirPrefix "" \
+		-o $(VBOX_JMSCOM_GEN)/java/merged.file $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $<
 	$(QUIET)$(VBOX_FILESPLIT) $(VBOX_JMSCOM_GEN)/java/merged.file $(VBOX_JMSCOM_GEN)/java
 	$(QUIET)echo $(VBOX_JMSCOM_GEN)/java/*.java > $@
 

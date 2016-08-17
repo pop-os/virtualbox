@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -495,6 +495,8 @@ DECLINLINE(void) lsilogicClearInterrupt(PLSILOGICSCSI pThis, uint32_t uStatus)
     lsilogicUpdateInterrupt(pThis);
 }
 
+
+#ifdef IN_RING3
 /**
  * Sets the I/O controller into fault state and sets the fault code.
  *
@@ -513,6 +515,8 @@ DECLINLINE(void) lsilogicSetIOCFaultCode(PLSILOGICSCSI pThis, uint16_t uIOCFault
     else
         LogFunc(("We are already in FAULT state\n"));
 }
+#endif /* IN_RING3 */
+
 
 /**
  * Returns the number of frames in the reply free queue.
@@ -532,6 +536,8 @@ DECLINLINE(uint32_t) lsilogicReplyFreeQueueGetFrameCount(PLSILOGICSCSI pThis)
     return cReplyFrames;
 }
 
+#ifdef IN_RING3
+
 /**
  * Returns the number of free entries in the reply post queue.
  *
@@ -550,7 +556,6 @@ DECLINLINE(uint32_t) lsilogicReplyPostQueueGetFrameCount(PLSILOGICSCSI pThis)
     return cReplyFrames;
 }
 
-#ifdef IN_RING3
 
 /**
  * Performs a hard reset on the controller.
@@ -586,7 +591,7 @@ static int lsilogicR3HardReset(PLSILOGICSCSI pThis)
     /* Set default values. */
     pThis->cMaxDevices    = pThis->cDeviceStates;
     pThis->cMaxBuses      = 1;
-    pThis->cbReplyFrame   = 128; /* @todo Figure out where it is needed. */
+    pThis->cbReplyFrame   = 128; /** @todo Figure out where it is needed. */
     pThis->u16NextHandle  = 1;
     pThis->u32DiagMemAddr = 0;
 
@@ -675,7 +680,6 @@ static void lsilogicR3FinishContextReply(PLSILOGICSCSI pThis, uint32_t u32Messag
     PDMCritSectLeave(&pThis->ReplyPostQueueCritSect);
 }
 
-#endif /* IN_RING3 */
 
 /**
  * Takes necessary steps to finish a reply frame.
@@ -707,7 +711,7 @@ static void lsilogicFinishAddressReply(PLSILOGICSCSI pThis, PMptReplyUnion pRepl
          * Requests from the request queue are always transferred to R3. So it is not possible
          * that this case happens in R0 or GC.
          */
-#ifdef IN_RING3
+# ifdef IN_RING3
         int rc;
         /* Grab a free reply message from the queue. */
         rc = PDMCritSectEnter(&pThis->ReplyFreeQueueCritSect, VINF_SUCCESS);
@@ -765,13 +769,12 @@ static void lsilogicFinishAddressReply(PLSILOGICSCSI pThis, PMptReplyUnion pRepl
         lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_REPLY_INTR);
 
         PDMCritSectLeave(&pThis->ReplyPostQueueCritSect);
-#else
+# else
         AssertMsgFailed(("This is not allowed to happen.\n"));
-#endif
+# endif
     }
 }
 
-#ifdef IN_RING3
 
 /**
  * Tries to find a memory region which covers the given address.
@@ -1092,7 +1095,7 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
             pReply->IOCFacts.u8BlockSize          = 12;     /* Block size in 32bit dwords. This is the largest request we can get (SCSI I/O). */
             pReply->IOCFacts.u8Flags              = 0;      /* Bit 0 is set if the guest must upload the FW prior to using the controller. Obviously not needed here. */
             pReply->IOCFacts.u16ReplyQueueDepth   = pThis->cReplyQueueEntries - 1; /* One entry is always free. */
-            pReply->IOCFacts.u16RequestFrameSize  = 128;    /* @todo Figure out where it is needed. */
+            pReply->IOCFacts.u16RequestFrameSize  = 128;    /** @todo Figure out where it is needed. */
             pReply->IOCFacts.u32CurrentHostMFAHighAddr = pThis->u32HostMFAHighAddr;
             pReply->IOCFacts.u16GlobalCredits     = pThis->cRequestQueueEntries - 1; /* One entry is always free. */
 
@@ -1111,7 +1114,7 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
                 PFwImageHdr pFwImgHdr = (PFwImageHdr)&pRegion->au32Data[offImgHdr];
 
                 /* Check for the signature. */
-                /** @todo: Checksum validation. */
+                /** @todo Checksum validation. */
                 if (   pFwImgHdr->u32Signature1 == LSILOGIC_FWIMGHDR_SIGNATURE1
                     && pFwImgHdr->u32Signature2 == LSILOGIC_FWIMGHDR_SIGNATURE2
                     && pFwImgHdr->u32Signature3 == LSILOGIC_FWIMGHDR_SIGNATURE3)
@@ -1687,6 +1690,7 @@ PDMBOTHCBDECL(int) lsilogicIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
     PLSILOGICSCSI   pThis  = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     uint32_t        offReg = Port - pThis->IOPortBase;
     int             rc;
+    RT_NOREF2(pvUser, cb);
 
     if (!(offReg & 3))
     {
@@ -1710,6 +1714,8 @@ PDMBOTHCBDECL(int) lsilogicIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
 {
     PLSILOGICSCSI   pThis   = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     uint32_t        offReg  = Port - pThis->IOPortBase;
+    RT_NOREF_PV(pvUser);
+    RT_NOREF_PV(cb);
 
     int rc = lsilogicRegisterRead(pThis, offReg & ~(uint32_t)3, pu32);
     if (rc == VINF_IOM_R3_MMIO_READ)
@@ -1727,6 +1733,7 @@ PDMBOTHCBDECL(int) lsilogicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS 
     uint32_t        offReg = GCPhysAddr - pThis->GCPhysMMIOBase;
     uint32_t        u32;
     int             rc;
+    RT_NOREF_PV(pvUser);
 
     /* See comments in lsilogicR3Map regarding size and alignment. */
     if (cb == 4)
@@ -1760,6 +1767,7 @@ PDMBOTHCBDECL(int) lsilogicMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS G
     PLSILOGICSCSI   pThis  = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     uint32_t        offReg = GCPhysAddr - pThis->GCPhysMMIOBase;
     Assert(!(offReg & 3)); Assert(cb == 4);
+    RT_NOREF2(pvUser, cb);
 
     return lsilogicRegisterRead(pThis, offReg, (uint32_t *)pv);
 }
@@ -1767,20 +1775,24 @@ PDMBOTHCBDECL(int) lsilogicMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS G
 PDMBOTHCBDECL(int) lsilogicDiagnosticWrite(PPDMDEVINS pDevIns, void *pvUser,
                                            RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
+#ifdef LOG_ENABLED
     PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-
     LogFlowFunc(("pThis=%#p GCPhysAddr=%RGp pv=%#p{%.*Rhxs} cb=%u\n", pThis, GCPhysAddr, pv, cb, pv, cb));
+#endif
 
+    RT_NOREF_PV(pDevIns); RT_NOREF_PV(pvUser); RT_NOREF_PV(GCPhysAddr); RT_NOREF_PV(pv); RT_NOREF_PV(cb);
     return VINF_SUCCESS;
 }
 
 PDMBOTHCBDECL(int) lsilogicDiagnosticRead(PPDMDEVINS pDevIns, void *pvUser,
                                           RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
+#ifdef LOG_ENABLED
     PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-
     LogFlowFunc(("pThis=%#p GCPhysAddr=%RGp pv=%#p{%.*Rhxs} cb=%u\n", pThis, GCPhysAddr, pv, cb, pv, cb));
+#endif
 
+    RT_NOREF_PV(pDevIns); RT_NOREF_PV(pvUser); RT_NOREF_PV(GCPhysAddr); RT_NOREF_PV(pv); RT_NOREF_PV(cb);
     return VINF_SUCCESS;
 }
 
@@ -2190,7 +2202,7 @@ static int lsilogicR3ProcessSCSIIORequest(PLSILOGICSCSI pThis, PLSILOGICREQ pLsi
 
                 rc = lsilogicIoBufAllocate(pThis->CTX_SUFF(pDevIns), pLsiReq,
                                                            pLsiReq->GuestRequest.SCSIIO.u32DataLength);
-                AssertRC(rc); /** @todo: Insufficient resources error. */
+                AssertRC(rc); /** @todo Insufficient resources error. */
             }
 
             /* Setup the SCSI request. */
@@ -2286,9 +2298,10 @@ static int lsilogicR3ProcessSCSIIORequest(PLSILOGICSCSI pThis, PLSILOGICREQ pLsi
 static DECLCALLBACK(int) lsilogicR3DeviceSCSIRequestCompleted(PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest,
                                                               int rcCompletion, bool fRedo, int rcReq)
 {
-    PLSILOGICREQ pLsiReq      = (PLSILOGICREQ)pSCSIRequest->pvUser;
-    PLSILOGICDEVICE    pLsiLogicDevice = pLsiReq->pTargetDevice;
-    PLSILOGICSCSI      pThis       = pLsiLogicDevice->CTX_SUFF(pLsiLogic);
+    RT_NOREF(pInterface);
+    PLSILOGICREQ    pLsiReq         = (PLSILOGICREQ)pSCSIRequest->pvUser;
+    PLSILOGICDEVICE pLsiLogicDevice = pLsiReq->pTargetDevice;
+    PLSILOGICSCSI   pThis           = pLsiLogicDevice->CTX_SUFF(pLsiLogic);
 
     /* If the task failed but it is possible to redo it again after a suspend
      * add it to the list. */
@@ -2405,6 +2418,7 @@ static int lsilogicR3ConfigurationIOUnitPageGetFromNumber(PLSILOGICSCSI pThis,
                                                           PMptConfigurationPageHeader *ppPageHeader,
                                                           uint8_t **ppbPageData, size_t *pcbPage)
 {
+    RT_NOREF(pThis);
     int rc = VINF_SUCCESS;
 
     AssertPtr(ppPageHeader); Assert(ppbPageData);
@@ -2459,6 +2473,7 @@ static int lsilogicR3ConfigurationIOCPageGetFromNumber(PLSILOGICSCSI pThis,
                                                        PMptConfigurationPageHeader *ppPageHeader,
                                                        uint8_t **ppbPageData, size_t *pcbPage)
 {
+    RT_NOREF(pThis);
     int rc = VINF_SUCCESS;
 
     AssertPtr(ppPageHeader); Assert(ppbPageData);
@@ -2607,6 +2622,7 @@ static int lsilogicR3ConfigurationBiosPageGetFromNumber(PLSILOGICSCSI pThis,
                                                         PMptConfigurationPageHeader *ppPageHeader,
                                                         uint8_t **ppbPageData, size_t *pcbPage)
 {
+    RT_NOREF(pThis);
     int rc = VINF_SUCCESS;
 
     AssertPtr(ppPageHeader); Assert(ppbPageData);
@@ -2652,6 +2668,7 @@ static int lsilogicR3ConfigurationSCSISPIPortPageGetFromNumber(PLSILOGICSCSI pTh
                                                                PMptConfigurationPageHeader *ppPageHeader,
                                                                uint8_t **ppbPageData, size_t *pcbPage)
 {
+    RT_NOREF(pThis);
     int rc = VINF_SUCCESS;
     AssertPtr(ppPageHeader); Assert(ppbPageData);
 
@@ -2700,6 +2717,7 @@ static int lsilogicR3ConfigurationSCSISPIDevicePageGetFromNumber(PLSILOGICSCSI p
                                                                  PMptConfigurationPageHeader *ppPageHeader,
                                                                  uint8_t **ppbPageData, size_t *pcbPage)
 {
+    RT_NOREF(pThis);
     int rc = VINF_SUCCESS;
     AssertPtr(ppPageHeader); Assert(ppbPageData);
 
@@ -2744,6 +2762,7 @@ static int lsilogicR3ConfigurationSASIOUnitPageGetFromNumber(PLSILOGICSCSI pThis
                                                              PMptExtendedConfigurationPageHeader *ppPageHeader,
                                                              uint8_t **ppbPageData, size_t *pcbPage)
 {
+    RT_NOREF(pThis);
     int rc = VINF_SUCCESS;
 
     switch (u8PageNumber)
@@ -2782,6 +2801,7 @@ static int lsilogicR3ConfigurationSASPHYPageGetFromNumber(PLSILOGICSCSI pThis,
                                                           PMptExtendedConfigurationPageHeader *ppPageHeader,
                                                           uint8_t **ppbPageData, size_t *pcbPage)
 {
+    RT_NOREF(pThis);
     int rc = VINF_SUCCESS;
     uint8_t uAddressForm = MPT_CONFIGURATION_PAGE_ADDRESS_GET_SAS_FORM(PageAddress);
     PMptConfigurationPagesSas pPagesSas = &pPages->u.SasPages;
@@ -2845,6 +2865,7 @@ static int lsilogicR3ConfigurationSASDevicePageGetFromNumber(PLSILOGICSCSI pThis
                                                              PMptExtendedConfigurationPageHeader *ppPageHeader,
                                                              uint8_t **ppbPageData, size_t *pcbPage)
 {
+    RT_NOREF(pThis);
     int rc = VINF_SUCCESS;
     uint8_t uAddressForm = MPT_CONFIGURATION_PAGE_ADDRESS_GET_SAS_FORM(PageAddress);
     PMptConfigurationPagesSas pPagesSas = &pPages->u.SasPages;
@@ -3717,6 +3738,7 @@ static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis)
  */
 static DECLCALLBACK(bool) lsilogicR3NotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem)
 {
+    RT_NOREF(pItem);
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     int rc = VINF_SUCCESS;
 
@@ -3759,6 +3781,7 @@ static int lsilogicR3GetCtrlTypeFromString(PLSILOGICSCSI pThis, const char *pcsz
  */
 static DECLCALLBACK(int) lsilogicR3IsaIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pvUser, cb);
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
     Assert(cb == 1);
@@ -3835,6 +3858,7 @@ static int lsilogicR3PrepareBiosScsiRequest(PLSILOGICSCSI pThis)
  */
 static DECLCALLBACK(int) lsilogicR3IsaIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pvUser, cb);
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     Log2(("#%d %s: pvUser=%#p cb=%d u32=%#x Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, u32, Port));
 
@@ -3872,6 +3896,7 @@ static DECLCALLBACK(int) lsilogicR3IsaIOPortWrite(PPDMDEVINS pDevIns, void *pvUs
 static DECLCALLBACK(int) lsilogicR3IsaIOPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
                                                      uint8_t const *pbSrc, uint32_t *pcTransfers, unsigned cb)
 {
+    RT_NOREF(pvUser);
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     Log2(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
@@ -3900,6 +3925,7 @@ static DECLCALLBACK(int) lsilogicR3IsaIOPortWriteStr(PPDMDEVINS pDevIns, void *p
 static DECLCALLBACK(int) lsilogicR3IsaIOPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
                                                     uint8_t *pbDst, uint32_t *pcTransfers, unsigned cb)
 {
+    RT_NOREF(pvUser);
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     LogFlowFunc(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
@@ -4313,6 +4339,7 @@ static DECLCALLBACK(int) lsilogicR3Worker(PPDMDEVINS pDevIns, PPDMTHREAD pThread
  */
 static DECLCALLBACK(int) lsilogicR3WorkerWakeUp(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pThread);
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     return SUPSemEventSignal(pThis->pSupDrvSession, pThis->hEvtProcess);
 }
@@ -4350,6 +4377,7 @@ static void lsilogicR3Kick(PLSILOGICSCSI pThis)
  */
 static DECLCALLBACK(int) lsilogicR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF(uPass);
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
     SSMR3PutU32(pSSM, pThis->enmCtrlType);
@@ -4517,7 +4545,7 @@ static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
 
     vboxscsiR3SaveExec(&pThis->VBoxSCSI, pSSM);
-    return SSMR3PutU32(pSSM, ~0);
+    return SSMR3PutU32(pSSM, UINT32_MAX);
 }
 
 /**
@@ -4525,6 +4553,7 @@ static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) lsilogicR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
     lsilogicR3Kick(pThis);
@@ -4858,7 +4887,7 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     rc = SSMR3GetU32(pSSM, &u32);
     if (RT_FAILURE(rc))
         return rc;
-    AssertMsgReturn(u32 == ~0U, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+    AssertMsgReturn(u32 == UINT32_MAX, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
 
     return VINF_SUCCESS;
 }
@@ -5067,6 +5096,7 @@ static DECLCALLBACK(void) lsilogicR3Resume(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) lsilogicR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PLSILOGICSCSI   pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     PLSILOGICDEVICE pDevice = &pThis->paDeviceStates[iLUN];
 

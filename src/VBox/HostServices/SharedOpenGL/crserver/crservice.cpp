@@ -1,11 +1,10 @@
 /* $Id: crservice.cpp $ */
-
 /** @file
- * VBox crOpenGL: Host service entry points.
+ * VBox crOpenGL - Host service entry points.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1503,9 +1502,9 @@ static DECLCALLBACK(int) svcHostCall(void *, uint32_t u32Function, uint32_t cPar
                     WARN(("svcHostCall: invalid function %d", pCtl->enmType));
                     return VERR_INVALID_PARAMETER;
             }
-            WARN(("should not be here!"));
-            return VERR_INTERNAL_ERROR;
+            /* not reached. */
         }
+
         default:
             if (g_u32fCrHgcmDisabled)
             {
@@ -1564,7 +1563,7 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
 
 #ifdef RT_OS_WINDOWS
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include <iprt/win/windows.h>
 BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
 {
     (void) lpvReserved;

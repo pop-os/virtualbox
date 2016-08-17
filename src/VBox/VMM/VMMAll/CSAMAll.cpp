@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,6 +63,8 @@ csamCodePageWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
     Log(("csamCodePageWriteHandler: write to %RGv LB %zu\n", GCPtr, cbBuf));
     Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
     Assert(VMCPU_IS_EMT(pVCpu));
+    RT_NOREF_PV(pvUser);
+    RT_NOREF_PV(enmOrigin);
 
     /*
      * Check if it's a dummy write that doesn't change anything.
@@ -80,6 +82,7 @@ csamCodePageWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
      */
     int rc = PATMR3PatchWrite(pVM, GCPtr, (uint32_t)cbBuf);
     AssertRC(rc);
+    RT_NOREF_PV(pVCpu);
     return VINF_PGM_HANDLER_DO_DEFAULT;
 
 #else

@@ -901,7 +901,7 @@ HRESULT Appliance::i_searchUniqueVMName(Utf8Str& aName) const
     IMachine *machine = NULL;
     char *tmpName = RTStrDup(aName.c_str());
     int i = 1;
-    /** @todo: Maybe too cost-intensive; try to find a lighter way */
+    /** @todo Maybe too cost-intensive; try to find a lighter way */
     while (mVirtualBox->FindMachine(Bstr(tmpName).raw(), &machine) != VBOX_E_OBJECT_NOT_FOUND)
     {
         RTStrFree(tmpName);
@@ -921,7 +921,7 @@ HRESULT Appliance::i_searchUniqueDiskImageFilePath(Utf8Str& aName) const
     int i = 1;
     /* Check if the file exists or if a file with this path is registered
      * already */
-    /** @todo: Maybe too cost-intensive; try to find a lighter way */
+    /** @todo Maybe too cost-intensive; try to find a lighter way */
     while (    RTPathExists(tmpName)
             || mVirtualBox->OpenMedium(Bstr(tmpName).raw(), DeviceType_HardDisk, AccessMode_ReadWrite,
                                        FALSE /* fForceNewUuid */,  &harddisk) != VBOX_E_OBJECT_NOT_FOUND)
@@ -1208,24 +1208,23 @@ void Appliance::i_parseBucket(Utf8Str &aPath, Utf8Str &aBucket)
 }
 
 /**
- * Thread function for the thread started in Appliance::readImpl() and Appliance::importImpl()
+ * Worker for TaskOVF::handler.
+ *
+ * The TaskOVF is started in Appliance::readImpl() and Appliance::importImpl()
  * and Appliance::writeImpl().
  *
  * This will in turn call Appliance::readFS() or Appliance::importFS() or
  * Appliance::writeFS().
  *
- * @param aThread
- * @param pvUser
+ * @thread  pTask       The task.
  */
 /* static */
-DECLCALLBACK(int) Appliance::i_taskThreadImportOrExport(RTTHREAD /* aThread */, void *pvUser)
+void Appliance::i_importOrExportThreadTask(TaskOVF *pTask)
 {
-    TaskOVF *pTask = static_cast<TaskOVF*>(pvUser);
-    AssertReturn(pTask, VERR_GENERAL_FAILURE);
+    LogFlowFuncEnter();
+    AssertReturnVoid(pTask);
 
     Appliance *pAppliance = pTask->pAppliance;
-
-    LogFlowFuncEnter();
     LogFlowFunc(("Appliance %p taskType=%d\n", pAppliance, pTask->taskType));
 
     switch (pTask->taskType)
@@ -1282,8 +1281,6 @@ DECLCALLBACK(int) Appliance::i_taskThreadImportOrExport(RTTHREAD /* aThread */, 
         pTask->pProgress->i_notifyComplete(pTask->rc);
 
     LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
 }
 
 /* static */
@@ -1657,7 +1654,8 @@ const VirtualSystemDescriptionEntry* VirtualSystemDescription::i_findControllerF
             case VirtualSystemDescriptionType_HardDiskControllerSAS:
                 if (d.strRef == strRef)
                     return &d;
-            break;
+                break;
+            default: break; /* Shut up MSC. */
         }
     }
 

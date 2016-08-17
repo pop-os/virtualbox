@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -476,10 +476,9 @@ DECLCALLBACK(int) getRectsCallback(VBoxGuestWinInfo *pInfo,
 int SeamlessX11::updateRects(void)
 {
     LogRelFlowFunc(("\n"));
-    unsigned cRects = 0;
     struct RectList rects = RTVEC_INITIALIZER;
 
-    if (0 != mcRects)
+    if (mcRects != 0)
     {
         int rc = RectListReserve(&rects, mcRects * 2);
         if (RT_FAILURE(rc))

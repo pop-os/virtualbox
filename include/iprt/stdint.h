@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,7 @@
  */
 #if !(defined(RT_OS_LINUX) && defined(__KERNEL__))  \
   && !(defined(RT_OS_FREEBSD) && defined(_KERNEL)) \
+  && !(defined(RT_OS_NETBSD) && defined(_KERNEL)) \
   && RT_MSC_PREREQ_EX(RT_MSC_VER_VS2010, 1 /*non-msc*/) \
   && !defined(__IBMC__) \
   && !defined(__IBMCPP__) \
@@ -47,7 +48,14 @@
 # ifndef __STDC_LIMIT_MACROS
 #  define __STDC_LIMIT_MACROS
 # endif
+# ifdef _MSC_VER
+#  pragma warning(push)
+#  pragma warning(disable:4668)
+# endif
 # include <stdint.h>
+# ifdef _MSC_VER
+#  pragma warning(pop)
+# endif
 
 # if defined(RT_OS_DARWIN) && defined(KERNEL) && defined(RT_ARCH_AMD64)
  /*
@@ -63,6 +71,16 @@
 # endif /* 64-bit darwin kludge. */
 
 #elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
+
+# ifndef __STDC_CONSTANT_MACROS
+#  define __STDC_CONSTANT_MACROS
+# endif
+# ifndef __STDC_LIMIT_MACROS
+#  define __STDC_LIMIT_MACROS
+# endif
+# include <sys/stdint.h>
+
+#elif defined(RT_OS_NETBSD) && defined(_KERNEL)
 
 # ifndef __STDC_CONSTANT_MACROS
 #  define __STDC_CONSTANT_MACROS

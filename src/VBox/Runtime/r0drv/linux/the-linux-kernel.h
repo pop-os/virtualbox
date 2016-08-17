@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,16 @@
  */
 #include <iprt/types.h>
 #define bool linux_bool
+
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic push
+#endif
+#if RT_GNUC_PREREQ(4, 2)
+# pragma GCC diagnostic ignored "-Wunused-parameter"
+# if !defined(__cplusplus) && RT_GNUC_PREREQ(4, 3)
+#  pragma GCC diagnostic ignored "-Wold-style-declaration" /* 2.6.18-411.0.0.0.1.el5/build/include/asm/apic.h:110: warning: 'inline' is not at beginning of declaration [-Wold-style-declaration] */
+# endif
+#endif
 
 #include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
@@ -249,9 +259,9 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 8) && defined(PAGE_KERNEL_EXEC) && defined(CONFIG_X86_PAE)
 # ifdef __PAGE_KERNEL_EXEC
    /* >= 2.6.27 */
-#  define MY_PAGE_KERNEL_EXEC   __pgprot(cpu_has_pge ? __PAGE_KERNEL_EXEC | _PAGE_GLOBAL : __PAGE_KERNEL_EXEC)
+#  define MY_PAGE_KERNEL_EXEC   __pgprot(boot_cpu_has(X86_FEATURE_PGE) ? __PAGE_KERNEL_EXEC | _PAGE_GLOBAL : __PAGE_KERNEL_EXEC)
 # else
-#  define MY_PAGE_KERNEL_EXEC   __pgprot(cpu_has_pge ? _PAGE_KERNEL_EXEC | _PAGE_GLOBAL : _PAGE_KERNEL_EXEC)
+#  define MY_PAGE_KERNEL_EXEC   __pgprot(boot_cpu_has(X86_FEATURE_PGE) ? _PAGE_KERNEL_EXEC | _PAGE_GLOBAL : _PAGE_KERNEL_EXEC)
 # endif
 #else
 # define MY_PAGE_KERNEL_EXEC    PAGE_KERNEL
@@ -336,6 +346,10 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
  * Stop using the linux bool type.
  */
 #undef bool
+
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic pop
+#endif
 
 /*
  * There are post-2.6.24 kernels (confusingly with unchanged version number)

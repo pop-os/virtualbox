@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@ typedef struct
 AssertCompileSize(MsixTableRecord, VBOX_MSIX_ENTRY_SIZE);
 #pragma pack()
 
-/** @todo: use accessors so that raw PCI devices work correctly with MSI-X. */
+/** @todo use accessors so that raw PCI devices work correctly with MSI-X. */
 DECLINLINE(uint16_t)  msixGetMessageControl(PPCIDEVICE pDev)
 {
     return PCIDevGetWord(pDev, pDev->Int.s.u8MsixCapOffset + VBOX_MSIX_CAP_MESSAGE_CONTROL);
@@ -131,7 +131,7 @@ PDMBOTHCBDECL(int) msixMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
 
 PDMBOTHCBDECL(int) msixMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
-    /// @todo: qword accesses?
+    /// @todo qword accesses?
     AssertMsgReturn(cb == 4,
                     ("MSI-X must be accessed with 4-byte reads"),
                     VERR_INTERNAL_ERROR);
@@ -329,12 +329,12 @@ void MsixPciConfigWrite(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev
 
 uint32_t MsixPciConfigRead(PPDMDEVINS pDevIns, PPCIDEVICE pDev, uint32_t u32Address, unsigned len)
 {
-    int32_t iOff = u32Address - pDev->Int.s.u8MsixCapOffset;
     NOREF(pDevIns);
-
+#if defined(LOG_ENABLED) || defined(VBOX_STRICT)
+    int32_t iOff = u32Address - pDev->Int.s.u8MsixCapOffset;
     Assert(iOff >= 0 && (pciDevIsMsixCapable(pDev) && iOff < pDev->Int.s.u8MsixCapSize));
-    uint32_t rv = 0;
-
+#endif
+    uint32_t rv;
     switch (len)
     {
         case 1:
@@ -347,10 +347,11 @@ uint32_t MsixPciConfigRead(PPDMDEVINS pDevIns, PPCIDEVICE pDev, uint32_t u32Addr
             rv = PCIDevGetDWord(pDev, u32Address);
             break;
         default:
-            Assert(false);
+            AssertFailed();
+            rv = 0;
     }
 
     Log2(("MsixPciConfigRead: %d (%d) -> %x\n", iOff, len, rv));
-
     return rv;
 }
+

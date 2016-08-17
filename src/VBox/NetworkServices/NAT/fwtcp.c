@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -239,6 +239,7 @@ fwtcp_pmgr_listen(struct pollmgr_handler *handler, SOCKET fd, int revents)
     }
 
 
+#ifdef LOG_ENABLED
     if (ss.ss_family == PF_INET) {
         struct sockaddr_in *peer4 = (struct sockaddr_in *)&ss;
         DPRINTF(("<--- TCP %RTnaipv4:%d\n",
@@ -249,6 +250,7 @@ fwtcp_pmgr_listen(struct pollmgr_handler *handler, SOCKET fd, int revents)
         DPRINTF(("<--- TCP %RTnaipv6:%d\n",
                  &peer6->sin6_addr, ntohs(peer6->sin6_port)));
     }
+#endif
 
     pxtcp = pxtcp_create_forwarded(newsock);
     if (pxtcp == NULL) {

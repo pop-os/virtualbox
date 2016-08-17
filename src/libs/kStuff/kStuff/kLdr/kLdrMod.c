@@ -1,4 +1,4 @@
-/* $Id: kLdrMod.c 54 2013-10-09 19:52:48Z bird $ */
+/* $Id: kLdrMod.c 79 2016-07-27 14:25:09Z bird $ */
 /** @file
  * kLdr - The Module Interpreter.
  */
@@ -152,6 +152,7 @@ static int kldrModOpenFromRdrSelectImageFromFAT(PKRDR pRdr, KU32 fFlags, KCPUARC
     KU32        cArchs;
     KU32        iArch;
     int         rc;
+    K_NOREF(fFlags);
 
     /* Read fat_header_t::nfat_arch. */
     rc = kRdrRead(pRdr, &cArchs, sizeof(cArchs), off);

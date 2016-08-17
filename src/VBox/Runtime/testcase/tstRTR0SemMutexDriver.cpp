@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,6 +69,7 @@ static RTTEST g_hTest;
  */
 static DECLCALLBACK(int) tstThreadFn(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF1(hThreadSelf);
     uint32_t            u32   = (uint32_t)(uintptr_t)pvUser;
     TSTRTR0SEMMUTEX     enmDo = (TSTRTR0SEMMUTEX)RT_LOWORD(u32);
     uint32_t            cSecs = RT_HIWORD(u32);
@@ -175,6 +176,7 @@ static bool tstDoThreadedTest(TSTRTR0SEMMUTEX enmSetup, TSTRTR0SEMMUTEX enmDo, T
  */
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
+    RT_NOREF3(argc, argv, envp);
 #ifndef VBOX
     RTPrintf("tstSup: SKIPPED\n");
     return 0;

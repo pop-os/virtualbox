@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1164,7 +1164,7 @@
 #elif defined(RT_OS_OS2)
 # define RTCALL                 __cdecl
 #elif defined(__GNUC__) && defined(RT_ARCH_X86)
-# define RTCALL                 __attribute__((cdecl,regparm(0)))
+# define RTCALL                 __attribute__((__cdecl__,__regparm__(0)))
 #else
 # define RTCALL
 #endif
@@ -1401,18 +1401,22 @@
 
 /** @def IN_RT_STATIC
  * Used to indicate whether we're linking against a static IPRT
- * or not. The IPRT symbols will be declared as hidden (if
- * supported). Note that this define has no effect without setting
- * IN_RT_R0, IN_RT_R3 or IN_RT_RC indicators are set first.
+ * or not.
+ *
+ * The IPRT symbols will be declared as hidden (if supported).  Note that this
+ * define has no effect without also setting one of the IN_RT_R0, IN_RT_R3 or
+ * IN_RT_RC indicators.
  */
 
 /** @def IN_RT_R0
- * Used to indicate whether we're inside the same link module as
- * the HC Ring-0 Runtime Library.
+ * Used to indicate whether we're inside the same link module as the host
+ * context ring-0 Runtime Library.
  */
 /** @def RTR0DECL(type)
- * Runtime Library HC Ring-0 export or import declaration.
+ * Runtime Library host context ring-0 export or import declaration.
  * @param   type    The return type of the function declaration.
+ * @remarks This is only used inside IPRT.  Other APIs need to define their own
+ *          XXXX_DECL macros for dealing with import/export/static visibility.
  */
 #ifdef IN_RT_R0
 # ifdef IN_RT_STATIC
@@ -1425,12 +1429,14 @@
 #endif
 
 /** @def IN_RT_R3
- * Used to indicate whether we're inside the same link module as
- * the HC Ring-3 Runtime Library.
+ * Used to indicate whether we're inside the same link module as the host
+ * context ring-3 Runtime Library.
  */
 /** @def RTR3DECL(type)
- * Runtime Library HC Ring-3 export or import declaration.
+ * Runtime Library host context ring-3 export or import declaration.
  * @param   type    The return type of the function declaration.
+ * @remarks This is only used inside IPRT.  Other APIs need to define their own
+ *          XXXX_DECL macros for dealing with import/export/static visibility.
  */
 #ifdef IN_RT_R3
 # ifdef IN_RT_STATIC
@@ -1449,6 +1455,8 @@
 /** @def RTRCDECL(type)
  * Runtime Library raw-mode context export or import declaration.
  * @param   type    The return type of the function declaration.
+ * @remarks This is only used inside IPRT.  Other APIs need to define their own
+ *          XXXX_DECL macros for dealing with import/export/static visibility.
  */
 #ifdef IN_RT_RC
 # ifdef IN_RT_STATIC
@@ -1464,6 +1472,8 @@
  * Runtime Library export or import declaration.
  * Functions declared using this macro exists in all contexts.
  * @param   type    The return type of the function declaration.
+ * @remarks This is only used inside IPRT.  Other APIs need to define their own
+ *          XXXX_DECL macros for dealing with import/export/static visibility.
  */
 #if defined(IN_RT_R3) || defined(IN_RT_RC) || defined(IN_RT_R0)
 # ifdef IN_RT_STATIC
@@ -1479,10 +1489,14 @@
  * Runtime Library export or import declaration.
  * Data declared using this macro exists in all contexts.
  * @param   type    The data type.
+ * @remarks This is only used inside IPRT.  Other APIs need to define their own
+ *          XXXX_DECL macros for dealing with import/export/static visibility.
  */
 /** @def RT_DECL_DATA_CONST(type)
  * Definition of a const variable. See DECL_HIDDEN_CONST.
  * @param   type    The const data type.
+ * @remarks This is only used inside IPRT.  Other APIs need to define their own
+ *          XXXX_DECL macros for dealing with import/export/static visibility.
  */
 #if defined(IN_RT_R3) || defined(IN_RT_RC) || defined(IN_RT_R0)
 # ifdef IN_RT_STATIC
@@ -1503,6 +1517,8 @@
 
 /** @def RT_DECL_CLASS
  * Declares an class living in the runtime.
+ * @remarks This is only used inside IPRT.  Other APIs need to define their own
+ *          XXXX_DECL macros for dealing with import/export/static visibility.
  */
 #if defined(IN_RT_R3) || defined(IN_RT_RC) || defined(IN_RT_R0)
 # ifdef IN_RT_STATIC
@@ -2278,6 +2294,8 @@
  * Gets the low uint8_t of a uint16_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_LO_U8(a)    __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint16_t)); (uint8_t)(a); })
+#elif defined(_MSC_VER) /* shut up cast truncates constant value warnings */
+# define RT_LO_U8(a)                            ( (uint8_t)(UINT8_MAX & (a)) )
 #else
 # define RT_LO_U8(a)                            ( (uint8_t)(a) )
 #endif
@@ -2293,6 +2311,8 @@
  * Gets the low uint16_t of a uint32_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_LO_U16(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint32_t)); (uint16_t)(a); })
+#elif defined(_MSC_VER) /* shut up cast truncates constant value warnings */
+# define RT_LO_U16(a)                           ( (uint16_t)(UINT16_MAX & (a)) )
 #else
 # define RT_LO_U16(a)                           ( (uint16_t)(a) )
 #endif
@@ -2308,6 +2328,8 @@
  * Gets the low uint32_t of a uint64_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_LO_U32(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint64_t)); (uint32_t)(a); })
+#elif defined(_MSC_VER) /* shut up cast truncates constant value warnings */
+# define RT_LO_U32(a)                           ( (uint32_t)(UINT32_MAX & (a)) )
 #else
 # define RT_LO_U32(a)                           ( (uint32_t)(a) )
 #endif
@@ -2761,6 +2783,7 @@
  */
 #define NIL_OFFSET   (~0U)
 
+
 /** @def NOREF
  * Keeps the compiler from bitching about an unused parameter, local variable,
  * or other stuff, will never use _Pragma are is thus more flexible.
@@ -2777,6 +2800,99 @@
 #else
 # define RT_NOREF_PV(var)       (void)(var)
 #endif
+
+/** @def RT_NOREF1
+ * RT_NOREF_PV shorthand taking on parameter. */
+#define RT_NOREF1(var1)                                 RT_NOREF_PV(var1)
+/** @def RT_NOREF2
+ * RT_NOREF_PV shorthand taking two parameters. */
+#define RT_NOREF2(var1, var2)                           RT_NOREF_PV(var1); RT_NOREF1(var2)
+/** @def RT_NOREF3
+ * RT_NOREF_PV shorthand taking three parameters. */
+#define RT_NOREF3(var1, var2, var3)                     RT_NOREF_PV(var1); RT_NOREF2(var2, var3)
+/** @def RT_NOREF4
+ * RT_NOREF_PV shorthand taking four parameters. */
+#define RT_NOREF4(var1, var2, var3, var4)               RT_NOREF_PV(var1); RT_NOREF3(var2, var3, var4)
+/** @def RT_NOREF5
+ * RT_NOREF_PV shorthand taking five parameters. */
+#define RT_NOREF5(var1, var2, var3, var4, var5)         RT_NOREF_PV(var1); RT_NOREF4(var2, var3, var4, var5)
+/** @def RT_NOREF6
+ * RT_NOREF_PV shorthand taking six parameters.  */
+#define RT_NOREF6(var1, var2, var3, var4, var5, var6)   RT_NOREF_PV(var1); RT_NOREF5(var2, var3, var4, var5, var6)
+/** @def RT_NOREF7
+ * RT_NOREF_PV shorthand taking seven parameters.  */
+#define RT_NOREF7(var1, var2, var3, var4, var5, var6, var7) \
+    RT_NOREF_PV(var1); RT_NOREF6(var2, var3, var4, var5, var6, var7)
+/** @def RT_NOREF8
+ * RT_NOREF_PV shorthand taking eight parameters.  */
+#define RT_NOREF8(var1, var2, var3, var4, var5, var6, var7, var8) \
+    RT_NOREF_PV(var1); RT_NOREF7(var2, var3, var4, var5, var6, var7, var8)
+/** @def RT_NOREF9
+ * RT_NOREF_PV shorthand taking nine parameters.  */
+#define RT_NOREF9(var1, var2, var3, var4, var5, var6, var7, var8, var9) \
+    RT_NOREF_PV(var1); RT_NOREF8(var2, var3, var4, var5, var6, var7, var8)
+/** @def RT_NOREF10
+ * RT_NOREF_PV shorthand taking ten parameters.  */
+#define RT_NOREF10(var1, var2, var3, var4, var5, var6, var7, var8, var9, var10) \
+    RT_NOREF_PV(var1); RT_NOREF_PV(var2); RT_NOREF_PV(var3); RT_NOREF_PV(var4); RT_NOREF_PV(var5); RT_NOREF_PV(var6); \
+    RT_NOREF_PV(var7); RT_NOREF_PV(var8); RT_NOREF_PV(var9); RT_NOREF_PV(var10)
+/** @def RT_NOREF11
+ * RT_NOREF_PV shorthand taking eleven parameters.  */
+#define RT_NOREF11(var1, var2, var3, var4, var5, var6, var7, var8, var9, var10, var11) \
+    RT_NOREF_PV(var1); RT_NOREF10(var2, var3, var4, var5, var6, var7, var8, var9, var10)
+/** @def RT_NOREF12
+ * RT_NOREF_PV shorthand taking twelve parameters.  */
+#define RT_NOREF12(var1, var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12) \
+    RT_NOREF_PV(var1); RT_NOREF11(var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12)
+/** @def RT_NOREF13
+ * RT_NOREF_PV shorthand taking thirteen parameters.  */
+#define RT_NOREF13(var1, var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12, var13) \
+    RT_NOREF_PV(var1); RT_NOREF12(var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12, var13)
+/** @def RT_NOREF14
+ * RT_NOREF_PV shorthand taking fourteen parameters.  */
+#define RT_NOREF14(var1, var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12, var13, var14) \
+    RT_NOREF_PV(var1); RT_NOREF13(var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12, var13, var14)
+/** @def RT_NOREF15
+ * RT_NOREF_PV shorthand taking fifteen parameters.  */
+#define RT_NOREF15(var1, var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12, var13, var14, var15) \
+    RT_NOREF_PV(var1); RT_NOREF14(var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12, var13, var14, var15)
+/** @def RT_NOREF16
+ * RT_NOREF_PV shorthand taking fifteen parameters.  */
+#define RT_NOREF16(var1, var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12, var13, var14, var15, var16) \
+    RT_NOREF_PV(var1); RT_NOREF15(var2, var3, var4, var5, var6, var7, var8, var9, var10, var11, var12, var13, var14, var15, var16)
+/** @def RT_NOREF17
+ * RT_NOREF_PV shorthand taking seventeen parameters.  */
+#define RT_NOREF17(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17) \
+    RT_NOREF_PV(v1); RT_NOREF16(v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17)
+/** @def RT_NOREF18
+ * RT_NOREF_PV shorthand taking eighteen parameters.  */
+#define RT_NOREF18(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18) \
+    RT_NOREF_PV(v1); RT_NOREF17(v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18)
+/** @def RT_NOREF19
+ * RT_NOREF_PV shorthand taking nineteen parameters.  */
+#define RT_NOREF19(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19) \
+    RT_NOREF_PV(v1); RT_NOREF18(v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19)
+/** @def RT_NOREF20
+ * RT_NOREF_PV shorthand taking twenty parameters.  */
+#define RT_NOREF20(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20) \
+    RT_NOREF_PV(v1); RT_NOREF19(v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20)
+/** @def RT_NOREF21
+ * RT_NOREF_PV shorthand taking twentyone parameters.  */
+#define RT_NOREF21(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21) \
+    RT_NOREF_PV(v1); RT_NOREF20(v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21)
+/** @def RT_NOREF22
+ * RT_NOREF_PV shorthand taking twentytwo parameters.  */
+#define RT_NOREF22(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22) \
+    RT_NOREF_PV(v1); RT_NOREF21(v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22)
+
+/** @def RT_NOREF
+ * RT_NOREF_PV variant using the variadic macro feature of C99.
+ * @remarks Only use this in sources */
+#ifdef RT_COMPILER_SUPPORTS_VA_ARGS
+# define RT_NOREF(...) \
+    RT_UNPACK_CALL(RT_CONCAT(RT_NOREF, RT_EXPAND(RT_COUNT_VA_ARGS(__VA_ARGS__))),(__VA_ARGS__))
+#endif
+
 
 /** @def RT_BREAKPOINT
  * Emit a debug breakpoint instruction.
@@ -3517,10 +3633,9 @@
  *
  * @param      Cls     class name to declare for
  */
-
 #define DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(Cls) \
-    inline Cls (const Cls &); \
-    inline Cls &operator= (const Cls &);
+    inline Cls(const Cls &); \
+    inline Cls &operator= (const Cls &)
 
 
 /** @def DECLARE_CLS_NEW_DELETE_NOOP
@@ -3538,7 +3653,7 @@
  */
 #define DECLARE_CLS_NEW_DELETE_NOOP(Cls) \
     inline static void *operator new (size_t); \
-    inline static void operator delete (void *);
+    inline static void operator delete (void *)
 
 #endif /* __cplusplus */
 

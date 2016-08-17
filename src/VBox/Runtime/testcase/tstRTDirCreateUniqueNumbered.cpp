@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,23 +52,26 @@ static void tst1(size_t cTest, size_t cchDigits, char chSep)
         cTimes *= 10;
 
     /* Allocate the result array. */
-    char **papszNames = (char **)RTMemTmpAllocZ(cTimes * sizeof(char *));
+    char **papszNames = (char **)RTMemTmpAllocZ((cTimes + 1) * sizeof(char *));
     RTTESTI_CHECK_RETV(papszNames != NULL);
 
     int rc = VERR_INTERNAL_ERROR;
     /* The test loop. */
     size_t i;
-    for (i = 0; i < cTimes; i++)
+    for (i = 0; i < cTimes + 1; i++)
     {
         char szName[RTPATH_MAX];
         RTTESTI_CHECK_RC(rc = RTPathAppend(strcpy(szName, g_szTempPath), sizeof(szName), "RTDirCreateUniqueNumbered"), VINF_SUCCESS);
         if (RT_FAILURE(rc))
             break;
 
-        RTTESTI_CHECK_RC(rc = RTDirCreateUniqueNumbered(szName, sizeof(szName), 0700, cchDigits, chSep), VINF_SUCCESS);
-        if (RT_FAILURE(rc))
+        rc = RTDirCreateUniqueNumbered(szName, sizeof(szName), 0700, cchDigits, chSep);
+        if (rc != VINF_SUCCESS)
         {
-            RTTestIFailed("RTDirCreateUniqueNumbered(%s) call #%u -> %Rrc\n", szName, i, rc);
+            /* Random selection (system) isn't 100% predictable, so we must give a little
+               leeway for the 2+ digit tests.  (Using random is essential for performance.) */
+            if (cchDigits == 1 || rc != VERR_ALREADY_EXISTS || i < cTimes - 1)
+                RTTestIFailed("RTDirCreateUniqueNumbered(%s) call #%u -> %Rrc\n", szName, i, rc);
             break;
         }
 
@@ -80,7 +83,7 @@ static void tst1(size_t cTest, size_t cchDigits, char chSep)
     }
 
     /* Try to create one more, which shouldn't be possible. */
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(rc) && i == cTimes + 1)
     {
         char szName[RTPATH_MAX];
         RTTESTI_CHECK_RC(rc = RTPathAppend(strcpy(szName, g_szTempPath), sizeof(szName), "RTDirCreateUniqueNumbered"), VINF_SUCCESS);
@@ -117,9 +120,9 @@ int main()
     /*
      * Create some test directories.
      */
-    tst1(1, 1, 0  );
+    tst1(1, 1, '\0');
     tst1(2, 1, '-');
-    tst1(3, 2, 0  );
+    tst1(3, 2, '\0');
     tst1(4, 2, '-');
 
     /*

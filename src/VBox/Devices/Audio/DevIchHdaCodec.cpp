@@ -34,6 +34,7 @@
 #include <iprt/cpp/utils.h>
 
 #include "VBoxDD.h"
+#include "DrvAudio.h"
 #include "DevIchHdaCodec.h"
 #include "DevIchHdaCommon.h"
 #include "AudioMixer.h"
@@ -240,10 +241,10 @@
 
 /* Input Amplifier capabilities (7.3.4.10). */
 #define CODEC_MAKE_F00_0D(mute_cap, step_size, num_steps, offset) \
-        (  (((mute_cap)  & 0x1)  << 31)                           \
-         | (((step_size) & 0xFF) << 16)                           \
-         | (((num_steps) & 0xFF) << 8)                            \
-         |  ((offset)    & 0xFF))
+        (  (((mute_cap)  & UINT32_C(0x1))  << 31) \
+         | (((step_size) & UINT32_C(0xFF)) << 16) \
+         | (((num_steps) & UINT32_C(0xFF)) << 8) \
+         |  ((offset)    & UINT32_C(0xFF)))
 
 #define CODEC_F00_0D_CAP_MUTE                              RT_BIT(7)
 
@@ -305,11 +306,11 @@
 
 /* GPIO count (7.3.4.14). */
 #define CODEC_MAKE_F00_11(wake, unsol, numgpi, numgpo, numgpio) \
-    (  (((wake) & 0x1) << 31)                                   \
-     | (((unsol) & 0x1) << 30)                                  \
-     | (((numgpi) & 0xFF) << 16)                                \
-     | (((numgpo) & 0xFF) << 8)                                 \
-     | ((numgpio) & 0xFF))
+    (  (((wake)   & UINT32_C(0x1))  << 31) \
+     | (((unsol)  & UINT32_C(0x1))  << 30) \
+     | (((numgpi) & UINT32_C(0xFF)) << 16) \
+     | (((numgpo) & UINT32_C(0xFF)) << 8) \
+     | ((numgpio) & UINT32_C(0xFF)))
 
 /* Processing States (7.3.3.4). */
 #define CODEC_F03_OFF                                      (0)
@@ -317,10 +318,10 @@
 #define CODEC_F03_BENING                                   RT_BIT(1)
 /* Power States (7.3.3.10). */
 #define CODEC_MAKE_F05(reset, stopok, error, act, set) \
-    (   (((reset)  & 0x1) << 10)                       \
-     | (((stopok) & 0x1) << 9)                         \
-     | (((error)  & 0x1) << 8)                         \
-     | (((act)    & 0xF) << 4)                         \
+    (  (((reset)  & 0x1) << 10) \
+     | (((stopok) & 0x1) << 9) \
+     | (((error)  & 0x1) << 8) \
+     | (((act)    & 0xF) << 4) \
      | ((set)     & 0xF))
 #define CODEC_F05_D3COLD                                   (4)
 #define CODEC_F05_D3                                       (3)
@@ -376,11 +377,11 @@
 /* Pin Sense (7.3.3.15). */
 #define CODEC_MAKE_F09_ANALOG(fPresent, impedance)  \
 (  (((fPresent) & 0x1) << 31)                       \
- | (((impedance) & 0x7FFFFFFF)))
-#define CODEC_F09_ANALOG_NA    0x7FFFFFFF
+ | (((impedance) & UINT32_C(0x7FFFFFFF))))
+#define CODEC_F09_ANALOG_NA    UINT32_C(0x7FFFFFFF)
 #define CODEC_MAKE_F09_DIGITAL(fPresent, fELDValid) \
-(   (((fPresent) & 0x1) << 31)                      \
-  | (((fELDValid) & 0x1) << 30))
+(   (((fPresent)  & UINT32_C(0x1)) << 31)                      \
+  | (((fELDValid) & UINT32_C(0x1)) << 30))
 
 #define CODEC_MAKE_F0C(lrswap, eapd, btl) ((((lrswap) & 1) << 2) | (((eapd) & 1) << 1) | ((btl) & 1))
 #define CODEC_FOC_IS_LRSWAP(f0c)                           RT_BOOL((f0c) & RT_BIT(2))
@@ -866,10 +867,11 @@ static SSMFIELD const g_aCodecNodeFieldsV1[] =
 
 
 
-
+#if 0 /* unused */
 static DECLCALLBACK(void) stac9220DbgNodes(PHDACODEC pThis, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
-    for (int i = 1; i < pThis->cTotalNodes; i++)
+    RT_NOREF(pszArgs);
+    for (uint8_t i = 1; i < pThis->cTotalNodes; i++)
     {
         PCODECNODE pNode = &pThis->paNodes[i];
         AMPLIFIER *pAmp = &pNode->dac.B_params;
@@ -880,7 +882,7 @@ static DECLCALLBACK(void) stac9220DbgNodes(PHDACODEC pThis, PCDBGFINFOHLP pHlp, 
         pHlp->pfnPrintf(pHlp, "0x%x: lVol=%RU8, rVol=%RU8\n", i, lVol, rVol);
     }
 }
-
+#endif
 
 static DECLCALLBACK(int) stac9220ResetNode(PHDACODEC pThis, uint8_t uNID, PCODECNODE pNode)
 {
@@ -1175,7 +1177,10 @@ static DECLCALLBACK(int) stac9220ResetNode(PHDACODEC pThis, uint8_t uNID, PCODEC
         {
             pNode->port.u32F07_param = CODEC_F07_IN_ENABLE;
             pNode->port.u32F08_param = 0;
-            pNode->port.u32F09_param = CODEC_MAKE_F09_ANALOG(true /* fPresent */, CODEC_F09_ANALOG_NA);
+            /* If Line in is reported as enabled, OS X sees no speakers! Windows does
+             * not care either way, although Linux does.
+             */
+            pNode->port.u32F09_param = CODEC_MAKE_F09_ANALOG(0, 0);
 
             pNode->port.node.au32F00_param[0x9] = CODEC_MAKE_F00_09(CODEC_F00_09_TYPE_PIN_COMPLEX, 0, 0)
                                                 | CODEC_F00_09_CAP_UNSOL
@@ -1547,7 +1552,7 @@ static int hdaCodecToAudVolume(PHDACODEC pThis, AMPLIFIER *pAmp, PDMAUDIOMIXERCT
             iDir = AMPLIFIER_IN;
             break;
         default:
-            AssertMsgFailedReturn(("Invalid mixer control %ld\n", enmMixerCtl), VERR_INVALID_PARAMETER);
+            AssertMsgFailedReturn(("Invalid mixer control %d\n", enmMixerCtl), VERR_INVALID_PARAMETER);
             break;
     }
 
@@ -1594,8 +1599,11 @@ DECLINLINE(void) hdaCodecSetRegisterU16(uint32_t *pu32Reg, uint32_t u32Cmd, uint
 /*
  * Verb processor functions.
  */
+#if 0 /* unused */
+
 static DECLCALLBACK(int) vrbProcUnimplemented(PHDACODEC pThis, uint32_t cmd, uint64_t *pResp)
 {
+    RT_NOREF(pThis, cmd);
     LogFlowFunc(("cmd(raw:%x: cad:%x, d:%c, nid:%x, verb:%x)\n", cmd,
                  CODEC_CAD(cmd), CODEC_DIRECT(cmd) ? 'N' : 'Y', CODEC_NID(cmd), CODEC_VERBDATA(cmd)));
     *pResp = 0;
@@ -1610,13 +1618,15 @@ static DECLCALLBACK(int) vrbProcBreak(PHDACODEC pThis, uint32_t cmd, uint64_t *p
     return rc;
 }
 
+#endif /* unused */
+
 /* B-- */
 static DECLCALLBACK(int) vrbProcGetAmplifier(PHDACODEC pThis, uint32_t cmd, uint64_t *pResp)
 {
     *pResp = 0;
 
     /* HDA spec 7.3.3.7 Note A */
-    /** @todo: If index out of range response should be 0. */
+    /** @todo If index out of range response should be 0. */
     uint8_t u8Index = CODEC_GET_AMP_DIRECTION(cmd) == AMPLIFIER_OUT ? 0 : CODEC_GET_AMP_INDEX(cmd);
 
     PCODECNODE pNode = &pThis->paNodes[CODEC_NID(cmd)];
@@ -2134,20 +2144,19 @@ static DECLCALLBACK(int) vrbProcSetPowerState(PHDACODEC pThis, uint32_t cmd, uin
     if (!pu32Reg)
         return VINF_SUCCESS;
 
+    uint8_t uPwrCmd = CODEC_F05_SET      (cmd);
     bool    fReset  = CODEC_F05_IS_RESET (*pu32Reg);
     bool    fStopOk = CODEC_F05_IS_STOPOK(*pu32Reg);
+#ifdef LOG_ENABLED
     bool    fError  = CODEC_F05_IS_ERROR (*pu32Reg);
     uint8_t uPwrAct = CODEC_F05_ACT      (*pu32Reg);
     uint8_t uPwrSet = CODEC_F05_SET      (*pu32Reg);
-
-    uint8_t uPwrCmd = CODEC_F05_SET      (cmd);
-
     LogFunc(("[NID0x%02x] Cmd=D%RU8, fReset=%RTbool, fStopOk=%RTbool, fError=%RTbool, uPwrAct=D%RU8, uPwrSet=D%RU8\n",
              CODEC_NID(cmd), uPwrCmd, fReset, fStopOk, fError, uPwrAct, uPwrSet));
-
     LogFunc(("AFG: Act=D%RU8, Set=D%RU8\n",
             CODEC_F05_ACT(pThis->paNodes[STAC9220_NID_AFG].afg.u32F05_param),
             CODEC_F05_SET(pThis->paNodes[STAC9220_NID_AFG].afg.u32F05_param)));
+#endif
 
     if (CODEC_NID(cmd) == STAC9220_NID_AFG)
         *pu32Reg = CODEC_MAKE_F05(fReset, fStopOk, 0, uPwrCmd /* PS-Act */, uPwrCmd /* PS-Set */);
@@ -2481,32 +2490,32 @@ static DECLCALLBACK(int) vrbProcSetVolumeKnobCtrl(PHDACODEC pThis, uint32_t cmd,
 /* F15 */
 static DECLCALLBACK(int) vrbProcGetGPIOData(PHDACODEC pThis, uint32_t cmd, uint64_t *pResp)
 {
+    RT_NOREF(pThis, cmd);
     *pResp = 0;
-
     return VINF_SUCCESS;
 }
 
 /* 715 */
 static DECLCALLBACK(int) vrbProcSetGPIOData(PHDACODEC pThis, uint32_t cmd, uint64_t *pResp)
 {
+    RT_NOREF(pThis, cmd);
     *pResp = 0;
-
     return VINF_SUCCESS;
 }
 
 /* F16 */
 static DECLCALLBACK(int) vrbProcGetGPIOEnableMask(PHDACODEC pThis, uint32_t cmd, uint64_t *pResp)
 {
+    RT_NOREF(pThis, cmd);
     *pResp = 0;
-
     return VINF_SUCCESS;
 }
 
 /* 716 */
 static DECLCALLBACK(int) vrbProcSetGPIOEnableMask(PHDACODEC pThis, uint32_t cmd, uint64_t *pResp)
 {
+    RT_NOREF(pThis, cmd);
     *pResp = 0;
-
     return VINF_SUCCESS;
 }
 
@@ -2794,6 +2803,7 @@ static void codecDbgPrintNodeAmp(PCODECDBGINFO pInfo, uint32_t *paReg, uint8_t u
 #undef CODECDBG_AMP
 }
 
+#if 0 /* unused */
 static void codecDbgPrintNodeConnections(PCODECDBGINFO pInfo, PCODECNODE pNode)
 {
     if (pNode->node.au32F00_param[0xE] == 0) /* Directly connected to HDA link. */
@@ -2802,6 +2812,7 @@ static void codecDbgPrintNodeConnections(PCODECDBGINFO pInfo, PCODECNODE pNode)
          return;
     }
 }
+#endif
 
 static void codecDbgPrintNode(PCODECDBGINFO pInfo, PCODECNODE pNode, bool fRecursive)
 {
@@ -2931,6 +2942,7 @@ static void codecDbgPrintNode(PCODECDBGINFO pInfo, PCODECNODE pNode, bool fRecur
 
 static DECLCALLBACK(void) codecDbgListNodes(PHDACODEC pThis, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF(pszArgs);
     pHlp->pfnPrintf(pHlp, "HDA LINK / INPUTS\n");
 
     CODECDBGINFO dbgInfo;
@@ -2954,7 +2966,7 @@ static DECLCALLBACK(void) codecDbgListNodes(PHDACODEC pThis, PCDBGFINFOHLP pHlp,
 
 static DECLCALLBACK(void) codecDbgSelector(PHDACODEC pThis, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
-
+    RT_NOREF(pThis, pHlp, pszArgs);
 }
 #endif
 
@@ -3026,7 +3038,7 @@ int hdaCodecAddStream(PHDACODEC pThis, PDMAUDIOMIXERCTL enmMixerCtl, PPDMAUDIOST
             break;
         }
         default:
-            AssertMsgFailed(("Mixer control %ld not implemented\n", enmMixerCtl));
+            AssertMsgFailed(("Mixer control %d not implemented\n", enmMixerCtl));
             rc = VERR_NOT_IMPLEMENTED;
             break;
     }

@@ -4,7 +4,7 @@
  *
  * Installation code
  *
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,8 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <windows.h>
-#include <setupapi.h>
+#include <iprt/win/windows.h>
+#include <iprt/win/setupapi.h>
 #include <newdev.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -34,23 +34,25 @@
 
 #include <VBox/VBoxDrvCfg-win.h>
 
-static DECLCALLBACK(void) vboxUsbLog(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char * msg, void * pvContext)
+static DECLCALLBACK(void) vboxUsbLog(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char *pszMsg, void *pvContext)
 {
+    RT_NOREF1(pvContext);
     switch (enmSeverity)
     {
         case VBOXDRVCFG_LOG_SEVERITY_FLOW:
         case VBOXDRVCFG_LOG_SEVERITY_REGULAR:
             break;
         case VBOXDRVCFG_LOG_SEVERITY_REL:
-            RTPrintf("%s", msg);
+            RTPrintf("%s", pszMsg);
             break;
         default:
             break;
     }
 }
 
-static DECLCALLBACK(void) vboxUsbPanic(void * pvPanic)
+static DECLCALLBACK(void) vboxUsbPanic(void *pvPanic)
 {
+    RT_NOREF1(pvPanic);
 #ifndef DEBUG_bird
     AssertFailed();
 #endif

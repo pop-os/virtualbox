@@ -58,6 +58,7 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+
 UIInformationDataItem::UIInformationDataItem(InformationElementType type, const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : m_type(type)
     , m_machine(machine)
@@ -72,6 +73,7 @@ UIInformationDataItem::~UIInformationDataItem()
 
 QVariant UIInformationDataItem::data(const QModelIndex &index, int role) const
 {
+    RT_NOREF(index);
     switch (role)
     {
         case Qt::DisplayRole:
@@ -669,8 +671,9 @@ QVariant UIInformationDataRuntimeAttributes::data(const QModelIndex &index, int 
                 aResolutions[iScreen] = strResolution;
             }
 
-            /* Calculate uptime: */
-            uint32_t uUpSecs = (RTTimeProgramSecTS() / 5) * 5;
+            /* Determine uptime: */
+            CMachineDebugger debugger = m_console.GetDebugger();
+            uint32_t uUpSecs = (debugger.GetUptime() / 5000) * 5;
             char szUptime[32];
             uint32_t uUpDays = uUpSecs / (60 * 60 * 24);
             uUpSecs -= uUpDays * 60 * 60 * 24;
@@ -687,8 +690,7 @@ QVariant UIInformationDataRuntimeAttributes::data(const QModelIndex &index, int 
             /* Determine Drag&Drop mode: */
             QString strDnDMode = gpConverter->toString(m_machine.GetDnDMode());
 
-            /* Deterine virtualization attributes: */
-            CMachineDebugger debugger = m_console.GetDebugger();
+            /* Determine virtualization attributes: */
             QString strVirtualization = debugger.GetHWVirtExEnabled() ?
                                         VBoxGlobal::tr("Active", "details report (VT-x/AMD-V)") :
                                         VBoxGlobal::tr("Inactive", "details report (VT-x/AMD-V)");
@@ -1179,8 +1181,8 @@ QVariant UIInformationDataStorageStatistics::data(const QModelIndex &index, int 
                     case KStorageBus_SAS:  ++iSASCount; break;
                     default: break;
                 }
-                return QVariant::fromValue(p_text);
             }
+            return QVariant::fromValue(p_text);
         }
         break;
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
  */
 #include <iprt/types.h>
 #include "VBoxLwipCore.h"
-/* @todo: lwip or nat ? */
+/** @todo lwip or nat ? */
 #define LOG_GROUP LOG_GROUP_DRV_NAT
 #include <iprt/cpp/lock.h>
 #include <iprt/timer.h>
@@ -154,7 +154,7 @@ int vboxLwipCoreInitialize(PFNRT1 pfnCallback, void *pvCallbackArg)
   done:
     if (lwipRc != ERR_OK)
     {
-        /* @todo: map lwip error code? */
+        /** @todo map lwip error code? */
         rc = VERR_INTERNAL_ERROR;
     }
     LogFlowFuncLeaveRC(rc);

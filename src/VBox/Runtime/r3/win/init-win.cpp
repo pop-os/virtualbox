@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_DEFAULT
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #ifndef LOAD_LIBRARY_SEARCH_APPLICATION_DIR
 # define LOAD_LIBRARY_SEARCH_APPLICATION_DIR    0x200
 # define LOAD_LIBRARY_SEARCH_SYSTEM32           0x800
@@ -343,6 +343,7 @@ DECLHIDDEN(void) rtR3InitNativeObtrusive(uint32_t fFlags)
 DECLHIDDEN(int) rtR3InitNativeFinal(uint32_t fFlags)
 {
     /* Nothing to do here. */
+    RT_NOREF_PV(fFlags);
     return VINF_SUCCESS;
 }
 

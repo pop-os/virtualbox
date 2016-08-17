@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2013 Oracle Corporation
+ * Copyright (C) 2005-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,7 @@
 
 #if !defined (VBOX_WITH_XPCOM)
 
-# include <objbase.h>
+# include <iprt/win/objbase.h>
 
 #else /* !defined (VBOX_WITH_XPCOM) */
 # include <stdlib.h>

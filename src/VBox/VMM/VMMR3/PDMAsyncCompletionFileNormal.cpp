@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -725,7 +725,7 @@ static int pdmacFileAioMgrNormalRangeLock(PPDMACEPFILEMGR pAioMgr,
     pRangeLock->pWaitingTasksTail = NULL;
 
     bool fInserted = RTAvlrFileOffsetInsert(pEndpoint->AioMgr.pTreeRangesLocked, &pRangeLock->Core);
-    AssertMsg(fInserted, ("Range lock was not inserted!\n"));
+    AssertMsg(fInserted, ("Range lock was not inserted!\n")); NOREF(fInserted);
 
     /* Let the task point to its lock. */
     pTask->pRangeLock = pRangeLock;
@@ -897,7 +897,7 @@ static int pdmacFileAioMgrNormalTaskPrepareNonBuffered(PPDMACEPFILEMGR pAioMgr,
                       pTask->Off, offStart));
             pTask->offBounceBuffer = pTask->Off - offStart;
 
-            /** @todo: I think we need something like a RTMemAllocAligned method here.
+            /** @todo I think we need something like a RTMemAllocAligned method here.
              * Current assumption is that the maximum alignment is 4096byte
              * (GPT disk on Windows)
              * so we can use RTMemPageAlloc here.
@@ -1429,7 +1429,7 @@ static void pdmacFileAioMgrNormalReqCompleteRc(PPDMACEPFILEMGR pAioMgr, RTFILEAI
                 if (!pEndpoint->AioMgr.cRequestsActive)
                 {
                     bool fReqsPending = pdmacFileAioMgrNormalRemoveEndpoint(pEndpoint);
-                    Assert(!fReqsPending);
+                    Assert(!fReqsPending); NOREF(fReqsPending);
 
                     rc = pdmacFileAioMgrAddEndpoint(pEndpoint->AioMgr.pAioMgrDst, pEndpoint);
                     AssertRC(rc);
@@ -1586,7 +1586,7 @@ static void pdmacFileAioMgrNormalReqCompleteRc(PPDMACEPFILEMGR pAioMgr, RTFILEAI
                 {
                     /* If the endpoint is about to be migrated do it now. */
                     bool fReqsPending = pdmacFileAioMgrNormalRemoveEndpoint(pEndpoint);
-                    Assert(!fReqsPending);
+                    Assert(!fReqsPending); NOREF(fReqsPending);
 
                     rc = pdmacFileAioMgrAddEndpoint(pEndpoint->AioMgr.pAioMgrDst, pEndpoint);
                     AssertRC(rc);

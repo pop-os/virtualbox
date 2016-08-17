@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,6 +85,10 @@ public:
     /** Returns the machine name. */
     const QString& machineName() const;
 
+    /** Restores cached window geometry.
+      * @note Reimplemented in sub-classes. Base implementation does nothing. */
+    virtual void restoreCachedGeometry() {}
+
     /** Adjusts machine-window size to correspond current machine-view size.
       * @param fAdjustPosition determines whether is it necessary to adjust position too.
       * @note  Reimplemented in sub-classes. Base implementation does nothing. */
@@ -102,6 +106,11 @@ public:
 #endif /* VBOX_WITH_MASKED_SEAMLESS */
 
 protected slots:
+
+#ifdef VBOX_WS_X11
+    /** X11: Performs machine-window geometry normalization. */
+    void sltNormalizeGeometry() { normalizeGeometry(true /* adjust position */); }
+#endif /* VBOX_WS_X11 */
 
     /** Performs machine-window activation. */
     void sltActivateWindow() { activateWindow(); }

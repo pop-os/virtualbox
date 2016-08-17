@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __WinKeyboard_h__
-#define __WinKeyboard_h__
+#ifndef ___WinKeyboard_h___
+#define ___WinKeyboard_h___
 
 /* Platform includes: */
-#include "Windows.h"
+#include <iprt/win/windows.h>
 
 void * WinHidDevicesKeepLedsState(void);
 void   WinHidDevicesApplyAndReleaseLedsState(void *pData);
@@ -79,7 +79,8 @@ private:
         /** A fake control down event and no up was passed to the guest. */
         FAKE_CONTROL_DOWN
     } m_enmFakeControlDetectionState;
-    DWORD m_timeOfLastKeyEvent;
+    LONG m_timeOfLastKeyEvent;
 };
-#endif /* __WinKeyboard_h__ */
+
+#endif
 

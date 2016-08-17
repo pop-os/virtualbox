@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,7 +117,7 @@ int patmPatchAddReloc32(PVM pVM, PPATCHINFO pPatch, uint8_t *pRelocHC, uint32_t 
     pRec = (PRELOCREC)MMR3HeapAllocZ(pVM, MM_TAG_PATM_PATCH, sizeof(*pRec));
     Assert(pRec);
     pRec->Core.Key  = (AVLPVKEY)pRelocHC;
-    pRec->pRelocPos = pRelocHC; /* @todo redundant. */
+    pRec->pRelocPos = pRelocHC; /** @todo redundant. */
     pRec->pSource   = pSource;
     pRec->pDest     = pDest;
     pRec->uType     = uType;
@@ -137,7 +137,7 @@ int patmPatchAddJump(PVM pVM, PPATCHINFO pPatch, uint8_t *pJumpHC, uint32_t offs
     Assert(pRec);
 
     pRec->Core.Key  = (AVLPVKEY)pJumpHC;
-    pRec->pJumpHC   = pJumpHC; /* @todo redundant. */
+    pRec->pJumpHC   = pJumpHC; /** @todo redundant. */
     pRec->offDispl  = offset;
     pRec->pTargetGC = pTargetGC;
     pRec->opcode    = opcode;
@@ -488,7 +488,7 @@ int patmPatchGenIret(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC, bool fSize
 
     PATCHGEN_PROLOG(pVM, pPatch, pPatchAsmRec->cbFunction);
 
-    AssertMsg(fSizeOverride == false, ("operand size override!!\n"));
+    AssertMsg(fSizeOverride == false, ("operand size override!!\n")); RT_NOREF_PV(fSizeOverride);
     callInfo.pCurInstrGC = pCurInstrGC;
 
     size = patmPatchGenCode(pVM, pPatch, pPB, pPatchAsmRec, 0, false, &callInfo);
@@ -516,7 +516,7 @@ int patmPatchGenSti(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC, RTRCPTR pNe
     PATMCALLINFO callInfo;
     uint32_t     size;
 
-    Log(("patmPatchGenSti at %RRv; next %RRv\n", pCurInstrGC, pNextInstrGC));
+    Log(("patmPatchGenSti at %RRv; next %RRv\n", pCurInstrGC, pNextInstrGC)); RT_NOREF_PV(pCurInstrGC);
     PATCHGEN_PROLOG(pVM, pPatch, g_patmStiRecord.cbFunction);
     callInfo.pNextInstrGC = pNextInstrGC;
     size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmStiRecord, 0, false, &callInfo);
@@ -1276,7 +1276,7 @@ int patmPatchGenMovControl(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu)
 
     pPB[1] = MAKE_MODRM(mod, reg, rm);
 
-    /// @todo: make this an array in the context structure
+    /// @todo make this an array in the context structure
     switch (ctrlreg)
     {
     case DISCREG_CR0:
@@ -1310,7 +1310,7 @@ int patmPatchGenMovFromSS(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR
 {
     uint32_t size, offset;
 
-    Log(("patmPatchGenMovFromSS %RRv\n", pCurInstrGC));
+    Log(("patmPatchGenMovFromSS %RRv\n", pCurInstrGC)); RT_NOREF_PV(pCurInstrGC);
 
     Assert(pPatch->flags & PATMFL_CODE32);
 
@@ -1464,7 +1464,7 @@ int patmPatchGenSxDT(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
     uint32_t offset = 0, offset_base, offset_limit;
     uint32_t i;
 
-    /* @todo segment prefix (untested) */
+    /** @todo segment prefix (untested) */
     Assert(pCpu->fPrefix == DISPREFIX_NONE);
 
     // sgdt %Ms

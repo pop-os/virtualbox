@@ -60,7 +60,9 @@
 # define AUDMIXBUF_LOG(x) RTPrintf x
 #endif
 
+#ifdef DEBUG
 DECLINLINE(void) audioMixBufDbgPrintInternal(PPDMAUDIOMIXBUF pMixBuf);
+#endif
 
 /*
  *   Soft Volume Control
@@ -575,16 +577,20 @@ AUDMIXBUF_CONVERT(U32 /* Name */, uint32_t, 0         /* Min */, UINT32_MAX /* M
 
 /* audioMixBufOpAssign: Assigns values from source buffer to destination bufffer, overwriting the destination. */
 AUDMIXBUF_MIXOP(Assign /* Name */,  = /* Operation */)
+#if 0 /* unused */
 /* audioMixBufOpBlend: Blends together the values from both, the source and the destination buffer. */
 AUDMIXBUF_MIXOP(Blend  /* Name */, += /* Operation */)
+#endif
 
 #undef AUDMIXBUF_MIXOP
 #undef AUDMIXBUF_MACRO_LOG
 
 /** Dummy conversion used when the source is muted. */
-static DECLCALLBACK(uint32_t) audioMixBufConvFromSilence(PPDMAUDIOSAMPLE paDst, const void *pvSrc,
-                                                         uint32_t cbSrc, PCPDMAUDMIXBUFCONVOPTS pOpts)
+static DECLCALLBACK(uint32_t)
+audioMixBufConvFromSilence(PPDMAUDIOSAMPLE paDst, const void *pvSrc, uint32_t cbSrc, PCPDMAUDMIXBUFCONVOPTS pOpts)
 {
+    RT_NOREF(cbSrc, pvSrc);
+
     /* Internally zero always corresponds to silence. */
     RT_BZERO(paDst, pOpts->cSamples * sizeof(paDst[0]));
     return pOpts->cSamples;
@@ -647,8 +653,7 @@ static PFNPDMAUDIOMIXBUFCONVFROM audioMixBufConvFromLookup(PDMAUDIOMIXBUFFMT enm
             }
         }
     }
-
-    return NULL;
+    /* not reached */
 }
 
 /**
@@ -708,8 +713,7 @@ static PFNPDMAUDIOMIXBUFCONVTO audioMixBufConvToLookup(PDMAUDIOMIXBUFFMT enmFmt)
             }
         }
     }
-
-    return NULL;
+    /* not reached */
 }
 
 /**
@@ -745,7 +749,7 @@ static int audioMixBufConvVol(PPDMAUDMIXBUFVOL pVolDst, PPDMAUDIOVOLUME pVolSrc)
  * @param   pProps                  PCM audio properties to use for the mixing buffer.
  * @param   cSamples                Maximum number of audio samples the mixing buffer can hold.
  */
-int AudioMixBufInit(PPDMAUDIOMIXBUF pMixBuf, const char *pszName, PPDMPCMPROPS pProps, uint32_t cSamples)
+int AudioMixBufInit(PPDMAUDIOMIXBUF pMixBuf, const char *pszName, PPDMAUDIOPCMPROPS pProps, uint32_t cSamples)
 {
     AssertPtrReturn(pMixBuf, VERR_INVALID_POINTER);
     AssertPtrReturn(pszName, VERR_INVALID_POINTER);
@@ -1018,7 +1022,7 @@ static int audioMixBufMixTo(PPDMAUDIOMIXBUF pDst, PPDMAUDIOMIXBUF pSrc, uint32_t
     audioMixBufDbgPrintInternal(pDst);
 #endif
 
-    uint32_t cSrcToRead;
+    uint32_t cSrcToRead = 0;
     uint32_t cSrcRead;
 
     uint32_t cDstToWrite;
@@ -1136,6 +1140,7 @@ int AudioMixBufMixToParent(PPDMAUDIOMIXBUF pMixBuf, uint32_t cSamples,
 }
 
 #ifdef DEBUG
+
 /**
  * Prints a single mixing buffer.
  * Internal helper function for debugging. Do not use directly.
@@ -1242,7 +1247,8 @@ void AudioMixBufDbgPrint(PPDMAUDIOMIXBUF pMixBuf)
 {
     audioMixBufDbgPrintInternal(pMixBuf);
 }
-#endif
+
+#endif /* DEBUG */
 
 /**
  * Returns the total number of samples used.
@@ -1361,11 +1367,9 @@ int AudioMixBufReadAtEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt,
  * @param   cbBuf                   Size (in bytes) of buffer to write to.
  * @param   pcRead                  Number of audio samples read. Optional.
  */
-int AudioMixBufReadCirc(PPDMAUDIOMIXBUF pMixBuf,
-                        void *pvBuf, uint32_t cbBuf, uint32_t *pcRead)
+int AudioMixBufReadCirc(PPDMAUDIOMIXBUF pMixBuf, void *pvBuf, uint32_t cbBuf, uint32_t *pcRead)
 {
-    return AudioMixBufReadCircEx(pMixBuf, pMixBuf->AudioFmt,
-                                 pvBuf, cbBuf, pcRead);
+    return AudioMixBufReadCircEx(pMixBuf, pMixBuf->AudioFmt, pvBuf, cbBuf, pcRead);
 }
 
 /**
@@ -1380,8 +1384,7 @@ int AudioMixBufReadCirc(PPDMAUDIOMIXBUF pMixBuf,
  * @param   cbBuf                   Size (in bytes) of buffer to write to.
  * @param   pcRead                  Number of audio samples read. Optional.
  */
-int AudioMixBufReadCircEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt,
-                          void *pvBuf, uint32_t cbBuf, uint32_t *pcRead)
+int AudioMixBufReadCircEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt, void *pvBuf, uint32_t cbBuf, uint32_t *pcRead)
 {
     AssertPtrReturn(pMixBuf, VERR_INVALID_POINTER);
     AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
@@ -1783,7 +1786,7 @@ int AudioMixBufWriteCircEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt,
 
     PPDMAUDIOMIXBUF pParent = pMixBuf->pParent;
 
-    AUDMIXBUF_LOG(("%s: enmFmt=%ld, pvBuf=%p, cbBuf=%RU32 (%RU32 samples)\n",
+    AUDMIXBUF_LOG(("%s: enmFmt=%d, pvBuf=%p, cbBuf=%RU32 (%RU32 samples)\n",
                    pMixBuf->pszName, enmFmt, pvBuf, cbBuf, AUDIOMIXBUF_B2S(pMixBuf, cbBuf)));
 
     if (   pParent

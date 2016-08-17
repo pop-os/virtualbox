@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,8 +74,10 @@ static RTSEMEVENTMULTI  g_MemBalloonEvent = NIL_RTSEMEVENTMULTI;
 /** The array holding the R3 pointers of the balloon. */
 static void **g_pavBalloon = NULL;
 
+#ifdef RT_OS_LINUX
 /** True = madvise(MADV_DONTFORK) works, false otherwise. */
 static bool g_fSysMadviseWorks;
+#endif
 
 
 /**

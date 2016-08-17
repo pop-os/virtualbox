@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,6 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QDesktopWidget>
 # include <QMainWindow>
 # include <QPainter>
 # include <QScrollBar>
@@ -28,6 +27,7 @@
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
 # include "UIMessageCenter.h"
 # include "UISession.h"
@@ -802,7 +802,7 @@ void UIMachineView::prepareFilters()
 void UIMachineView::prepareConnections()
 {
     /* Desktop resolution change (e.g. monitor hotplug): */
-    connect(QApplication::desktop(), SIGNAL(resized(int)), this,
+    connect(gpDesktop, SIGNAL(sigHostScreenResized(int)), this,
             SLOT(sltDesktopResized()));
     /* Scale-factor change: */
     connect(gEDataManager, SIGNAL(sigScaleFactorChange(const QString&)),
@@ -915,7 +915,7 @@ QSize UIMachineView::sizeHint() const
     size = scaledForward(size);
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    // TODO: Fix all DEBUGGER stuff!
+    /// @todo Fix all DEBUGGER stuff!
     /* HACK ALERT! Really ugly workaround for the resizing to 9x1 done by DevVGA if provoked before power on. */
     if (size.width() < 16 || size.height() < 16)
         if (vboxGlobal().shouldStartPaused() || vboxGlobal().isDebuggerAutoShowEnabled())
@@ -1343,7 +1343,7 @@ bool UIMachineView::isFullscreenOrSeamless() const
 
 bool UIMachineView::event(QEvent *pEvent)
 {
-    switch (pEvent->type())
+    switch ((UIEventType)pEvent->type())
     {
 #ifdef VBOX_WS_MAC
         /* Event posted OnShowWindow: */
@@ -1436,7 +1436,7 @@ bool UIMachineView::eventFilter(QObject *pWatched, QEvent *pEvent)
             case QEvent::Move:
             {
                 /* Get current host-screen number: */
-                const int iCurrentHostScreenNumber = vboxGlobal().screenNumber(this);
+                const int iCurrentHostScreenNumber = gpDesktop->screenNumber(this);
                 if (m_iHostScreenNumber != iCurrentHostScreenNumber)
                 {
                     /* Recache current host screen: */

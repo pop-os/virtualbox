@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -442,12 +442,11 @@ static void serial_xmit(PDEVSERIAL pThis, bool bRetryXmit)
 
 static int serial_ioport_write(PDEVSERIAL pThis, uint32_t addr, uint32_t val)
 {
-    addr &= 7;
-
 #ifndef IN_RING3
-    NOREF(pThis);
+    NOREF(pThis); RT_NOREF_PV(addr); RT_NOREF_PV(val);
     return VINF_IOM_R3_IOPORT_WRITE;
 #else
+    addr &= 7;
     switch(addr) {
     default:
     case 0:
@@ -738,7 +737,7 @@ static DECLCALLBACK(int) serialNotifyRead(PPDMICHARPORT pInterface, const void *
              * or it will be dropped at fifo_put(). */
             pThis->fRecvWaiting = true;
             PDMCritSectLeave(&pThis->CritSect);
-            int rc = RTSemEventWait(pThis->ReceiveSem, 250);
+            RTSemEventWait(pThis->ReceiveSem, 250);
             PDMCritSectEnter(&pThis->CritSect, VERR_PERMISSION_DENIED);
         }
         serial_receive(pThis, &pu8Buf[0], 1);
@@ -794,6 +793,7 @@ static DECLCALLBACK(int) serialNotifyStatusLinesChanged(PPDMICHARPORT pInterface
  */
 static DECLCALLBACK(int) serialNotifyBufferFull(PPDMICHARPORT pInterface, bool fFull)
 {
+    RT_NOREF(pInterface, fFull);
     return VINF_SUCCESS;
 }
 
@@ -825,6 +825,7 @@ static DECLCALLBACK(int) serialNotifyBreak(PPDMICHARPORT pInterface)
  */
 static DECLCALLBACK(void) serialFifoTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     PDEVSERIAL pThis = (PDEVSERIAL)pvUser;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
     if (pThis->recv_fifo.count)
@@ -841,6 +842,7 @@ static DECLCALLBACK(void) serialFifoTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, v
  */
 static DECLCALLBACK(void) serialTransmitTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     PDEVSERIAL pThis = (PDEVSERIAL)pvUser;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
     serial_xmit(pThis, true);
@@ -858,6 +860,7 @@ PDMBOTHCBDECL(int) serialIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
     PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
     int          rc;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    RT_NOREF_PV(pvUser);
 
     if (cb == 1)
     {
@@ -882,6 +885,7 @@ PDMBOTHCBDECL(int) serialIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
     PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
     int          rc;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    RT_NOREF_PV(pvUser);
 
     if (cb == 1)
     {
@@ -903,6 +907,7 @@ PDMBOTHCBDECL(int) serialIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
  */
 static DECLCALLBACK(int) serialLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF(uPass);
     PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
     SSMR3PutS32(pSSM, pThis->irq);
     SSMR3PutU32(pSSM, pThis->base);
@@ -948,7 +953,7 @@ static DECLCALLBACK(int) serialSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
      *  - tsr_retry
      */
 
-    return SSMR3PutU32(pSSM, ~0); /* sanity/terminator */
+    return SSMR3PutU32(pSSM, UINT32_MAX); /* sanity/terminator */
 }
 
 
@@ -1010,7 +1015,7 @@ static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
         int rc = SSMR3GetU32(pSSM, &u32);
         if (RT_FAILURE(rc))
             return rc;
-        AssertMsgReturn(u32 == ~0U, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+        AssertMsgReturn(u32 == UINT32_MAX, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
 
         if (   (pThis->lsr & UART_LSR_DR)
             || pThis->fRecvWaiting)
@@ -1092,7 +1097,8 @@ static DECLCALLBACK(void *) serialQueryInterface(PPDMIBASE pInterface, const cha
  */
 static DECLCALLBACK(void) serialRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
-    PDEVSERIAL pThis      = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
+    RT_NOREF(offDelta);
+    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
     pThis->pDevInsRC        = PDMDEVINS_2_RCPTR(pDevIns);
     pThis->transmit_timerRC = TMTimerRCPtr(pThis->transmit_timerR3);
 }

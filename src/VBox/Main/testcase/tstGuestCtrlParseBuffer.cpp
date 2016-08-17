@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,9 @@ using namespace com;
 # define BYTE uint8_t
 #endif
 
+#define STR_SIZE(a_sz) a_sz, sizeof(a_sz)
+
+
 typedef struct VBOXGUESTCTRL_BUFFER_VALUE
 {
     char *pszValue;
@@ -50,7 +53,7 @@ static struct
     uint32_t    uOffsetAfter;
     uint32_t    uMapElements;
     int         iResult;
-} aTestBlock[] =
+} g_aTestBlock[] =
 {
     /*
      * Single object parsing.
@@ -59,38 +62,39 @@ static struct
      * that we need to collect more data to do a successful parsing.
      */
     /* Invalid stuff. */
-    { NULL,                             0,                                                 0,  0,                                         0, VERR_INVALID_POINTER },
-    { NULL,                             512,                                               0,  0,                                         0, VERR_INVALID_POINTER },
-    { "",                               0,                                                 0,  0,                                         0, VERR_INVALID_PARAMETER },
-    { "",                               0,                                                 0,  0,                                         0, VERR_INVALID_PARAMETER },
-    { "foo=bar1",                       0,                                                 0,  0,                                         0, VERR_INVALID_PARAMETER },
-    { "foo=bar2",                       0,                                                 50, 50,                                        0, VERR_INVALID_PARAMETER },
+    { NULL,                             0,          0,  0,                                         0, VERR_INVALID_POINTER },
+    { NULL,                             512,        0,  0,                                         0, VERR_INVALID_POINTER },
+    { "",                               0,          0,  0,                                         0, VERR_INVALID_PARAMETER },
+    { "",                               0,          0,  0,                                         0, VERR_INVALID_PARAMETER },
+    { "foo=bar1",                       0,          0,  0,                                         0, VERR_INVALID_PARAMETER },
+    { "foo=bar2",                       0,          50, 50,                                        0, VERR_INVALID_PARAMETER },
     /* Empty buffers. */
-    { "",                               1,                                                 0,  1,                                         0, VINF_SUCCESS },
-    { "\0",                             1,                                                 0,  1,                                         0, VINF_SUCCESS },
+    { "",                               1,          0,  1,                                         0, VINF_SUCCESS },
+    { "\0",                             1,          0,  1,                                         0, VINF_SUCCESS },
     /* Unterminated values (missing "\0"). */
-    { "test1",                          sizeof("test1"),                                   0,  0,                                         0, VERR_MORE_DATA },
-    { "test2=",                         sizeof("test2="),                                  0,  0,                                         0, VERR_MORE_DATA },
-    { "test3=test3",                    sizeof("test3=test3"),                             0,  0,                                         0, VERR_MORE_DATA },
-    { "test4=test4\0t41",               sizeof("test4=test4\0t41"),                        0,  sizeof("test4=test4\0") - 1,               1, VERR_MORE_DATA },
-    { "test5=test5\0t51=t51",           sizeof("test5=test5\0t51=t51"),                    0,  sizeof("test5=test5\0") - 1,               1, VERR_MORE_DATA },
+    { STR_SIZE("test1"),                            0,  0,                                         0, VERR_MORE_DATA },
+    { STR_SIZE("test2="),                           0,  0,                                         0, VERR_MORE_DATA },
+    { STR_SIZE("test3=test3"),                      0,  0,                                         0, VERR_MORE_DATA },
+    { STR_SIZE("test4=test4\0t41"),                 0,  sizeof("test4=test4\0") - 1,               1, VERR_MORE_DATA },
+    { STR_SIZE("test5=test5\0t51=t51"),             0,  sizeof("test5=test5\0") - 1,               1, VERR_MORE_DATA },
     /* Next block unterminated. */
-    { "t51=t51\0t52=t52\0\0t53=t53",    sizeof("t51=t51\0t52=t52\0\0t53=t53"),             0,  sizeof("t51=t51\0t52=t52\0") - 1,          2, VINF_SUCCESS },
-    { "test6=test6\0\0t61=t61",         sizeof("test6=test6\0\0t61=t61"),                  0,  sizeof("test6=test6\0") - 1,               1, VINF_SUCCESS },
+    { STR_SIZE("t51=t51\0t52=t52\0\0t53=t53"),      0,  sizeof("t51=t51\0t52=t52\0") - 1,          2, VINF_SUCCESS },
+    { STR_SIZE("test6=test6\0\0t61=t61"),           0,  sizeof("test6=test6\0") - 1,               1, VINF_SUCCESS },
     /* Good stuff. */
-    { "test61=\0test611=test611\0",     sizeof("test61=\0test611=test611\0"),              0,  sizeof("test61=\0test611=test611\0") - 1,  2, VINF_SUCCESS },
-    { "test7=test7\0\0",                sizeof("test7=test7\0\0"),                         0,  sizeof("test7=test7\0") - 1,               1, VINF_SUCCESS },
-    { "test8=test8\0t81=t81\0\0",       sizeof("test8=test8\0t81=t81\0\0"),                0,  sizeof("test8=test8\0t81=t81\0") - 1,      2, VINF_SUCCESS },
+    { STR_SIZE("test61=\0test611=test611\0"),       0,  sizeof("test61=\0test611=test611\0") - 1,  2, VINF_SUCCESS },
+    { STR_SIZE("test7=test7\0\0"),                  0,  sizeof("test7=test7\0") - 1,               1, VINF_SUCCESS },
+    { STR_SIZE("test8=test8\0t81=t81\0\0"),         0,  sizeof("test8=test8\0t81=t81\0") - 1,      2, VINF_SUCCESS },
     /* Good stuff, but with a second block -- should be *not* taken into account since
      * we're only interested in parsing/handling the first object. */
-    { "t9=t9\0t91=t91\0\0t92=t92\0\0",  sizeof("t9=t9\0t91=t91\0\0t92=t92\0\0"),           0,  sizeof("t9=t9\0t91=t91\0") - 1,            2, VINF_SUCCESS },
+    { STR_SIZE("t9=t9\0t91=t91\0\0t92=t92\0\0"),    0,  sizeof("t9=t9\0t91=t91\0") - 1,            2, VINF_SUCCESS },
     /* Nasty stuff. */
-    { "הצü=fהצ\0\0",                    sizeof("הצü=fהצ\0\0"),                             0,  sizeof("הצü=fהצ\0") - 1,                   1, VINF_SUCCESS },
-    { "הצü=fהצ\0צצצ=ההה",               sizeof("הצü=fהצ\0צצצ=ההה"),                        0,  sizeof("הצü=fהצ\0") - 1,                   1, VERR_MORE_DATA },
+        /* iso 8859-1 encoding (?) of 'aou' all with diaeresis '=f' and 'ao' with diaeresis. */
+    { STR_SIZE("\xe4\xf6\xfc=\x66\xe4\xf6\0\0"),    0,  sizeof("\xe4\xf6\xfc=\x66\xe4\xf6\0") - 1, 1, VINF_SUCCESS },
+        /* Like above, but after the first '\0' it adds 'ooo=aaa' all letters with diaeresis. */
+    { STR_SIZE("\xe4\xf6\xfc=\x66\xe4\xf6\0\xf6\xf6\xf6=\xe4\xe4\xe4"),
+                                                    0,  sizeof("\xe4\xf6\xfc=\x66\xe4\xf6\0") - 1, 1, VERR_MORE_DATA },
     /* Some "real world" examples. */
-    { "hdr_id=vbt_stat\0hdr_ver=1\0name=foo.txt\0\0",
-                                        sizeof("hdr_id=vbt_stat\0hdr_ver=1\0name=foo.txt\0\0"),
-                                                                                           0,  sizeof("hdr_id=vbt_stat\0hdr_ver=1\0name=foo.txt\0") - 1,
+    { STR_SIZE("hdr_id=vbt_stat\0hdr_ver=1\0name=foo.txt\0\0"), 0, sizeof("hdr_id=vbt_stat\0hdr_ver=1\0name=foo.txt\0") - 1,
                                                                                                                                           3, VINF_SUCCESS }
 };
 
@@ -102,7 +106,7 @@ static struct
     uint32_t    uNumBlocks;
     /** Overall result when done parsing. */
     int         iResult;
-} aTestStream[] =
+} g_aTestStream[] =
 {
     /* No blocks. */
     { "\0\0\0\0",                                      sizeof("\0\0\0\0"),                                0, VERR_NO_DATA },
@@ -113,9 +117,9 @@ static struct
     { "b1=b1\0b2=b2\0\0\0",                            sizeof("b1=b1\0b2=b2\0\0\0"),                      1, VERR_NO_DATA }
 };
 
-int manualTest()
+int manualTest(void)
 {
-    int rc;
+    int rc = VINF_SUCCESS;
     static struct
     {
         const char *pbData;
@@ -124,19 +128,18 @@ int manualTest()
         uint32_t    uOffsetAfter;
         uint32_t    uMapElements;
         int         iResult;
-    } aTest[] =
+    } s_aTest[] =
     {
         { "test5=test5\0t51=t51",           sizeof("test5=test5\0t51=t51"),                            0,  sizeof("test5=test5\0") - 1,                   1, VERR_MORE_DATA },
         { "\0\0test5=test5\0t51=t51",       sizeof("\0\0test5=test5\0t51=t51"),                        0,  sizeof("\0\0test5=test5\0") - 1,               1, VERR_MORE_DATA },
     };
 
-    unsigned iTest = 0;
-    for (iTest; iTest < RT_ELEMENTS(aTest); iTest++)
+    for (unsigned iTest = 0; iTest < RT_ELEMENTS(s_aTest); iTest++)
     {
         RTTestIPrintf(RTTESTLVL_DEBUG, "Manual test #%d\n", iTest);
 
         GuestProcessStream stream;
-        rc = stream.AddData((BYTE*)aTest[iTest].pbData, aTest[iTest].cbData);
+        rc = stream.AddData((BYTE *)s_aTest[iTest].pbData, s_aTest[iTest].cbData);
 
         for (;;)
         {
@@ -188,68 +191,66 @@ int main()
      * -- we rely on the return values in the test(s) below. */
     RTAssertSetQuiet(true);
 
-    unsigned iTest = 0;
-    for (iTest; iTest < RT_ELEMENTS(aTestBlock); iTest++)
+    unsigned iTest;
+    for (iTest = 0; iTest < RT_ELEMENTS(g_aTestBlock); iTest++)
     {
         RTTestIPrintf(RTTESTLVL_DEBUG, "=> Test #%u\n", iTest);
 
         GuestProcessStream stream;
-        int iResult = stream.AddData((BYTE*)aTestBlock[iTest].pbData, aTestBlock[iTest].cbData);
+        int iResult = stream.AddData((BYTE*)g_aTestBlock[iTest].pbData, g_aTestBlock[iTest].cbData);
         if (RT_SUCCESS(iResult))
         {
             GuestProcessStreamBlock curBlock;
             iResult = stream.ParseBlock(curBlock);
-            if (iResult != aTestBlock[iTest].iResult)
+            if (iResult != g_aTestBlock[iTest].iResult)
             {
                 RTTestFailed(hTest, "\tReturned %Rrc, expected %Rrc\n",
-                             iResult, aTestBlock[iTest].iResult);
+                             iResult, g_aTestBlock[iTest].iResult);
             }
-            else if (stream.GetOffset() != aTestBlock[iTest].uOffsetAfter)
+            else if (stream.GetOffset() != g_aTestBlock[iTest].uOffsetAfter)
             {
-                RTTestFailed(hTest, "\tOffset %u wrong, expected %u\n",
-                             stream.GetOffset(), aTestBlock[iTest].uOffsetAfter);
+                RTTestFailed(hTest, "\tOffset %zu wrong, expected %u\n",
+                             stream.GetOffset(), g_aTestBlock[iTest].uOffsetAfter);
             }
             else if (iResult == VERR_MORE_DATA)
             {
-                RTTestIPrintf(RTTESTLVL_DEBUG, "\tMore data (Offset: %u)\n", stream.GetOffset());
+                RTTestIPrintf(RTTESTLVL_DEBUG, "\tMore data (Offset: %zu)\n", stream.GetOffset());
             }
 
             if (  (   RT_SUCCESS(iResult)
                    || iResult == VERR_MORE_DATA))
             {
-                if (curBlock.GetCount() != aTestBlock[iTest].uMapElements)
+                if (curBlock.GetCount() != g_aTestBlock[iTest].uMapElements)
                 {
                     RTTestFailed(hTest, "\tMap has %u elements, expected %u\n",
-                                 curBlock.GetCount(), aTestBlock[iTest].uMapElements);
+                                 curBlock.GetCount(), g_aTestBlock[iTest].uMapElements);
                 }
             }
 
             /* There is remaining data left in the buffer (which needs to be merged
              * with a following buffer) -- print it. */
-            uint32_t uOffset = stream.GetOffset();
-            size_t uToWrite = aTestBlock[iTest].cbData - uOffset;
-            if (uToWrite)
+            size_t off = stream.GetOffset();
+            size_t cbToWrite = g_aTestBlock[iTest].cbData - off;
+            if (cbToWrite)
             {
-                const char *pszRemaining = aTestBlock[iTest].pbData;
-                RTTestIPrintf(RTTESTLVL_DEBUG, "\tRemaining (%u):\n", uToWrite);
+                RTTestIPrintf(RTTESTLVL_DEBUG, "\tRemaining (%u):\n", cbToWrite);
 
                 /* How to properly get the current RTTESTLVL (aka IPRT_TEST_MAX_LEVEL) here?
                  * Hack alert: Using RTEnvGet for now. */
                 if (!RTStrICmp(RTEnvGet("IPRT_TEST_MAX_LEVEL"), "debug"))
-                    RTStrmWriteEx(g_pStdOut, &aTestBlock[iTest].pbData[uOffset], uToWrite - 1, NULL);
+                    RTStrmWriteEx(g_pStdOut, &g_aTestBlock[iTest].pbData[off], cbToWrite - 1, NULL);
             }
         }
     }
 
     RTTestIPrintf(RTTESTLVL_INFO, "Doing block tests ...\n");
 
-    iTest = 0;
-    for (iTest; iTest < RT_ELEMENTS(aTestStream); iTest++)
+    for (iTest = 0; iTest < RT_ELEMENTS(g_aTestStream); iTest++)
     {
         RTTestIPrintf(RTTESTLVL_DEBUG, "=> Block test #%u\n", iTest);
 
         GuestProcessStream stream;
-        int iResult = stream.AddData((BYTE*)aTestStream[iTest].pbData, aTestStream[iTest].cbData);
+        int iResult = stream.AddData((BYTE*)g_aTestStream[iTest].pbData, g_aTestStream[iTest].cbData);
         if (RT_SUCCESS(iResult))
         {
             uint32_t uNumBlocks = 0;
@@ -269,15 +270,15 @@ int main()
                     break;
             } while (RT_SUCCESS(iResult));
 
-            if (iResult != aTestStream[iTest].iResult)
+            if (iResult != g_aTestStream[iTest].iResult)
             {
                 RTTestFailed(hTest, "\tReturned %Rrc, expected %Rrc\n",
-                             iResult, aTestStream[iTest].iResult);
+                             iResult, g_aTestStream[iTest].iResult);
             }
-            else if (uNumBlocks != aTestStream[iTest].uNumBlocks)
+            else if (uNumBlocks != g_aTestStream[iTest].uNumBlocks)
             {
                 RTTestFailed(hTest, "\tReturned %u blocks, expected %u\n",
-                             uNumBlocks, aTestStream[iTest].uNumBlocks);
+                             uNumBlocks, g_aTestStream[iTest].uNumBlocks);
             }
         }
         else

@@ -304,6 +304,7 @@ static void signalHandler(int iSignal)
     }
 }
 
+#if 0 /** @todo signal handler installer / uninstallers are unused. */
 /**
  * Installs a custom signal handler to get notified
  * whenever the user wants to intercept the program.
@@ -326,6 +327,7 @@ static void signalHandlerUninstall()
     signal(SIGBREAK, SIG_DFL);
 #endif
 }
+#endif /* unused */
 
 /**
  * Adds a specified machine to the list (map) of handled machines.
@@ -369,8 +371,7 @@ static int machineAdd(const Bstr &strUuid)
         int rc2 = groupAdd(m.groups, strGroups.c_str(), 0 /* Flags */);
         AssertRC(rc2);
 
-        mapVMIter it = g_mapVM.find(strUuid);
-        Assert(it == g_mapVM.end());
+        Assert(g_mapVM.find(strUuid) == g_mapVM.end());
         g_mapVM.insert(std::make_pair(strUuid, m));
         serviceLogVerbose(("Added machine \"%ls\"\n", strUuid.raw()));
 
@@ -419,7 +420,7 @@ static int machineAdd(const Bstr &strUuid)
 
     /** @todo Add std exception handling! */
 
-    return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_COM_IPRT_ERROR; /* @todo Find a better error! */
+    return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_COM_IPRT_ERROR; /** @todo Find a better error! */
 }
 
 static int machineDestroy(const Bstr &strUuid)
@@ -682,7 +683,7 @@ static int watchdogShutdownModules()
     return rc;
 }
 
-static RTEXITCODE watchdogMain(HandlerArg *a)
+static RTEXITCODE watchdogMain(/*HandlerArg *a */)
 {
     HRESULT rc = S_OK;
 
@@ -1179,8 +1180,8 @@ int main(int argc, char *argv[])
     if (RT_FAILURE(rc))
         return RTEXITCODE_FAILURE;
 
-    HandlerArg handlerArg = { argc, argv };
-    RTEXITCODE rcExit = watchdogMain(&handlerArg);
+    //HandlerArg handlerArg = { argc, argv };
+    RTEXITCODE rcExit = watchdogMain(/*&handlerArg*/);
 
     NativeEventQueue::getMainEventQueue()->processEventQueue(0);
 

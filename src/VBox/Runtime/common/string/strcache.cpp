@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -348,6 +348,8 @@ RTDECL(int) RTStrCacheCreate(PRTSTRCACHE phStrCache, const char *pszName)
         }
         RTMemFree(pThis);
     }
+
+    RT_NOREF_PV(pszName);
     return rc;
 }
 RT_EXPORT_SYMBOL(RTStrCacheCreate);
@@ -430,6 +432,7 @@ static void rtStrCacheCheck(PRTSTRCACHEINT pThis)
         }
     }
 # endif
+    RT_NOREF_PV(pThis);
 }
 #else
 # define RTSTRCACHE_CHECK(a_pThis)  do { } while (0)
@@ -849,7 +852,7 @@ RTDECL(const char *) RTStrCacheEnterN(RTSTRCACHE hStrCache, const char *pchStrin
     if (pEntry)
     {
         uint32_t cRefs = ASMAtomicIncU32(&pEntry->cRefs);
-        Assert(cRefs < UINT32_MAX / 2);
+        Assert(cRefs < UINT32_MAX / 2); NOREF(cRefs);
     }
     else
     {

@@ -4757,7 +4757,7 @@
     </message>
     <message>
         <source>Holds the revision number filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;IIFF&lt;/tt&gt; where &lt;tt&gt;I&lt;/tt&gt; is a decimal digit of the integer part and &lt;tt&gt;F&lt;/tt&gt; is a decimal digit of the fractional part. An empty string will match any value.</source>
-        <translation>Legt die Revisions-Nr für den Filter fest. Das Format für den &lt;i&gt;genauen&lt;/i&gt; Vergleich ist &lt;tt&gt;XXXX&lt;/tt&gt;, wobei &lt;tt&gt;X&lt;/tt&gt; eine hexadezimale Zahl darstellt. Eine leere Zeichenfolge passt auf beliebige IDs.</translation>
+        <translation>Legt die Revisions-Nr für den Filter fest. Das Format für den &lt;i&gt;genauen&lt;/i&gt; Vergleich ist &lt;tt&gt;IIFF&lt;/tt&gt;, wobei &lt;tt&gt;I&lt;/tt&gt; dezimale Ziffern für den ganzzahligen Anteil und &lt;tt&gt;F&lt;/tt&gt; dezimale Ziffern für den Bruchteil darstellen. Eine leere Zeichenfolge passt auf beliebige Revisionsnummern.</translation>
     </message>
     <message>
         <source>Holds the manufacturer filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>

@@ -35,6 +35,7 @@
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
 
+
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
@@ -75,7 +76,7 @@ static PCVUSBSNIFFERFMT s_aVUsbSnifferFmts[] =
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 
-/** @copydoc VUSBSNIFFERSTRM::pfnWrite. */
+/** @interface_method_impl{VUSBSNIFFERSTRM,pfnWrite}. */
 static DECLCALLBACK(int) vusbSnifferStrmWrite(PVUSBSNIFFERSTRM pStrm, const void *pvBuf, size_t cbBuf)
 {
     PVUSBSNIFFERINT pThis = RT_FROM_MEMBER(pStrm, VUSBSNIFFERINT, Strm);
@@ -135,6 +136,7 @@ DECLHIDDEN(int) VUSBSnifferCreate(PVUSBSNIFFER phSniffer, uint32_t fFlags,
                                   const char *pszCaptureFilename, const char *pszFmt,
                                   const char *pszDesc)
 {
+    RT_NOREF(pszDesc);
     int rc = VINF_SUCCESS;
     PVUSBSNIFFERINT pThis = NULL;
     PCVUSBSNIFFERFMT pFmt = NULL;

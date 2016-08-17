@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -97,7 +97,7 @@ ip_input(PNATState pData, struct mbuf *m)
 
     STAM_PROFILE_START(&pData->StatIP_input, a);
 
-    LogFlowFunc(("ENTER: m = %lx\n", (long)m));
+    LogFlowFunc(("ENTER: m = %p\n", m));
     ip = mtod(m, struct ip *);
     Log2(("ip_dst=%RTnaipv4(len:%d) m_len = %d\n", ip->ip_dst, RT_N2H_U16(ip->ip_len), m->m_len));
 
@@ -659,7 +659,7 @@ ip_stripoptions(struct mbuf *m, struct mbuf *mopt)
     struct ip *ip = mtod(m, struct ip *);
     register caddr_t opts;
     int olen;
-    NOREF(mopt); /* @todo: do we really will need this options buffer? */
+    NOREF(mopt); /** @todo do we really will need this options buffer? */
 
     olen = (ip->ip_hl<<2) - sizeof(struct ip);
     opts = (caddr_t)(ip + 1);

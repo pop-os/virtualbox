@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,9 +35,7 @@
 
 RTDECL(int) RTThreadCtxHookCreate(PRTTHREADCTXHOOK phCtxHook, uint32_t fFlags, PFNRTTHREADCTXHOOK pfnCallback, void *pvUser)
 {
-    NOREF(phCtxHook);
-    NOREF(pfnCallback);
-    NOREF(pvUser);
+    RT_NOREF4(phCtxHook, fFlags, pfnCallback, pvUser);
     return VERR_NOT_SUPPORTED;
 }
 RT_EXPORT_SYMBOL(RTThreadCtxHookCreate);

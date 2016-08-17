@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,9 +65,9 @@
 #endif
 #undef LOG_GROUP
 #ifdef VBOX_WITH_NEW_IOAPIC
-# include "../PC/DevIOAPIC_New.cpp"
-#else
 # include "../PC/DevIoApic.cpp"
+#else
+# include "../PC/DevIoApic_Old.cpp"
 #endif
 #undef LOG_GROUP
 #include "../PC/DevHPET.cpp"
@@ -119,17 +119,10 @@
 
 #include <VBox/vmm/pdmaudioifs.h>
 
-#ifdef VBOX_WITH_AUDIO_50
-# undef LOG_GROUP
-# include "../Audio_old/DevIchAc97.cpp"
-# undef LOG_GROUP
-# include "../Audio_old/DevIchHda.cpp"
-#else
 # undef LOG_GROUP
 # include "../Audio/DevIchAc97.cpp"
 # undef LOG_GROUP
 # include "../Audio/DevIchHda.cpp"
-#endif
 
 #include <stdio.h>
 

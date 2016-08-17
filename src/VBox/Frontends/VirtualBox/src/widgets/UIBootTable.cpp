@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,6 +40,7 @@ UIBootTableItem::UIBootTableItem(KDeviceType type)
         case KDeviceType_DVD:      setIcon(UIIconPool::iconSet(":/cd_16px.png")); break;
         case KDeviceType_HardDisk: setIcon(UIIconPool::iconSet(":/hd_16px.png")); break;
         case KDeviceType_Network:  setIcon(UIIconPool::iconSet(":/nw_16px.png")); break;
+        default: break; /* Shut up, MSC! */
     }
     retranslateUi();
 }

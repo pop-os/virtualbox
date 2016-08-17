@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -274,6 +274,11 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvAUDIO);
     if (RT_FAILURE(rc))
         return rc;
+#ifdef VBOX_WITH_AUDIO_DEBUG
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostDebugAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostNullAudio);
     if (RT_FAILURE(rc))
         return rc;
@@ -282,41 +287,25 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#if defined(RT_OS_LINUX)
-# ifdef VBOX_WITH_PULSE
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostPulseAudio);
-    if (RT_FAILURE(rc))
-        return rc;
-# endif
-# ifdef VBOX_WITH_ALSA
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostALSAAudio);
-    if (RT_FAILURE(rc))
-        return rc;
-# endif
-# ifdef VBOX_WITH_OSS
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
-    if (RT_FAILURE(rc))
-        return rc;
-# endif
-#endif /* RT_OS_LINUX */
-#if defined(RT_OS_FREEBSD)
-# ifdef VBOX_WITH_OSS
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
-    if (RT_FAILURE(rc))
-        return rc;
-# endif
-#endif
 #if defined(RT_OS_DARWIN)
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostCoreAudio);
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#if defined(RT_OS_SOLARIS)
-# ifdef VBOX_WITH_OSS
+#ifdef VBOX_WITH_AUDIO_ALSA
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostALSAAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_AUDIO_OSS
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
     if (RT_FAILURE(rc))
         return rc;
-# endif
+#endif
+#ifdef VBOX_WITH_AUDIO_PULSE
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostPulseAudio);
+    if (RT_FAILURE(rc))
+        return rc;
 #endif
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvACPI);
     if (RT_FAILURE(rc))
@@ -394,6 +383,7 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
 extern "C" DECLEXPORT(int) VBoxUsbRegister(PCPDMUSBREGCB pCallbacks, uint32_t u32Version)
 {
     int rc = VINF_SUCCESS;
+    RT_NOREF1(u32Version);
 
 #ifdef VBOX_WITH_USB
     rc = pCallbacks->pfnRegister(pCallbacks, &g_UsbDevProxy);

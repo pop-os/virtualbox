@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -655,6 +655,7 @@ RTDECL(int) RTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER en
      */
     AssertMsgReturn(VALID_PTR(ppDir), ("%p\n", ppDir), VERR_INVALID_POINTER);
     AssertMsgReturn(VALID_PTR(pszPath), ("%p\n", pszPath), VERR_INVALID_POINTER);
+    AssertReturn(!(fOpen & ~RTDIROPEN_FLAGS_NO_SYMLINKS), VERR_INVALID_FLAGS);
     switch (enmFilter)
     {
         case RTDIRFILTER_UNIX:

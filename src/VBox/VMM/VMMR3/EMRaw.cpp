@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -420,6 +420,7 @@ DECLINLINE(int) emR3RawExecuteInstruction(PVM pVM, PVMCPU pVCpu, const char *psz
 #ifdef LOG_ENABLED
     return emR3RawExecuteInstructionWorker(pVM, pVCpu, rcGC, pszPrefix);
 #else
+    RT_NOREF_PV(pszPrefix);
     return emR3RawExecuteInstructionWorker(pVM, pVCpu, rcGC);
 #endif
 }
@@ -434,6 +435,7 @@ DECLINLINE(int) emR3RawExecuteInstruction(PVM pVM, PVMCPU pVCpu, const char *psz
 static int emR3RawExecuteIOInstruction(PVM pVM, PVMCPU pVCpu)
 {
     STAM_PROFILE_START(&pVCpu->em.s.StatIOEmu, a);
+    RT_NOREF_PV(pVM);
 
     /* Hand it over to the interpreter. */
     VBOXSTRICTRC rcStrict = IEMExecOne(pVCpu);
@@ -1490,7 +1492,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         if (    VM_FF_IS_PENDING(pVM, ~VM_FF_HIGH_PRIORITY_PRE_RAW_MASK | VM_FF_PGM_NO_MEMORY)
             ||  VMCPU_FF_IS_PENDING(pVCpu, ~VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
         {
-            Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) != (EMIsRawRing1Enabled(pVM) ? 2 : 1));
+            Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) != (EMIsRawRing1Enabled(pVM) ? 2U : 1U));
 
             STAM_REL_PROFILE_ADV_SUSPEND(&pVCpu->em.s.StatRAWTotal, a);
             rc = emR3ForcedActions(pVM, pVCpu, rc);

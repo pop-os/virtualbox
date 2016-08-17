@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -574,7 +574,7 @@ static DECLCALLBACK(int) usbProxySolarisClearHaltedEp(PUSBPROXYDEV pProxyDev, un
 
 
 /**
- * @copydoc USBPROXYBACK::pfnUrbQueue
+ * @interface_method_impl{USBPROXYBACK,pfnUrbQueue}
  */
 static DECLCALLBACK(int) usbProxySolarisUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
 {

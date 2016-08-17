@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,7 +78,7 @@ static unsigned char *getRootProperty(struct DISPLAYSTATE *pState, const char *p
     unsigned long cReturned = 0;
     unsigned long cAfter = 0;
     unsigned char *pData = 0;
-    
+
     if (XGetWindowProperty(pState->pDisplay, DefaultRootWindow(pState->pDisplay),
                            XInternAtom(pState->pDisplay, pszName, 0), 0, cItems,
                            False /* delete */, type, &actualType, &iFormat,
@@ -102,7 +102,7 @@ static void doResize(struct DISPLAYSTATE *pState)
         {
             RTStrPrintf(szCommand, sizeof(szCommand), "%s -s %ux%u",
                         pState->pcszXrandr, ((unsigned long *)pData)[0] >> 16, ((unsigned long *)pData)[0] & 0xFFFF);
-            system(szCommand);
+            int rcShutUpGcc = system(szCommand); RT_NOREF_PV(rcShutUpGcc);
             XFree(pData);
         }
     }
@@ -127,7 +127,7 @@ static void doResize(struct DISPLAYSTATE *pState)
                "--output VGA-30 --auto --right-of VGA-29 --output VGA-31 --auto --right-of VGA-30";
         char szCommand[sizeof(szCommandBase) + 256];
         RTStrPrintf(szCommand, sizeof(szCommand), szCommandBase, pState->pcszXrandr);
-        system(szCommand);
+        int rcShutUpGcc = system(szCommand); RT_NOREF_PV(rcShutUpGcc);
     }
 }
 
@@ -251,8 +251,8 @@ static int init(struct VBCLSERVICE **ppInterface)
 
 static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
 {
+    RT_NOREF1(fDaemonised);
     struct DISPLAYSTATE *pSelf = getStateFromInterface(ppInterface);
-    int rc;
 
     if (!pSelf->mfInit)
         return VERR_WRONG_ORDER;

@@ -34,6 +34,7 @@
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
 
+
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
@@ -83,6 +84,7 @@ static const char *s_apszMonths[] =
     "Dec"
 };
 
+
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
@@ -90,17 +92,18 @@ static const char *s_apszMonths[] =
 
 static int vusbSnifferFmtVmxLogData(PVUSBSNIFFERFMTINT pThis, PRTTIME pTime, uint8_t *pbBuf, size_t cbBuf)
 {
-    int rc = VINF_SUCCESS;
-    char aszLineBuf[256];
-    uint16_t off = 0;
+    int rc;
+    char szLineBuf[256];
+    size_t off = 0;
 
     do
     {
-        size_t cch = RTStrPrintf(&aszLineBuf[0], sizeof(aszLineBuf),
-                                 "%s %02u %02u:%02u:%02u.%3.*u: vmx| USBIO:  %03x: %16.*Rhxs\n",
-                                 s_apszMonths[pTime->u8Month - 1], pTime->u8MonthDay, pTime->u8Hour, pTime->u8Minute, pTime->u8Second, 3, pTime->u32Nanosecond,
+        size_t cch = RTStrPrintf(&szLineBuf[0], sizeof(szLineBuf),
+                                 "%s %02u %02u:%02u:%02u.%3.*u: vmx| USBIO:  %03zx: %16.*Rhxs\n",
+                                 s_apszMonths[pTime->u8Month - 1], pTime->u8MonthDay,
+                                 pTime->u8Hour, pTime->u8Minute, pTime->u8Second, 3, pTime->u32Nanosecond,
                                  off, RT_MIN(cbBuf - off, 16), pbBuf);
-        rc = pThis->pStrm->pfnWrite(pThis->pStrm, &aszLineBuf[0], cch);
+        rc = pThis->pStrm->pfnWrite(pThis->pStrm, &szLineBuf[0], cch);
         off   += RT_MIN(cbBuf, 16);
         pbBuf += RT_MIN(cbBuf, 16);
     } while (RT_SUCCESS(rc) && off < cbBuf);
@@ -108,7 +111,7 @@ static int vusbSnifferFmtVmxLogData(PVUSBSNIFFERFMTINT pThis, PRTTIME pTime, uin
     return rc;
 }
 
-/** @copydoc VUSBSNIFFERFMT::pfnInit */
+/** @interface_method_impl{VUSBSNIFFERFMT,pfnInit} */
 static DECLCALLBACK(int) vusbSnifferFmtVmxInit(PVUSBSNIFFERFMTINT pThis, PVUSBSNIFFERSTRM pStrm)
 {
     pThis->pStrm = pStrm;
@@ -116,36 +119,36 @@ static DECLCALLBACK(int) vusbSnifferFmtVmxInit(PVUSBSNIFFERFMTINT pThis, PVUSBSN
 }
 
 
-/** @copydoc VUSBSNIFFERFMT::pfnDestroy */
+/** @interface_method_impl{VUSBSNIFFERFMT,pfnDestroy} */
 static DECLCALLBACK(void) vusbSnifferFmtVmxDestroy(PVUSBSNIFFERFMTINT pThis)
 {
     NOREF(pThis);
 }
 
 
-/** @copydoc VUSBSNIFFERFMT::pfnRecordEvent */
+/** @interface_method_impl{VUSBSNIFFERFMT,pfnRecordEvent} */
 static DECLCALLBACK(int) vusbSnifferFmtVmxRecordEvent(PVUSBSNIFFERFMTINT pThis, PVUSBURB pUrb, VUSBSNIFFEREVENT enmEvent)
 {
     RTTIMESPEC TimeNow;
     RTTIME Time;
-    char aszLineBuf[256];
+    char szLineBuf[256];
     const char *pszEvt = enmEvent == VUSBSNIFFEREVENT_SUBMIT ? "Down" : "Up";
     uint8_t cIsocPkts = pUrb->enmType == VUSBXFERTYPE_ISOC ? pUrb->cIsocPkts : 0;
 
     if (pUrb->enmType == VUSBXFERTYPE_MSG)
         return VINF_SUCCESS;
 
-    RT_ZERO(aszLineBuf);
+    RT_ZERO(szLineBuf);
 
     RTTimeNow(&TimeNow);
     RTTimeExplode(&Time, &TimeNow);
 
-    size_t cch = RTStrPrintf(&aszLineBuf[0], sizeof(aszLineBuf),
+    size_t cch = RTStrPrintf(&szLineBuf[0], sizeof(szLineBuf),
                              "%s %02u %02u:%02u:%02u.%3.*u: vmx| USBIO: %s dev=%u endpt=%x datalen=%u numPackets=%u status=%u 0\n",
                              s_apszMonths[Time.u8Month - 1], Time.u8MonthDay, Time.u8Hour, Time.u8Minute, Time.u8Second, 3, Time.u32Nanosecond,
                              pszEvt, pUrb->DstAddress, pUrb->EndPt | (pUrb->enmDir == VUSBDIRECTION_IN ? 0x80 : 0x00),
                              pUrb->cbData, cIsocPkts, pUrb->enmStatus);
-    int rc = pThis->pStrm->pfnWrite(pThis->pStrm, &aszLineBuf[0], cch);
+    int rc = pThis->pStrm->pfnWrite(pThis->pStrm, &szLineBuf[0], cch);
     if (RT_SUCCESS(rc))
     {
         /* Log the data in the appropriate stage. */

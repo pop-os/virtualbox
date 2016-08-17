@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -143,6 +143,7 @@ typedef char                       *caddr_t;
 #define VBDTSTATIC              static
 #define VBDTUNASS(a_Value)      = a_Value
 #define VBDTGCC(a_Value)        = a_Value
+#define VBDTMSC(a_Value)        = a_Value
 
 /*
  * string
@@ -156,8 +157,8 @@ typedef char                       *caddr_t;
 # define bcmp(a_p1, a_p2, a_cb)     (memcmp(a_p1, a_p2, a_cb))
 #endif
 #if defined(_MSC_VER) || defined(IN_RING0)
-# define snprintf                   RTStrPrintf
-# define vsnprintf                  RTStrPrintfV
+# define snprintf                   (int)RTStrPrintf    /** @todo wrong return value */
+# define vsnprintf                  (int)RTStrPrintfV   /** @todo wrong return value */
 #endif
 
 /*

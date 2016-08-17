@@ -89,6 +89,8 @@ HRESULT VRDEServer::init(Machine *aParent)
 
     mData.allocate();
 
+    mData->fEnabled = false;
+
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
 
@@ -739,7 +741,7 @@ HRESULT VRDEServer::setAllowMultiConnection(BOOL aAllowMultiConnection)
         mParent->i_setModified(Machine::IsModified_VRDEServer);
         mlock.release();
 
-        mParent->i_onVRDEServerChange(/* aRestart */ TRUE); // @todo does it need a restart?
+        mParent->i_onVRDEServerChange(/* aRestart */ TRUE); /// @todo does it need a restart?
     }
 
     return S_OK;
@@ -774,7 +776,7 @@ HRESULT VRDEServer::setReuseSingleConnection(BOOL aReuseSingleConnection)
         mParent->i_setModified(Machine::IsModified_VRDEServer);
         mlock.release();
 
-        mParent->i_onVRDEServerChange(/* aRestart */ TRUE); // @todo needs a restart?
+        mParent->i_onVRDEServerChange(/* aRestart */ TRUE); /// @todo needs a restart?
     }
 
     return S_OK;

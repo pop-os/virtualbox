@@ -887,7 +887,7 @@ netif_matches_ip6_addr(struct netif * netif, ip6_addr_t * ip6addr)
 void
 netif_create_ip6_linklocal_address(struct netif * netif, u8_t from_mac_48bit)
 {
-  u8_t i, addr_index;
+  u8_t i;
 
   /* Link-local prefix. */
   netif->ip6_addr[0].addr[0] = PP_HTONL(0xfe800000ul);

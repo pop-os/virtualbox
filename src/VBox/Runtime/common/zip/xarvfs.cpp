@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1401,12 +1401,13 @@ static DECLCALLBACK(int) rtZipXarFssSym_SetOwner(void *pvThis, RTUID uid, RTGID 
 /**
  * @interface_method_impl{RTVFSSYMLINKOPS,pfnRead}
  */
-static DECLCALLBACK(int) rtZipXarFssSym_Read(void *pvThis, char *pszTarget, size_t cbXarget)
+static DECLCALLBACK(int) rtZipXarFssSym_Read(void *pvThis, char *pszTarget, size_t cbTarget)
 {
     PRTZIPXARBASEOBJ pThis = (PRTZIPXARBASEOBJ)pvThis;
 #if 0
     return RTStrCopy(pszTarget, cbXarget, pThis->pXarReader->szTarget);
 #else
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pszTarget); RT_NOREF_PV(cbTarget);
     return VERR_NOT_IMPLEMENTED;
 #endif
 }
@@ -1818,6 +1819,7 @@ static const RTVFSFSSTREAMOPS rtZipXarFssOps =
 static int rtZipXarValidateTocPart2(PRTZIPXARFSSTREAM pThis, PCXARHEADER pXarHdr, PCRTZIPXARHASHDIGEST pTocDigest)
 {
     int rc;
+    RT_NOREF_PV(pXarHdr);
 
     /*
      * Check that the hash function in the TOC matches the one in the XAR header.

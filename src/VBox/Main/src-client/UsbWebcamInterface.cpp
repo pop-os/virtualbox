@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2014 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,8 +44,8 @@ typedef struct EMWEBCAMREMOTE
 typedef struct EMWEBCAMDRV
 {
     EMWEBCAMREMOTE *pRemote;
-    PPDMIWEBCAMUP  pIWebcamUp;
-    PDMIWEBCAMDOWN IWebcamDown;
+    PPDMIWEBCAMDEV  pIWebcamUp;
+    PDMIWEBCAMDRV   IWebcamDrv;
 } EMWEBCAMDRV, *PEMWEBCAMDRV;
 
 typedef struct EMWEBCAMREQCTX
@@ -55,39 +55,39 @@ typedef struct EMWEBCAMREQCTX
 } EMWEBCAMREQCTX;
 
 
-static DECLCALLBACK(void) drvEmWebcamReady(PPDMIWEBCAMDOWN pInterface,
+static DECLCALLBACK(void) drvEmWebcamReady(PPDMIWEBCAMDRV pInterface,
                                            bool fReady)
 {
     NOREF(fReady);
 
-    PEMWEBCAMDRV pThis = RT_FROM_MEMBER(pInterface, EMWEBCAMDRV, IWebcamDown);
+    PEMWEBCAMDRV pThis = RT_FROM_MEMBER(pInterface, EMWEBCAMDRV, IWebcamDrv);
     EMWEBCAMREMOTE *pRemote = pThis->pRemote;
 
     LogFlowFunc(("pRemote:%p\n", pThis->pRemote));
 
     if (pThis->pIWebcamUp)
     {
-        pThis->pIWebcamUp->pfnWebcamUpAttached(pThis->pIWebcamUp,
-                                               pRemote->u64DeviceId,
-                                               (const PDMIWEBCAM_DEVICEDESC *)pRemote->pDeviceDesc,
-                                               pRemote->cbDeviceDesc,
-                                               pRemote->u32Version,
-                                               pRemote->fu32Capabilities);
+        pThis->pIWebcamUp->pfnAttached(pThis->pIWebcamUp,
+                                       pRemote->u64DeviceId,
+                                       pRemote->pDeviceDesc,
+                                       pRemote->cbDeviceDesc,
+                                       pRemote->u32Version,
+                                       pRemote->fu32Capabilities);
     }
 }
 
-static DECLCALLBACK(int) drvEmWebcamControl(PPDMIWEBCAMDOWN pInterface,
+static DECLCALLBACK(int) drvEmWebcamControl(PPDMIWEBCAMDRV pInterface,
                                             void *pvUser,
                                             uint64_t u64DeviceId,
-                                            const PDMIWEBCAM_CTRLHDR *pCtrl,
+                                            const struct VRDEVIDEOINCTRLHDR *pCtrl,
                                             uint32_t cbCtrl)
 {
-    PEMWEBCAMDRV pThis = RT_FROM_MEMBER(pInterface, EMWEBCAMDRV, IWebcamDown);
+    PEMWEBCAMDRV pThis = RT_FROM_MEMBER(pInterface, EMWEBCAMDRV, IWebcamDrv);
     EMWEBCAMREMOTE *pRemote = pThis->pRemote;
 
     LogFlowFunc(("pRemote:%p, u64DeviceId %lld\n", pRemote, u64DeviceId));
 
-    return pRemote->pEmWebcam->SendControl(pThis, pvUser, u64DeviceId, (const VRDEVIDEOINCTRLHDR *)pCtrl, cbCtrl);
+    return pRemote->pEmWebcam->SendControl(pThis, pvUser, u64DeviceId, pCtrl, cbCtrl);
 }
 
 
@@ -219,14 +219,11 @@ void EmWebcam::EmWebcamCbNotify(uint32_t u32Id, const void *pvData, uint32_t cbD
 
             LogFlowFunc(("DETACH[%d,%d]\n", p->deviceHandle.u32ClientId, p->deviceHandle.u32DeviceId));
 
-            /* @todo */
+            /** @todo */
             if (mpRemote)
             {
                 if (mpDrv && mpDrv->pIWebcamUp)
-                {
-                    mpDrv->pIWebcamUp->pfnWebcamUpDetached(mpDrv->pIWebcamUp,
-                                                           mpRemote->u64DeviceId);
-                }
+                    mpDrv->pIWebcamUp->pfnDetached(mpDrv->pIWebcamUp, mpRemote->u64DeviceId);
                 /* mpRemote is deallocated in EmWebcamDestruct */
             }
         } break;
@@ -243,6 +240,7 @@ void EmWebcam::EmWebcamCbNotify(uint32_t u32Id, const void *pvData, uint32_t cbD
 void EmWebcam::EmWebcamCbDeviceDesc(int rcRequest, void *pDeviceCtx, void *pvUser,
                                     const VRDEVIDEOINDEVICEDESC *pDeviceDesc, uint32_t cbDeviceDesc)
 {
+    RT_NOREF(pvUser);
     EMWEBCAMREMOTE *pRemote = (EMWEBCAMREMOTE *)pDeviceCtx;
     Assert(pRemote == mpRemote);
 
@@ -271,6 +269,7 @@ void EmWebcam::EmWebcamCbDeviceDesc(int rcRequest, void *pDeviceCtx, void *pvUse
 void EmWebcam::EmWebcamCbControl(int rcRequest, void *pDeviceCtx, void *pvUser,
                                  const VRDEVIDEOINCTRLHDR *pControl, uint32_t cbControl)
 {
+    RT_NOREF(rcRequest);
     EMWEBCAMREMOTE *pRemote = (EMWEBCAMREMOTE *)pDeviceCtx; NOREF(pRemote);
     Assert(pRemote == mpRemote);
 
@@ -281,12 +280,12 @@ void EmWebcam::EmWebcamCbControl(int rcRequest, void *pDeviceCtx, void *pvUser,
 
     if (mpDrv && mpDrv->pIWebcamUp)
     {
-        mpDrv->pIWebcamUp->pfnWebcamUpControl(mpDrv->pIWebcamUp,
-                                              fResponse,
-                                              pvUser,
-                                              mpRemote->u64DeviceId,
-                                              (const PDMIWEBCAM_CTRLHDR *)pControl,
-                                              cbControl);
+        mpDrv->pIWebcamUp->pfnControl(mpDrv->pIWebcamUp,
+                                      fResponse,
+                                      pvUser,
+                                      mpRemote->u64DeviceId,
+                                      pControl,
+                                      cbControl);
     }
 
     RTMemFree(pvUser);
@@ -295,6 +294,7 @@ void EmWebcam::EmWebcamCbControl(int rcRequest, void *pDeviceCtx, void *pvUser,
 void EmWebcam::EmWebcamCbFrame(int rcRequest, void *pDeviceCtx,
                                const VRDEVIDEOINPAYLOADHDR *pFrame, uint32_t cbFrame)
 {
+    RT_NOREF(rcRequest, pDeviceCtx);
     LogFlowFunc(("rcRequest %Rrc %p %p %d\n",
                  rcRequest, pDeviceCtx, pFrame, cbFrame));
 
@@ -306,12 +306,12 @@ void EmWebcam::EmWebcamCbFrame(int rcRequest, void *pDeviceCtx,
             uint32_t cbImage = cbFrame - pFrame->u8HeaderLength;
             const uint8_t *pu8Image = cbImage > 0? (const uint8_t *)pFrame + pFrame->u8HeaderLength: NULL;
 
-            mpDrv->pIWebcamUp->pfnWebcamUpFrame(mpDrv->pIWebcamUp,
-                                                mpRemote->u64DeviceId,
-                                                (PDMIWEBCAM_FRAMEHDR *)pFrame,
-                                                pFrame->u8HeaderLength,
-                                                pu8Image,
-                                                cbImage);
+            mpDrv->pIWebcamUp->pfnFrame(mpDrv->pIWebcamUp,
+                                        mpRemote->u64DeviceId,
+                                        pFrame,
+                                        pFrame->u8HeaderLength,
+                                        pu8Image,
+                                        cbImage);
         }
     }
 }
@@ -365,7 +365,7 @@ int EmWebcam::SendControl(EMWEBCAMDRV *pDrv, void *pvUser, uint64_t u64DeviceId,
     LogFlowFunc(("pszIID:%s\n", pszIID));
 
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
-    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIWEBCAMDOWN, &pThis->IWebcamDown);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIWEBCAMDRV, &pThis->IWebcamDrv);
     return NULL;
 }
 
@@ -386,6 +386,7 @@ int EmWebcam::SendControl(EMWEBCAMDRV *pDrv, void *pvUser, uint64_t u64DeviceId,
 
 /* static */ DECLCALLBACK(int) EmWebcam::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     LogFlowFunc(("iInstance:%d, pCfg:%p, fFlags:%x\n", pDrvIns->iInstance, pCfg, fFlags));
 
@@ -396,7 +397,7 @@ int EmWebcam::SendControl(EMWEBCAMDRV *pDrv, void *pvUser, uint64_t u64DeviceId,
                     VERR_PDM_DRVINS_NO_ATTACH);
 
     /* Check early that there is a device. No need to init anything if there is no device. */
-    pThis->pIWebcamUp = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIWEBCAMUP);
+    pThis->pIWebcamUp = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIWEBCAMDEV);
     if (pThis->pIWebcamUp == NULL)
     {
         LogRel(("USBWEBCAM: Emulated webcam device does not exist.\n"));
@@ -416,8 +417,8 @@ int EmWebcam::SendControl(EMWEBCAMDRV *pDrv, void *pvUser, uint64_t u64DeviceId,
 
     pDrvIns->IBase.pfnQueryInterface = drvQueryInterface;
 
-    pThis->IWebcamDown.pfnWebcamDownReady = drvEmWebcamReady;
-    pThis->IWebcamDown.pfnWebcamDownControl = drvEmWebcamControl;
+    pThis->IWebcamDrv.pfnReady   = drvEmWebcamReady;
+    pThis->IWebcamDrv.pfnControl = drvEmWebcamControl;
 
     return VINF_SUCCESS;
 }

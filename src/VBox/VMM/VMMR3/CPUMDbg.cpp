@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -309,6 +309,7 @@ static DECLCALLBACK(int) cpumR3RegSet_ftw(void *pvUser, PCDBGFREGDESC pDesc, PCD
  */
 static DECLCALLBACK(int) cpumR3RegGet_Dummy(void *pvUser, PCDBGFREGDESC pDesc, PDBGFREGVAL pValue)
 {
+    RT_NOREF_PV(pvUser);
     switch (pDesc->enmType)
     {
         case DBGFREGVALTYPE_U8:        pValue->u8   = 0; return VINF_SUCCESS;
@@ -1084,12 +1085,14 @@ static DBGFREGSUBFIELD const g_aCpumRegFields_lstar[] =
     DBGFREGSUBFIELD_TERMINATOR()
 };
 
+#if 0 /** @todo */
 /** Sub-fields for the SF_MASK MSR. */
 static DBGFREGSUBFIELD const g_aCpumRegFields_sf_mask[] =
 {
     /** @todo  */
     DBGFREGSUBFIELD_TERMINATOR()
 };
+#endif
 
 
 /** @name Macros for producing register descriptor table entries.

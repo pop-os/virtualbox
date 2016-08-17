@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_DIR
-#include <Windows.h>
+#include <iprt/win/windows.h>
 
 #include <iprt/dir.h>
 #include <iprt/path.h>
@@ -130,6 +130,7 @@ RTDECL(int) RTDirRemove(const char *pszPath)
 
 RTDECL(int) RTDirFlush(const char *pszPath)
 {
+    RT_NOREF_PV(pszPath);
     return VERR_NOT_SUPPORTED;
 }
 

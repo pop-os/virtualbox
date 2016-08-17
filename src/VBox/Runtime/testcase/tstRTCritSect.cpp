@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #ifdef TRY_WIN32_CRIT
-# include <Windows.h>
+# include <iprt/win/windows.h>
 #endif
 #define RTCRITSECT_WITHOUT_REMAPPING
 #include <iprt/critsect.h>
@@ -151,6 +151,7 @@ static RTTEST g_hTest;
  */
 static DECLCALLBACK(int) ThreadTest1(RTTHREAD ThreadSelf, void *pvArgs)
 {
+    RT_NOREF1(ThreadSelf);
     THREADTEST1ARGS Args = *(PTHREADTEST1ARGS)pvArgs;
     Log2(("ThreadTest1: Start - iThread=%d ThreadSelf=%p\n", Args.iThread, ThreadSelf));
     RTMemFree(pvArgs);
@@ -245,6 +246,7 @@ static int Test1(unsigned cThreads)
  */
 static DECLCALLBACK(int) ThreadTest2(RTTHREAD ThreadSelf, void *pvArg)
 {
+    RT_NOREF1(ThreadSelf);
     PTHREADTEST2ARGS pArgs = (PTHREADTEST2ARGS)pvArg;
     Log2(("ThreadTest2: Start - iThread=%d ThreadSelf=%p\n", pArgs->iThread, ThreadSelf));
     uint64_t    u64TSStart = 0;
@@ -311,7 +313,7 @@ static DECLCALLBACK(int) ThreadTest2(RTTHREAD ThreadSelf, void *pvArg)
                 return 1;
             }
         }
-        ASMAtomicCmpXchgU32(pArgs->pu32Alone, pArgs->iThread, ~0);
+        ASMAtomicCmpXchgU32(pArgs->pu32Alone, pArgs->iThread, UINT32_MAX);
         for (u32 = 0; u32 < pArgs->cCheckLoops; u32++)
         {
             if (*pArgs->pu32Alone != pArgs->iThread)
@@ -321,7 +323,7 @@ static DECLCALLBACK(int) ThreadTest2(RTTHREAD ThreadSelf, void *pvArg)
                 return 1;
             }
         }
-        ASMAtomicXchgU32(pArgs->pu32Alone, ~0);
+        ASMAtomicXchgU32(pArgs->pu32Alone, UINT32_MAX);
 
         /*
          * Check for sequences.
@@ -375,8 +377,8 @@ static int Test2(unsigned cThreads, unsigned cIterations, unsigned cCheckLoops)
     RTSEMEVENT       EventDone;
     RTTEST_CHECK_RC_RET(g_hTest, RTSemEventCreate(&EventDone), VINF_SUCCESS, 1);
     uint32_t volatile   u32Release = 0;
-    uint32_t volatile   u32Alone = ~0;
-    uint32_t volatile   u32Prev = ~0;
+    uint32_t volatile   u32Alone = UINT32_MAX;
+    uint32_t volatile   u32Prev = UINT32_MAX;
     uint32_t volatile   cSeq = 0;
     uint32_t volatile   cReordered = 0;
     uint32_t volatile   cThreadRunning = 0;
@@ -492,7 +494,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 102121 $\n");
+                RTPrintf("$Revision: 109295 $\n");
                 return 0;
 
             default:

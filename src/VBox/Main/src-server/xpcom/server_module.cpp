@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -174,7 +174,6 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
     LogFlowFuncEnter();
 
     nsresult rc = NS_OK;
-    int vrc = VINF_SUCCESS;
 
     do
     {
@@ -311,7 +310,7 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
     }
     while (0);
 
-    LogFlowFunc(("rc=%Rhrc (%#08x), vrc=%Rrc\n", rc, rc, vrc));
+    LogFlowFunc(("rc=%Rhrc (%#08x)\n", rc, rc));
     LogFlowFuncLeave();
 
     return rc;

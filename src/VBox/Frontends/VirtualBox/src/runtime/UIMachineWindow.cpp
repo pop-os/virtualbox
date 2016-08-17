@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -264,7 +264,7 @@ void UIMachineWindow::retranslateUi()
 # if QT_VERSION < 0x050000
 bool UIMachineWindow::x11Event(XEvent *pEvent)
 {
-    // TODO: Is that really needed?
+    /// @todo Is that really needed?
     /* Qt bug: when the machine-view grabs the keyboard,
      * FocusIn, FocusOut, WindowActivate and WindowDeactivate Qt events are
      * not properly sent on top level window deactivation.
@@ -585,6 +585,7 @@ Qt::Alignment UIMachineWindow::viewAlignment(UIVisualStateType visualStateType)
         case UIVisualStateType_Fullscreen: return Qt::AlignVCenter | Qt::AlignHCenter;
         case UIVisualStateType_Seamless: return 0;
         case UIVisualStateType_Scale: return 0;
+        case UIVisualStateType_Invalid: case UIVisualStateType_All: break; /* Shut up, MSC! */
     }
     AssertMsgFailed(("Incorrect visual state!"));
     return 0;

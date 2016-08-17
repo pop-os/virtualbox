@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -275,7 +275,7 @@ bool UIWizardNewVM::createVM()
             if (!strId.isNull())
             {
                 UIMedium vmedium = vboxGlobal().medium(strId);
-                CMedium medium = vmedium.medium();              // @todo r=dj can this be cached somewhere?
+                CMedium medium = vmedium.medium();              /// @todo r=dj can this be cached somewhere?
                 machine.AttachDevice(strHDName, 0, 0, KDeviceType_HardDisk, medium);
                 if (!machine.isOk())
                     msgCenter().cannotAttachDevice(machine, UIMediumType_HardDisk, field("virtualDiskLocation").toString(),
@@ -310,11 +310,11 @@ bool UIWizardNewVM::createVM()
         if (!success)
         {
             /* Unregister on failure */
-            QVector<CMedium> aMedia = m_machine.Unregister(KCleanupMode_UnregisterOnly);   //  @todo replace with DetachAllReturnHardDisksOnly once a progress dialog is in place below
+            QVector<CMedium> aMedia = m_machine.Unregister(KCleanupMode_UnregisterOnly);   /// @todo replace with DetachAllReturnHardDisksOnly once a progress dialog is in place below
             if (vbox.isOk())
             {
                 CProgress progress = m_machine.DeleteConfig(aMedia);
-                progress.WaitForCompletion(-1);         // @todo do this nicely with a progress dialog, this can delete lots of files
+                progress.WaitForCompletion(-1);         /// @todo do this nicely with a progress dialog, this can delete lots of files
             }
             return false;
         }

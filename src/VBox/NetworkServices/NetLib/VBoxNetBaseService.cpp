@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,7 +63,7 @@
 #include "VBoxNetBaseService.h"
 
 #ifdef RT_OS_WINDOWS /* WinMain */
-# include <Windows.h>
+# include <iprt/win/windows.h>
 # include <stdlib.h>
 #endif
 
@@ -246,6 +246,10 @@ int VBoxNetBaseService::run()
  *
  * @param   argc    Argument count.
  * @param   argv    Argument vector.
+ *
+ * @todo r=bird: The --help and --version options shall not return a
+ *               non-zero exit code.  So, this method need to grow some
+ *               complexity.  I'm to blame for that blunder :/
  */
 int VBoxNetBaseService::parseArgs(int argc, char **argv)
 {
@@ -294,7 +298,7 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
                 else
                 {
                     RTStrmPrintf(g_pStdErr, "Invalid trunk type '%s'\n", Val.psz);
-                    return 1;
+                    return RTEXITCODE_SYNTAX;
                 }
                 break;
 
@@ -316,7 +320,7 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
 
             case 'V': // --version (missed)
                 RTPrintf("%sr%u\n", RTBldCfgVersion(), RTBldCfgRevision());
-                return 1;
+                return 1; /** @todo this exit code is wrong, of course. :/ */
 
             case 'M': // --need-main
                 m->m_fNeedMain = true;
@@ -337,16 +341,16 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
                 for (unsigned int i = 0; i < m->m_vecOptionDefs.size(); i++)
                     RTPrintf("    -%c, %s\n", m->m_vecOptionDefs[i]->iShort, m->m_vecOptionDefs[i]->pszLong);
                 usage(); /* to print Service Specific usage */
-                return 1;
+                return 1; /** @todo this exit code is wrong, of course. :/ */
 
             default:
             {
                 int rc1 = parseOpt(rc, Val);
                 if (RT_FAILURE(rc1))
                 {
-                    rc = RTGetOptPrintError(rc, &Val);
+                    RTEXITCODE rcExit = RTGetOptPrintError(rc, &Val);
                     RTPrintf("Use --help for more information.\n");
-                    return rc;
+                    return rcExit;
                 }
                 break;
             }
@@ -354,7 +358,7 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
     }
 
     RTMemFree(paOptionArray);
-    return rc;
+    return RTEXITCODE_SUCCESS;
 }
 
 
@@ -532,21 +536,20 @@ int VBoxNetBaseService::abortWait()
 
 
 /* S/G API */
-int VBoxNetBaseService::sendBufferOnWire(PCINTNETSEG pcSg, int cSg, size_t cbFrame)
+int VBoxNetBaseService::sendBufferOnWire(PCINTNETSEG paSegs, size_t cSegs, size_t cbFrame)
 {
-    PINTNETHDR pHdr = NULL;
-    uint8_t *pu8Frame = NULL;
-
     /* Allocate frame */
-    int rc = IntNetRingAllocateFrame(&m->m_pIfBuf->Send, cbFrame, &pHdr, (void **)&pu8Frame);
+    PINTNETHDR pHdr = NULL;
+    uint8_t *pbFrame = NULL;
+    int rc = IntNetRingAllocateFrame(&m->m_pIfBuf->Send, (uint32_t)cbFrame, &pHdr, (void **)&pbFrame);
     AssertRCReturn(rc, rc);
 
     /* Now we fill pvFrame with S/G above */
-    int offFrame = 0;
-    for (int idxSg = 0; idxSg < cSg; ++idxSg)
+    size_t offFrame = 0;
+    for (size_t idxSeg = 0; idxSeg < cSegs; ++idxSeg)
     {
-        memcpy(&pu8Frame[offFrame], pcSg[idxSg].pv, pcSg[idxSg].cb);
-        offFrame+=pcSg[idxSg].cb;
+        memcpy(&pbFrame[offFrame], paSegs[idxSeg].pv, paSegs[idxSeg].cb);
+        offFrame += paSegs[idxSeg].cb;
     }
 
     /* Commit */
@@ -816,6 +819,7 @@ void VBoxNetBaseService::debugPrint(int32_t iMinLevel, bool fMsg, const char *ps
  */
 void VBoxNetBaseService::debugPrintV(int iMinLevel, bool fMsg, const char *pszFmt, va_list va) const
 {
+    RT_NOREF(fMsg);
     if (iMinLevel <= m->m_cVerbosity)
     {
         va_list vaCopy;                 /* This dude is *very* special, thus the copy. */
@@ -839,7 +843,7 @@ PRTGETOPTDEF VBoxNetBaseService::getOptionsPtr()
     for (unsigned int i = 0; i < m->m_vecOptionDefs.size(); ++i)
     {
         PRTGETOPTDEF pOpt = m->m_vecOptionDefs[i];
-        memcpy(&pOptArray[i], m->m_vecOptionDefs[i], sizeof(RTGETOPTDEF));
+        memcpy(&pOptArray[i], pOpt, sizeof(*pOpt));
     }
     return pOptArray;
 }

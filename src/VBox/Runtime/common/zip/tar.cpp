@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -242,13 +242,13 @@ RTR3DECL(int) RTTarClose(RTTAR hTar)
 
     if (pInt->hVfsFss != NIL_RTVFSFSSTREAM)
     {
-        uint32_t cRefs = RTVfsFsStrmRelease(pInt->hVfsFss); Assert(cRefs != UINT32_MAX);
+        uint32_t cRefs = RTVfsFsStrmRelease(pInt->hVfsFss); Assert(cRefs != UINT32_MAX); NOREF(cRefs);
         pInt->hVfsFss  = NIL_RTVFSFSSTREAM;
     }
 
     if (pInt->hVfsFile != NIL_RTVFSFILE)
     {
-        uint32_t cRefs = RTVfsFileRelease(pInt->hVfsFile); Assert(cRefs != UINT32_MAX);
+        uint32_t cRefs = RTVfsFileRelease(pInt->hVfsFile); Assert(cRefs != UINT32_MAX); NOREF(cRefs);
         pInt->hVfsFile = NIL_RTVFSFILE;
     }
 
@@ -361,7 +361,7 @@ RTR3DECL(int) RTTarFileOpen(RTTAR hTar, PRTTARFILE phFile, const char *pszFilena
         {
             if (pInt->hVfsFss != NIL_RTVFSFSSTREAM)
             {
-                uint32_t cRefs = RTVfsFsStrmRelease(pInt->hVfsFss); Assert(cRefs != UINT32_MAX);
+                uint32_t cRefs = RTVfsFsStrmRelease(pInt->hVfsFss); Assert(cRefs != UINT32_MAX); NOREF(cRefs);
                 pInt->hVfsFss  = NIL_RTVFSFSSTREAM;
             }
 
@@ -655,7 +655,7 @@ RTR3DECL(int) RTTarFileClose(RTTARFILE hFile)
             }
 
             /* Create a header record for the file */
-            /* Todo: mode, gid, uid, mtime should be setable (or detected myself) */
+            /** @todo mode, gid, uid, mtime should be setable (or detected myself) */
             RTTIMESPEC time;
             RTTimeNow(&time);
             rc = rtTarCreateHeaderRecord(&record, pFileInt->pszFilename, pFileInt->cbSize,

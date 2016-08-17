@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -278,6 +278,7 @@ static DECLCALLBACK(void)  drvMouseQueueReset(PPDMDRVINS pDrvIns)
 {
     //PDRVKBDQUEUE        pThis = PDMINS_2_DATA(pDrvIns, PDRVKBDQUEUE);
     /** @todo purge the queue on reset. */
+    RT_NOREF(pDrvIns);
 }
 
 
@@ -344,6 +345,7 @@ static DECLCALLBACK(int) drvMouseQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     pDrvIns->IBase.pfnQueryInterface        = drvMouseQueueQueryInterface;
     /* IMouseConnector. */
     pDrv->IConnector.pfnReportModes         = drvMousePassThruReportModes;
+    pDrv->IConnector.pfnFlushQueue          = drvMouseFlushQueue;
     /* IMousePort. */
     pDrv->IPort.pfnPutEvent                 = drvMouseQueuePutEvent;
     pDrv->IPort.pfnPutEventAbs              = drvMouseQueuePutEventAbs;

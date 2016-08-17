@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,6 +93,8 @@ RTDECL(int) RTCritSectRwInitEx(PRTCRITSECTRW pThis, uint32_t fFlags,
     AssertReturn(!(fFlags & ~( RTCRITSECT_FLAGS_NO_NESTING | RTCRITSECT_FLAGS_NO_LOCK_VAL | RTCRITSECT_FLAGS_BOOTSTRAP_HACK
                               | RTCRITSECT_FLAGS_NOP )),
                  VERR_INVALID_PARAMETER);
+    RT_NOREF_PV(hClass); RT_NOREF_PV(uSubClass); RT_NOREF_PV(pszNameFmt);
+
 
     /*
      * Initialize the structure, allocate the lock validator stuff and sems.
@@ -205,6 +207,7 @@ static int rtCritSectRwEnterShared(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPo
 #else
     Assert(!(pThis->fFlags & RTCRITSECT_FLAGS_RING0));
 #endif
+    RT_NOREF_PV(pSrcPos);
 
 #ifdef RTCRITSECTRW_STRICT
     RTTHREAD hThreadSelf = RTThreadSelfAutoAdopt();
@@ -545,6 +548,7 @@ static int rtCritSectRwEnterExcl(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPos,
 #else
     Assert(!(pThis->fFlags & RTCRITSECT_FLAGS_RING0));
 #endif
+    RT_NOREF_PV(pSrcPos);
 
 #ifdef RTCRITSECTRW_STRICT
     RTTHREAD hThreadSelf = NIL_RTTHREAD;
@@ -574,6 +578,7 @@ static int rtCritSectRwEnterExcl(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPos,
         Assert(pThis->cWriteRecursions < UINT32_MAX / 2);
         uint32_t cNestings = ASMAtomicIncU32(&pThis->cWriteRecursions); NOREF(cNestings);
 
+#ifdef IPRT_WITH_DTRACE
         if (IPRT_CRITSECTRW_EXCL_ENTERED_ENABLED())
         {
             uint64_t u64State = ASMAtomicReadU64(&pThis->u64State);
@@ -581,6 +586,7 @@ static int rtCritSectRwEnterExcl(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPos,
                                          (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
                                          (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
         }
+#endif
         return VINF_SUCCESS;
     }
 
@@ -878,6 +884,7 @@ RTDECL(int) RTCritSectRwLeaveExcl(PRTCRITSECTRW pThis)
             return rc9;
 #endif
         uint32_t cNestings = ASMAtomicDecU32(&pThis->cWriteRecursions); NOREF(cNestings);
+#ifdef IPRT_WITH_DTRACE
         if (IPRT_CRITSECTRW_EXCL_LEAVING_ENABLED())
         {
             uint64_t u64State = ASMAtomicReadU64(&pThis->u64State);
@@ -885,6 +892,7 @@ RTDECL(int) RTCritSectRwLeaveExcl(PRTCRITSECTRW pThis)
                                          (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
                                          (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
         }
+#endif
     }
 
     return VINF_SUCCESS;
@@ -918,6 +926,8 @@ RT_EXPORT_SYMBOL(RTCritSectRwIsWriteOwner);
 
 RTDECL(bool) RTCritSectRwIsReadOwner(PRTCRITSECTRW pThis, bool fWannaHear)
 {
+    RT_NOREF_PV(fWannaHear);
+
     /*
      * Validate handle.
      */

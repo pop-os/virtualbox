@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@ using namespace DragAndDropSvc;
 #include "GuestDnDSourceWrap.h"
 #include "GuestDnDPrivate.h"
 
+class RecvDataTask;
 struct RECVDATACTX;
 typedef struct RECVDATACTX *PRECVDATACTX;
 
@@ -82,9 +83,9 @@ protected:
     static Utf8Str i_guestErrorToString(int guestRc);
     static Utf8Str i_hostErrorToString(int hostRc);
 
-    /** @name Thread callbacks.
+    /** @name Thread task .
      * @{ */
-    static DECLCALLBACK(int) i_receiveDataThread(RTTHREAD Thread, void *pvUser);
+    static void i_receiveDataThreadTask(RecvDataTask *pTask);
     /** @}  */
 
     /** @name Callbacks for dispatch handler.

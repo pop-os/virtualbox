@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -139,6 +139,7 @@ typedef enum DRVDEDICATEDNICR0OP
  */
 PDMBOTHCBDECL(int) drvR0DedicatedNicReqHandler(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_t u64Arg)
 {
+    RT_NOREF_PV(pDrvIns); RT_NOREF_PV(u64Arg);
     switch ((DRVDEDICATEDNICR0OP)uOperation)
     {
         case DRVDEDICATEDNICR0OP_INIT:
@@ -166,12 +167,13 @@ PDMBOTHCBDECL(int) drvR0DedicatedNicReqHandler(PPDMDRVINS pDrvIns, uint32_t uOpe
         default:
             return VERR_INVALID_FUNCTION;
     }
-    return VINF_SUCCESS;
 }
 
 #endif /* IN_RING0 */
 
 
+
+#if 0 /* currently unused */
 
 /* -=-=-=-=- PDMINETWORKUP -=-=-=-=- */
 
@@ -205,6 +207,7 @@ PDMBOTHCBDECL(int) drvDedicatedNicUp_AllocBuf(PPDMINETWORKUP pInterface, size_t 
 
 #ifdef IN_RING0
     /** @todo Ask the driver for a buffer, atomically if we're called on EMT.  */
+    RT_NOREF_PV(cbMin); RT_NOREF_PV(pGso); RT_NOREF_PV(ppSgBuf);
     return VERR_TRY_AGAIN;
 
 #else  /* IN_RING3 */
@@ -252,10 +255,14 @@ PDMBOTHCBDECL(int) drvDedicatedNicUp_AllocBuf(PPDMINETWORKUP pInterface, size_t 
  */
 PDMBOTHCBDECL(int) drvDedicatedNicUp_FreeBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGATHER pSgBuf)
 {
+#ifdef VBOX_STRICT
     PDRVDEDICATEDNIC  pThis = RT_FROM_MEMBER(pInterface, DRVDEDICATEDNIC, CTX_SUFF(INetworkUp));
     Assert(pSgBuf->fFlags == (PDMSCATTERGATHER_FLAGS_MAGIC | PDMSCATTERGATHER_FLAGS_OWNER_1));
     Assert(pSgBuf->cbUsed <= pSgBuf->cbAvailable);
     Assert(PDMCritSectIsOwner(&pThis->XmitLock));
+#else
+    RT_NOREF1(pInterface);
+#endif
 
     if (pSgBuf)
     {
@@ -292,10 +299,12 @@ PDMBOTHCBDECL(int) drvDedicatedNicUp_SendBuf(PPDMINETWORKUP pInterface, PPDMSCAT
     /*
      * Tell the driver to send the packet.
      */
-
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pSgBuf); RT_NOREF_PV(fOnWorkerThread);
     return VERR_INTERNAL_ERROR_4;
 
 #else  /* IN_RING3 */
+    NOREF(fOnWorkerThread);
+
     /*
      * Call ring-0 to start the transfer.
      */
@@ -326,10 +335,12 @@ PDMBOTHCBDECL(void) drvDedicatedNicUp_SetPromiscuousMode(PPDMINETWORKUP pInterfa
 {
     PDRVDEDICATEDNIC pThis = RT_FROM_MEMBER(pInterface, DRVDEDICATEDNIC, CTX_SUFF(INetworkUp));
     /** @todo enable/disable promiscuous mode (should be easy) */
-    NOREF(pThis);
+    NOREF(pThis); RT_NOREF_PV(fPromiscuous);
 }
 
+#endif /* unused */
 #ifdef IN_RING3
+# if 0 /* currently unused */
 
 /**
  * @interface_method_impl{PDMINETWORKUP,pfnNotifyLinkChanged}
@@ -384,6 +395,8 @@ static DECLCALLBACK(void *) drvR3DedicatedNicIBase_QueryInterface(PPDMIBASE pInt
     return NULL;
 }
 
+# endif /* Currently unused */
+
 
 /* -=-=-=-=- PDMDRVREG -=-=-=-=- */
 
@@ -393,8 +406,6 @@ static DECLCALLBACK(void *) drvR3DedicatedNicIBase_QueryInterface(PPDMIBASE pInt
 static DECLCALLBACK(void) drvR3DedicatedNicPowerOff(PPDMDRVINS pDrvIns)
 {
     LogFlow(("drvR3DedicatedNicPowerOff\n"));
-    PDRVDEDICATEDNIC pThis = PDMINS_2_DATA(pDrvIns, PDRVDEDICATEDNIC);
-
     int rc = PDMDrvHlpCallR0(pDrvIns, DRVDEDICATEDNICR0OP_SUSPEND, 0);
     AssertRC(rc);
 }
@@ -406,8 +417,6 @@ static DECLCALLBACK(void) drvR3DedicatedNicPowerOff(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(void) drvR3DedicatedNicResume(PPDMDRVINS pDrvIns)
 {
     LogFlow(("drvR3DedicatedNicPowerResume\n"));
-    PDRVDEDICATEDNIC pThis = PDMINS_2_DATA(pDrvIns, PDRVDEDICATEDNIC);
-
     int rc = PDMDrvHlpCallR0(pDrvIns, DRVDEDICATEDNICR0OP_RESUME, 0);
     AssertRC(rc);
 }
@@ -419,8 +428,6 @@ static DECLCALLBACK(void) drvR3DedicatedNicResume(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(void) drvR3DedicatedNicSuspend(PPDMDRVINS pDrvIns)
 {
     LogFlow(("drvR3DedicatedNicPowerSuspend\n"));
-    PDRVDEDICATEDNIC pThis = PDMINS_2_DATA(pDrvIns, PDRVDEDICATEDNIC);
-
     int rc = PDMDrvHlpCallR0(pDrvIns, DRVDEDICATEDNICR0OP_SUSPEND, 0);
     AssertRC(rc);
 }
@@ -432,8 +439,6 @@ static DECLCALLBACK(void) drvR3DedicatedNicSuspend(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(void) drvR3DedicatedNicPowerOn(PPDMDRVINS pDrvIns)
 {
     LogFlow(("drvR3DedicatedNicPowerOn\n"));
-    PDRVDEDICATEDNIC pThis = PDMINS_2_DATA(pDrvIns, PDRVDEDICATEDNIC);
-
     int rc = PDMDrvHlpCallR0(pDrvIns, DRVDEDICATEDNICR0OP_RESUME, 0);
     AssertRC(rc);
 }
@@ -461,9 +466,9 @@ static DECLCALLBACK(void) drvR3DedicatedNicDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvR3DedicatedNicConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVDEDICATEDNIC pThis = PDMINS_2_DATA(pDrvIns, PDRVDEDICATEDNIC);
-    bool f;
+    RT_NOREF(pCfg, fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVDEDICATEDNIC pThis = PDMINS_2_DATA(pDrvIns, PDRVDEDICATEDNIC);
 
     /*
      * Init the static parts.

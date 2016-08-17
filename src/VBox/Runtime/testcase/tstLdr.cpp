@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,9 +59,11 @@ static uint32_t g_cBits = HC_ARCH_BITS;
  * @param   pValue          Where to store the symbol value (address).
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) testGetImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser)
+static DECLCALLBACK(int) testGetImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol,
+                                       RTUINTPTR *pValue, void *pvUser)
 {
     /* check the name format and only permit certain names... later, right?  */
+    RT_NOREF_PV(hLdrMod); RT_NOREF_PV(pszModule); RT_NOREF_PV(pszSymbol); RT_NOREF_PV(uSymbol); RT_NOREF_PV(pvUser);
 
     if (g_cBits == 32)
         *pValue = 0xabcdef0f;

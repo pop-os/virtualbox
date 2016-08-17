@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -115,7 +115,7 @@ $$(VBOX_SUP_WIN_CERTS_FILE): $(MAKEFILE_CURRENT) \
        	'' \
        	'#include <VBox/sup.h>' \
                ''
-	$(foreach cert,$(VBOX_SUP_WIN_CERTS), $(NLTAB)$(VBOX_BIN2C) -ascii --append \
+	$(foreach cert,$(VBOX_SUP_WIN_CERTS), $(NLTAB)$(VBOX_BIN2C) -ascii --append --static --no-size \
 		"SUP$(firstword $(subst =,$(SP) ,$(cert)))" \
 		"$(VBOX_PATH_SUPR3_CERTIFICATES)/$(lastword $(subst =,$(SP) ,$(cert)))" \
 		"$@")

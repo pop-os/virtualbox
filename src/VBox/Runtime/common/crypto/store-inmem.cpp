@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -227,6 +227,7 @@ static DECLCALLBACK(void) rtCrStoreInMem_DestroyStore(void *pvProvider)
 static DECLCALLBACK(int) rtCrStoreInMem_CertCtxQueryPrivateKey(void *pvProvider, PRTCRCERTCTXINT pCertCtx,
                                                                uint8_t *pbKey, size_t cbKey, size_t *pcbKeyRet)
 {
+    RT_NOREF_PV(pvProvider); RT_NOREF_PV(pCertCtx); RT_NOREF_PV(pbKey); RT_NOREF_PV(cbKey); RT_NOREF_PV(pcbKeyRet);
     //PRTCRSTOREINMEM pThis = (PRTCRSTOREINMEM)pvProvider;
     return VERR_NOT_FOUND;
 }
@@ -235,7 +236,6 @@ static DECLCALLBACK(int) rtCrStoreInMem_CertCtxQueryPrivateKey(void *pvProvider,
 /** @interface_method_impl{RTCRSTOREPROVIDER, pfnCertFindAll} */
 static DECLCALLBACK(int) rtCrStoreInMem_CertFindAll(void *pvProvider, PRTCRSTORECERTSEARCH pSearch)
 {
-    PRTCRSTOREINMEM pThis = (PRTCRSTOREINMEM)pvProvider;
     pSearch->auOpaque[0] = ~(uintptr_t)pvProvider;
     pSearch->auOpaque[1] = 0;
     pSearch->auOpaque[2] = ~(uintptr_t)0;  /* For the front-end API. */

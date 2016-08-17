@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,17 +28,12 @@
 #include "../NetLib/cpp/utils.h"
 
 
-static bool operator > (const RTNETADDRIPV4& a, const RTNETADDRIPV4& b)
-{
-    return (b < a);
-}
-
-
 class RawOption
 {
 public:
     RawOption()
     {
+        /** @todo r=bird: this is crazy. */
         RT_ZERO(*this);
     }
     uint8_t u8OptId;

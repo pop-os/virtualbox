@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -475,7 +475,7 @@ void PACK_APIENTRY crPackGetAttachedObjectsARB(VBoxGLhandleARB containerObj, GLs
 {
 	CR_GET_PACKER_CONTEXT(pc);
 	unsigned char *data_ptr;
-	(void) pc;
+	(void) pc; (void) obj;
 	CR_GET_BUFFERED_POINTER(pc, 32);
 	WRITE_DATA(0, GLint, 32);
 	WRITE_DATA(4, GLenum, CR_GETATTACHEDOBJECTSARB_EXTEND_OPCODE);
@@ -492,7 +492,7 @@ void PACK_APIENTRY crPackGetInfoLogARB(VBoxGLhandleARB obj, GLsizei maxLength, G
 {
 	CR_GET_PACKER_CONTEXT(pc);
 	unsigned char *data_ptr;
-	(void) pc;
+	(void) pc; (void) infoLog;
 	CR_GET_BUFFERED_POINTER(pc, 32);
 	WRITE_DATA(0, GLint, 32);
 	WRITE_DATA(4, GLenum, CR_GETINFOLOGARB_EXTEND_OPCODE);

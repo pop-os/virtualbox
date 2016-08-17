@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -562,7 +562,7 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  ifdef VBOX_WITH_NEW_APIC
   VMMRC_SOURCES += \
   	VMMAll/APICAll.cpp
- endif 
+ endif
  ifdef VBOX_WITH_REM
   VMMRC_SOURCES += \
   	VMMAll/REMAll.cpp

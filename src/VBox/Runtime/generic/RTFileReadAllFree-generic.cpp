@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,7 +44,7 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile)
      * It's all hardcoded fun for now...
      */
     pvFile = (void *)((uintptr_t)pvFile - 32);
-    Assert(*(size_t *)pvFile == cbFile);
+    Assert(*(size_t *)pvFile == cbFile); RT_NOREF_PV(cbFile);
     *(size_t *)pvFile = ~(size_t)1;
 
     RTMemFree(pvFile);

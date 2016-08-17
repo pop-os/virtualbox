@@ -43,7 +43,8 @@
  *
  *      - Use static wherever possible. This makes the namespace less polluted
  *        and avoids nasty name clash problems which can occur, especially on
- *        Unix-like systems. (1)
+ *        Unix-like systems. (1)  It also simplifies locating callers when
+ *        changing it (single source file vs entire VBox tree).
  *
  *      - Public names are of the form Domain[Subdomain[]]Method, using mixed
  *        casing to mark the words. The main domain is all uppercase.
@@ -164,8 +165,12 @@
  * Now for the guidelines:
  *
  *      - Never, ever, use int, long, ULONG, LONG, DWORD or similar to cast a
- *        pointer to integer. Use uintptr_t or intptr_t. If you have to use
+ *        pointer to integer.  Use uintptr_t or intptr_t. If you have to use
  *        NT/Windows types, there is the choice of ULONG_PTR and DWORD_PTR.
+ *
+ *      - Avoid where ever possible the use of the types 'long' and 'unsigned
+ *        long' as these differs in size between windows and the other hosts
+ *        (see above).
  *
  *      - RT_OS_WINDOWS is defined to indicate Windows. Do not use __WIN32__,
  *        __WIN64__ and __WIN__ because they are all deprecated and scheduled
@@ -460,6 +465,14 @@
  *
  *      - That Dijkstra is dead is no excuse for using gotos.
  *
+ *      - Using do-while-false loops to avoid gotos is considered very bad form.
+ *        They create hard to read code.  They tend to be either too short (i.e.
+ *        pointless) or way to long (split up the function already), making
+ *        tracking the state is difficult and prone to bugs.  Also, they cause
+ *        the compiler to generate suboptimal code, because the break branches
+ *        are by preferred over the main code flow (MSC has no branch hinting!).
+ *        Instead, do make use the 130 columns (i.e. nested ifs) and split
+ *        the code up into more functions!
  *
  *
  * @subsection sec_vbox_guideline_optional_prefix   Variable / Member Prefixes
@@ -473,7 +486,9 @@
  *
  *      - The 'g_' (or 'g') prefix means a global variable, either on file or module level.
  *
- *      - The 's_' (or 's') prefix means a static variable inside a function or class.
+ *      - The 's_' (or 's') prefix means a static variable inside a function or
+ *        class.  This is not used for static variables on file level, use 'g_'
+ *        for those (logical, right).
  *
  *      - The 'm_' (or 'm') prefix means a class data member.
  *
@@ -502,7 +517,7 @@
  *        array of pages.
  *
  *      - The 'c' prefix means count.  For instance 'cbBlock' could be read,
- *        count of bytes in block.
+ *        count of bytes in block. (1)
  *
  *      - The 'cx' prefix means width (count of 'x' units).
  *
@@ -574,7 +589,7 @@
  *
  *      - The 'pcsz' prefix is used to indicate constant string pointers in
  *        parts of the code.  Most code uses 'psz' for const and non-const
- *        string pointers.
+ *        string pointers, so please ignore this one.
  *
  *      - The 'l' prefix means (signed) long.  We try avoid using this,
  *        expecially with the 'LONG' types in Main as these are not 'long' on
@@ -585,6 +600,10 @@
  *        expecially with the 'ULONG' types in Main as these are not 'unsigned
  *        long' on 64-bit non-Windows platforms and can cause confusion.
  *        Alternatives: 'u' or 'u32'.  [type]
+ *
+ *
+ * (1)  Except in the occasional 'pcsz' prefix, the 'c' prefix is never ever
+ *      used in the meaning 'const'.
  *
  *
  * @subsection sec_vbox_guideline_optional_misc     Misc / Advice / Stuff

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_SEMAPHORE
-#include <Windows.h>
+#include <iprt/win/windows.h>
 
 #include <iprt/semaphore.h>
 #include "internal/iprt.h"
@@ -112,6 +112,8 @@ RTDECL(int)  RTSemEventCreateEx(PRTSEMEVENT phEventSem, uint32_t fFlags, RTLOCKV
             va_end(va);
         }
         pThis->fEverHadSignallers = false;
+#else
+        RT_NOREF_PV(hClass); RT_NOREF_PV(pszNameFmt);
 #endif
 
         *phEventSem = pThis;
@@ -210,6 +212,7 @@ DECL_FORCE_INLINE(int) rtSemEventWaitHandleStatus(struct RTSEMEVENTINTERNAL *pTh
                 return rc2;
 
             AssertMsgFailed(("WaitForSingleObject(event) -> rc=%d while converted lasterr=%d\n", rc, rc2));
+            RT_NOREF_PV(pThis);
             return VERR_INTERNAL_ERROR;
         }
     }
@@ -219,8 +222,6 @@ DECL_FORCE_INLINE(int) rtSemEventWaitHandleStatus(struct RTSEMEVENTINTERNAL *pTh
 #undef RTSemEventWaitNoResume
 RTDECL(int)   RTSemEventWaitNoResume(RTSEMEVENT hEventSem, RTMSINTERVAL cMillies)
 {
-    PCRTLOCKVALSRCPOS pSrcPos = NULL;
-
     /*
      * Validate input.
      */
@@ -242,7 +243,7 @@ RTDECL(int)   RTSemEventWaitNoResume(RTSEMEVENT hEventSem, RTMSINTERVAL cMillies
                                          TRUE /*fAlertable*/);
         if (rc != WAIT_TIMEOUT || cMillies == 0)
             return rtSemEventWaitHandleStatus(pThis, rc);
-        int rc9 = RTLockValidatorRecSharedCheckBlocking(&pThis->Signallers, hThreadSelf, pSrcPos, false,
+        int rc9 = RTLockValidatorRecSharedCheckBlocking(&pThis->Signallers, hThreadSelf, NULL /*pSrcPos*/, false,
                                                         cMillies, RTTHREADSTATE_EVENT, true);
         if (RT_FAILURE(rc9))
             return rc9;
@@ -268,6 +269,8 @@ RTDECL(void) RTSemEventSetSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread)
 
     ASMAtomicWriteBool(&pThis->fEverHadSignallers, true);
     RTLockValidatorRecSharedResetOwner(&pThis->Signallers, hThread, NULL);
+#else
+    RT_NOREF_PV(hEventSem); RT_NOREF_PV(hThread);
 #endif
 }
 
@@ -281,6 +284,8 @@ RTDECL(void) RTSemEventAddSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread)
 
     ASMAtomicWriteBool(&pThis->fEverHadSignallers, true);
     RTLockValidatorRecSharedAddOwner(&pThis->Signallers, hThread, NULL);
+#else
+    RT_NOREF_PV(hEventSem); RT_NOREF_PV(hThread);
 #endif
 }
 
@@ -293,6 +298,8 @@ RTDECL(void) RTSemEventRemoveSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread)
     AssertReturnVoid(pThis->u32Magic == RTSEMEVENT_MAGIC);
 
     RTLockValidatorRecSharedRemoveOwner(&pThis->Signallers, hThread);
+#else
+    RT_NOREF_PV(hEventSem); RT_NOREF_PV(hThread);
 #endif
 }
 

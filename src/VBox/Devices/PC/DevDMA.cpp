@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -191,9 +191,11 @@ enum {
 /* Convert DMA channel number (0-7) to controller number (0-1). */
 #define DMACH2C(c)      (c < 4 ? 0 : 1)
 
+#ifdef LOG_ENABLED
 static int dmaChannelMap[8] = {-1, 2, 3, 1, -1, -1, -1, 0};
 /* Map a DMA page register offset (0-7) to channel index (0-3). */
 #define DMAPG2CX(c)     (dmaChannelMap[c])
+#endif
 
 static int dmaMapChannel[4] = {7, 3, 1, 2};
 /* Map a channel index (0-3) to DMA page register offset (0-7). */
@@ -208,6 +210,7 @@ static int dmaMapChannel[4] = {7, 3, 1, 2};
 /* Extract the transfer type bits of mode register. */
 #define GET_MODE_XTYP(c)(((c) & 0x0c) >> 2)
 
+
 /* Perform a master clear (reset) on a DMA controller. */
 static void dmaClear(DMAControl *dc)
 {
@@ -216,11 +219,12 @@ static void dmaClear(DMAControl *dc)
     dc->u8Temp    = 0;
     dc->u8ModeCtr = 0;
     dc->fHiByte   = false;
-    dc->u8Mask    = ~0;
+    dc->u8Mask    = UINT8_MAX;
 }
 
-/* Read the byte pointer and flip it. */
-static inline bool dmaReadBytePtr(DMAControl *dc)
+
+/** Read the byte pointer and flip it. */
+DECLINLINE(bool) dmaReadBytePtr(DMAControl *dc)
 {
     bool    bHighByte;
 
@@ -229,10 +233,15 @@ static inline bool dmaReadBytePtr(DMAControl *dc)
     return bHighByte;
 }
 
+
 /* DMA address registers writes and reads. */
 
+/**
+ * @callback_method_impl{FNIOMIOPORTOUT, Ports 0-7 & 0xc0-0xcf}
+ */
 static DECLCALLBACK(int) dmaWriteAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
     {
         DMAControl  *dc = (DMAControl *)pvUser;
@@ -275,8 +284,13 @@ static DECLCALLBACK(int) dmaWriteAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @callback_method_impl{FNIOMIOPORTIN, Ports 0-7 & 0xc0-0xcf}
+ */
 static DECLCALLBACK(int) dmaReadAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
     {
         DMAControl  *dc = (DMAControl *)pvUser;
@@ -300,15 +314,17 @@ static DECLCALLBACK(int) dmaReadAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
         Log(("Count read: port %#06x, reg %#04x, data %#x\n", port, reg, val));
         return VINF_SUCCESS;
     }
-    else
-        return VERR_IOM_IOPORT_UNUSED;
+    return VERR_IOM_IOPORT_UNUSED;
 }
 
 /* DMA control registers writes and reads. */
 
-static DECLCALLBACK(int) dmaWriteCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port,
-                                     uint32_t u32, unsigned cb)
+/**
+ * @callback_method_impl{FNIOMIOPORTOUT, Ports 0x8-0xf & 0xd0-0xdf}
+ */
+static DECLCALLBACK(int) dmaWriteCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
     {
         DMAControl  *dc = (DMAControl *)pvUser;
@@ -386,8 +402,13 @@ static DECLCALLBACK(int) dmaWriteCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @callback_method_impl{FNIOMIOPORTIN, Ports 0x8-0xf & 0xd0-0xdf}
+ */
 static DECLCALLBACK(int) dmaReadCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
     {
         DMAControl  *dc = (DMAControl *)pvUser;
@@ -437,13 +458,21 @@ static DECLCALLBACK(int) dmaReadCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT p
     return VERR_IOM_IOPORT_UNUSED;
 }
 
-/** DMA page registers. There are 16 R/W page registers for compatibility with
- * the IBM PC/AT; only some of those registers are used for DMA. The page register
- * accessible via port 80h may be read to insert small delays or used as a scratch
- * register by a BIOS.
+/**
+ */
+
+/**
+ * @callback_method_impl{FNIOMIOPORTIN,
+ *          DMA page registers - Ports 0x80-0x87 & 0x88-0x8f}
+ *
+ * There are 16 R/W page registers for compatibility with the IBM PC/AT; only
+ * some of those registers are used for DMA. The page register accessible via
+ * port 80h may be read to insert small delays or used as a scratch register by
+ * a BIOS.
  */
 static DECLCALLBACK(int) dmaReadPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     DMAControl  *dc = (DMAControl *)pvUser;
     int         reg;
 
@@ -468,8 +497,14 @@ static DECLCALLBACK(int) dmaReadPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
     return VERR_IOM_IOPORT_UNUSED;
 }
 
+
+/**
+ * @callback_method_impl{FNIOMIOPORTOUT,
+ *      DMA page registers - Ports 0x80-0x87 & 0x88-0x8f}
+ */
 static DECLCALLBACK(int) dmaWritePage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     DMAControl  *dc = (DMAControl *)pvUser;
     int         reg;
 
@@ -501,12 +536,15 @@ static DECLCALLBACK(int) dmaWritePage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
     return VINF_SUCCESS;
 }
 
+
 /**
- * EISA style high page registers, for extending the DMA addresses to cover
- * the entire 32-bit address space.
+ * @callback_method_impl{FNIOMIOPORTIN,
+ *      EISA style high page registers, for extending the DMA addresses to cover
+ *      the entire 32-bit address space.  Ports 0x480-0x487 & 0x488-0x48f}
  */
 static DECLCALLBACK(int) dmaReadHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
     {
         DMAControl  *dc = (DMAControl *)pvUser;
@@ -521,8 +559,13 @@ static DECLCALLBACK(int) dmaReadHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
     return VERR_IOM_IOPORT_UNUSED;
 }
 
+
+/**
+ * @callback_method_impl{FNIOMIOPORTOUT, Ports 0x480-0x487 & 0x488-0x48f}
+ */
 static DECLCALLBACK(int) dmaWriteHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
     {
         DMAControl  *dc = (DMAControl *)pvUser;
@@ -727,7 +770,7 @@ static DECLCALLBACK(uint32_t) dmaWriteMemory(PPDMDEVINS pDevIns, unsigned uChann
 
     if (IS_MODE_DEC(ch->u8Mode))
     {
-        //@todo: This would need a temporary buffer.
+        /// @todo This would need a temporary buffer.
         Assert(0);
 #if 0
         if (dc->is16bit)
@@ -937,11 +980,12 @@ static DECLCALLBACK(int) dmaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
  */
 static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    DMAState    *pThis = PDMINS_2_DATA(pDevIns, DMAState *);
-    bool        bHighPage = false;
-    PDMDMACREG  reg;
-    int         rc;
+    RT_NOREF(iInstance);
+    DMAState *pThis = PDMINS_2_DATA(pDevIns, DMAState *);
 
+    /*
+     * Initialize data.
+     */
     pThis->pDevIns = pDevIns;
 
     /*
@@ -950,6 +994,7 @@ static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     if (!CFGMR3AreValuesValid(pCfg, "\0")) /* "HighPageEnable\0")) */
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
+    bool        bHighPage = false;
 #if 0
     rc = CFGMR3QueryBool(pCfg, "HighPageEnable", &bHighPage);
     if (RT_FAILURE (rc))
@@ -959,15 +1004,16 @@ static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     dmaIORegister(pDevIns, bHighPage);
     dmaReset(pDevIns);
 
-    reg.u32Version        = PDM_DMACREG_VERSION;
-    reg.pfnRun            = dmaRun;
-    reg.pfnRegister       = dmaRegister;
-    reg.pfnReadMemory     = dmaReadMemory;
-    reg.pfnWriteMemory    = dmaWriteMemory;
-    reg.pfnSetDREQ        = dmaSetDREQ;
-    reg.pfnGetChannelMode = dmaGetChannelMode;
+    PDMDMACREG Reg;
+    Reg.u32Version        = PDM_DMACREG_VERSION;
+    Reg.pfnRun            = dmaRun;
+    Reg.pfnRegister       = dmaRegister;
+    Reg.pfnReadMemory     = dmaReadMemory;
+    Reg.pfnWriteMemory    = dmaWriteMemory;
+    Reg.pfnSetDREQ        = dmaSetDREQ;
+    Reg.pfnGetChannelMode = dmaGetChannelMode;
 
-    rc = PDMDevHlpDMACRegister(pDevIns, &reg, &pThis->pHlp);
+    int rc = PDMDevHlpDMACRegister(pDevIns, &Reg, &pThis->pHlp);
     if (RT_FAILURE (rc))
         return rc;
 

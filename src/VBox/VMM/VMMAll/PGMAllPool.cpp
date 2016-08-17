@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,8 +44,10 @@
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
+#if 0 /* unused */
 DECLINLINE(unsigned) pgmPoolTrackGetShadowEntrySize(PGMPOOLKIND enmKind);
 DECLINLINE(unsigned) pgmPoolTrackGetGuestEntrySize(PGMPOOLKIND enmKind);
+#endif /* unused */
 static void pgmPoolTrackClearPageUsers(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 static int pgmPoolTrackAddUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint32_t iUserTable);
@@ -65,6 +67,7 @@ void            pgmPoolTrackPhysExtFreeList(PVM pVM, uint16_t iPhysExt);
 RT_C_DECLS_END
 
 
+#if 0 /* unused */
 /**
  * Checks if the specified page pool kind is for a 4MB or 2MB guest page.
  *
@@ -83,6 +86,7 @@ DECLINLINE(bool) pgmPoolIsBigPage(PGMPOOLKIND enmKind)
             return false;
     }
 }
+#endif /* unused */
 
 
 /**
@@ -151,7 +155,7 @@ DECLINLINE(int) pgmPoolPhysSimpleReadGCPhys(PVM pVM, void *pvDst, void const *pv
     memcpy(pvDst, (RTHCPTR)((uintptr_t)pvSrc & ~(RTHCUINTPTR)(cb - 1)), cb);
     return VINF_SUCCESS;
 #else
-    /* @todo in RC we could attempt to use the virtual address, although this can cause many faults (PAE Windows XP guest). */
+    /** @todo in RC we could attempt to use the virtual address, although this can cause many faults (PAE Windows XP guest). */
     NOREF(pvSrc);
     return PGMPhysSimpleReadGCPhys(pVM, pvDst, GCPhysSrc & ~(RTGCPHYS)(cb - 1), cb);
 #endif
@@ -180,7 +184,8 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
     PVM             pVM = pPool->CTX_SUFF(pVM);
     NOREF(pVCpu);
 
-    LogFlow(("pgmPoolMonitorChainChanging: %RGv phys=%RGp cbWrite=%d\n", (RTGCPTR)(CTXTYPE(RTGCPTR, uintptr_t, RTGCPTR))pvAddress, GCPhysFault, cbWrite));
+    LogFlow(("pgmPoolMonitorChainChanging: %RGv phys=%RGp cbWrite=%d\n",
+             (RTGCPTR)(CTXTYPE(RTGCPTR, uintptr_t, RTGCPTR))(uintptr_t)pvAddress, GCPhysFault, cbWrite));
 
     for (;;)
     {
@@ -714,7 +719,7 @@ DECLINLINE(bool) pgmPoolMonitorIsForking(PPGMPOOL pPool, PDISCPUSTATE pDis, unsi
         /** @todo Validate that the bit index is X86_PTE_RW. */
             )
     {
-        STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,Fork));
+        STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,Fork)); RT_NOREF_PV(pPool);
         return true;
     }
     return false;
@@ -1988,7 +1993,7 @@ void pgmPoolResetDirtyPage(PVM pVM, RTGCPTR GCPtrPage)
     if (!pPool->cDirtyPages)
         return;
 
-    Log(("pgmPoolResetDirtyPage %RGv\n", GCPtrPage));
+    Log(("pgmPoolResetDirtyPage %RGv\n", GCPtrPage)); RT_NOREF_PV(GCPtrPage);
     for (unsigned i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
     {
     }
@@ -2160,7 +2165,7 @@ static int pgmPoolCacheFreeOne(PPGMPOOL pPool, uint16_t iUser)
      */
     int rc = pgmPoolFlushPage(pPool, pPage);
     /* This flush was initiated by us and not the guest, so explicitly flush the TLB. */
-    /* todo: find out why this is necessary; pgmPoolFlushPage should trigger a flush if one is really needed. */
+    /** @todo find out why this is necessary; pgmPoolFlushPage should trigger a flush if one is really needed. */
     if (rc == VINF_SUCCESS)
         PGM_INVL_ALL_VCPU_TLBS(pVM);
     return rc;
@@ -2912,7 +2917,7 @@ DECLINLINE(int) pgmPoolTrackInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS 
     int rc = VINF_SUCCESS;
     PPGMPOOLUSER paUsers = pPool->CTX_SUFF(paUsers);
 
-    LogFlow(("pgmPoolTrackInsert GCPhys=%RGp iUser=%d iUserTable=%x\n", GCPhys, iUser, iUserTable));
+    LogFlow(("pgmPoolTrackInsert GCPhys=%RGp iUser=%d iUserTable=%x\n", GCPhys, iUser, iUserTable)); RT_NOREF_PV(GCPhys);
 
     if (iUser != NIL_PGMPOOL_IDX)
     {
@@ -3116,6 +3121,7 @@ static void pgmPoolTrackFreeUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iU
 }
 
 
+#if 0 /* unused */
 /**
  * Gets the entry size of a shadow table.
  *
@@ -3164,8 +3170,9 @@ DECLINLINE(unsigned) pgmPoolTrackGetShadowEntrySize(PGMPOOLKIND enmKind)
             AssertFatalMsgFailed(("enmKind=%d\n", enmKind));
     }
 }
+#endif /* unused */
 
-
+#if 0 /* unused */
 /**
  * Gets the entry size of a guest table.
  *
@@ -3218,6 +3225,7 @@ DECLINLINE(unsigned) pgmPoolTrackGetGuestEntrySize(PGMPOOLKIND enmKind)
             AssertFatalMsgFailed(("enmKind=%d\n", enmKind));
     }
 }
+#endif /* unused */
 
 
 /**
@@ -3850,7 +3858,7 @@ static void pgmPoolTrackClearPageUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PCPGMP
 
 
     /* Safety precaution in case we change the paging for other modes too in the future. */
-    Assert(!pgmPoolIsPageLocked(pPage));
+    Assert(!pgmPoolIsPageLocked(pPage)); RT_NOREF_PV(pPage);
 
 #ifdef VBOX_STRICT
     /*

@@ -83,10 +83,10 @@ void UIVMInformationDialog::invoke(UIMachineWindow *pMachineWindow)
 }
 
 UIVMInformationDialog::UIVMInformationDialog(UIMachineWindow *pMachineWindow)
-    : QIWithRetranslateUI<QMainWindow>(0)
+    : QIWithRetranslateUI<QIMainWindow>(0)
     , m_pTabWidget(0)
     , m_pMachineWindow(pMachineWindow)
-{    
+{
     /* Initialize instance: */
     m_spInstance = this;
 
@@ -101,6 +101,11 @@ UIVMInformationDialog::~UIVMInformationDialog()
 
     /* Deinitialize instance: */
     m_spInstance = 0;
+}
+
+bool UIVMInformationDialog::shouldBeMaximized() const
+{
+    return gEDataManager->informationWindowShouldBeMaximized(vboxGlobal().managedVMUuid());
 }
 
 void UIVMInformationDialog::retranslateUi()
@@ -119,7 +124,7 @@ void UIVMInformationDialog::retranslateUi()
 bool UIVMInformationDialog::event(QEvent *pEvent)
 {
     /* Pre-process through base-class: */
-    bool fResult = QMainWindow::event(pEvent);
+    bool fResult = QIMainWindow::event(pEvent);
 
     /* Process required events: */
     switch (pEvent->type())
@@ -188,13 +193,7 @@ void UIVMInformationDialog::prepareThis()
     prepareCentralWidget();
 
     /* Configure handlers: */
-    //connect(m_pMachineWindow->uisession(), SIGNAL(sigMediumChange(const CMediumAttachment&)), this, SLOT(sltUpdateDetails()));
-    //connect(m_pMachineWindow->uisession(), SIGNAL(sigSharedFolderChange()), this, SLOT(sltUpdateDetails()));
-    /* TODO_NEW_CORE: this is ofc not really right in the mm sense. There are more than one screens. */
-    //connect(m_pMachineWindow->machineView(), SIGNAL(sigFrameBufferResize()), this, SLOT(sltProcessStatistics()));
     connect(m_pTabWidget, SIGNAL(currentChanged(int)), this, SLOT(sltHandlePageChanged(int)));
-    //connect(&vboxGlobal(), SIGNAL(sigMediumEnumerationFinished()), this, SLOT(sltUpdateDetails()));
-    //connect(m_pTimer, SIGNAL(timeout()), this, SLOT(sltProcessStatistics()));
 
     /* Retranslate: */
     retranslateUi();
@@ -278,18 +277,11 @@ void UIVMInformationDialog::loadSettings()
     {
         /* Load geometry: */
         m_geometry = gEDataManager->informationWindowGeometry(this, m_pMachineWindow, vboxGlobal().managedVMUuid());
-#ifdef VBOX_WS_MAC
-        move(m_geometry.topLeft());
-        resize(m_geometry.size());
-#else /* VBOX_WS_MAC */
-        setGeometry(m_geometry);
-#endif /* !VBOX_WS_MAC */
-        LogRel2(("GUI: UIVMInformationDialog: Geometry loaded to: Origin=%dx%d, Size=%dx%d\n",
-                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
 
-        /* Maximize (if necessary): */
-        if (gEDataManager->informationWindowShouldBeMaximized(vboxGlobal().managedVMUuid()))
-            showMaximized();
+        /* Restore geometry: */
+        LogRel2(("GUI: UIVMInformationDialog: Restoring geometry to: Origin=%dx%d, Size=%dx%d\n",
+                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+        restoreGeometry();
     }
 }
 

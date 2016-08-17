@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,6 +117,7 @@ HRESULT DisplaySourceBitmap::queryBitmapInfo(BYTE **aAddress,
 int DisplaySourceBitmap::initSourceBitmap(unsigned aScreenId,
                                           DISPLAYFBINFO *pFBInfo)
 {
+    RT_NOREF(aScreenId);
     int rc = VINF_SUCCESS;
 
     if (pFBInfo->w == 0 || pFBInfo->h == 0)

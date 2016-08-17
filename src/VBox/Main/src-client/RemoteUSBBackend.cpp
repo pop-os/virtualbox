@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -133,7 +133,7 @@ static void releaseDevice(REMOTEUSBDEVICE *pDevice)
 
 static REMOTEUSBQURB *qurbAlloc(PREMOTEUSBDEVICE pDevice)
 {
-    /* @todo reuse URBs. */
+    /** @todo reuse URBs. */
     REMOTEUSBQURB *pQURB = (REMOTEUSBQURB *)RTMemAllocZ (sizeof (REMOTEUSBQURB));
 
     if (pQURB)
@@ -154,6 +154,7 @@ static void qurbFree (REMOTEUSBQURB *pQURB)
 /* Called by VRDP server when the client responds to a request on USB channel. */
 DECLCALLBACK(int) USBClientResponseCallback(void *pv, uint32_t u32ClientId, uint8_t code, const void *pvRet, uint32_t cbRet)
 {
+    RT_NOREF(u32ClientId);
     int rc = VINF_SUCCESS;
 
     LogFlow(("USBClientResponseCallback: id = %d, pv = %p, code = %d, pvRet = %p, cbRet = %d\n",
@@ -253,6 +254,7 @@ DECLCALLBACK(int) USBClientResponseCallback(void *pv, uint32_t u32ClientId, uint
 static DECLCALLBACK(int) iface_Open(PREMOTEUSBBACKEND pInstance, const char *pszAddress,
                                     size_t cbAddress, PREMOTEUSBDEVICE *ppDevice)
 {
+    RT_NOREF(cbAddress);
     int rc = VINF_SUCCESS;
 
     RemoteUSBBackend *pThis = (RemoteUSBBackend *)pInstance;
@@ -560,7 +562,7 @@ static DECLCALLBACK(int) iface_QueueURB(PREMOTEUSBDEVICE pDevice, uint8_t u8Type
             if (u8Type == VUSBXFERTYPE_MSG)
             {
                 u32DataLen = 8; /* 8 byte header. */
-                // u32DataLen = u32Len; // @todo do messages need all information?
+                // u32DataLen = u32Len; /// @todo do messages need all information?
             }
         } break;
 

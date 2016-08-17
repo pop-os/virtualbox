@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 #ifndef ___VBox_VBoxDrvCfg_win_h
 #define ___VBox_VBoxDrvCfg_win_h
 
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #include <VBox/cdefs.h>
 
 RT_C_DECLS_BEGIN

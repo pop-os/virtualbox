@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -113,6 +113,8 @@ static uintptr_t    g_cMemSaferPtrScramblerRotate;
  */
 static DECLCALLBACK(int32_t) rtMemSaferOnceInit(void *pvUserIgnore)
 {
+    RT_NOREF_PV(pvUserIgnore);
+
     g_uMemSaferScramblerXor = (uintptr_t)RTRandU64();
     g_uMemSaferPtrScramblerXor = (uintptr_t)RTRandU64();
     g_cMemSaferPtrScramblerRotate = RTRandU32Ex(0, ARCH_BITS - 1);
@@ -125,6 +127,8 @@ static DECLCALLBACK(int32_t) rtMemSaferOnceInit(void *pvUserIgnore)
  */
 static DECLCALLBACK(void) rtMemSaferOnceTerm(void *pvUser, bool fLazyCleanUpOk)
 {
+    RT_NOREF_PV(pvUser);
+
     if (!fLazyCleanUpOk)
     {
         RTCritSectRwDelete(&g_MemSaferCritSect);
@@ -160,7 +164,7 @@ static void rtMemSaferNodeInsert(PRTMEMSAFERNODE pThis)
     pThis->Core.Key = rtMemSaferScramblePointer(pThis->Core.Key);
     bool fRc = RTAvlPVInsert(&g_pMemSaferTree, &pThis->Core);
     RTCritSectRwLeaveExcl(&g_MemSaferCritSect);
-    Assert(fRc);
+    Assert(fRc); NOREF(fRc);
 }
 
 
@@ -313,7 +317,9 @@ static int rtMemSaferSupR3AllocPages(PRTMEMSAFERNODE pThis)
 #endif
     }
     return rc;
+
 #else  /* !IN_SUP_R3 */
+    RT_NOREF_PV(pThis);
     return VERR_NOT_SUPPORTED;
 #endif /* !IN_SUP_R3 */
 }
@@ -361,6 +367,8 @@ static int rtMemSaferMemAllocPages(PRTMEMSAFERNODE pThis)
 
 RTDECL(int) RTMemSaferAllocZExTag(void **ppvNew, size_t cb, uint32_t fFlags, const char *pszTag) RT_NO_THROW_DEF
 {
+    RT_NOREF_PV(pszTag);
+
     /*
      * Validate input.
      */

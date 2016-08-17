@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -432,7 +432,7 @@ DECLASM(int) TRPMGCTrap02Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 #if 0 /* Enable this iff you have a COM port and really want this debug info. */
     RTLogComPrintf("TRPMGCTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip);
 #endif
-    NOREF(pTrpmCpu);
+    NOREF(pTrpmCpu); RT_NOREF_PV(pRegFrame);
     return VERR_TRPM_DONT_PANIC;
 }
 
@@ -458,7 +458,7 @@ DECLASM(int) TRPMGCHyperTrap02Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 #if 0 /* Enable this iff you have a COM port and really want this debug info. */
     RTLogComPrintf("TRPMGCHyperTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip);
 #endif
-    NOREF(pTrpmCpu);
+    NOREF(pTrpmCpu); RT_NOREF_PV(pRegFrame);
     return VERR_TRPM_DONT_PANIC;
 }
 
@@ -723,8 +723,7 @@ DECLASM(int) TRPMGCTrap07Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
  */
 DECLASM(int) TRPMGCTrap0bHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 {
-    PVM     pVM   = TRPMCPU_2_VM(pTrpmCpu);
-    PVMCPU  pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
+    PVMCPU pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
     LogFlow(("TRPMGC0b: %04x:%08x EFL=%x\n", pRegFrame->cs.Sel, pRegFrame->eip, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK(0xb);
     PGMRZDynMapStartAutoSet(pVCpu);
@@ -1426,6 +1425,7 @@ DECLASM(int) TRPMGCHyperTrap0eHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
  */
 DECLCALLBACK(int) trpmRCTrapInGeneric(PVM pVM, PCPUMCTXCORE pRegFrame, uintptr_t uUser)
 {
+    RT_NOREF_PV(pRegFrame);
     Log(("********************************************************\n"));
     Log(("trpmRCTrapInGeneric: eip=%RX32 uUser=%#x\n", pRegFrame->eip, uUser));
     Log(("********************************************************\n"));

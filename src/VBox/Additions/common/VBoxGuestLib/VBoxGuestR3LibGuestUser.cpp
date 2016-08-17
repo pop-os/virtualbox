@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,7 +59,7 @@ VBGLR3DECL(int) VbglR3GuestUserReportState(const char *pszUser, const char *pszD
 
     uint32_t cbBase   = sizeof(VMMDevReportGuestUserState);
     uint32_t cbUser   = (uint32_t)strlen(pszUser) + 1; /* Include terminating zero */
-    uint32_t cbDomain = pszDomain ? strlen(pszDomain) + 1 /* Ditto */ : 0;
+    uint32_t cbDomain = pszDomain ? (uint32_t)strlen(pszDomain) + 1 /* Ditto */ : 0;
 
     /* Allocate enough space for all fields. */
     uint32_t cbSize = cbBase

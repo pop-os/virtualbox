@@ -1,9 +1,10 @@
+/* $Id: pack_visibleregion.c $ */
 /** @file
  * VBox Packing VisibleRegion information
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +20,7 @@
 #include "cr_error.h"
 
 #ifdef WINDOWS
-#include <windows.h>
+# include <iprt/win/windows.h>
 #endif
 
 void PACK_APIENTRY crPackWindowVisibleRegion( CR_PACKER_CONTEXT_ARGDECL GLint window, GLint cRects, const GLint * pRects )
@@ -51,5 +52,7 @@ void PACK_APIENTRY crPackWindowVisibleRegion( CR_PACKER_CONTEXT_ARGDECL GLint wi
 
 void PACK_APIENTRY crPackWindowVisibleRegionSWAP( CR_PACKER_CONTEXT_ARGDECL  GLint window, GLint cRects, const GLint * pRects )
 {
+    RT_NOREF3(window, cRects, pRects); CR_PACKER_CONTEXT_ARG_NOREF();
     crError( "crPackWindowVisibleRegionSWAP unimplemented and shouldn't be called" );
 }
+

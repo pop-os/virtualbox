@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,15 +21,7 @@
 
 #include <iprt/cdefs.h>
 
-RT_C_DECLS_BEGIN
-#ifdef RT_ARCH_X86
-# define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
-#endif
-#include <ntddk.h>
-#ifdef RT_ARCH_X86
-# undef _InterlockedAddLargeStatistic
-#endif
-RT_C_DECLS_END
+#include <iprt/nt/ntddk.h>
 
 #include <iprt/spinlock.h>
 #include <iprt/memobj.h>
@@ -155,7 +147,7 @@ extern VGDRVNTVER g_enmVGDrvNtVer;
 RT_C_DECLS_BEGIN
 
 #ifdef TARGET_NT4
-NTSTATUS   vgdrvNt4CreateDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath);
+NTSTATUS   vgdrvNt4CreateDevice(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath);
 #else
 NTSTATUS   vgdrvNtPnP(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 NTSTATUS   vgdrvNtPower(PDEVICE_OBJECT pDevObj, PIRP pIrp);

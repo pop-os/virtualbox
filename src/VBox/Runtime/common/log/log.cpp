@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -358,6 +358,7 @@ static struct
     { RT_STR_TUPLE("user"),         RTLOGDEST_USER },
 };
 
+#ifdef IN_RING3
 /** Log rotation backoff table - millisecond sleep intervals.
  * Important on Windows host, especially for VBoxSVC release logging.  Only a
  * medium term solution, until a proper fix for log file handling is available.
@@ -365,6 +366,7 @@ static struct
  */
 static const uint32_t g_acMsLogBackoff[] =
 { 10, 10, 10, 20, 50, 100, 200, 200, 200, 200, 500, 500, 500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000 };
+#endif
 
 
 /**
@@ -473,7 +475,7 @@ static DECLCALLBACK(void) rtlogPhaseMsgLocked(PRTLOGGER pLogger, const char *psz
     Assert(pLogger->pInt->hSpinMtx != NIL_RTSEMSPINMUTEX);
 
     va_start(args, pszFormat);
-    rtlogLoggerExVLocked(pLogger, 0, ~0, pszFormat, args);
+    rtlogLoggerExVLocked(pLogger, 0, ~0U, pszFormat, args);
     va_end(args);
 }
 
@@ -493,7 +495,7 @@ static DECLCALLBACK(void) rtlogPhaseMsgNormal(PRTLOGGER pLogger, const char *psz
     Assert(pLogger->pInt->hSpinMtx != NIL_RTSEMSPINMUTEX);
 
     va_start(args, pszFormat);
-    RTLogLoggerExV(pLogger, 0, ~0, pszFormat, args);
+    RTLogLoggerExV(pLogger, 0, ~0U, pszFormat, args);
     va_end(args);
 }
 
@@ -850,7 +852,9 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
             pLogger->pInt->cSecsHistoryTimeSlot = UINT32_MAX;
         else
             pLogger->pInt->cSecsHistoryTimeSlot = cSecsHistoryTimeSlot;
-# endif  /* IN_RING3 */
+# else   /* !IN_RING3 */
+        RT_NOREF_PV(pfnPhase); RT_NOREF_PV(cHistory); RT_NOREF_PV(cbHistoryFileMax); RT_NOREF_PV(cSecsHistoryTimeSlot);
+# endif  /* !IN_RING3 */
         if (pszGroupSettings)
             RTLogGroupSettings(pLogger, pszGroupSettings);
 
@@ -933,7 +937,9 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
                 if (pszValue)
                     RTLogGroupSettings(pLogger, pszValue);
             }
-# endif /* IN_RING3 */
+# else  /* !IN_RING3 */
+            RT_NOREF_PV(pszEnvVarBase); RT_NOREF_PV(pszFilenameFmt); RT_NOREF_PV(args);
+# endif /* !IN_RING3 */
 
             /*
              * Open the destination(s).
@@ -2386,7 +2392,7 @@ RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszValue)
                     else if (i == 5 /* ringbuf */ && !fNo)
                     {
                         int rc = RTStrCopyEx(szTmp, sizeof(szTmp), pszValue, cch);
-                        uint32_t cbRingBuf;
+                        uint32_t cbRingBuf = 0;
                         if (RT_SUCCESS(rc))
                             rc = RTStrToUInt32Full(szTmp, 0, &cbRingBuf);
                         AssertMsgRCReturn(rc, ("Invalid ring buffer size value '%s' (%Rrc)!\n", szTmp, rc), rc);
@@ -2665,8 +2671,8 @@ RTDECL(PRTLOGGER)   RTLogDefaultInstanceEx(uint32_t fFlagsAndGroup)
             uint16_t const fFlags = RT_LO_U16(fFlagsAndGroup);
             uint16_t const iGroup = RT_HI_U16(fFlagsAndGroup);
             if (   iGroup != UINT16_MAX
-                 && (   (pLogger->afGroups[iGroup < pLogger->cGroups ? iGroup : 0] & (fFlags | RTLOGGRPFLAGS_ENABLED))
-                     != (fFlags | RTLOGGRPFLAGS_ENABLED)))
+                 && (   (pLogger->afGroups[iGroup < pLogger->cGroups ? iGroup : 0] & (fFlags | (uint32_t)RTLOGGRPFLAGS_ENABLED))
+                     != (fFlags | (uint32_t)RTLOGGRPFLAGS_ENABLED)))
             pLogger = NULL;
         }
     }

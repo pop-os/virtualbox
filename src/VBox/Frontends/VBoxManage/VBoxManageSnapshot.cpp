@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -419,6 +419,7 @@ RTEXITCODE handleSnapshot(HandlerArg *a)
                             count = 1;
                         else
                             count = 2;
+                        RTTimeSpecSetNano(&now, 0); /* Shut up MSC */
                     }
                     else
                         RTTimeNow(&now);

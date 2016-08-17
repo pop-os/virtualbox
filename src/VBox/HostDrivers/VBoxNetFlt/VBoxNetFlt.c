@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1333,7 +1333,8 @@ static DECLCALLBACK(void) vboxNetFltFactoryRelease(PINTNETTRUNKFACTORY pIfFactor
  * @param   pSession            The session - unused.
  * @param   pszInterfaceUuid    The factory interface id.
  */
-static DECLCALLBACK(void *) vboxNetFltQueryFactoryInterface(PCSUPDRVFACTORY pSupDrvFactory, PSUPDRVSESSION pSession, const char *pszInterfaceUuid)
+static DECLCALLBACK(void *) vboxNetFltQueryFactoryInterface(PCSUPDRVFACTORY pSupDrvFactory, PSUPDRVSESSION pSession,
+                                                            const char *pszInterfaceUuid)
 {
     PVBOXNETFLTGLOBALS pGlobals = (PVBOXNETFLTGLOBALS)((uint8_t *)pSupDrvFactory - RT_OFFSETOF(VBOXNETFLTGLOBALS, SupDrvFactory));
 
@@ -1361,6 +1362,7 @@ static DECLCALLBACK(void *) vboxNetFltQueryFactoryInterface(PCSUPDRVFACTORY pSup
     else
         Log(("VBoxNetFlt: rc=%Rrc, uuid=%s\n", rc, pszInterfaceUuid));
 
+    RT_NOREF1(pSession);
     return NULL;
 }
 

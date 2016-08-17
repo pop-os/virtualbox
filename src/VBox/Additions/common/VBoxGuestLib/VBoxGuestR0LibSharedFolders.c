@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,7 +75,11 @@ DECLVBGL(int) VbglR0SfConnect(PVBGLSFCLIENT pClient)
     RT_ZERO(data);
     data.result   = VINF_SUCCESS;
     data.Loc.type = VMMDevHGCMLoc_LocalHost_Existing;
-    strcpy (data.Loc.u.host.achName, "VBoxSharedFolders");
+#if defined(RT_OS_LINUX)
+    strcpy(data.Loc.u.host.achName, "VBoxSharedFolders");
+#else
+    RTStrCopy(data.Loc.u.host.achName, sizeof(data.Loc.u.host.achName), "VBoxSharedFolders");
+#endif
 
     rc = VbglHGCMConnect(&pClient->handle, &data);
 /*    Log(("VBOXSF: VbglR0SfConnect: VbglHGCMConnect rc = %#x, result = %#x\n", rc, data.result)); */

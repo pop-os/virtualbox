@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -162,7 +162,11 @@ typedef VDSCRIPTINTERPCTRL *PVDSCRIPTINTERPCTRL;
  */
 static int vdScriptInterpreterError(PVDSCRIPTINTERPCTX pThis, int rc, RT_SRC_POS_DECL, const char *pszFmt, ...)
 {
-    RTPrintf(pszFmt);
+    RT_NOREF1(pThis); RT_SRC_POS_NOREF();
+    va_list va;
+    va_start(va, pszFmt);
+    RTPrintfV(pszFmt, va);
+    va_end(va);
     return rc;
 }
 
@@ -384,6 +388,7 @@ DECLINLINE(int) vdScriptInterpreterPushForCtrlEntry(PVDSCRIPTINTERPCTX pThis, PV
  */
 static DECLCALLBACK(int) vdScriptInterpreterVarSpaceDestroy(PRTSTRSPACECORE pStr, void *pvUser)
 {
+    RT_NOREF1(pvUser);
     RTMemFree(pStr);
     return VINF_SUCCESS;
 }
@@ -590,7 +595,7 @@ static int vdScriptInterpreterEvaluateStatement(PVDSCRIPTINTERPCTX pThis, PVDSCR
             rc = vdScriptInterpreterScopeCreate(pThis);
             if (RT_SUCCESS(rc))
             {
-                /** @todo: Declarations */
+                /** @todo Declarations */
                 rc = vdScriptInterpreterPushCompoundCtrlEntry(pThis, pStmt);
             }
             break;
@@ -778,7 +783,7 @@ static int vdScriptInterpreterFnCall(PVDSCRIPTINTERPCTX pThis, PVDSCRIPTFN pFn)
                         pVar->Core.cchString = pArg->pArgIde->cchIde;
                         vdScriptInterpreterPopValue(pThis, &pVar->Value);
                         bool fInserted = RTStrSpaceInsert(&pFnCall->ScopeRoot.hStrSpaceVar, &pVar->Core);
-                        Assert(fInserted);
+                        Assert(fInserted); RT_NOREF_PV(fInserted);
                     }
                     else
                     {
@@ -1002,6 +1007,7 @@ DECLHIDDEN(int) vdScriptCtxInterprete(PVDSCRIPTCTXINT pThis, const char *pszFn,
                                       PVDSCRIPTARG paArgs, unsigned cArgs,
                                       PVDSCRIPTARG pRet)
 {
+    RT_NOREF1(pRet);
     int rc = VINF_SUCCESS;
     VDSCRIPTINTERPCTX InterpCtx;
     PVDSCRIPTFN pFn = NULL;
@@ -1022,7 +1028,7 @@ DECLHIDDEN(int) vdScriptCtxInterprete(PVDSCRIPTCTXINT pThis, const char *pszFn,
         if (cArgs == pFn->cArgs)
         {
             /* Push the arguments onto the stack. */
-            /** @todo: Check expected and given argument types. */
+            /** @todo Check expected and given argument types. */
             for (unsigned i = 0; i < cArgs; i++)
             {
                 PVDSCRIPTARG pArg = (PVDSCRIPTARG)vdScriptStackGetUnused(&InterpCtx.StackValues);

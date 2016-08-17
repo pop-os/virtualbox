@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,11 +20,12 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
+# include <QtGlobal>                    /* for QT_VERSION */
 # if QT_VERSION < 0x050000
 #  ifdef VBOX_WS_WIN
 #   include <QLibrary>
-#  endif /* VBOX_WS_WIN */
-# endif /* QT_VERSION < 0x050000 */
+#  endif
+# endif
 
 /* GUI includes: */
 # include "QILineEdit.h"
@@ -33,15 +34,15 @@
 # if QT_VERSION < 0x050000
 #  ifdef VBOX_WS_WIN
 #   include "iprt/ldr.h"
-#  endif /* VBOX_WS_WIN */
-# endif /* QT_VERSION < 0x050000 */
+#  endif
+# endif
 
 /* External includes: */
 # if QT_VERSION < 0x050000
 #  ifdef VBOX_WS_WIN
-#   include <Windows.h>
-#  endif /* VBOX_WS_WIN */
-# endif /* QT_VERSION < 0x050000 */
+#   include <iprt/win/windows.h>
+#  endif
+# endif
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -50,8 +51,8 @@
 #if QT_VERSION < 0x050000
 # ifdef VBOX_WS_WIN
 #  include <QWindowsVistaStyle>
-# endif /* VBOX_WS_WIN */
-#endif /* QT_VERSION < 0x050000 */
+# endif
+#endif
 
 
 void QILineEdit::setMinimumWidthByText (const QString &aText)

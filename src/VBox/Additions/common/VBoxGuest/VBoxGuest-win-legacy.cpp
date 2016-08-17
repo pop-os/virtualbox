@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,12 +55,11 @@ RT_C_DECLS_END
  * @returns NT status code.
  *
  * @param   pDrvObj         The driver object.
- * @param   pDevObj         Unused. NULL. Dunno why it's here, makes no sense.
  * @param   pRegPath        The driver registry path.
  */
-NTSTATUS vgdrvNt4CreateDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath)
+NTSTATUS vgdrvNt4CreateDevice(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
 {
-    Log(("vgdrvNt4CreateDevice: pDrvObj=%p, pDevObj=%p, pRegPath=%p\n", pDrvObj, pDevObj, pRegPath));
+    Log(("vgdrvNt4CreateDevice: pDrvObj=%p, pRegPath=%p\n", pDrvObj, pRegPath));
 
     /*
      * Find our virtual PCI device

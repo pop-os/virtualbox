@@ -30,6 +30,10 @@
 #include <iprt/critsect.h>
 #include <iprt/err.h>
 
+#include <iprt/win/windows.h>
+
+#include <new>
+
 
 namespace ATL
 {
@@ -340,7 +344,7 @@ public:
         fInit = false;
 
         m_cLock = 0;
-	m_pTermFuncs = NULL;
+        m_pTermFuncs = NULL;
         _pAtlModule = this;
 
         if (FAILED(m_csStaticDataInitAndTypeInfo.Init()))
@@ -354,22 +358,22 @@ public:
     void Term() throw()
     {
         if (!fInit)
-	    return;
+            return;
 
-	// Call all term functions.
-	if (m_pTermFuncs)
-	{
-	    _ATL_TERMFUNC_ELEM *p = m_pTermFuncs;
-	    _ATL_TERMFUNC_ELEM *pNext;
-	    while (p)
-	    {
-	        p->pfn(p->pv);
-		pNext = p->pNext;
-		delete p;
-		p = pNext;
-	    }
-	    m_pTermFuncs = NULL;
-	}
+        // Call all term functions.
+        if (m_pTermFuncs)
+        {
+            _ATL_TERMFUNC_ELEM *p = m_pTermFuncs;
+            _ATL_TERMFUNC_ELEM *pNext;
+            while (p)
+            {
+                p->pfn(p->pv);
+                pNext = p->pNext;
+                delete p;
+                p = pNext;
+            }
+            m_pTermFuncs = NULL;
+        }
         m_csStaticDataInitAndTypeInfo.Term();
         fInit = false;
     }
@@ -396,32 +400,24 @@ public:
 
     HRESULT AddTermFunc(PFNATLTERMFUNC pfn, void *pv)
     {
-	HRESULT hrc = S_OK;
-	_ATL_TERMFUNC_ELEM *pNew = NULL;
-        try
-        {
-            pNew = new _ATL_TERMFUNC_ELEM;
-        }
-        catch (...)
-        {
-        }
-	if (!pNew)
-	    return E_OUTOFMEMORY;
-	pNew->pfn = pfn;
-	pNew->pv = pv;
+        _ATL_TERMFUNC_ELEM *pNew = new(std::nothrow) _ATL_TERMFUNC_ELEM;
+        if (!pNew)
+            return E_OUTOFMEMORY;
+        pNew->pfn = pfn;
+        pNew->pv = pv;
         CComCritSectLock<CComCriticalSection> lock(m_csStaticDataInitAndTypeInfo, false);
-        hrc = lock.Lock();
-	if (SUCCEEDED(hrc))
-	{
-	    pNew->pNext = m_pTermFuncs;
-	    m_pTermFuncs = pNew;
-	}
-	else
-	{
-	    delete pNew;
+        HRESULT hrc = lock.Lock();
+        if (SUCCEEDED(hrc))
+        {
+            pNew->pNext = m_pTermFuncs;
+            m_pTermFuncs = pNew;
+        }
+        else
+        {
+            delete pNew;
             AssertMsgFailed(("CComModule::AddTermFunc: failed to lock critsect\n"));
         }
-	return hrc;
+        return hrc;
     }
 
 protected:
@@ -511,6 +507,8 @@ public:
     _ATL_OBJMAP_ENTRY *m_pObjMap;
     HRESULT Init(_ATL_OBJMAP_ENTRY *p, HINSTANCE h, const GUID *pLibID = NULL) throw()
     {
+        RT_NOREF1(h);
+
         if (pLibID)
             m_LibID = *pLibID;
 
@@ -559,7 +557,7 @@ public:
 
             while (pEntry->pclsid)
             {
-                if ((pEntry->pfnGetClassObject) && rclsid == *pEntry->pclsid)
+                if (pEntry->pfnGetClassObject && rclsid == *pEntry->pclsid)
                 {
                     if (!pEntry->pCF)
                     {
@@ -642,14 +640,7 @@ public:
         AssertReturn(ppv, E_POINTER);
         *ppv = NULL;
         HRESULT hrc = E_OUTOFMEMORY;
-        T *p = NULL;
-        try
-        {
-            p = new T(pv);
-        }
-        catch (...)
-        {
-        }
+        T *p = new(std::nothrow) T(pv);
         if (p)
         {
             p->SetVoid(pv);
@@ -743,14 +734,7 @@ public:
         *pp = NULL;
 
         HRESULT hrc = E_OUTOFMEMORY;
-        CComObjectCached<Base> *p = NULL;
-        try
-        {
-            p = new CComObjectCached<Base>();
-        }
-        catch (...)
-        {
-        }
+        CComObjectCached<Base> *p = new(std::nothrow) CComObjectCached<Base>();
         if (p)
         {
             p->SetVoid(NULL);
@@ -821,13 +805,16 @@ public:
     }
     HRESULT GetIDsOfNames(REFIID riid, LPOLESTR *pwszNames, UINT cNames, LCID lcid, DISPID *pDispID)
     {
+        RT_NOREF1(riid); /* should be IID_NULL */
         HRESULT hrc = FetchTI(lcid);
         if (m_pTInfo)
             hrc = m_pTInfo->GetIDsOfNames(pwszNames, cNames, pDispID);
         return hrc;
     }
-    HRESULT Invoke(IDispatch *p, DISPID DispID, REFIID riid, LCID lcid, WORD iFlags, DISPPARAMS *pDispParams, VARIANT *pVarResult, EXCEPINFO *pExcepInfo, UINT *puArgErr)
+    HRESULT Invoke(IDispatch *p, DISPID DispID, REFIID riid, LCID lcid, WORD iFlags, DISPPARAMS *pDispParams,
+                   VARIANT *pVarResult, EXCEPINFO *pExcepInfo, UINT *puArgErr)
     {
+        RT_NOREF1(riid); /* should be IID_NULL */
         HRESULT hrc = FetchTI(lcid);
         if (m_pTInfo)
             hrc = m_pTInfo->Invoke(p, DispID, iFlags, pDispParams, pVarResult, pExcepInfo, puArgErr);
@@ -1002,10 +989,10 @@ public:
     {
         AssertPtrReturn(pThis, E_NOINTERFACE);
         IUnknown *pObj = *(IUnknown **)((DWORD_PTR)pThis + dw);
-	// If this assertion fails then the object has a delegation with a NULL
-	// object pointer, which is highly unusual often means that the pointer
-	// was not set up correctly. Check the COM interface map of the class
-	// for bugs with initializing.
+        // If this assertion fails then the object has a delegation with a NULL
+        // object pointer, which is highly unusual often means that the pointer
+        // was not set up correctly. Check the COM interface map of the class
+        // for bugs with initializing.
         AssertPtrReturn(pObj, E_NOINTERFACE);
         return pObj->QueryInterface(iid, ppvObj);
     }
@@ -1063,14 +1050,7 @@ public:
         *pp = NULL;
 
         HRESULT hrc = E_OUTOFMEMORY;
-        CComObject<Base> *p = NULL;
-        try
-        {
-            p = new CComObject<Base>();
-        }
-        catch (...)
-        {
-        }
+        CComObject<Base> *p = new(std::nothrow) CComObject<Base>();
         if (p)
         {
             p->InternalFinalConstructAddRef();
@@ -1216,14 +1196,7 @@ public:
         *pp = NULL;
 
         HRESULT hrc = E_OUTOFMEMORY;
-        CComAggObject<Aggregated> *p = NULL;
-        try
-        {
-            p = new CComAggObject<Aggregated>(pUnkOuter);
-        }
-        catch (...)
-        {
-        }
+        CComAggObject<Aggregated> *p = new(std::nothrow) CComAggObject<Aggregated>(pUnkOuter);
         if (p)
         {
             p->SetVoid(NULL);

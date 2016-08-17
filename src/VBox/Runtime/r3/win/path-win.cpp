@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,8 +29,8 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_PATH
-#include <Windows.h>
-#include <Shlobj.h>
+#include <iprt/win/windows.h>
+#include <iprt/win/shlobj.h>
 
 #include <iprt/path.h>
 #include <iprt/assert.h>
@@ -607,6 +607,7 @@ RTR3DECL(int) RTPathRename(const char *pszSrc, const char *pszDst, unsigned fRen
 
 RTR3DECL(int) RTPathUnlink(const char *pszPath, uint32_t fUnlink)
 {
+    RT_NOREF_PV(pszPath); RT_NOREF_PV(fUnlink);
     return VERR_NOT_IMPLEMENTED;
 }
 

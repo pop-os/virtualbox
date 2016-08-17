@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -148,6 +148,7 @@ static int vmsvga3dLoadReinitContext(PVGASTATE pThis, PVMSVGA3DCONTEXT pContext)
 
 int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    RT_NOREF(uVersion, uPass);
     PVMSVGA3DSTATE pState = pThis->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
     int            rc;
@@ -426,6 +427,7 @@ int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32
 
 static int vmsvga3dSaveContext(PVGASTATE pThis, PSSMHANDLE pSSM, PVMSVGA3DCONTEXT pContext)
 {
+    RT_NOREF(pThis);
     uint32_t cid = pContext->id;
 
     /* Save the id first. */
@@ -609,7 +611,7 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
                         {
                         case SVGA3D_SURFACE_HINT_DEPTHSTENCIL:
                         case SVGA3D_SURFACE_HINT_DEPTHSTENCIL | SVGA3D_SURFACE_HINT_TEXTURE:
-                            /* @todo unable to easily fetch depth surface data in d3d 9 */
+                            /** @todo unable to easily fetch depth surface data in d3d 9 */
                             fSkipSave = true;
                             break;
                         case SVGA3D_SURFACE_HINT_TEXTURE | SVGA3D_SURFACE_HINT_RENDERTARGET:
@@ -632,7 +634,7 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
                                     {
                                         IDirect3DSurface9 *pSrc, *pDest;
 
-                                        /* @todo stricter checks for associated context */
+                                        /** @todo stricter checks for associated context */
                                         uint32_t cid = pSurface->idAssociatedContext;
                                         if (    cid >= pState->cContexts
                                             ||  pState->papContexts[cid]->id != cid)
@@ -756,7 +758,7 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
                             /* no break */
                         case SVGA3D_SURFACE_HINT_DEPTHSTENCIL:
                         case SVGA3D_SURFACE_HINT_DEPTHSTENCIL | SVGA3D_SURFACE_HINT_TEXTURE:
-                            /* @todo fetch data from the renderbuffer */
+                            /** @todo fetch data from the renderbuffer */
                             /* No data follows */
                             rc = SSMR3PutBool(pSSM, false);
                             AssertRCReturn(rc, rc);
@@ -845,7 +847,8 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
     return VINF_SUCCESS;
 }
 
-uint32_t vmsvga3dSaveShaderConst(PVMSVGA3DCONTEXT pContext, uint32_t reg, SVGA3dShaderType type, SVGA3dShaderConstType ctype, uint32_t val1, uint32_t val2, uint32_t val3, uint32_t val4)
+int vmsvga3dSaveShaderConst(PVMSVGA3DCONTEXT pContext, uint32_t reg, SVGA3dShaderType type, SVGA3dShaderConstType ctype,
+                            uint32_t val1, uint32_t val2, uint32_t val3, uint32_t val4)
 {
     /* Choose a sane upper limit. */
     AssertReturn(reg < _32K, VERR_INVALID_PARAMETER);

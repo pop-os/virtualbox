@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,9 +35,9 @@ int main()
 {
     RTTEST hTest;
     int rc = RTTestInitAndCreate("tstX86-FpuSaveRestore", &hTest);
+    if (RT_FAILURE(rc))
+        return RTEXITCODE_FAILURE;
     RTTestBanner(hTest);
-
-
 
     RTTestSub(hTest, "CS/DS Selector");
 

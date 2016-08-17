@@ -250,7 +250,7 @@ class SOURCEFILEENTRY
                 }
             }
 
-            return VINF_SUCCESS; /* @todo */
+            return VINF_SUCCESS; /** @todo */
         }
 
     private:
@@ -928,7 +928,7 @@ static RTEXITCODE gctlCtxInitGuestSession(PGCTLCMDCTX pCtx)
          */
         if (pCtx->cVerbose)
             RTPrintf("Waiting for guest session to start...\n");
-        GuestSessionWaitResult_T enmWaitResult;
+        GuestSessionWaitResult_T enmWaitResult = GuestSessionWaitResult_None; /* Shut up MSC */
         try
         {
             com::SafeArray<GuestSessionWaitForFlag_T> aSessionWaitFlags;
@@ -1158,7 +1158,6 @@ static void gctlCtxTerm(PGCTLCMDCTX pCtx)
  */
 static RTEXITCODE gctlRunCalculateExitCode(ProcessStatus_T enmStatus, ULONG uExitCode, bool fReturnExitCodes)
 {
-    int vrc = RTEXITCODE_SUCCESS;
     switch (enmStatus)
     {
         case ProcessStatus_TerminatedNormally:
@@ -1304,6 +1303,7 @@ static RTMSINTERVAL gctlRunGetRemainingTime(uint64_t u64StartMs, RTMSINTERVAL cM
  */
 static RTEXITCODE gctlHandleRunCommon(PGCTLCMDCTX pCtx, int argc, char **argv, bool fRunCmd, uint32_t fHelp)
 {
+    RT_NOREF(fHelp);
     AssertPtrReturn(pCtx, RTEXITCODE_FAILURE);
 
     /*
@@ -1345,9 +1345,9 @@ static RTEXITCODE gctlHandleRunCommon(PGCTLCMDCTX pCtx, int argc, char **argv, b
     int                     ch;
     RTGETOPTUNION           ValueUnion;
     RTGETOPTSTATE           GetState;
-    size_t                  cOptions =
-    RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions) - (fRunCmd ? 0 : 6),
-                 1, RTGETOPTINIT_FLAGS_OPTS_FIRST);
+    int vrc = RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions) - (fRunCmd ? 0 : 6),
+                           1, RTGETOPTINIT_FLAGS_OPTS_FIRST);
+    AssertRC(vrc);
 
     com::SafeArray<ProcessCreateFlag_T>     aCreateFlags;
     com::SafeArray<ProcessWaitForFlag_T>    aWaitFlags;
@@ -1547,8 +1547,8 @@ static RTEXITCODE gctlHandleRunCommon(PGCTLCMDCTX pCtx, int argc, char **argv, b
             bool            fReadStdErr = false;
             bool            fCompleted  = false;
             bool            fCompletedStartCmd = false;
-            int             vrc         = VINF_SUCCESS;
 
+            vrc = VINF_SUCCESS;
             while (   !fCompleted
                    && cMsTimeLeft > 0)
             {
@@ -1764,6 +1764,7 @@ static int gctlCopyContextCreate(PGCTLCMDCTX pCtx, bool fDryRun, bool fHostToGue
                                  const Utf8Str &strSessionName,
                                  PCOPYCONTEXT *ppContext)
 {
+    RT_NOREF(strSessionName);
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
 
     int vrc = VINF_SUCCESS;
@@ -1867,7 +1868,7 @@ static int gctlCopyTranslatePath(const char *pszSourceRoot, const char *pszSourc
     return vrc;
 }
 
-#ifdef DEBUG_andy
+#ifdef DEBUG_andy_disabled
 static int tstTranslatePath()
 {
     RTAssertSetMayPanic(false /* Do not freak out, please. */);
@@ -1925,7 +1926,7 @@ static int tstTranslatePath()
         }
     }
 
-    return VINF_SUCCESS; /* @todo */
+    return VINF_SUCCESS; /** @todo */
 }
 #endif
 
@@ -2014,6 +2015,7 @@ static int gctlCopyDirExists(PCOPYCONTEXT pContext, bool fOnGuest,
     return vrc;
 }
 
+#if 0 /* unused */
 /**
  * Checks whether a specific directory exists on the destination, based
  * on the current copy context.
@@ -2030,6 +2032,7 @@ static int gctlCopyDirExistsOnDest(PCOPYCONTEXT pContext, const char *pszDir,
     return gctlCopyDirExists(pContext, pContext->fHostToGuest,
                              pszDir, fExists);
 }
+#endif /* unused */
 
 /**
  * Checks whether a specific directory exists on the source, based
@@ -2081,6 +2084,7 @@ static int gctlCopyFileExists(PCOPYCONTEXT pContext, bool bOnGuest,
     return vrc;
 }
 
+#if 0 /* unused */
 /**
  * Checks whether a specific file exists on the destination, based on the
  * current copy context.
@@ -2097,6 +2101,7 @@ static int gctlCopyFileExistsOnDest(PCOPYCONTEXT pContext, const char *pszFile,
     return gctlCopyFileExists(pContext, pContext->fHostToGuest,
                               pszFile, fExists);
 }
+#endif /* unused */
 
 /**
  * Checks whether a specific file exists on the source, based on the
@@ -2669,7 +2674,7 @@ static RTEXITCODE gctlHandleCopy(PGCTLCMDCTX pCtx, int argc, char **argv, bool f
     Utf8Str strSource;
     const char *pszDst = NULL;
     enum gctlCopyFlags enmFlags = kGctlCopyFlags_None;
-    bool fCopyRecursive = false;
+    /*bool fCopyRecursive = false; - unused */
     bool fDryRun = false;
     uint32_t uUsage = fHostToGuest ? USAGE_GSTCTRL_COPYTO : USAGE_GSTCTRL_COPYFROM;
 
@@ -3280,7 +3285,7 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleMv(PGCTLCMDCTX pCtx, int argc, char **
         Utf8Str strCurSource = (*it);
 
         ComPtr<IGuestFsObjInfo> pFsObjInfo;
-        FsObjType_T enmObjType;
+        FsObjType_T enmObjType = FsObjType_Unknown; /* Shut up MSC */
         rc = pCtx->pGuestSession->FsObjQueryInfo(Bstr(strCurSource).raw(), FALSE /*followSymlinks*/, pFsObjInfo.asOutParam());
         if (SUCCEEDED(rc))
             rc = pFsObjInfo->COMGETTER(Type)(&enmObjType);
@@ -3548,7 +3553,7 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleStat(PGCTLCMDCTX pCtx, int argc, char 
                     break;
             }
 
-            /** @todo: Show more information about this element. */
+            /** @todo Show more information about this element. */
         }
 
         ++it;

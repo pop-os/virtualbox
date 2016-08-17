@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -181,17 +181,19 @@ STDMETHODIMP VirtualBoxErrorInfo::GetGUID(GUID *guid)
 
 STDMETHODIMP VirtualBoxErrorInfo::GetHelpContext(DWORD *pdwHelpContext)
 {
+    RT_NOREF(pdwHelpContext);
     return E_NOTIMPL;
 }
 
-STDMETHODIMP VirtualBoxErrorInfo::GetHelpFile(BSTR *pbstrHelpFile)
+STDMETHODIMP VirtualBoxErrorInfo::GetHelpFile(BSTR *pBstrHelpFile)
 {
+    RT_NOREF(pBstrHelpFile);
     return E_NOTIMPL;
 }
 
-STDMETHODIMP VirtualBoxErrorInfo::GetSource(BSTR *source)
+STDMETHODIMP VirtualBoxErrorInfo::GetSource(BSTR *pBstrSource)
 {
-    return COMGETTER(Component)(source);
+    return COMGETTER(Component)(pBstrSource);
 }
 
 #else // defined(VBOX_WITH_XPCOM)

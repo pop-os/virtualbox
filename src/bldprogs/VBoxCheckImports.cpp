@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
             else if (   !strcmp(psz, "--version")
                      || !strcmp(psz, "-V"))
             {
-                printf("$Revision: 106031 $\n");
+                printf("$Revision: 109096 $\n");
                 return RTEXITCODE_SUCCESS;
             }
             else
@@ -367,5 +367,4 @@ int main(int argc, char **argv)
 
     return rcExit;
 }
-
 

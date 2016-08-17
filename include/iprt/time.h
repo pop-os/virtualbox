@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -353,7 +353,8 @@ DECLINLINE(void) RTTimeSpecGetSecondsAndNano(PRTTIMESPEC pTime, int32_t *pi32Sec
 
 
 /* PORTME: Add struct timeval guard macro here. */
-#if defined(RTTIME_INCL_TIMEVAL) || defined(_STRUCT_TIMEVAL) || defined(_SYS__TIMEVAL_H_) || defined(_SYS_TIME_H) || defined(_TIMEVAL) || defined(_LINUX_TIME_H)
+#if defined(RTTIME_INCL_TIMEVAL) || defined(_STRUCT_TIMEVAL) || defined(_SYS__TIMEVAL_H_) || defined(_SYS_TIME_H) || defined(_TIMEVAL) || defined(_LINUX_TIME_H) \
+ || (defined(RT_OS_NETBSD) && defined(_SYS_TIME_H_))
 /**
  * Gets the time as POSIX timeval.
  *
@@ -391,7 +392,8 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetTimeval(PRTTIMESPEC pTime, const struct tim
 
 
 /* PORTME: Add struct timespec guard macro here. */
-#if defined(RTTIME_INCL_TIMESPEC) || defined(_STRUCT_TIMESPEC) || defined(_SYS__TIMESPEC_H_) || defined(TIMEVAL_TO_TIMESPEC) || defined(_TIMESPEC)
+#if defined(RTTIME_INCL_TIMESPEC) || defined(_STRUCT_TIMESPEC) || defined(_SYS__TIMESPEC_H_) || defined(TIMEVAL_TO_TIMESPEC) || defined(_TIMESPEC) \
+ || (defined(RT_OS_NETBSD) && defined(_SYS_TIME_H_))
 /**
  * Gets the time as POSIX timespec.
  *

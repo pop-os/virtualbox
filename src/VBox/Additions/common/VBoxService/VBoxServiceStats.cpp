@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
  * gets registered by Machine::i_registerMetrics in Main.
  */
 
+
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
@@ -32,7 +33,7 @@
 #  undef _WIN32_WINNT
 #  define _WIN32_WINNT 0x501
 # endif
-# include <windows.h>
+# include <iprt/win/windows.h>
 # include <psapi.h>
 # include <winternl.h>
 
@@ -612,7 +613,7 @@ static void vgsvcVMStatsReport(void)
     }
 
 #else
-    /* todo: implement for other platforms. */
+    /** @todo implement for other platforms. */
 
 #endif
 }

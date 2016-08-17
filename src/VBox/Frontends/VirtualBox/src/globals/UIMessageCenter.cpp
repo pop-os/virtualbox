@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1689,7 +1689,7 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
     MessageType type;
     QString severity;
 
-    // TODO: Move to Runtime UI!
+    /// @todo Move to Runtime UI!
     /* Preprocessing: */
     if (fFatal)
     {
@@ -1761,7 +1761,7 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
               formatted, autoConfimId.data());
     }
 
-    // TODO: Move to Runtime UI!
+    /// @todo Move to Runtime UI!
     /* Postprocessing: */
     if (fFatal)
     {

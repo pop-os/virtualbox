@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -219,6 +219,8 @@ static DECLCALLBACK(int) tst4Thread(RTTHREAD hSelf, void *pvArg)
 {
 //    uint32_t    iThread  = (uint32_t)(uintptr_t)pvArg;
     RTMEMPOOL   hMemPool = g_hMemPool4;
+    RT_NOREF_PV(pvArg);
+
 
     /* setup. */
     RTTestSetDefault(g_hTest, NULL);

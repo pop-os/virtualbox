@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -736,7 +736,7 @@ VirtualSystemModel::VirtualSystemModel(QVector<CVirtualSystemDescription>& aVSDs
         VirtualSystemItem *vi = new VirtualSystemItem(a, vs, m_pRootItem);
         m_pRootItem->appendChild(vi);
 
-        /* @todo: ask Dmitry about include/COMDefs.h:232 */
+        /** @todo ask Dmitry about include/COMDefs.h:232 */
         QVector<KVirtualSystemDescriptionType> types;
         QVector<QString> refs;
         QVector<QString> origValues;

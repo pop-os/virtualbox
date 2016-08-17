@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -155,7 +155,10 @@ int main(int argc, char **argv)
      * AssertCompile so it's kind of related.
      */
 #ifdef RT_COMPILER_SUPPORTS_VA_ARGS
+# if 0
     AssertCompile(RT_COUNT_VA_ARGS() == 0);
+    AssertCompile(RT_COUNT_VA_ARGS(RT_NOTHING) == 1);
+# endif
     AssertCompile(RT_COUNT_VA_ARGS(asdf) == 1);
     AssertCompile(RT_COUNT_VA_ARGS(yyyy) == 1);
     AssertCompile(RT_COUNT_VA_ARGS(_) == 1);

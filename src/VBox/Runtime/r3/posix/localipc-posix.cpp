@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_LOCALIPC
 #include "internal/iprt.h"
 #include <iprt/localipc.h>
@@ -59,9 +59,9 @@
 #include "internal/socket.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Local IPC service instance, POSIX.
  */
@@ -280,7 +280,7 @@ RTDECL(int) RTLocalIpcServerCreate(PRTLOCALIPCSERVER phServer, const char *pszNa
 DECLINLINE(void) rtLocalIpcServerRetain(PRTLOCALIPCSERVERINT pThis)
 {
     uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
-    Assert(cRefs < UINT32_MAX / 2 && cRefs);
+    Assert(cRefs < UINT32_MAX / 2 && cRefs); RT_NOREF_PV(cRefs);
 }
 
 
@@ -548,7 +548,7 @@ RTDECL(int) RTLocalIpcSessionConnect(PRTLOCALIPCSESSION phSession, const char *p
 DECLINLINE(void) rtLocalIpcSessionRetain(PRTLOCALIPCSESSIONINT pThis)
 {
     uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
-    Assert(cRefs < UINT32_MAX / 2 && cRefs);
+    Assert(cRefs < UINT32_MAX / 2 && cRefs); RT_NOREF_PV(cRefs);
 }
 
 
@@ -1048,20 +1048,21 @@ RTDECL(int) RTLocalIpcSessionWaitForData(RTLOCALIPCSESSION hSession, uint32_t cM
 
 RTDECL(int) RTLocalIpcSessionQueryProcess(RTLOCALIPCSESSION hSession, PRTPROCESS pProcess)
 {
+    RT_NOREF_PV(hSession); RT_NOREF_PV(pProcess);
     return VERR_NOT_SUPPORTED;
 }
 
 
 RTDECL(int) RTLocalIpcSessionQueryUserId(RTLOCALIPCSESSION hSession, PRTUID pUid)
 {
+    RT_NOREF_PV(hSession); RT_NOREF_PV(pUid);
     return VERR_NOT_SUPPORTED;
 }
 
 
 RTDECL(int) RTLocalIpcSessionQueryGroupId(RTLOCALIPCSESSION hSession, PRTGID pGid)
 {
+    RT_NOREF_PV(hSession); RT_NOREF_PV(pGid);
     return VERR_NOT_SUPPORTED;
 }
-
-
 

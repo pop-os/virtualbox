@@ -56,7 +56,7 @@ static void vbox_clear_irq(void)
 
 static uint32_t vbox_get_flags(struct vbox_private *vbox)
 {
-    return (uint32_t)readl(vbox->vram + vbox->host_flags_offset);
+    return (uint32_t)readl(vbox->mapped_vram + vbox->host_flags_offset);
 }
 
 void vbox_report_hotplug(struct vbox_private *vbox)
@@ -85,7 +85,7 @@ irqreturn_t vbox_irq_handler(int irq, void *arg)
 }
 
 /**
- * Query the host for 
+ * Query the host for
  */
 static void vbox_update_mode_hints(struct vbox_private *vbox)
 {

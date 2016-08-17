@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,17 +28,20 @@
 # endif /* VBOX_WS_MAC */
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
 # include "UISession.h"
 # include "UIMachineLogicSeamless.h"
 # include "UIMachineWindow.h"
 # include "UIMachineViewSeamless.h"
 # include "UIFrameBuffer.h"
 # include "UIExtraDataManager.h"
+# include "UIDesktopWidgetWatchdog.h"
 
 /* COM includes: */
 # include "CConsole.h"
 # include "CDisplay.h"
+
+/* Other VBox includes: */
+# include "VBox/log.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -216,7 +219,7 @@ QRect UIMachineViewSeamless::workingArea() const
     /* Get corresponding screen: */
     int iScreen = static_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(screenId());
     /* Return available geometry for that screen: */
-    return vboxGlobal().availableGeometry(iScreen);
+    return gpDesktop->availableGeometry(iScreen);
 }
 
 QSize UIMachineViewSeamless::calculateMaxGuestSize() const

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -447,6 +447,7 @@ static bool Test1(void)
 
 int main(int argc, char **argv)
 {
+    RT_NOREF_PV(argv);
     int rc = RTTestInitAndCreate("tstRTCritSectRw", &g_hTest);
     if (rc)
         return 1;

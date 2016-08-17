@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2015 Oracle Corporation
+# Copyright (C) 2010-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,11 @@ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 # VBoxControl
 #
 PROGRAMS += VBoxControl
+if "$(KBUILD_TARGET)" == "win" || defined(VBOX_WITH_MASOCHISTIC_WARNINGS) ## @todo use VBoxGuestR3Exe everywhere
+VBoxControl_TEMPLATE = VBoxGuestR3Exe
+else
 VBoxControl_TEMPLATE = NewVBoxGuestR3Exe
+endif
 ifeq ($(KBUILD_TARGET),win)
  ifdef VBOX_SIGN_ADDITIONS # (See the main Windows Additions makefile.)
   VBoxControl_INSTTYPE = none

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -356,8 +356,8 @@ int GuestProcessStreamBlock::SetValue(const char *pszKey, const char *pszValue)
 
 GuestProcessStream::GuestProcessStream(void)
     : m_cbAllocated(0),
-      m_cbSize(0),
-      m_cbOffset(0),
+      m_cbUsed(0),
+      m_offBuffer(0),
       m_pbBuffer(NULL)
 {
 
@@ -384,34 +384,35 @@ int GuestProcessStream::AddData(const BYTE *pbData, size_t cbData)
     int rc = VINF_SUCCESS;
 
     /* Rewind the buffer if it's empty. */
-    size_t     cbInBuf   = m_cbSize - m_cbOffset;
+    size_t     cbInBuf   = m_cbUsed - m_offBuffer;
     bool const fAddToSet = cbInBuf == 0;
     if (fAddToSet)
-        m_cbSize = m_cbOffset = 0;
+        m_cbUsed = m_offBuffer = 0;
 
     /* Try and see if we can simply append the data. */
-    if (cbData + m_cbSize <= m_cbAllocated)
+    if (cbData + m_cbUsed <= m_cbAllocated)
     {
-        memcpy(&m_pbBuffer[m_cbSize], pbData, cbData);
-        m_cbSize += cbData;
+        memcpy(&m_pbBuffer[m_cbUsed], pbData, cbData);
+        m_cbUsed += cbData;
     }
     else
     {
         /* Move any buffered data to the front. */
-        cbInBuf = m_cbSize - m_cbOffset;
+        cbInBuf = m_cbUsed - m_offBuffer;
         if (cbInBuf == 0)
-            m_cbSize = m_cbOffset = 0;
-        else if (m_cbOffset) /* Do we have something to move? */
+            m_cbUsed = m_offBuffer = 0;
+        else if (m_offBuffer) /* Do we have something to move? */
         {
-            memmove(m_pbBuffer, &m_pbBuffer[m_cbOffset], cbInBuf);
-            m_cbSize = cbInBuf;
-            m_cbOffset = 0;
+            memmove(m_pbBuffer, &m_pbBuffer[m_offBuffer], cbInBuf);
+            m_cbUsed = cbInBuf;
+            m_offBuffer = 0;
         }
 
         /* Do we need to grow the buffer? */
-        if (cbData + m_cbSize > m_cbAllocated)
+        if (cbData + m_cbUsed > m_cbAllocated)
         {
-            size_t cbAlloc = m_cbSize + cbData;
+/** @todo Put an upper limit on the allocation?   */
+            size_t cbAlloc = m_cbUsed + cbData;
             cbAlloc = RT_ALIGN_Z(cbAlloc, _64K);
             void *pvNew = RTMemRealloc(m_pbBuffer, cbAlloc);
             if (pvNew)
@@ -426,10 +427,10 @@ int GuestProcessStream::AddData(const BYTE *pbData, size_t cbData)
         /* Finally, copy the data. */
         if (RT_SUCCESS(rc))
         {
-            if (cbData + m_cbSize <= m_cbAllocated)
+            if (cbData + m_cbUsed <= m_cbAllocated)
             {
-                memcpy(&m_pbBuffer[m_cbSize], pbData, cbData);
-                m_cbSize += cbData;
+                memcpy(&m_pbBuffer[m_cbUsed], pbData, cbData);
+                m_cbUsed += cbData;
             }
             else
                 rc = VERR_BUFFER_OVERFLOW;
@@ -451,21 +452,21 @@ void GuestProcessStream::Destroy(void)
     }
 
     m_cbAllocated = 0;
-    m_cbSize = 0;
-    m_cbOffset = 0;
+    m_cbUsed = 0;
+    m_offBuffer = 0;
 }
 
 #ifdef DEBUG
 void GuestProcessStream::Dump(const char *pszFile)
 {
     LogFlowFunc(("Dumping contents of stream=0x%p (cbAlloc=%u, cbSize=%u, cbOff=%u) to %s\n",
-                 m_pbBuffer, m_cbAllocated, m_cbSize, m_cbOffset, pszFile));
+                 m_pbBuffer, m_cbAllocated, m_cbUsed, m_offBuffer, pszFile));
 
     RTFILE hFile;
     int rc = RTFileOpen(&hFile, pszFile, RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE);
     if (RT_SUCCESS(rc))
     {
-        rc = RTFileWrite(hFile, m_pbBuffer, m_cbSize, NULL /* pcbWritten */);
+        rc = RTFileWrite(hFile, m_pbBuffer, m_cbUsed, NULL /* pcbWritten */);
         RTFileClose(hFile);
     }
 }
@@ -492,25 +493,25 @@ void GuestProcessStream::Dump(const char *pszFile)
 int GuestProcessStream::ParseBlock(GuestProcessStreamBlock &streamBlock)
 {
     if (   !m_pbBuffer
-        || !m_cbSize)
+        || !m_cbUsed)
     {
         return VERR_NO_DATA;
     }
 
-    AssertReturn(m_cbOffset <= m_cbSize, VERR_INVALID_PARAMETER);
-    if (m_cbOffset == m_cbSize)
+    AssertReturn(m_offBuffer <= m_cbUsed, VERR_INVALID_PARAMETER);
+    if (m_offBuffer == m_cbUsed)
         return VERR_NO_DATA;
 
     int rc = VINF_SUCCESS;
 
-    char    *pszOff    = (char*)&m_pbBuffer[m_cbOffset];
+    char    *pszOff    = (char*)&m_pbBuffer[m_offBuffer];
     char    *pszStart  = pszOff;
     uint32_t uDistance;
     while (*pszStart)
     {
         size_t pairLen = strlen(pszStart);
         uDistance = (pszStart - pszOff);
-        if (m_cbOffset + uDistance + pairLen + 1 >= m_cbSize)
+        if (m_offBuffer + uDistance + pairLen + 1 >= m_cbUsed)
         {
             rc = VERR_MORE_DATA;
             break;
@@ -546,11 +547,11 @@ int GuestProcessStream::ParseBlock(GuestProcessStreamBlock &streamBlock)
     uDistance = (pszStart - pszOff);
     if (   !uDistance
         && *pszStart == '\0'
-        && m_cbOffset < m_cbSize)
+        && m_offBuffer < m_cbUsed)
     {
         uDistance++;
     }
-    m_cbOffset += uDistance;
+    m_offBuffer += uDistance;
 
     return rc;
 }
@@ -578,6 +579,7 @@ void GuestBase::baseUninit(void)
     LogFlowThisFuncEnter();
 
     int rc = RTCritSectDelete(&mWaitEventCritSect);
+    NOREF(rc);
 
     LogFlowFuncLeaveRC(rc);
     /* No return value. */
@@ -981,7 +983,7 @@ int GuestObject::registerWaitEvent(const GuestEventTypes &lstEvents,
 }
 
 int GuestObject::sendCommand(uint32_t uFunction,
-                             uint32_t uParms, PVBOXHGCMSVCPARM paParms)
+                             uint32_t cParms, PVBOXHGCMSVCPARM paParms)
 {
 #ifndef VBOX_GUESTCTRL_TEST_CASE
     ComObjPtr<Console> pConsole = mConsole;
@@ -993,8 +995,8 @@ int GuestObject::sendCommand(uint32_t uFunction,
     VMMDev *pVMMDev = pConsole->i_getVMMDev();
     if (pVMMDev)
     {
-        LogFlowThisFunc(("uFunction=%RU32, uParms=%RU32\n", uFunction, uParms));
-        vrc = pVMMDev->hgcmHostCall(HGCMSERVICE_NAME, uFunction, uParms, paParms);
+        LogFlowThisFunc(("uFunction=%RU32, cParms=%RU32\n", uFunction, cParms));
+        vrc = pVMMDev->hgcmHostCall(HGCMSERVICE_NAME, uFunction, cParms, paParms);
         if (RT_FAILURE(vrc))
         {
             /** @todo What to do here? */
@@ -1004,6 +1006,7 @@ int GuestObject::sendCommand(uint32_t uFunction,
     LogFlowThisFuncEnter();
 
     /* Not needed within testcases. */
+    RT_NOREF(uFunction, cParms, paParms);
     int vrc = VINF_SUCCESS;
 #endif
     return vrc;

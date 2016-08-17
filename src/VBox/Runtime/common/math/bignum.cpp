@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -176,6 +176,7 @@ DECLINLINE(RTBIGNUMELEMENT) rtBigNumElementAddWithCarry(RTBIGNUMELEMENT uAugend,
 }
 
 
+#if !defined(IPRT_BIGINT_WITH_ASM) || defined(RT_STRICT)
 /**
  * Does addition with borrow.
  *
@@ -196,6 +197,7 @@ DECLINLINE(RTBIGNUMELEMENT) rtBigNumElementSubWithBorrow(RTBIGNUMELEMENT uMinuen
     *pfBorrow = !*pfBorrow ? uMinuend < uSubtrahend : uMinuend <= uSubtrahend;
     return uRet;
 }
+#endif
 
 /** @} */
 
@@ -281,6 +283,7 @@ DECLINLINE(void) rtBigNumElement2xDec(RTBIGNUMELEMENT2X *puValue)
 #endif
 }
 
+#if 0 /* unused */
 DECLINLINE(void) rtBigNumElement2xAdd1x(RTBIGNUMELEMENT2X *puValue, RTBIGNUMELEMENT uAdd)
 {
 #if RTBIGNUM_ELEMENT_BITS == 64
@@ -289,6 +292,7 @@ DECLINLINE(void) rtBigNumElement2xAdd1x(RTBIGNUMELEMENT2X *puValue, RTBIGNUMELEM
     puValue->u += uAdd;
 #endif
 }
+#endif /* unused */
 
 /** @} */
 
@@ -1100,7 +1104,7 @@ RTDECL(int) RTBigNumCompareWithS64(PRTBIGNUM pLeft, int64_t iRight)
     if (RT_SUCCESS(rc))
     {
         RTBIGNUM_ASSERT_VALID(pLeft);
-        if (pLeft->fNegative == (iRight < 0))
+        if (pLeft->fNegative == (unsigned)(iRight < 0)) /* (unsigned cast is for MSC weirdness) */
         {
             AssertCompile(RTBIGNUM_ELEMENT_SIZE <= sizeof(iRight));
             if (pLeft->cUsed * RTBIGNUM_ELEMENT_SIZE <= sizeof(iRight))
@@ -1614,6 +1618,7 @@ RTDECL(int) RTBigNumMultiply(PRTBIGNUM pResult, PCRTBIGNUM pMultiplicand, PCRTBI
 }
 
 
+#if 0 /* unused */
 /**
  * Clears a bit in the magnitude of @a pBigNum.
  *
@@ -1633,6 +1638,7 @@ DECLINLINE(void) rtBigNumMagnitudeClearBit(PRTBIGNUM pBigNum, uint32_t iBit)
             rtBigNumStripTrailingZeros(pBigNum);
     }
 }
+#endif /* unused */
 
 
 /**
@@ -1658,6 +1664,7 @@ DECLINLINE(int) rtBigNumMagnitudeSetBit(PRTBIGNUM pBigNum, uint32_t iBit)
 }
 
 
+#if 0 /* unused */
 /**
  * Writes a bit in the magnitude of @a pBigNum.
  *
@@ -1675,6 +1682,7 @@ DECLINLINE(int) rtBigNumMagnitudeWriteBit(PRTBIGNUM pBigNum, uint32_t iBit, bool
     rtBigNumMagnitudeClearBit(pBigNum, iBit);
     return VINF_SUCCESS;
 }
+#endif
 
 
 /**
@@ -1728,6 +1736,7 @@ DECLINLINE(int) rtBigNumMagnitudeShiftLeftOne(PRTBIGNUM pBigNum, RTBIGNUMELEMENT
     if (uCarry)
     {
         int rc = rtBigNumSetUsed(pBigNum, cUsed + 1);
+        AssertRCReturn(rc, rc);
         pBigNum->pauElements[cUsed] = uCarry;
     }
 

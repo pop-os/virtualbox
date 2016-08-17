@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -868,9 +868,11 @@ typedef SSMFILEFTR const *PCSSMFILEFTR;
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+#ifndef SSM_STANDALONE
 /** Zeros used by the struct putter.
  * This must be at least 8 bytes or the code breaks. */
 static uint8_t const    g_abZero[_1K] = {0};
+#endif
 
 
 /*********************************************************************************************************************************
@@ -2828,6 +2830,8 @@ static int ssmR3StrmCheckAndFlush(PSSMSTRM pStrm)
 }
 #endif /* !SSM_STANDALONE */
 
+
+#if !defined(SSM_STANDALONE) || defined(LOG_ENABLED)
 /**
  * Tell current stream position.
  *
@@ -2838,6 +2842,7 @@ static uint64_t ssmR3StrmTell(PSSMSTRM pStrm)
 {
     return pStrm->offCurStream + pStrm->off;
 }
+#endif
 
 
 /**
@@ -8269,7 +8274,7 @@ static void ssmR3StrmLogUnitContent(PSSMHANDLE pSSM, SSMFILEUNITHDRV2 const *pUn
     else
         LogRel(("SSM: Cannot dump unit - ssmR3StrmSeek error: %Rrc\n", rc));
 
-    pSSM->rc = rc;
+    pSSM->rc = rcSaved;
 }
 
 

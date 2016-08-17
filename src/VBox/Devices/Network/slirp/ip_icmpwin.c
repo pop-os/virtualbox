@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,10 @@
 #include "ip_icmp.h"
 
 #include <winternl.h>           /* for PIO_APC_ROUTINE &c */
-#include <iphlpapi.h>
+#ifndef PIO_APC_ROUTINE_DEFINED
+# define PIO_APC_ROUTINE_DEFINED 1
+#endif
+#include <iprt/win/iphlpapi.h>
 #include <icmpapi.h>
 
 /*
@@ -70,13 +73,13 @@ static struct mbuf *icmpwin_get_mbuf(PNATState pData, size_t reqsize);
  *
  * XXX: this is system-wide, but what about multiple NAT threads?
  */
-static void *pfIcmpCallback;
+static PIO_APC_ROUTINE g_pfnIcmpCallback;
 
 
 int
 icmpwin_init(PNATState pData)
 {
-    if (pfIcmpCallback == NULL)
+    if (g_pfnIcmpCallback == NULL)
     {
         OSVERSIONINFO osvi;
         int status;
@@ -88,9 +91,9 @@ icmpwin_init(PNATState pData)
             return 1;
 
         if (osvi.dwMajorVersion >= 6)
-            pfIcmpCallback = icmpwin_callback_apc;
+            g_pfnIcmpCallback = icmpwin_callback_apc;
         else
-            pfIcmpCallback = icmpwin_callback_old;
+            g_pfnIcmpCallback = (PIO_APC_ROUTINE)icmpwin_callback_old;
     }
 
     TAILQ_INIT(&pData->pongs_expected);
@@ -175,7 +178,7 @@ icmpwin_ping(PNATState pData, struct mbuf *m, int hlen)
         /* use reply buffer as temporary storage */
         reqdata = pong->buf;
         m_copydata(m, sizeof(struct ip) + sizeof(struct icmp_echo),
-                   reqsize, reqdata);
+                   (int)reqsize, reqdata);
     }
 
     dst = ip->ip_dst.s_addr;
@@ -188,7 +191,7 @@ icmpwin_ping(PNATState pData, struct mbuf *m, int hlen)
 
 
     status = IcmpSendEcho2(pData->icmp_socket.sh, NULL,
-                           pfIcmpCallback, pong,
+                           g_pfnIcmpCallback, pong,
                            dst, reqdata, (WORD)reqsize, &opts,
                            pong->buf, (DWORD)pong->bufsize,
                            5 * 1000 /* ms */);
@@ -249,6 +252,7 @@ icmpwin_callback_apc(void *ctx, PIO_STATUS_BLOCK iob, ULONG reserved)
     struct pong *pong = (struct pong *)ctx;
     if (pong != NULL)
         icmpwin_callback(pong);
+    RT_NOREF2(iob, reserved);
 }
 
 
@@ -388,7 +392,7 @@ icmpwin_pong(struct pong *pong)
 
         /* fill in ip (ip_output0() does the boilerplate for us) */
         ip->ip_tos = reply->Options.Tos;
-        ip->ip_len = sizeof(*ip) + sizeof(*icmp) + reqsize;
+        ip->ip_len = sizeof(*ip) + sizeof(*icmp) + (int)reqsize;
         ip->ip_off = 0;
         ip->ip_ttl = reply->Options.Ttl;
         ip->ip_p = IPPROTO_ICMP;
@@ -401,7 +405,7 @@ icmpwin_pong(struct pong *pong)
         icmp->icmp_echo_id = pong->reqicmph.icmp_echo_id;
         icmp->icmp_echo_seq = pong->reqicmph.icmp_echo_seq;
 
-        m_append(pData, m, reqsize, reply->Data);
+        m_append(pData, m, (int)reqsize, reply->Data);
 
         icmp->icmp_cksum = in_cksum_skip(m, ip->ip_len, sizeof(*ip));
     }
@@ -484,7 +488,7 @@ icmpwin_get_error(struct pong *pong, int type, int code)
     icmp = (struct icmp_echo *)(mtod(m, char *) + sizeof(*ip));
 
     ip->ip_tos = 0;
-    ip->ip_len = sizeof(*ip) + sizeof(*icmp) + reqsize;
+    ip->ip_len = sizeof(*ip) + sizeof(*icmp) + (int)reqsize;
     ip->ip_off = 0;
     ip->ip_ttl = IPDEFTTL;
     ip->ip_p = IPPROTO_ICMP;
@@ -523,7 +527,7 @@ icmpwin_get_mbuf(PNATState pData, size_t reqsize)
         /* good pings come in small packets */
         m = m_gethdr(pData, M_NOWAIT, MT_HEADER);
     else
-        m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, slirp_size(pData));
+        m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, (int)slirp_size(pData));
 
     if (m == NULL)
         return NULL;
@@ -536,3 +540,4 @@ icmpwin_get_mbuf(PNATState pData, size_t reqsize)
 
     return m;
 }
+

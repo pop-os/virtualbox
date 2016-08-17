@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2014 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,37 +65,7 @@ DECLINLINE(int) vboxVrLaCreate(PRTMEMCACHE phCache, size_t cbElement)
 # ifdef RT_OS_WINDOWS
 #  undef PAGE_SIZE
 #  undef PAGE_SHIFT
-#  define VBOX_WITH_WORKAROUND_MISSING_PACK
-#  if (_MSC_VER >= 1400) && !defined(VBOX_WITH_PATCHED_DDK)
-#    define _InterlockedExchange           _InterlockedExchange_StupidDDKVsCompilerCrap
-#    define _InterlockedExchangeAdd        _InterlockedExchangeAdd_StupidDDKVsCompilerCrap
-#    define _InterlockedCompareExchange    _InterlockedCompareExchange_StupidDDKVsCompilerCrap
-#    define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
-#    define _interlockedbittestandset      _interlockedbittestandset_StupidDDKVsCompilerCrap
-#    define _interlockedbittestandreset    _interlockedbittestandreset_StupidDDKVsCompilerCrap
-#    define _interlockedbittestandset64    _interlockedbittestandset64_StupidDDKVsCompilerCrap
-#    define _interlockedbittestandreset64  _interlockedbittestandreset64_StupidDDKVsCompilerCrap
-#    pragma warning(disable : 4163)
-#    ifdef VBOX_WITH_WORKAROUND_MISSING_PACK
-#     pragma warning(disable : 4103)
-#    endif
-#    include <ntddk.h>
-#    pragma warning(default : 4163)
-#    ifdef VBOX_WITH_WORKAROUND_MISSING_PACK
-#     pragma pack()
-#     pragma warning(default : 4103)
-#    endif
-#    undef  _InterlockedExchange
-#    undef  _InterlockedExchangeAdd
-#    undef  _InterlockedCompareExchange
-#    undef  _InterlockedAddLargeStatistic
-#    undef  _interlockedbittestandset
-#    undef  _interlockedbittestandreset
-#    undef  _interlockedbittestandset64
-#    undef  _interlockedbittestandreset64
-#  else
-#    include <ntddk.h>
-#  endif
+#  include <iprt/nt/ntddk.h>
 #  ifndef VBOXVDBG_VR_LAL_DISABLE
 static LOOKASIDE_LIST_EX g_VBoxVrLookasideList;
 #   define vboxVrRegLaAlloc(_c) ExAllocateFromLookasideListEx(&(_c))
@@ -430,6 +400,7 @@ static void vboxVrListVisitIntersected(PVBOXVR_LIST pList1, uint32_t cRects, PCR
     }
 }
 
+#if 0 /* unused */
 /**
  * @returns Entry to be iterated next. ListHead is returned to break the
  *          iteration
@@ -464,6 +435,7 @@ static void vboxVrListVisitNonintersected(PVBOXVR_LIST pList1, uint32_t cRects, 
             pNext1 = pEntry1->pNext;
     }
 }
+#endif /* unused */
 
 static void vboxVrListJoinRectsHV(PVBOXVR_LIST pList, bool fHorizontal)
 {
@@ -741,6 +713,8 @@ VBOXVREGDECL(void) VBoxVrListTranslate(PVBOXVR_LIST pList, int32_t x, int32_t y)
     }
 }
 
+#if 0 /* unused */
+
 static DECLCALLBACK(PRTLISTNODE) vboxVrListIntersectNoJoinNonintersectedCb(PVBOXVR_LIST pList1, PVBOXVR_REG pReg1, void *pvContext)
 {
     VBOXVR_CBDATA_SUBST *pData = (VBOXVR_CBDATA_SUBST*)pvContext;
@@ -762,6 +736,7 @@ static DECLCALLBACK(PRTLISTNODE) vboxVrListIntersectNoJoinNonintersectedCb(PVBOX
 static DECLCALLBACK(PRTLISTNODE) vboxVrListIntersectNoJoinIntersectedCb(PVBOXVR_LIST pList1, PVBOXVR_REG pReg1, PCRTRECT pRect2,
                                                                         void *pvContext, PPRTLISTNODE ppNext)
 {
+    RT_NOREF1(ppNext);
     PVBOXVR_CBDATA_SUBST pData = (PVBOXVR_CBDATA_SUBST)pvContext;
     pData->fChanged = true;
 
@@ -782,6 +757,8 @@ static DECLCALLBACK(PRTLISTNODE) vboxVrListIntersectNoJoinIntersectedCb(PVBOXVR_
 
     return &pReg1->ListEntry;
 }
+
+#endif /* unused */
 
 static int vboxVrListIntersectNoJoin(PVBOXVR_LIST pList, PCVBOXVR_LIST pList2, bool *pfChanged)
 {

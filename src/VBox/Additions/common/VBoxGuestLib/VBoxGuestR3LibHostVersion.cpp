@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,7 @@
 
 #ifdef RT_OS_WINDOWS
  #define WIN32_LEAN_AND_MEAN
- #include <windows.h>
+ #include <iprt/win/windows.h>
 #endif
 
 #include "VBGLR3Internal.h"

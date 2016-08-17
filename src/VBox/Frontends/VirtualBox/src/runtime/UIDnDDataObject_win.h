@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,10 +62,10 @@ public: /* IDataObject methods. */
     STDMETHOD(GetData)(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMedium);
     STDMETHOD(GetDataHere)(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMedium);
     STDMETHOD(QueryGetData)(LPFORMATETC pFormatEtc);
-    STDMETHOD(GetCanonicalFormatEtc)(LPFORMATETC pFormatEct,  LPFORMATETC pFormatEtcOut);
+    STDMETHOD(GetCanonicalFormatEtc)(LPFORMATETC pFormatEtc,  LPFORMATETC pFormatEtcOut);
     STDMETHOD(SetData)(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMedium, BOOL fRelease);
     STDMETHOD(EnumFormatEtc)(DWORD dwDirection, IEnumFORMATETC **ppEnumFormatEtc);
-    STDMETHOD(DAdvise)(LPFORMATETC pFormatEtc, DWORD advf, IAdviseSink *pAdvSink, DWORD *pdwConnection);
+    STDMETHOD(DAdvise)(LPFORMATETC pFormatEtc, DWORD fAdvise, IAdviseSink *pAdvSink, DWORD *pdwConnection);
     STDMETHOD(DUnadvise)(DWORD dwConnection);
     STDMETHOD(EnumDAdvise)(IEnumSTATDATA **ppEnumAdvise);
 
@@ -109,5 +109,5 @@ protected:
     uint32_t                m_cbData;
 };
 
-#endif /* ___UIDnDDataObject_win_h___ */
+#endif /* !___UIDnDDataObject_win_h___ */
 

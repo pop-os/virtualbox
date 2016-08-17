@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,7 +68,7 @@ VBGLR3DECL(int) VbglR3RegisterSharedModule(char *pszModuleName, char *pszVersion
     pReq->enmGuestOS    = VBOXOSFAMILY_Windows64;
 # endif
 #else
-    /** todo */
+    /** @todo */
     pReq->enmGuestOS    = VBOXOSFAMILY_Unknown;
 #endif
     for (unsigned i = 0; i < cRegions; i++)
@@ -163,6 +163,7 @@ VBGLR3DECL(int) VbglR3PageIsShared(RTGCPTR pPage, bool *pfShared, uint64_t *puPa
     }
     return rc;
 #else
+    RT_NOREF3(pPage, pfShared, puPageFlags);
     return VERR_NOT_IMPLEMENTED;
 #endif
 }

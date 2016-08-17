@@ -1,11 +1,10 @@
 /* $Id: feedback_context.c $ */
-
 /** @file
  * VBox feedback spu, context tracking.
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +18,15 @@
 #include "cr_spu.h"
 #include "cr_error.h"
 #include "feedbackspu.h"
+
+/** @todo r=bird: None of the code here is referenced externally, so I've
+ *        just prototyped the function here at the top of the file to make
+ *        the compiler happy. */
+GLint FEEDBACKSPU_APIENTRY  feedbackspu_VBoxCreateContext( GLint con, const char *dpyName, GLint visual, GLint shareCtx );
+GLint FEEDBACKSPU_APIENTRY  feedbackspu_CreateContext( const char *dpyName, GLint visual, GLint shareCtx );
+void FEEDBACKSPU_APIENTRY   feedbackspu_MakeCurrent( GLint window, GLint nativeWindow, GLint ctx );
+void FEEDBACKSPU_APIENTRY   feedbackspu_DestroyContext( GLint ctx );
+
 
 /*@todo Multithreading case. (See feedback_spu.self.RenderMode)*/
 
@@ -120,3 +128,4 @@ feedbackspu_DestroyContext( GLint ctx )
     crUnlockMutex(&feedback_spu.mutex);
 #endif
 }
+

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 # include <errno.h>
 
 # elif defined(RT_OS_WINDOWS)
-# include <windows.h>
+# include <iprt/win/windows.h>
 # include <dbt.h>
 
 #elif defined(RT_OS_L4)
@@ -182,6 +182,7 @@ static DECLCALLBACK(int) drvHostFloppyPoll(PDRVHOSTBASE pThis)
  */
 static DECLCALLBACK(int) drvHostFloppyConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PDRVHOSTFLOPPY pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTFLOPPY);
     LogFlow(("drvHostFloppyConstruct: iInstance=%d\n", pDrvIns->iInstance));
 

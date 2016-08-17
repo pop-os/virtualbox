@@ -231,9 +231,6 @@ public:
 ConfigFileBase::ConfigFileBase(const com::Utf8Str *pstrFilename)
     : m(new Data)
 {
-    Utf8Str strMajor;
-    Utf8Str strMinor;
-
     m->fFileExists = false;
 
     if (pstrFilename)
@@ -257,76 +254,7 @@ ConfigFileBase::ConfigFileBase(const com::Utf8Str *pstrFilename)
 
         LogRel(("Loading settings file \"%s\" with version \"%s\"\n", m->strFilename.c_str(), m->strSettingsVersionFull.c_str()));
 
-        // parse settings version; allow future versions but fail if file is older than 1.6
-        m->sv = SettingsVersion_Null;
-        if (m->strSettingsVersionFull.length() > 3)
-        {
-            const char *pcsz = m->strSettingsVersionFull.c_str();
-            char c;
-
-            while (    (c = *pcsz)
-                    && RT_C_IS_DIGIT(c)
-                  )
-            {
-                strMajor.append(c);
-                ++pcsz;
-            }
-
-            if (*pcsz++ == '.')
-            {
-                while (    (c = *pcsz)
-                        && RT_C_IS_DIGIT(c)
-                      )
-                {
-                    strMinor.append(c);
-                    ++pcsz;
-                }
-            }
-
-            uint32_t ulMajor = RTStrToUInt32(strMajor.c_str());
-            uint32_t ulMinor = RTStrToUInt32(strMinor.c_str());
-
-            if (ulMajor == 1)
-            {
-                if (ulMinor == 3)
-                    m->sv = SettingsVersion_v1_3;
-                else if (ulMinor == 4)
-                    m->sv = SettingsVersion_v1_4;
-                else if (ulMinor == 5)
-                    m->sv = SettingsVersion_v1_5;
-                else if (ulMinor == 6)
-                    m->sv = SettingsVersion_v1_6;
-                else if (ulMinor == 7)
-                    m->sv = SettingsVersion_v1_7;
-                else if (ulMinor == 8)
-                    m->sv = SettingsVersion_v1_8;
-                else if (ulMinor == 9)
-                    m->sv = SettingsVersion_v1_9;
-                else if (ulMinor == 10)
-                    m->sv = SettingsVersion_v1_10;
-                else if (ulMinor == 11)
-                    m->sv = SettingsVersion_v1_11;
-                else if (ulMinor == 12)
-                    m->sv = SettingsVersion_v1_12;
-                else if (ulMinor == 13)
-                    m->sv = SettingsVersion_v1_13;
-                else if (ulMinor == 14)
-                    m->sv = SettingsVersion_v1_14;
-                else if (ulMinor == 15)
-                    m->sv = SettingsVersion_v1_15;
-                else if (ulMinor == 16)
-                    m->sv = SettingsVersion_v1_16;
-                else if (ulMinor > 16)
-                    m->sv = SettingsVersion_Future;
-            }
-            else if (ulMajor > 1)
-                m->sv = SettingsVersion_Future;
-
-            Log(("Parsed settings version %d.%d to enum value %d\n", ulMajor, ulMinor, m->sv));
-        }
-
-        if (m->sv == SettingsVersion_Null)
-            throw ConfigFileError(this, m->pelmRoot, N_("Cannot handle settings version '%s'"), m->strSettingsVersionFull.c_str());
+        m->sv = parseVersion(m->strSettingsVersionFull);
 
         // remember the settings version we read in case it gets upgraded later,
         // so we know when to make backups
@@ -379,6 +307,90 @@ const char *ConfigFileBase::stringifyMediaType(MediaType t)
             AssertMsgFailed(("media type %d\n", t));
             return "UNKNOWN";
     }
+}
+
+/**
+ * Helper function that parses a full version number.
+ *
+ * Allow future versions but fail if file is older than 1.6. Throws on errors.
+ * @returns settings version
+ * @param strVersion
+ */
+SettingsVersion_T ConfigFileBase::parseVersion(const Utf8Str &strVersion)
+{
+    SettingsVersion_T sv = SettingsVersion_Null;
+    if (strVersion.length() > 3)
+    {
+        uint32_t ulMajor = 0;
+        uint32_t ulMinor = 0;
+
+        const char *pcsz = strVersion.c_str();
+        char c;
+
+        while (    (c = *pcsz)
+                && RT_C_IS_DIGIT(c)
+              )
+        {
+            ulMajor *= 10;
+            ulMajor += c - '0';
+            ++pcsz;
+        }
+
+        if (*pcsz++ == '.')
+        {
+            while (    (c = *pcsz)
+                    && RT_C_IS_DIGIT(c)
+                  )
+            {
+                ulMinor *= 10;
+                ulMinor += c - '0';
+                ++pcsz;
+            }
+        }
+
+        if (ulMajor == 1)
+        {
+            if (ulMinor == 3)
+                sv = SettingsVersion_v1_3;
+            else if (ulMinor == 4)
+                sv = SettingsVersion_v1_4;
+            else if (ulMinor == 5)
+                sv = SettingsVersion_v1_5;
+            else if (ulMinor == 6)
+                sv = SettingsVersion_v1_6;
+            else if (ulMinor == 7)
+                sv = SettingsVersion_v1_7;
+            else if (ulMinor == 8)
+                sv = SettingsVersion_v1_8;
+            else if (ulMinor == 9)
+                sv = SettingsVersion_v1_9;
+            else if (ulMinor == 10)
+                sv = SettingsVersion_v1_10;
+            else if (ulMinor == 11)
+                sv = SettingsVersion_v1_11;
+            else if (ulMinor == 12)
+                sv = SettingsVersion_v1_12;
+            else if (ulMinor == 13)
+                sv = SettingsVersion_v1_13;
+            else if (ulMinor == 14)
+                sv = SettingsVersion_v1_14;
+            else if (ulMinor == 15)
+                sv = SettingsVersion_v1_15;
+            else if (ulMinor == 16)
+                sv = SettingsVersion_v1_16;
+            else if (ulMinor > 16)
+                sv = SettingsVersion_Future;
+        }
+        else if (ulMajor > 1)
+            sv = SettingsVersion_Future;
+
+        Log(("Parsed settings version %d.%d to enum value %d\n", ulMajor, ulMinor, sv));
+    }
+
+    if (sv == SettingsVersion_Null)
+        throw ConfigFileError(this, NULL, N_("Cannot handle settings version '%s'"), strVersion.c_str());
+
+    return sv;
 }
 
 /**
@@ -3186,6 +3198,17 @@ bool MachineConfigFile::canHaveOwnMediaRegistry() const
  */
 void MachineConfigFile::importMachineXML(const xml::ElementNode &elmMachine)
 {
+    if (!(elmMachine.getAttributeValue("version", m->strSettingsVersionFull)))
+        throw ConfigFileError(this, &elmMachine, N_("Required Machine/@version attribute is missing"));
+
+    LogRel(("Import settings with version \"%s\"\n", m->strSettingsVersionFull.c_str()));
+
+    m->sv = parseVersion(m->strSettingsVersionFull);
+
+    // remember the settings version we read in case it gets upgraded later,
+    // so we know when to make backups
+    m->svRead = m->sv;
+
     readMachine(elmMachine);
 }
 
@@ -6381,6 +6404,8 @@ void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
                 case DeviceType_Floppy:
                     pcszType = "Floppy";
                     break;
+
+                default: break; /* Shut up MSC. */
             }
 
             pelmDevice->setAttribute("type", pcszType);
@@ -6700,13 +6725,13 @@ bool MachineConfigFile::isAudioDriverAllowedOnThisHost(AudioDriverType_T drv)
 #ifdef RT_OS_WINDOWS
         case AudioDriverType_DirectSound:
 #endif
-#ifdef VBOX_WITH_OSS
+#ifdef VBOX_WITH_AUDIO_OSS
         case AudioDriverType_OSS:
 #endif
-#ifdef VBOX_WITH_ALSA
+#ifdef VBOX_WITH_AUDIO_ALSA
         case AudioDriverType_ALSA:
 #endif
-#ifdef VBOX_WITH_PULSE
+#ifdef VBOX_WITH_AUDIO_PULSE
         case AudioDriverType_Pulse:
 #endif
 #ifdef RT_OS_DARWIN
@@ -6716,6 +6741,7 @@ bool MachineConfigFile::isAudioDriverAllowedOnThisHost(AudioDriverType_T drv)
         case AudioDriverType_MMPM:
 #endif
             return true;
+        default: break; /* Shut up MSC. */
     }
 
     return false;
@@ -6733,6 +6759,7 @@ AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
 {
 #if defined(RT_OS_WINDOWS)
     return AudioDriverType_DirectSound;
+
 #elif defined(RT_OS_LINUX)
     /* On Linux, we need to check at runtime what's actually supported. */
     static RTCLockMtx s_mtx;
@@ -6740,34 +6767,37 @@ AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
     RTCLock lock(s_mtx);
     if (s_linuxDriver == (AudioDriverType_T)-1)
     {
-# ifdef VBOX_WITH_PULSE
+# ifdef VBOX_WITH_AUDIO_PULSE
         /* Check for the pulse library & that the pulse audio daemon is running. */
         if (RTProcIsRunningByName("pulseaudio") &&
             RTLdrIsLoadable("libpulse.so.0"))
             s_linuxDriver = AudioDriverType_Pulse;
         else
-# endif /* VBOX_WITH_PULSE */
-# ifdef VBOX_WITH_ALSA
+# endif /* VBOX_WITH_AUDIO_PULSE */
+# ifdef VBOX_WITH_AUDIO_ALSA
             /* Check if we can load the ALSA library */
              if (RTLdrIsLoadable("libasound.so.2"))
                 s_linuxDriver = AudioDriverType_ALSA;
         else
-# endif /* VBOX_WITH_ALSA */
+# endif /* VBOX_WITH_AUDIO_ALSA */
             s_linuxDriver = AudioDriverType_OSS;
     }
     return s_linuxDriver;
+
 #elif defined(RT_OS_DARWIN)
     return AudioDriverType_CoreAudio;
+
 #elif defined(RT_OS_OS2)
     return AudioDriverType_MMPM;
-#else /* All other platforms. */
-# ifdef VBOX_WITH_OSS
-    return AudioDriverType_OSS;
-# endif
-#endif
 
+#else /* All other platforms. */
+# ifdef VBOX_WITH_AUDIO_OSS
+    return AudioDriverType_OSS;
+# else
     /* Return NULL driver as a fallback if nothing of the above is available. */
     return AudioDriverType_Null;
+# endif
+#endif
 }
 
 /**

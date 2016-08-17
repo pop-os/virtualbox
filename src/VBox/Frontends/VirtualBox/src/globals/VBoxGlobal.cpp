@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,6 @@
 # include <QFileDialog>
 # include <QToolTip>
 # include <QTranslator>
-# include <QDesktopWidget>
 # if QT_VERSION >= 0x050000
 #  include <QStandardPaths>
 # endif /* QT_VERSION >= 0x050000 */
@@ -48,6 +47,9 @@
 # ifdef VBOX_GUI_WITH_PIDFILE
 #  include <QTextStream>
 # endif /* VBOX_GUI_WITH_PIDFILE */
+# if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#  include <QScreen>
+# endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -73,9 +75,9 @@
 # include "UIModalWindowManager.h"
 # include "UIIconPool.h"
 # include "UIVirtualBoxEventHandler.h"
+# include "UIDesktopWidgetWatchdog.h"
 # ifdef VBOX_WS_X11
 #  include "UIHostComboEditor.h"
-#  include "UIDesktopWidgetWatchdog.h"
 #  ifndef VBOX_OSE
 #   include "VBoxLicenseViewer.h"
 #  endif /* VBOX_OSE */
@@ -127,7 +129,7 @@
 
 /* External includes: */
 # ifdef VBOX_WS_WIN
-#  include "shlobj.h"
+#  include <iprt/win/shlobj.h>
 # endif /* VBOX_WS_WIN */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -233,7 +235,6 @@ VBoxGlobal::VBoxGlobal()
 #ifdef VBOX_WS_X11
     , m_fCompositingManagerRunning(false)
     , m_enmWindowManagerType(X11WMType_Unknown)
-    , m_pDesktopWidgetWatchdog(0)
 #endif /* VBOX_WS_X11 */
 #if defined(DEBUG_bird)
     , mAgressiveCaching(false)
@@ -335,74 +336,6 @@ MacOSXRelease VBoxGlobal::determineOsRelease()
     return MacOSXRelease_Old;
 }
 #endif /* VBOX_WS_MAC */
-
-int VBoxGlobal::screenCount() const
-{
-    /* Redirect call to QDesktopWidget: */
-    return QApplication::desktop()->screenCount();
-}
-
-int VBoxGlobal::screenNumber(const QWidget *pWidget) const
-{
-    /* Redirect call to QDesktopWidget: */
-    return QApplication::desktop()->screenNumber(pWidget);
-}
-
-int VBoxGlobal::screenNumber(const QPoint &point) const
-{
-    /* Redirect call to QDesktopWidget: */
-    return QApplication::desktop()->screenNumber(point);
-}
-
-const QRect VBoxGlobal::screenGeometry(int iHostScreenIndex /* = -1 */) const
-{
-#ifdef VBOX_WS_X11
-    /* Make sure desktop-widget watchdog already created: */
-    AssertPtrReturn(m_pDesktopWidgetWatchdog, QApplication::desktop()->screenGeometry(iHostScreenIndex));
-    /* Redirect call to UIDesktopWidgetWatchdog: */
-    return m_pDesktopWidgetWatchdog->screenGeometry(iHostScreenIndex);
-#endif /* VBOX_WS_X11 */
-
-    /* Redirect call to QDesktopWidget: */
-    return QApplication::desktop()->screenGeometry(iHostScreenIndex);
-}
-
-const QRect VBoxGlobal::availableGeometry(int iHostScreenIndex /* = -1 */) const
-{
-#ifdef VBOX_WS_X11
-    /* Make sure desktop-widget watchdog already created: */
-    AssertPtrReturn(m_pDesktopWidgetWatchdog, QApplication::desktop()->availableGeometry(iHostScreenIndex));
-    /* Redirect call to UIDesktopWidgetWatchdog: */
-    return m_pDesktopWidgetWatchdog->availableGeometry(iHostScreenIndex);
-#endif /* VBOX_WS_X11 */
-
-    /* Redirect call to QDesktopWidget: */
-    return QApplication::desktop()->availableGeometry(iHostScreenIndex);
-}
-
-const QRect VBoxGlobal::screenGeometry(const QWidget *pWidget) const
-{
-    /* Redirect call to existing wrapper: */
-    return screenGeometry(screenNumber(pWidget));
-}
-
-const QRect VBoxGlobal::availableGeometry(const QWidget *pWidget) const
-{
-    /* Redirect call to existing wrapper: */
-    return availableGeometry(screenNumber(pWidget));
-}
-
-const QRect VBoxGlobal::screenGeometry(const QPoint &point) const
-{
-    /* Redirect call to existing wrapper: */
-    return screenGeometry(screenNumber(point));
-}
-
-const QRect VBoxGlobal::availableGeometry(const QPoint &point) const
-{
-    /* Redirect call to existing wrapper: */
-    return availableGeometry(screenNumber(point));
-}
 
 /**
  *  Sets the new global settings and saves them to the VirtualBox server.
@@ -2665,7 +2598,7 @@ void VBoxGlobal::centerWidget (QWidget *aWidget, QWidget *aRelative,
     if (w)
     {
         w = w->window();
-        deskGeo = QApplication::desktop()->availableGeometry (w);
+        deskGeo = gpDesktop->availableGeometry (w);
         parentGeo = w->frameGeometry();
         /* On X11/Gnome, geo/frameGeo.x() and y() are always 0 for top level
          * widgets with parents, what a shame. Use mapToGlobal() to workaround. */
@@ -2676,7 +2609,7 @@ void VBoxGlobal::centerWidget (QWidget *aWidget, QWidget *aRelative,
     }
     else
     {
-        deskGeo = QApplication::desktop()->availableGeometry();
+        deskGeo = gpDesktop->availableGeometry();
         parentGeo = deskGeo;
     }
 
@@ -2944,18 +2877,17 @@ QString VBoxGlobal::formatSize (quint64 aSize, uint aDecimal /* = 2 */,
 /* static */
 quint64 VBoxGlobal::requiredVideoMemory(const QString &strGuestOSTypeId, int cMonitors /* = 1 */)
 {
-    QDesktopWidget *pDW = QApplication::desktop();
     /* We create a list of the size of all available host monitors. This list
      * is sorted by value and by starting with the biggest one, we calculate
      * the memory requirements for every guest screen. This is of course not
      * correct, but as we can't predict on which host screens the user will
      * open the guest windows, this is the best assumption we can do, cause it
      * is the worst case. */
-    const int cHostScreens = pDW->screenCount();
+    const int cHostScreens = gpDesktop->screenCount();
     QVector<int> screenSize(qMax(cMonitors, cHostScreens), 0);
     for (int i = 0; i < cHostScreens; ++i)
     {
-        QRect r = pDW->screenGeometry(i);
+        QRect r = gpDesktop->screenGeometry(i);
         screenSize[i] = r.width() * r.height();
     }
     /* Now sort the vector */
@@ -3240,6 +3172,7 @@ static Bool XXSendClientMessage (Display *aDpy, Window aWnd, const char *aMsg,
 /* static */
 bool VBoxGlobal::activateWindow (WId aWId, bool aSwitchDesktop /* = true */)
 {
+    RT_NOREF(aSwitchDesktop);
     bool result = true;
 
 #if defined (VBOX_WS_WIN)
@@ -3971,10 +3904,8 @@ void VBoxGlobal::prepare()
     m_osRelease = determineOsRelease();
 #endif /* VBOX_WS_MAC */
 
-#ifdef VBOX_WS_X11
-    /* Create desktop-widget watchdog instance: */
-    m_pDesktopWidgetWatchdog = new UIDesktopWidgetWatchdog(this);
-#endif /* VBOX_WS_X11 */
+    /* Create desktop-widget watchdog: */
+    UIDesktopWidgetWatchdog::create();
 
     /* Create message-center: */
     UIMessageCenter::create();
@@ -4326,6 +4257,8 @@ void VBoxGlobal::prepare()
                               sizeof(szError));
     }
 
+    LogRel(("Qt version: %s\n", qtRTVersionString().toUtf8().constData()));
+
     if (mSettingsPwSet)
         m_vbox.SetSettingsSecret(mSettingsPw);
 
@@ -4390,7 +4323,7 @@ void VBoxGlobal::prepare()
 
 void VBoxGlobal::cleanup()
 {
-    // TODO: Shouldn't that be protected with a mutex or something?
+    /// @todo Shouldn't that be protected with a mutex or something?
     /* Remember that the cleanup is in progress preventing any unwanted
      * stuff which could be called from the other threads: */
     m_sfCleanupInProgress = true;
@@ -4472,6 +4405,9 @@ void VBoxGlobal::cleanup()
     UIPopupCenter::destroy();
     /* Destroy message-center: */
     UIMessageCenter::destroy();
+
+    /* Destroy desktop-widget watchdog: */
+    UIDesktopWidgetWatchdog::destroy();
 
     mValid = false;
 }
@@ -4738,11 +4674,11 @@ bool VBoxGlobal::switchToMachine(CMachine &machine)
     if (id == 0)
         return true;
 
-#if defined (VBOX_WS_WIN) || defined (VBOX_WS_X11)
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
 
     return vboxGlobal().activateWindow(id, true);
 
-#elif defined (VBOX_WS_MAC)
+#elif defined(VBOX_WS_MAC)
     /*
      * This is just for the case were the other process cannot steal
      * the focus from us. It will send us a PSN so we can try.
@@ -4750,16 +4686,26 @@ bool VBoxGlobal::switchToMachine(CMachine &machine)
     ProcessSerialNumber psn;
     psn.highLongOfPSN = id >> 32;
     psn.lowLongOfPSN = (UInt32)id;
+# ifdef __clang__
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     OSErr rc = ::SetFrontProcess(&psn);
+#  pragma GCC diagnostic pop
+# else
+    OSErr rc = ::SetFrontProcess(&psn);
+# endif
     if (!rc)
         Log(("GUI: %#RX64 couldn't do SetFrontProcess on itself, the selector (we) had to do it...\n", id));
     else
         Log(("GUI: Failed to bring %#RX64 to front. rc=%#x\n", id, rc));
     return !rc;
 
-#endif
+#else
 
     return false;
+
+#endif
+
 
     /// @todo Below is the old method of switching to the console window
     //  based on the process ID of the console process. It should go away

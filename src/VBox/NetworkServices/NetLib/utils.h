@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -120,7 +120,7 @@ class NATNetworkListener
 };
 typedef ListenerImpl<NATNetworkListener, NATNetworkEventAdapter*> NATNetworkListenerImpl;
 
-# if VBOX_WITH_XPCOM
+# ifdef VBOX_WITH_XPCOM
 class NS_CLASSINFO_NAME(NATNetworkListenerImpl);
 # endif
 

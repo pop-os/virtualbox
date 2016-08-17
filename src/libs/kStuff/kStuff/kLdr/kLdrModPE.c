@@ -1,4 +1,4 @@
-/* $Id: kLdrModPE.c 58 2013-10-12 20:18:21Z bird $ */
+/* $Id: kLdrModPE.c 79 2016-07-27 14:25:09Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Portable Executable (PE) Format.
  */
@@ -144,6 +144,7 @@ static int kldrModPECreate(PCKLDRMODOPS pOps, PKRDR pRdr, KU32 fFlags, KCPUARCH 
 {
     PKLDRMODPE pModPE;
     int rc;
+    K_NOREF(fFlags);
 
     /*
      * Create the instance data and do a minimal header validation.
@@ -532,6 +533,7 @@ static int kLdrModPEDoOptionalHeaderValidation(PKLDRMODPE pModPE)
 static int kLdrModPEDoSectionHeadersValidation(PKLDRMODPE pModPE)
 {
     /** @todo validate shdrs */
+    K_NOREF(pModPE);
     return 0;
 }
 
@@ -955,6 +957,7 @@ static int kldrModPEEnumSymbols(PKLDRMOD pMod, const void *pvBits, KLDRADDR Base
     KU32                            cFunctions;
     KU32                            cNames;
     int                             rc;
+    K_NOREF(fFlags);
 
     /*
      * Make sure we've got mapped bits and resolve any base address aliases.
@@ -1108,6 +1111,8 @@ static KI32 kldrModPENumberOfImports(PKLDRMOD pMod, const void *pvBits)
 static int kldrModPEGetStackInfo(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRSTACKINFO pStackInfo)
 {
     PKLDRMODPE pModPE = (PKLDRMODPE)pMod->pvData;
+    K_NOREF(pvBits);
+    K_NOREF(BaseAddress);
 
     pStackInfo->Address = NIL_KLDRADDR;
     pStackInfo->LinkAddress = NIL_KLDRADDR;
@@ -1122,6 +1127,7 @@ static int kldrModPEQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KLDRA
 {
     PKLDRMODPE pModPE = (PKLDRMODPE)pMod->pvData;
     int rc;
+    K_NOREF(pvBits);
 
     /*
      * Resolve base address alias if any.
@@ -1215,6 +1221,7 @@ static int kldrModPEEnumDbgInfo(PKLDRMOD pMod, const void *pvBits, PFNKLDRENUMDB
 static int kldrModPEHasDbgInfo(PKLDRMOD pMod, const void *pvBits)
 {
     PKLDRMODPE pModPE = (PKLDRMODPE)pMod->pvData;
+    K_NOREF(pvBits);
 
     /*
      * Base this entirely on the presence of a debug directory.
@@ -1776,6 +1783,9 @@ static int  kldrModPEDoCallDLL(PKLDRMODPE pModPE, unsigned uOp, KUPTR uHandle)
 static int  kldrModPEDoCallTLS(PKLDRMODPE pModPE, unsigned uOp, KUPTR uHandle)
 {
     /** @todo implement TLS support. */
+    K_NOREF(pModPE);
+    K_NOREF(uOp);
+    K_NOREF(uHandle);
     return 0;
 }
 
@@ -1844,6 +1854,7 @@ static KI32 kldrModPEDoCall(KUPTR uEntrypoint, KUPTR uHandle, KU32 uOp, void *pv
 #else
 # error "port me"
 #endif
+    K_NOREF(pvReserved);
 
     return rc;
 }

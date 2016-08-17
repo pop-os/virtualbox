@@ -1,4 +1,4 @@
-/* $Id: kLdrModMachO.c 69 2015-04-29 12:18:07Z bird $ */
+/* $Id: kLdrModMachO.c 79 2016-07-27 14:25:09Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the MACH-O format.
  */
@@ -304,16 +304,16 @@ static int kldrModMachODoCreate(PKRDR pRdr, KLDRFOFF offImage, KU32 fOpenFlags, 
     PKLDRMODMACHO pModMachO;
     PKLDRMOD pMod;
     KU8 *pbLoadCommands;
-    KU32 cSegments;
-    KU32 cSections;
-    KU32 cbStringPool;
+    KU32 cSegments = 0; /* (MSC maybe used uninitialized) */
+    KU32 cSections = 0; /* (MSC maybe used uninitialized) */
+    KU32 cbStringPool = 0; /* (MSC maybe used uninitialized) */
     KSIZE cchFilename;
     KSIZE cb;
     KBOOL fMakeGot;
     KBOOL fCanLoad = K_TRUE;
-    KLDRADDR LinkAddress;
+    KLDRADDR LinkAddress = NIL_KLDRADDR; /* (MSC maybe used uninitialized) */
     KU8 cbJmpStub;
-    KU8 uEffFileType;
+    KU8 uEffFileType = 0; /* (MSC maybe used uninitialized) */
     int rc;
     *ppModMachO = NULL;
 
@@ -1119,6 +1119,7 @@ static int  kldrModMachOParseLoadCommands(PKLDRMODMACHO pModMachO, char *pbStrin
     PKLDRMODMACHOSECT pSectExtra = pModMachO->paSections;
     const KU32 cSegments = pModMachO->pMod->cSegments;
     PKLDRSEG pSegItr;
+    K_NOREF(cbStringPool);
 
     while (cLeft-- > 0)
     {
@@ -1664,6 +1665,10 @@ static int kldrModMachOQuerySymbol(PKLDRMOD pMod, const void *pvBits, KLDRADDR B
 {
     PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;
     int rc;
+    K_NOREF(pvBits);
+    K_NOREF(pszVersion);
+    K_NOREF(pfnGetForwarder);
+    K_NOREF(pvUser);
 
     /*
      * Resolve defaults.
@@ -1990,6 +1995,7 @@ static int kldrModMachOEnumSymbols(PKLDRMOD pMod, const void *pvBits, KLDRADDR B
 {
     PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;
     int rc;
+    K_NOREF(pvBits);
 
     /*
      * Resolve defaults.
@@ -2257,6 +2263,11 @@ static int kldrModMachODoEnumSymbols64Bit(PKLDRMODMACHO pModMachO, const macho_n
 static int kldrModMachOGetImport(PKLDRMOD pMod, const void *pvBits, KU32 iImport, char *pszName, KSIZE cchName)
 {
     PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;
+    K_NOREF(pvBits);
+    K_NOREF(iImport);
+    K_NOREF(pszName);
+    K_NOREF(cchName);
+
     if (pModMachO->Hdr.filetype == MH_OBJECT)
         return KLDR_ERR_IMPORT_ORDINAL_OUT_OF_BOUNDS;
 
@@ -2269,6 +2280,8 @@ static int kldrModMachOGetImport(PKLDRMOD pMod, const void *pvBits, KU32 iImport
 static KI32 kldrModMachONumberOfImports(PKLDRMOD pMod, const void *pvBits)
 {
     PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;
+    K_NOREF(pvBits);
+
     if (pModMachO->Hdr.filetype == MH_OBJECT)
         return 0;
 
@@ -2281,6 +2294,9 @@ static KI32 kldrModMachONumberOfImports(PKLDRMOD pMod, const void *pvBits)
 static int kldrModMachOGetStackInfo(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRSTACKINFO pStackInfo)
 {
     /*PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;*/
+    K_NOREF(pMod);
+    K_NOREF(pvBits);
+    K_NOREF(BaseAddress);
 
     pStackInfo->Address = NIL_KLDRADDR;
     pStackInfo->LinkAddress = NIL_KLDRADDR;
@@ -2313,6 +2329,9 @@ static int kldrModMachOQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KL
         : NIL_KLDRADDR;
 #else
     *pMainEPAddress = NIL_KLDRADDR;
+    K_NOREF(pvBits);
+    K_NOREF(BaseAddress);
+    K_NOREF(pMod);
 #endif
     return 0;
 }
@@ -2322,9 +2341,12 @@ static int kldrModMachOQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KL
 static int kldrModMachOQueryImageUuid(PKLDRMOD pMod, const void *pvBits, void *pvUuid, KSIZE cbUuid)
 {
     PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;
+    K_NOREF(pvBits);
+
     kHlpMemSet(pvUuid, 0, cbUuid);
     if (kHlpMemComp(pvUuid, pModMachO->abImageUuid, sizeof(pModMachO->abImageUuid)) == 0)
         return KLDR_ERR_NO_IMAGE_UUID;
+
     kHlpMemCopy(pvUuid, pModMachO->abImageUuid, sizeof(pModMachO->abImageUuid));
     return 0;
 }
@@ -2336,6 +2358,7 @@ static int kldrModMachOEnumDbgInfo(PKLDRMOD pMod, const void *pvBits, PFNKLDRENU
     PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;
     int rc = 0;
     KU32 iSect;
+    K_NOREF(pvBits);
 
     for (iSect = 0; iSect < pModMachO->cSections; iSect++)
     {
@@ -2376,6 +2399,8 @@ static int kldrModMachOHasDbgInfo(PKLDRMOD pMod, const void *pvBits)
         return KLDR_ERR_NO_DEBUG_INFO;
     return 0;
 #else
+    K_NOREF(pMod);
+    K_NOREF(pvBits);
     return KLDR_ERR_NO_DEBUG_INFO;
 #endif
 }
@@ -2481,6 +2506,7 @@ static int kldrModMachOAllocTLS(PKLDRMOD pMod)
 /** @copydoc kLdrModFreeTLS */
 static void kldrModMachOFreeTLS(PKLDRMOD pMod)
 {
+    K_NOREF(pMod);
 }
 
 
@@ -2575,7 +2601,7 @@ static int  kldrModMachOObjDoImports(PKLDRMODMACHO pModMachO, KLDRADDR BaseAddre
                 const char *pszSymbol;
                 KSIZE cchSymbol;
                 KU32 fKind = KLDRSYMKIND_REQ_FLAT;
-                KLDRADDR Value;
+                KLDRADDR Value = NIL_KLDRADDR;
 
                 /** @todo Implement N_REF_TO_WEAK. */
                 KLDRMODMACHO_CHECK_RETURN(!(paSyms[iSym].n_desc & N_REF_TO_WEAK), KLDR_ERR_TODO);
@@ -2635,7 +2661,7 @@ static int  kldrModMachOObjDoImports(PKLDRMODMACHO pModMachO, KLDRADDR BaseAddre
                 const char *pszSymbol;
                 KSIZE cchSymbol;
                 KU32 fKind = KLDRSYMKIND_REQ_FLAT;
-                KLDRADDR Value;
+                KLDRADDR Value = NIL_KLDRADDR;
 
                 /** @todo Implement N_REF_TO_WEAK. */
                 KLDRMODMACHO_CHECK_RETURN(!(paSyms[iSym].n_desc & N_REF_TO_WEAK), KLDR_ERR_TODO);
@@ -3431,6 +3457,8 @@ static int kldrModMachOMapVirginBits(PKLDRMODMACHO pModMachO)
 static int kldrModMachOCallInit(PKLDRMOD pMod, KUPTR uHandle)
 {
     /* later */
+    K_NOREF(pMod);
+    K_NOREF(uHandle);
     return 0;
 }
 
@@ -3439,6 +3467,8 @@ static int kldrModMachOCallInit(PKLDRMOD pMod, KUPTR uHandle)
 static int kldrModMachOCallTerm(PKLDRMOD pMod, KUPTR uHandle)
 {
     /* later */
+    K_NOREF(pMod);
+    K_NOREF(uHandle);
     return 0;
 }
 
@@ -3447,6 +3477,9 @@ static int kldrModMachOCallTerm(PKLDRMOD pMod, KUPTR uHandle)
 static int kldrModMachOCallThread(PKLDRMOD pMod, KUPTR uHandle, unsigned fAttachingOrDetaching)
 {
     /* Relevant for Mach-O? */
+    K_NOREF(pMod);
+    K_NOREF(uHandle);
+    K_NOREF(fAttachingOrDetaching);
     return 0;
 }
 
@@ -3506,6 +3539,7 @@ static int kldrModMachORelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBas
 {
     PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;
     int rc;
+    K_NOREF(OldBaseAddress);
 
     /*
      * Call workers to do the jobs.

@@ -1,4 +1,4 @@
-/* $Id: kDbgHlp.h 70 2015-08-13 09:03:02Z bird $ */
+/* $Id: kDbgHlp.h 78 2016-07-13 15:52:04Z bird $ */
 /** @file
  * kDbg - The Debug Info Reader, Internal Header.
  */
@@ -244,7 +244,7 @@ void kDbgAssertMsg2(const char *pszFormat, ...);
         { \
             kDbgAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kDbgAssertBreakpoint(); \
-        }
+        } \
     } while (0)
 
 # define kDbgAssertReturn(expr, rcRet) \
@@ -254,7 +254,7 @@ void kDbgAssertMsg2(const char *pszFormat, ...);
             kDbgAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kDbgAssertBreakpoint(); \
             return (rcRet); \
-        }
+        } \
     } while (0)
 
 # define kDbgAssertMsg(expr, msg) \
@@ -264,7 +264,7 @@ void kDbgAssertMsg2(const char *pszFormat, ...);
             kDbgAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kDbgAssertMsg2 msg; \
             kDbgAssertBreakpoint(); \
-        }
+        } \
     } while (0)
 
 # define kDbgAssertMsgReturn(expr, msg, rcRet) \
@@ -275,7 +275,7 @@ void kDbgAssertMsg2(const char *pszFormat, ...);
             kDbgAssertMsg2 msg; \
             kDbgAssertBreakpoint(); \
             return (rcRet); \
-        }
+        } \
     } while (0)
 
 #else   /* !KDBG_STRICT */

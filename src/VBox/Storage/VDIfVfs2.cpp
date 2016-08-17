@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -142,14 +142,16 @@ static DECLCALLBACK(int) notImpl_SetSize(void *pvUser, void *pvStorage, uint64_t
     return VERR_NOT_IMPLEMENTED;
 }
 
+#if 0  /* unused */
 /** @interface_method_impl{VDINTERFACEIO,pfnWriteSync}  */
 static DECLCALLBACK(int) notImpl_WriteSync(void *pvUser, void *pvStorage, uint64_t off, const void *pvBuf,
                                            size_t cbWrite, size_t *pcbWritten)
 {
-    NOREF(pvUser); NOREF(pvStorage); NOREF(off); NOREF(pvBuf); NOREF(cbWrite); NOREF(pcbWritten);
+    RT_NOREF6(pvUser, pvStorage, off, pvBuf, cbWrite, pcbWritten)
     Log(("%s\n",  __FUNCTION__));
     return VERR_NOT_IMPLEMENTED;
 }
+#endif
 
 /** @interface_method_impl{VDINTERFACEIO,pfnFlushSync}  */
 static DECLCALLBACK(int) notImpl_FlushSync(void *pvUser, void *pvStorage)
@@ -166,6 +168,7 @@ static DECLCALLBACK(int) notImpl_FlushSync(void *pvUser, void *pvStorage)
 static DECLCALLBACK(int) vdIfFromVfs_Open(void *pvUser, const char *pszLocation, uint32_t fOpen,
                                           PFNVDCOMPLETED pfnCompleted, void **ppInt)
 {
+    RT_NOREF1(pszLocation);
     PVDIFFROMVFS pThis = (PVDIFFROMVFS)pvUser;
 
     /*
@@ -200,7 +203,7 @@ static DECLCALLBACK(int) vdIfFromVfs_Close(void *pvUser, void *pvStorage)
     AssertReturn(pThis->hVfsIos == (RTVFSIOSTREAM)pvStorage, VERR_INVALID_HANDLE);
     AssertReturn(pThis->fOpened, VERR_INVALID_HANDLE);
 
-    uint32_t cRefs = RTVfsIoStrmRelease(pThis->hVfsIos);
+    RTVfsIoStrmRelease(pThis->hVfsIos);
     pThis->hVfsIos = NIL_RTVFSIOSTREAM;
 
     return VINF_SUCCESS;

@@ -91,7 +91,7 @@ public:
 
     void handler()
     {
-        int vrc = GuestSession::i_startSessionThread(NULL, this);
+        GuestSession::i_startSessionThreadTask(this);
     }
 };
 
@@ -131,6 +131,7 @@ public:
             {
                 AssertPtrReturn(mSession, E_POINTER);
                 int rc2 = mSession->signalWaitEvent(aType, aEvent);
+                RT_NOREF(rc2);
 #ifdef DEBUG_andy
                 LogFlowFunc(("Signalling events of type=%RU32, session=%p resulted in rc=%Rrc\n",
                              aType, mSession, rc2));
@@ -531,11 +532,13 @@ HRESULT GuestSession::getPathStyle(PathStyle_T *aPathStyle)
 
 HRESULT GuestSession::getCurrentDirectory(com::Utf8Str &aCurrentDirectory)
 {
+    RT_NOREF(aCurrentDirectory);
     ReturnComNotImplemented();
 }
 
 HRESULT GuestSession::setCurrentDirectory(const com::Utf8Str &aCurrentDirectory)
 {
+    RT_NOREF(aCurrentDirectory);
     ReturnComNotImplemented();
 }
 
@@ -826,14 +829,11 @@ int GuestSession::i_objectCreateTempInternal(const Utf8Str &strTemplate, const U
     LogFlowThisFunc(("strTemplate=%s, strPath=%s, fDirectory=%RTbool\n",
                      strTemplate.c_str(), strPath.c_str(), fDirectory));
 
-    int vrc = VINF_SUCCESS;
-
     GuestProcessStartupInfo procInfo;
-    procInfo.mFlags      = ProcessCreateFlag_WaitForStdOut;
-    procInfo.mExecutable = Utf8Str(VBOXSERVICE_TOOL_MKTEMP);
-
+    procInfo.mFlags = ProcessCreateFlag_WaitForStdOut;
     try
     {
+        procInfo.mExecutable = Utf8Str(VBOXSERVICE_TOOL_MKTEMP);
         procInfo.mArguments.push_back(procInfo.mExecutable); /* Set argv0. */
         procInfo.mArguments.push_back(Utf8Str("--machinereadable"));
         if (fDirectory)
@@ -848,18 +848,17 @@ int GuestSession::i_objectCreateTempInternal(const Utf8Str &strTemplate, const U
     }
     catch (std::bad_alloc)
     {
-        vrc = VERR_NO_MEMORY;
+        Log(("Out of memory!\n"));
+        return VERR_NO_MEMORY;
     }
 
     /** @todo Use an internal HGCM command for this operation, since
      *        we now can run in a user-dedicated session. */
-    int guestRc;
+    int vrcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     GuestCtrlStreamObjects stdOut;
-    if (RT_SUCCESS(vrc))
-        vrc = GuestProcessTool::i_runEx(this, procInfo,
+    int vrc = GuestProcessTool::i_runEx(this, procInfo,
                                         &stdOut, 1 /* cStrmOutObjects */,
-                                        &guestRc);
-
+                                        &vrcGuest);
     if (!GuestProcess::i_isGuestError(vrc))
     {
         GuestFsObjData objData;
@@ -868,7 +867,9 @@ int GuestSession::i_objectCreateTempInternal(const Utf8Str &strTemplate, const U
             vrc = objData.FromMkTemp(stdOut.at(0));
             if (RT_FAILURE(vrc))
             {
-                guestRc = vrc;
+                vrcGuest = vrc;
+                if (pGuestRc)
+                    *pGuestRc = vrc;
                 vrc = VERR_GSTCTL_GUEST_ERROR;
             }
         }
@@ -879,11 +880,9 @@ int GuestSession::i_objectCreateTempInternal(const Utf8Str &strTemplate, const U
             strName = objData.mName;
     }
     else if (pGuestRc)
-    {
-        *pGuestRc = guestRc;
-    }
+        *pGuestRc = vrcGuest;
 
-    LogFlowThisFunc(("Returning rc=%Rrc, guestRc=%Rrc\n", vrc, guestRc));
+    LogFlowThisFunc(("Returning vrc=%Rrc, vrcGuest=%Rrc\n", vrc, vrcGuest));
     return vrc;
 }
 
@@ -1401,15 +1400,12 @@ int GuestSession::i_fsQueryInfoInternal(const Utf8Str &strPath, bool fFollowSyml
 {
     LogFlowThisFunc(("strPath=%s\n", strPath.c_str()));
 
-    int vrc = VINF_SUCCESS;
-
     /** @todo Merge this with IGuestFile::queryInfo(). */
     GuestProcessStartupInfo procInfo;
     procInfo.mFlags      = ProcessCreateFlag_WaitForStdOut;
-    procInfo.mExecutable = Utf8Str(VBOXSERVICE_TOOL_STAT);
-
     try
     {
+        procInfo.mExecutable = Utf8Str(VBOXSERVICE_TOOL_STAT);
         procInfo.mArguments.push_back(procInfo.mExecutable); /* Set argv0. */
         procInfo.mArguments.push_back(Utf8Str("--machinereadable"));
         if (fFollowSymlinks)
@@ -1419,16 +1415,15 @@ int GuestSession::i_fsQueryInfoInternal(const Utf8Str &strPath, bool fFollowSyml
     }
     catch (std::bad_alloc)
     {
-        vrc = VERR_NO_MEMORY;
+        Log(("Out of memory!\n"));
+        return VERR_NO_MEMORY;
     }
 
-    int guestRc;
+    int vrcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     GuestCtrlStreamObjects stdOut;
-    if (RT_SUCCESS(vrc))
-        vrc = GuestProcessTool::i_runEx(this, procInfo,
+    int vrc = GuestProcessTool::i_runEx(this, procInfo,
                                         &stdOut, 1 /* cStrmOutObjects */,
-                                        &guestRc);
-
+                                        &vrcGuest);
     if (!GuestProcess::i_isGuestError(vrc))
     {
         if (!stdOut.empty())
@@ -1436,7 +1431,9 @@ int GuestSession::i_fsQueryInfoInternal(const Utf8Str &strPath, bool fFollowSyml
             vrc = objData.FromStat(stdOut.at(0));
             if (RT_FAILURE(vrc))
             {
-                guestRc = vrc;
+                vrcGuest = vrc;
+                if (pGuestRc)
+                    *pGuestRc = vrc;
                 vrc = VERR_GSTCTL_GUEST_ERROR;
             }
         }
@@ -1444,11 +1441,9 @@ int GuestSession::i_fsQueryInfoInternal(const Utf8Str &strPath, bool fFollowSyml
             vrc = VERR_BROKEN_PIPE;
     }
     else if (pGuestRc)
-    {
-        *pGuestRc = guestRc;
-    }
+        *pGuestRc = vrcGuest;
 
-    LogFlowThisFunc(("Returning rc=%Rrc, guestRc=%Rrc\n", vrc, guestRc));
+    LogFlowThisFunc(("Returning vrc=%Rrc, vrcGuest=%Rrc\n", vrc, vrcGuest));
     return vrc;
 }
 
@@ -1741,8 +1736,7 @@ int GuestSession::i_startSessionAsync(void)
 {
     LogFlowThisFuncEnter();
 
-    int vrc = VINF_SUCCESS;
-
+    int vrc;
     GuestSessionTaskInternalOpen* pTask = NULL;
     try
     {
@@ -1758,6 +1752,7 @@ int GuestSession::i_startSessionAsync(void)
          * worker thread. */
         //this function delete pTask in case of exceptions, so there is no need in the call of delete operator
         HRESULT hrc = pTask->createThread();
+        vrc = Global::vboxStatusCodeFromCOM(hrc);
     }
     catch(std::bad_alloc &)
     {
@@ -1774,25 +1769,29 @@ int GuestSession::i_startSessionAsync(void)
 }
 
 /* static */
-DECLCALLBACK(int) GuestSession::i_startSessionThread(RTTHREAD Thread, void *pvUser)
+void GuestSession::i_startSessionThreadTask(GuestSessionTaskInternalOpen *pTask)
 {
-    LogFlowFunc(("pvUser=%p\n", pvUser));
-
-
-    GuestSessionTaskInternalOpen* pTask = static_cast<GuestSessionTaskInternalOpen*>(pvUser);
+    LogFlowFunc(("pTask=%p\n", pTask));
     AssertPtr(pTask);
 
     const ComObjPtr<GuestSession> pSession(pTask->Session());
     Assert(!pSession.isNull());
 
     AutoCaller autoCaller(pSession);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return;
 
     int vrc = pSession->i_startSessionInternal(NULL /* Guest rc, ignored */);
+/** @todo
+ *
+ * r=bird: Is it okay to ignore @a vrc here?
+ *
+ */
+
     /* Nothing to do here anymore. */
 
     LogFlowFuncLeaveRC(vrc);
-    return vrc;
+    NOREF(vrc);
 }
 
 int GuestSession::i_pathRenameInternal(const Utf8Str &strSource, const Utf8Str &strDest,
@@ -2133,6 +2132,8 @@ int GuestSession::i_setSessionStatus(GuestSessionStatus_T sessionStatus, int ses
 
 int GuestSession::i_signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */)
 {
+    RT_NOREF(enmWaitResult, rc);
+
     /*LogFlowThisFunc(("enmWaitResult=%d, rc=%Rrc, mWaitCount=%RU32, mWaitEvent=%p\n",
                      enmWaitResult, rc, mData.mWaitCount, mData.mWaitEvent));*/
 
@@ -2388,6 +2389,7 @@ int GuestSession::i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionW
 int GuestSession::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlags, uint32_t uTimeoutMS,
                                         GuestSessionStatus_T *pSessionStatus, int *pGuestRc)
 {
+    RT_NOREF(fWaitFlags);
     AssertPtrReturn(pEvent, VERR_INVALID_POINTER);
 
     VBoxEventType_T evtType;
@@ -2469,6 +2471,7 @@ HRESULT GuestSession::close()
 HRESULT GuestSession::fileCopy(const com::Utf8Str &aSource, const com::Utf8Str &aDestination,
                                const std::vector<FileCopyFlag_T> &aFlags, ComPtr<IProgress> &aProgress)
 {
+    RT_NOREF(aSource, aDestination, aFlags, aProgress);
     ReturnComNotImplemented();
 }
 
@@ -2519,7 +2522,7 @@ HRESULT GuestSession::fileCopyFromGuest(const com::Utf8Str &aSource, const com::
             throw hr;
         }
 
-        hr = pTask->createThread(NULL, RTTHREADTYPE_MAIN_HEAVY_WORKER);
+        hr = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
 
         if (SUCCEEDED(hr))
         {
@@ -2592,7 +2595,7 @@ HRESULT GuestSession::fileCopyToGuest(const com::Utf8Str &aSource, const com::Ut
             throw hr;
         }
 
-        hr = pTask->createThread(NULL, RTTHREADTYPE_MAIN_HEAVY_WORKER);
+        hr = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
 
         if (SUCCEEDED(hr))
         {
@@ -2621,18 +2624,21 @@ HRESULT GuestSession::fileCopyToGuest(const com::Utf8Str &aSource, const com::Ut
 HRESULT GuestSession::directoryCopy(const com::Utf8Str &aSource, const com::Utf8Str &aDestination,
                                     const std::vector<DirectoryCopyFlags_T> &aFlags, ComPtr<IProgress> &aProgress)
 {
+    RT_NOREF(aSource, aDestination, aFlags, aProgress);
     ReturnComNotImplemented();
 }
 
 HRESULT GuestSession::directoryCopyFromGuest(const com::Utf8Str &aSource, const com::Utf8Str &aDestination,
                                              const std::vector<DirectoryCopyFlags_T> &aFlags, ComPtr<IProgress> &aProgress)
 {
+    RT_NOREF(aSource, aDestination, aFlags, aProgress);
     ReturnComNotImplemented();
 }
 
 HRESULT GuestSession::directoryCopyToGuest(const com::Utf8Str &aSource, const com::Utf8Str &aDestination,
                                            const std::vector<DirectoryCopyFlags_T> &aFlags, ComPtr<IProgress> &aProgress)
 {
+    RT_NOREF(aSource, aDestination, aFlags, aProgress);
     ReturnComNotImplemented();
 }
 
@@ -2688,6 +2694,7 @@ HRESULT GuestSession::directoryCreate(const com::Utf8Str &aPath, ULONG aMode,
 HRESULT GuestSession::directoryCreateTemp(const com::Utf8Str &aTemplateName, ULONG aMode, const com::Utf8Str &aPath,
                                           BOOL aSecure, com::Utf8Str &aDirectory)
 {
+    RT_NOREF(aMode, aSecure);
     LogFlowThisFuncEnter();
 
     if (RT_UNLIKELY((aTemplateName.c_str()) == NULL || *(aTemplateName.c_str()) == '\0'))
@@ -2851,6 +2858,7 @@ HRESULT GuestSession::directoryRemove(const com::Utf8Str &aPath)
 HRESULT GuestSession::directoryRemoveRecursive(const com::Utf8Str &aPath, const std::vector<DirectoryRemoveRecFlag_T> &aFlags,
                                                ComPtr<IProgress> &aProgress)
 {
+    RT_NOREF(aFlags);
     LogFlowThisFuncEnter();
 
     if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
@@ -3028,6 +3036,7 @@ HRESULT GuestSession::environmentDoesBaseVariableExist(const com::Utf8Str &aName
 HRESULT GuestSession::fileCreateTemp(const com::Utf8Str &aTemplateName, ULONG aMode, const com::Utf8Str &aPath, BOOL aSecure,
                                      ComPtr<IGuestFile> &aFile)
 {
+    RT_NOREF(aTemplateName, aMode, aPath, aSecure, aFile);
     ReturnComNotImplemented();
 }
 
@@ -3367,11 +3376,13 @@ HRESULT GuestSession::fsObjRename(const com::Utf8Str &aSource,
 HRESULT GuestSession::fsObjMove(const com::Utf8Str &aSource, const com::Utf8Str &aDestination,
                                 const std::vector<FsObjMoveFlags_T> &aFlags, ComPtr<IProgress> &aProgress)
 {
+    RT_NOREF(aSource, aDestination, aFlags, aProgress);
     ReturnComNotImplemented();
 }
 
 HRESULT GuestSession::fsObjSetACL(const com::Utf8Str &aPath, BOOL aFollowSymlinks, const com::Utf8Str &aAcl, ULONG aMode)
 {
+    RT_NOREF(aPath, aFollowSymlinks, aAcl, aMode);
     ReturnComNotImplemented();
 }
 
@@ -3523,18 +3534,21 @@ HRESULT GuestSession::processGet(ULONG aPid, ComPtr<IGuestProcess> &aGuestProces
 
 HRESULT GuestSession::symlinkCreate(const com::Utf8Str &aSource, const com::Utf8Str &aTarget, SymlinkType_T aType)
 {
+    RT_NOREF(aSource, aTarget, aType);
     ReturnComNotImplemented();
 }
 
 HRESULT GuestSession::symlinkExists(const com::Utf8Str &aSymlink, BOOL *aExists)
 
 {
+    RT_NOREF(aSymlink, aExists);
     ReturnComNotImplemented();
 }
 
 HRESULT GuestSession::symlinkRead(const com::Utf8Str &aSymlink, const std::vector<SymlinkReadFlag_T> &aFlags,
                                   com::Utf8Str &aTarget)
 {
+    RT_NOREF(aSymlink, aFlags, aTarget);
     ReturnComNotImplemented();
 }
 

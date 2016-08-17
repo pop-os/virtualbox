@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,7 +82,7 @@ public:
     };
 
     static const OSType sOSTypes[];
-    static uint32_t cOSTypes;
+    static size_t cOSTypes;
 
     /**
      * Maps VBOXOSTYPE to the OS type which is used in VM configs.

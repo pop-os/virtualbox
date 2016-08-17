@@ -26,6 +26,12 @@
 # Short-Description: VirtualBox Linux kernel module
 ### END INIT INFO
 
+## @todo This file duplicates a lot of script with vboxadd.sh.  When making
+# changes please try to reduce differences between the two wherever possible.
+
+## @todo Remove the stop_vms target so that this script is only relevant to
+# kernel modules.  Nice but not urgent.
+
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:$PATH
 DEVICE=/dev/vboxdrv
 LOG="/var/log/vbox-install.log"
@@ -135,34 +141,12 @@ generate_udev_rule() {
     INSTALLATION_DIR="$3" # The directory VirtualBox is installed in
     USB_GROUP="$4"        # The group that has permission to access USB devices
     NO_INSTALL="$5"       # Set this to "1" to remove but not re-install rules
-    UDEV_STRING="$6"      # The output of the udev version command
 
     # Extra space!
     case "$USB_GROUP" in ?*) USB_GROUP=" $USB_GROUP" ;; esac
-    case "$NO_INSTALL" in
-    "1") ;;
-    *)
-        udev_ver=`expr "$UDEV_STRING" : '[^0-9]*\([0-9]*\)'`
-        udev_fix=""
-        test "$udev_ver" = "" -o "$udev_ver" -lt 55 &&
-            udev_fix="1"
-        udev_do_usb=""
-        test "$udev_ver" -ge 59 &&
-            udev_do_usb="1"
-        case "$udev_fix" in
-        "1")
-            udev_write_vboxdrv "$VBOXDRV_GRP" "$VBOXDRV_MODE" |
-                sed 's/\([^+=]*\)[+=]*\([^"]*"[^"]*"\)/\1=\2/g'
-            ;;
-        *)
-            udev_write_vboxdrv "$VBOXDRV_GRP" "$VBOXDRV_MODE"
-            case "$udev_do_usb" in "1")
-                udev_write_usb "$INSTALLATION_DIR" "$USB_GROUP" ;;
-            esac
-            ;;
-        esac
-        ;;
-    esac
+    case "$NO_INSTALL" in "1") return ;; esac
+    udev_write_vboxdrv "$VBOXDRV_GRP" "$VBOXDRV_MODE"
+    udev_write_usb "$INSTALLATION_DIR" "$USB_GROUP"
 }
 
 ## Install udev rule (disable with INSTALL_NO_UDEV=1 in
@@ -175,9 +159,8 @@ install_udev() {
     NO_INSTALL="$5"       # Set this to "1" to remove but not re-install rules
 
     if test -d /etc/udev/rules.d; then
-        udev_out="`udevadm version 2>/dev/null ||  udevinfo -V 2>/dev/null`"
         generate_udev_rule "$VBOXDRV_GRP" "$VBOXDRV_MODE" "$INSTALLATION_DIR" \
-                           "$USB_GROUP" "$NO_INSTALL" "$udev_out"
+                           "$USB_GROUP" "$NO_INSTALL"
     fi
     # Remove old udev description file
     rm -f /etc/udev/rules.d/10-vboxdrv.rules 2> /dev/null
@@ -342,7 +325,7 @@ stop()
 }
 
 # enter the following variables in /etc/default/virtualbox:
-#   SHUTDOWN_USERS="foo bar"  
+#   SHUTDOWN_USERS="foo bar"
 #     check for running VMs of user foo and user bar
 #   SHUTDOWN=poweroff
 #   SHUTDOWN=acpibutton
@@ -496,8 +479,7 @@ restart)
     stop && start
     ;;
 setup)
-    MODULE_BUILT=
-    start
+    setup && start
     ;;
 cleanup)
     stop && cleanup

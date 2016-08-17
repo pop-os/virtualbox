@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@
 #include "VBoxDD.h"
 
 #ifdef RT_OS_WINDOWS
-# include <windows.h>
+# include <iprt/win/windows.h>
 #else /* !RT_OS_WINDOWS */
 # include <errno.h>
 # include <unistd.h>
@@ -97,7 +97,7 @@ typedef struct DRVNAMEDPIPE
 *********************************************************************************************************************************/
 
 
-/** @copydoc PDMISTREAM::pfnRead */
+/** @interface_method_impl{PDMISTREAM,pfnRead} */
 static DECLCALLBACK(int) drvNamedPipeRead(PPDMISTREAM pInterface, void *pvBuf, size_t *pcbRead)
 {
     int rc = VINF_SUCCESS;
@@ -193,7 +193,7 @@ static DECLCALLBACK(int) drvNamedPipeRead(PPDMISTREAM pInterface, void *pvBuf, s
 }
 
 
-/** @copydoc PDMISTREAM::pfnWrite */
+/** @interface_method_impl{PDMISTREAM,pfnWrite} */
 static DECLCALLBACK(int) drvNamedPipeWrite(PPDMISTREAM pInterface, const void *pvBuf, size_t *pcbWrite)
 {
     int rc = VINF_SUCCESS;
@@ -296,11 +296,12 @@ static DECLCALLBACK(void *) drvNamedPipeQueryInterface(PPDMIBASE pInterface, con
  * Receive thread loop.
  *
  * @returns 0 on success.
- * @param   ThreadSelf  Thread handle to this thread.
+ * @param   hThreadSelf Thread handle to this thread.
  * @param   pvUser      User argument.
  */
-static DECLCALLBACK(int) drvNamedPipeListenLoop(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) drvNamedPipeListenLoop(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF(hThreadSelf);
     PDRVNAMEDPIPE   pThis = (PDRVNAMEDPIPE)pvUser;
     int             rc = VINF_SUCCESS;
 #ifdef RT_OS_WINDOWS
@@ -522,8 +523,9 @@ static DECLCALLBACK(void) drvNamedPipeDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvNamedPipeConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVNAMEDPIPE pThis = PDMINS_2_DATA(pDrvIns, PDRVNAMEDPIPE);
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVNAMEDPIPE pThis = PDMINS_2_DATA(pDrvIns, PDRVNAMEDPIPE);
 
     /*
      * Init the static parts.

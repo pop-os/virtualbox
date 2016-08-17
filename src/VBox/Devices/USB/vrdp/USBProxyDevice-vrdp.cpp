@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,6 +85,7 @@ static DECLCALLBACK(void) usbProxyVrdpClose(PUSBPROXYDEV pProxyDev)
 
 static DECLCALLBACK(int) usbProxyVrdpReset(PUSBPROXYDEV pProxyDev, bool fResetOnLinux)
 {
+    RT_NOREF(fResetOnLinux);
     LogFlow(("usbProxyVrdpReset: pProxyDev = %p\n", pProxyDev));
 
     PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
@@ -248,7 +249,7 @@ static DECLCALLBACK(int) usbProxyVrdpUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB 
 
     PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
     pDevVrdp->pCallback->pfnCancelURB (pDevVrdp->pDevice, (PREMOTEUSBQURB)pUrb->Dev.pvPrivate);
-    return VINF_SUCCESS; /** @todo: Enhance remote interface to pass a status code. */
+    return VINF_SUCCESS; /** @todo Enhance remote interface to pass a status code. */
 }
 
 static DECLCALLBACK(int) usbProxyVrdpWakeup(PUSBPROXYDEV pProxyDev)

@@ -34,6 +34,7 @@
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
 
+
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
@@ -68,7 +69,7 @@ static const char *s_apszFileExts[] =
 *********************************************************************************************************************************/
 
 
-/** @copydoc VUSBSNIFFERFMT::pfnInit */
+/** @interface_method_impl{VUSBSNIFFERFMT,pfnInit} */
 static DECLCALLBACK(int) vusbSnifferFmtUsbMonInit(PVUSBSNIFFERFMTINT pThis, PVUSBSNIFFERSTRM pStrm)
 {
     pThis->pStrm = pStrm;
@@ -76,14 +77,14 @@ static DECLCALLBACK(int) vusbSnifferFmtUsbMonInit(PVUSBSNIFFERFMTINT pThis, PVUS
 }
 
 
-/** @copydoc VUSBSNIFFERFMT::pfnDestroy */
+/** @interface_method_impl{VUSBSNIFFERFMT,pfnDestroy} */
 static DECLCALLBACK(void) vusbSnifferFmtUsbMonDestroy(PVUSBSNIFFERFMTINT pThis)
 {
-
+    RT_NOREF(pThis);
 }
 
 
-/** @copydoc VUSBSNIFFERFMT::pfnRecordEvent */
+/** @interface_method_impl{VUSBSNIFFERFMT,pfnRecordEvent} */
 static DECLCALLBACK(int) vusbSnifferFmtUsbMonRecordEvent(PVUSBSNIFFERFMTINT pThis, PVUSBURB pUrb, VUSBSNIFFEREVENT enmEvent)
 {
     char aszLineBuf[512];
@@ -209,7 +210,7 @@ static DECLCALLBACK(int) vusbSnifferFmtUsbMonRecordEvent(PVUSBSNIFFERFMTINT pThi
             rc = pThis->pStrm->pfnWrite(pThis->pStrm, &aszLineBuf[0], cch);
         }
 
-        /** @todo: Dump the data */
+        /** @todo Dump the data */
     }
 
     return rc;

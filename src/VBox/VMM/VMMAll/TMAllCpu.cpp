@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -187,6 +187,7 @@ int tmCpuTickPauseLocked(PVM pVM, PVMCPU pVCpu)
 }
 
 
+#ifdef VBOX_WITH_STATISTICS
 /**
  * Record why we refused to use offsetted TSC.
  *
@@ -221,6 +222,7 @@ DECLINLINE(void) tmCpuTickRecordOffsettedTscRefusal(PVM pVM, PVMCPU pVCpu)
            STAM_COUNTER_INC(&pVM->tm.s.StatTSCWarp);
     }
 }
+#endif /* VBOX_WITH_STATISTICS */
 
 
 /**
@@ -317,6 +319,7 @@ DECLINLINE(uint64_t) tmCpuCalcTicksToDeadline(PVMCPU pVCpu, uint64_t cNsToDeadli
 {
     AssertCompile(TMCLOCK_FREQ_VIRTUAL <= _4G);
 #ifdef IN_RING3
+    RT_NOREF_PV(pVCpu);
     uint64_t uCpuHz = SUPGetCpuHzFromGip(g_pSUPGlobalInfoPage);
 #else
     uint64_t uCpuHz = SUPGetCpuHzFromGipBySetIndex(g_pSUPGlobalInfoPage, pVCpu->iHostCpuSet);

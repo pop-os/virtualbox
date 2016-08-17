@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #include <Dbghelp.h>
 
 #include <iprt/alloca.h>
@@ -210,10 +210,13 @@ static const char *symTypeName(SYM_TYPE enmType)
         case SymSym:        return "SymSym";
         case SymDia:        return "SymDia";
         case SymVirtual:    return "SymVirtual";
+        default:
+        {
+            static char s_szBuf[32];
+            RTStrPrintf(s_szBuf, sizeof(s_szBuf), "Unknown-%#x", enmType);
+            return s_szBuf;
+        }
     }
-    static char s_szBuf[32];
-    RTStrPrintf(s_szBuf, sizeof(s_szBuf), "Unknown-%#x", enmType);
-    return s_szBuf;
 }
 
 
@@ -319,7 +322,7 @@ int main(int argc, char **argv)
     };
 
     RTEXITCODE  rcExit      = RTEXITCODE_SUCCESS;
-    const char *pszOutput   = "-";
+    //const char *pszOutput   = "-";
 
     int ch;
     RTGETOPTUNION ValueUnion;
@@ -358,7 +361,7 @@ int main(int argc, char **argv)
 
 
             case 'V':
-                RTPrintf("$Revision: 100874 $");
+                RTPrintf("$Revision: 109299 $");
                 break;
 
             case 'h':

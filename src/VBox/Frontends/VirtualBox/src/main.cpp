@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -238,7 +238,7 @@ static void QtMessageOutput(QtMsgType type, const QMessageLogContext &context, c
     NOREF(context);
 # ifndef VBOX_WS_X11
     NOREF(strMessage);
-# endif /* !VBOX_WS_X11 */
+# endif
     switch (type)
     {
         case QtDebugMsg:
@@ -249,21 +249,26 @@ static void QtMessageOutput(QtMsgType type, const QMessageLogContext &context, c
 # ifdef VBOX_WS_X11
             /* Needed for instance for the message ``cannot connect to X server'': */
             RTStrmPrintf(g_pStdErr, "Qt WARNING: %s\n", strMessage.toUtf8().constData());
-# endif /* VBOX_WS_X11 */
+# endif
             break;
         case QtCriticalMsg:
             Log(("Qt CRITICAL: %s\n", strMessage.toUtf8().constData()));
 # ifdef VBOX_WS_X11
             /* Needed for instance for the message ``cannot connect to X server'': */
             RTStrmPrintf(g_pStdErr, "Qt CRITICAL: %s\n", strMessage.toUtf8().constData());
-# endif /* VBOX_WS_X11 */
+# endif
             break;
         case QtFatalMsg:
             Log(("Qt FATAL: %s\n", strMessage.toUtf8().constData()));
 # ifdef VBOX_WS_X11
             /* Needed for instance for the message ``cannot connect to X server'': */
             RTStrmPrintf(g_pStdErr, "Qt FATAL: %s\n", strMessage.toUtf8().constData());
-# endif /* VBOX_WS_X11 */
+# endif
+# if QT_VERSION >= QT_VERSION_CHECK(5, 5, 0)
+        case QtInfoMsg:
+            /** @todo ignore? */
+            break;
+# endif
     }
 }
 #else /* QT_VERSION < 0x050000 */
@@ -478,7 +483,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
         /* Use plastique look&feel for Solaris instead of the default motif (Qt 4.7.x): */
         QApplication::setStyle(new QPlastiqueStyle);
 #  else /* QT_VERSION >= 0x050000 */
-	a.setStyle("fusion");
+        a.setStyle("fusion");
 #  endif /* QT_VERSION >= 0x050000 */
 # endif /* Q_OS_SOLARIS */
 
@@ -608,7 +613,7 @@ int main(int argc, char **argv, char **envp)
         /* Use plastique look&feel for Solaris instead of the default motif (Qt 4.7.x): */
         QApplication::setStyle(new QPlastiqueStyle);
 #else /* QT_VERSION >= 0x050000 */
-	a.setStyle("fusion");
+        a.setStyle("fusion");
 # endif /* QT_VERSION >= 0x050000 */
 #endif /* Q_OS_SOLARIS */
 
@@ -737,19 +742,16 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
             strText += g_QStrHintOtherNoDriver;
 # endif /* !RT_OS_LINUX */
             break;
-# ifdef RT_OS_LINUX
         case kSupInitOp_IPRT:
         case kSupInitOp_Misc:
-            if (rc == VERR_NO_MEMORY)
-                strText += g_QStrHintLinuxNoMemory;
-            else
-# endif /* RT_OS_LINUX */
             if (rc == VERR_VM_DRIVER_VERSION_MISMATCH)
-# ifdef RT_OS_LINUX
-                strText += g_QStrHintLinuxWrongDriverVersion;
-# else /* RT_OS_LINUX */
+# ifndef RT_OS_LINUX
                 strText += g_QStrHintOtherWrongDriverVersion;
-# endif /* !RT_OS_LINUX */
+# else
+                strText += g_QStrHintLinuxWrongDriverVersion;
+            else if (rc == VERR_NO_MEMORY)
+                strText += g_QStrHintLinuxNoMemory;
+# endif
             else
                 strText += g_QStrHintReinstall;
             break;
@@ -782,5 +784,4 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
 }
 
 #endif /* VBOX_WITH_HARDENING */
-
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,6 +55,8 @@
  */
 static RTEXITCODE rtManifestDoVerify(const char *pszManifest, bool fStdFormat, const char *pszChDir)
 {
+    RT_NOREF_PV(pszChDir); /** @todo implement pszChDir! */
+
     /*
      * Open the manifest.
      */

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -209,7 +209,8 @@ ifdef VBOX_WITH_VALIDATIONKIT_PACKING.os2.x86
  	$(VBOX_PATH_VALIDATIONKIT.os2.x86)/libc062.dll \
  	$(VBOX_PATH_VALIDATIONKIT.os2.x86)/libc063.dll \
  	$(VBOX_PATH_VALIDATIONKIT.os2.x86)/libc064.dll \
- 	$(VBOX_PATH_VALIDATIONKIT.os2.x86)/libc065.dll
+ 	$(VBOX_PATH_VALIDATIONKIT.os2.x86)/libc065.dll \
+ 	$(VBOX_PATH_VALIDATIONKIT.os2.x86)/libc066.dll
 endif
 
 # OS specific files - Solaris

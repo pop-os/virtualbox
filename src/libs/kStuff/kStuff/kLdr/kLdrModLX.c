@@ -1,4 +1,4 @@
-/* $Id: kLdrModLX.c 58 2013-10-12 20:18:21Z bird $ */
+/* $Id: kLdrModLX.c 80 2016-08-06 20:38:28Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Linear eXecutable (LX) Format.
  */
@@ -155,6 +155,7 @@ static int kldrModLXCreate(PCKLDRMODOPS pOps, PKRDR pRdr, KU32 fFlags, KCPUARCH 
 {
     PKLDRMODLX pModLX;
     int rc;
+    K_NOREF(fFlags);
 
     /*
      * Create the instance data and do a minimal header validation.
@@ -586,7 +587,8 @@ static int kldrModLXQuerySymbol(PKLDRMOD pMod, const void *pvBits, KLDRADDR Base
     KU32                        iOrdinal;
     int                         rc;
     const struct b32_bundle     *pBundle;
-
+    K_NOREF(pvBits);
+    K_NOREF(pszVersion);
 
     /*
      * Give up at once if there is no entry table.
@@ -989,6 +991,8 @@ static int kldrModLXEnumSymbols(PKLDRMOD pMod, const void *pvBits, KLDRADDR Base
     const struct b32_bundle *pBundle;
     KU32 iOrdinal;
     int rc = 0;
+    K_NOREF(pvBits);
+    K_NOREF(fFlags);
 
     kldrModLXResolveBaseAddress(pModLX, &BaseAddress);
 
@@ -1198,6 +1202,7 @@ static int kldrModLXGetImport(PKLDRMOD pMod, const void *pvBits, KU32 iImport, c
     PKLDRMODLX  pModLX = (PKLDRMODLX)pMod->pvData;
     const KU8  *pb;
     int         rc;
+    K_NOREF(pvBits);
 
     /*
      * Validate
@@ -1247,6 +1252,7 @@ static int kldrModLXGetImport(PKLDRMOD pMod, const void *pvBits, KU32 iImport, c
 static KI32 kldrModLXNumberOfImports(PKLDRMOD pMod, const void *pvBits)
 {
     PKLDRMODLX pModLX = (PKLDRMODLX)pMod->pvData;
+    K_NOREF(pvBits);
     return pModLX->Hdr.e32_impmodcnt;
 }
 
@@ -1256,6 +1262,7 @@ static int kldrModLXGetStackInfo(PKLDRMOD pMod, const void *pvBits, KLDRADDR Bas
 {
     PKLDRMODLX pModLX = (PKLDRMODLX)pMod->pvData;
     const KU32 i = pModLX->Hdr.e32_stackobj;
+    K_NOREF(pvBits);
 
     if (    i
         &&  i <= pMod->cSegments
@@ -1286,6 +1293,7 @@ static int kldrModLXGetStackInfo(PKLDRMOD pMod, const void *pvBits, KLDRADDR Bas
 static int kldrModLXQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRADDR pMainEPAddress)
 {
     PKLDRMODLX pModLX = (PKLDRMODLX)pMod->pvData;
+    K_NOREF(pvBits);
 
     /*
      * Convert the address from the header.
@@ -1304,6 +1312,8 @@ static int kldrModLXQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KLDRA
 static int kldrModLXEnumDbgInfo(PKLDRMOD pMod, const void *pvBits, PFNKLDRENUMDBG pfnCallback, void *pvUser)
 {
     /*PKLDRMODLX pModLX = (PKLDRMODLX)pMod->pvData;*/
+    K_NOREF(pfnCallback);
+    K_NOREF(pvUser);
 
     /*
      * Quit immediately if no debug info.
@@ -1325,6 +1335,7 @@ static int kldrModLXEnumDbgInfo(PKLDRMOD pMod, const void *pvBits, PFNKLDRENUMDB
 static int kldrModLXHasDbgInfo(PKLDRMOD pMod, const void *pvBits)
 {
     PKLDRMODLX pModLX = (PKLDRMODLX)pMod->pvData;
+    K_NOREF(pvBits);
 
     /*
      * Don't curretnly bother with linkers which doesn't advertise it in the header.
@@ -1940,6 +1951,8 @@ static int kldrModLXAllocTLS(PKLDRMOD pMod)
 static void kldrModLXFreeTLS(PKLDRMOD pMod)
 {
     /* no tls. */
+    K_NOREF(pMod);
+
 }
 
 
@@ -2122,9 +2135,14 @@ static KI32 kldrModLXDoCall(KUPTR uEntrypoint, KUPTR uHandle, KU32 uOp, void *pv
 # else
 #  error "port me!"
 # endif
+    K_NOREF(pvReserved);
     return rc;
 
 #else
+    K_NOREF(uEntrypoint);
+    K_NOREF(uHandle);
+    K_NOREF(uOp);
+    K_NOREF(pvReserved);
     return KCPU_ERR_ARCH_CPU_NOT_COMPATIBLE;
 #endif
 }
@@ -2155,6 +2173,9 @@ static int kldrModLXCallTerm(PKLDRMOD pMod, KUPTR uHandle)
 static int kldrModLXCallThread(PKLDRMOD pMod, KUPTR uHandle, unsigned fAttachingOrDetaching)
 {
     /* no thread attach/detach callout. */
+    K_NOREF(pMod);
+    K_NOREF(uHandle);
+    K_NOREF(fAttachingOrDetaching);
     return 0;
 }
 
@@ -2231,9 +2252,9 @@ static int kldrModLXRelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBaseAd
         {
             const KU8 * const   pbFixupRecEnd = pModLX->pbFixupRecs + pModLX->paoffPageFixups[iPage + pObj->o32_pagemap];
             const KU8          *pb            = pModLX->pbFixupRecs + pModLX->paoffPageFixups[iPage + pObj->o32_pagemap - 1];
-            KLDRADDR            uValue;
+            KLDRADDR            uValue        = NIL_KLDRADDR;
+            KU32                fKind         = 0;
             int                 iSelector;
-            KU32                fKind;
 
             /* sanity */
             if (pbFixupRecEnd < pb)
@@ -2553,6 +2574,8 @@ static int kldrModLXDoReloc(KU8 *pbPage, int off, KLDRADDR PageAddress, const st
     const KU8      *pbSrc;
     KU8            *pbDst;
     KU8             cb;
+
+    K_NOREF(fKind);
 
     /*
      * Compose the fixup data.
