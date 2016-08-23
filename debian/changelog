@@ -4,6 +4,8 @@ virtualbox (5.1.4-dfsg-1) unstable; urgency=low
   * Update dependencies to qt5
   * Regenerate manpages
   * Fix gcc version check for gcc-6.x
+  * Only suggest the guest-x11 from the guest-utils package.
+    (Closes: #834965)
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 17 Aug 2016 10:33:49 +0200
 

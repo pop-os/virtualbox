@@ -217,8 +217,8 @@ Description: x86 virtualization solution - X11 guest utilities
 Package: virtualbox-guest-utils
 Architecture: amd64 i386
 Depends: adduser, pciutils, ${misc:Depends}, ${shlibs:Depends}
-Recommends: virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}) | virtualbox-guest-modules,
-            virtualbox-guest-x11 (= ${binary:Version})
+Recommends: virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}) | virtualbox-guest-modules
+Suggests: virtualbox-guest-x11 (= ${binary:Version})
 Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
