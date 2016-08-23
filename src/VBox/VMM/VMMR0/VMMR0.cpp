@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,9 @@
 #include <VBox/vmm/vm.h>
 #ifdef VBOX_WITH_PCI_PASSTHROUGH
 # include <VBox/vmm/pdmpci.h>
+#endif
+#ifdef VBOX_WITH_NEW_APIC
+# include <VBox/vmm/apic.h>
 #endif
 
 #include <VBox/vmm/gvmm.h>
@@ -757,11 +760,17 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
         case VINF_IOM_R3_IOPORT_WRITE:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetIOWrite);
             break;
+        case VINF_IOM_R3_IOPORT_COMMIT_WRITE:
+            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetIOCommitWrite);
+            break;
         case VINF_IOM_R3_MMIO_READ:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetMMIORead);
             break;
         case VINF_IOM_R3_MMIO_WRITE:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetMMIOWrite);
+            break;
+        case VINF_IOM_R3_MMIO_COMMIT_WRITE:
+            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetMMIOCommitWrite);
             break;
         case VINF_IOM_R3_MMIO_READ_WRITE:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetMMIOReadWrite);
@@ -821,6 +830,7 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetRescheduleREM);
             break;
         case VINF_EM_RAW_TO_R3:
+            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Total);
             if (VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3TMVirt);
             else if (VM_FF_IS_PENDING(pVM, VM_FF_PGM_NEED_HANDY_PAGES))
@@ -836,7 +846,11 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
             else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PDM_CRITSECT))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3CritSect);
             else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TO_R3))
-                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3);
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3FF);
+            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_IEM))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Iem);
+            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_IOM))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Iom);
             else
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Unknown);
             break;
@@ -1111,6 +1125,14 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
                 }
 #endif
 
+#ifdef VMM_R0_TOUCH_FPU
+                /*
+                 * Make sure we've got the FPU state loaded so and we don't need to clear
+                 * CR0.TS and get out of sync with the host kernel when loading the guest
+                 * FPU state.  @ref sec_cpum_fpu (CPUM.cpp) and @bugref{4053}.
+                 */
+                CPUMR0TouchHostFpu();
+#endif
                 int  rc;
                 bool fPreemptRestored = false;
                 if (!HMR0SuspendPending())
@@ -1687,7 +1709,7 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
 
 # ifdef DEBUG_sandervl
             /* Make sure that log flushes can jump back to ring-3; annoying to get an incomplete log (this is risky though as the code doesn't take this into account). */
-            /* Todo: this can have bad side effects for unexpected jumps back to r3. */
+            /** @todo this can have bad side effects for unexpected jumps back to r3. */
             rc = GMMR0CheckSharedModulesStart(pVM);
             if (rc == VINF_SUCCESS)
             {
@@ -2077,7 +2099,9 @@ VMMR0DECL(void) vmmR0LoggerFlush(PRTLOGGER pLogger)
     else
         SUPR0Printf("vmmR0LoggerFlush: invalid VCPU context!\n");
 # endif
-#endif
+#else
+    NOREF(pLogger);
+#endif  /* LOG_ENABLED */
 }
 
 /**
@@ -2108,6 +2132,7 @@ VMMR0DECL(size_t) vmmR0LoggerPrefix(PRTLOGGER pLogger, char *pchBuf, size_t cchB
 
     return 2;
 #else
+    NOREF(pLogger); NOREF(pchBuf); NOREF(cchBuf);
     return 0;
 #endif
 }
@@ -2233,7 +2258,9 @@ DECLEXPORT(void) RTCALL RTAssertMsg1Weak(const char *pszExpr, unsigned uLine, co
 static DECLCALLBACK(size_t) rtLogOutput(void *pv, const char *pachChars, size_t cbChars)
 {
     for (size_t i = 0; i < cbChars; i++)
-        LogAlways(("%c", pachChars[i]));
+    {
+        LogAlways(("%c", pachChars[i])); NOREF(pachChars);
+    }
 
     NOREF(pv);
     return cbChars;

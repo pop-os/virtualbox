@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -418,7 +418,6 @@ int main(int argc, char **argv)
         { "--duration",         'd', RTGETOPT_REQ_UINT32 },
         { "--calc-frequency",   'f', RTGETOPT_REQ_NOTHING },
     };
-    int iArg = 1;
     int ch;
     RTGETOPTUNION Value;
     RTGETOPTSTATE GetState;
@@ -438,7 +437,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 102121 $\n");
+                RTPrintf("$Revision: 109298 $\n");
                 return 0;
 
             default:

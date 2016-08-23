@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -705,7 +705,7 @@ DECLHIDDEN(void) supR3HardenedWinInitImportsEarly(uintptr_t uNtDllAddr)
             *g_aSupNtImpDlls[0].paImports[i].ppfnImport = g_aSupNtImpDlls[0].paImports[i].pfnEarlyDummy;
 
     /*
-     * Pointer the other imports at the early init stubs.
+     * Point the other imports at the early init stubs.
      */
     for (uint32_t iDll = 1; iDll < RT_ELEMENTS(g_aSupNtImpDlls); iDll++)
         for (uint32_t i = 0; i < g_aSupNtImpDlls[iDll].cImports; i++)
@@ -853,6 +853,6 @@ DECLHIDDEN(PFNRT) supR3HardenedWinGetRealDllSymbol(const char *pszDll, const cha
         }
 
     supR3HardenedFatal("supR3HardenedWinGetRealDllSymbol: Unknown DLL %s (proc: %s)\n", pszDll, pszProcedure);
-    return NULL;
+    /* not reached */
 }
 

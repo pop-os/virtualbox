@@ -67,6 +67,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 GuestSessionTask::GuestSessionTask(GuestSession *pSession)
+    : ThreadTask("GenericGuestSessionTask")
 {
     mSession = pSession;
 }
@@ -74,6 +75,43 @@ GuestSessionTask::GuestSessionTask(GuestSession *pSession)
 GuestSessionTask::~GuestSessionTask(void)
 {
 }
+
+HRESULT GuestSessionTask::createAndSetProgressObject()
+{
+    LogFlowThisFunc(("Task Description = %s, pTask=%p\n", mDesc.c_str(), this));
+
+    ComObjPtr<Progress> pProgress;
+    HRESULT hr = S_OK;
+    /* Create the progress object. */
+    hr = pProgress.createObject();
+    if (FAILED(hr))
+        return VERR_COM_UNEXPECTED;
+
+    hr = pProgress->init(static_cast<IGuestSession*>(mSession),
+                         Bstr(mDesc).raw(),
+                         TRUE /* aCancelable */);
+    if (FAILED(hr))
+        return VERR_COM_UNEXPECTED;
+
+    mProgress = pProgress;
+
+    LogFlowFuncLeave();
+
+    return hr;
+}
+
+int GuestSessionTask::RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress)
+{
+    LogFlowThisFunc(("strDesc=%s\n", strDesc.c_str()));
+
+    mDesc = strDesc;
+    mProgress = pProgress;
+    HRESULT hrc = createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
+
+    LogFlowThisFunc(("Returning hrc=%Rhrc\n", hrc));
+    return Global::vboxStatusCodeToCOM(hrc);
+}
+
 
 int GuestSessionTask::getGuestProperty(const ComObjPtr<Guest> &pGuest,
                                        const Utf8Str &strPath, Utf8Str &strValue)
@@ -170,7 +208,7 @@ SessionTaskOpen::SessionTaskOpen(GuestSession *pSession,
                                    mFlags(uFlags),
                                    mTimeoutMS(uTimeoutMS)
 {
-
+    m_strTaskName = "gctlSesOpen";
 }
 
 SessionTaskOpen::~SessionTaskOpen(void)
@@ -178,7 +216,7 @@ SessionTaskOpen::~SessionTaskOpen(void)
 
 }
 
-int SessionTaskOpen::Run(int *pGuestRc)
+int SessionTaskOpen::Run(void)
 {
     LogFlowThisFuncEnter();
 
@@ -188,35 +226,11 @@ int SessionTaskOpen::Run(int *pGuestRc)
     AutoCaller autoCaller(pSession);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    int vrc = pSession->i_startSessionInternal(pGuestRc);
+    int vrc = pSession->i_startSessionInternal(NULL /*pvrcGuest*/);
     /* Nothing to do here anymore. */
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;
-}
-
-int SessionTaskOpen::RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress)
-{
-    LogFlowThisFunc(("strDesc=%s\n", strDesc.c_str()));
-
-    mDesc = strDesc;
-    mProgress = pProgress;
-
-    int rc = RTThreadCreate(NULL, SessionTaskOpen::taskThread, this,
-                            0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                            "gctlSesOpen");
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-
-/* static */
-DECLCALLBACK(int) SessionTaskOpen::taskThread(RTTHREAD Thread, void *pvUser)
-{
-    std::auto_ptr<SessionTaskOpen> task(static_cast<SessionTaskOpen*>(pvUser));
-    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
-
-    LogFlowFunc(("pTask=%p\n", task.get()));
-    return task->Run(NULL /* guestRc */);
 }
 
 SessionTaskCopyTo::SessionTaskCopyTo(GuestSession *pSession,
@@ -229,6 +243,7 @@ SessionTaskCopyTo::SessionTaskCopyTo(GuestSession *pSession,
                                        mDest(strDest)
 {
     mCopyFileFlags = uFlags;
+    m_strTaskName = "gctlCpyTo";
 }
 
 /** @todo Merge this and the above call and let the above call do the open/close file handling so that the
@@ -243,6 +258,7 @@ SessionTaskCopyTo::SessionTaskCopyTo(GuestSession *pSession,
     mSourceSize    = cbSourceSize;
     mDest          = strDest;
     mCopyFileFlags = uFlags;
+    m_strTaskName = "gctlCpyTo";
 }
 
 SessionTaskCopyTo::~SessionTaskCopyTo(void)
@@ -316,7 +332,7 @@ int SessionTaskCopyTo::Run(void)
     /*
      * Query information about our destination first.
      */
-    int guestRc;
+    int guestRc = VERR_IPE_UNINITIALIZED_STATUS;
     if (RT_SUCCESS(rc))
     {
         GuestFsObjData objData;
@@ -532,16 +548,25 @@ int SessionTaskCopyTo::Run(void)
              * Newer VBoxService toolbox versions report what went wrong via exit code.
              * So handle this first.
              */
-            ProcessStatus_T procStatus;
-            LONG exitCode;
-            if (   (   SUCCEEDED(pProcess->COMGETTER(Status(&procStatus)))
-                    && procStatus != ProcessStatus_TerminatedNormally)
-                || (   SUCCEEDED(pProcess->COMGETTER(ExitCode(&exitCode)))
-                    && exitCode != 0)
-               )
+            /** @todo This code sequence is duplicated in CopyFrom...   */
+            ProcessStatus_T procStatus = ProcessStatus_TerminatedAbnormally;
+            HRESULT hrc = pProcess->COMGETTER(Status(&procStatus));
+            if (!SUCCEEDED(hrc))
+                procStatus = ProcessStatus_TerminatedAbnormally;
+
+            LONG exitCode = 42424242;
+            hrc = pProcess->COMGETTER(ExitCode(&exitCode));
+            if (!SUCCEEDED(hrc))
+                exitCode = 42424242;
+
+            if (   procStatus != ProcessStatus_TerminatedNormally
+                || exitCode != 0)
             {
-                LogFlowThisFunc(("procStatus=%ld, exitCode=%ld\n", procStatus, exitCode));
-                rc = GuestProcessTool::i_exitCodeToRc(procInfo, exitCode);
+                LogFlowThisFunc(("procStatus=%d, exitCode=%d\n", procStatus, exitCode));
+                if (procStatus == ProcessStatus_TerminatedNormally)
+                    rc = GuestProcessTool::i_exitCodeToRc(procInfo, exitCode);
+                else
+                    rc = VERR_GENERAL_FAILURE;
                 setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                     Utf8StrFmt(GuestSession::tr("Copying file \"%s\" to guest failed: %Rrc"),
                                                mSource.c_str(), rc));
@@ -568,8 +593,7 @@ int SessionTaskCopyTo::Run(void)
                                                mSource.c_str(), cbWrittenTotal, mSourceSize));
                 rc = VERR_INTERRUPTED;
             }
-
-            if (RT_SUCCESS(rc))
+            else
                 rc = setProgressSuccess();
         }
     } /* processCreateExInteral */
@@ -581,31 +605,6 @@ int SessionTaskCopyTo::Run(void)
     return rc;
 }
 
-int SessionTaskCopyTo::RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress)
-{
-    LogFlowThisFunc(("strDesc=%s, strSource=%s, strDest=%s, mCopyFileFlags=%x\n",
-                     strDesc.c_str(), mSource.c_str(), mDest.c_str(), mCopyFileFlags));
-
-    mDesc = strDesc;
-    mProgress = pProgress;
-
-    int rc = RTThreadCreate(NULL, SessionTaskCopyTo::taskThread, this,
-                            0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                            "gctlCpyTo");
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-
-/* static */
-DECLCALLBACK(int) SessionTaskCopyTo::taskThread(RTTHREAD Thread, void *pvUser)
-{
-    std::auto_ptr<SessionTaskCopyTo> task(static_cast<SessionTaskCopyTo*>(pvUser));
-    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
-
-    LogFlowFunc(("pTask=%p\n", task.get()));
-    return task->Run();
-}
-
 SessionTaskCopyFrom::SessionTaskCopyFrom(GuestSession *pSession,
                                          const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags)
                                          : GuestSessionTask(pSession)
@@ -613,6 +612,7 @@ SessionTaskCopyFrom::SessionTaskCopyFrom(GuestSession *pSession,
     mSource = strSource;
     mDest   = strDest;
     mFlags  = uFlags;
+    m_strTaskName = "gctlCpyFrom";
 }
 
 SessionTaskCopyFrom::~SessionTaskCopyFrom(void)
@@ -826,16 +826,25 @@ int SessionTaskCopyFrom::Run(void)
 
                 if (RT_SUCCESS(rc))
                 {
-                    ProcessStatus_T procStatus;
-                    LONG exitCode;
-                    if (   (   SUCCEEDED(pProcess->COMGETTER(Status(&procStatus)))
-                            && procStatus != ProcessStatus_TerminatedNormally)
-                        || (   SUCCEEDED(pProcess->COMGETTER(ExitCode(&exitCode)))
-                            && exitCode != 0)
-                       )
+                    /** @todo this code sequence is duplicated in CopyTo   */
+                    ProcessStatus_T procStatus = ProcessStatus_TerminatedAbnormally;
+                    HRESULT hrc = pProcess->COMGETTER(Status(&procStatus));
+                    if (!SUCCEEDED(hrc))
+                        procStatus = ProcessStatus_TerminatedAbnormally;
+
+                    LONG exitCode = 42424242;
+                    hrc = pProcess->COMGETTER(ExitCode(&exitCode));
+                    if (!SUCCEEDED(hrc))
+                        exitCode = 42424242;
+
+                    if (   procStatus != ProcessStatus_TerminatedNormally
+                        || exitCode != 0)
                     {
-                        LogFlowThisFunc(("procStatus=%ld, exitCode=%ld\n", procStatus, exitCode));
-                        rc = GuestProcessTool::i_exitCodeToRc(procInfo, exitCode);
+                        LogFlowThisFunc(("procStatus=%d, exitCode=%d\n", procStatus, exitCode));
+                        if (procStatus == ProcessStatus_TerminatedNormally)
+                            rc = GuestProcessTool::i_exitCodeToRc(procInfo, exitCode);
+                        else
+                            rc = VERR_GENERAL_FAILURE;
                         setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                             Utf8StrFmt(GuestSession::tr("Copying file \"%s\" to host failed: %Rrc"),
                                                        mSource.c_str(), rc));
@@ -862,8 +871,7 @@ int SessionTaskCopyFrom::Run(void)
                                                        mSource.c_str(), mDest.c_str(), cbWrittenTotal, objData.mObjectSize));
                         rc = VERR_INTERRUPTED;
                     }
-
-                    if (RT_SUCCESS(rc))
+                    else
                         rc = setProgressSuccess();
                 }
             }
@@ -876,31 +884,6 @@ int SessionTaskCopyFrom::Run(void)
     return rc;
 }
 
-int SessionTaskCopyFrom::RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress)
-{
-    LogFlowThisFunc(("strDesc=%s, strSource=%s, strDest=%s, uFlags=%x\n",
-                     strDesc.c_str(), mSource.c_str(), mDest.c_str(), mFlags));
-
-    mDesc = strDesc;
-    mProgress = pProgress;
-
-    int rc = RTThreadCreate(NULL, SessionTaskCopyFrom::taskThread, this,
-                            0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                            "gctlCpyFrom");
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-
-/* static */
-DECLCALLBACK(int) SessionTaskCopyFrom::taskThread(RTTHREAD Thread, void *pvUser)
-{
-    std::auto_ptr<SessionTaskCopyFrom> task(static_cast<SessionTaskCopyFrom*>(pvUser));
-    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
-
-    LogFlowFunc(("pTask=%p\n", task.get()));
-    return task->Run();
-}
-
 SessionTaskUpdateAdditions::SessionTaskUpdateAdditions(GuestSession *pSession,
                                                        const Utf8Str &strSource,
                                                        const ProcessArguments &aArguments,
@@ -910,6 +893,7 @@ SessionTaskUpdateAdditions::SessionTaskUpdateAdditions(GuestSession *pSession,
     mSource = strSource;
     mArguments = aArguments;
     mFlags  = uFlags;
+    m_strTaskName = "gctlUpGA";
 }
 
 SessionTaskUpdateAdditions::~SessionTaskUpdateAdditions(void)
@@ -980,6 +964,7 @@ int SessionTaskUpdateAdditions::i_copyFileToGuest(GuestSession *pSession, PRTISO
     Assert(cbSize);
     rc = RTFileSeek(pISO->file, cbOffset, RTFILE_SEEK_BEGIN, NULL);
 
+    HRESULT hr = S_OK;
     /* Copy over the Guest Additions file to the guest. */
     if (RT_SUCCESS(rc))
     {
@@ -988,19 +973,58 @@ int SessionTaskUpdateAdditions::i_copyFileToGuest(GuestSession *pSession, PRTISO
 
         if (RT_SUCCESS(rc))
         {
-            SessionTaskCopyTo *pTask = new SessionTaskCopyTo(pSession /* GuestSession */,
-                                                             &pISO->file, cbOffset, cbSize,
-                                                             strFileDest, FileCopyFlag_None);
-            AssertPtrReturn(pTask, VERR_NO_MEMORY);
-
+            SessionTaskCopyTo *pTask = NULL;
             ComObjPtr<Progress> pProgressCopyTo;
-            rc = pSession->i_startTaskAsync(Utf8StrFmt(GuestSession::tr("Copying Guest Additions installer file \"%s\" to \"%s\" on guest"),
-                                                       mSource.c_str(), strFileDest.c_str()),
-                                                       pTask, pProgressCopyTo);
-            if (RT_SUCCESS(rc))
+            try
+            {
+                try
+                {
+                    pTask = new SessionTaskCopyTo(pSession /* GuestSession */,
+                                                  &pISO->file, cbOffset, cbSize,
+                                                  strFileDest, FileCopyFlag_None);
+                }
+                catch(...)
+                {
+                    hr = setProgressErrorMsg(VBOX_E_IPRT_ERROR,
+                                  GuestSession::tr("Failed to create SessionTaskCopyTo object "));
+                    throw;
+                }
+
+                hr = pTask->Init(Utf8StrFmt(GuestSession::tr("Copying Guest Additions installer file \"%s\" to \"%s\" on guest"),
+                                            mSource.c_str(), strFileDest.c_str()));
+                if (FAILED(hr))
+                {
+                    delete pTask;
+                    hr = setProgressErrorMsg(VBOX_E_IPRT_ERROR,
+                                  GuestSession::tr("Creating progress object for SessionTaskCopyTo object failed"));
+                    throw hr;
+                }
+
+                hr = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
+
+                if (SUCCEEDED(hr))
+                {
+                    /* Return progress to the caller. */
+                    pProgressCopyTo = pTask->GetProgressObject();
+                }
+                else
+                    hr = setProgressErrorMsg(VBOX_E_IPRT_ERROR,
+                                  GuestSession::tr("Starting thread for updating additions failed "));
+            }
+            catch(std::bad_alloc &)
+            {
+                hr = E_OUTOFMEMORY;
+            }
+            catch(HRESULT eHR)
+            {
+                hr = eHR;
+                LogFlowThisFunc(("Exception was caught in the function \n"));
+            }
+
+            if (SUCCEEDED(hr))
             {
                 BOOL fCanceled = FALSE;
-                HRESULT hr = pProgressCopyTo->WaitForCompletion(-1);
+                hr = pProgressCopyTo->WaitForCompletion(-1);
                 if (   SUCCEEDED(pProgressCopyTo->COMGETTER(Canceled)(&fCanceled))
                     && fCanceled)
                 {
@@ -1569,30 +1593,5 @@ int SessionTaskUpdateAdditions::Run(void)
 
     LogFlowFuncLeaveRC(rc);
     return rc;
-}
-
-int SessionTaskUpdateAdditions::RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress)
-{
-    LogFlowThisFunc(("strDesc=%s, strSource=%s, uFlags=%x\n",
-                     strDesc.c_str(), mSource.c_str(), mFlags));
-
-    mDesc = strDesc;
-    mProgress = pProgress;
-
-    int rc = RTThreadCreate(NULL, SessionTaskUpdateAdditions::taskThread, this,
-                            0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                            "gctlUpGA");
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-
-/* static */
-DECLCALLBACK(int) SessionTaskUpdateAdditions::taskThread(RTTHREAD Thread, void *pvUser)
-{
-    std::auto_ptr<SessionTaskUpdateAdditions> task(static_cast<SessionTaskUpdateAdditions*>(pvUser));
-    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
-
-    LogFlowFunc(("pTask=%p\n", task.get()));
-    return task->Run();
 }
 

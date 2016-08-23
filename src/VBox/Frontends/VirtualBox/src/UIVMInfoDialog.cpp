@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,7 +81,7 @@ void UIVMInfoDialog::invoke(UIMachineWindow *pMachineWindow)
 }
 
 UIVMInfoDialog::UIVMInfoDialog(UIMachineWindow *pMachineWindow)
-    : QIWithRetranslateUI<QMainWindow>(0)
+    : QIWithRetranslateUI<QIMainWindow>(0)
     , m_pMachineWindow(pMachineWindow)
     , m_pTabWidget(0)
     , m_session(pMachineWindow->session())
@@ -101,6 +101,11 @@ UIVMInfoDialog::~UIVMInfoDialog()
 
     /* Deinitialize instance: */
     m_spInstance = 0;
+}
+
+bool UIVMInfoDialog::shouldBeMaximized() const
+{
+    return gEDataManager->informationWindowShouldBeMaximized(vboxGlobal().managedVMUuid());
 }
 
 void UIVMInfoDialog::retranslateUi()
@@ -321,7 +326,7 @@ void UIVMInfoDialog::retranslateUi()
 bool UIVMInfoDialog::event(QEvent *pEvent)
 {
     /* Pre-process through base-class: */
-    bool fResult = QMainWindow::event(pEvent);
+    bool fResult = QIMainWindow::event(pEvent);
 
     /* Process required events: */
     switch (pEvent->type())
@@ -340,12 +345,12 @@ bool UIVMInfoDialog::event(QEvent *pEvent)
         {
             if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
             {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
                 QMoveEvent *pMoveEvent = static_cast<QMoveEvent*>(pEvent);
                 m_geometry.moveTo(pMoveEvent->pos());
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
                 m_geometry.moveTo(geometry().x(), geometry().y());
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
             }
             break;
         }
@@ -401,13 +406,13 @@ void UIVMInfoDialog::prepareThis()
     /* Delete dialog on machine-window destruction: */
     connect(m_pMachineWindow, SIGNAL(destroyed(QObject*)), this, SLOT(suicide()));
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* No window-icon on Mac OX X, because it acts as proxy icon which isn't necessary here. */
     setWindowIcon(QIcon());
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
     /* Assign window-icon(s: */
     setWindowIcon(UIIconPool::iconSetFull(":/session_info_32px.png", ":/session_info_16px.png"));
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /* Prepare central-widget: */
     prepareCentralWidget();
@@ -520,18 +525,11 @@ void UIVMInfoDialog::loadSettings()
     {
         /* Load geometry: */
         m_geometry = gEDataManager->informationWindowGeometry(this, m_pMachineWindow, vboxGlobal().managedVMUuid());
-#ifdef Q_WS_MAC
-        move(m_geometry.topLeft());
-        resize(m_geometry.size());
-#else /* Q_WS_MAC */
-        setGeometry(m_geometry);
-#endif /* !Q_WS_MAC */
-        LogRel(("GUI: UIVMInfoDialog: Geometry loaded to: Origin=%dx%d, Size=%dx%d\n",
-                m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
 
-        /* Maximize (if necessary): */
-        if (gEDataManager->informationWindowShouldBeMaximized(vboxGlobal().managedVMUuid()))
-            showMaximized();
+        /* Restore geometry: */
+        LogRel2(("GUI: UIVMInfoDialog: Restoring geometry to: Origin=%dx%d, Size=%dx%d\n",
+                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+        restoreGeometry();
     }
 }
 
@@ -540,13 +538,13 @@ void UIVMInfoDialog::saveSettings()
     /* Save window geometry: */
     {
         /* Save geometry: */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         gEDataManager->setInformationWindowGeometry(m_geometry, ::darwinIsWindowMaximized(this), vboxGlobal().managedVMUuid());
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
         gEDataManager->setInformationWindowGeometry(m_geometry, isMaximized(), vboxGlobal().managedVMUuid());
-#endif /* !Q_WS_MAC */
-        LogRel(("GUI: UIVMInfoDialog: Geometry saved as: Origin=%dx%d, Size=%dx%d\n",
-                m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+#endif /* !VBOX_WS_MAC */
+        LogRel2(("GUI: UIVMInfoDialog: Geometry saved as: Origin=%dx%d, Size=%dx%d\n",
+                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
     }
 }
 
@@ -661,17 +659,16 @@ void UIVMInfoDialog::refreshStatistics()
         QString strDnDMode = gpConverter->toString(m.GetDnDMode());
 
         /* Deterine virtualization attributes: */
-        CMachineDebugger debugger = console.GetDebugger();
-        QString strVirtualization = debugger.GetHWVirtExEnabled() ?
-            VBoxGlobal::tr("Active", "details report (VT-x/AMD-V)") :
-            VBoxGlobal::tr("Inactive", "details report (VT-x/AMD-V)");
-        QString strNestedPaging = debugger.GetHWVirtExNestedPagingEnabled() ?
-            VBoxGlobal::tr("Active", "details report (Nested Paging)") :
-            VBoxGlobal::tr("Inactive", "details report (Nested Paging)");
-        QString strUnrestrictedExecution = debugger.GetHWVirtExUXEnabled() ?
-            VBoxGlobal::tr("Active", "details report (Unrestricted Execution)") :
-            VBoxGlobal::tr("Inactive", "details report (Unrestricted Execution)");
-        QString strParavirtProvider = gpConverter->toString(m.GetEffectiveParavirtProvider());
+        const QString strVirtualization = m_pMachineWindow->uisession()->isHWVirtExEnabled() ?
+                                          VBoxGlobal::tr("Active", "details report (VT-x/AMD-V)") :
+                                          VBoxGlobal::tr("Inactive", "details report (VT-x/AMD-V)");
+        const QString strNestedPaging = m_pMachineWindow->uisession()->isHWVirtExNestedPagingEnabled() ?
+                                        VBoxGlobal::tr("Active", "details report (Nested Paging)") :
+                                        VBoxGlobal::tr("Inactive", "details report (Nested Paging)");
+        const QString strUnrestrictedExecution = m_pMachineWindow->uisession()->isHWVirtExUXEnabled() ?
+                                                 VBoxGlobal::tr("Active", "details report (Unrestricted Execution)") :
+                                                 VBoxGlobal::tr("Inactive", "details report (Unrestricted Execution)");
+        const QString strParavirtProvider = gpConverter->toString(m_pMachineWindow->uisession()->paraVirtProvider());
 
         /* Guest information: */
         CGuest guest = console.GetGuest();

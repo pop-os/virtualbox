@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,7 +48,7 @@ UIDnDMIMEData::UIDnDMIMEData(UIDnDHandler *pDnDHandler,
 #ifdef DEBUG
     LogFlowFunc(("Number of formats: %d\n", m_lstFormats.size()));
     for (int i = 0; i < m_lstFormats.size(); i++)
-        LogFlowFunc(("\tFormat %d: %s\n", i, m_lstFormats.at(i).toAscii().constData()));
+        LogFlowFunc(("\tFormat %d: %s\n", i, m_lstFormats.at(i).toUtf8().constData()));
 #endif
 }
 
@@ -57,13 +57,15 @@ QStringList UIDnDMIMEData::formats(void) const
     LogFlowFuncEnter();
 #ifdef DEBUG
     for (int i = 0; i < m_lstFormats.size(); i++)
-        LogFlowFunc(("\tFormat %d: %s\n", i, m_lstFormats.at(i).toAscii().constData()));
+        LogFlowFunc(("\tFormat %d: %s\n", i, m_lstFormats.at(i).toUtf8().constData()));
 #endif
     return m_lstFormats;
 }
 
 bool UIDnDMIMEData::hasFormat(const QString &strMIMEType) const
 {
+    RT_NOREF(strMIMEType);
+
     bool fRc;
 #ifdef RT_OS_DARWIN
     fRc = m_lstFormats.contains(strMIMEType);
@@ -204,9 +206,10 @@ QVariant::Type UIDnDMIMEData::getVariantType(const QString &strMIMEType)
 /* static */
 int UIDnDMIMEData::getDataAsVariant(const QVector<uint8_t> &vecData,
                                     const QString          &strMIMEType,
-                                         QVariant::Type    vaType,
-                                         QVariant         &vaData)
+                                          QVariant::Type    vaType,
+                                          QVariant         &vaData)
 {
+    RT_NOREF(strMIMEType);
     LogFlowFunc(("vecDataSize=%d, strMIMEType=%s vaType=%s\n",
                  vecData.size(), qPrintable(strMIMEType), QVariant::typeToName(vaType)));
 

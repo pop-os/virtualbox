@@ -3,15 +3,15 @@
 
   MBR - Master Boot Record is in the first sector of a partitioned hard disk.
         The MBR supports four partitions per disk. The MBR also contains legacy
-        code that is not run on an EFI system. The legacy code reads the 
-        first sector of the active partition into memory and 
+        code that is not run on an EFI system. The legacy code reads the
+        first sector of the active partition into memory and
 
-  BPB - BIOS Parameter Block is in the first sector of a FAT file system. 
-        The BPB contains information about the FAT file system. The BPB is 
+  BPB - BIOS Parameter Block is in the first sector of a FAT file system.
+        The BPB contains information about the FAT file system. The BPB is
         always on the first sector of a media. The first sector also contains
         the legacy boot strap code.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -29,7 +29,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
   @param  Mbr         Parent Handle.
   @param  LastLba     Last Lba address on the device.
-   
+
   @retval TRUE        Mbr is a Valid MBR.
   @retval FALSE       Mbr is not a Valid MBR.
 
@@ -104,10 +104,11 @@ PartitionValidMbr (
   @param[in]  This              Calling context.
   @param[in]  Handle            Parent Handle.
   @param[in]  DiskIo            Parent DiskIo interface.
+  @param[in]  DiskIo2           Parent DiskIo2 interface.
   @param[in]  BlockIo           Parent BlockIo interface.
   @param[in]  BlockIo2          Parent BlockIo2 interface.
   @param[in]  DevicePath        Parent Device Path.
-   
+
   @retval EFI_SUCCESS       A child handle was added.
   @retval EFI_MEDIA_CHANGED Media change was detected.
   @retval Others            MBR partition was not found.
@@ -118,6 +119,7 @@ PartitionInstallMbrChildHandles (
   IN  EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN  EFI_HANDLE                   Handle,
   IN  EFI_DISK_IO_PROTOCOL         *DiskIo,
+  IN  EFI_DISK_IO2_PROTOCOL        *DiskIo2,
   IN  EFI_BLOCK_IO_PROTOCOL        *BlockIo,
   IN  EFI_BLOCK_IO2_PROTOCOL       *BlockIo2,
   IN  EFI_DEVICE_PATH_PROTOCOL     *DevicePath
@@ -143,6 +145,9 @@ PartitionInstallMbrChildHandles (
   MediaId   = BlockIo->Media->MediaId;
   LastBlock = BlockIo->Media->LastBlock;
 
+#ifdef VBOX
+  VBoxLogFlowFuncMarkDP(DevicePath);
+#endif
   Mbr = AllocatePool (BlockSize);
   if (Mbr == NULL) {
     return Found;
@@ -210,9 +215,9 @@ PartitionInstallMbrChildHandles (
       if (Mbr->Partition[Index].OSIndicator == PMBR_GPT_PARTITION) {
         //
         // This is the guard MBR for the GPT. If you ever see a GPT disk with zero partitions you can get here.
-        //  We can not produce an MBR BlockIo for this device as the MBR spans the GPT headers. So formating 
+        //  We can not produce an MBR BlockIo for this device as the MBR spans the GPT headers. So formating
         //  this BlockIo would corrupt the GPT structures and require a recovery that would corrupt the format
-        //  that corrupted the GPT partition. 
+        //  that corrupted the GPT partition.
         //
         continue;
       }
@@ -226,6 +231,7 @@ PartitionInstallMbrChildHandles (
                 This,
                 Handle,
                 DiskIo,
+                DiskIo2,
                 BlockIo,
                 BlockIo2,
                 DevicePath,
@@ -287,6 +293,7 @@ PartitionInstallMbrChildHandles (
                  This,
                  Handle,
                  DiskIo,
+                 DiskIo2,
                  BlockIo,
                  BlockIo2,
                  DevicePath,

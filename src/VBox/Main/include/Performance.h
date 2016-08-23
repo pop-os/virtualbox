@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -813,6 +813,7 @@ namespace pm
     public:
         virtual ULONG compute(ULONG *data, ULONG length) = 0;
         virtual const char *getName() = 0;
+        virtual ~Aggregate() {}
     };
 
     class AggregateAvg : public Aggregate

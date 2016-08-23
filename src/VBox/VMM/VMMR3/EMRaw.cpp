@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,6 +42,7 @@
 #include <VBox/vmm/patm.h>
 #include "EMInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/gim.h>
 #include <VBox/vmm/cpumdis.h>
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
@@ -279,7 +280,7 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
      */
     if (pszPrefix)
     {
-        DBGFR3_INFO_LOG(pVM, "cpumguest", pszPrefix);
+        DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", pszPrefix);
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, pszPrefix);
     }
 #endif /* LOG_ENABLED */
@@ -364,7 +365,7 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
      * Use IEM and fallback on REM if the functionality is missing.
      * Once IEM gets mature enough, nothing should ever fall back.
      */
-//#define VBOX_WITH_FIRST_IEM_STEP_B
+#define VBOX_WITH_FIRST_IEM_STEP_B
 #if defined(VBOX_WITH_FIRST_IEM_STEP_B) || !defined(VBOX_WITH_REM)
     Log(("EMINS: %04x:%RGv RSP=%RGv\n", pCtx->cs.Sel, (RTGCPTR)pCtx->rip, (RTGCPTR)pCtx->rsp));
     STAM_PROFILE_START(&pVCpu->em.s.StatIEMEmu, a);
@@ -374,10 +375,6 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
     {
         if (rc == VINF_SUCCESS || rc == VINF_EM_RESCHEDULE)
             rc = VINF_EM_RESCHEDULE;
-# ifdef DEBUG_bird
-        else
-            AssertMsgFailed(("%Rrc\n", rc));
-# endif
     }
     else if (   rc == VERR_IEM_ASPECT_NOT_IMPLEMENTED
              || rc == VERR_IEM_INSTR_NOT_IMPLEMENTED)
@@ -423,6 +420,7 @@ DECLINLINE(int) emR3RawExecuteInstruction(PVM pVM, PVMCPU pVCpu, const char *psz
 #ifdef LOG_ENABLED
     return emR3RawExecuteInstructionWorker(pVM, pVCpu, rcGC, pszPrefix);
 #else
+    RT_NOREF_PV(pszPrefix);
     return emR3RawExecuteInstructionWorker(pVM, pVCpu, rcGC);
 #endif
 }
@@ -437,6 +435,7 @@ DECLINLINE(int) emR3RawExecuteInstruction(PVM pVM, PVMCPU pVCpu, const char *psz
 static int emR3RawExecuteIOInstruction(PVM pVM, PVMCPU pVCpu)
 {
     STAM_PROFILE_START(&pVCpu->em.s.StatIOEmu, a);
+    RT_NOREF_PV(pVM);
 
     /* Hand it over to the interpreter. */
     VBOXSTRICTRC rcStrict = IEMExecOne(pVCpu);
@@ -582,7 +581,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
     }
 
 #ifdef LOG_ENABLED
-    DBGFR3_INFO_LOG(pVM, "cpumguest", "Guest trap");
+    DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "Guest trap");
     DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Guest trap");
 
     /* Get guest page information. */
@@ -718,7 +717,7 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
     if (u8TrapNo != 1)
     {
 #ifdef LOG_ENABLED
-        DBGFR3_INFO_LOG(pVM, "cpumguest", "Trap in patch code");
+        DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "Trap in patch code");
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Patch code");
 
         DISCPUSTATE Cpu;
@@ -872,7 +871,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
         if (PATMR3IsInsidePatchJump(pVM, pCtx->eip, NULL))
         {
 #ifdef LOG_ENABLED
-            DBGFR3_INFO_LOG(pVM, "cpumguest", "PRIV");
+            DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "PRIV");
 #endif
             AssertMsgFailed(("FATAL ERROR: executing random instruction inside generated patch jump %08x\n", pCtx->eip));
             return VERR_EM_RAW_PATCH_CONFLICT;
@@ -886,7 +885,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
             if (RT_SUCCESS(rc))
             {
 #ifdef LOG_ENABLED
-                DBGFR3_INFO_LOG(pVM, "cpumguest", "PRIV");
+                DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "PRIV");
 #endif
                 DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Patched privileged instruction");
                 return VINF_SUCCESS;
@@ -897,7 +896,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
 #ifdef LOG_ENABLED
     if (!PATMIsPatchGCAddr(pVM, pCtx->eip))
     {
-        DBGFR3_INFO_LOG(pVM, "cpumguest", "PRIV");
+        DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "PRIV");
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Privileged instr");
     }
 #endif
@@ -1037,7 +1036,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
 #ifdef LOG_ENABLED
                     if (PATMIsPatchGCAddr(pVM, pCtx->eip))
                     {
-                        DBGFR3_INFO_LOG(pVM, "cpumguest", "PRIV");
+                        DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "PRIV");
                         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Privileged instr");
                     }
 #endif
@@ -1219,7 +1218,7 @@ static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         Assert(pVCpu->em.s.enmState != EMSTATE_WAIT_SIPI);
         int rc = PGMSyncCR3(pVCpu, pCtx->cr0, pCtx->cr3, pCtx->cr4, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
         if (RT_FAILURE(rc))
-            return rc;
+            return rc == VERR_PGM_NO_HYPERVISOR_ADDRESS ? VINF_EM_RESCHEDULE_REM : rc;
 
         Assert(!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
 
@@ -1306,9 +1305,6 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
          * Check various preconditions.
          */
 #ifdef VBOX_STRICT
-# ifdef VBOX_WITH_REM
-        Assert(REMR3QueryPendingInterrupt(pVM, pVCpu) == REM_NO_PENDING_IRQ);
-# endif
         Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) == 3 || (pCtx->ss.Sel & X86_SEL_RPL) == 0
                || (EMIsRawRing1Enabled(pVM) && (pCtx->ss.Sel & X86_SEL_RPL) == 1));
         AssertMsg(   (pCtx->eflags.u32 & X86_EFL_IF)
@@ -1496,7 +1492,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         if (    VM_FF_IS_PENDING(pVM, ~VM_FF_HIGH_PRIORITY_PRE_RAW_MASK | VM_FF_PGM_NO_MEMORY)
             ||  VMCPU_FF_IS_PENDING(pVCpu, ~VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
         {
-            Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) != (EMIsRawRing1Enabled(pVM) ? 2 : 1));
+            Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) != (EMIsRawRing1Enabled(pVM) ? 2U : 1U));
 
             STAM_REL_PROFILE_ADV_SUSPEND(&pVCpu->em.s.StatRAWTotal, a);
             rc = emR3ForcedActions(pVM, pVCpu, rc);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DRV_ACPI
 
 #ifdef RT_OS_WINDOWS
-# include <windows.h>
+# include <iprt/win/windows.h>
 #endif
 
 #include <VBox/vmm/pdmdrv.h>
@@ -43,6 +43,7 @@
 # include <Carbon/Carbon.h>
 # include <IOKit/ps/IOPowerSources.h>
 # include <IOKit/ps/IOPSKeys.h>
+# undef PVM                             /* This still messed up in the 10.9 SDK. Sigh. */
 #endif
 
 #ifdef RT_OS_FREEBSD
@@ -125,6 +126,7 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
                                                  PDMACPIPOWERSOURCE *pPowerSource)
 {
 #if defined(RT_OS_WINDOWS)
+    RT_NOREF(pInterface);
     SYSTEM_POWER_STATUS powerStatus;
     if (GetSystemPowerStatus(&powerStatus))
     {
@@ -161,6 +163,7 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
     RTCritSectLeave(&pThis->CritSect);
 
 #elif defined (RT_OS_DARWIN)
+    RT_NOREF(pInterface);
     *pPowerSource = PDM_ACPI_POWER_SOURCE_UNKNOWN;
 
     CFTypeRef pBlob = IOPSCopyPowerSourcesInfo();
@@ -202,6 +205,7 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
     CFRelease(pSources);
 
 #elif defined(RT_OS_FREEBSD)
+    RT_NOREF(pInterface);
     int fAcLine = 0;
     size_t cbParameter = sizeof(fAcLine);
 
@@ -222,6 +226,7 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
         *pPowerSource = PDM_ACPI_POWER_SOURCE_OUTLET;
     }
 #else /* !RT_OS_FREEBSD either - what could this be? */
+    RT_NOREF(pInterface);
     *pPowerSource = PDM_ACPI_POWER_SOURCE_OUTLET;
 
 #endif /* !RT_OS_FREEBSD */
@@ -229,7 +234,7 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
 }
 
 /**
- * @copydoc PDMIACPICONNECTOR::pfnQueryBatteryStatus
+ * @interface_method_impl{PDMIACPICONNECTOR,pfnQueryBatteryStatus}
  */
 static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface, bool *pfPresent,
                                                    PPDMACPIBATCAPACITY penmRemainingCapacity,
@@ -237,12 +242,13 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
                                                    uint32_t *pu32PresentRate)
 {
     /* default return values for all architectures */
-    *pfPresent              = false;   /* no battery present */
+    *pfPresent              = false;        /* no battery present */
     *penmBatteryState       = PDM_ACPI_BAT_STATE_CHARGED;
     *penmRemainingCapacity  = PDM_ACPI_BAT_CAPACITY_UNKNOWN;
-    *pu32PresentRate        = ~0;      /* present rate is unknown */
+    *pu32PresentRate        = UINT32_MAX;   /* present rate is unknown */
 
 #if defined(RT_OS_WINDOWS)
+    RT_NOREF(pInterface);
     SYSTEM_POWER_STATUS powerStatus;
     if (GetSystemPowerStatus(&powerStatus))
     {
@@ -278,6 +284,7 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
     RTCritSectLeave(&pThis->CritSect);
 
 #elif defined(RT_OS_DARWIN)
+    RT_NOREF(pInterface);
     CFTypeRef pBlob = IOPSCopyPowerSourcesInfo();
     CFArrayRef pSources = IOPSCopyPowerSourcesList(pBlob);
 
@@ -382,6 +389,7 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
     CFRelease(pSources);
 
 #elif defined(RT_OS_FREEBSD)
+    RT_NOREF(pInterface);
     /* We try to use /dev/acpi first and if that fails use the sysctls. */
     bool fSuccess = true;
     int FileAcpi = 0;
@@ -945,12 +953,11 @@ static DECLCALLBACK(int) drvACPIPollerWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
  */
 static DECLCALLBACK(void) drvACPIDestruct(PPDMDRVINS pDrvIns)
 {
-    PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
-
     LogFlow(("drvACPIDestruct\n"));
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
 #ifdef RT_OS_LINUX
+    PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
     if (pThis->hPollerSleepEvent != NIL_RTSEMEVENT)
     {
         RTSemEventDestroy(pThis->hPollerSleepEvent);
@@ -967,8 +974,9 @@ static DECLCALLBACK(void) drvACPIDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvACPIConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
     int rc = VINF_SUCCESS;
 
     /*

@@ -3,7 +3,7 @@
  *      demo webservice client in C++. This mimics some of the
  *      functionality of VBoxManage for testing purposes.
  *
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,14 @@
 #include <sstream>
 #include <string>
 
+/* TEMPORARY! */
+#if defined(_MSC_VER) && !defined(RT_ARCH_AMD64) && defined(DEBUG)
+void wastesomecodespace(int a, int b, int c)
+{
+    for (int i = 0; i < c ; i++)
+        a = a * b * c;
+}
+#endif
 
 static void usage(int exitcode)
 {

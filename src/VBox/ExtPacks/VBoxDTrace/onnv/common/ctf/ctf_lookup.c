@@ -135,7 +135,12 @@ ctf_lookup_by_name(ctf_file_t *fp, const char *name)
 
 		for (lp = fp->ctf_lookups; lp->ctl_prefix != NULL; lp++) {
 			if (lp->ctl_prefix[0] == '\0' ||
+#ifdef VBOX
+			    (   strncmp(p, lp->ctl_prefix, (size_t)(q - p)) == 0
+			     && lp->ctl_len <= (size_t)(q - p)) /* don't push 'p' to far and crash */ ) {
+#else
 			    strncmp(p, lp->ctl_prefix, (size_t)(q - p)) == 0) {
+#endif
 				for (p += lp->ctl_len; isspace(*p); p++)
 					continue; /* skip prefix and next ws */
 
@@ -228,7 +233,7 @@ ctf_lookup_by_id(ctf_file_t **fpp, ctf_id_t type)
 	}
 
 	type = CTF_TYPE_TO_INDEX(type);
-	if (type > 0 && type <= fp->ctf_typemax) {
+	if (type > 0 && type <= (intptr_t/*vbox*/)fp->ctf_typemax) {
 		*fpp = fp; /* function returns ending CTF container */
 		return (LCTF_INDEX_TO_TYPEPTR(fp, type));
 	}

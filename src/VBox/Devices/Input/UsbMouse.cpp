@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1070,6 +1070,7 @@ DECLINLINE(bool) usbHidQueueRemove(PUSBHIDURBQUEUE pQueue, PVUSBURB pUrb)
 }
 
 
+#if 0 /* unused */
 /**
  * Checks if the queue is empty or not.
  *
@@ -1080,6 +1081,7 @@ DECLINLINE(bool) usbHidQueueIsEmpty(PCUSBHIDURBQUEUE pQueue)
 {
     return pQueue->pHead == NULL;
 }
+#endif /* unused */
 
 
 /**
@@ -1439,10 +1441,10 @@ static DECLCALLBACK(void *) usbHidMouseQueryInterface(PPDMIBASE pInterface, cons
 /**
  * @interface_method_impl{PDMIMOUSEPORT,pfnPutEvent}
  */
-static DECLCALLBACK(int) usbHidMousePutEvent(PPDMIMOUSEPORT pInterface,
-                                             int32_t dx, int32_t dy, int32_t dz,
-                                             int32_t dw, uint32_t fButtons)
+static DECLCALLBACK(int) usbHidMousePutEvent(PPDMIMOUSEPORT pInterface, int32_t dx, int32_t dy,
+                                             int32_t dz, int32_t dw, uint32_t fButtons)
 {
+    RT_NOREF1(dw);
     PUSBHID pThis = RT_FROM_MEMBER(pInterface, USBHID, Lun0.IPort);
     RTCritSectEnter(&pThis->CritSect);
 
@@ -1666,7 +1668,7 @@ static DECLCALLBACK(int) usbHidMousePutEventMultiTouch(PPDMIMOUSEPORT pInterface
 }
 
 /**
- * @copydoc PDMUSBREG::pfnUrbReap
+ * @interface_method_impl{PDMUSBREG,pfnUrbReap}
  */
 static DECLCALLBACK(PVUSBURB) usbHidUrbReap(PPDMUSBINS pUsbIns, RTMSINTERVAL cMillies)
 {
@@ -1700,7 +1702,7 @@ static DECLCALLBACK(PVUSBURB) usbHidUrbReap(PPDMUSBINS pUsbIns, RTMSINTERVAL cMi
 }
 
 /**
- * @copydoc PDMUSBREG::pfnWakeup
+ * @interface_method_impl{PDMUSBREG,pfnWakeup}
  */
 static DECLCALLBACK(int) usbHidWakeup(PPDMUSBINS pUsbIns)
 {
@@ -1710,7 +1712,7 @@ static DECLCALLBACK(int) usbHidWakeup(PPDMUSBINS pUsbIns)
 }
 
 /**
- * @copydoc PDMUSBREG::pfnUrbCancel
+ * @interface_method_impl{PDMUSBREG,pfnUrbCancel}
  */
 static DECLCALLBACK(int) usbHidUrbCancel(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
 {
@@ -1795,7 +1797,7 @@ static int usbHidHandleIntrDevToHost(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb
 #define SET_IDLE     0x0A
 #define SET_PROTOCOL 0x0B
 
-static uint8_t sau8QASampleBlob[256] =
+static uint8_t const g_abQASampleBlob[256] =
 {
     0xfc, 0x28, 0xfe, 0x84, 0x40, 0xcb, 0x9a, 0x87,
     0x0d, 0xbe, 0x57, 0x3c, 0xb6, 0x70, 0x09, 0x88,
@@ -1887,11 +1889,10 @@ static int usbHidRequestClass(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                 }
                 else if (u8ReportType == 3 && u8ReportID == REPORTID_TOUCH_QABLOB)
                 {
-                    uint32_t cbLeft = pUrb->cbData;
                     pUrb->abData[sizeof(VUSBSETUP) + 0] = REPORTID_TOUCH_QABLOB;  /* Report Id. */
                     memcpy(&pUrb->abData[sizeof(VUSBSETUP) + 1],
-                           sau8QASampleBlob, sizeof(sau8QASampleBlob));
-                    cbData = sizeof(sau8QASampleBlob) + 1;
+                           g_abQASampleBlob, sizeof(g_abQASampleBlob));
+                    cbData = sizeof(g_abQASampleBlob) + 1;
                 }
                 else if (u8ReportType == 3 && u8ReportID == REPORTID_TOUCH_DEVCONFIG)
                 {
@@ -1975,22 +1976,22 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                             {
                                 switch (pThis->enmMode)
                                 {
-                                case USBHIDMODE_ABSOLUTE:
-                                    cbDesc = sizeof(g_UsbHidTIfHidDesc);
-                                    pDesc = (const uint8_t *)&g_UsbHidTIfHidDesc;
-                                    break;
-                                case USBHIDMODE_RELATIVE:
-                                    cbDesc = sizeof(g_UsbHidMIfHidDesc);
-                                    pDesc = (const uint8_t *)&g_UsbHidMIfHidDesc;
-                                    break;
-                                case USBHIDMODE_MULTI_TOUCH:
-                                    cbDesc = sizeof(g_UsbHidMTIfHidDesc);
-                                    pDesc = (const uint8_t *)&g_UsbHidMTIfHidDesc;
-                                    break;
-                                default:
-                                    cbDesc = 0;
-                                    pDesc = 0;
-                                    break;
+                                    case USBHIDMODE_ABSOLUTE:
+                                        cbDesc = sizeof(g_UsbHidTIfHidDesc);
+                                        pDesc = (const uint8_t *)&g_UsbHidTIfHidDesc;
+                                        break;
+                                    case USBHIDMODE_RELATIVE:
+                                        cbDesc = sizeof(g_UsbHidMIfHidDesc);
+                                        pDesc = (const uint8_t *)&g_UsbHidMIfHidDesc;
+                                        break;
+                                    case USBHIDMODE_MULTI_TOUCH:
+                                        cbDesc = sizeof(g_UsbHidMTIfHidDesc);
+                                        pDesc = (const uint8_t *)&g_UsbHidMTIfHidDesc;
+                                        break;
+                                    default:
+                                        cbDesc = 0;
+                                        pDesc = 0;
+                                        break;
                                 }
                                 /* Returned data is written after the setup message. */
                                 cbCopy = pUrb->cbData - sizeof(*pSetup);
@@ -2006,22 +2007,22 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                             {
                                 switch (pThis->enmMode)
                                 {
-                                case USBHIDMODE_ABSOLUTE:
-                                    cbDesc = sizeof(g_UsbHidTReportDesc);
-                                    pDesc = (const uint8_t *)&g_UsbHidTReportDesc;
-                                    break;
-                                case USBHIDMODE_RELATIVE:
-                                    cbDesc = sizeof(g_UsbHidMReportDesc);
-                                    pDesc = (const uint8_t *)&g_UsbHidMReportDesc;
-                                    break;
-                                case USBHIDMODE_MULTI_TOUCH:
-                                    cbDesc = sizeof(g_UsbHidMTReportDesc);
-                                    pDesc = (const uint8_t *)&g_UsbHidMTReportDesc;
-                                    break;
-                                default:
-                                    cbDesc = 0;
-                                    pDesc = 0;
-                                    break;
+                                    case USBHIDMODE_ABSOLUTE:
+                                        cbDesc = sizeof(g_UsbHidTReportDesc);
+                                        pDesc = (const uint8_t *)&g_UsbHidTReportDesc;
+                                        break;
+                                    case USBHIDMODE_RELATIVE:
+                                        cbDesc = sizeof(g_UsbHidMReportDesc);
+                                        pDesc = (const uint8_t *)&g_UsbHidMReportDesc;
+                                        break;
+                                    case USBHIDMODE_MULTI_TOUCH:
+                                        cbDesc = sizeof(g_UsbHidMTReportDesc);
+                                        pDesc = (const uint8_t *)&g_UsbHidMTReportDesc;
+                                        break;
+                                    default:
+                                        cbDesc = 0;
+                                        pDesc = 0;
+                                        break;
                                 }
                                 /* Returned data is written after the setup message. */
                                 cbCopy = pUrb->cbData - sizeof(*pSetup);
@@ -2147,7 +2148,7 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
 
 
 /**
- * @copydoc PDMUSBREG::pfnUrbQueue
+ * @interface_method_impl{PDMUSBREG,pfnUrbQueue}
  */
 static DECLCALLBACK(int) usbHidQueue(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
 {
@@ -2184,7 +2185,7 @@ static DECLCALLBACK(int) usbHidQueue(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbClearHaltedEndpoint
+ * @interface_method_impl{PDMUSBREG,pfnUsbClearHaltedEndpoint}
  */
 static DECLCALLBACK(int) usbHidUsbClearHaltedEndpoint(PPDMUSBINS pUsbIns, unsigned uEndpoint)
 {
@@ -2204,7 +2205,7 @@ static DECLCALLBACK(int) usbHidUsbClearHaltedEndpoint(PPDMUSBINS pUsbIns, unsign
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbSetInterface
+ * @interface_method_impl{PDMUSBREG,pfnUsbSetInterface}
  */
 static DECLCALLBACK(int) usbHidUsbSetInterface(PPDMUSBINS pUsbIns, uint8_t bInterfaceNumber, uint8_t bAlternateSetting)
 {
@@ -2216,11 +2217,12 @@ static DECLCALLBACK(int) usbHidUsbSetInterface(PPDMUSBINS pUsbIns, uint8_t bInte
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbSetConfiguration
+ * @interface_method_impl{PDMUSBREG,pfnUsbSetConfiguration}
  */
 static DECLCALLBACK(int) usbHidUsbSetConfiguration(PPDMUSBINS pUsbIns, uint8_t bConfigurationValue,
                                                    const void *pvOldCfgDesc, const void *pvOldIfState, const void *pvNewCfgDesc)
 {
+    RT_NOREF3(pvOldCfgDesc, pvOldIfState, pvNewCfgDesc);
     PUSBHID pThis = PDMINS_2_DATA(pUsbIns, PUSBHID);
     LogRelFlow(("usbHidUsbSetConfiguration/#%u: bConfigurationValue=%u\n",
                 pUsbIns->iInstance, bConfigurationValue));
@@ -2248,7 +2250,7 @@ static DECLCALLBACK(int) usbHidUsbSetConfiguration(PPDMUSBINS pUsbIns, uint8_t b
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbGetDescriptorCache
+ * @interface_method_impl{PDMUSBREG,pfnUsbGetDescriptorCache}
  */
 static DECLCALLBACK(PCPDMUSBDESCCACHE) usbHidUsbGetDescriptorCache(PPDMUSBINS pUsbIns)
 {
@@ -2256,23 +2258,24 @@ static DECLCALLBACK(PCPDMUSBDESCCACHE) usbHidUsbGetDescriptorCache(PPDMUSBINS pU
     LogRelFlow(("usbHidUsbGetDescriptorCache/#%u:\n", pUsbIns->iInstance));
     switch (pThis->enmMode)
     {
-    case USBHIDMODE_ABSOLUTE:
-        return &g_UsbHidTDescCache;
-    case USBHIDMODE_RELATIVE:
-        return &g_UsbHidMDescCache;
-    case USBHIDMODE_MULTI_TOUCH:
-        return &g_UsbHidMTDescCache;
-    default:
-        return NULL;
+        case USBHIDMODE_ABSOLUTE:
+            return &g_UsbHidTDescCache;
+        case USBHIDMODE_RELATIVE:
+            return &g_UsbHidMDescCache;
+        case USBHIDMODE_MULTI_TOUCH:
+            return &g_UsbHidMTDescCache;
+        default:
+            return NULL;
     }
 }
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbReset
+ * @interface_method_impl{PDMUSBREG,pfnUsbReset}
  */
 static DECLCALLBACK(int) usbHidUsbReset(PPDMUSBINS pUsbIns, bool fResetOnLinux)
 {
+    RT_NOREF1(fResetOnLinux);
     PUSBHID pThis = PDMINS_2_DATA(pUsbIns, PUSBHID);
     LogRelFlow(("usbHidUsbReset/#%u:\n", pUsbIns->iInstance));
     RTCritSectEnter(&pThis->CritSect);
@@ -2285,10 +2288,11 @@ static DECLCALLBACK(int) usbHidUsbReset(PPDMUSBINS pUsbIns, bool fResetOnLinux)
 
 
 /**
- * @copydoc PDMUSBREG::pfnDestruct
+ * @interface_method_impl{PDMUSBREG,pfnDestruct}
  */
 static DECLCALLBACK(void) usbHidDestruct(PPDMUSBINS pUsbIns)
 {
+    PDMUSB_CHECK_VERSIONS_RETURN_VOID(pUsbIns);
     PUSBHID pThis = PDMINS_2_DATA(pUsbIns, PUSBHID);
     LogRelFlow(("usbHidDestruct/#%u:\n", pUsbIns->iInstance));
 
@@ -2308,12 +2312,13 @@ static DECLCALLBACK(void) usbHidDestruct(PPDMUSBINS pUsbIns)
 
 
 /**
- * @copydoc PDMUSBREG::pfnConstruct
+ * @interface_method_impl{PDMUSBREG,pfnConstruct}
  */
 static DECLCALLBACK(int) usbHidConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFGMNODE pCfg, PCFGMNODE pCfgGlobal)
 {
+    RT_NOREF1(pCfgGlobal);
+    PDMUSB_CHECK_VERSIONS_RETURN(pUsbIns);
     PUSBHID pThis = PDMINS_2_DATA(pUsbIns, PUSBHID);
-    char szMode[64];
     LogRelFlow(("usbHidConstruct/#%u:\n", iInstance));
 
     /*
@@ -2337,6 +2342,7 @@ static DECLCALLBACK(int) usbHidConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFG
     rc = CFGMR3ValidateConfig(pCfg, "/", "Mode|CoordShift", "Config", "UsbHid", iInstance);
     if (RT_FAILURE(rc))
         return rc;
+    char szMode[64];
     rc = CFGMR3QueryStringDef(pCfg, "Mode", szMode, sizeof(szMode), "relative");
     if (RT_FAILURE(rc))
         return PDMUsbHlpVMSetError(pUsbIns, rc, RT_SRC_POS, N_("HID failed to query settings"));

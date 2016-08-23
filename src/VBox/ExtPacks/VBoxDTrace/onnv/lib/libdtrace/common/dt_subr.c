@@ -495,6 +495,9 @@ dt_ioctl(dtrace_hdl_t *dtp, int val, void *arg)
 #ifndef VBOX
 	if (dtp->dt_fd >= 0)
 		return (ioctl(dtp->dt_fd, val, arg));
+
+	errno = EBADF;
+	return (-1);
 #else
 # if 1
 	rc = SUPR3TracerIoCtl(val, (uintptr_t)arg, &iRetVal);
@@ -548,11 +551,11 @@ dt_ioctl(dtrace_hdl_t *dtp, int val, void *arg)
 		}
 
 	}
-# endif
-#endif
 
 	errno = EBADF;
 	return (-1);
+# endif
+#endif
 }
 
 int
@@ -604,7 +607,7 @@ dt_write(dtrace_hdl_t *dtp, int fd, const void *buf, size_t n)
 		buf = (char *)buf + len;
 	}
 
-	if (resid == n && n != 0)
+	if ((size_t)resid == n && n != 0)
 		return (dt_set_errno(dtp, errno));
 
 	return (n - resid);
@@ -699,7 +702,7 @@ dt_printf(dtrace_hdl_t *dtp, FILE *fp, const char *format, ...)
 			assert(dtp->dt_buffered_offs < dtp->dt_buffered_size);
 			avail = dtp->dt_buffered_size - dtp->dt_buffered_offs;
 
-			if (needed + 1 < avail)
+			if ((size_t/*vbox*/)needed + 1 < avail)
 				break;
 
 			if ((newbuf = realloc(dtp->dt_buffered_buf,
@@ -796,6 +799,7 @@ dt_alloc(dtrace_hdl_t *dtp, size_t size)
 void
 dt_free(dtrace_hdl_t *dtp, void *data)
 {
+	RT_NOREF1(dtp);
 	assert(dtp != NULL); /* ensure sane use of this interface */
 	free(data);
 }
@@ -849,6 +853,26 @@ dt_basename(char *str)
 ulong_t
 dt_popc(ulong_t x)
 {
+#ifdef VBOX
+# if ARCH_BITS == 32
+    x = x - ((x >> 1) & UINT32_C(0x55555555));
+    x = (x & UINT32_C(0x33333333)) + ((x >> 2) & UINT32_C(0x33333333));
+    x = (x + (x >> 4)) & UINT32_C(0x0F0F0F0F);
+    x = x + (x >> 8);
+    x = x + (x >> 16);
+    return (x & 0x3F);
+# elif ARCH_BITS == 64
+    x = x - ((x >> 1) & UINT64_C(0x5555555555555555));
+    x = (x & UINT64_C(0x3333333333333333)) + ((x >> 2) & UINT64_C(0x3333333333333333));
+    x = (x + (x >> 4)) & UINT64_C(0x0F0F0F0F0F0F0F0F);
+    x = x + (x >> 8);
+    x = x + (x >> 16);
+    x = x + (x >> 32);
+    return (x & 0x7F);
+# else
+#  error "ARCH_BITS"
+# endif
+#else  /* !VBOX */
 #ifdef _ILP32
 	x = x - ((x >> 1) & 0x55555555UL);
 	x = (x & 0x33333333UL) + ((x >> 2) & 0x33333333UL);
@@ -866,6 +890,7 @@ dt_popc(ulong_t x)
 	x = x + (x >> 32);
 	return (x & 0x7F);
 #endif
+#endif /* !VBOX */
 }
 
 /*
@@ -995,6 +1020,7 @@ dtrace_uaddr2str(dtrace_hdl_t *dtp, pid_t pid,
 	dt_proc_release(dtp, P);
 #else
 	char c[32];
+	RT_NOREF2(dtp, pid);
 	RTStrPrintf(c, sizeof (c), "0x%llx", addr);
 #endif
 

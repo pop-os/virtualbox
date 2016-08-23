@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -575,19 +575,19 @@ RTDECL(int) RTAsn1SetCore_Clone(PRTASN1SETCORE pThis, PCRTASN1COREVTABLE pVtable
  * ASN.1 Context Tag object.
  */
 
-RTDECL(int) RTAsn1ContextTagN_Init(PRTASN1CONTEXTTAG pThis, uint32_t uTag)
+RTDECL(int) RTAsn1ContextTagN_Init(PRTASN1CONTEXTTAG pThis, uint32_t uTag, PCRTASN1COREVTABLE pVtable)
 {
     return RTAsn1Core_InitEx(&pThis->Asn1Core,
                              uTag,
                              ASN1_TAGCLASS_CONTEXT | ASN1_TAGFLAG_CONSTRUCTED,
-                             NULL,
+                             pVtable,
                              RTASN1CORE_F_PRESENT);
 }
 
 
 RTDECL(int) RTAsn1ContextTagN_Clone(PRTASN1CONTEXTTAG pThis, PCRTASN1CONTEXTTAG pSrc, uint32_t uTag)
 {
-    Assert(pSrc->Asn1Core.uTag == uTag || !RTASN1CORE_IS_PRESENT(&pSrc->Asn1Core));
+    Assert(pSrc->Asn1Core.uTag == uTag || !RTASN1CORE_IS_PRESENT(&pSrc->Asn1Core)); RT_NOREF_PV(uTag);
     return RTAsn1Core_CloneNoContent(&pThis->Asn1Core, &pSrc->Asn1Core);
 }
 

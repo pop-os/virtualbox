@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -400,7 +400,11 @@ pxtcp_pmgr_add(struct pxtcp *pxtcp)
     int status;
 
     LWIP_ASSERT1(pxtcp != NULL);
+#ifdef RT_OS_WINDOWS
+    LWIP_ASSERT1(pxtcp->sock != INVALID_SOCKET);
+#else
     LWIP_ASSERT1(pxtcp->sock >= 0);
+#endif
     LWIP_ASSERT1(pxtcp->pmhdl.callback != NULL);
     LWIP_ASSERT1(pxtcp->pmhdl.data == (void *)pxtcp);
     LWIP_ASSERT1(pxtcp->pmhdl.slot < 0);
@@ -1115,6 +1119,7 @@ static int
 pxtcp_pmgr_connect(struct pollmgr_handler *handler, SOCKET fd, int revents)
 {
     struct pxtcp *pxtcp;
+    RT_NOREF(fd);
 
     pxtcp = (struct pxtcp *)handler->data;
     LWIP_ASSERT1(handler == &pxtcp->pmhdl);
@@ -1689,6 +1694,7 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
     struct pxtcp *pxtcp;
     int status;
     int sockerr;
+    RT_NOREF(fd);
 
     pxtcp = (struct pxtcp *)handler->data;
     LWIP_ASSERT1(handler == &pxtcp->pmhdl);
@@ -2143,7 +2149,8 @@ pxtcp_pcb_forward_inbound(struct pxtcp *pxtcp)
                 maybemore = TCP_WRITE_FLAG_MORE;
             }
 
-            error = tcp_write(pcb, &pxtcp->inbuf.buf[beg], toeob, maybemore);
+            Assert(toeob == (u16_t)toeob);
+            error = tcp_write(pcb, &pxtcp->inbuf.buf[beg], (u16_t)toeob, maybemore);
             if (error != ERR_OK) {
                 goto writeerr;
             }

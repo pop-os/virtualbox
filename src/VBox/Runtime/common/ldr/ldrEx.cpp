@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,8 +39,8 @@
 #include <iprt/mem.h>
 #include <iprt/sha.h>
 #include <iprt/string.h>
+#include <iprt/formats/mz.h>
 #include "internal/ldr.h"
-#include "internal/ldrMZ.h"
 
 #ifdef LDR_ONLY_PE
 # undef LDR_WITH_PE

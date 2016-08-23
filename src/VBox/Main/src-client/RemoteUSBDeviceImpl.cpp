@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,9 +75,10 @@ HRESULT RemoteUSBDevice::init(uint32_t u32ClientId, VRDEUSBDEVICEDESC *pDevDesc,
     char id[64];
     RTStrPrintf(id, sizeof(id), REMOTE_USB_BACKEND_PREFIX_S "0x%08X&0x%08X", pDevDesc->id, u32ClientId);
     unconst(mData.address)      = id;
+    unconst(mData.backend)      = "vrdp";
 
     unconst(mData.port)         = pDevDesc->idPort;
-    unconst(mData.version)      = pDevDesc->bcdUSB >> 8;
+    unconst(mData.version)      = (uint16_t)(pDevDesc->bcdUSB >> 8);
     if (fDescExt)
     {
         VRDEUSBDEVICEDESCEXT *pDevDescExt = (VRDEUSBDEVICEDESCEXT *)pDevDesc;
@@ -115,7 +116,7 @@ HRESULT RemoteUSBDevice::init(uint32_t u32ClientId, VRDEUSBDEVICEDESC *pDevDesc,
     mData.state                  = USBDeviceState_Available;
 
     mData.dirty                  = false;
-    unconst(mData.devId)        = pDevDesc->id;
+    unconst(mData.devId)        = (uint16_t)pDevDesc->id;
 
     unconst(mData.clientId)     = u32ClientId;
 
@@ -150,6 +151,7 @@ void RemoteUSBDevice::uninit()
     unconst(mData.serialNumber).setNull();
 
     unconst(mData.address).setNull();
+    unconst(mData.backend).setNull();
 
     unconst(mData.port) = 0;
     unconst(mData.version) = 1;
@@ -264,6 +266,14 @@ HRESULT RemoteUSBDevice::getRemote(BOOL *aRemote)
     /* RemoteUSBDevice is always remote. */
     /* this is const, no need to lock */
     *aRemote = TRUE;
+
+    return S_OK;
+}
+
+HRESULT RemoteUSBDevice::getBackend(com::Utf8Str &aBackend)
+{
+    /* this is const, no need to lock */
+    aBackend = mData.backend;
 
     return S_OK;
 }

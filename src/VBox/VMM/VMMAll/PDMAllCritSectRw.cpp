@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -155,6 +155,14 @@ static int pdmCritSectRwEnterShared(PPDMCRITSECTRW pThis, int rcBusy, bool fTryO
      */
     AssertPtr(pThis);
     AssertReturn(pThis->s.Core.u32Magic == RTCRITSECTRW_MAGIC, VERR_SEM_DESTROYED);
+
+#if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
+    NOREF(pSrcPos);
+    NOREF(fNoVal);
+#endif
+#ifdef IN_RING3
+    NOREF(rcBusy);
+#endif
 
 #if defined(PDMCRITSECTRW_STRICT) && defined(IN_RING3)
     RTTHREAD hThreadSelf = RTThreadSelfAutoAdopt();
@@ -551,6 +559,10 @@ static int pdmCritSectRwLeaveSharedWorker(PPDMCRITSECTRW pThis, bool fNoVal)
     AssertPtr(pThis);
     AssertReturn(pThis->s.Core.u32Magic == RTCRITSECTRW_MAGIC, VERR_SEM_DESTROYED);
 
+#if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
+    NOREF(fNoVal);
+#endif
+
     /*
      * Check the direction and take action accordingly.
      */
@@ -696,6 +708,14 @@ static int pdmCritSectRwEnterExcl(PPDMCRITSECTRW pThis, int rcBusy, bool fTryOnl
      */
     AssertPtr(pThis);
     AssertReturn(pThis->s.Core.u32Magic == RTCRITSECTRW_MAGIC, VERR_SEM_DESTROYED);
+
+#if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
+    NOREF(pSrcPos);
+    NOREF(fNoVal);
+#endif
+#ifdef IN_RING3
+    NOREF(rcBusy);
+#endif
 
 #if defined(PDMCRITSECTRW_STRICT) && defined(IN_RING3)
     RTTHREAD hThreadSelf = NIL_RTTHREAD;
@@ -1083,6 +1103,10 @@ static int pdmCritSectRwLeaveExclWorker(PPDMCRITSECTRW pThis, bool fNoVal)
     AssertPtr(pThis);
     AssertReturn(pThis->s.Core.u32Magic == RTCRITSECTRW_MAGIC, VERR_SEM_DESTROYED);
 
+#if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
+    NOREF(fNoVal);
+#endif
+
     RTNATIVETHREAD hNativeSelf = pdmCritSectRwGetNativeSelf(pThis);
     RTNATIVETHREAD hNativeWriter;
     ASMAtomicUoReadHandle(&pThis->s.Core.hNativeWriter, &hNativeWriter);
@@ -1319,6 +1343,7 @@ VMMDECL(bool) PDMCritSectRwIsReadOwner(PPDMCRITSECTRW pThis, bool fWannaHear)
      * Ask the lock validator.
      * Note! It doesn't know everything, let's deal with that if it becomes an issue...
      */
+    NOREF(fWannaHear);
     return RTLockValidatorRecSharedIsOwner(pThis->s.Core.pValidatorRead, NIL_RTTHREAD);
 #else
     /*

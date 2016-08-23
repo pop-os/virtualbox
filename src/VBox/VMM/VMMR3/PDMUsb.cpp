@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -528,6 +528,7 @@ static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int i
     {
         /** @todo r=bird: This code is bogus as it ASSUMES that all USB devices are
          *        capable of infinite number of instances. */
+        rc = VINF_SUCCESS; /* Shut up stupid incorrect uninitialized warning from Visual C++ 2010. */
         for (unsigned c = 0; c < _2M; c++)
         {
             iInstance = pUsbDev->iNextInstance++;
@@ -602,7 +603,7 @@ static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int i
     //pUsbIns->Internal.s.pHub                = NULL;
     pUsbIns->Internal.s.iPort               = UINT32_MAX; /* to be determined. */
     /* Set the flag accordingly.
-     * Oherwise VMPowerOff, VMSuspend will not be called for devices attached at runtime.
+     * Otherwise VMPowerOff, VMSuspend will not be called for devices attached at runtime.
      */
     pUsbIns->Internal.s.fVMSuspended        = !fAtRuntime;
     //pUsbIns->Internal.s.pfnAsyncNotify      = NULL;
@@ -982,14 +983,14 @@ VMMR3DECL(int) PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName
  * @returns VBox status code.
  * @param   pUVM                The user mode VM handle.
  * @param   pUuid               The UUID to be associated with the device.
- * @param   fRemote             Whether it's a remove or local device.
+ * @param   pszBackend          The proxy backend to use.
  * @param   pszAddress          The address string.
  * @param   pvBackend           Pointer to the backend.
  * @param   iUsbVersion         The preferred USB version.
  * @param   fMaskedIfs          The interfaces to hide from the guest.
  * @param   pszCaptureFilename  Path to the file for USB traffic capturing, optional.
  */
-VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, bool fRemote, const char *pszAddress, void *pvBackend,
+VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *pszBackend, const char *pszAddress, void *pvBackend,
                                          uint32_t iUsbVersion, uint32_t fMaskedIfs, const char *pszCaptureFilename)
 {
     /*
@@ -1039,7 +1040,7 @@ VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, bool fRemote
         char szUuid[RTUUID_STR_LENGTH];
         rc = RTUuidToStr(pUuid, &szUuid[0], sizeof(szUuid));                    AssertRCBreak(rc);
         rc = CFGMR3InsertString(pConfig,  "UUID", szUuid);                      AssertRCBreak(rc);
-        rc = CFGMR3InsertInteger(pConfig, "Remote", fRemote);                   AssertRCBreak(rc);
+        rc = CFGMR3InsertString(pConfig, "Backend", pszBackend);                AssertRCBreak(rc);
         rc = CFGMR3InsertInteger(pConfig, "USBVersion", iUsbVersion);           AssertRCBreak(rc);
         rc = CFGMR3InsertInteger(pConfig, "pvBackend", (uintptr_t)pvBackend);   AssertRCBreak(rc);
         rc = CFGMR3InsertInteger(pConfig, "MaskedIfs", fMaskedIfs);             AssertRCBreak(rc);
@@ -1615,7 +1616,8 @@ static DECLCALLBACK(int) pdmR3UsbHlp_DBGFStopV(PPDMUSBINS pUsbIns, const char *p
 
 
 /** @interface_method_impl{PDMUSBHLP,pfnDBGFInfoRegister} */
-static DECLCALLBACK(int) pdmR3UsbHlp_DBGFInfoRegister(PPDMUSBINS pUsbIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERUSB pfnHandler)
+static DECLCALLBACK(int) pdmR3UsbHlp_DBGFInfoRegister(PPDMUSBINS pUsbIns, const char *pszName, const char *pszDesc,
+                                                      PFNDBGFHANDLERUSB pfnHandler)
 {
     PDMUSB_ASSERT_USBINS(pUsbIns);
     LogFlow(("pdmR3UsbHlp_DBGFInfoRegister: caller='%s'/%d: pszName=%p:{%s} pszDesc=%p:{%s} pfnHandler=%p\n",
@@ -1623,7 +1625,7 @@ static DECLCALLBACK(int) pdmR3UsbHlp_DBGFInfoRegister(PPDMUSBINS pUsbIns, const 
 
     PVM pVM = pUsbIns->Internal.s.pVM;
     VM_ASSERT_EMT(pVM);
-    NOREF(pVM); /** @todo int rc = DBGFR3InfoRegisterUsb(pVM, pszName, pszDesc, pfnHandler, pUsbIns); */
+    RT_NOREF4(pVM, pfnHandler, pszDesc, pszName); /** @todo int rc = DBGFR3InfoRegisterUsb(pVM, pszName, pszDesc, pfnHandler, pUsbIns); */
     int rc = VERR_NOT_IMPLEMENTED; AssertFailed();
 
     LogFlow(("pdmR3UsbHlp_DBGFInfoRegister: caller='%s'/%d: returns %Rrc\n", pUsbIns->pReg->szName, pUsbIns->iInstance, rc));
@@ -1674,6 +1676,7 @@ static DECLCALLBACK(int) pdmR3UsbHlp_PDMQueueCreate(PPDMUSBINS pUsbIns, RTUINT c
         AssertLogRelReturn(pszName, VERR_NO_MEMORY);
     }
 
+    RT_NOREF5(cbItem, cItems, cMilliesInterval, pfnCallback, ppQueue);
     /** @todo int rc = PDMR3QueueCreateUsb(pVM, pUsbIns, cbItem, cItems, cMilliesInterval, pfnCallback, fGCEnabled, pszName, ppQueue); */
     int rc = VERR_NOT_IMPLEMENTED; AssertFailed();
 

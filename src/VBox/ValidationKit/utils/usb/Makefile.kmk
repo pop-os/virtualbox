@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2014-2015 Oracle Corporation
+# Copyright (C) 2014-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -30,9 +30,28 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 # USB Linux test frontend.
 #
-PROGRAMS += UsbTest
-UsbTest_TEMPLATE = VBoxValidationKitR3
-UsbTest_SOURCES  = UsbTest.cpp
+ifeq ($(KBUILD_TARGET),linux)
+ PROGRAMS += UsbTest
+ UsbTest_TEMPLATE = VBoxValidationKitR3
+ UsbTest_SOURCES  = UsbTest.cpp
+endif
+
+PROGRAMS += UsbTestService
+UsbTestService_TEMPLATE = VBoxValidationKitR3
+UsbTestService_DEFS = \
+	KBUILD_TARGET=\"$(KBUILD_TARGET)\" \
+	KBUILD_TARGET_ARCH=\"$(KBUILD_TARGET_ARCH)\"
+UsbTestService_SOURCES = \
+	UsbTestService.cpp \
+	UsbTestServiceGadgetCfg.cpp \
+	UsbTestServiceGadgetClassTest.cpp \
+	UsbTestServiceGadgetHost.cpp \
+	UsbTestServiceGadgetHostUsbIp.cpp \
+	UsbTestServiceGadget.cpp \
+	UsbTestServiceProtocol.cpp \
+	UsbTestServiceTcp.cpp
+UsbTestService_SOURCES.linux = \
+	UsbTestServicePlatform-linux.cpp
 
 $(evalcall def_vbox_validationkit_process_python_sources)
 include $(FILE_KBUILD_SUB_FOOTER)

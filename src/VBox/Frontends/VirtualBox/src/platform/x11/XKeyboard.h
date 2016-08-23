@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,12 +18,15 @@
 #ifndef __XKeyboard_h__
 #define __XKeyboard_h__
 
-#include <QString>
+/* Forward declarations: */
+class QString;
+typedef struct _XDisplay Display;
+
 
 // initialize the X keyboard subsystem
-void initMappedX11Keyboard(Display *pDisplay, QString remapScancodes);
+void initMappedX11Keyboard(Display *pDisplay, const QString &remapScancodes);
 // our custom keyboard handler
-unsigned handleXKeyEvent(XEvent *event);
+unsigned handleXKeyEvent(Display *pDisplay, unsigned int iDetail);
 // Called after release logging is started, in case initXKeyboard wishes to log
 // anything
 void doXKeyboardLogging(Display *dpy);

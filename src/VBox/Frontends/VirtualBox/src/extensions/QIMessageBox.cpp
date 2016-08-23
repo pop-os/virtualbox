@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 # include <QCheckBox>
 # include <QPushButton>
 # include <QStyle>
+# include <QMimeData>
 
 /* GUI includes: */
 # include "QIMessageBox.h"
@@ -169,13 +170,13 @@ void QIMessageBox::prepare()
     AssertPtrReturnVoid(pMainLayout);
     {
         /* Configure main-layout: */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         pMainLayout->setContentsMargins(40, 11, 40, 11);
         pMainLayout->setSpacing(15);
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
         pMainLayout->setContentsMargins(11, 11, 11, 11);
         pMainLayout->setSpacing(10);
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
         /* Create top-layout: */
         QHBoxLayout *pTopLayout = new QHBoxLayout;
         AssertPtrReturnVoid(pTopLayout);
@@ -247,6 +248,8 @@ void QIMessageBox::prepare()
             m_pButton3 = createButton(m_iButton3);
             if (m_pButton3)
                 connect(m_pButton3, SIGNAL(clicked()), SLOT(sltDone3()));
+            /* Make sure Escape button always set: */
+            Assert(m_iButtonEsc);
             /* If this is a critical message add a "Copy to clipboard" button: */
             if (m_iconType == AlertIconType_Critical)
             {
@@ -334,7 +337,10 @@ void QIMessageBox::closeEvent(QCloseEvent *pCloseEvent)
     if (m_fDone)
         pCloseEvent->accept();
     else
+    {
         pCloseEvent->ignore();
+        reject();
+    }
 }
 
 void QIMessageBox::updateDetailsContainer()

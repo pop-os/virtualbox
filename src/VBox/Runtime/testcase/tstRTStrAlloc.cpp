@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -95,14 +95,14 @@ static void tst1(void)
         {
             RTTESTI_CHECK(!psz[127]);
             RTTESTI_CHECK(!psz[159]);
-            RTTESTI_CHECK(ASMMemIsAll8(psz, 127, 'a') == NULL);
+            RTTESTI_CHECK(ASMMemIsAllU8(psz, 127, 'a'));
             memset(psz, 'b', 159);
 
             RTTESTI_CHECK_RC(rc = RTStrRealloc(&psz, 79), VINF_SUCCESS);
             if (RT_SUCCESS(rc))
             {
                 RTTESTI_CHECK(!psz[78]);
-                RTTESTI_CHECK(ASMMemIsAll8(psz, 78, 'b') == NULL);
+                RTTESTI_CHECK(ASMMemIsAllU8(psz, 78, 'b'));
 
                 RTTESTI_CHECK_RC(rc = RTStrRealloc(&psz, 0), VINF_SUCCESS);
                 RTTESTI_CHECK(!psz);

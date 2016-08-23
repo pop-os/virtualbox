@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,7 @@
 #ifndef ___VBoxIChatTheaterWrapper_h
 #define ___VBoxIChatTheaterWrapper_h
 
-#if defined (Q_WS_MAC) && defined (VBOX_WITH_ICHAT_THEATER)
+#if defined (VBOX_WS_MAC) && defined (VBOX_WITH_ICHAT_THEATER)
 
 # include <ApplicationServices/ApplicationServices.h>
 

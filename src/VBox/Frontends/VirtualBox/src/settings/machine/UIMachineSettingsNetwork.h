@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -123,10 +123,16 @@ public:
     void polishTab();
     void reloadAlternative();
 
+    /** Defines whether the advanced button is @a fExpanded. */
+    void setAdvancedButtonState(bool fExpanded);
+
 signals:
 
     /* Signal to notify listeners about tab content changed: */
     void sigTabUpdated();
+
+    /** Notifies about the advanced button has @a fExpanded. */
+    void sigNotifyAdvancedButtonStateChange(bool fExpanded);
 
 protected:
 
@@ -152,6 +158,9 @@ private:
     void populateComboboxes();
     void updateAlternativeList();
     void updateAlternativeName();
+
+    /** Handles advanced button state change. */
+    void handleAdvancedButtonStateChange();
 
     /* Various static stuff: */
     static int position(QComboBox *pComboBox, int iData);
@@ -220,6 +229,9 @@ private slots:
 
     /* Handles tab updates: */
     void sltHandleUpdatedTab();
+
+    /** Handles advanced button state change to @a fExpanded. */
+    void sltHandleAdvancedButtonStateChange(bool fExpanded);
 
 private:
 

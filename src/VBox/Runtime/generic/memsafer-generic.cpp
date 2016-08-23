@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -107,6 +107,7 @@ RTDECL(int) RTMemSaferAllocZExTag(void **ppvNew, size_t cb, uint32_t fFlags, con
     AssertPtrReturn(ppvNew, VERR_INVALID_PARAMETER);
     *ppvNew = NULL;
     AssertReturn(cb, VERR_INVALID_PARAMETER);
+    RT_NOREF_PV(pszTag);
 
     /*
      * We support none of the hard requirements passed thru flags.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -432,14 +432,14 @@ static status_t vgdrvHaikuAttach(const pci_info *pDevice)
      * Allocate I/O port resource.
      */
     pState->uIOPortBase = pDevice->u.h0.base_registers[0];
-    /* @todo check flags for IO? */
+    /** @todo check flags for IO? */
     if (pState->uIOPortBase)
     {
         /*
          * Map the MMIO region.
          */
         uint32 phys = pDevice->u.h0.base_registers[1];
-        /* @todo Check flags for mem? */
+        /** @todo Check flags for mem? */
         pState->VMMDevMemSize    = pDevice->u.h0.base_register_sizes[1];
         pState->iVMMDevMemAreaId = map_physical_memory("VirtualBox Guest MMIO", phys, pState->VMMDevMemSize,
                                                        B_ANY_KERNEL_BLOCK_ADDRESS, B_KERNEL_READ_AREA | B_KERNEL_WRITE_AREA,

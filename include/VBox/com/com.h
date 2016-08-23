@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2005-2015 Oracle Corporation
+ * Copyright (C) 2005-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,10 +40,11 @@ namespace com
  *  Must be called on the main thread, before any COM activity in any thread, and by any thread
  *  willing to perform COM operations.
  *
- *  @param fGui     if call is performed on the GUI thread
+ *  @param fGui             if call is performed on the GUI thread
+ *  @param fAutoRegUpdate   if to do auto MS COM registration updates.
  *  @return COM result code
  */
-HRESULT Initialize(bool fGui = false);
+HRESULT Initialize(bool fGui = false, bool fAutoRegUpdate = true);
 
 /**
  *  Shuts down the COM runtime.

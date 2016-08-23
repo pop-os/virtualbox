@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1849,6 +1849,7 @@ DECLINLINE(PGMMPAGE) gmmR0GetPage(PGMM pGMM, uint32_t idPage)
 }
 
 
+#if 0 /* unused */
 /**
  * Gets the host physical address for a page given by it's ID.
  *
@@ -1863,6 +1864,7 @@ DECLINLINE(RTHCPHYS) gmmR0GetPageHCPhys(PGMM pGMM,  uint32_t idPage)
         return RTR0MemObjGetPagePhysAddr(pChunk->hMemObj, idPage & GMM_PAGEID_IDX_MASK);
     return NIL_RTHCPHYS;
 }
+#endif /* unused */
 
 
 /**
@@ -3886,7 +3888,7 @@ GMMR0DECL(int)  GMMR0QueryMemoryStatsReq(PVM pVM, VMCPUID idCpu, PGMMMEMSTATSREQ
  */
 static int gmmR0UnmapChunkLocked(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk)
 {
-    Assert(!pGMM->fLegacyAllocationMode);
+    Assert(!pGMM->fLegacyAllocationMode); NOREF(pGMM);
 
     /*
      * Find the mapping and try unmapping it.
@@ -4495,7 +4497,7 @@ static void gmmR0ShModDeletePerVM(PGMM pGMM, PGVM pGVM, PGMMSHAREDMODULEPERVM pR
     if (fRemove)
     {
         void *pvTest = RTAvlGCPtrRemove(&pGVM->gmm.s.pSharedModuleTree, pRecVM->Core.Key);
-        Assert(pvTest == &pRecVM->Core);
+        Assert(pvTest == &pRecVM->Core); NOREF(pvTest);
     }
 
     RTMemFree(pRecVM);
@@ -4734,6 +4736,7 @@ GMMR0DECL(int) GMMR0UnregisterSharedModule(PVM pVM, VMCPUID idCpu, char *pszModu
         {
             /** @todo Do we need to do more validations here, like that the
              *        name + version + cbModule matches? */
+            NOREF(cbModule);
             Assert(pRecVM->pGlobalModule);
             gmmR0ShModDeletePerVM(pGMM, pGVM, pRecVM, true /*fRemove*/);
         }
@@ -4830,6 +4833,7 @@ DECLINLINE(void) gmmR0ConvertToSharedPage(PGMM pGMM, PGVM pGVM, RTHCPHYS HCPhys,
     pPageDesc->u32StrictChecksum = gmmR0StrictPageChecksum(pGMM, pGVM, idPage);
     pPage->Shared.u14Checksum = pPageDesc->u32StrictChecksum;
 #else
+    NOREF(pPageDesc);
     pPage->Shared.u14Checksum = 0;
 #endif
     pPage->Shared.u2State     = GMM_PAGE_STATE_SHARED;
@@ -4847,6 +4851,7 @@ static int gmmR0SharedModuleCheckPageFirstTime(PGMM pGMM, PGVM pGVM, PGMMSHAREDM
     AssertMsgReturn(pPage, ("idPage=%#x (GCPhys=%RGp HCPhys=%RHp idxRegion=%#x idxPage=%#x) #1\n",
                             pPageDesc->idPage, pPageDesc->GCPhys, pPageDesc->HCPhys, idxRegion, idxPage),
                     VERR_PGM_PHYS_INVALID_PAGE_ID);
+    NOREF(idxRegion);
 
     AssertMsg(pPageDesc->GCPhys == (pPage->Private.pfn << 12), ("desc %RGp gmm %RGp\n", pPageDesc->HCPhys, (pPage->Private.pfn << 12)));
 

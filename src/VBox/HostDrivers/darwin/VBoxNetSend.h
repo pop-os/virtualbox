@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,7 +75,7 @@ DECLINLINE(int) VBoxNetSendDummy(ifnet_t pIfNet)
 
         mbuf_pkthdr_setrcvif(pPkt, pIfNet); /* will crash without this. */
 
-        errno_t err = ifnet_input(pIfNet, pPkt, NULL);
+        err = ifnet_input(pIfNet, pPkt, NULL);
         if (err)
         {
             rc = RTErrConvertFromErrno(err);

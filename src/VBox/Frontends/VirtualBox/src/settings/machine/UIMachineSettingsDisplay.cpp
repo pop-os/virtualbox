@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@
 /* GUI includes: */
 # include "QIWidgetValidator.h"
 # include "UIMachineSettingsDisplay.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
 # include "UIConverter.h"
 # include "VBoxGlobal.h"
@@ -100,9 +101,9 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
     displayData.m_iCurrentVRAM = m_machine.GetVRAMSize();
     displayData.m_cGuestScreenCount = m_machine.GetMonitorCount();
     displayData.m_dScaleFactor = gEDataManager->scaleFactor(m_machine.GetId());
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     displayData.m_fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(m_machine.GetId());
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     displayData.m_f3dAccelerationEnabled = m_machine.GetAccelerate3DEnabled();
 #ifdef VBOX_WITH_VIDEOHWACCEL
     displayData.m_f2dAccelerationEnabled = m_machine.GetAccelerate2DVideoEnabled();
@@ -151,9 +152,9 @@ void UIMachineSettingsDisplay::getFromCache()
     /* Load Screen data to page: */
     m_pEditorVideoScreenCount->setValue(displayData.m_cGuestScreenCount);
     m_pEditorGuestScreenScale->setValue((int)(displayData.m_dScaleFactor * 100));
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     m_pCheckBoxUnscaledHiDPIOutput->setChecked(displayData.m_fUseUnscaledHiDPIOutput);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     m_pCheckbox3D->setChecked(displayData.m_f3dAccelerationEnabled);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     m_pCheckbox2DVideo->setChecked(displayData.m_f2dAccelerationEnabled);
@@ -200,9 +201,9 @@ void UIMachineSettingsDisplay::putToCache()
     displayData.m_iCurrentVRAM = m_pEditorVideoMemorySize->value();
     displayData.m_cGuestScreenCount = m_pEditorVideoScreenCount->value();
     displayData.m_dScaleFactor = (double)m_pEditorGuestScreenScale->value() / 100;
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     displayData.m_fUseUnscaledHiDPIOutput = m_pCheckBoxUnscaledHiDPIOutput->isChecked();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     displayData.m_f3dAccelerationEnabled = m_pCheckbox3D->isChecked();
 #ifdef VBOX_WITH_VIDEOHWACCEL
     displayData.m_f2dAccelerationEnabled = m_pCheckbox2DVideo->isChecked();
@@ -258,9 +259,9 @@ void UIMachineSettingsDisplay::saveFromCacheTo(QVariant &data)
         if (isMachineInValidMode())
         {
             gEDataManager->setScaleFactor(displayData.m_dScaleFactor, m_machine.GetId());
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
             gEDataManager->setUseUnscaledHiDPIOutput(displayData.m_fUseUnscaledHiDPIOutput, m_machine.GetId());
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
         }
 
         /* Check if Remote Display server still valid: */
@@ -372,11 +373,6 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
             /* 3D acceleration video RAM amount test: */
             else if (m_pCheckbox3D->isChecked() && m_fWddmModeSupported)
             {
-# if 0
-                int cGuestScreenCount = m_pEditorVideoScreenCount->value();
-                uNeedBytes += VBoxGlobal::required3DWddmOffscreenVideoMemory(m_guestOSType.GetId(), cGuestScreenCount);
-                uNeedBytes = qMin(uNeedBytes, 256 * _1M);
-# endif
                 uNeedBytes = qMax(uNeedBytes, (quint64) 128 * _1M);
                 if ((quint64)m_pEditorVideoMemorySize->value() * _1M < uNeedBytes)
                 {
@@ -536,13 +532,13 @@ void UIMachineSettingsDisplay::polishPage()
     m_pLabelGuestScreenScaleMin->setEnabled(isMachineInValidMode());
     m_pLabelGuestScreenScaleMax->setEnabled(isMachineInValidMode());
     m_pEditorGuestScreenScale->setEnabled(isMachineInValidMode());
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     m_pLabelHiDPI->setEnabled(isMachineInValidMode());
     m_pCheckBoxUnscaledHiDPIOutput->setEnabled(isMachineInValidMode());
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
     m_pLabelHiDPI->hide();
     m_pCheckBoxUnscaledHiDPIOutput->hide();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     m_pLabelVideoOptions->setEnabled(isMachineOffline());
     m_pCheckbox3D->setEnabled(isMachineOffline());
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -767,7 +763,7 @@ void UIMachineSettingsDisplay::prepareScreenTab()
     m_iMinVRAM = sys.GetMinGuestVRAM();
     m_iMaxVRAM = sys.GetMaxGuestVRAM();
     m_iMaxVRAMVisible = m_iMaxVRAM;
-    const uint cHostScreens = vboxGlobal().screenCount();
+    const uint cHostScreens = gpDesktop->screenCount();
     m_pSliderVideoMemorySize->setMinimum(m_iMinVRAM);
     m_pSliderVideoMemorySize->setMaximum(m_iMaxVRAMVisible);
     m_pSliderVideoMemorySize->setPageStep(calcPageStep(m_iMaxVRAMVisible));
@@ -837,7 +833,7 @@ void UIMachineSettingsDisplay::prepareVideoCaptureTab()
 
     /* Prepare filepath selector: */
     m_pEditorVideoCapturePath->setEditable(false);
-    m_pEditorVideoCapturePath->setMode(VBoxFilePathSelectorWidget::Mode_File_Save);
+    m_pEditorVideoCapturePath->setMode(UIFilePathSelector::Mode_File_Save);
 
     /* Prepare frame-size combo-box: */
     m_pComboVideoCaptureSize->addItem(""); /* User Defined */
@@ -959,10 +955,6 @@ void UIMachineSettingsDisplay::checkVRAMRequirements()
 #ifdef VBOX_WITH_CRHGSMI
     if (m_pCheckbox3D->isChecked() && m_fWddmModeSupported)
     {
-# if 0
-        uNeedMBytes += VBoxGlobal::required3DWddmOffscreenVideoMemory(m_guestOSType.GetId(), cGuestScreenCount) / _1M;
-        uNeedMBytes = qMin(uNeedMBytes, 256);
-# endif
         uNeedMBytes = qMax(uNeedMBytes, (quint64) 128);
         /* No less than 256MB (if possible): */
         if (m_iMaxVRAMVisible < 256 && m_iMaxVRAM >= 256)

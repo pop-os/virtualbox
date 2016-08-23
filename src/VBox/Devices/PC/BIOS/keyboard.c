@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,6 +54,21 @@ extern  void    post(void);
 
 void jmp_post(void);
 #pragma aux jmp_post = "jmp far ptr post" aborts;
+
+extern void eoi_master_pic(void);    /* in assembly code */
+#pragma aux eoi_master_pic "*";
+
+/* Manually save/restore BP around invoking user Ctrl-Break handler.
+ * The handler could conceivably clobber BP and the compiler does not
+ * believe us when we say 'modify [bp]' (BP is considered unalterable).
+ */
+void int_1b(void);
+#pragma aux int_1b =    \
+    "push bp"           \
+    "int 1Bh"           \
+    "pop bp"            \
+    value [bp] modify [bp];
+
 
 #define none 0
 #define MAX_SCAN_CODE 0x58
@@ -338,7 +353,7 @@ unsigned int enqueue_key(uint8_t scan_code, uint8_t ascii_code)
 
 
 /* Keyboard hardware interrupt handler. */
-//@todo: should this be declared as taking arguments at all?
+/// @todo should this be declared as taking arguments at all?
 void BIOSCALL int09_function(uint16_t ES, uint16_t DI, uint16_t SI, uint16_t BP, uint16_t SP,
                              uint16_t BX, uint16_t DX, uint16_t CX, uint16_t AX)
 {
@@ -357,10 +372,9 @@ void BIOSCALL int09_function(uint16_t ES, uint16_t DI, uint16_t SI, uint16_t BP,
         return;
     }
 
-
-    shift_flags = read_byte(0x0040, 0x17);
     mf2_flags = read_byte(0x0040, 0x18);
     mf2_state = read_byte(0x0040, 0x96);
+    shift_flags = read_byte(0x0040, 0x17);
     asciicode = 0;
 
     switch (scancode) {
@@ -440,31 +454,71 @@ void BIOSCALL int09_function(uint16_t ES, uint16_t DI, uint16_t SI, uint16_t BP,
         }
         break;
 
-    case 0x45: /* Num Lock press */
+    case 0x45: /* Num Lock/Pause press */
         if ((mf2_state & 0x03) == 0) {
+            /* Num Lock */
             mf2_flags |= 0x20;
             write_byte(0x0040, 0x18, mf2_flags);
             shift_flags ^= 0x20;
             write_byte(0x0040, 0x17, shift_flags);
+        } else {
+            /* Pause */
+            mf2_flags |= 0x08;  /* Set the suspend flag */
+            write_byte(0x0040, 0x18, mf2_flags);
+
+            /* Enable keyboard and send EOI. */
+            outp(0x64, 0xae);
+            eoi_master_pic();
+
+            while (read_byte(0x0040, 0x18) & 0x08)
+                ;   /* Hold on and wait... */
+
+            /// @todo We will send EOI again (and enable keyboard) on the way out; we shouldn't
         }
         break;
-    case 0xc5: /* Num Lock release */
+    case 0xc5: /* Num Lock/Pause release */
         if ((mf2_state & 0x03) == 0) {
             mf2_flags &= ~0x20;
             write_byte(0x0040, 0x18, mf2_flags);
         }
         break;
 
-    case 0x46: /* Scroll Lock press */
-        mf2_flags |= 0x10;
-        write_byte(0x0040, 0x18, mf2_flags);
-        shift_flags ^= 0x10;
-        write_byte(0x0040, 0x17, shift_flags);
+    case 0x46: /* Scroll Lock/Break press */
+        if (mf2_state & 0x02) { /* E0 prefix? */
+            /* Zap the keyboard buffer. */
+            write_word(0x0040, 0x001c, read_word(0x0040, 0x001a));
+
+            write_byte(0x0040, 0x71, 0x80); /* Set break flag */
+            outp(0x64, 0xae);               /* Enable keyboard */
+            int_1b();                       /* Invoke user handler */
+            enqueue_key(0, 0);              /* Dummy key press*/
+        } else {
+            mf2_flags |= 0x10;
+            write_byte(0x0040, 0x18, mf2_flags);
+            shift_flags ^= 0x10;
+            write_byte(0x0040, 0x17, shift_flags);
+        }
         break;
 
-    case 0xc6: /* Scroll Lock release */
-        mf2_flags &= ~0x10;
+    case 0xc6: /* Scroll Lock/Break release */
+        if (!(mf2_state & 0x02)) {  /* Only if no E0 prefix */
+            mf2_flags &= ~0x10;
+            write_byte(0x0040, 0x18, mf2_flags);
+        }
+        break;
+
+    case 0x54: /* SysRq press */
+        if (!(mf2_flags & 0x04)) {  /* If not already down */
+            mf2_flags |= 0x04;
+            write_byte(0x0040, 0x18, mf2_flags);
+            /// @todo EOI/enable kbd/enable interrupts/call INT 15h/8500h
+        }
+        break;
+
+    case 0xd4: /* SysRq release */
+        mf2_flags &= ~0x04;
         write_byte(0x0040, 0x18, mf2_flags);
+        /// @todo EOI/enable kbd/enable interrupts/call INT 15h/8501h
         break;
 
     case 0x53: /* Del press */
@@ -476,6 +530,14 @@ void BIOSCALL int09_function(uint16_t ES, uint16_t DI, uint16_t SI, uint16_t BP,
         /* fall through */
 
     default:
+        /* Check if suspend flag set. */
+        if (mf2_flags & 0x08) {
+            /* Pause had been pressed. Clear suspend flag and do nothing. */
+            mf2_flags &= ~0x08;
+            write_byte(0x0040, 0x18, mf2_flags);
+            return;
+        }
+
         if (scancode & 0x80) {
             /* Set ack/resend flags if appropriate. */
             if (scancode == 0xFA) {
@@ -572,7 +634,7 @@ unsigned int dequeue_key(uint8_t __far *scan_code, uint8_t __far *ascii_code, un
 }
 
 
-//@todo: move somewhere else?
+/// @todo move somewhere else?
 #define AX      r.gr.u.r16.ax
 #define BX      r.gr.u.r16.bx
 #define CX      r.gr.u.r16.cx
@@ -595,7 +657,7 @@ void BIOSCALL int16_function(volatile kbd_regs_t r)
     shift_flags = read_byte(0x0040, 0x17);
     led_flags   = read_byte(0x0040, 0x97);
     if ((((shift_flags >> 4) & 0x07) ^ (led_flags & 0x07)) != 0) {
-        int_disable();    //@todo: interrupts should be disabled already??
+        int_disable();    /// @todo interrupts should be disabled already??
         outb(0x60, 0xed);
         while ((inb(0x64) & 0x01) == 0) outb(0x80, 0x21);
         if ((inb(0x60) == 0xfa)) {
@@ -667,7 +729,7 @@ void BIOSCALL int16_function(volatile kbd_regs_t r)
     case 0x0A: /* GET KEYBOARD ID */
         count = 2;
         kbd_code = 0x0;
-        //@todo: Might be better to just mask the KB interrupt
+        /// @todo Might be better to just mask the KB interrupt
         int_disable();
         outb(0x60, 0xf2);
         /* Wait for data */
@@ -728,7 +790,7 @@ void BIOSCALL int16_function(volatile kbd_regs_t r)
         // don't change AH : function int16 ah=0x20-0x22 NOT supported
         break;
 
-    //@todo: what's the point of handling this??
+    /// @todo what's the point of handling this??
 #if 0
     case 0x6F:
         if (GET_AL() == 0x08)

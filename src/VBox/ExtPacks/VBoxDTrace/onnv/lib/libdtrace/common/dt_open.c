@@ -56,6 +56,8 @@
 # include <VBox/err.h>
 # include <iprt/path.h>
 # include <iprt/stream.h>
+# include <iprt/buildconfig.h>
+# include "../../../../../Main/include/ExtPackUtil.h"
 #endif /* VBOX */
 
 #include <dt_impl.h>
@@ -793,10 +795,10 @@ dt_provmod_destroy(dt_provmod_t **provmod)
 	*provmod = NULL;
 }
 
+#ifndef VBOX
 static const char *
 dt_get_sysinfo(int cmd, char *buf, size_t len)
 {
-#ifndef VBOX
 	ssize_t rv = sysinfo(cmd, buf, len);
 	char *p = buf;
 
@@ -805,11 +807,9 @@ dt_get_sysinfo(int cmd, char *buf, size_t len)
 
 	while ((p = strchr(p, '.')) != NULL)
 		*p++ = '_';
-#else
-	snprintf(buf, len, "%s", "Unknown");
-#endif
 	return (buf);
 }
+#endif /* !VBOX */
 
 static dtrace_hdl_t *
 dt_vopen(int version, int flags, int *errp,
@@ -971,21 +971,23 @@ dt_vopen(int version, int flags, int *errp,
 		return (set_open_errno(dtp, errp, err));
 	}
 
-	/** @todo this needs to be changed if this becomes and extension pack. */
 	rc = RTPathAppPrivateArch(szModPath, sizeof(szModPath));
-	if (RT_SUCCESS(rc)) {
+	if (RT_SUCCESS(rc))
+		rc = RTPathAppend(szModPath, sizeof(szModPath),
+		                  VBOX_EXTPACK_INSTALL_DIR RTPATH_SLASH_STR VBOX_EXTPACK_VBOXDTRACE_MANGLED_NAME);
+	if (RT_SUCCESS(rc))
+		rc = RTPathAppend(szModPath, sizeof(szModPath), RTBldCfgTargetDotArch());
+	if (RT_SUCCESS(rc))
 		rc = RTPathAppend(szModPath, sizeof(szModPath), "VBoxDTraceR0.r0");
-		if (RT_SUCCESS(rc))
-		{
-			PRTERRINFO pErrInfo = RTErrInfoAlloc(1024);
-			rc = SUPR3LoadModule(szModPath, "VBoxDTraceR0.r0", &pvImageBase, pErrInfo);
-			if (RT_FAILURE(rc)) {
-				RTStrmPrintf(g_pStdErr, "SUPR3LoadModule: %s -> %Rrc; %s\n", szModPath, rc, pErrInfo->pszMsg);
-				RTErrInfoFree(pErrInfo);
-				return (set_open_errno(dtp, errp, EDT_NOTLOADED));
-			}
+	if (RT_SUCCESS(rc)) {
+		PRTERRINFO pErrInfo = RTErrInfoAlloc(1024);
+		rc = SUPR3LoadModule(szModPath, "VBoxDTraceR0.r0", &pvImageBase, pErrInfo);
+		if (RT_FAILURE(rc)) {
+			RTStrmPrintf(g_pStdErr, "SUPR3LoadModule: %s -> %Rrc; %s\n", szModPath, rc, pErrInfo->pszMsg);
 			RTErrInfoFree(pErrInfo);
+			return (set_open_errno(dtp, errp, EDT_NOTLOADED));
 		}
+		RTErrInfoFree(pErrInfo);
 	}
 	if (RT_FAILURE(rc)) {
 		RTStrmPrintf(g_pStdErr, "SUPR3LoadModule: path buffer too small (%Rrc)\n", rc);
@@ -1042,7 +1044,7 @@ alloc:
 		return (set_open_errno(dtp, errp, EDT_NOMEM));
 
 	for (i = 0; i < DTRACEOPT_MAX; i++)
-		dtp->dt_options[i] = DTRACEOPT_UNSET;
+		dtp->dt_options[i] = (uint64_t)DTRACEOPT_UNSET;
 
 	dtp->dt_cpp_argv[0] = (char *)strbasename(dtp->dt_cpp_path);
 

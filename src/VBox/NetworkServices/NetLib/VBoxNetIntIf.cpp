@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,6 +79,8 @@ static void vboxnetIntIfCopySG(void *pvFrame, size_t cSegs, PCINTNETSEG paSegs)
  */
 int VBoxNetIntIfRingWriteFrame(PINTNETBUF pBuf, PINTNETRINGBUF pRingBuf, size_t cSegs, PCINTNETSEG paSegs)
 {
+    RT_NOREF(pBuf);
+
     /*
      * Validate input.
      */

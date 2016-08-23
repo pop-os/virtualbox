@@ -7,7 +7,7 @@ Test Manager Web-UI - Graph Helpers - Simple/Stub Implementation.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2015 Oracle Corporation
+Copyright (C) 2012-2016 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 109040 $"
 
 # Validation Kit imports.
 from common.webutils                    import escapeAttr, escapeElem;
@@ -43,7 +43,7 @@ class WuiHlpBarGraph(WuiHlpGraphBase):
         WuiHlpGraphBase.__init__(self, sId, oData, oDisp);
         self.cxMaxBar = 480;
         self.fpMax = None;
-        self.fpMin = 0;
+        self.fpMin = 0.0;
 
     def setRangeMax(self, fpMax):
         """ Sets the max range."""

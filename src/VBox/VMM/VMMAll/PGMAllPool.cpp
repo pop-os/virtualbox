@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,8 +44,10 @@
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
+#if 0 /* unused */
 DECLINLINE(unsigned) pgmPoolTrackGetShadowEntrySize(PGMPOOLKIND enmKind);
 DECLINLINE(unsigned) pgmPoolTrackGetGuestEntrySize(PGMPOOLKIND enmKind);
+#endif /* unused */
 static void pgmPoolTrackClearPageUsers(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 static int pgmPoolTrackAddUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint32_t iUserTable);
@@ -65,6 +67,7 @@ void            pgmPoolTrackPhysExtFreeList(PVM pVM, uint16_t iPhysExt);
 RT_C_DECLS_END
 
 
+#if 0 /* unused */
 /**
  * Checks if the specified page pool kind is for a 4MB or 2MB guest page.
  *
@@ -83,6 +86,7 @@ DECLINLINE(bool) pgmPoolIsBigPage(PGMPOOLKIND enmKind)
             return false;
     }
 }
+#endif /* unused */
 
 
 /**
@@ -151,7 +155,7 @@ DECLINLINE(int) pgmPoolPhysSimpleReadGCPhys(PVM pVM, void *pvDst, void const *pv
     memcpy(pvDst, (RTHCPTR)((uintptr_t)pvSrc & ~(RTHCUINTPTR)(cb - 1)), cb);
     return VINF_SUCCESS;
 #else
-    /* @todo in RC we could attempt to use the virtual address, although this can cause many faults (PAE Windows XP guest). */
+    /** @todo in RC we could attempt to use the virtual address, although this can cause many faults (PAE Windows XP guest). */
     NOREF(pvSrc);
     return PGMPhysSimpleReadGCPhys(pVM, pvDst, GCPhysSrc & ~(RTGCPHYS)(cb - 1), cb);
 #endif
@@ -180,7 +184,8 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
     PVM             pVM = pPool->CTX_SUFF(pVM);
     NOREF(pVCpu);
 
-    LogFlow(("pgmPoolMonitorChainChanging: %RGv phys=%RGp cbWrite=%d\n", (RTGCPTR)(CTXTYPE(RTGCPTR, uintptr_t, RTGCPTR))pvAddress, GCPhysFault, cbWrite));
+    LogFlow(("pgmPoolMonitorChainChanging: %RGv phys=%RGp cbWrite=%d\n",
+             (RTGCPTR)(CTXTYPE(RTGCPTR, uintptr_t, RTGCPTR))(uintptr_t)pvAddress, GCPhysFault, cbWrite));
 
     for (;;)
     {
@@ -714,7 +719,7 @@ DECLINLINE(bool) pgmPoolMonitorIsForking(PPGMPOOL pPool, PDISCPUSTATE pDis, unsi
         /** @todo Validate that the bit index is X86_PTE_RW. */
             )
     {
-        STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,Fork));
+        STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,Fork)); RT_NOREF_PV(pPool);
         return true;
     }
     return false;
@@ -790,13 +795,39 @@ DECLINLINE(bool) pgmPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
                 Log(("pgmPoolMonitorIsReused: OP_STOSQ\n"));
                 return true;
             }
-            return false;
+            break;
+
+        default:
+            /*
+             * Anything having ESP on the left side means stack writes.
+             */
+            if (    (    (pDis->Param1.fUse & DISUSE_REG_GEN32)
+                     ||  (pDis->Param1.fUse & DISUSE_REG_GEN64))
+                &&  (pDis->Param1.Base.idxGenReg == DISGREG_ESP))
+            {
+                Log4(("pgmPoolMonitorIsReused: ESP\n"));
+                return true;
+            }
+            break;
     }
-    if (    (    (pDis->Param1.fUse & DISUSE_REG_GEN32)
-             ||  (pDis->Param1.fUse & DISUSE_REG_GEN64))
-        &&  (pDis->Param1.Base.idxGenReg == DISGREG_ESP))
+
+    /*
+     * Page table updates are very very unlikely to be crossing page boundraries,
+     * and we don't want to deal with that in pgmPoolMonitorChainChanging and such.
+     */
+    uint32_t const cbWrite = DISGetParamSize(pDis, &pDis->Param1);
+    if ( (((uintptr_t)pvFault + cbWrite) >> X86_PAGE_SHIFT) != ((uintptr_t)pvFault >> X86_PAGE_SHIFT) )
     {
-        Log4(("pgmPoolMonitorIsReused: ESP\n"));
+        Log4(("pgmPoolMonitorIsReused: cross page write\n"));
+        return true;
+    }
+
+    /*
+     * Nobody does an unaligned 8 byte write to a page table, right.
+     */
+    if (cbWrite >= 8 && ((uintptr_t)pvFault & 7) != 0)
+    {
+        Log4(("pgmPoolMonitorIsReused: Unaligned 8+ byte write\n"));
         return true;
     }
 
@@ -835,16 +866,14 @@ static int pgmPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PP
     VBOXSTRICTRC rc2 = EMInterpretInstructionDisasState(pVCpu, pDis, pRegFrame, pvFault, EMCODETYPE_ALL);
     if (rc2 == VINF_SUCCESS)
     { /* do nothing */ }
-#ifdef VBOX_WITH_IEM
     else if (rc2 == VINF_EM_RESCHEDULE)
     {
         if (rc == VINF_SUCCESS)
             rc = VBOXSTRICTRC_VAL(rc2);
-# ifndef IN_RING3
+#ifndef IN_RING3
         VMCPU_FF_SET(pVCpu, VMCPU_FF_TO_R3);
-# endif
-    }
 #endif
+    }
     else if (rc2 == VERR_EM_INTERPRETER)
     {
 #ifdef IN_RC
@@ -981,11 +1010,16 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPo
     uint32_t cbWrite = DISGetParamSize(pDis, &pDis->Param1);
     if (cbWrite <= 8)
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, cbWrite);
-    else
+    else if (cbWrite <= 16)
     {
-        Assert(cbWrite <= 16);
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, 8);
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault + 8, NULL, cbWrite - 8);
+    }
+    else
+    {
+        Assert(cbWrite <= 32);
+        for (uint32_t off = 0; off < cbWrite; off += 8)
+            pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault + off, NULL, RT_MIN(8, cbWrite - off));
     }
 
 #if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
@@ -1360,7 +1394,7 @@ pgmPoolAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void 
     LogFlow(("PGM_ALL_CB_DECL: GCPhys=%RGp %p:{.Core=%RHp, .idx=%d, .GCPhys=%RGp, .enmType=%d}\n",
              GCPhys, pPage, pPage->Core.Key, pPage->idx, pPage->GCPhys, pPage->enmKind));
 
-    NOREF(pvBuf); NOREF(enmAccessType);
+    NOREF(pvPhys); NOREF(pvBuf); NOREF(enmAccessType);
 
     /*
      * Make sure the pool page wasn't modified by a different CPU.
@@ -1959,7 +1993,7 @@ void pgmPoolResetDirtyPage(PVM pVM, RTGCPTR GCPtrPage)
     if (!pPool->cDirtyPages)
         return;
 
-    Log(("pgmPoolResetDirtyPage %RGv\n", GCPtrPage));
+    Log(("pgmPoolResetDirtyPage %RGv\n", GCPtrPage)); RT_NOREF_PV(GCPtrPage);
     for (unsigned i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
     {
     }
@@ -2131,7 +2165,7 @@ static int pgmPoolCacheFreeOne(PPGMPOOL pPool, uint16_t iUser)
      */
     int rc = pgmPoolFlushPage(pPool, pPage);
     /* This flush was initiated by us and not the guest, so explicitly flush the TLB. */
-    /* todo: find out why this is necessary; pgmPoolFlushPage should trigger a flush if one is really needed. */
+    /** @todo find out why this is necessary; pgmPoolFlushPage should trigger a flush if one is really needed. */
     if (rc == VINF_SUCCESS)
         PGM_INVL_ALL_VCPU_TLBS(pVM);
     return rc;
@@ -2883,7 +2917,7 @@ DECLINLINE(int) pgmPoolTrackInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS 
     int rc = VINF_SUCCESS;
     PPGMPOOLUSER paUsers = pPool->CTX_SUFF(paUsers);
 
-    LogFlow(("pgmPoolTrackInsert GCPhys=%RGp iUser=%d iUserTable=%x\n", GCPhys, iUser, iUserTable));
+    LogFlow(("pgmPoolTrackInsert GCPhys=%RGp iUser=%d iUserTable=%x\n", GCPhys, iUser, iUserTable)); RT_NOREF_PV(GCPhys);
 
     if (iUser != NIL_PGMPOOL_IDX)
     {
@@ -3087,6 +3121,7 @@ static void pgmPoolTrackFreeUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iU
 }
 
 
+#if 0 /* unused */
 /**
  * Gets the entry size of a shadow table.
  *
@@ -3135,8 +3170,9 @@ DECLINLINE(unsigned) pgmPoolTrackGetShadowEntrySize(PGMPOOLKIND enmKind)
             AssertFatalMsgFailed(("enmKind=%d\n", enmKind));
     }
 }
+#endif /* unused */
 
-
+#if 0 /* unused */
 /**
  * Gets the entry size of a guest table.
  *
@@ -3189,6 +3225,7 @@ DECLINLINE(unsigned) pgmPoolTrackGetGuestEntrySize(PGMPOOLKIND enmKind)
             AssertFatalMsgFailed(("enmKind=%d\n", enmKind));
     }
 }
+#endif /* unused */
 
 
 /**
@@ -3821,7 +3858,7 @@ static void pgmPoolTrackClearPageUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PCPGMP
 
 
     /* Safety precaution in case we change the paging for other modes too in the future. */
-    Assert(!pgmPoolIsPageLocked(pPage));
+    Assert(!pgmPoolIsPageLocked(pPage)); RT_NOREF_PV(pPage);
 
 #ifdef VBOX_STRICT
     /*

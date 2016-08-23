@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -492,6 +492,7 @@ static int vmmDevReqHandler_GuestHeartbeat(PVMMDEV pThis)
  */
 static DECLCALLBACK(void) vmmDevHeartbeatFlatlinedTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF1(pDevIns);
     PVMMDEV pThis = (PVMMDEV)pvUser;
     if (pThis->fHeartbeatActive)
     {
@@ -2199,13 +2200,12 @@ static int vmmdevReqHandler_ReportCredentialsJudgement(PVMMDEV pThis, VMMDevRequ
  * Handles VMMDevReq_GetHostVersion.
  *
  * @returns VBox status code that the guest should see.
- * @param   pThis           The VMMDev instance data.
  * @param   pReqHdr         The header of the request to handle.
  * @since   3.1.0
  * @note    The ring-0 VBoxGuestLib uses this to check whether
  *          VMMDevHGCMParmType_PageList is supported.
  */
-static int vmmdevReqHandler_GetHostVersion(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr)
+static int vmmdevReqHandler_GetHostVersion(VMMDevRequestHeader *pReqHdr)
 {
     VMMDevReqHostVersion *pReq = (VMMDevReqHostVersion *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
@@ -2271,10 +2271,9 @@ static int vmmdevReqHandler_SetCpuHotPlugStatus(PVMMDEV pThis, VMMDevRequestHead
  * Handles VMMDevReq_LogString.
  *
  * @returns VBox status code that the guest should see.
- * @param   pThis           The VMMDev instance data.
  * @param   pReqHdr         The header of the request to handle.
  */
-static int vmmdevReqHandler_LogString(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr)
+static int vmmdevReqHandler_LogString(VMMDevRequestHeader *pReqHdr)
 {
     VMMDevReqLogString *pReq = (VMMDevReqLogString *)pReqHdr;
     AssertMsgReturn(pReq->header.size >= sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
@@ -2423,6 +2422,7 @@ static int vmmdevReqHandler_DebugIsPageShared(PVMMDEV pThis, VMMDevRequestHeader
 # ifdef DEBUG
     return PGMR3SharedModuleGetPageState(PDMDevHlpGetVM(pThis->pDevIns), pReq->GCPtrPage, &pReq->fShared, &pReq->uPageFlags);
 # else
+    RT_NOREF1(pThis);
     return VERR_NOT_IMPLEMENTED;
 # endif
 }
@@ -2681,7 +2681,7 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
             break;
 
         case VMMDevReq_GetHostVersion:
-            pReqHdr->rc = vmmdevReqHandler_GetHostVersion(pThis, pReqHdr);
+            pReqHdr->rc = vmmdevReqHandler_GetHostVersion(pReqHdr);
             break;
 
         case VMMDevReq_GetCpuHotPlugRequest:
@@ -2717,7 +2717,7 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
 
 #ifdef DEBUG
         case VMMDevReq_LogString:
-            pReqHdr->rc = vmmdevReqHandler_LogString(pThis, pReqHdr);
+            pReqHdr->rc = vmmdevReqHandler_LogString(pReqHdr);
             break;
 #endif
 
@@ -2762,6 +2762,7 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
  */
 static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF2(Port, cb);
     PVMMDEV pThis = (VMMDevState*)pvUser;
 
     /*
@@ -2879,6 +2880,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
 static DECLCALLBACK(int)
 vmmdevIORAMRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
 {
+    RT_NOREF1(cb);
     LogFlow(("vmmdevR3IORAMRegionMap: iRegion=%d GCPhysAddress=%RGp cb=%#x enmType=%d\n", iRegion, GCPhysAddress, cb, enmType));
     PVMMDEV pThis = RT_FROM_MEMBER(pPciDev, VMMDEV, PciDev);
     int rc;
@@ -2925,7 +2927,7 @@ vmmdevIORAMRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, ui
             /*
              * It is about to be unmapped, just clean up.
              */
-            PDMDevHlpUnregisterVMMDevHeap(pPciDev->pDevIns, pThis->GCPhysVMMDevHeap);
+            PDMDevHlpRegisterVMMDevHeap(pPciDev->pDevIns, NIL_RTGCPHYS, pThis->pVMMDevHeapR3, VMMDEV_HEAP_SIZE);
             pThis->GCPhysVMMDevHeap = NIL_RTGCPHYS32;
             rc = VINF_SUCCESS;
         }
@@ -2946,6 +2948,7 @@ vmmdevIORAMRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, ui
 static DECLCALLBACK(int)
 vmmdevIOPortRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
 {
+    RT_NOREF3(iRegion, cb, enmType);
     PVMMDEV pThis = RT_FROM_MEMBER(pPciDev, VMMDEV, PciDev);
 
     Assert(enmType == PCI_ADDRESS_SPACE_IO);
@@ -2970,6 +2973,7 @@ vmmdevIOPortRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, u
  */
 static DECLCALLBACK(int) vmmdevBackdoorLog(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF1(pvUser);
     PVMMDEV pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
 
     if (!pThis->fBackdoorLogDisabled && cb == 1 && Port == RTLOG_DEBUG_PORT)
@@ -3014,6 +3018,7 @@ static DECLCALLBACK(int) vmmdevBackdoorLog(PPDMDEVINS pDevIns, void *pvUser, RTI
  */
 static DECLCALLBACK(int) vmmdevAltTimeSyncWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF2(pvUser, Port);
     PVMMDEV pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
     if (cb == 4)
     {
@@ -3041,6 +3046,7 @@ static DECLCALLBACK(int) vmmdevAltTimeSyncWrite(PPDMDEVINS pDevIns, void *pvUser
  */
 static DECLCALLBACK(int) vmmdevAltTimeSyncRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF2(pvUser, Port);
     PVMMDEV pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
     int     rc;
     if (cb == 4)
@@ -3465,6 +3471,7 @@ static DECLCALLBACK(int) vmmdevIPort_CpuHotPlug(PPDMIVMMDEVPORT pInterface, uint
  */
 static DECLCALLBACK(int) vmmdevLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF1(uPass);
     PVMMDEV pThis = PDMINS_2_DATA(pDevIns, PVMMDEV);
 
     SSMR3PutBool(pSSM, pThis->fGetHostTimeDisabled);
@@ -3722,10 +3729,11 @@ static DECLCALLBACK(int) vmmdevLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
  */
 static DECLCALLBACK(int) vmmdevLoadStateDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF1(pSSM);
     PVMMDEV pThis = PDMINS_2_DATA(pDevIns, PVMMDEV);
 
 #ifdef VBOX_WITH_HGCM
-    int rc = vmmdevHGCMLoadStateDone(pThis, pSSM);
+    int rc = vmmdevHGCMLoadStateDone(pThis);
     AssertLogRelRCReturn(rc, rc);
 #endif /* VBOX_WITH_HGCM */
 
@@ -4150,6 +4158,10 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
         if (RT_FAILURE(rc))
             return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
                                        N_("Failed to allocate %u bytes of memory for the VMM device heap"), PAGE_SIZE);
+
+        /* Register the memory area with PDM so HM can access it before it's mapped. */
+        rc = PDMDevHlpRegisterVMMDevHeap(pDevIns, NIL_RTGCPHYS, pThis->pVMMDevHeapR3, VMMDEV_HEAP_SIZE);
+        AssertLogRelRCReturn(rc, rc);
     }
 
     /*

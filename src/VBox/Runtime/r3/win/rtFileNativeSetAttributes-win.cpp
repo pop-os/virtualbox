@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,27 +28,16 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-/* APIs used here require DDK headers. */
-#include <wdm.h>
+#include <iprt/nt/nt.h>
+#include <iprt/string.h>
 
-/* Declare ntdll exports. */
-extern "C"
-{
-NTSYSAPI ULONG NTAPI RtlNtStatusToDosError (IN NTSTATUS Status);
-
-NTSYSAPI NTSTATUS NTAPI NtSetInformationFile(IN HANDLE FileHandle,
-                                             OUT PIO_STATUS_BLOCK IoStatusBlock,
-                                             IN PVOID FileInformation,
-                                             IN ULONG Length,
-                                             IN FILE_INFORMATION_CLASS FileInformationClass);
-}
 
 /** Windows/NT worker.
  * @todo rename to rtFileWinSetAttributes */
 int rtFileNativeSetAttributes(HANDLE hFile, ULONG fAttributes)
 {
     IO_STATUS_BLOCK IoStatusBlock;
-    memset(&IoStatusBlock, 0, sizeof(IoStatusBlock));
+    RT_ZERO(IoStatusBlock);
 
     /*
      * Members that are set 0 will not be modified on the file object.
@@ -56,16 +45,15 @@ int rtFileNativeSetAttributes(HANDLE hFile, ULONG fAttributes)
      * for details.
      */
     FILE_BASIC_INFORMATION Info;
-    memset(&Info, 0, sizeof(Info));
+    RT_ZERO(Info);
     Info.FileAttributes = fAttributes;
 
     /** @todo resolve dynamically to avoid dragging in NtDll? */
-    NTSTATUS Status = NtSetInformationFile(hFile,
-                                           &IoStatusBlock,
-                                           &Info,
-                                           sizeof(Info),
-                                           FileBasicInformation);
-
-    return RtlNtStatusToDosError(Status);
+    NTSTATUS rcNt = NtSetInformationFile(hFile,
+                                         &IoStatusBlock,
+                                         &Info,
+                                         sizeof(Info),
+                                         FileBasicInformation);
+    return RtlNtStatusToDosError(rcNt);
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,26 +68,29 @@ private slots:
     /** Handles guest-screen resize requests. */
     void sltHandleActionTriggerViewScreenResize(int iIndex, const QSize &size);
 
+    /** Handles host-screen available-area change. */
+    virtual void sltHostScreenAvailableAreaChange() /* override */;
+
 private:
 
     /* Prepare helpers: */
     void prepareActionConnections();
     void prepareMachineWindows();
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     void prepareMenu();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /* Cleanup helpers: */
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     void cleanupMenu();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     void cleanupMachineWindows();
     void cleanupActionConnections();
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /** Holds the popup-menu instance. */
     QMenu *m_pPopupMenu;
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /* Friend classes: */
     friend class UIMachineLogic;

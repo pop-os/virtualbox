@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_DBGF ///@todo add new log group.
+#define LOG_GROUP LOG_GROUP_DBGF /// @todo add new log group.
 #include "DBGPlugIns.h"
 #include "DBGPlugInCommonELF.h"
 #include <VBox/vmm/dbgf.h>
@@ -358,6 +358,7 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData);
  */
 static DECLCALLBACK(void *) dbgDiggerSolarisQueryInterface(PUVM pUVM, void *pvData, DBGFOSINTERFACE enmIf)
 {
+    RT_NOREF3(pUVM, pvData, enmIf);
     return NULL;
 }
 
@@ -373,8 +374,9 @@ static DECLCALLBACK(int)  dbgDiggerSolarisQueryVersion(PUVM pUVM, void *pvData, 
     /*
      * It's all in the utsname symbol...
      */
-    DBGFADDRESS Addr;
     SOL_utsname_t UtsName;
+    RT_ZERO(UtsName);                   /* Make MSC happy. */
+    DBGFADDRESS Addr;
     RTDBGSYMBOL SymUtsName;
     int rc = DBGFR3AsSymbolByName(pUVM, DBGF_AS_KERNEL, "utsname", &SymUtsName, NULL);
     if (RT_SUCCESS(rc))
@@ -428,6 +430,8 @@ static DECLCALLBACK(int)  dbgDiggerSolarisQueryVersion(PUVM pUVM, void *pvData, 
  */
 static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, SOL_modctl_t const *pModCtl)
 {
+    RT_NOREF1(pThis);
+
     /* skip it if it's not loaded and installed */
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_32.mod_loaded,    v9_32.mod_loaded);
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_32.mod_installed, v9_32.mod_installed);
@@ -474,7 +478,7 @@ static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
         ||  Module.hdr.e_ident[EI_CLASS] != ELFCLASS32
         ||  Module.hdr.e_ident[EI_DATA] != ELFDATA2LSB
         ||  Module.hdr.e_ident[EI_VERSION] != EV_CURRENT
-        ||  ASMMemIsAll8(&Module.hdr.e_ident[EI_PAD], EI_NIDENT - EI_PAD, 0) != NULL
+        ||  !ASMMemIsZero(&Module.hdr.e_ident[EI_PAD], EI_NIDENT - EI_PAD)
         )
         return;
     if (Module.hdr.e_version != EV_CURRENT)
@@ -575,6 +579,8 @@ static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
  */
 static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, SOL_modctl_t const *pModCtl)
 {
+    RT_NOREF1(pThis);
+
     /* skip it if it's not loaded and installed */
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_64.mod_loaded,    v9_64.mod_loaded);
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_64.mod_installed, v9_64.mod_installed);
@@ -621,7 +627,7 @@ static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
         ||  Module.hdr.e_ident[EI_CLASS] != ELFCLASS64
         ||  Module.hdr.e_ident[EI_DATA] != ELFDATA2LSB
         ||  Module.hdr.e_ident[EI_VERSION] != EV_CURRENT
-        ||  ASMMemIsAll8(&Module.hdr.e_ident[EI_PAD], EI_NIDENT - EI_PAD, 0) != NULL
+        ||  !ASMMemIsZero(&Module.hdr.e_ident[EI_PAD], EI_NIDENT - EI_PAD)
         )
         return;
     if (Module.hdr.e_version != EV_CURRENT)
@@ -717,6 +723,7 @@ static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
  */
 static DECLCALLBACK(void)  dbgDiggerSolarisTerm(PUVM pUVM, void *pvData)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGERSOLARIS pThis = (PDBGDIGGERSOLARIS)pvData;
     Assert(pThis->fValid);
 
@@ -1086,6 +1093,7 @@ static DECLCALLBACK(bool)  dbgDiggerSolarisProbe(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(void)  dbgDiggerSolarisDestruct(PUVM pUVM, void *pvData)
 {
+    RT_NOREF2(pUVM, pvData);
 
 }
 
@@ -1095,6 +1103,7 @@ static DECLCALLBACK(void)  dbgDiggerSolarisDestruct(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(int)  dbgDiggerSolarisConstruct(PUVM pUVM, void *pvData)
 {
+    RT_NOREF2(pUVM, pvData);
     return VINF_SUCCESS;
 }
 

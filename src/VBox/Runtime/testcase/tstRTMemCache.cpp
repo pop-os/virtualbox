@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -132,7 +132,7 @@ static void tst1(void)
 static DECLCALLBACK(int) tst2Ctor(RTMEMCACHE hMemCache, void *pvObj, void *pvUser)
 {
     RTTESTI_CHECK(hMemCache == g_hMemCache);
-    RTTESTI_CHECK(ASMMemIsAll8(pvObj, 256, 0) == NULL);
+    RTTESTI_CHECK(ASMMemIsZero(pvObj, 256));
 
     if (*(bool *)pvUser)
         return VERR_RESOURCE_BUSY;
@@ -145,6 +145,8 @@ static DECLCALLBACK(int) tst2Ctor(RTMEMCACHE hMemCache, void *pvObj, void *pvUse
 /** Destructor for tst2.  Checks that it was constructed and used twice. */
 static DECLCALLBACK(void) tst2Dtor(RTMEMCACHE hMemCache, void *pvObj, void *pvUser)
 {
+    RT_NOREF_PV(hMemCache); RT_NOREF_PV(pvUser);
+
     RTTESTI_CHECK(!strcmp((char *)pvObj, "ctor was called\nused\nused\n"));
     strcat((char *)pvObj, "dtor was called\n");
 }
@@ -206,6 +208,7 @@ static DECLCALLBACK(int) tst3Thread(RTTHREAD hThreadSelf, void *pvArg)
     PTST3THREAD     pThread     = (PTST3THREAD)(pvArg);
     size_t          cbObject    = pThread->cbObject;
     uint64_t        cIterations = 0;
+    RT_NOREF_PV(hThreadSelf);
 
     /* wait for the kick-off */
     RTTEST_CHECK_RC_OK(g_hTest, RTSemEventMultiWait(pThread->hEvt, RT_INDEFINITE_WAIT));
@@ -322,6 +325,8 @@ static void tst3AllMethods(uint32_t cThreads, uint32_t cbObject, uint32_t cSecs)
 
 int main(int argc, char **argv)
 {
+    RT_NOREF_PV(argc); RT_NOREF_PV(argv);
+
     RTTEST hTest;
     int rc = RTTestInitAndCreate("tstRTMemCache", &hTest);
     if (rc)

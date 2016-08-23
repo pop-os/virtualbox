@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,8 @@
 #include <iprt/err.h>
 #include <iprt/string.h>
 
+#define RTASN1TMPL_PASS                 RTASN1TMPL_PASS_XTAG
+#include <iprt/asn1-generator-pass.h>
 #define RTASN1TMPL_PASS                 RTASN1TMPL_PASS_VTABLE
 #include <iprt/asn1-generator-pass.h>
 #define RTASN1TMPL_PASS                 RTASN1TMPL_PASS_DELETE

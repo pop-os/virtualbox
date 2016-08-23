@@ -1,11 +1,10 @@
 /* $Id: ClientWatcher.cpp $ */
 /** @file
- *
  * VirtualBox API client session crash watcher
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,12 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/log.h>
 #include <iprt/semaphore.h>
 #include <iprt/process.h>
 
+#include <VBox/log.h>
 #include <VBox/com/defs.h>
 
 #include <vector>
@@ -84,7 +84,23 @@ VirtualBox::ClientWatcher::ClientWatcher(const ComObjPtr<VirtualBox> &pVirtualBo
     mLock(LOCKCLASS_OBJECTSTATE)
 {
 #if defined(RT_OS_WINDOWS)
-    mUpdateReq = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+    /* Misc state. */
+    mfTerminate         = false;
+    mcMsWait            = INFINITE;
+    mcActiveSubworkers  = 0;
+
+    /* Update request.  The UpdateReq event is also used to wake up subthreads. */
+    mfUpdateReq         = false;
+    mUpdateReq          = ::CreateEvent(NULL /*pSecAttr*/, TRUE /*fManualReset*/, FALSE /*fInitialState*/, NULL /*pszName*/);
+    AssertRelease(mUpdateReq != NULL);
+
+    /* Initialize the handle array. */
+    for (uint32_t i = 0; i < RT_ELEMENTS(mahWaitHandles); i++)
+        mahWaitHandles[i] = NULL;
+    for (uint32_t i = 0; i < RT_ELEMENTS(mahWaitHandles); i += CW_MAX_HANDLES_PER_THREAD)
+        mahWaitHandles[i] = mUpdateReq;
+    mcWaitHandles = 1;
+
 #elif defined(RT_OS_OS2)
     RTSemEventCreate(&mUpdateReq);
 #elif defined(VBOX_WITH_SYS_V_IPC_SESSION_WATCHER) || defined(VBOX_WITH_GENERIC_SESSION_WATCHER)
@@ -116,18 +132,24 @@ bool VirtualBox::ClientWatcher::isReady()
 void VirtualBox::ClientWatcher::update()
 {
     AssertReturnVoid(mThread != NIL_RTTHREAD);
+    LogFlowFunc(("ping!\n"));
 
     /* sent an update request */
 #if defined(RT_OS_WINDOWS)
+    ASMAtomicWriteBool(&mfUpdateReq, true);
     ::SetEvent(mUpdateReq);
+
 #elif defined(RT_OS_OS2)
     RTSemEventSignal(mUpdateReq);
+
 #elif defined(VBOX_WITH_SYS_V_IPC_SESSION_WATCHER)
     /* use short timeouts, as we expect changes */
     ASMAtomicUoWriteU8(&mUpdateAdaptCtr, RT_ELEMENTS(s_aUpdateTimeoutSteps) - 1);
     RTSemEventSignal(mUpdateReq);
+
 #elif defined(VBOX_WITH_GENERIC_SESSION_WATCHER)
     RTSemEventSignal(mUpdateReq);
+
 #else
 # error "Port me!"
 #endif
@@ -141,11 +163,166 @@ void VirtualBox::ClientWatcher::update()
 void VirtualBox::ClientWatcher::addProcess(RTPROCESS pid)
 {
     AssertReturnVoid(mThread != NIL_RTTHREAD);
-    /* @todo r=klaus, do the reaping on all platforms! */
-#ifndef RT_OS_WINDOWS
     AutoWriteLock alock(mLock COMMA_LOCKVAL_SRC_POS);
     mProcesses.push_back(pid);
-#endif
+}
+
+/**
+ * Reaps dead processes in the mProcesses list.
+ *
+ * @returns Number of reaped processes.
+ */
+uint32_t VirtualBox::ClientWatcher::reapProcesses(void)
+{
+    uint32_t cReaped = 0;
+
+    AutoWriteLock alock(mLock COMMA_LOCKVAL_SRC_POS);
+    if (mProcesses.size())
+    {
+        LogFlowFunc(("UPDATE: child process count = %zu\n", mProcesses.size()));
+        VirtualBox::ClientWatcher::ProcessList::iterator it = mProcesses.begin();
+        while (it != mProcesses.end())
+        {
+            RTPROCESS pid = *it;
+            RTPROCSTATUS Status;
+            int vrc = ::RTProcWait(pid, RTPROCWAIT_FLAGS_NOBLOCK, &Status);
+            if (vrc == VINF_SUCCESS)
+            {
+                if (   Status.enmReason != RTPROCEXITREASON_NORMAL
+                    || Status.iStatus   != RTEXITCODE_SUCCESS)
+                {
+                    switch (Status.enmReason)
+                    {
+                        default:
+                        case RTPROCEXITREASON_NORMAL:
+                            LogRel(("Reaper: Pid %d (%x) exited normally: %d (%#x)\n",
+                                    pid, pid, Status.iStatus, Status.iStatus));
+                            break;
+                        case RTPROCEXITREASON_ABEND:
+                            LogRel(("Reaper: Pid %d (%x) abended: %d (%#x)\n",
+                                    pid, pid, Status.iStatus, Status.iStatus));
+                            break;
+                        case RTPROCEXITREASON_SIGNAL:
+                            LogRel(("Reaper: Pid %d (%x) was signalled: %d (%#x)\n",
+                                    pid, pid, Status.iStatus, Status.iStatus));
+                            break;
+                    }
+                }
+                else
+                    LogFlowFunc(("pid %d (%x) was reaped, status=%d, reason=%d\n", pid, pid, Status.iStatus, Status.enmReason));
+                it = mProcesses.erase(it);
+                cReaped++;
+            }
+            else
+            {
+                LogFlowFunc(("pid %d (%x) was NOT reaped, vrc=%Rrc\n", pid, pid, vrc));
+                if (vrc != VERR_PROCESS_RUNNING)
+                {
+                    /* remove the process if it is not already running */
+                    it = mProcesses.erase(it);
+                    cReaped++;
+                }
+                else
+                    ++it;
+            }
+        }
+    }
+
+    return cReaped;
+}
+
+#ifdef RT_OS_WINDOWS
+
+/**
+ * Closes all the client process handles in mahWaitHandles.
+ *
+ * The array is divided into two ranges, first range are mutext handles of
+ * established sessions, the second range is zero or more process handles of
+ * spawning sessions.  It's the latter that we close here, the former will just
+ * be NULLed out.
+ *
+ * @param   cProcHandles        The number of process handles.
+ */
+void VirtualBox::ClientWatcher::winResetHandleArray(uint32_t cProcHandles)
+{
+    uint32_t idxHandle = mcWaitHandles;
+    Assert(cProcHandles < idxHandle);
+    Assert(idxHandle > 0);
+
+    /* Spawning process handles. */
+    while (cProcHandles-- > 0 && idxHandle > 0)
+    {
+        idxHandle--;
+        if (idxHandle % CW_MAX_HANDLES_PER_THREAD)
+        {
+            Assert(mahWaitHandles[idxHandle] != mUpdateReq);
+            LogFlow(("UPDATE: closing %p\n", mahWaitHandles[idxHandle]));
+            CloseHandle(mahWaitHandles[idxHandle]);
+            mahWaitHandles[idxHandle] = NULL;
+        }
+        else
+            Assert(mahWaitHandles[idxHandle] == mUpdateReq);
+    }
+
+    /* Mutex handles (not to be closed). */
+    while (idxHandle-- > 0)
+        if (idxHandle % CW_MAX_HANDLES_PER_THREAD)
+        {
+            Assert(mahWaitHandles[idxHandle] != mUpdateReq);
+            mahWaitHandles[idxHandle] = NULL;
+        }
+        else
+            Assert(mahWaitHandles[idxHandle] == mUpdateReq);
+
+    /* Reset the handle count. */
+    mcWaitHandles = 1;
+}
+
+/**
+ * Does the waiting on a section of the handle array.
+ *
+ * @param   pSubworker      Pointer to the calling thread's data.
+ * @param   cMsWait         Number of milliseconds to wait.
+ */
+void VirtualBox::ClientWatcher::subworkerWait(VirtualBox::ClientWatcher::PerSubworker *pSubworker, uint32_t cMsWait)
+{
+    /*
+     * Figure out what section to wait on and do the waiting.
+     */
+    uint32_t idxHandle = pSubworker->iSubworker * CW_MAX_HANDLES_PER_THREAD;
+    uint32_t cHandles  = CW_MAX_HANDLES_PER_THREAD;
+    if (idxHandle + cHandles > mcWaitHandles)
+    {
+        cHandles = mcWaitHandles - idxHandle;
+        AssertStmt(idxHandle < mcWaitHandles, cHandles = 1);
+    }
+    Assert(mahWaitHandles[idxHandle] == mUpdateReq);
+
+    DWORD dwWait = ::WaitForMultipleObjects(cHandles,
+                                            &mahWaitHandles[idxHandle],
+                                            FALSE /*fWaitAll*/,
+                                            cMsWait);
+    pSubworker->dwWait = dwWait;
+
+    /*
+     * If we didn't wake up because of the UpdateReq handle, signal it to make
+     * sure everyone else wakes up too.
+     */
+    if (dwWait != WAIT_OBJECT_0)
+    {
+        BOOL fRc = SetEvent(mUpdateReq);
+        Assert(fRc); NOREF(fRc);
+    }
+
+    /*
+     * Last one signals the main thread.
+     */
+    if (ASMAtomicDecU32(&mcActiveSubworkers) == 0)
+    {
+        int vrc = RTThreadUserSignal(maSubworkers[0].hThread);
+        AssertLogRelMsg(RT_SUCCESS(vrc), ("RTThreadUserSignal -> %Rrc\n", vrc));
+    }
+
 }
 
 /**
@@ -153,9 +330,44 @@ void VirtualBox::ClientWatcher::addProcess(RTPROCESS pid)
  * that have open sessions using IMachine::LockMachine()
  */
 /*static*/
-DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void *pvUser)
+DECLCALLBACK(int) VirtualBox::ClientWatcher::subworkerThread(RTTHREAD hThreadSelf, void *pvUser)
+{
+    VirtualBox::ClientWatcher::PerSubworker *pSubworker = (VirtualBox::ClientWatcher::PerSubworker *)pvUser;
+    VirtualBox::ClientWatcher               *pThis = pSubworker->pSelf;
+    int                                      vrc;
+    while (!pThis->mfTerminate)
+    {
+        /* Before we start waiting, reset the event semaphore. */
+        vrc = RTThreadUserReset(pSubworker->hThread);
+        AssertLogRelMsg(RT_SUCCESS(vrc), ("RTThreadUserReset [iSubworker=%#u] -> %Rrc", pSubworker->iSubworker, vrc));
+
+        /* Do the job. */
+        pThis->subworkerWait(pSubworker, pThis->mcMsWait);
+
+        /* Wait for the next job. */
+        do
+        {
+            vrc = RTThreadUserWaitNoResume(hThreadSelf, RT_INDEFINITE_WAIT);
+            Assert(vrc == VINF_SUCCESS || vrc == VERR_INTERRUPTED);
+        }
+        while (   vrc != VINF_SUCCESS
+               && !pThis->mfTerminate);
+    }
+    return VINF_SUCCESS;
+}
+
+
+#endif /* RT_OS_WINDOWS */
+
+/**
+ * Thread worker function that watches the termination of all client processes
+ * that have open sessions using IMachine::LockMachine()
+ */
+/*static*/
+DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD hThreadSelf, void *pvUser)
 {
     LogFlowFuncEnter();
+    NOREF(hThreadSelf);
 
     VirtualBox::ClientWatcher *that = (VirtualBox::ClientWatcher *)pvUser;
     Assert(that);
@@ -173,67 +385,128 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
 
 #if defined(RT_OS_WINDOWS)
 
-    /// @todo (dmik) processes reaping!
+    int vrc;
 
-    HANDLE handles[MAXIMUM_WAIT_OBJECTS];
-    handles[0] = that->mUpdateReq;
+    /* Initialize all the subworker data. */
+    that->maSubworkers[0].hThread = hThreadSelf;
+    for (uint32_t iSubworker = 1; iSubworker < RT_ELEMENTS(that->maSubworkers); iSubworker++)
+        that->maSubworkers[iSubworker].hThread    = NIL_RTTHREAD;
+    for (uint32_t iSubworker = 0; iSubworker < RT_ELEMENTS(that->maSubworkers); iSubworker++)
+    {
+        that->maSubworkers[iSubworker].pSelf      = that;
+        that->maSubworkers[iSubworker].iSubworker = iSubworker;
+    }
 
     do
     {
+        /* VirtualBox has been early uninitialized, terminate. */
         AutoCaller autoCaller(that->mVirtualBox);
-        /* VirtualBox has been early uninitialized, terminate */
         if (!autoCaller.isOk())
             break;
 
-        bool fPidRace = false;
-        do
+        bool fPidRace = false;          /* We poll if the PID of a spawning session hasn't been established yet.  */
+        bool fRecentDeath = false;      /* We slowly poll if a session has recently been closed to do reaping. */
+        for (;;)
         {
             /* release the caller to let uninit() ever proceed */
             autoCaller.release();
 
-            DWORD rc = ::WaitForMultipleObjects((DWORD)(1 + cnt + cntSpawned),
-                                                handles,
-                                                FALSE,
-                                                !fPidRace ? INFINITE : 500);
+            /* Kick of the waiting. */
+            uint32_t const cSubworkers = (that->mcWaitHandles + CW_MAX_HANDLES_PER_THREAD - 1) / CW_MAX_HANDLES_PER_THREAD;
+            uint32_t const cMsWait     = fPidRace ? 500 : fRecentDeath ? 5000 : INFINITE;
+            LogFlowFunc(("UPDATE: Waiting. %u handles, %u subworkers, %u ms wait\n", that->mcWaitHandles, cSubworkers, cMsWait));
 
-            /* Restore the caller before using VirtualBox. If it fails, this
-             * means VirtualBox is being uninitialized and we must terminate. */
+            that->mcMsWait = cMsWait;
+            ASMAtomicWriteU32(&that->mcActiveSubworkers, cSubworkers);
+            RTThreadUserReset(hThreadSelf);
+
+            for (uint32_t iSubworker = 1; iSubworker < cSubworkers; iSubworker++)
+            {
+                if (that->maSubworkers[iSubworker].hThread != NIL_RTTHREAD)
+                {
+                    vrc = RTThreadUserSignal(that->maSubworkers[iSubworker].hThread);
+                    AssertLogRelMsg(RT_SUCCESS(vrc), ("RTThreadUserSignal -> %Rrc\n", vrc));
+                }
+                else
+                {
+                    vrc = RTThreadCreateF(&that->maSubworkers[iSubworker].hThread,
+                                          VirtualBox::ClientWatcher::subworkerThread, &that->maSubworkers[iSubworker],
+                                          _128K, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "Watcher%u", iSubworker);
+                    AssertLogRelMsgStmt(RT_SUCCESS(vrc), ("%Rrc iSubworker=%u\n", vrc, iSubworker),
+                                        that->maSubworkers[iSubworker].hThread = NIL_RTTHREAD);
+                }
+                if (RT_FAILURE(vrc))
+                    that->subworkerWait(&that->maSubworkers[iSubworker], 1);
+            }
+
+            /* Wait ourselves. */
+            that->subworkerWait(&that->maSubworkers[0], cMsWait);
+
+            /* Make sure all waiters are done waiting. */
+            BOOL fRc = SetEvent(that->mUpdateReq);
+            Assert(fRc); NOREF(fRc);
+
+            vrc = RTThreadUserWait(hThreadSelf, RT_INDEFINITE_WAIT);
+            AssertLogRelMsg(RT_SUCCESS(vrc), ("RTThreadUserWait -> %Rrc\n", vrc));
+            Assert(that->mcActiveSubworkers == 0);
+
+            /* Consume pending update request before proceeding with processing the wait results. */
+            fRc = ResetEvent(that->mUpdateReq);
+            Assert(fRc);
+
+            bool update = ASMAtomicXchgBool(&that->mfUpdateReq, false);
+            if (update)
+                LogFlowFunc(("UPDATE: Update request pending\n"));
+            update |= fPidRace;
+
+            /* Process the wait results. */
             autoCaller.add();
             if (!autoCaller.isOk())
                 break;
+            fRecentDeath = false;
+            for (uint32_t iSubworker = 0; iSubworker < cSubworkers; iSubworker++)
+            {
+                DWORD dwWait = that->maSubworkers[iSubworker].dwWait;
+                LogFlowFunc(("UPDATE: subworker #%u: dwWait=%#x\n", iSubworker, dwWait));
+                if (   (dwWait > WAIT_OBJECT_0    && dwWait < WAIT_OBJECT_0    + CW_MAX_HANDLES_PER_THREAD)
+                    || (dwWait > WAIT_ABANDONED_0 && dwWait < WAIT_ABANDONED_0 + CW_MAX_HANDLES_PER_THREAD) )
+                {
+                    uint32_t idxHandle = iSubworker * CW_MAX_HANDLES_PER_THREAD;
+                    if (dwWait > WAIT_OBJECT_0    && dwWait < WAIT_OBJECT_0    + CW_MAX_HANDLES_PER_THREAD)
+                        idxHandle += dwWait - WAIT_OBJECT_0;
+                    else
+                        idxHandle += dwWait - WAIT_ABANDONED_0;
 
-            bool update = fPidRace;
-
-            if (rc == WAIT_OBJECT_0)
-            {
-                /* update event is signaled */
-                update = true;
-            }
-            else if (rc > WAIT_OBJECT_0 && rc <= (WAIT_OBJECT_0 + cnt))
-            {
-                /* machine mutex is released */
-                (machines[rc - WAIT_OBJECT_0 - 1])->i_checkForDeath();
-                update = true;
-            }
-            else if (rc > WAIT_ABANDONED_0 && rc <= (WAIT_ABANDONED_0 + cnt))
-            {
-                /* machine mutex is abandoned due to client process termination */
-                (machines[rc - WAIT_ABANDONED_0 - 1])->i_checkForDeath();
-                update = true;
-            }
-            else if (rc > WAIT_OBJECT_0 + cnt && rc <= (WAIT_OBJECT_0 + cntSpawned))
-            {
-                /* spawned VM process has terminated (normally or abnormally) */
-                (spawnedMachines[rc - WAIT_OBJECT_0 - cnt - 1])->
-                    i_checkForSpawnFailure();
-                update = true;
+                    uint32_t const idxMachine = idxHandle - (iSubworker + 1);
+                    if (idxMachine < cnt)
+                    {
+                        /* Machine mutex is released or abandond due to client process termination. */
+                        LogFlowFunc(("UPDATE: Calling i_checkForDeath on idxMachine=%u (idxHandle=%u) dwWait=%#x\n",
+                                     idxMachine, idxHandle, dwWait));
+                        fRecentDeath |= (machines[idxMachine])->i_checkForDeath();
+                    }
+                    else if (idxMachine < cnt + cntSpawned)
+                    {
+                        /* Spawned VM process has terminated normally. */
+                        Assert(dwWait < WAIT_ABANDONED_0);
+                        LogFlowFunc(("UPDATE: Calling i_checkForSpawnFailure on idxMachine=%u/%u idxHandle=%u dwWait=%#x\n",
+                                     idxMachine, idxMachine - cnt, idxHandle, dwWait));
+                        fRecentDeath |= (spawnedMachines[idxMachine - cnt])->i_checkForSpawnFailure();
+                    }
+                    else
+                        AssertFailed();
+                    update = true;
+                }
+                else
+                    Assert(dwWait == WAIT_OBJECT_0 || dwWait == WAIT_TIMEOUT);
             }
 
             if (update)
             {
+                LogFlowFunc(("UPDATE: Update pending (cnt=%u cntSpawned=%u)...\n", cnt, cntSpawned));
+
                 /* close old process handles */
-                for (size_t i = 1 + cnt; i < 1 + cnt + cntSpawned; ++i)
-                    CloseHandle(handles[i]);
+                that->winResetHandleArray((uint32_t)cntSpawned);
 
                 // get reference to the machines list in VirtualBox
                 VirtualBox::MachinesOList &allMachines = that->mVirtualBox->i_getMachinesList();
@@ -244,14 +517,13 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                 /* obtain a new set of opened machines */
                 cnt = 0;
                 machines.clear();
+                uint32_t idxHandle = 0;
 
                 for (MachinesOList::iterator it = allMachines.begin();
                      it != allMachines.end();
                      ++it)
                 {
-                    /// @todo handle situations with more than 64 objects
-                    AssertMsgBreak((1 + cnt) <= MAXIMUM_WAIT_OBJECTS,
-                                   ("MAXIMUM_WAIT_OBJECTS reached"));
+                    AssertMsgBreak(idxHandle < CW_MAX_CLIENTS, ("CW_MAX_CLIENTS reached"));
 
                     ComObjPtr<SessionMachine> sm;
                     if ((*it)->i_isSessionOpenOrClosing(sm))
@@ -265,7 +537,9 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                             {
                                 HANDLE ipcSem = ct->getToken();
                                 machines.push_back(sm);
-                                handles[1 + cnt] = ipcSem;
+                                if (!(idxHandle % CW_MAX_HANDLES_PER_THREAD))
+                                    idxHandle++;
+                                that->mahWaitHandles[idxHandle++] = ipcSem;
                                 ++cnt;
                             }
                         }
@@ -283,9 +557,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                      it != allMachines.end();
                      ++it)
                 {
-                    /// @todo handle situations with more than 64 objects
-                    AssertMsgBreak((1 + cnt + cntSpawned) <= MAXIMUM_WAIT_OBJECTS,
-                                   ("MAXIMUM_WAIT_OBJECTS reached"));
+                    AssertMsgBreak(idxHandle < CW_MAX_CLIENTS, ("CW_MAX_CLIENTS reached"));
 
                     if ((*it)->i_isSessionSpawning())
                     {
@@ -300,7 +572,9 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                                 if (hProc != NULL)
                                 {
                                     spawnedMachines.push_back(*it);
-                                    handles[1 + cnt + cntSpawned] = hProc;
+                                    if (!(idxHandle % CW_MAX_HANDLES_PER_THREAD))
+                                        idxHandle++;
+                                    that->mahWaitHandles[idxHandle++] = hProc;
                                     ++cntSpawned;
                                 }
                             }
@@ -312,16 +586,38 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
 
                 LogFlowFunc(("UPDATE: spawned session count = %d\n", cntSpawned));
 
+                /* Update mcWaitHandles and make sure there is at least one handle to wait on. */
+                that->mcWaitHandles = RT_MAX(idxHandle, 1);
+
                 // machines lock unwinds here
             }
+            else
+                LogFlowFunc(("UPDATE: No update pending.\n"));
+
+            /* reap child processes */
+            that->reapProcesses();
+
+        } /* for ever (well, till autoCaller fails). */
+
+    } while (0);
+
+    /* Terminate subworker threads. */
+    ASMAtomicWriteBool(&that->mfTerminate, true);
+    for (uint32_t iSubworker = 1; iSubworker < RT_ELEMENTS(that->maSubworkers); iSubworker++)
+        if (that->maSubworkers[iSubworker].hThread != NIL_RTTHREAD)
+            RTThreadUserSignal(that->maSubworkers[iSubworker].hThread);
+    for (uint32_t iSubworker = 1; iSubworker < RT_ELEMENTS(that->maSubworkers); iSubworker++)
+        if (that->maSubworkers[iSubworker].hThread != NIL_RTTHREAD)
+        {
+            vrc = RTThreadWait(that->maSubworkers[iSubworker].hThread, RT_MS_1MIN, NULL /*prc*/);
+            if (RT_SUCCESS(vrc))
+                that->maSubworkers[iSubworker].hThread = NIL_RTTHREAD;
+            else
+                AssertLogRelMsgFailed(("RTThreadWait -> %Rrc\n", vrc));
         }
-        while (true);
-    }
-    while (0);
 
     /* close old process handles */
-    for (size_t i = 1 + cnt; i < 1 + cnt + cntSpawned; ++i)
-        CloseHandle(handles[i]);
+    that->winResetHandleArray((uint32_t)cntSpawned);
 
     /* release sets of machines if any */
     machines.clear();
@@ -330,8 +626,6 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
     ::CoUninitialize();
 
 #elif defined(RT_OS_OS2)
-
-    /// @todo (dmik) processes reaping!
 
     /* according to PMREF, 64 is the maximum for the muxwait list */
     SEMRECORD handles[64];
@@ -345,7 +639,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
         if (!autoCaller.isOk())
             break;
 
-        do
+        for (;;)
         {
             /* release the caller to let uninit() ever proceed */
             autoCaller.release();
@@ -519,10 +813,13 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                     LogFlowFunc(("UPDATE: spawned session count = %d\n", cntSpawned));
                 }
             }
-        }
-        while (true);
-    }
-    while (0);
+
+            /* reap child processes */
+            that->reapProcesses();
+
+        } /* for ever (well, till autoCaller fails). */
+
+    } while (0);
 
     /* close the muxsem */
     if (muxSem != NULLHANDLE)
@@ -632,61 +929,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                 updateSpawned |= (spawnedMachines[i])->i_checkForSpawnFailure();
 
             /* reap child processes */
-            {
-                AutoWriteLock alock(that->mLock COMMA_LOCKVAL_SRC_POS);
-                if (that->mProcesses.size())
-                {
-                    LogFlowFunc(("UPDATE: child process count = %d\n",
-                                 that->mProcesses.size()));
-                    VirtualBox::ClientWatcher::ProcessList::iterator it = that->mProcesses.begin();
-                    while (it != that->mProcesses.end())
-                    {
-                        RTPROCESS pid = *it;
-                        RTPROCSTATUS status;
-                        int vrc = ::RTProcWait(pid, RTPROCWAIT_FLAGS_NOBLOCK, &status);
-                        if (vrc == VINF_SUCCESS)
-                        {
-                            if (   status.enmReason != RTPROCEXITREASON_NORMAL
-                                || status.iStatus   != RTEXITCODE_SUCCESS)
-                            {
-                                switch (status.enmReason)
-                                {
-                                    default:
-                                    case RTPROCEXITREASON_NORMAL:
-                                        LogRel(("Reaper: Pid %d (%x) exited normally: %d (%#x)\n",
-                                                pid, pid, status.iStatus, status.iStatus));
-                                        break;
-                                    case RTPROCEXITREASON_ABEND:
-                                        LogRel(("Reaper: Pid %d (%x) abended: %d (%#x)\n",
-                                                pid, pid, status.iStatus, status.iStatus));
-                                        break;
-                                    case RTPROCEXITREASON_SIGNAL:
-                                        LogRel(("Reaper: Pid %d (%x) was signalled: %d (%#x)\n",
-                                                pid, pid, status.iStatus, status.iStatus));
-                                        break;
-                                }
-                            }
-                            else
-                                LogFlowFunc(("pid %d (%x) was reaped, status=%d, reason=%d\n",
-                                             pid, pid, status.iStatus,
-                                             status.enmReason));
-                            it = that->mProcesses.erase(it);
-                        }
-                        else
-                        {
-                            LogFlowFunc(("pid %d (%x) was NOT reaped, vrc=%Rrc\n",
-                                         pid, pid, vrc));
-                            if (vrc != VERR_PROCESS_RUNNING)
-                            {
-                                /* remove the process if it is not already running */
-                                it = that->mProcesses.erase(it);
-                            }
-                            else
-                                ++it;
-                        }
-                    }
-                }
-            }
+            that->reapProcesses();
         }
         while (true);
     }
@@ -722,7 +965,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                 do
                 {
                     uOld = ASMAtomicUoReadU8(&that->mUpdateAdaptCtr);
-                    uNew = uOld ? uOld - 1 : uOld;
+                    uNew = uOld ? (uint8_t)(uOld - 1) : uOld;
                 } while (!ASMAtomicCmpXchgU8(&that->mUpdateAdaptCtr, uNew, uOld));
                 Assert(uOld <= RT_ELEMENTS(s_aUpdateTimeoutSteps) - 1);
                 cMillies = s_aUpdateTimeoutSteps[uOld];
@@ -780,61 +1023,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                 updateSpawned |= (spawnedMachines[i])->i_checkForSpawnFailure();
 
             /* reap child processes */
-            {
-                AutoWriteLock alock(that->mLock COMMA_LOCKVAL_SRC_POS);
-                if (that->mProcesses.size())
-                {
-                    LogFlowFunc(("UPDATE: child process count = %d\n",
-                                 that->mProcesses.size()));
-                    VirtualBox::ClientWatcher::ProcessList::iterator it = that->mProcesses.begin();
-                    while (it != that->mProcesses.end())
-                    {
-                        RTPROCESS pid = *it;
-                        RTPROCSTATUS status;
-                        int vrc = ::RTProcWait(pid, RTPROCWAIT_FLAGS_NOBLOCK, &status);
-                        if (vrc == VINF_SUCCESS)
-                        {
-                            if (   status.enmReason != RTPROCEXITREASON_NORMAL
-                                || status.iStatus   != RTEXITCODE_SUCCESS)
-                            {
-                                switch (status.enmReason)
-                                {
-                                    default:
-                                    case RTPROCEXITREASON_NORMAL:
-                                        LogRel(("Reaper: Pid %d (%x) exited normally: %d (%#x)\n",
-                                                pid, pid, status.iStatus, status.iStatus));
-                                        break;
-                                    case RTPROCEXITREASON_ABEND:
-                                        LogRel(("Reaper: Pid %d (%x) abended: %d (%#x)\n",
-                                                pid, pid, status.iStatus, status.iStatus));
-                                        break;
-                                    case RTPROCEXITREASON_SIGNAL:
-                                        LogRel(("Reaper: Pid %d (%x) was signalled: %d (%#x)\n",
-                                                pid, pid, status.iStatus, status.iStatus));
-                                        break;
-                                }
-                            }
-                            else
-                                LogFlowFunc(("pid %d (%x) was reaped, status=%d, reason=%d\n",
-                                             pid, pid, status.iStatus,
-                                             status.enmReason));
-                            it = that->mProcesses.erase(it);
-                        }
-                        else
-                        {
-                            LogFlowFunc(("pid %d (%x) was NOT reaped, vrc=%Rrc\n",
-                                         pid, pid, vrc));
-                            if (vrc != VERR_PROCESS_RUNNING)
-                            {
-                                /* remove the process if it is not already running */
-                                it = that->mProcesses.erase(it);
-                            }
-                            else
-                                ++it;
-                        }
-                    }
-                }
-            }
+            that->reapProcesses();
         }
         while (true);
     }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,8 @@ static uint32_t cFrequency[200];
 
 static DECLCALLBACK(void) TimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t iTick)
 {
+    RT_NOREF_PV(pTimer); RT_NOREF_PV(pvUser); RT_NOREF_PV(iTick);
+
     gcTicks++;
 
     const uint64_t u64Now = RTTimeNanoTS();

@@ -23,7 +23,11 @@ print """
 
 #include <stdio.h>
 #if defined(WINDOWS)
+# ifdef VBOX
+#  include <iprt/win/windows.h>
+# else
 #include <windows.h>
+# endif
 #include <process.h>
 #include <direct.h>
 #define SYSTEM_GL "opengl32.dll"
@@ -41,7 +45,7 @@ print """
 #else
 #define SYSTEM_GL "libGL.so.1"
 #endif
-typedef void (*glxfuncptr)();
+typedef void (*glxfuncptr)(void);
 extern glxfuncptr glxGetProcAddressARB( const GLubyte *name );
 #else
 #error I don't know where your system's GL lives.  Too bad.
@@ -80,7 +84,7 @@ fillin( SPUNamedFunctionTable *entry, const char *funcName, SPUGenericFunction f
 }
 
 #ifndef WINDOWS
-static int FileExists(char *directory, char *filename)
+/*static int FileExists(char *directory, char *filename)
 {
 	FILE *f;
 	char fullFilename[8096];
@@ -97,7 +101,7 @@ static int FileExists(char *directory, char *filename)
 	else {
 	    return 0;
 	}
-}
+}*/
 #endif
 
 

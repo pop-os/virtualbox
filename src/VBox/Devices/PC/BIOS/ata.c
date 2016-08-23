@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,8 @@ void insw_discard(unsigned nwords, unsigned port);
     parm [cx] [dx] modify exact [cx ax] nomemory;
 
 void insd_discard(unsigned ndwords, unsigned port);
-#pragma aux insd_discard =  \
+#if VBOX_BIOS_CPU >= 80386
+# pragma aux insd_discard =  \
     ".386"                  \
     "push eax"              \
     "again:"                \
@@ -74,6 +75,7 @@ void insd_discard(unsigned ndwords, unsigned port);
     "loop again"            \
     "pop eax"               \
     parm [cx] [dx] modify exact [cx] nomemory;
+#endif
 
 // ---------------------------------------------------------------------------
 // ATA/ATAPI driver : initialization
@@ -221,14 +223,18 @@ uint16_t ata_cmd_data_in(bio_dsk_t __far *bios_dsk, uint16_t command, uint16_t c
     mode    = bios_dsk->devices[device].mode;
     blksize = bios_dsk->devices[device].blksize;
     if (blksize == 0) {   /* If transfer size is exactly 64K */
+#if VBOX_BIOS_CPU >= 80386
         if (mode == ATA_MODE_PIO32)
             blksize = 0x4000;
         else
+#endif
             blksize = 0x8000;
     } else {
+#if VBOX_BIOS_CPU >= 80386
         if (mode == ATA_MODE_PIO32)
             blksize >>= 2;
         else
+#endif
             blksize >>= 1;
     }
 
@@ -308,11 +314,12 @@ uint16_t ata_cmd_data_in(bio_dsk_t __far *bios_dsk, uint16_t command, uint16_t c
         if (FP_OFF(buffer) >= 0xF800)
             buffer = MK_FP(FP_SEG(buffer) + 0x80, FP_OFF(buffer) - 0x800);
 
-        if (mode == ATA_MODE_PIO32) {
+#if VBOX_BIOS_CPU >= 80386
+        if (mode == ATA_MODE_PIO32)
             buffer = rep_insd(buffer, blksize, iobase1);
-        } else {
+        else
+#endif
             buffer = rep_insw(buffer, blksize, iobase1);
-        }
         bios_dsk->drqp.trsfsectors += mult_blk_cnt;
         count--;
         while (1) {
@@ -371,7 +378,7 @@ void BIOSCALL ata_detect(void)
     bios_dsk->channels[1].iobase2 = 0x370;
     bios_dsk->channels[1].irq     = 15;
 #endif
-#if 0   //@todo - temporarily removed to avoid conflict with AHCI
+#if 0   /// @todo - temporarily removed to avoid conflict with AHCI
 #if BX_MAX_ATA_INTERFACES > 2
     bios_dsk->channels[2].iface   = ATA_IFACE_ISA;
     bios_dsk->channels[2].iobase1 = 0x1e8;
@@ -467,7 +474,11 @@ void BIOSCALL ata_detect(void)
                 BX_PANIC("ata-detect: Failed to detect ATA device\n");
 
             removable = (*(buffer+0) & 0x80) ? 1 : 0;
+#if VBOX_BIOS_CPU >= 80386
             mode      = *(buffer+96) ? ATA_MODE_PIO32 : ATA_MODE_PIO16;
+#else
+            mode      = ATA_MODE_PIO16;
+#endif
             blksize   = 512;  /* There is no sector size field any more. */
 
             cylinders = *(uint16_t *)(buffer+(1*2)); // word 1
@@ -564,7 +575,11 @@ void BIOSCALL ata_detect(void)
 
             type      = *(buffer+1) & 0x1f;
             removable = (*(buffer+0) & 0x80) ? 1 : 0;
+#if VBOX_BIOS_CPU >= 80386
             mode      = *(buffer+96) ? ATA_MODE_PIO32 : ATA_MODE_PIO16;
+#else
+            mode      = ATA_MODE_PIO16;
+#endif
             blksize   = 2048;
 
             bios_dsk->devices[device].device    = type;
@@ -690,9 +705,11 @@ uint16_t ata_cmd_data_out(bio_dsk_t __far *bios_dsk, uint16_t command, uint16_t 
     iobase2 = bios_dsk->channels[channel].iobase2;
     mode    = bios_dsk->devices[device].mode;
     blksize = 0x200; // was = bios_dsk->devices[device].blksize;
+#if VBOX_BIOS_CPU >= 80386
     if (mode == ATA_MODE_PIO32)
         blksize >>= 2;
     else
+#endif
         blksize >>= 1;
 
     status = inb(iobase1 + ATA_CB_STAT);
@@ -767,11 +784,12 @@ uint16_t ata_cmd_data_out(bio_dsk_t __far *bios_dsk, uint16_t command, uint16_t 
         if (FP_OFF(buffer) >= 0xF800)
             buffer = MK_FP(FP_SEG(buffer) + 0x80, FP_OFF(buffer) - 0x800);
 
-        if (mode == ATA_MODE_PIO32) {
+#if VBOX_BIOS_CPU >= 80386
+        if (mode == ATA_MODE_PIO32)
             buffer = rep_outsd(buffer, blksize, iobase1);
-        } else {
+        else
+#endif
             buffer = rep_outsw(buffer, blksize, iobase1);
-        }
 
         bios_dsk->drqp.trsfsectors++;
         count--;
@@ -918,7 +936,7 @@ uint16_t ata_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
     cmdlen >>= 1;
 
     // Reset count of transferred data
-    // @todo: clear in calling code?
+    /// @todo clear in calling code?
     bios_dsk->drqp.trsfsectors = 0;
     bios_dsk->drqp.trsfbytes   = 0;
 
@@ -1050,24 +1068,29 @@ uint16_t ata_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
                 }
             }
 
+#if VBOX_BIOS_CPU >= 80386
             if (lmode == ATA_MODE_PIO32) {
                 lcount  >>= 2;
                 lbefore >>= 2;
                 lafter  >>= 2;
-            }
-            else {
+            } else
+#endif
+            {
                 lcount  >>= 1;
                 lbefore >>= 1;
                 lafter  >>= 1;
             }
 
+#if VBOX_BIOS_CPU >= 80386
             if (lmode == ATA_MODE_PIO32) {
                 if (lbefore)
                     insd_discard(lbefore, iobase1);
                 rep_insd(buffer, lcount, iobase1);
                 if (lafter)
                     insd_discard(lafter, iobase1);
-            } else {
+            } else
+#endif
+            {
                 if (lbefore)
                     insw_discard(lbefore, iobase1);
                 rep_insw(buffer, lcount, iobase1);

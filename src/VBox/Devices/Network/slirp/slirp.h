@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,8 +21,8 @@
 #include <VBox/vmm/stam.h>
 
 #ifdef RT_OS_WINDOWS
-# include <winsock2.h>
-# include <ws2tcpip.h>
+# include <iprt/win/winsock2.h>
+# include <iprt/win/ws2tcpip.h>
 typedef int socklen_t;
 #endif
 #ifdef RT_OS_OS2 /* temporary workaround, see ticket #127 */
@@ -46,7 +46,7 @@ typedef int socklen_t;
 #include <VBox/log.h>
 #include <iprt/mem.h>
 #ifdef RT_OS_WINDOWS
-# include <windows.h>
+# include <iprt/win/windows.h>
 # include <io.h>
 #endif
 #include <iprt/asm.h>
@@ -76,7 +76,7 @@ typedef int socklen_t;
 
 
 # include <sys/timeb.h>
-# include <iphlpapi.h>
+# include <iprt/win/iphlpapi.h>
 
 /* We don't want the errno.h versions of these error defines. */
 # if defined(_MSC_VER) && _MSC_VER >= 1600
@@ -177,6 +177,9 @@ typedef unsigned char u_int8_t;
 # include <sys/time.h>
 # include <time.h>
 #else
+# ifndef HAVE_SYS_TIME_H
+#  define HAVE_SYS_TIME_H 0
+# endif
 # if HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
@@ -470,7 +473,7 @@ int nbt_alias_unload(PNATState);
 int slirp_arp_lookup_ip_by_ether(PNATState, const uint8_t *, uint32_t *);
 int slirp_arp_lookup_ether_by_ip(PNATState, uint32_t, uint8_t *);
 
-static inline size_t slirp_size(PNATState pData)
+DECLINLINE(unsigned) slirp_size(PNATState pData)
 {
         if (if_mtu < MSIZE)
             return MCLBYTES;
@@ -529,7 +532,7 @@ static inline struct mbuf *slirpDnsMbufAlloc(PNATState pData)
 
 DECLINLINE(bool) slirpIsWideCasting(PNATState pData, uint32_t u32Addr)
 {
-    bool fWideCasting = false;
+    bool fWideCasting;
     LogFlowFunc(("Enter: u32Addr:%RTnaipv4\n", u32Addr));
     fWideCasting =  (   u32Addr == INADDR_BROADCAST
                     || (u32Addr & RT_H2N_U32_C(~pData->netmask)) == RT_H2N_U32_C(~pData->netmask));

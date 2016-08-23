@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,7 +63,9 @@ int getrawsock(int type);
 
 /* The message sent when emulating PING */
 /* Be nice and tell them it's just a psuedo-ping packet */
+#if 0 /* unused */
 static const char icmp_ping_msg[] = "This is a psuedo-PING packet used by Slirp to emulate ICMP ECHO-REQUEST packets.\n";
+#endif
 
 /* list of actions for icmp_error() on RX of an icmp message */
 static const int icmp_flush[19] =
@@ -129,7 +131,10 @@ icmp_init(PNATState pData, int iIcmpCacheLimit)
     }
     fd_nonblock(pData->icmp_socket.s);
     NSOCK_INC();
+
 #else /* RT_OS_WINDOWS */
+    RT_NOREF(iIcmpCacheLimit);
+
     if (icmpwin_init(pData) != 0)
         return 1;
 #endif /* RT_OS_WINDOWS */
@@ -432,7 +437,7 @@ icmp_input(PNATState pData, struct mbuf *m, int hlen)
 
     /* int code; */
 
-    LogFlowFunc(("ENTER: m = %lx, m_len = %d\n", (long)m, m ? m->m_len : 0));
+    LogFlowFunc(("ENTER: m = %p, m_len = %d\n", m, m ? m->m_len : 0));
 
     icmpstat.icps_received++;
 
@@ -617,6 +622,7 @@ void icmp_error(PNATState pData, struct mbuf *msrc, u_char type, u_char code, in
     struct ip *oip, *ip;
     struct icmp *icp;
     void *payload;
+    RT_NOREF(minsize);
 
     LogFlow(("icmp_error: msrc = %p, msrc_len = %d\n",
              (void *)msrc, msrc ? msrc->m_len : 0));

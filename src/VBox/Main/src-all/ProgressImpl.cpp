@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -624,7 +624,7 @@ HRESULT Progress::getTimeRemaining(LONG *aTimeRemaining)
         {
             uint64_t ullTimeNow = RTTimeMilliTS();
             uint64_t ullTimeElapsed = ullTimeNow - m_ullTimestamp;
-            uint64_t ullTimeTotal = (uint64_t)(ullTimeElapsed * 100 / dPercentDone);
+            uint64_t ullTimeTotal = (uint64_t)((double)ullTimeElapsed * 100 / dPercentDone);
             uint64_t ullTimeRemaining = ullTimeTotal - ullTimeElapsed;
 
 //          LogFunc(("dPercentDone = %RI32, ullTimeNow = %RI64, ullTimeElapsed = %RI64, ullTimeTotal = %RI64, ullTimeRemaining = %RI64\n",

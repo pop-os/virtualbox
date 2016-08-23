@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,8 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include "../VBox/Runtime/include/internal/ldrPE.h"
-#include "../VBox/Runtime/include/internal/ldrMZ.h"
+#include <iprt/formats/mz.h>
+#include <iprt/formats/pecoff.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
             else if (   !strcmp(psz, "--version")
                      || !strcmp(psz, "-V"))
             {
-                printf("$Revision: 106040 $\n");
+                printf("$Revision: 109096 $\n");
                 return RTEXITCODE_SUCCESS;
             }
             else
@@ -367,5 +367,4 @@ int main(int argc, char **argv)
 
     return rcExit;
 }
-
 

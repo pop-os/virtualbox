@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,12 +73,12 @@ bool UIGChooserHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
                 return false;
 
             /* Was control modifier pressed? */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
             if (pEvent->modifiers() & Qt::ControlModifier &&
                 pEvent->modifiers() & Qt::KeypadModifier)
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
             if (pEvent->modifiers() == Qt::ControlModifier)
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
             {
                 /* Shift item up: */
                 shift(UIItemShiftDirection_Up, m_shiftMap[pEvent->key()]);
@@ -86,12 +86,12 @@ bool UIGChooserHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
             }
 
             /* Was shift modifier pressed? */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
             else if (pEvent->modifiers() & Qt::ShiftModifier &&
                      pEvent->modifiers() & Qt::KeypadModifier)
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
             else if (pEvent->modifiers() == Qt::ShiftModifier)
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
             {
                 /* Determine focus item position: */
                 int iPosition = model()->navigationList().indexOf(model()->focusItem());
@@ -130,11 +130,11 @@ bool UIGChooserHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
             }
 
             /* There is no modifiers pressed? */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
             else if (pEvent->modifiers() == Qt::KeypadModifier)
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
             else if (pEvent->modifiers() == Qt::NoModifier)
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
             {
                 /* Determine focus item position: */
                 int iPosition = model()->navigationList().indexOf(model()->focusItem());
@@ -170,12 +170,12 @@ bool UIGChooserHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
                 return false;
 
             /* Was control modifier pressed? */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
             if (pEvent->modifiers() & Qt::ControlModifier &&
                 pEvent->modifiers() & Qt::KeypadModifier)
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
             if (pEvent->modifiers() == Qt::ControlModifier)
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
             {
                 /* Shift item down: */
                 shift(UIItemShiftDirection_Down, m_shiftMap[pEvent->key()]);
@@ -183,12 +183,12 @@ bool UIGChooserHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
             }
 
             /* Was shift modifier pressed? */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
             else if (pEvent->modifiers() & Qt::ShiftModifier &&
                      pEvent->modifiers() & Qt::KeypadModifier)
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
             else if (pEvent->modifiers() == Qt::ShiftModifier)
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
             {
                 /* Determine focus item position: */
                 int iPosition = model()->navigationList().indexOf(model()->focusItem());
@@ -227,11 +227,11 @@ bool UIGChooserHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
             }
 
             /* There is no modifiers pressed? */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
             else if (pEvent->modifiers() == Qt::KeypadModifier)
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
             else if (pEvent->modifiers() == Qt::NoModifier)
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
             {
                 /* Determine focus item position: */
                 int iPosition = model()->navigationList().indexOf(model()->focusItem());

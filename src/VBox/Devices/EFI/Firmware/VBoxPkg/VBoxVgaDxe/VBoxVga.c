@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -229,6 +229,24 @@ static APPLE_FRAMEBUFFERINFO_PROTOCOL gAppleFrameBufferInfo =
     GetFrameBufferInfo,
     NULL
 };
+
+
+/*
+ *   @todo move this function to the library.
+ */
+UINT32 VBoxVgaGetVmVariable(UINT32 Variable, CHAR8* Buffer, UINT32 Size)
+{
+    UINT32 VarLen, i;
+
+    ASMOutU32(EFI_INFO_PORT, Variable);
+    VarLen = ASMInU32(EFI_INFO_PORT);
+
+    for (i = 0; i < VarLen && i < Size; i++)
+        Buffer[i] = ASMInU8(EFI_INFO_PORT);
+
+    return VarLen;
+}
+
 
 /**
   VBoxVgaControllerDriverSupported

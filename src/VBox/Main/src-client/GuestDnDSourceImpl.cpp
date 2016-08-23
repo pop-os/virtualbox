@@ -26,6 +26,7 @@
 
 #include "Global.h"
 #include "AutoCaller.h"
+#include "ThreadTask.h"
 
 #include <iprt/asm.h>
 #include <iprt/dir.h>
@@ -46,13 +47,14 @@
 /**
  * Base class for a source task.
  */
-class GuestDnDSourceTask
+class GuestDnDSourceTask : public ThreadTask
 {
 public:
 
     GuestDnDSourceTask(GuestDnDSource *pSource)
-        : mSource(pSource),
-          mRC(VINF_SUCCESS) { }
+        : ThreadTask("GenericGuestDnDSourceTask")
+        , mSource(pSource)
+        , mRC(VINF_SUCCESS) { }
 
     virtual ~GuestDnDSourceTask(void) { }
 
@@ -76,7 +78,15 @@ public:
 
     RecvDataTask(GuestDnDSource *pSource, PRECVDATACTX pCtx)
         : GuestDnDSourceTask(pSource)
-        , mpCtx(pCtx) { }
+        , mpCtx(pCtx)
+    {
+        m_strTaskName = "dndSrcRcvData";
+    }
+
+    void handler()
+    {
+        GuestDnDSource::i_receiveDataThreadTask(this);
+    }
 
     virtual ~RecvDataTask(void) { }
 
@@ -346,6 +356,8 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
     if (FAILED(hr))
         return hr;
 
+    RecvDataTask *pTask = NULL;
+
     try
     {
         mData.mRecvCtx.mIsActive   = false;
@@ -356,39 +368,41 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
 
         LogRel2(("DnD: Requesting data from guest in format: %s\n", aFormat.c_str()));
 
-        RecvDataTask *pTask = new RecvDataTask(this, &mData.mRecvCtx);
-        AssertReturn(pTask->isOk(), pTask->getRC());
-
-        LogFlowFunc(("Starting thread ...\n"));
-
-        RTTHREAD threadRcv;
-        int rc = RTThreadCreate(&threadRcv, GuestDnDSource::i_receiveDataThread,
-                                (void *)pTask, 0, RTTHREADTYPE_MAIN_WORKER, 0, "dndSrcRcvData");
-        if (RT_SUCCESS(rc))
+        pTask = new RecvDataTask(this, &mData.mRecvCtx);
+        if (!pTask->isOk())
         {
-            rc = RTThreadUserWait(threadRcv, 30 * 1000 /* 30s timeout */);
-            if (RT_SUCCESS(rc))
-            {
-                mDataBase.m_cTransfersPending++;
-
-                hr = pResp->queryProgressTo(aProgress.asOutParam());
-                ComAssertComRC(hr);
-
-                /* Note: pTask is now owned by the worker thread. */
-            }
-            else
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Waiting for receiving thread failed (%Rrc)"), rc);
-        }
-        else
-            hr = setError(VBOX_E_IPRT_ERROR, tr("Starting thread failed (%Rrc)"), rc);
-
-        if (FAILED(hr))
             delete pTask;
+            LogRel2(("DnD: Could not create RecvDataTask object \n"));
+            throw hr = E_FAIL;
+        }
+
+        /* This function delete pTask in case of exceptions,
+         * so there is no need in the call of delete operator. */
+        hr = pTask->createThreadWithType(RTTHREADTYPE_MAIN_WORKER);
+
     }
-    catch(std::bad_alloc &)
+    catch (std::bad_alloc &)
     {
         hr = setError(E_OUTOFMEMORY);
     }
+    catch (...)
+    {
+        LogRel2(("DnD: Could not create thread for data receiving task\n"));
+        hr = E_FAIL;
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        mDataBase.m_cTransfersPending++;
+
+        hr = pResp->queryProgressTo(aProgress.asOutParam());
+        ComAssertComRC(hr);
+
+        /* Note: pTask is now owned by the worker thread. */
+    }
+    else
+        hr = setError(VBOX_E_IPRT_ERROR, tr("Starting thread for GuestDnDSource::i_receiveDataThread failed (%Rhrc)"), hr);
+    /* Note: mDataBase.mfTransferIsPending will be set to false again by i_receiveDataThread. */
 
     LogFlowFunc(("Returning hr=%Rhrc\n", hr));
     return hr;
@@ -723,6 +737,7 @@ int GuestDnDSource::i_onReceiveDir(PRECVDATACTX pCtx, const char *pszPath, uint3
 int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, uint32_t cbPath,
                                        uint64_t cbSize, uint32_t fMode, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     AssertPtrReturn(pCtx,    VERR_INVALID_POINTER);
     AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
     AssertReturn(cbPath,     VERR_INVALID_PARAMETER);
@@ -935,6 +950,10 @@ int GuestDnDSource::i_onReceiveFileData(PRECVDATACTX pCtx, const void *pvData, u
 }
 #endif /* VBOX_WITH_DRAG_AND_DROP_GH */
 
+/**
+ * @returns VBox status code that the caller ignores. Not sure if that's
+ *          intentional or not.
+ */
 int GuestDnDSource::i_receiveData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -1035,34 +1054,33 @@ int GuestDnDSource::i_receiveData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
 }
 
 /* static */
-DECLCALLBACK(int) GuestDnDSource::i_receiveDataThread(RTTHREAD Thread, void *pvUser)
+void GuestDnDSource::i_receiveDataThreadTask(RecvDataTask *pTask)
 {
-    LogFlowFunc(("pvUser=%p\n", pvUser));
-
-    RecvDataTask *pTask = (RecvDataTask *)pvUser;
-    AssertPtrReturn(pTask, VERR_INVALID_POINTER);
+    LogFlowFunc(("pTask=%p\n", pTask));
+    AssertPtrReturnVoid(pTask);
 
     const ComObjPtr<GuestDnDSource> pThis(pTask->getSource());
     Assert(!pThis.isNull());
 
     AutoCaller autoCaller(pThis);
-    if (FAILED(autoCaller.rc())) return VERR_COM_INVALID_OBJECT_STATE;
+    if (FAILED(autoCaller.rc()))
+        return;
 
-    int rc = RTThreadUserSignal(Thread);
-    AssertRC(rc);
-
-    rc = pThis->i_receiveData(pTask->getCtx(), RT_INDEFINITE_WAIT /* msTimeout */);
-
-    if (pTask)
-        delete pTask;
+    int vrc = pThis->i_receiveData(pTask->getCtx(), RT_INDEFINITE_WAIT /* msTimeout */);
+    AssertRC(vrc);
+/** @todo
+ *
+ *  r=bird: What happens with @a vrc?
+ *
+ */
 
     AutoWriteLock alock(pThis COMMA_LOCKVAL_SRC_POS);
 
     Assert(pThis->mDataBase.m_cTransfersPending);
-    pThis->mDataBase.m_cTransfersPending--;
+    if (pThis->mDataBase.m_cTransfersPending)
+        pThis->mDataBase.m_cTransfersPending--;
 
-    LogFlowFunc(("pSource=%p returning rc=%Rrc\n", (GuestDnDSource *)pThis, rc));
-    return rc;
+    LogFlowFunc(("pSource=%p vrc=%Rrc (ignored)\n", (GuestDnDSource *)pThis, vrc));
 }
 
 int GuestDnDSource::i_receiveRawData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)

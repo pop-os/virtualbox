@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,8 +47,8 @@
 
 #ifdef RT_OS_WINDOWS
 # define _WIN32_WINNT 0x0501
-# include <Objbase.h>                   /* CoInitializeEx */
-# include <Windows.h>                   /* ShellExecuteEx, ++ */
+# include <iprt/win/windows.h>          /* ShellExecuteEx, ++ */
+# include <iprt/win/objbase.h>                   /* CoInitializeEx */
 # ifdef DEBUG
 #  include <Sddl.h>
 # endif
@@ -295,6 +295,7 @@ static RTEXITCODE SetExtPackPermissions(const char *pszDir)
          return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to set directory permissions: %Rrc ('%s')", rc, pszDir);
 #else
      /** @todo TrustedInstaller? */
+     RT_NOREF1(pszDir);
 #endif
 
     return RTEXITCODE_SUCCESS;
@@ -338,6 +339,7 @@ static RTEXITCODE ValidateMemberOfExtPack(const char *pszName, RTVFSOBJTYPE enmT
  */
 static RTEXITCODE ValidateUnpackedExtPack(const char *pszDir, const char *pszTarball, const char *pszExtPackName)
 {
+    RT_NOREF2(pszTarball, pszExtPackName);
     RTMsgInfo("Validating unpacked extension pack...");
 
     RTERRINFOSTATIC ErrInfo;
@@ -489,6 +491,7 @@ static RTEXITCODE UnpackExtPackFile(const char *pszName, const char *pszDstFilen
 static RTEXITCODE UnpackExtPack(RTFILE hTarballFile, const char *pszDirDst, RTMANIFEST hValidManifest,
                                 const char *pszTarball)
 {
+    RT_NOREF1(pszTarball);
     RTMsgInfo("Unpacking extension pack into '%s'...", pszDirDst);
 
     /*
@@ -652,6 +655,8 @@ static RTEXITCODE DoInstall2(const char *pszBaseDir, const char *pszCertDir, con
                              const char *pszTarballDigest, RTFILE hTarballFile, RTFILE hTarballFileOpt,
                              const char *pszName, const char *pszMangledName, bool fReplace)
 {
+    RT_NOREF1(pszCertDir);
+
     /*
      * Do some basic validation of the tarball file.
      */
@@ -1232,6 +1237,7 @@ static void CopyFileToStdXxx(RTFILE hSrc, PRTSTREAM pDst, bool fComplain)
 static RTEXITCODE RelaunchElevatedNative(const char *pszExecPath, const char **papszArgs, int cSuArgs, int cMyArgs,
                                          int iCmd, const char *pszDisplayInfoHack)
 {
+    RT_NOREF1(cMyArgs);
     RTEXITCODE rcExit = RTEXITCODE_FAILURE;
 #ifdef RT_OS_WINDOWS
     NOREF(iCmd);
@@ -1319,7 +1325,7 @@ static RTEXITCODE RelaunchElevatedNative(const char *pszExecPath, const char **p
                         DWORD dwExitCode;
                         if (GetExitCodeProcess(Info.hProcess, &dwExitCode))
                         {
-                            if (dwExitCode >= 0 && dwExitCode < 128)
+                            if (dwExitCode < 128)
                                 rcExit = (RTEXITCODE)dwExitCode;
                             else
                                 rcExit = RTEXITCODE_FAILURE;
@@ -1344,6 +1350,7 @@ static RTEXITCODE RelaunchElevatedNative(const char *pszExecPath, const char **p
         RTMsgError("RTStrToUtf16 failed: %Rc", rc);
 
 #elif defined(RT_OS_DARWIN)
+    RT_NOREF(pszDisplayInfoHack);
     char szIconName[RTPATH_MAX];
     int rc = RTPathAppPrivateArch(szIconName, sizeof(szIconName));
     if (RT_SUCCESS(rc))
@@ -1380,9 +1387,16 @@ static RTEXITCODE RelaunchElevatedNative(const char *pszExecPath, const char **p
              * Execute with extra permissions
              */
             FILE *pSocketStrm;
+#if defined(__clang__) || RT_GNUC_PREREQ(4, 4)
+# pragma GCC diagnostic push
+#endif
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
             orc = AuthorizationExecuteWithPrivileges(AuthRef, pszExecPath, kAuthorizationFlagDefaults,
                                                      (char * const *)&papszArgs[cSuArgs + 3],
                                                      &pSocketStrm);
+#if defined(__clang__) || RT_GNUC_PREREQ(4, 4)
+# pragma GCC diagnostic pop
+#endif
             if (orc == errAuthorizationSuccess)
             {
                 /*
@@ -1412,6 +1426,8 @@ static RTEXITCODE RelaunchElevatedNative(const char *pszExecPath, const char **p
         RTMsgError("AuthorizationCreate failed: %d", orc);
 
 #else
+
+    RT_NOREF2(pszExecPath, pszDisplayInfoHack);
 
     /*
      * Several of the alternatives below will require a command line.

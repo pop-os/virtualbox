@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,6 @@
 #include <VBox/vmm/gmm.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/hm_vmx.h>
-#include "internal/pgm.h"
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/avl.h>
@@ -362,7 +361,7 @@
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
-# define PGM_INVL_PG(pVCpu, GCVirt)             ASMInvalidatePage((void *)(uintptr_t)(GCVirt))
+# define PGM_INVL_PG(pVCpu, GCVirt)             ASMInvalidatePage((uintptr_t)(GCVirt))
 #elif defined(IN_RING0)
 # define PGM_INVL_PG(pVCpu, GCVirt)             HMInvalidatePage(pVCpu, (RTGCPTR)(GCVirt))
 #else
@@ -376,7 +375,7 @@
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
-# define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      ASMInvalidatePage((void *)(uintptr_t)(GCVirt))
+# define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      ASMInvalidatePage((uintptr_t)(GCVirt))
 #elif defined(IN_RING0)
 # define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      HMInvalidatePageOnAllVCpus(pVM, (RTGCPTR)(GCVirt))
 #else
@@ -1779,7 +1778,7 @@ typedef struct PGMCHUNKR3MAP *PPGMCHUNKR3MAP;
 typedef PPGMCHUNKR3MAP *PPPGMCHUNKR3MAP;
 
 /**
- * Ring-3 tracking structore for an allocation chunk ring-3 mapping.
+ * Ring-3 tracking structure for an allocation chunk ring-3 mapping.
  *
  * The primary tree (Core) uses the chunk id as key.
  */
@@ -3244,8 +3243,15 @@ typedef struct PGM
     bool                            fPciPassthrough;
     /** The number of MMIO2 regions (serves as the next MMIO2 ID). */
     uint8_t                         cMmio2Regions;
-    /** Alignment padding that makes the next member start on a 8 byte boundary. */
-    bool                            afAlignment1[1];
+    /** Restore original ROM page content when resetting after loading state.
+     * The flag is set by pgmR3LoadRomRanges and cleared at reset.  This
+     * enables the VM to start using an updated ROM without requiring powering
+     * down the VM, just rebooting or resetting it. */
+    bool                            fRestoreRomPagesOnReset;
+    /** Whether to automatically clear all RAM pages on reset. */
+    bool                            fZeroRamPagesOnReset;
+    /** Alignment padding. */
+    bool                            afAlignment3[7];
 
     /** Indicates that PGMR3FinalizeMappings has been called and that further
      * PGMR3MapIntermediate calls will be rejected. */
@@ -4164,7 +4170,7 @@ int             pgmPhysGCPhys2CCPtrInternalDepr(PVM pVM, PPGMPAGE pPage, RTGCPHY
 int             pgmPhysGCPhys2CCPtrInternal(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv, PPGMPAGEMAPLOCK pLock);
 int             pgmPhysGCPhys2CCPtrInternalReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, const void **ppv, PPGMPAGEMAPLOCK pLock);
 void            pgmPhysReleaseInternalPageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock);
-PGM_ALL_CB2_DECL(FNPGMPHYSHANDLER)  pgmPhysRomWriteHandler;
+PGM_ALL_CB2_PROTO(FNPGMPHYSHANDLER) pgmPhysRomWriteHandler;
 #ifndef IN_RING3
 DECLEXPORT(FNPGMPHYSHANDLER)        pgmPhysHandlerRedirectToHC;
 DECLEXPORT(FNPGMRZPHYSPFHANDLER)    pgmPhysPfHandlerRedirectToHC;
@@ -4226,9 +4232,9 @@ uint16_t        pgmPoolTrackPhysExtAddref(PVM pVM, PPGMPAGE pPhysPage, uint16_t 
 void            pgmPoolTrackPhysExtDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPGMPAGE pPhysPage, uint16_t iPte);
 int             pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 void            pgmPoolMonitorModifiedInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
-PGM_ALL_CB2_DECL(FNPGMPHYSHANDLER) pgmPoolAccessHandler;
+PGM_ALL_CB2_PROTO(FNPGMPHYSHANDLER) pgmPoolAccessHandler;
 #ifndef IN_RING3
-DECLEXPORT(FNPGMRZPHYSPFHANDLER)   pgmPoolAccessPfHandler;
+DECLEXPORT(FNPGMRZPHYSPFHANDLER)    pgmPoolAccessPfHandler;
 #endif
 
 void            pgmPoolAddDirtyPage(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage);

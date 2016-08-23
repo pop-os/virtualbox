@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -132,6 +132,7 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_JRockitVE        = 0xC0000,
     VBOXOSTYPE_Haiku            = 0xD0000,
     VBOXOSTYPE_Haiku_x64        = 0xD0100,
+    VBOXOSTYPE_VBoxBS_x64       = 0xE0100,
 /** The bit number which indicates 64-bit or 32-bit. */
 #define VBOXOSTYPE_x64_BIT       8
     /** The mask which indicates 64-bit. */

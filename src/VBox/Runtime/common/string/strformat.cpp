@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -363,6 +363,7 @@ static int rtStrFormatNumber(char *psz, KSIZE64 ullValue, unsigned int uiBase, s
 RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRFORMAT pfnFormat, void *pvArgFormat,
                             const char *pszFormat, va_list InArgs)
 {
+    char        szTmp[64]; /* Worker functions assumes 64 byte buffer! Ugly but faster. */
     va_list     args;
     KSIZE       cch = 0;
     const char *pszStartOutput = pszFormat;
@@ -519,14 +520,13 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                     /* char */
                     case 'c':
                     {
-                        char ch;
-
                         if (!(fFlags & RTSTR_F_LEFT))
                             while (--cchWidth > 0)
                                 cch += pfnOutput(pvArgOutput, " ", 1);
 
-                        ch = (char)va_arg(args, int);
-                        cch += pfnOutput(pvArgOutput, SSToDS(&ch), 1);
+                        szTmp[0] = (char)va_arg(args, int);
+                        szTmp[1] = '\0';                     /* Some output functions wants terminated strings. */
+                        cch += pfnOutput(pvArgOutput, SSToDS(&szTmp[0]), 1);
 
                         while (--cchWidth > 0)
                             cch += pfnOutput(pvArgOutput, " ", 1);
@@ -554,13 +554,13 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                             cchWidth -= cchStr;
                             while (cchStr-- > 0)
                             {
-/**@todo \#ifndef IN_RC*/
+/** @todo \#ifndef IN_RC*/
 #ifdef IN_RING3
                                 RTUNICP Cp;
                                 RTUtf16GetCpEx(&pwszStr, &Cp);
-                                char szUtf8[8]; /* Cp=0x7fffffff -> 6 bytes. */
-                                char *pszEnd = RTStrPutCp(szUtf8, Cp);
-                                cch += pfnOutput(pvArgOutput, szUtf8, pszEnd - szUtf8);
+                                char *pszEnd = RTStrPutCp(szTmp, Cp);
+                                *pszEnd = '\0';
+                                cch += pfnOutput(pvArgOutput, szTmp, pszEnd - szTmp);
 #else
                                 char ch = (char)*pwszStr++;
                                 cch += pfnOutput(pvArgOutput, &ch, 1);
@@ -588,11 +588,10 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                             cchWidth -= cchStr;
                             while (cchStr-- > 0)
                             {
-/**@todo \#ifndef IN_RC*/
+/** @todo \#ifndef IN_RC*/
 #ifdef IN_RING3
-                                char szUtf8[8]; /* Cp=0x7fffffff -> 6 bytes. */
-                                char *pszEnd = RTStrPutCp(szUtf8, *puszStr++);
-                                cch += pfnOutput(pvArgOutput, szUtf8, pszEnd - szUtf8);
+                                char *pszEnd = RTStrPutCp(szTmp, *puszStr++);
+                                cch += pfnOutput(pvArgOutput, szTmp, pszEnd - szTmp);
 #else
                                 char ch = (char)*puszStr++;
                                 cch += pfnOutput(pvArgOutput, &ch, 1);
@@ -632,7 +631,6 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                     case 'x':
                     case 'X':
                     {
-                        char        achNum[64]; /* FIXME */
                         int         cchNum;
                         uint64_t    u64Value;
 
@@ -753,8 +751,8 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                                 fFlags |= RTSTR_GET_BIT_FLAG(unsigned int);
                             }
                         }
-                        cchNum = RTStrFormatNumber((char *)SSToDS(&achNum), u64Value, uBase, cchWidth, cchPrecision, fFlags);
-                        cch += pfnOutput(pvArgOutput, (char *)SSToDS(&achNum), cchNum);
+                        cchNum = RTStrFormatNumber((char *)SSToDS(&szTmp), u64Value, uBase, cchWidth, cchPrecision, fFlags);
+                        cch += pfnOutput(pvArgOutput, (char *)SSToDS(&szTmp), cchNum);
                         break;
                     }
 

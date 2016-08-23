@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,7 +73,7 @@
 #endif
 #ifdef RT_OS_WINDOWS
 # ifndef CTL_CODE
-#  include <Windows.h>
+#  include <iprt/win/windows.h>
 # endif
 #endif
 #if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
@@ -616,9 +616,10 @@ static int vgdrvSetBalloonSizeKernel(PVBOXGUESTDEVEXT pDevExt, uint32_t cBalloon
 static int vgdrvSetBalloonSizeFromUser(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession, uint64_t u64ChunkAddr, bool fInflate)
 {
     VMMDevChangeMemBalloon *pReq;
+    PRTR0MEMOBJ pMemObj = NULL;
     int rc = VINF_SUCCESS;
     uint32_t i;
-    PRTR0MEMOBJ pMemObj = NULL;
+    RT_NOREF1(pSession);
 
     if (fInflate)
     {
@@ -785,7 +786,7 @@ static int vgdrvHeartbeatSend(PVBOXGUESTDEVEXT pDevExt)
     if (pDevExt->pReqGuestHeartbeat)
     {
         rc = VbglGRPerform(pDevExt->pReqGuestHeartbeat);
-        Log(("vgdrvHeartbeatSend: VbglGRPerform vgdrvHeartbeatSend completed with rc=%Rrc\n", rc));
+        Log3(("vgdrvHeartbeatSend: VbglGRPerform vgdrvHeartbeatSend completed with rc=%Rrc\n", rc));
     }
     else
         rc = VERR_INVALID_STATE;
@@ -918,6 +919,7 @@ int VGDrvCommonReinitDevExtAfterHibernation(PVBOXGUESTDEVEXT pDevExt, VBOXOSTYPE
     else
         Log(("VGDrvCommonReinitDevExtAfterHibernation: could not report guest information to host, rc=%Rrc\n", rc));
     LogFlow(("VGDrvCommonReinitDevExtAfterHibernation: returned with rc=%Rrc\n", rc));
+    RT_NOREF1(pDevExt);
     return rc;
 }
 
@@ -1782,6 +1784,8 @@ static int vgdrvCheckIfVmmReqIsAllowed(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSI
     {
         kLevel_Invalid, kLevel_NoOne, kLevel_OnlyVBoxGuest, kLevel_OnlyKernel, kLevel_TrustedUsers, kLevel_AllUsers
     } enmRequired;
+    RT_NOREF1(pDevExt);
+
     switch (enmType)
     {
         /*
@@ -2431,6 +2435,7 @@ static int vgdrvIoCtl_WriteCoreDump(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWriteCore
     VMMDevReqWriteCoreDump *pReq = NULL;
     int rc;
     LogFlow(("VBOXGUEST_IOCTL_WRITE_CORE_DUMP\n"));
+    RT_NOREF1(pDevExt);
 
     rc = VbglGRAlloc((VMMDevRequestHeader **)&pReq, sizeof(*pReq), VMMDevReq_WriteCoreDump);
     if (RT_SUCCESS(rc))
@@ -2600,6 +2605,7 @@ static int vgdrvResetEventFilterOnHost(PVBOXGUESTDEVEXT pDevExt, uint32_t fFixed
             LogRelFunc(("failed with rc=%Rrc\n", rc));
         VbglGRFree(&pReq->header);
     }
+    RT_NOREF1(pDevExt);
     return rc;
 }
 
@@ -2749,6 +2755,7 @@ static int vgdrvResetMouseStatusOnHost(PVBOXGUESTDEVEXT pDevExt)
             LogRelFunc(("failed with rc=%Rrc\n", rc));
         VbglGRFree(&pReq->header);
     }
+    RT_NOREF1(pDevExt);
     return rc;
 }
 
@@ -2946,6 +2953,7 @@ static int vgdrvResetCapabilitiesOnHost(PVBOXGUESTDEVEXT pDevExt)
             LogRelFunc(("failed with rc=%Rrc\n", rc));
         VbglGRFree(&pReq->header);
     }
+    RT_NOREF1(pDevExt);
     return rc;
 }
 

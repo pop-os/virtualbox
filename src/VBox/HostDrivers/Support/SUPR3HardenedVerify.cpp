@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -128,7 +128,9 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
 
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxRT" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxVMM" SUPLIB_DLL_SUFF },
+#ifdef VBOX_WITH_REM
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxREM" SUPLIB_DLL_SUFF },
+#endif
 #if HC_ARCH_BITS == 32
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxREM32" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxREM64" SUPLIB_DLL_SUFF },
@@ -136,6 +138,8 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxDD" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxDD2" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxDDU" SUPLIB_DLL_SUFF },
+    {   kSupIFT_Exe,  kSupID_AppBin,             true, "VBoxVMMPreload" SUPLIB_EXE_SUFF },
+    {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "VBoxVMMPreload" SUPLIB_DLL_SUFF },
 
 //#ifdef VBOX_WITH_DEBUGGER_GUI
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxDbg" SUPLIB_DLL_SUFF },
@@ -615,6 +619,7 @@ static int supR3HardenedVerifyFileSignature(PCSUPINSTFILE pFile, PSUPVERIFIEDFIL
     return rc;
 
 # else  /* Not checking signatures. */
+    RT_NOREF4(pFile, pVerified, fFatal, fLeaveFileOpen);
     return VINF_SUCCESS;
 # endif /* Not checking signatures. */
 }
@@ -636,6 +641,9 @@ static int supR3HardenedVerifyFileSignature(PCSUPINSTFILE pFile, PSUPVERIFIEDFIL
  */
 static int supR3HardenedVerifyFileInternal(int iFile, bool fFatal, bool fLeaveFileOpen, bool fVerifyAll)
 {
+#ifndef RT_OS_WINDOWS
+    RT_NOREF1(fVerifyAll);
+#endif
     PCSUPINSTFILE pFile = &g_aSupInstallFiles[iFile];
     PSUPVERIFIEDFILE pVerified = &g_aSupVerifiedFiles[iFile];
 
@@ -877,6 +885,7 @@ static int supR3HardenedVerifyProgram(const char *pszProgName, const char *pszEx
     size_t const    cchProgNameExe = suplibHardenedStrLen(pszProgName);
 #ifndef RT_OS_DARWIN
     size_t const    cchProgNameDll = cchProgNameExe;
+    NOREF(fMainFlags);
 #else
     size_t const    cchProgNameDll = fMainFlags & SUPSECMAIN_FLAGS_OSX_VM_APP
                                    ? sizeof("VirtualBox") - 1
@@ -1242,6 +1251,7 @@ static int supR3HardenedQueryFsObjectByPath(char const *pszPath, PSUPR3HARDENEDF
 #if defined(RT_OS_WINDOWS)
     /** @todo Windows hardening. */
     pFsObjState->chTodo = 0;
+    RT_NOREF2(pszPath, pErrInfo);
     return VINF_SUCCESS;
 
 #else
@@ -1284,6 +1294,7 @@ static int supR3HardenedQueryFsObjectByHandle(RTHCUINTPTR hNative, PSUPR3HARDENE
 #if defined(RT_OS_WINDOWS)
     /** @todo Windows hardening. */
     pFsObjState->chTodo = 0;
+    RT_NOREF3(hNative, pszPath, pErrInfo);
     return VINF_SUCCESS;
 
 #else
@@ -1320,9 +1331,11 @@ static int supR3HardenedIsSameFsObject(PCSUPR3HARDENEDFSOBJSTATE pFsObjState1, P
 {
 #if defined(RT_OS_WINDOWS)
     /** @todo Windows hardening. */
+    RT_NOREF4(pFsObjState1, pFsObjState2, pszPath, pErrInfo);
     return VINF_SUCCESS;
 
 #elif defined(RT_OS_OS2)
+    RT_NOREF4(pFsObjState1, pFsObjState2, pszPath, pErrInfo);
     return VINF_SUCCESS;
 
 #else
@@ -1505,10 +1518,12 @@ static int supR3HardenedVerifyDirRecursive(char *pszDirPath, size_t cchDirPath, 
 {
 #if defined(RT_OS_WINDOWS)
     /** @todo Windows hardening. */
+    RT_NOREF5(pszDirPath, cchDirPath, pFsObjState, fRecursive, pErrInfo);
     return VINF_SUCCESS;
 
 #elif defined(RT_OS_OS2)
     /* No hardening here - it's a single user system. */
+    RT_NOREF5(pszDirPath, cchDirPath, pFsObjState, fRecursive, pErrInfo);
     return VINF_SUCCESS;
 
 #else
@@ -1729,7 +1744,10 @@ DECLHIDDEN(int) supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNa
             RTUtf16Free(pwszPath);
         }
         else
+        {
             rc = RTErrInfoSetF(pErrInfo, rc, "Error converting '%s' to UTF-16: %Rrc", pszFilename, rc);
+            hVerify = INVALID_HANDLE_VALUE;
+        }
     }
     else
     {
@@ -1755,6 +1773,8 @@ DECLHIDDEN(int) supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNa
 #  ifndef IN_SUP_R3_STATIC /* Not in VBoxCpuReport and friends. */
         rc = supHardenedWinVerifyImageByHandleNoName(hVerify, fFlags, pErrInfo);
 #  endif
+# else
+        RT_NOREF1(fMaybe3rdParty);
 # endif
         NtClose(hVerify);
     }
@@ -1763,6 +1783,8 @@ DECLHIDDEN(int) supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNa
                            "Error %u trying to open (or duplicate handle for) '%s'", RtlGetLastWin32Error(), pszFilename);
     if (RT_FAILURE(rc))
         return rc;
+#else
+    RT_NOREF1(fMaybe3rdParty);
 #endif
 
     return VINF_SUCCESS;
@@ -1820,8 +1842,8 @@ DECLHIDDEN(int) supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData)
      * Check that we're not called out of order.
      * If dynamic linking it screwed up, we may end up here.
      */
-    if (    ASMMemIsAll8(&g_aSupVerifiedFiles[0], sizeof(g_aSupVerifiedFiles), 0) != NULL
-        ||  ASMMemIsAll8(&g_aSupVerifiedDirs[0], sizeof(g_aSupVerifiedDirs), 0) != NULL)
+    if (   !ASMMemIsZero(&g_aSupVerifiedFiles[0], sizeof(g_aSupVerifiedFiles))
+        || !ASMMemIsZero(&g_aSupVerifiedDirs[0], sizeof(g_aSupVerifiedDirs)))
         return VERR_WRONG_ORDER;
 
     /*

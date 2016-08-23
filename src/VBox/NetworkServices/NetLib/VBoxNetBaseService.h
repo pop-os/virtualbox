@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,7 +69,7 @@ public:
     int                 syncLeave();
     int                 waitForIntNetEvent(int cMillis);
     int                 abortWait();
-    int                 sendBufferOnWire(PCINTNETSEG pSg, int cSg, size_t cbBuffer);
+    int                 sendBufferOnWire(PCINTNETSEG paSegs, size_t cSegs, size_t cbBuffer);
     void                flushWire();
 
     virtual int         hlpUDPBroadcast(unsigned uSrcPort, unsigned uDstPort,

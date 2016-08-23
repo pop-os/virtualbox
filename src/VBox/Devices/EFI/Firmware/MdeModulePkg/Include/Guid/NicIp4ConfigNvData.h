@@ -1,13 +1,13 @@
 /** @file
   This file defines NIC_IP4_CONFIG_INFO structure.
-  
-Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials are licensed and made available under 
-the terms and conditions of the BSD License that accompanies this distribution.  
-The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php.                                            
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
+Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials are licensed and made available under
+the terms and conditions of the BSD License that accompanies this distribution.
+The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php.
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
@@ -61,7 +61,7 @@ typedef struct {
 typedef struct {
   NIC_ADDR                  NicAddr;      ///< Link layer address to identify the NIC.
   UINT32                    Source;       ///< Static or DHCP.
-  BOOLEAN                   Perment;      ///< Survive the reboot or not.
+  BOOLEAN                   Permanent;    ///< Survive the reboot or not.
   EFI_IP4_IPCONFIG_DATA     Ip4Info;      ///< IP addresses.
 } NIC_IP4_CONFIG_INFO;
 

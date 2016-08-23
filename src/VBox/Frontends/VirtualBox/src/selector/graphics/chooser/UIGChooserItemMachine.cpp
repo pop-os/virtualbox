@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1104,15 +1104,15 @@ void UIGChooserItemMachine::prepare()
     m_pCloseButton = 0;
 
     /* Colors: */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     m_iHighlightLightness = 115;
     m_iHoverLightness = 110;
     m_iHoverHighlightLightness = 120;
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
     m_iHighlightLightness = 130;
     m_iHoverLightness = 155;
     m_iHoverHighlightLightness = 175;
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /* Fonts: */
     m_nameFont = font();
@@ -1130,6 +1130,7 @@ void UIGChooserItemMachine::prepare()
     /* Other things disabled for now: */
     return;
 
+#if 0 /* disabled for now */
     /* Create tool-bar: */
     m_pToolBar = new UIGraphicsToolBar(this, 2, 2);
 
@@ -1170,6 +1171,7 @@ void UIGChooserItemMachine::prepare()
     connect(m_pCloseButton, SIGNAL(sigButtonClicked()),
             actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff), SLOT(trigger()),
             Qt::QueuedConnection);
+#endif /* disabled for now */
 }
 
 /* static */

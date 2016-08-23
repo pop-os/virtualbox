@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,8 +74,10 @@ static RTSEMEVENTMULTI  g_MemBalloonEvent = NIL_RTSEMEVENTMULTI;
 /** The array holding the R3 pointers of the balloon. */
 static void **g_pavBalloon = NULL;
 
+#ifdef RT_OS_LINUX
 /** True = madvise(MADV_DONTFORK) works, false otherwise. */
 static bool g_fSysMadviseWorks;
+#endif
 
 
 /**
@@ -393,9 +395,6 @@ static DECLCALLBACK(int) vgsvcBalloonWorker(bool volatile *pfShutdown)
     if (RT_FAILURE(rc))
         VGSvcVerbose(3, "vgsvcBalloonInit: VbglR3CtlFilterMask failed with %Rrc\n", rc);
 
-    RTSemEventMultiDestroy(g_MemBalloonEvent);
-    g_MemBalloonEvent = NIL_RTSEMEVENTMULTI;
-
     VGSvcVerbose(3, "vgsvcBalloonInit: finished mem balloon change request thread\n");
     return VINF_SUCCESS;
 }
@@ -407,6 +406,19 @@ static DECLCALLBACK(int) vgsvcBalloonWorker(bool volatile *pfShutdown)
 static DECLCALLBACK(void) vgsvcBalloonStop(void)
 {
     RTSemEventMultiSignal(g_MemBalloonEvent);
+}
+
+
+/**
+ * @interface_method_impl{VBOXSERVICE,pfnTerm}
+ */
+static DECLCALLBACK(void) vgsvcBalloonTerm(void)
+{
+    if (g_MemBalloonEvent != NIL_RTSEMEVENTMULTI)
+    {
+        RTSemEventMultiDestroy(g_MemBalloonEvent);
+        g_MemBalloonEvent = NIL_RTSEMEVENTMULTI;
+    }
 }
 
 
@@ -429,5 +441,5 @@ VBOXSERVICE g_MemBalloon =
     vgsvcBalloonInit,
     vgsvcBalloonWorker,
     vgsvcBalloonStop,
-    VGSvcDefaultTerm
+    vgsvcBalloonTerm
 };

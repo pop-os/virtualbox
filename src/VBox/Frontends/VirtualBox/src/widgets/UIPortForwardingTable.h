@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -137,6 +137,9 @@ public:
 
     /** Returns whether the table data was changed. */
     bool isChanged() const { return m_fIsTableDataChanged; }
+
+    /** Makes sure current editor data committed. */
+    void makeSureEditorDataCommitted();
 
 private slots:
 

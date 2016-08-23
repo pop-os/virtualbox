@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -411,8 +411,10 @@ void UIGDetailsElement::prepareElement()
     m_pHighlightMachine = new QStateMachine(this);
     /* Create 'default' state: */
     QState *pStateDefault = new QState(m_pHighlightMachine);
+    pStateDefault->assignProperty(this, "animationDarkness", m_iDefaultDarkness);
     /* Create 'highlighted' state: */
     QState *pStateHighlighted = new QState(m_pHighlightMachine);
+    pStateHighlighted->assignProperty(this, "animationDarkness", m_iHighlightDarkness);
 
     /* Forward animation: */
     m_pForwardAnimation = new QPropertyAnimation(this, "animationDarkness", this);

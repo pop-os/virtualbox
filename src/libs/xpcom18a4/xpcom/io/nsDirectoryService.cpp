@@ -64,7 +64,9 @@
 #include <CoreServices/CoreServices.h>
 #include <Folders.h>
 #include <Files.h>
-#include <Memory.h>
+# ifndef VBOX_WITH_NEWER_OSX_SDK
+#  include <Memory.h>
+# endif
 #include <Processes.h>
 #include <Gestalt.h>
 #include <CFURL.h>
@@ -329,9 +331,7 @@ nsDirectoryService::GetCurrentProcessDirectory(nsILocalFile** aFile)
     // we only do this if it is not already set.
 #ifdef MOZ_DEFAULT_VBOX_XPCOM_HOME
     if (PR_GetEnv("VBOX_XPCOM_HOME") == nsnull)
-    {
-        putenv("VBOX_XPCOM_HOME=" MOZ_DEFAULT_VBOX_XPCOM_HOME);
-    }
+        PR_SetEnv("VBOX_XPCOM_HOME=" MOZ_DEFAULT_VBOX_XPCOM_HOME);
 #endif
 
     char *moz5 = PR_GetEnv("VBOX_XPCOM_HOME");
@@ -986,7 +986,7 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
                 ::ICStop(icInstance);
             }
 
-            if NS_FAILED(rv)
+            if (NS_FAILED(rv))
             {
                 // We got an error getting the DL folder from IC so try finding the user's Desktop folder
                 rv = GetOSXFolderType(kUserDomain, kDesktopFolderType, getter_AddRefs(localFile));

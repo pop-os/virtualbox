@@ -7,7 +7,7 @@
  *  works on Windows, by using the C bindings header created by the MS COM IDL
  *  compiler (which simultaneously supports C and C++, unlike XPCOM).
 
-    Copyright (C) 2008-2015 Oracle Corporation
+    Copyright (C) 2008-2016 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -72,7 +72,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of a free software library; you can redistribute
  * it and/or modify it under the terms of the GNU Lesser General
@@ -95,9 +95,12 @@
 #define ___VirtualBox_CAPI_h
 
 #ifdef _WIN32
+# pragma warning(push)
+# pragma warning(disable:4668 4255) /* -Wall and windows.h */
 # undef COBJMACROS
 # define COBJMACROS
 # include "Windows.h"
+# pragma warning(pop)
 #endif /* _WIN32 */
 
 #ifdef WIN32
@@ -1630,7 +1633,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
  *  result codes
 -->
 <xsl:template match="result">
-  <xsl:value-of select="concat('#define ',@name,' ',@value)"/>
+  <xsl:value-of select="concat('#define ',@name,' ((HRESULT)',@value, ')')"/>
   <xsl:text>&#x0A;</xsl:text>
 </xsl:template>
 

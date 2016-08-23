@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#if defined(RT_OS_WINDOWS) ///@todo someone please explain why we don't follow the book!
+#ifdef _MSC_VER
+# pragma warning(push)
+# pragma warning(disable:4121)
+#endif
+#if defined(RT_OS_WINDOWS) /// @todo someone please explain why we don't follow the book!
 # define _SDL_main_h
 #endif
 #include <SDL.h>
+#ifdef _MSC_VER
+# pragma warning(pop)
+#endif
 
 #include <iprt/assert.h>
 #include <iprt/env.h>
@@ -243,8 +250,8 @@ static void bench(unsigned long w, unsigned long h, unsigned long bpp)
     else
     {
         /* no restriction */
-        guMaxScreenWidth  = ~0;
-        guMaxScreenHeight = ~0;
+        guMaxScreenWidth  = ~0U;
+        guMaxScreenHeight = ~0U;
     }
 
     newWidth  = RT_MIN(guMaxScreenWidth,  guGuestXRes);
@@ -266,7 +273,7 @@ static void bench(unsigned long w, unsigned long h, unsigned long bpp)
     NOREF(Rsize); NOREF(Gsize); NOREF(Bsize);
 #endif
 
-    RTPrintf("Testing "ESC_BOLD"%ldx%ld@%ld"ESC_NORM"\n", guGuestXRes, guGuestYRes, guGuestBpp);
+    RTPrintf("Testing " ESC_BOLD "%ldx%ld@%ld" ESC_NORM "\n", guGuestXRes, guGuestYRes, guGuestBpp);
 
     gScreen = SDL_SetVideoMode(newWidth, newHeight, 0, sdlFlags);
     if (!gScreen)
@@ -440,7 +447,7 @@ static void benchExecute()
 static int checkSDL(const char *fn, int rc)
 {
     if (rc == -1)
-        RTPrintf(""ESC_BOLD"%s() failed:"ESC_NORM" '%s'\n", fn, SDL_GetError());
+        RTPrintf("" ESC_BOLD "%s() failed:" ESC_NORM " '%s'\n", fn, SDL_GetError());
 
     return rc;
 }

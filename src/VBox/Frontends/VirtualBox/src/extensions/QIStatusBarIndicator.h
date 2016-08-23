@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,12 +48,12 @@ public:
 
 protected:
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Mouse-press-event handler.
       *           Make the left button also show the context-menu to make things
       *           simpler for users with single mouse button mice (laptops++). */
     virtual void mousePressEvent(QMouseEvent *pEvent);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     /** Mouse-double-click-event handler. */
     virtual void mouseDoubleClickEvent(QMouseEvent *pEvent);
     /** Context-menu-event handler. */
@@ -86,7 +86,7 @@ public slots:
     /** Defines int @a state. */
     virtual void setState(int iState) { m_iState = iState; repaint(); }
     /** Defines bool @a state. */
-    virtual void setState(bool fState) { setState((int)fState); }
+    void setState(bool fState) { setState((int)fState); }
 
 protected:
 

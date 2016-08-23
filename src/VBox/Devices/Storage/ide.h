@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -203,7 +203,7 @@ typedef enum ATACMD
 #define ATAPI_INQUIRY_REVISION_LENGTH    4
 
 
-#if defined(DEBUG) && defined(IN_RING3)
+#if defined(LOG_ENABLED) && defined(IN_RING3)
 const char * ATACmdText(uint8_t uCmd);
 #endif
 

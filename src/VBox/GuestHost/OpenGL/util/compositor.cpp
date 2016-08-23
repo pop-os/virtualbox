@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2014 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -104,6 +104,8 @@ static DECLCALLBACK(bool) crVrScrCompositorRectsCounterCb(PVBOXVR_COMPOSITOR pCo
                                                           void *pvVisitor)
 {
     uint32_t* pCounter = (uint32_t*)pvVisitor;
+    (void)pCompositor; (void)pEntry;
+
     Assert(VBoxVrListRectsCount(&pEntry->Vr));
     *pCounter += VBoxVrListRectsCount(&pEntry->Vr);
     return true;
@@ -494,6 +496,8 @@ VBOXVREGDECL(int) CrVrScrCompositorEntryRectSet(PVBOXVR_SCR_COMPOSITOR pComposit
 VBOXVREGDECL(int) CrVrScrCompositorEntryTexAssign(PVBOXVR_SCR_COMPOSITOR pCompositor, PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry,
                                                   CR_TEXDATA *pTex)
 {
+    (void)pCompositor;
+
     if (pEntry->pTex == pTex)
         return VINF_SUCCESS;
 

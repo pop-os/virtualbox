@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,6 +42,8 @@ class QIDialogButtonBox;
 class CheckIfSuitableBy
 {
 public:
+    virtual ~CheckIfSuitableBy() { /* Makes MSC happy. */ }
+
     /** Determines whether passed @a pItem is suitable. */
     virtual bool isItSuitable(UIMediumItem *pItem) const = 0;
 };

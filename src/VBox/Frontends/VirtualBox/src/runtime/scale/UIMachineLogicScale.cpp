@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,32 +20,33 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# ifndef Q_WS_MAC
+# ifndef VBOX_WS_MAC
 #  include <QTimer>
-# endif /* !Q_WS_MAC */
+# endif /* !VBOX_WS_MAC */
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIMessageCenter.h"
 # include "UISession.h"
 # include "UIActionPoolRuntime.h"
 # include "UIMachineLogicScale.h"
 # include "UIMachineWindow.h"
 # include "UIShortcutPool.h"
-# ifndef Q_WS_MAC
+# ifndef VBOX_WS_MAC
 #  include "QIMenu.h"
-# else  /* Q_WS_MAC */
+# else  /* VBOX_WS_MAC */
 #  include "VBoxUtils.h"
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIMachineLogicScale::UIMachineLogicScale(QObject *pParent, UISession *pSession)
     : UIMachineLogic(pParent, pSession, UIVisualStateType_Scale)
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     , m_pPopupMenu(0)
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 {
 }
 
@@ -62,7 +63,7 @@ bool UIMachineLogicScale::checkAvailability()
     return true;
 }
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
 void UIMachineLogicScale::sltInvokePopupMenu()
 {
     /* Popup main-menu if present: */
@@ -72,7 +73,23 @@ void UIMachineLogicScale::sltInvokePopupMenu()
         QTimer::singleShot(0, m_pPopupMenu, SLOT(sltHighlightFirstAction()));
     }
 }
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
+
+void UIMachineLogicScale::sltHostScreenAvailableAreaChange()
+{
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /* Prevent handling if fake screen detected: */
+    if (gpDesktop->isFakeScreenDetected())
+        return;
+
+    /* Make sure all machine-window(s) have previous but normalized geometry: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->restoreCachedGeometry();
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
+    /* Call to base-class: */
+    UIMachineLogic::sltHostScreenAvailableAreaChange();
+}
 
 void UIMachineLogicScale::prepareActionGroups()
 {
@@ -119,11 +136,11 @@ void UIMachineLogicScale::prepareMachineWindows()
     if (isMachineWindowsCreated())
         return;
 
-#ifdef Q_WS_MAC // TODO: Is that really need here?
+#ifdef VBOX_WS_MAC /// @todo Is that really need here?
     /* We have to make sure that we are getting the front most process.
      * This is necessary for Qt versions > 4.3.3: */
     ::darwinSetFrontMostProcess();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Get monitors count: */
     ulong uMonitorCount = machine().GetMonitorCount();
@@ -144,7 +161,7 @@ void UIMachineLogicScale::prepareMachineWindows()
     setMachineWindowsCreated(true);
 }
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
 void UIMachineLogicScale::prepareMenu()
 {
     /* Prepare popup-menu: */
@@ -156,16 +173,16 @@ void UIMachineLogicScale::prepareMenu()
             m_pPopupMenu->addMenu(pMenu);
     }
 }
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
 void UIMachineLogicScale::cleanupMenu()
 {
     /* Cleanup popup-menu: */
     delete m_pPopupMenu;
     m_pPopupMenu = 0;
 }
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
 void UIMachineLogicScale::cleanupMachineWindows()
 {

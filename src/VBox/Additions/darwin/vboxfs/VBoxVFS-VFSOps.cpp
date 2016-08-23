@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,15 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * The contents of this file may alternatively be used under the terms
- * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
- * CDDL are applicable instead of those of the GPL.
- *
- * You may elect to license modified versions of this file under the
- * terms and conditions of either the GPL or the CDDL or both.
  */
 
 #include <mach/kmod.h>
@@ -447,7 +438,7 @@ vboxvfs_root(struct mount *mp, struct vnode **ppVnode, vfs_context_t pContext)
         while (fRootVnodeState != VBOXVFS_OBJECT_INITIALIZED
             && fRootVnodeState != VBOXVFS_OBJECT_INVALID)
         {
-            /* @todo: Currently, we are burning CPU cycles while waiting. This is for a short
+            /** @todo Currently, we are burning CPU cycles while waiting. This is for a short
              * time but we should relax here! */
             fRootVnodeState = ASMAtomicReadU8(&pMount->fRootVnodeState);
 
@@ -537,12 +528,12 @@ vboxvfs_getattr(struct mount *mp, struct vfs_attr *pAttr, vfs_context_t pContext
     VFSATTR_CLEAR_ACTIVE(pAttr, f_ffree);
     VFSATTR_CLEAR_ACTIVE(pAttr, f_fssubtype);
 
-    /* todo: take care about f_capabilities and f_attributes, f_fsid */
+    /** @todo take care about f_capabilities and f_attributes, f_fsid */
     VFSATTR_CLEAR_ACTIVE(pAttr, f_capabilities);
     VFSATTR_CLEAR_ACTIVE(pAttr, f_attributes);
     VFSATTR_CLEAR_ACTIVE(pAttr, f_fsid);
 
-    /* todo: take care about f_create_time, f_modify_time, f_access_time, f_backup_time */
+    /** @todo take care about f_create_time, f_modify_time, f_access_time, f_backup_time */
     VFSATTR_CLEAR_ACTIVE(pAttr, f_create_time);
     VFSATTR_CLEAR_ACTIVE(pAttr, f_modify_time);
     VFSATTR_CLEAR_ACTIVE(pAttr, f_access_time);

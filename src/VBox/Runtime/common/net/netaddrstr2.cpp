@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -223,6 +223,7 @@ DECLHIDDEN(int) rtNetStrToIPv6AddrBase(const char *pcszAddr, PRTNETADDRIPV6 pAdd
          * Scan forward until we either get complete address or find
          * "::" compressed zero run.
          */
+        pszNext = NULL; /* (MSC incorrectly thinks it may be used unitialized) */
         for (iGroup = 0; iGroup < 8; ++iGroup)
         {
             /* check for embedded IPv4 at the end */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -654,6 +654,7 @@ void vmsvga3dInfoHostWindow(PCDBGFINFOHLP pHlp, uint64_t idHostWindow)
         pHlp->pfnPrintf(pHlp, "    Windows info:   vmsvga3dCocoaViewInfo failed to load (%Rrc)\n", rc);
 
 #else
+    RT_NOREF(idHostWindow);
     pHlp->pfnPrintf(pHlp, "    Windows info:   Not implemented on this platform\n");
 #endif
 }
@@ -813,6 +814,8 @@ void vmsvga3dAsciiPrint(PFMVMSVGAASCIIPRINTLN pfnPrintLine, void *pvUser, void c
                         uint32_t cx, uint32_t cy, uint32_t cbScanline, SVGA3dSurfaceFormat enmFormat, bool fInvY,
                         uint32_t cchMaxX, uint32_t cchMaxY)
 {
+    RT_NOREF(cbImage);
+
     /*
      * Skip stuff we can't or won't need to handle.
      */
@@ -1506,6 +1509,7 @@ static const char * const g_apszRenderTargets[] =
 
 static void vmsvga3dInfoContextWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DCONTEXT pContext, bool fVerbose)
 {
+    RT_NOREF(fVerbose);
     char szTmp[128];
 
     pHlp->pfnPrintf(pHlp, "*** VMSVGA 3d context %#x (%d) ***\n", pContext->id, pContext->id);
@@ -1877,8 +1881,8 @@ static void vmsvga3dInfoSurfaceWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pS
             for (uint32_t iLevel = 0; iLevel < pSurface->faces[iFace].numMipLevels; iLevel++, iMipmap++)
                 if (pSurface->pMipmapLevels[iMipmap].pSurfaceData)
                 {
-                    if (  ASMMemIsAll8(pSurface->pMipmapLevels[iMipmap].pSurfaceData,
-                                       pSurface->pMipmapLevels[iMipmap].cbSurface, 0) == NULL)
+                    if (ASMMemIsZero(pSurface->pMipmapLevels[iMipmap].pSurfaceData,
+                                     pSurface->pMipmapLevels[iMipmap].cbSurface))
                         pHlp->pfnPrintf(pHlp, "--- Face #%u, mipmap #%u[%u]: all zeros ---\n", iFace, iLevel, iMipmap);
                     else
                     {

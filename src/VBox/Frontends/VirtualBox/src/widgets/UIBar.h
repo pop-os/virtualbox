@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,11 +37,11 @@ protected:
 
     void paintEvent(QPaintEvent *pEvent);
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     void paintContentDarwin(QPainter *pPainter);
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
     void paintContent(QPainter *pPainter);
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
 private:
 

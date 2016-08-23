@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@ VBoxAuth_SOURCES.solaris = pam/VBoxAuthPAM.c
 VBoxAuth_SOURCES.freebsd = pam/VBoxAuthPAM.c
 VBoxAuth_SOURCES.win = winlogon/winlogon.cpp winlogon/VBoxAuth.rc
 VBoxAuth_SOURCES.darwin = directoryservice/directoryservice.cpp
+VBoxAuth_CXXFLAGS.darwin = -Wno-deprecated-declarations
 VBoxAuth_LIBS.linux = $(LIB_RUNTIME) dl
 VBoxAuth_LIBS.solaris = $(LIB_RUNTIME) dl
 VBoxAuth_LIBS.freebsd = $(LIB_RUNTIME)

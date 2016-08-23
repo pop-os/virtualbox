@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@
 
 #include <VBox/version.h>
 
-#include <windows.h>
+#include <iprt/win/windows.h>
 #include <wchar.h>
 #include <stdio.h>
 
@@ -34,15 +34,15 @@
 #include <msiquery.h>
 
 #define _WIN32_DCOM
-#include <windows.h>
+#include <iprt/win/windows.h>
 #include <assert.h>
 #include <shellapi.h>
 #define INITGUID
 #include <guiddef.h>
 #include <devguid.h>
-#include <objbase.h>
-#include <setupapi.h>
-#include <shlobj.h>
+#include <iprt/win/objbase.h>
+#include <iprt/win/setupapi.h>
+#include <iprt/win/shlobj.h>
 #include <cfgmgr32.h>
 
 #include "VBoxCommon.h"
@@ -65,12 +65,12 @@
 #define MY_WTEXT(a_str)     MY_WTEXT_HLP(a_str)
 
 
-BOOL APIENTRY DllMain(HANDLE hModule,
-                      DWORD  ul_reason_for_call,
-                      LPVOID lpReserved)
+BOOL APIENTRY DllMain(HANDLE hModule, DWORD  uReason, LPVOID lpReserved)
 {
+    RT_NOREF3(hModule, uReason, lpReserved);
     return TRUE;
 }
+
 
 static void logString(MSIHANDLE hInstall, LPCSTR szString, ...)
 {
@@ -110,6 +110,8 @@ UINT __stdcall IsSerialCheckNeeded(MSIHANDLE hModule)
 {
 #ifndef VBOX_OSE
     /*BOOL bRet =*/ serialCheckNeeded(hModule);
+#else
+    RT_NOREF1(hModule);
 #endif
     return ERROR_SUCCESS;
 }
@@ -118,6 +120,8 @@ UINT __stdcall CheckSerial(MSIHANDLE hModule)
 {
 #ifndef VBOX_OSE
     /*BOOL bRet =*/ serialIsValid(hModule);
+#else
+    RT_NOREF1(hModule);
 #endif
     return ERROR_SUCCESS;
 }
@@ -500,8 +504,9 @@ UINT __stdcall InstallBranding(MSIHANDLE hModule)
 
 static MSIHANDLE g_hCurrentModule = NULL;
 
-static VOID vboxDrvLoggerCallback(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char * msg, void * pvContext)
+static VOID vboxDrvLoggerCallback(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char *pszMsg, void *pvContext)
 {
+    RT_NOREF1(pvContext);
     switch (enmSeverity)
     {
         case VBOXDRVCFG_LOG_SEVERITY_FLOW:
@@ -509,7 +514,7 @@ static VOID vboxDrvLoggerCallback(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char * ms
             break;
         case VBOXDRVCFG_LOG_SEVERITY_REL:
             if (g_hCurrentModule)
-                logString(g_hCurrentModule, (LPCSTR)msg);
+                logString(g_hCurrentModule, pszMsg);
             break;
         default:
             break;
@@ -857,7 +862,6 @@ UINT __stdcall InstallNetLwf(MSIHANDLE hModule)
         uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
         if (uErr == ERROR_SUCCESS)
         {
-            WCHAR wszInfName[] = NETLWF_INF_NAME;
             WCHAR wszInf[MAX_PATH];
             DWORD cchInf = RT_ELEMENTS(wszInf) - sizeof(NETLWF_INF_NAME) - 1;
             UINT uErr = MsiGetPropertyW(hModule, L"CustomActionData", wszInf, &cchInf);
@@ -974,18 +978,16 @@ static UINT _createHostOnlyInterface(MSIHANDLE hModule, LPCWSTR pwszId, LPCWSTR 
 #ifdef VBOX_WITH_NETFLT
     netCfgLoggerEnable(hModule);
 
-    BOOL bSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
-    bool bSetStaticIp = true;
+    BOOL fSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
 
     logStringW(hModule, L"CreateHostOnlyInterface: Creating host-only interface");
 
-    HRESULT hr;
-
+    HRESULT hr = E_FAIL;
     GUID guid;
     WCHAR wszMpInf[MAX_PATH];
-    DWORD cchMpInf = RT_ELEMENTS(wszMpInf) - wcslen(pwszInfName) - 1 - 1;
+    DWORD cchMpInf = RT_ELEMENTS(wszMpInf) - (DWORD)wcslen(pwszInfName) - 1 - 1;
     LPCWSTR pwszInfPath = NULL;
-    bool bIsFile = false;
+    bool fIsFile = false;
     UINT uErr = MsiGetPropertyW(hModule, L"CustomActionData", wszMpInf, &cchMpInf);
     if (uErr == ERROR_SUCCESS)
     {
@@ -1000,7 +1002,7 @@ static UINT _createHostOnlyInterface(MSIHANDLE hModule, LPCWSTR pwszId, LPCWSTR 
 
             wcscat(wszMpInf, pwszInfName);
             pwszInfPath = wszMpInf;
-            bIsFile = true;
+            fIsFile = true;
 
             logStringW(hModule, L"CreateHostOnlyInterface: Resulting INF path = %s", pwszInfPath);
         }
@@ -1011,7 +1013,7 @@ static UINT _createHostOnlyInterface(MSIHANDLE hModule, LPCWSTR pwszId, LPCWSTR 
         logStringW(hModule, L"CreateHostOnlyInterface: Unable to retrieve VBox installation path, error = 0x%x", uErr);
 
     /* Make sure the inf file is installed. */
-    if (pwszInfPath != NULL && bIsFile)
+    if (pwszInfPath != NULL && fIsFile)
     {
         logStringW(hModule, L"CreateHostOnlyInterface: Calling VBoxDrvCfgInfInstall(%s)", pwszInfPath);
         hr = VBoxDrvCfgInfInstall(pwszInfPath);
@@ -1043,9 +1045,9 @@ static UINT _createHostOnlyInterface(MSIHANDLE hModule, LPCWSTR pwszId, LPCWSTR 
             logStringW(hModule, L"CreateHostOnlyInterface: calling VBoxNetCfgWinCreateHostOnlyNetworkInterface");
 #ifdef VBOXNETCFG_DELAYEDRENAME
             BSTR devId;
-            hr = VBoxNetCfgWinCreateHostOnlyNetworkInterface(pwszInfPath, bIsFile, &guid, &devId, NULL);
+            hr = VBoxNetCfgWinCreateHostOnlyNetworkInterface(pwszInfPath, fIsFile, &guid, &devId, NULL);
 #else /* !VBOXNETCFG_DELAYEDRENAME */
-            hr = VBoxNetCfgWinCreateHostOnlyNetworkInterface(pwszInfPath, bIsFile, &guid, NULL, NULL);
+            hr = VBoxNetCfgWinCreateHostOnlyNetworkInterface(pwszInfPath, fIsFile, &guid, NULL, NULL);
 #endif /* !VBOXNETCFG_DELAYEDRENAME */
             logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinCreateHostOnlyNetworkInterface returns 0x%x", hr);
             if (SUCCEEDED(hr))
@@ -1074,8 +1076,8 @@ static UINT _createHostOnlyInterface(MSIHANDLE hModule, LPCWSTR pwszId, LPCWSTR 
 
     /* Restore original setup mode. */
     logStringW(hModule, L"CreateHostOnlyInterface: Almost done...");
-    if (bSetupModeInteractive)
-        SetupSetNonInteractiveMode(bSetupModeInteractive);
+    if (fSetupModeInteractive)
+        SetupSetNonInteractiveMode(fSetupModeInteractive);
 
     netCfgLoggerDisable();
 
@@ -1103,7 +1105,7 @@ static UINT _removeHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
 
     logStringW(hModule, L"RemoveHostOnlyInterfaces: Removing all host-only interfaces");
 
-    BOOL bSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
+    BOOL fSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
 
     HRESULT hr = VBoxNetCfgWinRemoveAllNetDevicesOfId(pwszId);
     if (SUCCEEDED(hr))
@@ -1121,8 +1123,8 @@ static UINT _removeHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
         logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstall failed, hr = 0x%x", hr);
 
     /* Restore original setup mode. */
-    if (bSetupModeInteractive)
-        SetupSetNonInteractiveMode(bSetupModeInteractive);
+    if (fSetupModeInteractive)
+        SetupSetNonInteractiveMode(fSetupModeInteractive);
 
     netCfgLoggerDisable();
 #endif /* VBOX_WITH_NETFLT */
@@ -1143,7 +1145,7 @@ static UINT _stopHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
 
     logStringW(hModule, L"StopHostOnlyInterfaces: Stopping all host-only interfaces");
 
-    BOOL bSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
+    BOOL fSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
 
     HRESULT hr = VBoxNetCfgWinPropChangeAllNetDevicesOfId(pwszId, VBOXNECTFGWINPROPCHANGE_TYPE_DISABLE);
     if (SUCCEEDED(hr))
@@ -1154,8 +1156,8 @@ static UINT _stopHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszId)
         logStringW(hModule, L"StopHostOnlyInterfaces: Disabling host interfaces failed, hr = 0x%x", hr);
 
     /* Restore original setup mode. */
-    if (bSetupModeInteractive)
-        SetupSetNonInteractiveMode(bSetupModeInteractive);
+    if (fSetupModeInteractive)
+        SetupSetNonInteractiveMode(fSetupModeInteractive);
 
     netCfgLoggerDisable();
 #endif /* VBOX_WITH_NETFLT */
@@ -1176,12 +1178,12 @@ static UINT _updateHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszInfName, LP
 
     logStringW(hModule, L"UpdateHostOnlyInterfaces: Updating all host-only interfaces");
 
-    BOOL bSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
+    BOOL fSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
 
     WCHAR wszMpInf[MAX_PATH];
-    DWORD cchMpInf = RT_ELEMENTS(wszMpInf) - wcslen(pwszInfName) - 1 - 1;
+    DWORD cchMpInf = RT_ELEMENTS(wszMpInf) - (DWORD)wcslen(pwszInfName) - 1 - 1;
     LPCWSTR pwszInfPath = NULL;
-    bool bIsFile = false;
+    bool fIsFile = false;
     UINT uErr = MsiGetPropertyW(hModule, L"CustomActionData", wszMpInf, &cchMpInf);
     if (uErr == ERROR_SUCCESS)
     {
@@ -1196,7 +1198,7 @@ static UINT _updateHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszInfName, LP
 
             wcscat(wszMpInf, pwszInfName);
             pwszInfPath = wszMpInf;
-            bIsFile = true;
+            fIsFile = true;
 
             logStringW(hModule, L"UpdateHostOnlyInterfaces: Resulting INF path = %s", pwszInfPath);
 
@@ -1235,8 +1237,8 @@ static UINT _updateHostOnlyInterfaces(MSIHANDLE hModule, LPCWSTR pwszInfName, LP
         logStringW(hModule, L"UpdateHostOnlyInterfaces: Unable to retrieve VBox installation path, error = 0x%x", uErr);
 
     /* Restore original setup mode. */
-    if (bSetupModeInteractive)
-        SetupSetNonInteractiveMode(bSetupModeInteractive);
+    if (fSetupModeInteractive)
+        SetupSetNonInteractiveMode(fSetupModeInteractive);
 
     netCfgLoggerDisable();
 #endif /* VBOX_WITH_NETFLT */
@@ -1369,10 +1371,10 @@ static bool isTAPDevice(const WCHAR *pwszGUID)
     return bIsTapDevice;
 }
 
-#define SetErrBreak(strAndArgs) \
+#define SetErrBreak(args) \
     if (1) { \
         rc = 0; \
-        logStringW(hModule, strAndArgs); \
+        logStringW args; \
         break; \
     } else do {} while (0)
 
@@ -1396,18 +1398,21 @@ int removeNetworkInterface(MSIHANDLE hModule, const WCHAR *pwszGUID)
                      pwszGUID);
             LONG lStatus = RegOpenKeyExW(HKEY_LOCAL_MACHINE, wszRegLocation, 0, KEY_READ, &hkeyNetwork);
             if ((lStatus != ERROR_SUCCESS) || !hkeyNetwork)
-                SetErrBreak((L"VBox HostInterfaces: Host interface network was not found in registry (%s)! [1]", wszRegLocation));
+                SetErrBreak((hModule, L"VBox HostInterfaces: Host interface network was not found in registry (%s)! [1]",
+                             wszRegLocation));
 
             lStatus = RegOpenKeyExW(hkeyNetwork, L"Connection", 0, KEY_READ, &hkeyConnection);
             if ((lStatus != ERROR_SUCCESS) || !hkeyConnection)
-                SetErrBreak((L"VBox HostInterfaces: Host interface network was not found in registry (%s)! [2]", wszRegLocation));
+                SetErrBreak((hModule, L"VBox HostInterfaces: Host interface network was not found in registry (%s)! [2]",
+                             wszRegLocation));
 
             DWORD len = sizeof(wszPnPInstanceId);
             DWORD dwKeyType;
             lStatus = RegQueryValueExW(hkeyConnection, L"PnPInstanceID", NULL,
                                        &dwKeyType, (LPBYTE)&wszPnPInstanceId[0], &len);
             if ((lStatus != ERROR_SUCCESS) || (dwKeyType != REG_SZ))
-                SetErrBreak((L"VBox HostInterfaces: Host interface network was not found in registry (%s)! [3]", wszRegLocation));
+                SetErrBreak((hModule, L"VBox HostInterfaces: Host interface network was not found in registry (%s)! [3]",
+                             wszRegLocation));
         }
         while (0);
 
@@ -1426,7 +1431,6 @@ int removeNetworkInterface(MSIHANDLE hModule, const WCHAR *pwszGUID)
 
         do
         {
-            DWORD ret = 0;
             GUID netGuid;
             SP_DEVINFO_DATA DeviceInfoData;
             DWORD index = 0;
@@ -1443,7 +1447,7 @@ int removeNetworkInterface(MSIHANDLE hModule, const WCHAR *pwszGUID)
             if (hDeviceInfo == INVALID_HANDLE_VALUE)
             {
                 logStringW(hModule, L"VBox HostInterfaces: SetupDiGetClassDevs failed (0x%08X)!", GetLastError());
-                SetErrBreak(L"VBox HostInterfaces: Uninstallation failed!");
+                SetErrBreak((hModule, L"VBox HostInterfaces: Uninstallation failed!"));
             }
 
             BOOL fFoundDevice = FALSE;
@@ -1546,26 +1550,24 @@ int removeNetworkInterface(MSIHANDLE hModule, const WCHAR *pwszGUID)
                 if (!fResult)
                 {
                     logStringW(hModule, L"VBox HostInterfaces: SetupDiSetSelectedDevice failed (0x%08X)!", GetLastError());
-                    SetErrBreak(L"VBox HostInterfaces: Uninstallation failed!");
+                    SetErrBreak((hModule, L"VBox HostInterfaces: Uninstallation failed!"));
                 }
 
                 fResult = SetupDiCallClassInstaller(DIF_REMOVE, hDeviceInfo, &DeviceInfoData);
                 if (!fResult)
                 {
                     logStringW(hModule, L"VBox HostInterfaces: SetupDiCallClassInstaller (DIF_REMOVE) failed (0x%08X)!", GetLastError());
-                    SetErrBreak(L"VBox HostInterfaces: Uninstallation failed!");
+                    SetErrBreak((hModule, L"VBox HostInterfaces: Uninstallation failed!"));
                 }
             }
             else
-                SetErrBreak(L"VBox HostInterfaces: Host interface network device not found!");
-        }
-        while (0);
+                SetErrBreak((hModule, L"VBox HostInterfaces: Host interface network device not found!"));
+        } while (0);
 
         /* clean up the device info set */
         if (hDeviceInfo != INVALID_HANDLE_VALUE)
             SetupDiDestroyDeviceInfoList(hDeviceInfo);
-    }
-    while (0);
+    } while (0);
     return rc;
 }
 

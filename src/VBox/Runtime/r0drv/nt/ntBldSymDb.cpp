@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #include <Dbghelp.h>
 
 #include <iprt/alloca.h>
@@ -196,7 +196,7 @@ static void generateHeader(PRTSTREAM pOut)
                  " */\n"
                  "\n"
                  "/*\n"
-                 " * Copyright (C) 2013-2015 Oracle Corporation \n"
+                 " * Copyright (C) 2013-2016 Oracle Corporation \n"
                  " *\n"
                  " * This file is part of VirtualBox Open Source Edition (OSE), as\n"
                  " * available from http://www.virtualbox.org. This file is free software;\n"
@@ -470,6 +470,7 @@ static uint32_t matchUpStructMembers(unsigned cWantedMembers, PMYMEMBER paWanted
 }
 
 
+#if 0
 /**
  * Resets the writable structure members prior to processing a PDB.
  *
@@ -490,6 +491,7 @@ static void resetMyStructs(void)
         }
     }
 }
+#endif
 
 
 /**
@@ -689,6 +691,7 @@ static RTEXITCODE findStructures(HANDLE hFake, uint64_t uModAddr, const char *ps
 }
 
 
+#if 0 /* unused */
 static bool strIEndsWith(const char *pszString, const char *pszSuffix)
 {
     size_t cchString = strlen(pszString);
@@ -697,6 +700,7 @@ static bool strIEndsWith(const char *pszString, const char *pszSuffix)
         return false;
     return RTStrICmp(pszString + cchString - cchSuffix, pszSuffix) == 0;
 }
+#endif
 
 
 /**
@@ -753,7 +757,6 @@ static RTEXITCODE FigurePdbVersionInfo(const char *pszPdb, PRTNTSDBOSVER pVerInf
      *  - Windows_Win8.9200.16384.120725-1247.X86CHK
      *  - en_windows_8_1_symbols_debug_checked_x64_2712568
      */
-    bool fFound = false;
     uint32_t i = u.Split.cComps - 1;
     while (i-- > 0)
     {
@@ -1150,7 +1153,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 103594 $");
+                RTPrintf("$Revision: 109161 $");
                 break;
 
             case 'h':

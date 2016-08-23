@@ -2,7 +2,7 @@
  <comment>
  VBox frontends: Qt4 GUI ("VirtualBox"):
 
- Copyright (C) 2008-2012 Oracle Corporation
+ Copyright (C) 2008-2016 Oracle Corporation
 
  This file is part of VirtualBox Open Source Edition (OSE), as
  available from http://www.virtualbox.org. This file is free software;
@@ -110,7 +110,7 @@
     <item row="2" column="0" colspan="2" >
      <widget class="QIDialogButtonBox" name="m_pButtonBox" >
       <property name="standardButtons" >
-       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
+       <set>QDialogButtonBox::Cancel|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
       </property>
      </widget>
     </item>

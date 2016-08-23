@@ -3,7 +3,7 @@
  * VBoxNetAdp-win.cpp - NDIS6 Host-only Networking Driver, Windows-specific code.
  */
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,12 +22,17 @@
 #include <iprt/initterm.h>
 #include <iprt/assert.h>
 
-RT_C_DECLS_BEGIN
-#include <ndis.h>
-RT_C_DECLS_END
+#include <iprt/nt/ndis.h>
 
 #include "VBoxNetAdp-win.h"
 #include "VBox/VBoxNetCmn-win.h"
+
+/*
+ * By default the link speed reported to be 1Gbps. We may wish to lower
+ * it to 100Mbps to work around issues with multi-cast traffic on the host.
+ * See @bugref{6379}.
+ */
+#define VBOXNETADPWIN_LINK_SPEED 1000000000ULL
 
 /* Forward declarations */
 MINIPORT_INITIALIZE                vboxNetAdpWinInitializeEx;
@@ -72,20 +77,21 @@ typedef VBOXNETADP_ADAPTER *PVBOXNETADP_ADAPTER;
 
 static NTSTATUS vboxNetAdpWinDevDispatch(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
 {
-    PIO_STACK_LOCATION pIrpSl = IoGetCurrentIrpStackLocation(pIrp);;
+    RT_NOREF1(pDevObj);
+    PIO_STACK_LOCATION pIrpSl = IoGetCurrentIrpStackLocation(pIrp);
     NTSTATUS Status = STATUS_SUCCESS;
 
     switch (pIrpSl->MajorFunction)
     {
         case IRP_MJ_DEVICE_CONTROL:
-            Status = STATUS_NOT_SUPPORTED; // TODO: add/remove ioctls
+            Status = STATUS_NOT_SUPPORTED; /// @todo add/remove ioctls
             break;
         case IRP_MJ_CREATE:
         case IRP_MJ_CLEANUP:
         case IRP_MJ_CLOSE:
             break;
         default:
-            Assert(0);
+            AssertFailed();
             break;
     }
 
@@ -190,7 +196,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinAllocAdapter(NDIS_HANDLE hAdapter, PVBOXNET
         NdisZeroMemory(pAdapter, sizeof(VBOXNETADP_ADAPTER));
         pAdapter->hAdapter = hAdapter;
         pAdapter->pGlobals = &g_VBoxNetAdpGlobals;
-        // TODO: Use netadp structure instead!
+        /// @todo Use netadp structure instead!
     /* Use a locally administered version of the OUI we use for the guest NICs. */
     pAdapter->MacAddr.au8[0] = 0x08 | 2;
     pAdapter->MacAddr.au8[1] = 0x00;
@@ -200,7 +206,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinAllocAdapter(NDIS_HANDLE hAdapter, PVBOXNET
     pAdapter->MacAddr.au8[4] = (uIfIndex >> 8) & 0xFF;
     pAdapter->MacAddr.au8[5] = uIfIndex & 0xFF;
 
-        //TODO: Statistics?
+        /// @todo Statistics?
 
         *ppAdapter = pAdapter;
     }
@@ -215,6 +221,7 @@ DECLHIDDEN(void) vboxNetAdpWinFreeAdapter(PVBOXNETADP_ADAPTER pAdapter)
 
 DECLINLINE(NDIS_MEDIA_CONNECT_STATE) vboxNetAdpWinGetConnectState(PVBOXNETADP_ADAPTER pAdapter)
 {
+    RT_NOREF1(pAdapter);
     return MediaConnectStateConnected;
 }
 
@@ -223,6 +230,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinInitializeEx(IN NDIS_HANDLE NdisMiniportHan
                                                   IN NDIS_HANDLE MiniportDriverContext,
                                                   IN PNDIS_MINIPORT_INIT_PARAMETERS MiniportInitParameters)
 {
+    RT_NOREF1(MiniportDriverContext);
     PVBOXNETADP_ADAPTER pAdapter = NULL;
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
 
@@ -256,11 +264,11 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinInitializeEx(IN NDIS_HANDLE NdisMiniportHan
             break;
         }
 
-        // TODO: Registry?
+        /// @todo Registry?
 
-        // TODO: WDM stack?
+        /// @todo WDM stack?
 
-        // TODO: DPC?
+        /// @todo DPC?
 
         GAttrs.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES;
         GAttrs.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES_REVISION_1;
@@ -268,17 +276,17 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinInitializeEx(IN NDIS_HANDLE NdisMiniportHan
 
         GAttrs.MediaType = NdisMedium802_3;
         GAttrs.PhysicalMediumType = NdisPhysicalMediumUnspecified;
-        GAttrs.MtuSize = 1500; //TODO
-        GAttrs.MaxXmitLinkSpeed = 1000000000ULL;
-        GAttrs.XmitLinkSpeed = 1000000000ULL;
-        GAttrs.MaxRcvLinkSpeed = 1000000000ULL;
-        GAttrs.RcvLinkSpeed = 1000000000ULL;
+        GAttrs.MtuSize = 1500; /// @todo
+        GAttrs.MaxXmitLinkSpeed = VBOXNETADPWIN_LINK_SPEED;
+        GAttrs.XmitLinkSpeed = VBOXNETADPWIN_LINK_SPEED;
+        GAttrs.MaxRcvLinkSpeed = VBOXNETADPWIN_LINK_SPEED;
+        GAttrs.RcvLinkSpeed = VBOXNETADPWIN_LINK_SPEED;
         GAttrs.MediaConnectState = vboxNetAdpWinGetConnectState(pAdapter);
         GAttrs.MediaDuplexState = MediaDuplexStateFull;
-        GAttrs.LookaheadSize = 1500; //TODO
+        GAttrs.LookaheadSize = 1500; /// @todo
         GAttrs.MacOptions = VBOXNETADP_MAC_OPTIONS;
         GAttrs.SupportedPacketFilters = VBOXNETADP_SUPPORTED_FILTERS;
-        GAttrs.MaxMulticastListSize = 32; //TODO
+        GAttrs.MaxMulticastListSize = 32; /// @todo
 
         GAttrs.MacAddressLength = ETH_LENGTH_OF_ADDRESS;
         Assert(GAttrs.MacAddressLength == sizeof(pAdapter->MacAddr));
@@ -322,9 +330,10 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinInitializeEx(IN NDIS_HANDLE NdisMiniportHan
 DECLHIDDEN(VOID) vboxNetAdpWinHaltEx(IN NDIS_HANDLE MiniportAdapterContext,
                                      IN NDIS_HALT_ACTION HaltAction)
 {
+    RT_NOREF1(HaltAction);
     PVBOXNETADP_ADAPTER pAdapter = (PVBOXNETADP_ADAPTER)MiniportAdapterContext;
     LogFlow(("==>vboxNetAdpWinHaltEx\n"));
-    // TODO: Stop something?
+    /// @todo Stop something?
     if (pAdapter)
         vboxNetAdpWinFreeAdapter(pAdapter);
     LogFlow(("<==vboxNetAdpWinHaltEx\n"));
@@ -333,6 +342,7 @@ DECLHIDDEN(VOID) vboxNetAdpWinHaltEx(IN NDIS_HANDLE MiniportAdapterContext,
 DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinPause(IN NDIS_HANDLE MiniportAdapterContext,
                                            IN PNDIS_MINIPORT_PAUSE_PARAMETERS MiniportPauseParameters)
 {
+    RT_NOREF2(MiniportAdapterContext, MiniportPauseParameters);
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     LogFlow(("==>vboxNetAdpWinPause\n"));
     LogFlow(("<==vboxNetAdpWinPause: status=0x%x\n", Status));
@@ -342,6 +352,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinPause(IN NDIS_HANDLE MiniportAdapterContext
 DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinRestart(IN NDIS_HANDLE MiniportAdapterContext,
                                              IN PNDIS_MINIPORT_RESTART_PARAMETERS MiniportRestartParameters)
 {
+    RT_NOREF2(MiniportAdapterContext, MiniportRestartParameters);
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     LogFlow(("==>vboxNetAdpWinRestart\n"));
     LogFlow(("<==vboxNetAdpWinRestart: status=0x%x\n", Status));
@@ -391,7 +402,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinOidRqQuery(PVBOXNETADP_ADAPTER pAdapter,
             break;
         case OID_GEN_RECEIVE_BUFFER_SPACE:
         case OID_GEN_TRANSMIT_BUFFER_SPACE:
-            // TODO: Make configurable
+            /// @todo Make configurable
             ulTmp = VBOXNETADP_MAX_FRAME_SIZE * 40;
             break;
         case OID_GEN_STATISTICS:
@@ -406,7 +417,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinOidRqQuery(PVBOXNETADP_ADAPTER pAdapter,
             pStats->Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
             pStats->Header.Revision = NDIS_STATISTICS_INFO_REVISION_1;
             pStats->Header.Size = NDIS_SIZEOF_STATISTICS_INFO_REVISION_1;
-            // TODO: We need some stats, don't we?
+            /// @todo We need some stats, don't we?
             break;
         }
         case OID_GEN_VENDOR_DESCRIPTION:
@@ -463,6 +474,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinOidRqQuery(PVBOXNETADP_ADAPTER pAdapter,
 DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinOidRqSet(PVBOXNETADP_ADAPTER pAdapter,
                                               PNDIS_OID_REQUEST pRequest)
 {
+    RT_NOREF1(pAdapter);
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     struct _NDIS_OID_REQUEST::_REQUEST_DATA::_SET *pSet = &pRequest->DATA.SET_INFORMATION;
 
@@ -477,7 +489,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinOidRqSet(PVBOXNETADP_ADAPTER pAdapter,
                 Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
-            // TODO: For the time being we simply ignore lookahead settings.
+            /// @todo For the time being we simply ignore lookahead settings.
             pSet->BytesRead = sizeof(ULONG);
             Status = NDIS_STATUS_SUCCESS;
             break;
@@ -489,7 +501,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinOidRqSet(PVBOXNETADP_ADAPTER pAdapter,
                 Status = NDIS_STATUS_INVALID_LENGTH;
                 break;
             }
-            // TODO: For the time being we simply ignore packet filter settings.
+            /// @todo For the time being we simply ignore packet filter settings.
             pSet->BytesRead = pSet->InformationBufferLength;
             Status = NDIS_STATUS_SUCCESS;
             break;
@@ -557,6 +569,7 @@ DECLHIDDEN(VOID) vboxNetAdpWinSendNetBufferLists(IN NDIS_HANDLE MiniportAdapterC
                                                  IN NDIS_PORT_NUMBER PortNumber,
                                                  IN ULONG SendFlags)
 {
+    RT_NOREF1(PortNumber);
     PVBOXNETADP_ADAPTER pAdapter = (PVBOXNETADP_ADAPTER)MiniportAdapterContext;
     LogFlow(("==>vboxNetAdpWinSendNetBufferLists\n"));
     PNET_BUFFER_LIST pNbl = NetBufferLists;
@@ -572,7 +585,7 @@ DECLHIDDEN(VOID) vboxNetAdpWinReturnNetBufferLists(IN NDIS_HANDLE MiniportAdapte
                                                    IN PNET_BUFFER_LIST NetBufferLists,
                                                    IN ULONG ReturnFlags)
 {
-    PVBOXNETADP_ADAPTER pAdapter = (PVBOXNETADP_ADAPTER)MiniportAdapterContext;
+    RT_NOREF3(MiniportAdapterContext, NetBufferLists, ReturnFlags);
     LogFlow(("==>vboxNetAdpWinReturnNetBufferLists\n"));
     Log(("vboxNetAdpWinReturnNetBufferLists: We should not be here!\n"));
     LogFlow(("<==vboxNetAdpWinReturnNetBufferLists\n"));
@@ -581,7 +594,7 @@ DECLHIDDEN(VOID) vboxNetAdpWinReturnNetBufferLists(IN NDIS_HANDLE MiniportAdapte
 DECLHIDDEN(VOID) vboxNetAdpWinCancelSend(IN NDIS_HANDLE MiniportAdapterContext,
                                          IN PVOID CancelId)
 {
-    PVBOXNETADP_ADAPTER pAdapter = (PVBOXNETADP_ADAPTER)MiniportAdapterContext;
+    RT_NOREF2(MiniportAdapterContext, CancelId);
     LogFlow(("==>vboxNetAdpWinCancelSend\n"));
     Log(("vboxNetAdpWinCancelSend: We should not be here!\n"));
     LogFlow(("<==vboxNetAdpWinCancelSend\n"));
@@ -590,7 +603,7 @@ DECLHIDDEN(VOID) vboxNetAdpWinCancelSend(IN NDIS_HANDLE MiniportAdapterContext,
 
 DECLHIDDEN(BOOLEAN) vboxNetAdpWinCheckForHangEx(IN NDIS_HANDLE MiniportAdapterContext)
 {
-    PVBOXNETADP_ADAPTER pAdapter = (PVBOXNETADP_ADAPTER)MiniportAdapterContext;
+    RT_NOREF1(MiniportAdapterContext);
     LogFlow(("==>vboxNetAdpWinCheckForHangEx\n"));
     LogFlow(("<==vboxNetAdpWinCheckForHangEx return false\n"));
     return FALSE;
@@ -599,6 +612,7 @@ DECLHIDDEN(BOOLEAN) vboxNetAdpWinCheckForHangEx(IN NDIS_HANDLE MiniportAdapterCo
 DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinResetEx(IN NDIS_HANDLE MiniportAdapterContext,
                                              OUT PBOOLEAN AddressingReset)
 {
+    RT_NOREF2(MiniportAdapterContext, AddressingReset);
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     LogFlow(("==>vboxNetAdpWinResetEx\n"));
     LogFlow(("<==vboxNetAdpWinResetEx: status=0x%x\n", Status));
@@ -608,7 +622,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetAdpWinResetEx(IN NDIS_HANDLE MiniportAdapterConte
 DECLHIDDEN(VOID) vboxNetAdpWinDevicePnPEventNotify(IN NDIS_HANDLE MiniportAdapterContext,
                                                    IN PNET_DEVICE_PNP_EVENT NetDevicePnPEvent)
 {
-    PVBOXNETADP_ADAPTER pAdapter = (PVBOXNETADP_ADAPTER)MiniportAdapterContext;
+    RT_NOREF2(MiniportAdapterContext, NetDevicePnPEvent);
     LogFlow(("==>vboxNetAdpWinDevicePnPEventNotify\n"));
     Log(("vboxNetAdpWinDevicePnPEventNotify: PnP event=%d\n", NetDevicePnPEvent->DevicePnPEvent));
     LogFlow(("<==vboxNetAdpWinDevicePnPEventNotify\n"));
@@ -618,7 +632,7 @@ DECLHIDDEN(VOID) vboxNetAdpWinDevicePnPEventNotify(IN NDIS_HANDLE MiniportAdapte
 DECLHIDDEN(VOID) vboxNetAdpWinShutdownEx(IN NDIS_HANDLE MiniportAdapterContext,
                                          IN NDIS_SHUTDOWN_ACTION ShutdownAction)
 {
-    PVBOXNETADP_ADAPTER pAdapter = (PVBOXNETADP_ADAPTER)MiniportAdapterContext;
+    RT_NOREF2(MiniportAdapterContext, ShutdownAction);
     LogFlow(("==>vboxNetAdpWinShutdownEx\n"));
     Log(("vboxNetAdpWinShutdownEx: action=%d\n", ShutdownAction));
     LogFlow(("<==vboxNetAdpWinShutdownEx\n"));
@@ -627,7 +641,7 @@ DECLHIDDEN(VOID) vboxNetAdpWinShutdownEx(IN NDIS_HANDLE MiniportAdapterContext,
 DECLHIDDEN(VOID) vboxNetAdpWinCancelOidRequest(IN NDIS_HANDLE MiniportAdapterContext,
                                                IN PVOID RequestId)
 {
-    PVBOXNETADP_ADAPTER pAdapter = (PVBOXNETADP_ADAPTER)MiniportAdapterContext;
+    RT_NOREF2(MiniportAdapterContext, RequestId);
     LogFlow(("==>vboxNetAdpWinCancelOidRequest\n"));
     Log(("vboxNetAdpWinCancelOidRequest: req id=%p\n", RequestId));
     LogFlow(("<==vboxNetAdpWinCancelOidRequest\n"));
@@ -637,6 +651,7 @@ DECLHIDDEN(VOID) vboxNetAdpWinCancelOidRequest(IN NDIS_HANDLE MiniportAdapterCon
 
 DECLHIDDEN(VOID) vboxNetAdpWinUnload(IN PDRIVER_OBJECT DriverObject)
 {
+    RT_NOREF1(DriverObject);
     LogFlow(("==>vboxNetAdpWinUnload\n"));
     //vboxNetAdpWinDevDestroy(&g_VBoxNetAdpGlobals);
     if (g_VBoxNetAdpGlobals.hMiniportDriver)

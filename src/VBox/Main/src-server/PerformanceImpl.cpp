@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -186,7 +186,7 @@ HRESULT PerformanceCollector::init()
     m.gm = new pm::CollectorGuestManager;
 
     /* Let the sampler know it gets a valid collector.  */
-    mMagic = MAGIC;
+    mMagic = PERFORMANCE_METRIC_MAGIC;
 
     /* Start resource usage sampler */
     int vrc = RTTimerLRCreate(&m.sampler, VBOX_USAGE_SAMPLER_MIN_INTERVAL,
@@ -498,7 +498,7 @@ HRESULT PerformanceCollector::queryMetricsData(const std::vector<com::Utf8Str> &
     for (it = filteredMetrics.begin(); it != filteredMetrics.end(); ++it, ++i)
     {
         ULONG *values, length, sequenceNumber;
-        /* @todo We may want to revise the query method to get rid of excessive alloc/memcpy calls. */
+        /** @todo We may want to revise the query method to get rid of excessive alloc/memcpy calls. */
         (*it)->query(&values, &length, &sequenceNumber);
         LogFlow(("PerformanceCollector::QueryMetricsData() querying metric %s returned %d values.\n",
                  (*it)->getName(), length));
@@ -639,8 +639,8 @@ DECLCALLBACK(void) PerformanceCollector::staticSamplerCallback(RTTIMERLR hTimerL
 {
     AssertReturnVoid(pvUser != NULL);
     PerformanceCollector *collector = static_cast <PerformanceCollector *> (pvUser);
-    Assert(collector->mMagic == MAGIC);
-    if (collector->mMagic == MAGIC)
+    Assert(collector->mMagic == PERFORMANCE_METRIC_MAGIC);
+    if (collector->mMagic == PERFORMANCE_METRIC_MAGIC)
         collector->samplerCallback(iTick);
 
     NOREF(hTimerLR);

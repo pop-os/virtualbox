@@ -134,6 +134,7 @@ void stubConFlush(GLint con)
 static void stubWindowCleanupForContextsCB(unsigned long key, void *data1, void *data2)
 {
     ContextInfo *context = (ContextInfo *) data1;
+    RT_NOREF(key);
 
     CRASSERT(context);
 
@@ -251,15 +252,19 @@ stubNewWindow( const char *dpyName, GLint visBits )
 }
 
 #ifdef GLX
+# if 0 /* unused */
 static XErrorHandler oldErrorHandler;
 static unsigned char lastXError = Success;
 
 static int 
 errorHandler (Display *dpy, XErrorEvent *e)
 {
+    RT_NOREF(dpy);
+
     lastXError = e->error_code;
     return 0;
 }
+# endif /* unused */
 #endif
 
 GLboolean
@@ -1094,6 +1099,9 @@ static void stubWindowCheckOwnerCB(unsigned long key, void *data1, void *data2)
     WindowInfo *pWindow = (WindowInfo *) data1;
     ContextInfo *pCtx = (ContextInfo *) data2;
 
+    RT_NOREF(key);
+
+
     if (pWindow->pOwner == pCtx)
     {
 #ifdef WINDOWS
@@ -1155,7 +1163,7 @@ GLboolean stubCtxCheckCreate(ContextInfo *context)
 GLboolean
 stubMakeCurrent( WindowInfo *window, ContextInfo *context )
 {
-    GLboolean retVal;
+    GLboolean retVal = GL_FALSE;
 
     /*
      * Get WindowInfo and ContextInfo pointers.

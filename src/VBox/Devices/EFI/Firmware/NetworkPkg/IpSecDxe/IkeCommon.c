@@ -1,7 +1,7 @@
 /** @file
   Common operation of the IKE
-  
-  Copyright (c) 2010, Intel Corporation. All rights reserved.<BR>
+
+  Copyright (c) 2010 - 2012, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -22,11 +22,11 @@
 // Initial the SPI
 //
 UINT32            mNextSpi  = IKE_SPI_BASE;
-EFI_GUID          mZeroGuid = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+EFI_GUID          mZeroGuid = { 0, 0, 0, { 0, 0, 0, 0, 0, 0, 0, 0 } };
 
 /**
   Call Crypto Lib to generate a random value with eight-octet length.
-  
+
   @return the 64 byte vaule.
 
 **/
@@ -50,8 +50,8 @@ IkeGenerateCookie (
   Generate the random data for Nonce payload.
 
   @param[in]  NonceSize      Size of the data in bytes.
-  
-  @return Buffer which contains the random data of the spcified size. 
+
+  @return Buffer which contains the random data of the spcified size.
 
 **/
 UINT8 *
@@ -127,7 +127,7 @@ IkePayloadAlloc (
   if (IkePayload == NULL) {
     return NULL;
   }
-  
+
   IkePayload->Signature = IKE_PAYLOAD_SIGNATURE;
 
   return IkePayload;

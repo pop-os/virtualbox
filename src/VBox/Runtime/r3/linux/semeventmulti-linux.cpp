@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -152,6 +152,8 @@ RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t 
             va_end(va);
         }
         pThis->fEverHadSignallers = false;
+#else
+        RT_NOREF(hClass, pszNameFmt);
 #endif
 
         *phEventMultiSem = pThis;
@@ -252,6 +254,8 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
 DECLINLINE(int) rtSemEventLnxMultiWait(struct RTSEMEVENTMULTIINTERNAL *pThis, uint32_t fFlags, uint64_t uTimeout,
                                        PCRTLOCKVALSRCPOS pSrcPos)
 {
+    RT_NOREF(pSrcPos);
+
     /*
      * Validate input.
      */
@@ -411,6 +415,8 @@ RTDECL(void) RTSemEventMultiSetSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTHREA
 
     ASMAtomicWriteBool(&pThis->fEverHadSignallers, true);
     RTLockValidatorRecSharedResetOwner(&pThis->Signallers, hThread, NULL);
+#else
+    RT_NOREF(hEventMultiSem, hThread);
 #endif
 }
 
@@ -424,6 +430,8 @@ RTDECL(void) RTSemEventMultiAddSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTHREA
 
     ASMAtomicWriteBool(&pThis->fEverHadSignallers, true);
     RTLockValidatorRecSharedAddOwner(&pThis->Signallers, hThread, NULL);
+#else
+    RT_NOREF(hEventMultiSem, hThread);
 #endif
 }
 
@@ -436,6 +444,8 @@ RTDECL(void) RTSemEventMultiRemoveSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTH
     AssertReturnVoid(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC);
 
     RTLockValidatorRecSharedRemoveOwner(&pThis->Signallers, hThread);
+#else
+    RT_NOREF(hEventMultiSem, hThread);
 #endif
 }
 

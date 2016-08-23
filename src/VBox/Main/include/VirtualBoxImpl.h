@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,10 +57,11 @@ namespace settings
     class MainConfigFile;
     struct MediaRegistry;
 }
+
 class ATL_NO_VTABLE VirtualBox :
     public VirtualBoxWrap
 #ifdef RT_OS_WINDOWS
-     , public CComCoClass<VirtualBox, &CLSID_VirtualBox>
+     , public ATL::CComCoClass<VirtualBox, &CLSID_VirtualBox>
 #endif
 {
 
@@ -74,7 +75,8 @@ public:
 
     DECLARE_CLASSFACTORY_SINGLETON(VirtualBox)
 
-    DECLARE_REGISTRY_RESOURCEID(IDR_VIRTUALBOX)
+    // Do not use any ATL registry support.
+    //DECLARE_REGISTRY_RESOURCEID(IDR_VIRTUALBOX)
 
     // Kind of redundant (VirtualBoxWrap declares itself not aggregatable and
     // CComCoClass<VirtualBox, &CLSID_VirtualBox> as aggregatable, the former
@@ -88,7 +90,7 @@ public:
     HRESULT FinalConstruct();
     void FinalRelease();
 
-    /* public initializer/uninitializer for internal purposes only */
+    // public initializer/uninitializer for internal purposes only
     HRESULT init();
     HRESULT initMachines();
     HRESULT initMedia(const Guid &uuidMachineRegistry,
@@ -96,7 +98,7 @@ public:
                       const Utf8Str &strMachineFolder);
     void uninit();
 
-    /* public methods only for internal purposes */
+    // public methods only for internal purposes
 
     /**
      * Override of the default locking class to be used for validating lock
@@ -381,8 +383,10 @@ private:
     static DECLCALLBACK(int) AsyncEventHandler(RTTHREAD thread, void *pvUser);
 
 #ifdef RT_OS_WINDOWS
-    static DECLCALLBACK(int) SVCHelperClientThread(RTTHREAD aThread, void *aUser);
+    friend class StartSVCHelperClientData;
+    static void i_SVCHelperClientThreadTask(StartSVCHelperClientData *pTask);
 #endif
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -174,6 +174,8 @@ typedef const USBPROXYBACK *PCUSBPROXYBACK;
 extern const USBPROXYBACK g_USBProxyDeviceHost;
 /** The remote desktop backend. */
 extern const USBPROXYBACK g_USBProxyDeviceVRDP;
+/** The USB/IP backend. */
+extern const USBPROXYBACK g_USBProxyDeviceUsbIp;
 
 #ifdef RDESKTOP
 typedef struct VUSBDEV

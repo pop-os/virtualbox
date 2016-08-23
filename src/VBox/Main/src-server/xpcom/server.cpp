@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2015 Oracle Corporation
+ * Copyright (C) 2004-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -161,7 +161,7 @@ public:
 
                 int vrc = RTTimerLRStart(sTimer, gShutdownDelayMs * RT_NS_1MS_64);
                 AssertRC(vrc);
-                timerStarted = SUCCEEDED(vrc);
+                timerStarted = !!(SUCCEEDED(vrc));
             }
             else
             {
@@ -210,6 +210,18 @@ public:
 
     class MaybeQuitEvent : public NativeEvent
     {
+    public:
+        MaybeQuitEvent() :
+            m_fSignal(false)
+        {
+        }
+
+        MaybeQuitEvent(bool fSignal) :
+            m_fSignal(fSignal)
+        {
+        }
+
+    private:
         /* called on the main thread */
         void *handler()
         {
@@ -233,7 +245,7 @@ public:
 
             if (count == 0)
             {
-                if (gAutoShutdown)
+                if (gAutoShutdown || m_fSignal)
                 {
                     Assert(sInstance == NULL);
                     LogFlowFunc(("Terminating the server process...\n"));
@@ -256,6 +268,8 @@ public:
             LogFlowFuncLeave();
             return NULL;
         }
+
+        bool m_fSignal;
     };
 
     static DECLCALLBACK(void) ShutdownTimer(RTTIMERLR hTimerLR, void *pvUser, uint64_t /*iTick*/)
@@ -271,7 +285,7 @@ public:
         AssertReturnVoid(q);
 
         /* post a quit event to the main queue */
-        MaybeQuitEvent *ev = new MaybeQuitEvent();
+        MaybeQuitEvent *ev = new MaybeQuitEvent(false /* fSignal */);
         if (!q->postEvent(ev))
             delete ev;
 
@@ -515,7 +529,8 @@ static void signal_handler(int sig)
         {
             if (gAllowSigUsrQuit)
             {
-                VirtualBoxClassFactory::MaybeQuitEvent *ev = new VirtualBoxClassFactory::MaybeQuitEvent();
+                /* terminate the server process if it is idle */
+                VirtualBoxClassFactory::MaybeQuitEvent *ev = new VirtualBoxClassFactory::MaybeQuitEvent(true /* fSignal */);
                 if (!q->postEvent(ev))
                     delete ev;
             }
@@ -682,11 +697,11 @@ int main(int argc, char **argv)
 
             case 'h':
                 RTPrintf("no help\n");
-                return 1;
+                return RTEXITCODE_SYNTAX;
 
             case 'V':
                 RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
-                return 0;
+                return RTEXITCODE_SUCCESS;
 
             default:
                 return RTGetOptPrintError(vrc, &ValueUnion);
@@ -727,6 +742,12 @@ int main(int argc, char **argv)
     if (RT_FAILURE(vrc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, vrc);
 
+    /* Set up a build identifier so that it can be seen from core dumps what
+     * exact build was used to produce the core. Same as in Console::i_powerUpThread(). */
+    static char saBuildID[48];
+    RTStrPrintf(saBuildID, sizeof(saBuildID), "%s%s%s%s VirtualBox %s r%u %s%s%s%s",
+                "BU", "IL", "DI", "D", RTBldCfgVersion(), RTBldCfgRevision(), "BU", "IL", "DI", "D");
+
     daemon_pipe_wr = PR_GetInheritedFD(VBOXSVC_STARTUP_PIPE_NAME);
     RTEnvUnset("NSPR_INHERIT_FDS");
 
@@ -751,7 +772,7 @@ int main(int argc, char **argv)
         }
     };
 
-    do
+    do /* goto avoidance only */
     {
         rc = com::Initialize();
         if (NS_FAILED(rc))
@@ -816,12 +837,12 @@ int main(int argc, char **argv)
 
         {
             char szBuf[80];
-            int  iSize;
+            size_t cSize;
 
-            iSize = RTStrPrintf(szBuf, sizeof(szBuf),
+            cSize = RTStrPrintf(szBuf, sizeof(szBuf),
                                 VBOX_PRODUCT" XPCOM Server Version "
                                 VBOX_VERSION_STRING);
-            for (int i = iSize; i > 0; i--)
+            for (size_t i = cSize; i > 0; i--)
                 putchar('*');
             RTPrintf("\n%s\n", szBuf);
             RTPrintf("(C) 2004-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
@@ -835,7 +856,7 @@ int main(int argc, char **argv)
         {
             RTPrintf("\nStarting event loop....\n[send TERM signal to quit]\n");
             /* now we're ready, signal the parent process */
-            PR_Write(daemon_pipe_wr, "READY", strlen("READY"));
+            PR_Write(daemon_pipe_wr, RT_STR_TUPLE("READY"));
             /* close writing end of the pipe, its job is done */
             PR_Close(daemon_pipe_wr);
         }
@@ -915,5 +936,5 @@ int main(int argc, char **argv)
     if (g_pszPidFile)
         RTFileDelete(g_pszPidFile);
 
-    return 0;
+    return RTEXITCODE_SUCCESS;
 }

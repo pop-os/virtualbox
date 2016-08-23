@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -173,7 +173,8 @@ HRESULT MousePointerShape::getHeight(ULONG *aHeight)
 HRESULT MousePointerShape::getShape(std::vector<BYTE> &aShape)
 {
     aShape.resize(m.shape.size());
-    memcpy(&aShape.front(), &m.shape.front(), aShape.size());
+    if (m.shape.size())
+        memcpy(&aShape.front(), &m.shape.front(), aShape.size());
     return S_OK;
 }
 
@@ -1007,8 +1008,8 @@ HRESULT Mouse::i_putEventMultiTouch(LONG aCount,
 
                 if (fValid)
                 {
-                    uint8_t fu8 =   (fInContact? 0x01: 0x00)
-                                  | (fInRange?   0x02: 0x00);
+                    uint8_t fu8 = (uint8_t)(  (fInContact? 0x01: 0x00)
+                                            | (fInRange?   0x02: 0x00));
                     pau64Contacts[cContacts] = RT_MAKE_U64_FROM_U16((uint16_t)xAdj,
                                                                     (uint16_t)yAdj,
                                                                     RT_MAKE_U16(contactId, fu8),
@@ -1213,6 +1214,7 @@ DECLCALLBACK(void) Mouse::i_drvDestruct(PPDMDRVINS pDrvIns)
  */
 DECLCALLBACK(int) Mouse::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVMAINMOUSE pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINMOUSE);
     LogFlow(("drvMainMouse_Construct: iInstance=%d\n", pDrvIns->iInstance));

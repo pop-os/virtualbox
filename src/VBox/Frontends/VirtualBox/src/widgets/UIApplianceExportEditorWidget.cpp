@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -107,7 +107,7 @@ void UIApplianceExportEditorWidget::populate()
             mWarningTextEdit->append("- " + text);
         fWarningsEnabled = true;
     }
-    m_pWarningWidget->setShown(fWarningsEnabled);
+    m_pWarningWidget->setVisible(fWarningsEnabled);
 }
 
 void UIApplianceExportEditorWidget::prepareExport()

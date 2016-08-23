@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,8 +66,8 @@
         AssertPtr(a_pBigNum); \
         Assert(!(a_pBigNum)->fCurScrambled); \
         Assert(   (a_pBigNum)->cUsed == (a_pBigNum)->cAllocated \
-               || ASMMemIsAllU32(&(a_pBigNum)->pauElements[(a_pBigNum)->cUsed], \
-                                 ((a_pBigNum)->cAllocated - (a_pBigNum)->cUsed) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL); \
+               || ASMMemIsZero(&(a_pBigNum)->pauElements[(a_pBigNum)->cUsed], \
+                               ((a_pBigNum)->cAllocated - (a_pBigNum)->cUsed) * RTBIGNUM_ELEMENT_SIZE)); \
     } while (0)
 #else
 # define RTBIGNUM_ASSERT_VALID(a_pBigNum) do {} while (0)
@@ -176,6 +176,7 @@ DECLINLINE(RTBIGNUMELEMENT) rtBigNumElementAddWithCarry(RTBIGNUMELEMENT uAugend,
 }
 
 
+#if !defined(IPRT_BIGINT_WITH_ASM) || defined(RT_STRICT)
 /**
  * Does addition with borrow.
  *
@@ -196,6 +197,7 @@ DECLINLINE(RTBIGNUMELEMENT) rtBigNumElementSubWithBorrow(RTBIGNUMELEMENT uMinuen
     *pfBorrow = !*pfBorrow ? uMinuend < uSubtrahend : uMinuend <= uSubtrahend;
     return uRet;
 }
+#endif
 
 /** @} */
 
@@ -263,7 +265,7 @@ static void rtBigNumElement2xDiv2xBy1x(RTBIGNUMELEMENT2X *puQuotient, RTBIGNUMEL
     uDivisor2x.s.Lo = uDivisor;
     /** @todo optimize this. */
     RTUInt128DivRem(puQuotient, &uRemainder2x, &uDividend, &uDivisor2x);
-    puRemainder->u = uRemainder2x.s.Lo;
+    *puRemainder = uRemainder2x.s.Lo;
 # else
     puQuotient->u  = uDividend.u / uDivisor;
     puRemainder->u = uDividend.u % uDivisor;
@@ -281,6 +283,7 @@ DECLINLINE(void) rtBigNumElement2xDec(RTBIGNUMELEMENT2X *puValue)
 #endif
 }
 
+#if 0 /* unused */
 DECLINLINE(void) rtBigNumElement2xAdd1x(RTBIGNUMELEMENT2X *puValue, RTBIGNUMELEMENT uAdd)
 {
 #if RTBIGNUM_ELEMENT_BITS == 64
@@ -289,6 +292,7 @@ DECLINLINE(void) rtBigNumElement2xAdd1x(RTBIGNUMELEMENT2X *puValue, RTBIGNUMELEM
     puValue->u += uAdd;
 #endif
 }
+#endif /* unused */
 
 /** @} */
 
@@ -413,8 +417,7 @@ DECLINLINE(int) rtBigNumSetUsed(PRTBIGNUM pBigNum, uint32_t cNewUsed)
             RT_BZERO(&pBigNum->pauElements[cNewUsed], (pBigNum->cUsed - cNewUsed) * RTBIGNUM_ELEMENT_SIZE);
 #ifdef RT_STRICT
         else if (pBigNum->cUsed != cNewUsed)
-            Assert(ASMMemIsAllU32(&pBigNum->pauElements[pBigNum->cUsed],
-                                  (cNewUsed - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL);
+            Assert(ASMMemIsZero(&pBigNum->pauElements[pBigNum->cUsed], (cNewUsed - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE));
 #endif
         pBigNum->cUsed = cNewUsed;
         return VINF_SUCCESS;
@@ -443,8 +446,7 @@ DECLINLINE(int) rtBigNumSetUsedEx(PRTBIGNUM pBigNum, uint32_t cNewUsed, uint32_t
             RT_BZERO(&pBigNum->pauElements[cNewUsed], (pBigNum->cUsed - cNewUsed) * RTBIGNUM_ELEMENT_SIZE);
 #ifdef RT_STRICT
         else if (pBigNum->cUsed != cNewUsed)
-            Assert(ASMMemIsAllU32(&pBigNum->pauElements[pBigNum->cUsed],
-                                  (cNewUsed - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL);
+            Assert(ASMMemIsZero(&pBigNum->pauElements[pBigNum->cUsed], (cNewUsed - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE));
 #endif
         pBigNum->cUsed = cNewUsed;
         return VINF_SUCCESS;
@@ -468,8 +470,8 @@ DECLINLINE(int) rtBigNumEnsureExtraZeroElements(PRTBIGNUM pBigNum, uint32_t cEle
     if (pBigNum->cAllocated >= cElements)
     {
         Assert(   pBigNum->cAllocated == pBigNum->cUsed
-               || ASMMemIsAllU32(&pBigNum->pauElements[pBigNum->cUsed],
-                                 (pBigNum->cAllocated - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL);
+               || ASMMemIsZero(&pBigNum->pauElements[pBigNum->cUsed],
+                                  (pBigNum->cAllocated - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE));
         return VINF_SUCCESS;
     }
     return rtBigNumGrow(pBigNum, pBigNum->cUsed, cElements);
@@ -1102,7 +1104,7 @@ RTDECL(int) RTBigNumCompareWithS64(PRTBIGNUM pLeft, int64_t iRight)
     if (RT_SUCCESS(rc))
     {
         RTBIGNUM_ASSERT_VALID(pLeft);
-        if (pLeft->fNegative == (iRight < 0))
+        if (pLeft->fNegative == (unsigned)(iRight < 0)) /* (unsigned cast is for MSC weirdness) */
         {
             AssertCompile(RTBIGNUM_ELEMENT_SIZE <= sizeof(iRight));
             if (pLeft->cUsed * RTBIGNUM_ELEMENT_SIZE <= sizeof(iRight))
@@ -1616,6 +1618,7 @@ RTDECL(int) RTBigNumMultiply(PRTBIGNUM pResult, PCRTBIGNUM pMultiplicand, PCRTBI
 }
 
 
+#if 0 /* unused */
 /**
  * Clears a bit in the magnitude of @a pBigNum.
  *
@@ -1635,6 +1638,7 @@ DECLINLINE(void) rtBigNumMagnitudeClearBit(PRTBIGNUM pBigNum, uint32_t iBit)
             rtBigNumStripTrailingZeros(pBigNum);
     }
 }
+#endif /* unused */
 
 
 /**
@@ -1660,6 +1664,7 @@ DECLINLINE(int) rtBigNumMagnitudeSetBit(PRTBIGNUM pBigNum, uint32_t iBit)
 }
 
 
+#if 0 /* unused */
 /**
  * Writes a bit in the magnitude of @a pBigNum.
  *
@@ -1677,6 +1682,7 @@ DECLINLINE(int) rtBigNumMagnitudeWriteBit(PRTBIGNUM pBigNum, uint32_t iBit, bool
     rtBigNumMagnitudeClearBit(pBigNum, iBit);
     return VINF_SUCCESS;
 }
+#endif
 
 
 /**
@@ -1730,6 +1736,7 @@ DECLINLINE(int) rtBigNumMagnitudeShiftLeftOne(PRTBIGNUM pBigNum, RTBIGNUMELEMENT
     if (uCarry)
     {
         int rc = rtBigNumSetUsed(pBigNum, cUsed + 1);
+        AssertRCReturn(rc, rc);
         pBigNum->pauElements[cUsed] = uCarry;
     }
 
@@ -1767,7 +1774,7 @@ static int rtBigNumMagnitudeShiftLeft(PRTBIGNUM pResult, PCRTBIGNUM pValue, uint
                     PCRTBIGNUMELEMENT   pauSrc = pValue->pauElements;
                     PRTBIGNUMELEMENT    pauDst = pResult->pauElements;
 
-                    Assert(ASMMemIsAllU32(pauDst, (cBits / RTBIGNUM_ELEMENT_BITS) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL);
+                    Assert(ASMMemIsZero(pauDst, (cBits / RTBIGNUM_ELEMENT_BITS) * RTBIGNUM_ELEMENT_SIZE));
                     pauDst += cBits / RTBIGNUM_ELEMENT_BITS;
 
                     cBits &= RTBIGNUM_ELEMENT_BITS - 1;

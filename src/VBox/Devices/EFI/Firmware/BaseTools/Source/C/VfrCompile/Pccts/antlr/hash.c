@@ -38,6 +38,9 @@
  */
 
 #include <stdio.h>
+#ifdef VBOX
+# include <iprt/stdint.h> /* for intptr.h */
+#endif
 #include "pcctscfg.h"
 #include "hash.h"
 
@@ -73,7 +76,7 @@ newHashTable( )
 #endif
 {
 	Entry **table;
-	
+
 	table = (Entry **) calloc(size, sizeof(Entry *));
 	require( table != NULL, "cannot allocate hash table");
 	if ( strings == NULL )
@@ -111,7 +114,7 @@ Entry *rec;
 	unsigned h=0;
 	char *p=key;
 	require(table!=NULL && key!=NULL && rec!=NULL, "add: invalid addition");
-	
+
 	Hash(p,h,size);
 	rec->next = table[h];			/* Add to singly-linked list */
 	table[h] = rec;
@@ -132,8 +135,8 @@ char *key;
 	char *p=key;
 	Entry *q;
 /*	require(table!=NULL && key!=NULL, "get: invalid table and/or key");*/
-	if ( !(table!=NULL && key!=NULL) ) *((char *) 34) = 3;
-	
+	if ( !(table!=NULL && key!=NULL) ) *((char *)(/*vbox:*/ intptr_t) 34) = 3;
+
 	Hash(p,h,size);
 	for (q = table[h]; q != NULL; q = q->next)
 	{
@@ -155,13 +158,13 @@ Entry **table;
 	int i,n=0,low=0, hi=0;
 	Entry **p;
 	float avg=0.0;
-	
+
 	for (i=0; i<20; i++) count[i] = 0;
 	for (p=table; p<&(table[size]); p++)
 	{
 		Entry *q = *p;
 		int len;
-		
+
 		if ( q != NULL && low==0 ) low = p-table;
 		len = 0;
 		if ( q != NULL ) fprintf(stderr, "[%d]", p-table);

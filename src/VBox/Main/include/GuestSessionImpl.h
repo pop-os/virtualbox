@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,16 +26,18 @@
 #include "GuestDirectoryImpl.h"
 #include "GuestFileImpl.h"
 #include "GuestFsObjInfoImpl.h"
+#include "ThreadTask.h"
 
 #include <iprt/isofs.h> /* For UpdateAdditions. */
 
 class Guest;
+class GuestSessionTaskInternalOpen;
 
 /**
  * Abstract base class for a lenghtly per-session operation which
  * runs in a Main worker thread.
  */
-class GuestSessionTask
+class GuestSessionTask : public ThreadTask
 {
 public:
 
@@ -46,7 +48,28 @@ public:
 public:
 
     virtual int Run(void) = 0;
-    virtual int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress) = 0;
+    void handler()
+    {
+        int vrc = Run();
+        NOREF(vrc);
+        /** @todo
+         *
+         * r=bird: what was your idea WRT to Run status code and async tasks?
+         *
+         */
+    }
+
+    int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
+
+    HRESULT Init(const Utf8Str &strTaskDesc)
+    {
+        HRESULT hr = S_OK;
+        setTaskDesc(strTaskDesc);
+        hr = createAndSetProgressObject();
+        return hr;
+    }
+
+    const ComObjPtr<Progress>& GetProgressObject() const {return mProgress;}
 
 protected:
 
@@ -55,7 +78,12 @@ protected:
     int setProgress(ULONG uPercent);
     int setProgressSuccess(void);
     HRESULT setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg);
+    inline void setTaskDesc(const Utf8Str &strTaskDesc) throw()
+    {
+        mDesc = strTaskDesc;
+    }
 
+    HRESULT createAndSetProgressObject();
 protected:
 
     Utf8Str                 mDesc;
@@ -75,14 +103,8 @@ public:
     SessionTaskOpen(GuestSession *pSession,
                     uint32_t uFlags,
                     uint32_t uTimeoutMS);
-
     virtual ~SessionTaskOpen(void);
-
-public:
-
-    int Run(int *pGuestRc);
-    int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
-    static DECLCALLBACK(int) taskThread(RTTHREAD Thread, void *pvUser);
+    int Run(void);
 
 protected:
 
@@ -101,18 +123,11 @@ public:
 
     SessionTaskCopyTo(GuestSession *pSession,
                       const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags);
-
     SessionTaskCopyTo(GuestSession *pSession,
                       PRTFILE pSourceFile, size_t cbSourceOffset, uint64_t cbSourceSize,
                       const Utf8Str &strDest, uint32_t uFlags);
-
     virtual ~SessionTaskCopyTo(void);
-
-public:
-
     int Run(void);
-    int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
-    static DECLCALLBACK(int) taskThread(RTTHREAD Thread, void *pvUser);
 
 protected:
 
@@ -133,14 +148,8 @@ public:
 
     SessionTaskCopyFrom(GuestSession *pSession,
                         const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags);
-
     virtual ~SessionTaskCopyFrom(void);
-
-public:
-
     int Run(void);
-    int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
-    static DECLCALLBACK(int) taskThread(RTTHREAD Thread, void *pvUser);
 
 protected:
 
@@ -159,14 +168,8 @@ public:
     SessionTaskUpdateAdditions(GuestSession *pSession,
                                const Utf8Str &strSource, const ProcessArguments &aArguments,
                                uint32_t uFlags);
-
     virtual ~SessionTaskUpdateAdditions(void);
-
-public:
-
     int Run(void);
-    int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
-    static DECLCALLBACK(int) taskThread(RTTHREAD Thread, void *pvUser);
 
 protected:
 
@@ -451,8 +454,7 @@ public:
     int                     i_onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
     int                     i_startSessionInternal(int *pGuestRc);
     int                     i_startSessionAsync(void);
-    static DECLCALLBACK(int)
-                            i_startSessionThread(RTTHREAD Thread, void *pvUser);
+    static void             i_startSessionThreadTask(GuestSessionTaskInternalOpen *pTask);
     Guest                  *i_getParent(void) { return mParent; }
     uint32_t                i_getProtocolVersion(void) { return mData.mProtocolVersion; }
     int                     i_pathRenameInternal(const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags,

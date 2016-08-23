@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,9 +58,6 @@ static const VDFILEEXTENSION s_aVdiFileExtensions[] =
 static unsigned getPowerOfTwo(unsigned uNumber);
 static void vdiInitPreHeader(PVDIPREHEADER pPreHdr);
 static int  vdiValidatePreHeader(PVDIPREHEADER pPreHdr);
-static void vdiInitHeader(PVDIHEADER pHeader, uint32_t uImageFlags,
-                          const char *pszComment, uint64_t cbDisk,
-                          uint32_t cbBlock, uint32_t cbBlockExtra);
 static int  vdiValidateHeader(PVDIHEADER pHeader);
 static void vdiSetupImageDesc(PVDIIMAGEDESC pImage);
 static int  vdiUpdateHeader(PVDIIMAGEDESC pImage);
@@ -372,10 +369,16 @@ static void vdiInitHeader(PVDIHEADER pHeader, uint32_t uImageFlags,
     pHeader->u.v1plus.offData = RT_ALIGN_32(pHeader->u.v1plus.offBlocks + (pHeader->u.v1plus.cBlocks * sizeof(VDIIMAGEBLOCKPOINTER)), cbDataAlign);
 
     /* Init uuids. */
+#ifdef _MSC_VER
+# pragma warning(disable:4366) /* (harmless "misalignment") */
+#endif
     RTUuidCreate(&pHeader->u.v1plus.uuidCreate);
     RTUuidClear(&pHeader->u.v1plus.uuidModify);
     RTUuidClear(&pHeader->u.v1plus.uuidLinkage);
     RTUuidClear(&pHeader->u.v1plus.uuidParentModify);
+#ifdef _MSC_VER
+# pragma warning(default:4366)
+#endif
 
     /* Mark LCHS geometry not-calculated. */
     pHeader->u.v1plus.LCHSGeometry.cCylinders = 0;
@@ -533,8 +536,6 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
 {
     int rc;
     uint64_t cbTotal;
-    uint64_t cbFill;
-    uint64_t uOff;
     uint32_t cbDataAlign = VDI_DATA_ALIGN;
 
     AssertPtr(pPCHSGeometry);
@@ -635,7 +636,8 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
          * Allocate & commit whole file if fixed image, it must be more
          * effective than expanding file by write operations.
          */
-        rc = vdIfIoIntFileSetSize(pImage->pIfIo, pImage->pStorage, cbTotal);
+        rc = vdIfIoIntFileSetAllocationSize(pImage->pIfIo, pImage->pStorage, cbTotal, 0 /* fFlags */,
+                                            pfnProgress, pvUser, uPercentStart, uPercentSpan);
         pImage->cbImage = cbTotal;
     }
     else
@@ -690,53 +692,6 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
         rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VDI: writing block pointers failed for '%s'"),
                        pImage->pszFilename);
         goto out;
-    }
-
-    if (uImageFlags & VD_IMAGE_FLAGS_FIXED)
-    {
-        /* Fill image with zeroes. We do this for every fixed-size image since on some systems
-         * (for example Windows Vista), it takes ages to write a block near the end of a sparse
-         * file and the guest could complain about an ATA timeout. */
-
-        /** @todo Starting with Linux 2.6.23, there is an fallocate() system call.
-         *        Currently supported file systems are ext4 and ocfs2. */
-
-        /* Allocate a temporary zero-filled buffer. Use a bigger block size to optimize writing */
-        const size_t cbBuf = 128 * _1K;
-        void *pvBuf = RTMemTmpAllocZ(cbBuf);
-        if (!pvBuf)
-        {
-            rc = VERR_NO_MEMORY;
-            goto out;
-        }
-
-        cbFill = (uint64_t)getImageBlocks(&pImage->Header) * pImage->cbTotalBlockData;
-        uOff = 0;
-        /* Write data to all image blocks. */
-        while (uOff < cbFill)
-        {
-            unsigned cbChunk = (unsigned)RT_MIN(cbFill, cbBuf);
-
-            rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage, pImage->offStartData + uOff,
-                                        pvBuf, cbChunk);
-            if (RT_FAILURE(rc))
-            {
-                rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VDI: writing block failed for '%s'"), pImage->pszFilename);
-                RTMemTmpFree(pvBuf);
-                goto out;
-            }
-
-            uOff += cbChunk;
-
-            if (pfnProgress)
-            {
-                rc = pfnProgress(pvUser,
-                                 uPercentStart + uOff * uPercentSpan / cbFill);
-                if (RT_FAILURE(rc))
-                    goto out;
-            }
-        }
-        RTMemTmpFree(pvBuf);
     }
 
 out:
@@ -1101,6 +1056,7 @@ static int vdiFlushImageIoCtx(PVDIIMAGEDESC pImage, PVDIOCTX pIoCtx)
  */
 static DECLCALLBACK(int) vdiDiscardBlockAsyncUpdate(void *pBackendData, PVDIOCTX pIoCtx, void *pvUser, int rcReq)
 {
+    RT_NOREF1(rcReq);
     int rc = VINF_SUCCESS;
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)pBackendData;
     PVDIBLOCKDISCARDASYNC pDiscardAsync = (PVDIBLOCKDISCARDASYNC)pvUser;
@@ -2406,6 +2362,7 @@ static DECLCALLBACK(int) vdiCompact(void *pBackendData, unsigned uPercentStart,
                                     unsigned uPercentSpan, PVDINTERFACE pVDIfsDisk,
                                     PVDINTERFACE pVDIfsImage, PVDINTERFACE pVDIfsOperation)
 {
+    RT_NOREF2(pVDIfsDisk, pVDIfsImage);
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)pBackendData;
     int rc = VINF_SUCCESS;
     void *pvBuf = NULL, *pvTmp = NULL;
@@ -2420,8 +2377,6 @@ static DECLCALLBACK(int) vdiCompact(void *pBackendData, unsigned uPercentStart,
         pvParent = pIfParentState->Core.pvUser;
     }
 
-    PFNVDPROGRESS pfnProgress = NULL;
-    void *pvUser = NULL;
     PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
 
     PVDINTERFACEQUERYRANGEUSE pIfQueryRangeUse = VDIfQueryRangeUseGet(pVDIfsOperation);
@@ -2656,12 +2611,9 @@ static DECLCALLBACK(int) vdiResize(void *pBackendData, uint64_t cbSize,
                                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                                    PVDINTERFACE pVDIfsOperation)
 {
+    RT_NOREF5(uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation);
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)pBackendData;
     int rc = VINF_SUCCESS;
-
-    PFNVDPROGRESS pfnProgress = NULL;
-    void *pvUser = NULL;
-    PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
 
     /*
      * Making the image smaller is not supported at the moment.
@@ -2685,7 +2637,7 @@ static DECLCALLBACK(int) vdiResize(void *pBackendData, uint64_t cbSize,
         uint64_t cbBlockspaceNew = cBlocksNew * sizeof(VDIIMAGEBLOCKPOINTER); /** < Required space for the block array after the resize. */
         uint64_t offStartDataNew = RT_ALIGN_32(pImage->offStartBlocks + cbBlockspaceNew, VDI_DATA_ALIGN); /** < New start offset for block data after the resize */
 
-        if (   pImage->offStartData != offStartDataNew
+        if (   pImage->offStartData < offStartDataNew
             && cBlocksAllocated > 0)
         {
             /* Calculate how many sectors need to be relocated. */
@@ -3017,7 +2969,6 @@ static DECLCALLBACK(int) vdiRepair(const char *pszFilename, PVDINTERFACE pVDIfsD
 
     do
     {
-        bool fRepairHdr = false;
         bool fRepairBlockArray = false;
 
         rc = vdIfIoIntFileOpen(pIfIo, pszFilename,
@@ -3217,7 +3168,8 @@ const VBOXHDDBACKEND g_VDIBackend =
     sizeof(VBOXHDDBACKEND),
     /* uBackendCaps */
       VD_CAP_UUID | VD_CAP_CREATE_FIXED | VD_CAP_CREATE_DYNAMIC
-    | VD_CAP_DIFF | VD_CAP_FILE | VD_CAP_ASYNC | VD_CAP_VFS | VD_CAP_DISCARD,
+    | VD_CAP_DIFF | VD_CAP_FILE | VD_CAP_ASYNC | VD_CAP_VFS | VD_CAP_DISCARD
+    | VD_CAP_PREFERRED,
     /* paFileExtensions */
     s_aVdiFileExtensions,
     /* paConfigInfo */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,13 @@
 
 
 #include <iprt/assert.h>
+#include <iprt/log.h>
 #include <iprt/types.h>
 #include <iprt/string.h>
 #include <VBox/scsi.h>
 #include "ide.h"
+
+#ifdef LOG_ENABLED
 
 /**
  * ATA command codes
@@ -284,6 +287,10 @@ static const char * const g_apszATACmdNames[256] =
     "",                                    /* 0xfe */
     ""                                     /* 0xff */
 };
+
+#endif /* LOG_ENABLED */
+
+#if defined(LOG_ENABLED) || defined(RT_STRICT)
 
 /**
  * SCSI command codes.
@@ -888,6 +895,10 @@ static struct
     { 0x27, 0x00, "WRITE PROTECTED" },
 };
 
+#endif /* LOG_ENABLED || RT_STRICT */
+
+#ifdef LOG_ENABLED
+
 /**
  * Return the plain text of an ATA command for debugging purposes.
  * Don't allocate the string as we use this function in Log() statements.
@@ -897,6 +908,10 @@ const char * ATACmdText(uint8_t uCmd)
     AssertCompile(RT_ELEMENTS(g_apszATACmdNames) == (1 << (8*sizeof(uCmd))));
     return g_apszATACmdNames[uCmd];
 }
+
+#endif
+
+#if defined(LOG_ENABLED) || defined(RT_STRICT)
 
 /**
  * Return the plain text of a SCSI command for debugging purposes.
@@ -942,9 +957,9 @@ const char * SCSISenseExtText(uint8_t uASC, uint8_t uASCQ)
 /**
  * Log the write parameters mode page into a given buffer.
  */
-static int scsiLogWriteParamsModePage(char *pszBuffer, size_t cchBuffer,
-                                      uint8_t *pbModePage, size_t cbModePage)
+static int scsiLogWriteParamsModePage(char *pszBuffer, size_t cchBuffer, uint8_t *pbModePage, size_t cbModePage)
 {
+    RT_NOREF(cbModePage);
     size_t cch = 0;
     const char *pcsz = NULL;
 
@@ -1104,16 +1119,15 @@ int SCSILogModePage(char *pszBuffer, size_t cchBuffer, uint8_t *pbModePage,
  * @param  pbCueSheet    The cue sheet buffer.
  * @param  cbCueSheet    Size of the cue sheet buffer in bytes.
  */
-int SCSILogCueSheet(char *pszBuffer, size_t cchBuffer, uint8_t *pbCueSheet,
-                    size_t cbCueSheet)
+int SCSILogCueSheet(char *pszBuffer, size_t cchBuffer, uint8_t *pbCueSheet, size_t cbCueSheet)
 {
     int rc = VINF_SUCCESS;
     size_t cch = 0;
-    unsigned cCueSheetEntries = cbCueSheet / 8;
+    size_t cCueSheetEntries = cbCueSheet / 8;
 
     AssertReturn(cbCueSheet % 8 == 0, VERR_INVALID_PARAMETER);
 
-    for (unsigned i = 0; i < cCueSheetEntries; i++)
+    for (size_t i = 0; i < cCueSheetEntries; i++)
     {
         cch = RTStrPrintf(pszBuffer, cchBuffer,
                           "CTL/ADR=%#x TNO=%#x INDEX=%#x DATA=%#x SCMS=%#x TIME=%u:%u:%u\n",
@@ -1134,3 +1148,4 @@ int SCSILogCueSheet(char *pszBuffer, size_t cchBuffer, uint8_t *pbCueSheet,
     return rc;
 }
 
+#endif /* LOG_ENABLED || RT_STRICT */

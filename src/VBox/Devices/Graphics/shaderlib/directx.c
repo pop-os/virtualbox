@@ -55,7 +55,9 @@ WINE_DECLARE_DEBUG_CHANNEL(d3d_caps);
 #define WINE_DEFAULT_VIDMEM (64 * 1024 * 1024)
 
 /* The d3d device ID */
+#if 0 /* VBox: unused */
 static const GUID IID_D3DDEVICE_D3DUID = { 0xaeb2cdd4, 0x6e41, 0x43ea, { 0x94,0x1c,0x83,0x61,0xcc,0x76,0x07,0x81 } };
+#endif
 
 
 /* Extension detection */
@@ -251,7 +253,7 @@ static inline BOOL test_arb_vs_offset_limit(const struct wined3d_gl_info *gl_inf
     }
     GL_EXTCALL(glBindProgramARB(GL_VERTEX_PROGRAM_ARB, prog));
     GL_EXTCALL(glProgramStringARB(GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB,
-                                  strlen(testcode), testcode));
+                                  (GLsizei)strlen(testcode), testcode));
     if(glGetError() != 0) {
         TRACE("OpenGL implementation does not allow indirect addressing offsets > 63\n");
         TRACE("error: %s\n", debugstr_a((const char *)glGetString(GL_PROGRAM_ERROR_STRING_ARB)));
@@ -493,7 +495,7 @@ static BOOL match_broken_nv_clip(const struct wined3d_gl_info *gl_info, const ch
     }
     GL_EXTCALL(glBindProgramARB(GL_VERTEX_PROGRAM_ARB, prog));
     GL_EXTCALL(glProgramStringARB(GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB,
-                                  strlen(testcode), testcode));
+                                  (GLsizei)strlen(testcode), testcode));
     glGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB, &pos);
     if(pos != -1)
     {
@@ -903,6 +905,7 @@ struct driver_version_information
     WORD lopart_hi, lopart_lo;      /* driver loword to report      */
 };
 
+#if 0 /* VBox: unused */
 static const struct driver_version_information driver_version_table[] =
 {
     /* Nvidia drivers. Geforce6 and newer cards are supported by the current driver (180.x)
@@ -959,6 +962,7 @@ static const struct driver_version_information driver_version_table[] =
 
     /* TODO: Add information about legacy ATI hardware, Intel and other cards. */
 };
+#endif /* VBox: unused */
 
 
 static DWORD wined3d_parse_gl_version(const char *gl_version)
@@ -1927,24 +1931,32 @@ static void check_gl_extension(struct wined3d_gl_info *pGlInfo, const char *pszE
 /* Context activation is done by the caller. */
 BOOL IWineD3DImpl_FillGLCaps(struct wined3d_adapter *adapter, struct VBOXVMSVGASHADERIF *pVBoxShaderIf)
 {
+#ifndef VBOX_WITH_VMSVGA
     struct wined3d_driver_info *driver_info = &adapter->driver_info;
+#endif
     struct wined3d_gl_info *gl_info = &adapter->gl_info;
 #ifndef VBOX_WITH_VMSVGA
     const char *GL_Extensions    = NULL;
     const char *WGL_Extensions   = NULL;
 #endif
     const char *gl_vendor_str, *gl_renderer_str, *gl_version_str;
+#ifndef VBOX_WITH_VMSVGA
     struct fragment_caps fragment_caps;
+#endif
     enum wined3d_gl_vendor gl_vendor;
     enum wined3d_pci_vendor card_vendor;
     enum wined3d_pci_device device;
     GLint       gl_max;
     GLfloat     gl_floatv[2];
     unsigned    i;
+#ifndef VBOX_WITH_VMSVGA
     HDC         hdc;
+#endif
     unsigned int vidmem=0;
     DWORD gl_version;
+#ifndef VBOX_WITH_VMSVGA
     size_t len;
+#endif
 
     TRACE_(d3d_caps)("(%p)\n", gl_info);
 
@@ -2073,7 +2085,7 @@ BOOL IWineD3DImpl_FillGLCaps(struct wined3d_adapter *adapter, struct VBOXVMSVGAS
         while (pVBoxShaderIf->pfnGetNextExtension(pVBoxShaderIf, &pvEnumCtx, szCurExt, sizeof(szCurExt), true /*fOtherProfile*/))
             check_gl_extension(gl_info, szCurExt);
     }
-#else /* VBOX_WITH_VMSVGA */
+#else /* !VBOX_WITH_VMSVGA */
     while (*GL_Extensions)
     {
         const char *start;
@@ -2100,7 +2112,7 @@ BOOL IWineD3DImpl_FillGLCaps(struct wined3d_adapter *adapter, struct VBOXVMSVGAS
             }
         }
     }
-#endif
+#endif /* !VBOX_WITH_VMSVGA */
 
 #ifdef VBOX_WITH_VMSVGA
 # ifdef RT_OS_WINDOWS

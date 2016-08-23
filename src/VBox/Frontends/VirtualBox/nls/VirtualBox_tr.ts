@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0" language="tr">
+<TS version="2.1" language="tr">
 <context>
     <name>@@@</name>
     <message>
@@ -133,7 +133,7 @@
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
+        <translation type="vanished">VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
@@ -141,15 +141,23 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox Linux kernel sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırıp kernel modülünü yeniden yükleyin. Eğer dağıtımınızda mevcutsa, önce DKMS paketini yüklemelisiniz. Bu paket Linux kernel değişikliklerinin izini tutar ve eğer gerekirse vboxdrv kernel modülünü yeniden derler.</translation>
+        <translation type="vanished">VirtualBox Linux kernel sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırarak kernel modülünü yeniden yükleyin. Eğer dağıtımınızda mevcutsa, önce DKMS paketini yüklemelisiniz. Bu paket Linux kernel değişikliklerinin izini tutar ve eğer gerekirse vboxdrv kernel modülünü yeniden derler.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
         <translation type="obsolete">Kare Boyutu: %1x%2, Kare Oranı: %3fps, Bit Oranı: %4kbps</translation>
     </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation>VirtualBox Linux kernel sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırarak kernel modülünü yeniden yükleyin.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
+    </message>
 </context>
 <context>
-    <name>QIArrowSplitter</name>
+    <name>QIArrowButtonPress</name>
     <message>
         <source>&amp;Back</source>
         <translation>&amp;Geri</translation>
@@ -157,6 +165,25 @@
     <message>
         <source>&amp;Next</source>
         <translation>İ&amp;leri</translation>
+    </message>
+</context>
+<context>
+    <name>QIArrowSplitter</name>
+    <message>
+        <source>&amp;Back</source>
+        <translation type="vanished">&amp;Geri</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation type="vanished">İ&amp;leri</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation>&amp;Ayrıntılar</translation>
+    </message>
+    <message>
+        <source>&amp;Details (%1 of %2)</source>
+        <translation>&amp;Ayrıntılar (%1 / %2)</translation>
     </message>
 </context>
 <context>
@@ -226,11 +253,11 @@
     </message>
     <message>
         <source>&amp;Details</source>
-        <translation>&amp;Ayrıntılar</translation>
+        <translation type="vanished">&amp;Ayrıntılar</translation>
     </message>
     <message>
         <source>&amp;Details (%1 of %2)</source>
-        <translation>&amp;Ayrıntılar (%1 / %2)</translation>
+        <translation type="vanished">&amp;Ayrıntılar (%1 / %2)</translation>
     </message>
     <message>
         <source>Copy all errors to the clipboard</source>
@@ -472,7 +499,7 @@
     </message>
     <message>
         <source>Dock Icon</source>
-        <translation>Yapışık Alan Simgesi</translation>
+        <translation>Kenetleme Simgesi</translation>
     </message>
     <message>
         <source>Show Monitor Preview</source>
@@ -1425,6 +1452,42 @@
         <source>Power off selected virtual machines</source>
         <translation>Seçilen sanal makinelerin gücünü kapat</translation>
     </message>
+    <message>
+        <source>&amp;VirtualBox Bug Tracker...</source>
+        <translation>&amp;VirtualBox Hata İzleyici...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product bug tracker</source>
+        <translation>Tarayıcıyı aç ve VirtualBox ürün hata izleyiciye git</translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Forums...</source>
+        <translation>&amp;VirtualBox Forumları...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product forums</source>
+        <translation>Tarayıcıyı aç ve VirtualBox ürün forumlarına git</translation>
+    </message>
+    <message>
+        <source>&amp;Oracle Web Site...</source>
+        <translation>&amp;Oracle Web Sitesi...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the Oracle web site</source>
+        <translation>Tarayıcıyı aç ve Oracle web sitesine git</translation>
+    </message>
+    <message>
+        <source>&amp;Detach GUI</source>
+        <translation>GKA&apos;yı &amp;Ayır</translation>
+    </message>
+    <message>
+        <source>Detach the GUI from headless VM</source>
+        <translation>Başlıksız VM&apos;den GKA&apos;yı ayır</translation>
+    </message>
+    <message>
+        <source>Disable Dock Icon Overlay</source>
+        <translation>Kenetleme Simgesi Üstkaplamını etkisizleştir</translation>
+    </message>
 </context>
 <context>
     <name>UIActionPoolRuntime</name>
@@ -1641,6 +1704,119 @@
     <message>
         <source>Reading Appliance ...</source>
         <translation>Cihaz okunuyor ...</translation>
+    </message>
+</context>
+<context>
+    <name>UIApplianceUnverifiedCertificateViewer</name>
+    <message>
+        <source>Unverifiable Certificate! Continue?</source>
+        <translation>Doğrulanamayan Sertifika! Devam edilsin mi?</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The appliance is signed by an unverified self signed certificate issued by &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
+        <translation>&lt;b&gt;Cihaz doğrulanamayan bir kendinden imzalı sertifika vereni &apos;%1&apos; tarafından imzalı. Sadece eğer bu varlığa güvenmeniz gerektiğinden eminseniz içe aktararak devam etmenizi öneririz.&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The appliance is signed by an unverified certificate issued to &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
+        <translation>&lt;b&gt;Cihaz doğrulanamayan bir sertifika veren &apos;%1&apos; tarafından imzalı. Sadece eğer bu varlığa güvenmeniz gerektiğinden eminseniz içe aktararak devam etmenizi öneririz.&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>Issuer:               %1</source>
+        <translation type="vanished">Veren:                %1</translation>
+    </message>
+    <message>
+        <source>Subject:              %1</source>
+        <translation type="vanished">Konu:                  %1</translation>
+    </message>
+    <message>
+        <source>Not Valid Before:     %1</source>
+        <translation type="vanished">Geçerlilik Başlangıcı: %1</translation>
+    </message>
+    <message>
+        <source>Not Valid After:      %1</source>
+        <translation type="vanished">Geçerlilik Sonu:      %1</translation>
+    </message>
+    <message>
+        <source>Serial Number:        %1</source>
+        <translation type="vanished">Seri Numarası:        %1</translation>
+    </message>
+    <message>
+        <source>Self-Signed:          %1</source>
+        <translation type="vanished">Kendinden İmzalı: %1</translation>
+    </message>
+    <message>
+        <source>True</source>
+        <translation>Doğru</translation>
+    </message>
+    <message>
+        <source>False</source>
+        <translation>Yanlış</translation>
+    </message>
+    <message>
+        <source>Authority (CA):       %1</source>
+        <translation type="vanished">Yetkili (CA):             %1</translation>
+    </message>
+    <message>
+        <source>Public Algorithm:     %1 (%2)</source>
+        <translation type="vanished">Ortak Algoritma:    %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Signature Algorithm:  %1 (%2)</source>
+        <translation type="vanished">İmza Algoritması:       %1 (%2)</translation>
+    </message>
+    <message>
+        <source>X.509 Version Number: %1</source>
+        <translation type="vanished">X.509 Sürüm Numarası: %1</translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
+        <translation>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</translation>
+    </message>
+    <message>
+        <source>Issuer</source>
+        <translation>Veren</translation>
+    </message>
+    <message>
+        <source>Subject</source>
+        <translation>Konu</translation>
+    </message>
+    <message>
+        <source>Not Valid Before</source>
+        <translation>Geçerlilik Başlangıcı</translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation>Geçerlilik Sonu</translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation>Seri Numarası</translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation>Kendinden İmzalı</translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation>Yetkili (CA)</translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation>Ortak Algoritma</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation>İmza Algoritması</translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
+        <translation>X.509 Sürüm Numarası</translation>
     </message>
 </context>
 <context>
@@ -2220,6 +2396,13 @@
     </message>
 </context>
 <context>
+    <name>UIEmptyFilePathSelector</name>
+    <message>
+        <source>Choose...</source>
+        <translation>Seçin...</translation>
+    </message>
+</context>
+<context>
     <name>UIEncryptionDataModel</name>
     <message>
         <source>Status</source>
@@ -2253,6 +2436,61 @@
     <message>
         <source>&amp;Next &gt;</source>
         <translation type="obsolete">&amp;İleri &gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIFilePathSelector</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>&amp;Kopyala</translation>
+    </message>
+    <message>
+        <source>Other...</source>
+        <translation>Diğer...</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Sıfırla</translation>
+    </message>
+    <message>
+        <source>Displays a window to select a different folder.</source>
+        <translation>Farklı bir klasör seçmek için bir pencere görüntüler.</translation>
+    </message>
+    <message>
+        <source>Resets the folder path to the default value.</source>
+        <translation>Klasör yolunu varsayılan değere sıfırlar.</translation>
+    </message>
+    <message>
+        <source>Displays a window to select a different file.</source>
+        <translation>Farklı bir dosya seçmek için bir pencere görüntüler.</translation>
+    </message>
+    <message>
+        <source>Resets the file path to the default value.</source>
+        <translation>Dosya yolunu varsayılan değere sıfırlar.</translation>
+    </message>
+    <message>
+        <source>&lt;reset to default&gt;</source>
+        <translation>&lt;varsayılana sıfırla&gt;</translation>
+    </message>
+    <message>
+        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
+        <translation>Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu pencere tekrar açıldıktan sonra görüntülenecektir.</translation>
+    </message>
+    <message>
+        <source>&lt;not selected&gt;</source>
+        <translation>&lt;seçilmedi&gt;</translation>
+    </message>
+    <message>
+        <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
+        <translation>Lütfen bir yol seçmek için aşağı açılır listeden &lt;b&gt;Diğer...&lt;/b&gt; ögesini kullanın.</translation>
+    </message>
+    <message>
+        <source>Holds the folder path.</source>
+        <translation>Klasör yolunu tutar.</translation>
+    </message>
+    <message>
+        <source>Holds the file path.</source>
+        <translation>Dosya yolunu tutar.</translation>
     </message>
 </context>
 <context>
@@ -3718,6 +3956,10 @@
         <source>Edits selected host-only network.</source>
         <translation>Seçilen sadece-anamakine ağını düzenler.</translation>
     </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <translation>Anamakine arayüzü &lt;b&gt;%1&lt;/b&gt;, şu anda geçerli bir IPv6 ağ maskesi öneki uzunluğuna sahip değil.</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetworkDetails</name>
@@ -4631,6 +4873,439 @@
     <message>
         <source>Indicates whether the host keyboard is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is captured&lt;/nobr&gt;</source>
         <translation>Misafir İS tarafından anamakine klavyesinin yakalanıp yakalanmadığını gösterir:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;klavye yakalanmadı&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;klavye yakalandı&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataAudio</name>
+    <message>
+        <source>Audio</source>
+        <translation type="vanished">Ses</translation>
+    </message>
+    <message>
+        <source>Host Driver</source>
+        <comment>details report (audio)</comment>
+        <translation>Anamakine Sürücüsü</translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <comment>details report (audio)</comment>
+        <translation>Denetleyici</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataDisplay</name>
+    <message>
+        <source>Display</source>
+        <comment>details report</comment>
+        <translation type="vanished">Ekran</translation>
+    </message>
+    <message>
+        <source>Video Memory</source>
+        <comment>details report</comment>
+        <translation>Görüntü Belleği</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation>Ekranlar</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>3D Acceleration</source>
+        <comment>details report</comment>
+        <translation>3B Hızlandırma</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>2D Video Acceleration</source>
+        <comment>details report</comment>
+        <translation>2B Görüntü Hızlandırma</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>Uzak Masaüstü Sunucusu B.Noktası</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>Uzak Masaüstü Sunucusu</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataGeneral</name>
+    <message>
+        <source>General</source>
+        <comment>details report</comment>
+        <translation type="vanished">Genel</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>details report</comment>
+        <translation>Adı</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>details report</comment>
+        <translation>İS Türü</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataNetwork</name>
+    <message>
+        <source>Network</source>
+        <translation type="vanished">Ağ</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation>Köprü bağdaştırıcısı, %1</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Dahili ağ, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Sadece-anamakine bağdaştırıcısı, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Kapsamlı, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>NAT network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>NAT ağı, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details report (network)</comment>
+        <translation>Bağdaştırıcı %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataNetworkStatistics</name>
+    <message>
+        <source>Data Transmitted</source>
+        <translation>Aktarılan Veri</translation>
+    </message>
+    <message>
+        <source>Data Received</source>
+        <translation>Alınan Veri</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <comment>details report</comment>
+        <translation type="vanished">Ağ İstatistikleri</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataParallelPorts</name>
+    <message>
+        <source>Parallel Ports</source>
+        <comment>details report</comment>
+        <translation type="vanished">Paralel B.Noktaları</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (parallel ports)</comment>
+        <translation>B.Noktası %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (parallel ports)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataRuntimeAttributes</name>
+    <message>
+        <source>Runtime Attributes</source>
+        <comment>details report</comment>
+        <translation type="vanished">Çalışma Zamanı Öznitelikleri</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest additions</comment>
+        <translation>Algılanmadı</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest os type</comment>
+        <translation>Algılanmadı</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDE server port)</comment>
+        <translation>Mevcut Değil</translation>
+    </message>
+    <message>
+        <source>Screen Resolution</source>
+        <translation>Ekran Çözünürlüğü</translation>
+    </message>
+    <message>
+        <source>VM Uptime</source>
+        <translation>VM Çalışma Zamanı</translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation>Pano Kipi</translation>
+    </message>
+    <message>
+        <source>Drag and Drop Mode</source>
+        <translation>Sürükle ve Bırak Kipi</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation>İçiçe Sayfalama</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <comment>details report</comment>
+        <translation>Kısıtsız Çalıştırılma</translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation>Yarı Sanallaştırma Arayüzü</translation>
+    </message>
+    <message>
+        <source>Guest Additions</source>
+        <translation>Misafir Eklentileri</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <comment>details report</comment>
+        <translation>Misafir İS Türü</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>Uzak Masaüstü Sunucusu B.Noktası</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSerialPorts</name>
+    <message>
+        <source>Serial Ports</source>
+        <translation type="vanished">Seri B.Noktaları</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (serial ports)</comment>
+        <translation>B.Noktası %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSharedFolders</name>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report</comment>
+        <translation type="vanished">Paylaşılan Klasörler</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report (shared folders)</comment>
+        <translation>Paylaşılan Klasörler</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataStorage</name>
+    <message>
+        <source>Storage</source>
+        <translation type="vanished">Depolama</translation>
+    </message>
+    <message>
+        <source>(Optical Drive)</source>
+        <translation>(Optik Sürücü)</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataStorageStatistics</name>
+    <message>
+        <source>DMA Transfers</source>
+        <translation>DMA Aktarımları</translation>
+    </message>
+    <message>
+        <source>PIO Transfers</source>
+        <translation>PIO Aktarımları</translation>
+    </message>
+    <message>
+        <source>Data Read</source>
+        <translation>Okunan Veri</translation>
+    </message>
+    <message>
+        <source>Data Written</source>
+        <translation>Yazılan Veri</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <comment>details report</comment>
+        <translation type="vanished">Depolama İstatistikleri</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSystem</name>
+    <message>
+        <source>System</source>
+        <comment>details report</comment>
+        <translation type="vanished">Sistem</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (ACPI)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (ACPI)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (I/O APIC)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (I/O APIC)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (PAE/NX)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (PAE/NX)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>details report</comment>
+        <translation>Ana Bellek</translation>
+    </message>
+    <message>
+        <source>Processor(s)</source>
+        <comment>details report</comment>
+        <translation>İşlemci</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation>Çalıştırılma Üst Sınırı</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details report</comment>
+        <translation>Önyükleme Sırası</translation>
+    </message>
+    <message>
+        <source>ACPI</source>
+        <comment>details report</comment>
+        <translation>ACPI</translation>
+    </message>
+    <message>
+        <source>I/O APIC</source>
+        <comment>details report</comment>
+        <translation>G/Ç APIC</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details report</comment>
+        <translation>PAE/NX</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (VT-x/AMD-V)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VT-x/AMD-V)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation>İçiçe Sayfalama</translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation>Yarı Sanallaştırma Arayüzü</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataUSB</name>
+    <message>
+        <source>USB</source>
+        <comment>details report</comment>
+        <translation type="vanished">USB</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (USB)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details report (USB)</comment>
+        <translation>Aygıt Süzgeçleri</translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details report (USB)</comment>
+        <translation>%1 (%2 etkin)</translation>
     </message>
 </context>
 <context>
@@ -6692,6 +7367,10 @@
         <comment>This is used for hard disks, optical media and floppies</comment>
         <translation>Disk kalıbı seçin...</translation>
     </message>
+    <message>
+        <source>Add NVMe Controller</source>
+        <translation>NVMe Denetleyicisi ekle</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
@@ -6786,7 +7465,7 @@
     </message>
     <message>
         <source>&amp;Processor(s):</source>
-        <translation>İşl&amp;emci(ler):</translation>
+        <translation>İşl&amp;emci:</translation>
     </message>
     <message>
         <source>When checked, the Physical Address Extension (PAE) feature of the host CPU will be exposed to the virtual machine.</source>
@@ -7394,6 +8073,30 @@
     <message>
         <source>Choose mode:</source>
         <translation>Kipi seçin:</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly or indirectly, preserved when taking snapshots.</source>
+        <translation>Bu tür ortam doğrudan ya da dolaylı olarak takılır, anlık görüntüler alınırken korunur.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached indirectly, changes are wiped out the next time the virtual machine is started.</source>
+        <translation>Bu tür ortam dolaylı olarak takılır, bir dahaki sefere sanal makine başlatıldığında değişiklikler silinir.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, ignored when taking snapshots.</source>
+        <translation>Bu tür ortam doğrudan takılır, anlık görüntüler alınırken yoksayılır.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, allowed to be used concurrently by several machines.</source>
+        <translation>Bu tür ortam doğrudan takılır, birkaç makine tarafından aynı zamanda kullanılmasına izin verilir.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, and can be used by several machines.</source>
+        <translation>Bu tür ortam doğrudan takılır, ve birkaç makine tarafından kullanılabilir.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached indirectly, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications.</source>
+        <translation>Bu tür ortam dolaylı olarak takılır, böylece bir ana ortam kendi değişikliklerini saklayan kendi farklı ortamına sahip birkaç VM için kullanılabilir.</translation>
     </message>
 </context>
 <context>
@@ -8909,7 +9612,7 @@
         <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
         <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
         <translation>
-            <numerusform>&lt;p&gt;Şurada belirtilen %n sanal makine şu anda kaydedildi durumunda: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Eğer devam ederseniz, dışa aktarılmış makine(lerin)nin çalışma zamanı durumundan vazgeçilecektir. Diğer makine(ler) değiştirilmeyecektir.&lt;/p&gt;</numerusform>
+            <numerusform>&lt;p&gt;Aşağıdaki %n sanal makine şu anda kaydedildi durumunda: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Eğer devam ederseniz, dışa aktarılmış makine(lerin)nin çalışma zamanı durumundan vazgeçilecektir. Diğer makine(ler) değiştirilmeyecektir.&lt;/p&gt;</numerusform>
         </translation>
     </message>
     <message>
@@ -9185,6 +9888,10 @@
         <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
         <translation>Şu anki bağlantı noktası yönlendirme kuralları geçerli değil. Misafir adres değerlerinin hiçbiri boş olmayabilir.</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;Failed to acquire the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;VirtualBox COM nesnesini alma başarısız.&lt;/p&gt;&lt;p&gt;Uygulama şimdi sonlandırılacak.&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -9264,6 +9971,10 @@
         <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
         <translation>Bu sanal makine içerisine kurmayı planladığınız işletim sistemi türünü gösterir (misafir işletim sistemi olarak adlandırılır).</translation>
     </message>
+    <message>
+        <source>Holds the location of the virtual machine.</source>
+        <translation>Sanal makinenin konumunu tutar.</translation>
+    </message>
 </context>
 <context>
     <name>UINetworkManagerDialog</name>
@@ -9301,7 +10012,7 @@
     </message>
     <message>
         <source>The network operation failed with the following error: %1.</source>
-        <translation>Ağ işlemi şurada belirtilen hatadan dolayı başarısız oldu: %1.</translation>
+        <translation>Ağ işlemi aşağıdaki hatadan dolayı başarısız oldu: %1.</translation>
     </message>
 </context>
 <context>
@@ -10580,12 +11291,12 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>Not Detected</source>
         <comment>guest additions</comment>
-        <translation>Algılanmamış</translation>
+        <translation>Algılanmadı</translation>
     </message>
     <message>
         <source>Not Detected</source>
         <comment>guest os type</comment>
-        <translation>Algılanmamış</translation>
+        <translation>Algılanmadı</translation>
     </message>
     <message>
         <source>Guest Additions</source>
@@ -10670,6 +11381,21 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>Drag and Drop Mode</source>
         <translation>Sürükle ve Bırak Kipi</translation>
+    </message>
+</context>
+<context>
+    <name>UIVMInformationDialog</name>
+    <message>
+        <source>%1 - Session Information</source>
+        <translation>%1 - Oturum Bilgisi</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation>Yapılandırma &amp;Ayrıntıları</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation>Çalışma &amp;Zamanı Bilgisi</translation>
     </message>
 </context>
 <context>
@@ -10786,6 +11512,18 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>Close</source>
         <translation>Kapat</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Süzgeç</translation>
+    </message>
+    <message>
+        <source>Enter filtering string here</source>
+        <translation>Süzme dizgisini buraya girin</translation>
+    </message>
+    <message>
+        <source>Fil&amp;ter</source>
+        <translation>&amp;Süz</translation>
     </message>
 </context>
 <context>
@@ -11387,6 +12125,34 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
         <source>Please choose a virtual appliance file to import</source>
         <translation>Lütfen içe aktarmak için bir sanal cihaz dosyası seçin</translation>
     </message>
+    <message>
+        <source>Appliance is not signed</source>
+        <translation>Cihaz imzalı değil</translation>
+    </message>
+    <message>
+        <source>Appliance signed by %1 (trusted)</source>
+        <translation>Cihaz %1 tarafından imzalı (güvenilir)</translation>
+    </message>
+    <message>
+        <source>Appliance signed by %1 (expired!)</source>
+        <translation>Cihaz %1 tarafından imzalı (süresi dolmuş!)</translation>
+    </message>
+    <message>
+        <source>Unverified signature by %1!</source>
+        <translation>%1 tarafından doğrulanamayan imza!</translation>
+    </message>
+    <message>
+        <source>Self signed by %1 (trusted)</source>
+        <translation>%1 tarafından kendinden imzalı (güvenilir)</translation>
+    </message>
+    <message>
+        <source>Self signed by %1 (expired!)</source>
+        <translation>%1 tarafından kendinden imzalı (süresi dolmuş!)</translation>
+    </message>
+    <message>
+        <source>Unverified self signed signature by %1!</source>
+        <translation>%1 tarafından doğrulanamayan kendinden imzalı imza!</translation>
+    </message>
 </context>
 <context>
     <name>UIWizardNewVD</name>
@@ -11616,6 +12382,14 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>Choose a virtual hard disk file...</source>
         <translation>Sanal bir sabit disk dosyası seçin...</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;nobr&gt;Holds the name or full path to the virtual machine folder you are about to create.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;nobr&gt;Oluşturmak üzere olduğunuz sanal makine klasörü için adı veya tam yolu tutar.&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;nobr&gt;You are about to create the virtual machine in the following folder:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;nobr&gt;Aşağıdaki klasörde sanal makineyi oluşturmak üzeresiniz:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -12532,14 +13306,14 @@ Version %1</source>
     </message>
     <message>
         <source>Choose...</source>
-        <translation>Seçin...</translation>
+        <translation type="vanished">Seçin...</translation>
     </message>
 </context>
 <context>
     <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
-        <translation>&lt;varsayılana sıfırla&gt;</translation>
+        <translation type="vanished">&lt;varsayılana sıfırla&gt;</translation>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
@@ -12547,19 +13321,19 @@ Version %1</source>
     </message>
     <message>
         <source>&lt;not selected&gt;</source>
-        <translation>&lt;seçilmedi&gt;</translation>
+        <translation type="vanished">&lt;seçilmedi&gt;</translation>
     </message>
     <message>
         <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
-        <translation>Lütfen bir yol seçmek için aşağı açılır listeden &lt;b&gt;Diğer...&lt;/b&gt; ögesini kullanın.</translation>
+        <translation type="vanished">Lütfen bir yol seçmek için aşağı açılır listeden &lt;b&gt;Diğer...&lt;/b&gt; ögesini kullanın.</translation>
     </message>
     <message>
         <source>Other...</source>
-        <translation>Diğer...</translation>
+        <translation type="vanished">Diğer...</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Sıfırla</translation>
+        <translation type="vanished">Sıfırla</translation>
     </message>
     <message>
         <source>Opens a window to select a different folder.</source>
@@ -12567,7 +13341,7 @@ Version %1</source>
     </message>
     <message>
         <source>Resets the folder path to the default value.</source>
-        <translation>Klasör yolunu varsayılan değere sıfırlar.</translation>
+        <translation type="vanished">Klasör yolunu varsayılan değere sıfırlar.</translation>
     </message>
     <message>
         <source>Opens a window to select a different file.</source>
@@ -12575,11 +13349,11 @@ Version %1</source>
     </message>
     <message>
         <source>Resets the file path to the default value.</source>
-        <translation>Dosya yolunu varsayılan değere sıfırlar.</translation>
+        <translation type="vanished">Dosya yolunu varsayılan değere sıfırlar.</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopyala</translation>
+        <translation type="vanished">&amp;Kopyala</translation>
     </message>
     <message>
         <source>Please type the folder path here.</source>
@@ -12591,23 +13365,23 @@ Version %1</source>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <translation>Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu pencere tekrar açıldıktan sonra görüntülenecektir.</translation>
+        <translation type="vanished">Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu pencere tekrar açıldıktan sonra görüntülenecektir.</translation>
     </message>
     <message>
         <source>Displays a window to select a different folder.</source>
-        <translation>Farklı bir klasör seçmek için bir pencere görüntüler.</translation>
+        <translation type="vanished">Farklı bir klasör seçmek için bir pencere görüntüler.</translation>
     </message>
     <message>
         <source>Displays a window to select a different file.</source>
-        <translation>Farklı bir dosya seçmek için bir pencere görüntüler.</translation>
+        <translation type="vanished">Farklı bir dosya seçmek için bir pencere görüntüler.</translation>
     </message>
     <message>
         <source>Holds the folder path.</source>
-        <translation>Klasör yolunu tutar.</translation>
+        <translation type="vanished">Klasör yolunu tutar.</translation>
     </message>
     <message>
         <source>Holds the file path.</source>
-        <translation>Dosya yolunu tutar.</translation>
+        <translation type="vanished">Dosya yolunu tutar.</translation>
     </message>
 </context>
 <context>
@@ -13957,7 +14731,7 @@ Version %1</source>
     <message>
         <source>Execution Cap</source>
         <comment>details report</comment>
-        <translation>Çalıştırma Üst Sınırı</translation>
+        <translation>Çalıştırılma Üst Sınırı</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
@@ -14498,6 +15272,111 @@ Version %1</source>
     <message>
         <source>Please choose a location for new virtual hard disk file</source>
         <translation>Lütfen yeni sanal sabit disk dosyası için bir yer seçin</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageBus</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>PCIe</source>
+        <comment>StorageBus</comment>
+        <translation>PCIe</translation>
+    </message>
+    <message>
+        <source>NVMe</source>
+        <comment>StorageControllerType</comment>
+        <translation>NVMe</translation>
+    </message>
+    <message>
+        <source>NVMe Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>NVMe B.Noktası %1</translation>
+    </message>
+    <message>
+        <source>RuntimeAttributes</source>
+        <comment>DetailsElementType</comment>
+        <translation type="vanished">Çalışma Zamanı Öznitelikleri</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation>Genel</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation>Önizleme</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation>Sistem</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation>Ekran</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation>Depolama</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation>Ses</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation>Ağ</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation>Seri b.noktaları</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation>Paralel b.noktaları</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation>Paylaşılan klasörler</translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation>Kullanıcı arayüzü</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation>Açıklama</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation>Çalışma zamanı öznitelikleri</translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation>Depolama istatistikleri</translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation>Ağ istatistikleri</translation>
     </message>
 </context>
 <context>

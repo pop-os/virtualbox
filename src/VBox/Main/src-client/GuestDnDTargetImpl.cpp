@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,7 @@
 
 #include "Global.h"
 #include "AutoCaller.h"
+#include "ThreadTask.h"
 
 #include <algorithm>        /* For std::find(). */
 
@@ -50,13 +51,14 @@
 /**
  * Base class for a target task.
  */
-class GuestDnDTargetTask
+class GuestDnDTargetTask : public ThreadTask
 {
 public:
 
     GuestDnDTargetTask(GuestDnDTarget *pTarget)
-        : mTarget(pTarget),
-          mRC(VINF_SUCCESS) { }
+        : ThreadTask("GenericGuestDnDTargetTask")
+        , mTarget(pTarget)
+        , mRC(VINF_SUCCESS) { }
 
     virtual ~GuestDnDTargetTask(void) { }
 
@@ -80,7 +82,15 @@ public:
 
     SendDataTask(GuestDnDTarget *pTarget, PSENDDATACTX pCtx)
         : GuestDnDTargetTask(pTarget),
-          mpCtx(pCtx) { }
+          mpCtx(pCtx)
+    {
+        m_strTaskName = "dndTgtSndData";
+    }
+
+    void handler()
+    {
+        GuestDnDTarget::i_sendDataThreadTask(this);
+    }
 
     virtual ~SendDataTask(void)
     {
@@ -415,6 +425,7 @@ HRESULT GuestDnDTarget::move(ULONG aScreenId, ULONG aX, ULONG aY,
 
 HRESULT GuestDnDTarget::leave(ULONG uScreenId)
 {
+    RT_NOREF(uScreenId);
 #if !defined(VBOX_WITH_DRAG_AND_DROP)
     ReturnComNotImplemented();
 #else /* VBOX_WITH_DRAG_AND_DROP */
@@ -546,34 +557,36 @@ HRESULT GuestDnDTarget::drop(ULONG aScreenId, ULONG aX, ULONG aY,
 }
 
 /* static */
-DECLCALLBACK(int) GuestDnDTarget::i_sendDataThread(RTTHREAD Thread, void *pvUser)
+void GuestDnDTarget::i_sendDataThreadTask(SendDataTask *pTask)
 {
-    LogFlowFunc(("pvUser=%p\n", pvUser));
+    LogFlowFunc(("pTask=%p\n", pTask));
 
-    SendDataTask *pTask = (SendDataTask *)pvUser;
-    AssertPtrReturn(pTask, VERR_INVALID_POINTER);
+    AssertPtrReturnVoid(pTask);
 
     const ComObjPtr<GuestDnDTarget> pThis(pTask->getTarget());
     Assert(!pThis.isNull());
 
     AutoCaller autoCaller(pThis);
-    if (FAILED(autoCaller.rc())) return VERR_COM_INVALID_OBJECT_STATE;
+    if (FAILED(autoCaller.rc()))
+        return;
 
-    int rc = RTThreadUserSignal(Thread);
-    AssertRC(rc);
+    int vrc = RTThreadUserSignal(RTThreadSelf());
+    AssertRC(vrc);
 
-    rc = pThis->i_sendData(pTask->getCtx(), RT_INDEFINITE_WAIT /* msTimeout */);
-
-    if (pTask)
-        delete pTask;
+    vrc = pThis->i_sendData(pTask->getCtx(), RT_INDEFINITE_WAIT /* msTimeout */);
+/** @todo
+ *
+ *  r=bird: What happens with @a vrc?
+ *
+ */
 
     AutoWriteLock alock(pThis COMMA_LOCKVAL_SRC_POS);
 
     Assert(pThis->mDataBase.m_cTransfersPending);
-    pThis->mDataBase.m_cTransfersPending--;
+    if (pThis->mDataBase.m_cTransfersPending)
+        pThis->mDataBase.m_cTransfersPending--;
 
-    LogFlowFunc(("pTarget=%p returning rc=%Rrc\n", (GuestDnDTarget *)pThis, rc));
-    return rc;
+    LogFlowFunc(("pTarget=%p vrc=%Rrc (ignored)\n", (GuestDnDTarget *)pThis, vrc));
 }
 
 /**
@@ -608,7 +621,7 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
     if (mDataBase.m_cTransfersPending)
         return setError(E_INVALIDARG, tr("Another drop operation already is in progress"));
 
-    /* Dito. */
+    /* Ditto. */
     GuestDnDResponse *pResp = GuestDnDInst()->response();
     AssertPtr(pResp);
 
@@ -616,51 +629,56 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
     if (FAILED(hr))
         return hr;
 
+    SendDataTask *pTask = NULL;
+    PSENDDATACTX pSendCtx = NULL;
+
     try
     {
-        PSENDDATACTX pSendCtx = new SENDDATACTX;
+        //pSendCtx is passed into SendDataTask where one is deleted in destructor
+        pSendCtx = new SENDDATACTX;
         RT_BZERO(pSendCtx, sizeof(SENDDATACTX));
 
         pSendCtx->mpTarget      = this;
         pSendCtx->mpResp        = pResp;
         pSendCtx->mScreenID     = aScreenId;
         pSendCtx->mFmtReq       = aFormat;
-
         pSendCtx->mData.getMeta().add(aData);
 
-        SendDataTask *pTask = new SendDataTask(this, pSendCtx);
-        AssertReturn(pTask->isOk(), pTask->getRC());
-
-        LogFlowFunc(("Starting thread ...\n"));
-
-        RTTHREAD threadSnd;
-        int rc = RTThreadCreate(&threadSnd, GuestDnDTarget::i_sendDataThread,
-                                (void *)pTask, 0, RTTHREADTYPE_MAIN_WORKER, 0, "dndTgtSndData");
-        if (RT_SUCCESS(rc))
+        /* pTask is responsible for deletion of pSendCtx after creating */
+        pTask = new SendDataTask(this, pSendCtx);
+        if (!pTask->isOk())
         {
-            rc = RTThreadUserWait(threadSnd, 30 * 1000 /* 30s timeout */);
-            if (RT_SUCCESS(rc))
-            {
-                mDataBase.m_cTransfersPending++;
-
-                hr = pResp->queryProgressTo(aProgress.asOutParam());
-                ComAssertComRC(hr);
-
-                /* Note: pTask is now owned by the worker thread. */
-            }
-            else
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Waiting for sending thread failed (%Rrc)"), rc);
+            delete pTask;
+            LogRel2(("DnD: Could not create SendDataTask object \n"));
+            throw hr = E_FAIL;
         }
-        else
-            hr = setError(VBOX_E_IPRT_ERROR, tr("Starting thread failed (%Rrc)"), rc);
 
-        if (FAILED(hr))
-            delete pSendCtx;
+        /* This function delete pTask in case of exceptions,
+         * so there is no need in the call of delete operator. */
+        hr = pTask->createThreadWithType(RTTHREADTYPE_MAIN_WORKER);
+
     }
-    catch(std::bad_alloc &)
+    catch (std::bad_alloc &)
     {
         hr = setError(E_OUTOFMEMORY);
     }
+    catch (...)
+    {
+        LogRel2(("DnD: Could not create thread for data sending task\n"));
+        hr = E_FAIL;
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        mDataBase.m_cTransfersPending++;
+
+        hr = pResp->queryProgressTo(aProgress.asOutParam());
+        ComAssertComRC(hr);
+
+        /* Note: pTask is now owned by the worker thread. */
+    }
+    else
+        hr = setError(VBOX_E_IPRT_ERROR, tr("Starting thread for GuestDnDTarget::i_sendDataThread (%Rhrc)"), hr);
 
     LogFlowFunc(("Returning hr=%Rhrc\n", hr));
     return hr;
@@ -753,6 +771,10 @@ Utf8Str GuestDnDTarget::i_hostErrorToString(int hostRc)
     return strError;
 }
 
+/**
+ * @returns VBox status code that the caller ignores. Not sure if that's
+ *          intentional or not.
+ */
 int GuestDnDTarget::i_sendData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -978,8 +1000,7 @@ int GuestDnDTarget::i_sendFileData(PSENDDATACTX pCtx, GuestDnDURIObjCtx *pObjCtx
     DnDURIObject *pObj = pObjCtx->getObj();
     AssertPtr(pObj);
 
-    GuestDnDResponse *pResp = pCtx->mpResp;
-    AssertPtr(pResp);
+    AssertPtr(pCtx->mpResp);
 
     /** @todo Don't allow concurrent reads per context! */
 
@@ -1469,9 +1490,6 @@ int GuestDnDTarget::i_sendRawData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
     NOREF(msTimeout);
-
-    GuestDnD *pInst = GuestDnDInst();
-    AssertPtr(pInst);
 
     GuestDnDData *pData = &pCtx->mData;
 

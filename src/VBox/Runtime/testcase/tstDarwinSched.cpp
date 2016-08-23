@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -89,7 +89,6 @@ static void thread_print_policies(int fDefault)
         struct thread_basic_info        BasicInfo = {{0,0},{0,0},0,0,0,0,0,0};
         struct policy_timeshare_info    TSInfo = {0,0,0,0,0};
         int                             rc;
-        int                             i;
 
         memset(&Param, 0, sizeof(Param));
         rc = pthread_getschedparam(pthread_self(), &iPolicy, &Param);

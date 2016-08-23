@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,6 +55,8 @@
  */
 static RTEXITCODE rtManifestDoVerify(const char *pszManifest, bool fStdFormat, const char *pszChDir)
 {
+    RT_NOREF_PV(pszChDir); /** @todo implement pszChDir! */
+
     /*
      * Open the manifest.
      */
@@ -368,9 +370,11 @@ int main(int argc, char **argv)
                          , RTProcShortName(), RTProcShortName());
                 return RTEXITCODE_SUCCESS;
 
+#ifndef IN_BLD_PROG  /* RTBldCfgVersion or RTBldCfgRevision in build time IPRT lib. */
             case 'V':
                 RTPrintf("%sr%d\n", RTBldCfgVersion(), RTBldCfgRevision());
                 return RTEXITCODE_SUCCESS;
+#endif
 
             default:
                 return RTGetOptPrintError(rc, &ValueUnion);

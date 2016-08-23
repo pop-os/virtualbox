@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -537,6 +537,8 @@ static int supdrvVtgValidate(PVTGOBJHDR pVtgHdr, RTUINTPTR uVtgHdrAddr, const ui
         MY_VALIDATE_ATTR(pProvider->AttrNames);
         MY_VALIDATE_ATTR(pProvider->AttrArguments);
         MY_CHECK_RET(pProvider->bReserved == 0, VERR_SUPDRV_VTG_BAD_PROVIDER);
+        MY_CHECK_RET(pProvider->cProbesEnabled == 0, VERR_SUPDRV_VTG_BAD_PROVIDER);
+        MY_CHECK_RET(pProvider->uSettingsSerialNo == 0, VERR_SUPDRV_VTG_BAD_PROVIDER);
     }
 
     /*
@@ -1720,9 +1722,9 @@ static int supdrvVtgCreateObjectCopy(PSUPDRVDEVEXT pDevExt, PCVTGOBJHDR pVtgHdr,
      * Calculate the space required, allocate and copy in the data.
      */
     int             rc;
-    size_t const    cProbeLocs   = pVtgHdr->cbProbeLocs / (pVtgHdr->cBits == 32 ? sizeof(VTGPROBELOC32) : sizeof(VTGPROBELOC64));
-    size_t const    cbProbeLocs  = cProbeLocs * sizeof(VTGPROBELOC);
-    size_t const    offProbeLocs = RT_ALIGN(pVtgHdr->cbObj, 8);
+    uint32_t const  cProbeLocs   = pVtgHdr->cbProbeLocs / (pVtgHdr->cBits == 32 ? sizeof(VTGPROBELOC32) : sizeof(VTGPROBELOC64));
+    uint32_t const  cbProbeLocs  = cProbeLocs * sizeof(VTGPROBELOC);
+    uint32_t const  offProbeLocs = RT_ALIGN(pVtgHdr->cbObj, 8);
     size_t const    cb           = offProbeLocs + cbProbeLocs + cbStrTab + 1;
     PSUPDRVVTGCOPY  pThis = (PSUPDRVVTGCOPY)RTMemAlloc(RT_OFFSETOF(SUPDRVVTGCOPY, Hdr) + cb);
     if (!pThis)

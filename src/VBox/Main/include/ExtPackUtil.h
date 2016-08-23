@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,9 @@
 #ifndef ____H_EXTPACKUTIL
 #define ____H_EXTPACKUTIL
 
-#include <iprt/cpp/ministring.h>
+#ifdef __cplusplus
+# include <iprt/cpp/ministring.h>
+#endif
 #include <iprt/fs.h>
 #include <iprt/vfs.h>
 
@@ -58,6 +60,8 @@
  * Play short and safe. */
 #define VBOX_EXTPACK_MAX_MEMBER_NAME_LENGTH 128
 
+
+#ifdef __cplusplus
 
 /**
  * Plug-in descriptor.
@@ -131,7 +135,7 @@ int                 VBoxExtPackValidateTarball(RTFILE hTarballFile, const char *
                                                const char *pszTarball, const char *pszTarballDigest,
                                                char *pszError, size_t cbError,
                                                PRTMANIFEST phValidManifest, PRTVFSFILE phXmlFile, RTCString *pStrDigest);
-
+#endif /* __cplusplus */
 
 #endif
 

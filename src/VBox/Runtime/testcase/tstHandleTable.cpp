@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,12 +48,14 @@ static DECLCALLBACK(void) tstHandleTableTest1Delete(RTHANDLETABLE hHandleTable, 
 {
     uint32_t *pcCalls = (uint32_t *)pvUser;
     (*pcCalls)++;
+    RT_NOREF_PV(hHandleTable); RT_NOREF_PV(h); RT_NOREF_PV(pvCtx); RT_NOREF_PV(pvObj);
 }
 
 static DECLCALLBACK(int) tstHandleTableTest1Retain(RTHANDLETABLE hHandleTable, void *pvObj, void *pvCtx, void *pvUser)
 {
     uint32_t *pcCalls = (uint32_t *)pvUser;
     (*pcCalls)++;
+    RT_NOREF_PV(hHandleTable); RT_NOREF_PV(pvCtx); RT_NOREF_PV(pvObj);
     return VINF_SUCCESS;
 }
 
@@ -488,7 +490,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 102121 $\n");
+                RTPrintf("$Revision: 109139 $\n");
                 return 0;
 
             default:

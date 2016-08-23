@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -305,7 +305,6 @@ static RTEXITCODE handleBandwidthControlList(HandlerArg *pArgs, ComPtr<IBandwidt
  */
 RTEXITCODE handleBandwidthControl(HandlerArg *a)
 {
-    int c = VERR_INTERNAL_ERROR;        /* initialized to shut up gcc */
     HRESULT rc = S_OK;
     ComPtr<IMachine> machine;
     ComPtr<IBandwidthControl> bwCtrl;

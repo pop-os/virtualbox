@@ -1,7 +1,7 @@
 /** @file
   BDS routines to handle capsules.
 
-Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2013, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -51,15 +51,17 @@ BdsProcessCapsules (
   UINT32                      CacheNumber;
   VOID                        **CapsulePtr;
   VOID                        **CapsulePtrCache;
-  EFI_GUID                    *CapsuleGuidCache; 
+  EFI_GUID                    *CapsuleGuidCache;
+  BOOLEAN                     NeedReset;
 
-  CapsuleNumber = 0;
+  CapsuleNumber      = 0;
   CapsuleTotalNumber = 0;
-  CacheIndex   = 0;
-  CacheNumber  = 0;
-  CapsulePtr        = NULL;
-  CapsulePtrCache   = NULL;
-  CapsuleGuidCache  = NULL;
+  CacheIndex         = 0;
+  CacheNumber        = 0;
+  CapsulePtr         = NULL;
+  CapsulePtrCache    = NULL;
+  CapsuleGuidCache   = NULL;
+  NeedReset          = FALSE;
 
   //
   // We don't do anything else if the boot mode is not flash-update
@@ -68,7 +70,7 @@ BdsProcessCapsules (
     DEBUG ((EFI_D_ERROR, "Boot mode is not correct for capsule update.\n"));
     return EFI_INVALID_PARAMETER;
   }
-  
+
   Status = EFI_SUCCESS;
   //
   // Find all capsule images from hob
@@ -78,7 +80,7 @@ BdsProcessCapsules (
     CapsuleTotalNumber ++;
     HobPointer.Raw = GET_NEXT_HOB (HobPointer);
   }
-  
+
   if (CapsuleTotalNumber == 0) {
     //
     // We didn't find a hob, so had no errors.
@@ -90,7 +92,7 @@ BdsProcessCapsules (
     PlatformBdsLockNonUpdatableFlash ();
     return EFI_SUCCESS;
   }
-  
+
   //
   // Init temp Capsule Data table.
   //
@@ -100,7 +102,7 @@ BdsProcessCapsules (
   ASSERT (CapsulePtrCache != NULL);
   CapsuleGuidCache = (EFI_GUID *) AllocateZeroPool (sizeof (EFI_GUID) * CapsuleTotalNumber);
   ASSERT (CapsuleGuidCache != NULL);
-  
+
   //
   // Find all capsule images from hob
   //
@@ -117,12 +119,12 @@ BdsProcessCapsules (
 
   //
   // Capsules who have CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE always are used for operating
-  // System to have information persist across a system reset. EFI System Table must 
+  // System to have information persist across a system reset. EFI System Table must
   // point to an array of capsules that contains the same CapsuleGuid value. And agents
-  // searching for this type capsule will look in EFI System Table and search for the 
+  // searching for this type capsule will look in EFI System Table and search for the
   // capsule's Guid and associated pointer to retrieve the data. Two steps below describes
-  // how to sorting the capsules by the unique guid and install the array to EFI System Table. 
-  // Firstly, Loop for all coalesced capsules, record unique CapsuleGuids and cache them in an 
+  // how to sorting the capsules by the unique guid and install the array to EFI System Table.
+  // Firstly, Loop for all coalesced capsules, record unique CapsuleGuids and cache them in an
   // array for later sorting capsules by CapsuleGuid.
   //
   for (Index = 0; Index < CapsuleTotalNumber; Index++) {
@@ -130,7 +132,7 @@ BdsProcessCapsules (
     if ((CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) != 0) {
       //
       // For each capsule, we compare it with known CapsuleGuid in the CacheArray.
-      // If already has the Guid, skip it. Whereas, record it in the CacheArray as 
+      // If already has the Guid, skip it. Whereas, record it in the CacheArray as
       // an additional one.
       //
       CacheIndex = 0;
@@ -157,7 +159,7 @@ BdsProcessCapsules (
   //
   CacheIndex = 0;
   while (CacheIndex < CacheNumber) {
-    CapsuleNumber = 0;  
+    CapsuleNumber = 0;
     for (Index = 0; Index < CapsuleTotalNumber; Index++) {
       CapsuleHeader = (EFI_CAPSULE_HEADER*) CapsulePtr [Index];
       if ((CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) != 0) {
@@ -170,7 +172,7 @@ BdsProcessCapsules (
       }
     }
     if (CapsuleNumber != 0) {
-      Size = sizeof(EFI_CAPSULE_TABLE) + (CapsuleNumber - 1) * sizeof(VOID*);  
+      Size = sizeof(EFI_CAPSULE_TABLE) + (CapsuleNumber - 1) * sizeof(VOID*);
       CapsuleTable = AllocateRuntimePool (Size);
       ASSERT (CapsuleTable != NULL);
       CapsuleTable->CapsuleArrayNumber =  CapsuleNumber;
@@ -183,7 +185,7 @@ BdsProcessCapsules (
 
   //
   // Besides ones with CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE flag, all capsules left are
-  // recognized by platform with CapsuleGuid. For general platform driver, UpdateFlash 
+  // recognized by platform with CapsuleGuid. For general platform driver, UpdateFlash
   // type is commonly supported, so here only deal with encapsuled FVs capsule. Additional
   // type capsule transaction could be extended. It depends on platform policy.
   //
@@ -191,14 +193,34 @@ BdsProcessCapsules (
     CapsuleHeader = (EFI_CAPSULE_HEADER*) CapsulePtr [Index];
     if ((CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) == 0) {
       //
+      // Always reset system after all capsule processed if FMP capsule exist
+      //
+      if (CompareGuid (&gEfiFmpCapsuleGuid, &CapsuleHeader->CapsuleGuid)){
+        NeedReset = TRUE;
+      }
+
+      //
       // Call capsule library to process capsule image.
       //
       ProcessCapsuleImage (CapsuleHeader);
     }
   }
 
+  if (NeedReset) {
+    Print(L"Capsule Request Cold Reboot.\n");
+
+    for (Index = 5; Index > 0; Index--) {
+      Print(L"\rResetting system in %d seconds ...", Index);
+      gBS->Stall (1000000);
+    }
+
+    gRT->ResetSystem (EfiResetCold, EFI_SUCCESS, 0, NULL);
+
+    CpuDeadLoop ();
+  }
+
   PlatformBdsLockNonUpdatableFlash ();
-  
+
   //
   // Free the allocated temp memory space.
   //

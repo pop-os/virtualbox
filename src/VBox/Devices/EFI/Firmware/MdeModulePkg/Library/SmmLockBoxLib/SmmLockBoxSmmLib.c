@@ -1,6 +1,6 @@
 /** @file
 
-Copyright (c) 2010 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -68,7 +68,7 @@ InternalGetSmmLockBoxContext (
   @param[in] ImageHandle  Image handle of this driver.
   @param[in] SystemTable  A Pointer to the EFI System Table.
 
-  @retval EFI_SUCEESS     
+  @retval EFI_SUCEESS
   @return Others          Some error occurs.
 **/
 EFI_STATUS
@@ -267,7 +267,15 @@ SaveLockBox (
   LockBox->Length      = (UINT64)Length;
   LockBox->Attributes  = 0;
   LockBox->SmramBuffer = SmramBuffer;
-  
+
+  DEBUG ((
+    EFI_D_INFO,
+    "LockBoxGuid - %g, SmramBuffer - 0x%lx, Length - 0x%lx\n",
+    &LockBox->Guid,
+    LockBox->SmramBuffer,
+    LockBox->Length
+    ));
+
   LockBoxQueue = InternalGetLockBoxQueue ();
   ASSERT (LockBoxQueue != NULL);
   InsertTailList (LockBoxQueue, &LockBox->Link);
@@ -405,7 +413,7 @@ UpdateLockBox (
 
   @retval RETURN_SUCCESS            the information is restored successfully.
   @retval RETURN_INVALID_PARAMETER  the Guid is NULL, or one of Buffer and Length is NULL.
-  @retval RETURN_WRITE_PROTECTED    Buffer and Length are NULL, but the LockBox has no 
+  @retval RETURN_WRITE_PROTECTED    Buffer and Length are NULL, but the LockBox has no
                                     LOCK_BOX_ATTRIBUTE_RESTORE_IN_PLACE attribute.
   @retval RETURN_BUFFER_TOO_SMALL   the Length is too small to hold the confidential information.
   @retval RETURN_NOT_FOUND          the requested GUID not found.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -102,6 +102,7 @@ DECLEXPORT(VBOXSTRICTRC) trpmRCGuestIDTWritePfHandler(PVM pVM, PVMCPU pVCpu, RTG
     RTGCPTR     GCPtrIDTEnd = (RTGCPTR)((RTGCUINTPTR)GCPtrIDT + cbIDT + 1);
 #endif
     uint32_t    iGate       = ((RTGCUINTPTR)pvFault - (RTGCUINTPTR)GCPtrIDT)/sizeof(VBOXIDTE);
+    RT_NOREF_PV(offRange); RT_NOREF_PV(pvRange); RT_NOREF_PV(pRegFrame); RT_NOREF_PV(pVM);
 
     AssertMsg(offRange < (uint32_t)cbIDT+1, ("pvFault=%RGv GCPtrIDT=%RGv-%RGv pvRange=%RGv\n", pvFault, GCPtrIDT, GCPtrIDTEnd, pvRange));
     Assert((RTGCPTR)(RTRCUINTPTR)pvRange == GCPtrIDT);

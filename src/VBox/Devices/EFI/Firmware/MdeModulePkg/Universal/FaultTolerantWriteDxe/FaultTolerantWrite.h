@@ -3,14 +3,14 @@
   The internal header file includes the common header files, defines
   internal structure and functions used by FtwLite module.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials                          
-are licensed and made available under the terms and conditions of the BSD License         
-which accompanies this distribution.  The full text of the license may be found at        
-http://opensource.org/licenses/bsd-license.php                                            
-                                                                                          
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED. 
+Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -20,6 +20,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <PiDxe.h>
 
 #include <Guid/SystemNvDataGuid.h>
+#include <Guid/ZeroGuid.h>
 #include <Protocol/FaultTolerantWrite.h>
 #include <Protocol/FirmwareVolumeBlock.h>
 #include <Protocol/SwapAddressRange.h>
@@ -31,65 +32,24 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Library/BaseMemoryLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/ReportStatusCodeLib.h>
 
 //
 // Flash erase polarity is 1
 //
 #define FTW_ERASE_POLARITY  1
 
-#define FTW_VALID_STATE     0
-#define FTW_INVALID_STATE   1
-
 #define FTW_ERASED_BYTE     ((UINT8) (255))
 #define FTW_POLARITY_REVERT ((UINT8) (255))
 
-//
-// EFI Fault tolerant block update write queue entry
-//
-typedef struct {
-  UINT8     HeaderAllocated : 1;
-  UINT8     WritesAllocated : 1;
-  UINT8     Complete : 1;
 #define HEADER_ALLOCATED  0x1
 #define WRITES_ALLOCATED  0x2
 #define WRITES_COMPLETED  0x4
-  UINT8     Reserved : 5;
-  EFI_GUID  CallerId;
-  UINTN     NumberOfWrites;
-  UINTN     PrivateDataSize;
-} EFI_FAULT_TOLERANT_WRITE_HEADER;
 
-//
-// EFI Fault tolerant block update write queue record
-//
-typedef struct {
-  UINT8   BootBlockUpdate : 1;
-  UINT8   SpareComplete : 1;
-  UINT8   DestinationComplete : 1;
 #define BOOT_BLOCK_UPDATE 0x1
 #define SPARE_COMPLETED   0x2
 #define DEST_COMPLETED    0x4
-  UINT8   Reserved : 5;
-  EFI_LBA Lba;
-  UINTN   Offset;
-  UINTN   Length;
-  EFI_PHYSICAL_ADDRESS  FvBaseAddress;
-  //
-  // UINT8                PrivateData[PrivateDataSize]
-  //
-} EFI_FAULT_TOLERANT_WRITE_RECORD;
 
-
-#define RECORD_SIZE(PrivateDataSize)  (sizeof (EFI_FAULT_TOLERANT_WRITE_RECORD) + PrivateDataSize)
-
-#define RECORD_TOTAL_SIZE(NumberOfWrites, PrivateDataSize) \
-    ((NumberOfWrites) * (sizeof (EFI_FAULT_TOLERANT_WRITE_RECORD) + PrivateDataSize))
-
-#define WRITE_TOTAL_SIZE(NumberOfWrites, PrivateDataSize) \
-    ( \
-      sizeof (EFI_FAULT_TOLERANT_WRITE_HEADER) + (NumberOfWrites) * \
-        (sizeof (EFI_FAULT_TOLERANT_WRITE_RECORD) + PrivateDataSize) \
-    )
 
 #define FTW_DEVICE_SIGNATURE  SIGNATURE_32 ('F', 'T', 'W', 'D')
 
@@ -116,7 +76,7 @@ typedef struct {
   EFI_LBA                                 FtwWorkSpaceLba;    // Start LBA of working space
   UINTN                                   FtwWorkSpaceBase;   // Offset into the FtwWorkSpaceLba block.
   UINTN                                   FtwWorkSpaceSize;   // Size of working space range that stores write record.
-  UINT8                                   *FtwWorkSpace;      // Point to Work Space in memory buffer 
+  UINT8                                   *FtwWorkSpace;      // Point to Work Space in memory buffer
   //
   // Following a buffer of FtwWorkSpace[FTW_WORK_SPACE_SIZE],
   // Allocated with EFI_FTW_DEVICE.
@@ -217,11 +177,11 @@ FtwAllocate (
                          reading, writing, and erasing the target block.
   @param Buffer          The data to write.
 
-  @retval EFI_SUCCESS          The function completed successfully 
-  @retval EFI_ABORTED          The function could not complete successfully. 
-  @retval EFI_BAD_BUFFER_SIZE  The input data can't fit within the spare block. 
+  @retval EFI_SUCCESS          The function completed successfully
+  @retval EFI_ABORTED          The function could not complete successfully.
+  @retval EFI_BAD_BUFFER_SIZE  The input data can't fit within the spare block.
                                Offset + *NumBytes > SpareAreaLength.
-  @retval EFI_ACCESS_DENIED    No writes have been allocated. 
+  @retval EFI_ACCESS_DENIED    No writes have been allocated.
   @retval EFI_OUT_OF_RESOURCES Cannot allocate enough memory resource.
   @retval EFI_NOT_FOUND        Cannot find FVB protocol by handle.
 
@@ -324,7 +284,7 @@ FtwGetLastWrite (
                                 partially erased.
   @retval EFI_INVALID_PARAMETER One or more of the LBAs listed
                                 in the variable argument list do
-                                not exist in the firmware volume.  
+                                not exist in the firmware volume.
 
 
 **/
@@ -684,10 +644,10 @@ EFI_STATUS
 FtwGetSarProtocol (
   OUT VOID                                **SarProtocol
   );
-  
+
 /**
   Function returns an array of handles that support the FVB protocol
-  in a buffer allocated from pool. 
+  in a buffer allocated from pool.
 
   @param[out]  NumberHandles    The number of handles returned in Buffer.
   @param[out]  Buffer           A pointer to the buffer to return the requested
@@ -719,7 +679,7 @@ GetFvbCountAndBuffer (
 **/
 EFI_STATUS
 InitFtwDevice (
-  OUT EFI_FTW_DEVICE               **FtwData 
+  OUT EFI_FTW_DEVICE               **FtwData
   );
 
 
@@ -730,11 +690,22 @@ InitFtwDevice (
 
   @retval EFI_SUCCESS           Initialize the FTW protocol successfully.
   @retval EFI_NOT_FOUND         No proper FVB protocol was found.
-  
+
 **/
 EFI_STATUS
 InitFtwProtocol (
   IN OUT EFI_FTW_DEVICE               *FtwDevice
   );
- 
+
+/**
+  Initialize a local work space header.
+
+  Since Signature and WriteQueueSize have been known, Crc can be calculated out,
+  then the work space header will be fixed.
+**/
+VOID
+InitializeLocalWorkSpaceHeader (
+  VOID
+  );
+
 #endif

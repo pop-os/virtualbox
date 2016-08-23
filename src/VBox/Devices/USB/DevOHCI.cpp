@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -103,8 +103,9 @@
 #include "VBoxDD.h"
 
 
-//#define VBOX_WITH_OHCI_PHYS_READ_CACHE
+#define VBOX_WITH_OHCI_PHYS_READ_CACHE
 //#define VBOX_WITH_OHCI_PHYS_READ_STATS
+
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -140,6 +141,36 @@ typedef struct OHCI *POHCI;
 /** Read-only pointer to the OHCI device data. */
 typedef struct OHCI const *PCOHCI;
 
+#ifndef VBOX_DEVICE_STRUCT_TESTCASE
+/**
+ * Host controller transfer descriptor data.
+ */
+typedef struct VUSBURBHCITDINT
+{
+    /** Type of TD. */
+    uint32_t        TdType;
+    /** The address of the */
+    RTGCPHYS32      TdAddr;
+    /** A copy of the TD. */
+    uint32_t        TdCopy[16];
+} VUSBURBHCITDINT;
+
+/**
+ * The host controller data associated with each URB.
+ */
+typedef struct VUSBURBHCIINT
+{
+    /** The endpoint descriptor address. */
+    RTGCPHYS32      EdAddr;
+    /** Number of Tds in the array. */
+    uint32_t        cTds;
+    /** When this URB was created.
+     * (Used for isochronous frames and for logging.) */
+    uint32_t        u32FrameNo;
+    /** Flag indicating that the TDs have been unlinked. */
+    bool            fUnlinked;
+} VUSBURBHCIINT;
+#endif
 
 /**
  * An OHCI root hub port.
@@ -196,9 +227,6 @@ typedef struct ohci_roothub
     OHCIHUBPORT                         aPorts[OHCI_NDP_MAX];
     R3PTRTYPE(POHCI)                    pOhci;
 } OHCIROOTHUB;
-#if HC_ARCH_BITS == 64
-AssertCompile(sizeof(OHCIROOTHUB) == 392); /* saved state */
-#endif
 /** Pointer to the OHCI root hub. */
 typedef OHCIROOTHUB *POHCIROOTHUB;
 
@@ -369,10 +397,6 @@ typedef struct OHCI
 
     /** VM timer frequency used for frame timer calculations. */
     uint64_t            u64TimerHz;
-    /** Number of USB work cycles with no transfers. */
-    uint32_t            cIdleCycles;
-    /** Current frame timer rate (default 1000). */
-    uint32_t            uFrameRate;
     /** Idle detection flag; must be cleared at start of frame */
     bool                fIdle;
     /** A flag indicating that the bulk list may have in-flight URBs. */
@@ -385,19 +409,6 @@ typedef struct OHCI
 
     /** Critical section synchronising interrupt handling. */
     PDMCRITSECT         CsIrq;
-
-    /** The framer thread. */
-    R3PTRTYPE(PPDMTHREAD)      hThreadFrame;
-    /** Event semaphore to interact with the framer thread. */
-    R3PTRTYPE(RTSEMEVENTMULTI) hSemEventFrame;
-    /** Event semaphore to release the thread waiting for the framer thread to stop. */
-    R3PTRTYPE(RTSEMEVENTMULTI) hSemEventFrameStopped;
-    /** Flag whether the framer thread should processing frames. */
-    volatile bool              fBusStarted;
-    /** Alignment. */
-    uint32_t                   Alignment5;
-    /** How long to wait until the next frame. */
-    uint64_t                   nsWait;
     /** Critical section to synchronize the framer and URB completion handler. */
     RTCRITSECT                 CritSect;
 #ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
@@ -760,10 +771,44 @@ typedef struct ohci_opreg
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+/*
+ * Explain
+ */
+typedef struct OHCIDESCREADSTATS
+{
+    uint32_t cReads;
+    uint32_t cPageChange;
+    uint32_t cMinReadsPerPage;
+    uint32_t cMaxReadsPerPage;
+
+    uint32_t cReadsLastPage;
+    uint32_t u32LastPageAddr;
+} OHCIDESCREADSTATS;
+typedef OHCIDESCREADSTATS *POHCIDESCREADSTATS;
+
+typedef struct OHCIPHYSREADSTATS
+{
+    OHCIDESCREADSTATS ed;
+    OHCIDESCREADSTATS td;
+    OHCIDESCREADSTATS all;
+
+    uint32_t cCrossReads;
+    uint32_t cCacheReads;
+    uint32_t cPageReads;
+} OHCIPHYSREADSTATS;
+typedef OHCIPHYSREADSTATS *POHCIPHYSREADSTATS;
+typedef OHCIPHYSREADSTATS const *PCOHCIPHYSREADSTATS;
+#endif /* VBOX_WITH_OHCI_PHYS_READ_STATS */
+
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+#if defined(VBOX_WITH_OHCI_PHYS_READ_STATS) && defined(IN_RING3)
+static OHCIPHYSREADSTATS g_PhysReadState;
+#endif
+
 #if defined(LOG_ENABLED) && defined(IN_RING3)
 static bool g_fLogBulkEPs = false;
 static bool g_fLogControlEPs = false;
@@ -861,6 +906,8 @@ static void ohciUpdateInterruptLocked(POHCI ohci, const char *msg)
     }
 }
 
+#ifdef IN_RING3
+
 /**
  * Set an interrupt, use the wrapper ohciSetInterrupt.
  */
@@ -883,10 +930,8 @@ DECLINLINE(int) ohciSetInterruptInt(POHCI ohci, int rcBusy, uint32_t intr, const
 /**
  * Set an interrupt wrapper macro for logging purposes.
  */
-#define ohciSetInterrupt(ohci, a_rcBusy, intr) ohciSetInterruptInt(ohci, a_rcBusy, intr, #intr)
-#define ohciR3SetInterrupt(ohci, intr) ohciSetInterruptInt(ohci, VERR_IGNORED, intr, #intr)
+# define ohciR3SetInterrupt(ohci, intr) ohciSetInterruptInt(ohci, VERR_IGNORED, intr, #intr)
 
-#ifdef IN_RING3
 
 /* Carry out a hardware remote wakeup */
 static void ohci_remote_wakeup(POHCI pThis)
@@ -973,6 +1018,7 @@ static DECLCALLBACK(unsigned) ohciRhGetAvailablePorts(PVUSBIROOTHUBPORT pInterfa
  */
 static DECLCALLBACK(uint32_t) ohciRhGetUSBVersions(PVUSBIROOTHUBPORT pInterface)
 {
+    RT_NOREF(pInterface);
     return VUSB_STDVER_11;
 }
 
@@ -1023,6 +1069,7 @@ static DECLCALLBACK(int) ohciRhAttach(PVUSBIROOTHUBPORT pInterface, PVUSBIDEVICE
  */
 static DECLCALLBACK(void) ohciRhDetach(PVUSBIROOTHUBPORT pInterface, PVUSBIDEVICE pDev, unsigned uPort)
 {
+    RT_NOREF(pDev);
     POHCI pThis = VUSBIROOTHUBPORT_2_OHCI(pInterface);
     LogFlow(("ohciRhDetach: pDev=%p uPort=%u\n", pDev, uPort));
     PDMCritSectEnter(pThis->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
@@ -1203,7 +1250,6 @@ static void ohciDoReset(POHCI pThis, uint32_t fNewMode, bool fResetOnLinux)
     if (fNewMode == OHCI_USB_RESET)
         VUSBIDevReset(pThis->RootHub.pIDev, fResetOnLinux, NULL, NULL, NULL);
 }
-#endif /* IN_RING3 */
 
 /**
  * Reads physical memory.
@@ -1229,10 +1275,10 @@ DECLINLINE(void) ohciPhysWrite(POHCI pThis, uint32_t Addr, const void *pvBuf, si
 DECLINLINE(void) ohciGetDWords(POHCI pThis, uint32_t Addr, uint32_t *pau32s, int c32s)
 {
     ohciPhysRead(pThis, Addr, pau32s, c32s * sizeof(uint32_t));
-#if BYTE_ORDER != LITTLE_ENDIAN
+# ifndef RT_LITTLE_ENDIAN
     for(int i = 0; i < c32s; i++)
         pau32s[i] = RT_H2LE_U32(pau32s[i]);
-#endif
+# endif
 }
 
 /**
@@ -1240,46 +1286,22 @@ DECLINLINE(void) ohciGetDWords(POHCI pThis, uint32_t Addr, uint32_t *pau32s, int
  */
 DECLINLINE(void) ohciPutDWords(POHCI pThis, uint32_t Addr, const uint32_t *pau32s, int cu32s)
 {
-#if BYTE_ORDER == LITTLE_ENDIAN
+# ifdef RT_LITTLE_ENDIAN
     ohciPhysWrite(pThis, Addr, pau32s, cu32s << 2);
-#else
+# else
     for (int i = 0; i < c32s; i++, pau32s++, Addr += sizeof(*pau32s))
     {
         uint32_t u32Tmp = RT_H2LE_U32(*pau32s);
         ohciPhysWrite(pThis, Addr, (uint8_t *)&u32Tmp, sizeof(u32Tmp));
     }
-#endif
+# endif
 }
 
 
-#ifdef IN_RING3
 
-#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
-struct DescReadStats
-{
-    uint32_t cReads;
-    uint32_t cPageChange;
-    uint32_t cMinReadsPerPage;
-    uint32_t cMaxReadsPerPage;
+# ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
 
-    uint32_t cReadsLastPage;
-    uint32_t u32LastPageAddr;
-};
-
-struct PhysReadStats
-{
-    struct DescReadStats ed;
-    struct DescReadStats td;
-    struct DescReadStats all;
-
-    uint32_t cCrossReads;
-    uint32_t cCacheReads;
-    uint32_t cPageReads;
-};
-
-static struct PhysReadStats physReadStats;
-
-static void descReadStatsReset(struct DescReadStats *p)
+static void descReadStatsReset(POHCIDESCREADSTATS p)
 {
     p->cReads = 0;
     p->cPageChange = 0;
@@ -1290,7 +1312,7 @@ static void descReadStatsReset(struct DescReadStats *p)
     p->u32LastPageAddr = 0;
 }
 
-static void physReadStatsReset(struct PhysReadStats *p)
+static void physReadStatsReset(POHCIPHYSREADSTATS p)
 {
     descReadStatsReset(&p->ed);
     descReadStatsReset(&p->td);
@@ -1301,7 +1323,7 @@ static void physReadStatsReset(struct PhysReadStats *p)
     p->cPageReads = 0;
 }
 
-static void physReadStatsUpdateDesc(struct DescReadStats *p, uint32_t u32Addr)
+static void physReadStatsUpdateDesc(POHCIDESCREADSTATS p, uint32_t u32Addr)
 {
     const uint32_t u32PageAddr = u32Addr & ~UINT32_C(0xFFF);
 
@@ -1331,14 +1353,14 @@ static void physReadStatsUpdateDesc(struct DescReadStats *p, uint32_t u32Addr)
     }
 }
 
-static void physReadStatsPrint(struct PhysReadStats *p)
+static void physReadStatsPrint(PCOHCIPHYSREADSTATS p)
 {
     p->ed.cMinReadsPerPage = RT_MIN(p->ed.cMinReadsPerPage, p->ed.cReadsLastPage);
     p->ed.cMaxReadsPerPage = RT_MAX(p->ed.cMaxReadsPerPage, p->ed.cReadsLastPage);;
-    
+
     p->td.cMinReadsPerPage = RT_MIN(p->td.cMinReadsPerPage, p->td.cReadsLastPage);
     p->td.cMaxReadsPerPage = RT_MAX(p->td.cMaxReadsPerPage, p->td.cReadsLastPage);;
-    
+
     p->all.cMinReadsPerPage = RT_MIN(p->all.cMinReadsPerPage, p->all.cReadsLastPage);
     p->all.cMaxReadsPerPage = RT_MAX(p->all.cMaxReadsPerPage, p->all.cReadsLastPage);;
 
@@ -1356,9 +1378,10 @@ static void physReadStatsPrint(struct PhysReadStats *p)
 
     physReadStatsReset(p);
 }
-#endif /* VBOX_WITH_OHCI_PHYS_READ_STATS */
 
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# endif /* VBOX_WITH_OHCI_PHYS_READ_STATS */
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+
 static POHCIPAGECACHE ohciPhysReadCacheAlloc(void)
 {
     return (POHCIPAGECACHE)RTMemAlloc(sizeof(OHCIPAGECACHE));
@@ -1385,22 +1408,22 @@ static void ohciPhysReadCacheRead(POHCI pThis, POHCIPAGECACHE pPageCache, RTGCPH
             PDMDevHlpPhysRead(pThis->pDevInsR3, PageAddr,
                               pPageCache->au8PhysReadCache, sizeof(pPageCache->au8PhysReadCache));
             pPageCache->GCPhysReadCacheAddr = PageAddr;
-#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
-            ++physReadStats.cPageReads;
-#endif
+#  ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+            ++g_PhysReadState.cPageReads;
+#  endif
         }
 
         memcpy(pvBuf, &pPageCache->au8PhysReadCache[GCPhys & PAGE_OFFSET_MASK], cbBuf);
-#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
-        ++physReadStats.cCacheReads;
-#endif
+#  ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+        ++g_PhysReadState.cCacheReads;
+#  endif
     }
     else
     {
         PDMDevHlpPhysRead(pThis->pDevInsR3, GCPhys, pvBuf, cbBuf);
-#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
-        ++physReadStats.cCrossReads;
-#endif
+#  ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+        ++g_PhysReadState.cCrossReads;
+#  endif
     }
 }
 
@@ -1413,17 +1436,18 @@ static void ohciReadTdCached(POHCI pThis, uint32_t TdAddr, POHCITD pTd)
 {
     ohciPhysReadCacheRead(pThis, pThis->pCacheTD, TdAddr, pTd, sizeof(*pTd));
 }
-#endif /* VBOX_WITH_OHCI_PHYS_READ_CACHE */
+
+# endif /* VBOX_WITH_OHCI_PHYS_READ_CACHE */
 
 /**
  * Reads an OHCIED.
  */
 DECLINLINE(void) ohciReadEd(POHCI pThis, uint32_t EdAddr, POHCIED pEd)
 {
-#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
-    physReadStatsUpdateDesc(&physReadStats.ed, EdAddr);
-    physReadStatsUpdateDesc(&physReadStats.all, EdAddr);
-#endif
+# ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+    physReadStatsUpdateDesc(&g_PhysReadState.ed, EdAddr);
+    physReadStatsUpdateDesc(&g_PhysReadState.all, EdAddr);
+# endif
     ohciGetDWords(pThis, EdAddr, (uint32_t *)pEd, sizeof(*pEd) >> 2);
 }
 
@@ -1432,12 +1456,12 @@ DECLINLINE(void) ohciReadEd(POHCI pThis, uint32_t EdAddr, POHCIED pEd)
  */
 DECLINLINE(void) ohciReadTd(POHCI pThis, uint32_t TdAddr, POHCITD pTd)
 {
-#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
-    physReadStatsUpdateDesc(&physReadStats.td, TdAddr);
-    physReadStatsUpdateDesc(&physReadStats.all, TdAddr);
-#endif
+# ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+    physReadStatsUpdateDesc(&g_PhysReadState.td, TdAddr);
+    physReadStatsUpdateDesc(&g_PhysReadState.all, TdAddr);
+# endif
     ohciGetDWords(pThis, TdAddr, (uint32_t *)pTd, sizeof(*pTd) >> 2);
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (LogIs3Enabled())
     {
         uint32_t hichg;
@@ -1454,7 +1478,7 @@ DECLINLINE(void) ohciReadTd(POHCI pThis, uint32_t TdAddr, POHCITD pTd)
               pTd->NextTD,
               pTd->be,
               pTd->hwinfo & TD_HWINFO_UNKNOWN_MASK));
-#if 0
+#  if 0
         if (LogIs3Enabled())
         {
             /*
@@ -1479,9 +1503,9 @@ DECLINLINE(void) ohciReadTd(POHCI pThis, uint32_t TdAddr, POHCITD pTd)
                   *((uint32_t *)&abXpTd[0x40]),
                   sizeof(abXpTd), &abXpTd[0]));
         }
-#endif
+#  endif
     }
-#endif
+# endif
 }
 
 /**
@@ -1490,7 +1514,7 @@ DECLINLINE(void) ohciReadTd(POHCI pThis, uint32_t TdAddr, POHCITD pTd)
 DECLINLINE(void) ohciReadITd(POHCI pThis, uint32_t ITdAddr, POHCIITD pITd)
 {
     ohciGetDWords(pThis, ITdAddr, (uint32_t *)pITd, sizeof(*pITd) / sizeof(uint32_t));
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (LogIs3Enabled())
     {
         Log3(("ohciReadITd(,%#010x,): SF=%#06x (%#RX32) DI=%#x FC=%d CC=%#x BP0=%#010x NextTD=%#010x BE=%#010x\n",
@@ -1512,7 +1536,7 @@ DECLINLINE(void) ohciReadITd(POHCI pThis, uint32_t ITdAddr, POHCIITD pITd)
               pITd->aPSW[6] >> 12, pITd->aPSW[6] & 0xfff,
               pITd->aPSW[7] >> 12, pITd->aPSW[7] & 0xfff));
     }
-#endif
+# endif
 }
 
 
@@ -1521,7 +1545,7 @@ DECLINLINE(void) ohciReadITd(POHCI pThis, uint32_t ITdAddr, POHCIITD pITd)
  */
 DECLINLINE(void) ohciWriteEd(POHCI pThis, uint32_t EdAddr, PCOHCIED pEd)
 {
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (LogIs3Enabled())
     {
         OHCIED      EdOld;
@@ -1544,7 +1568,7 @@ DECLINLINE(void) ohciWriteEd(POHCI pThis, uint32_t EdAddr, PCOHCIED pEd)
               (EdOld.HeadP ^ pEd->HeadP) & 2 ? "*" : "", (pEd->HeadP >> 1) & 1,
               EdOld.NextED != pEd->NextED ? "*" : "", pEd->NextED));
     }
-#endif
+# endif
 
     ohciPutDWords(pThis, EdAddr, (uint32_t *)pEd, sizeof(*pEd) >> 2);
 }
@@ -1555,7 +1579,7 @@ DECLINLINE(void) ohciWriteEd(POHCI pThis, uint32_t EdAddr, PCOHCIED pEd)
  */
 DECLINLINE(void) ohciWriteTd(POHCI pThis, uint32_t TdAddr, PCOHCITD pTd, const char *pszLogMsg)
 {
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (LogIs3Enabled())
     {
         OHCITD TdOld;
@@ -1574,7 +1598,9 @@ DECLINLINE(void) ohciWriteTd(POHCI pThis, uint32_t TdAddr, PCOHCITD pTd, const c
               TdOld.be   != pTd->be   ? "*" : "", pTd->be,
               pszLogMsg));
     }
-#endif
+# else
+    RT_NOREF(pszLogMsg);
+# endif
     ohciPutDWords(pThis, TdAddr, (uint32_t *)pTd, sizeof(*pTd) >> 2);
 }
 
@@ -1583,7 +1609,7 @@ DECLINLINE(void) ohciWriteTd(POHCI pThis, uint32_t TdAddr, PCOHCITD pTd, const c
  */
 DECLINLINE(void) ohciWriteITd(POHCI pThis, uint32_t ITdAddr, PCOHCIITD pITd, const char *pszLogMsg)
 {
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (LogIs3Enabled())
     {
         OHCIITD ITdOld;
@@ -1609,12 +1635,14 @@ DECLINLINE(void) ohciWriteITd(POHCI pThis, uint32_t ITdAddr, PCOHCIITD pITd, con
               (ITdOld.aPSW[6] >> 12) != (pITd->aPSW[6] >> 12) ? "*" : "", pITd->aPSW[6] >> 12,  (ITdOld.aPSW[6] & 0xfff) != (pITd->aPSW[6] & 0xfff) ? "*" : "", pITd->aPSW[6] & 0xfff,
               (ITdOld.aPSW[7] >> 12) != (pITd->aPSW[7] >> 12) ? "*" : "", pITd->aPSW[7] >> 12,  (ITdOld.aPSW[7] & 0xfff) != (pITd->aPSW[7] & 0xfff) ? "*" : "", pITd->aPSW[7] & 0xfff));
     }
-#endif
+# else
+    RT_NOREF(pszLogMsg);
+# endif
     ohciPutDWords(pThis, ITdAddr, (uint32_t *)pITd, sizeof(*pITd) / sizeof(uint32_t));
 }
 
 
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
 
 /**
  * Core TD queue dumper. LOG_ENABLED builds only.
@@ -1669,6 +1697,7 @@ DECLINLINE(void) ohciDumpTdQueue(POHCI pThis, uint32_t GCPhysHead, const char *p
  */
 DECLINLINE(void) ohciDumpITdQueueCore(POHCI pThis, uint32_t GCPhysHead, uint32_t GCPhysTail, bool fFull)
 {
+    RT_NOREF(fFull);
     uint32_t GCPhys = GCPhysHead;
     int cMax = 100;
     for (;;)
@@ -1706,6 +1735,7 @@ DECLINLINE(void) ohciDumpITdQueueCore(POHCI pThis, uint32_t GCPhysHead, uint32_t
  */
 DECLINLINE(void) ohciDumpEdList(POHCI pThis, uint32_t GCPhysHead, const char *pszMsg, bool fTDs)
 {
+    RT_NOREF(fTDs);
     uint32_t GCPhys = GCPhysHead;
     if (pszMsg)
         Log4(("%s:", pszMsg));
@@ -1747,10 +1777,10 @@ DECLINLINE(void) ohciDumpEdList(POHCI pThis, uint32_t GCPhysHead, const char *ps
         GCPhys = Ed.NextED & ED_PTR_MASK;
         Assert(GCPhys != GCPhysHead);
     }
-    Log4(("\n"));
+    /* not reached */
 }
 
-#endif /* LOG_ENABLED */
+# endif /* LOG_ENABLED */
 
 
 DECLINLINE(int) ohci_in_flight_find_free(POHCI pThis, const int iStart)
@@ -1784,9 +1814,9 @@ static void ohci_in_flight_add(POHCI pThis, uint32_t GCPhysTD, PVUSBURB pUrb)
     int i = ohci_in_flight_find_free(pThis, (GCPhysTD >> 4) % RT_ELEMENTS(pThis->aInFlight));
     if (i >= 0)
     {
-#ifdef LOG_ENABLED
-        pUrb->Hci.u32FrameNo = pThis->HcFmNumber;
-#endif
+# ifdef LOG_ENABLED
+        pUrb->pHci->u32FrameNo = pThis->HcFmNumber;
+# endif
         pThis->aInFlight[i].GCPhysTD = GCPhysTD;
         pThis->aInFlight[i].pUrb = pUrb;
         pThis->cInFlight++;
@@ -1804,8 +1834,8 @@ static void ohci_in_flight_add(POHCI pThis, uint32_t GCPhysTD, PVUSBURB pUrb)
  */
 static void ohci_in_flight_add_urb(POHCI pThis, PVUSBURB pUrb)
 {
-    for (unsigned iTd = 0; iTd < pUrb->Hci.cTds; iTd++)
-        ohci_in_flight_add(pThis, pUrb->Hci.paTds[iTd].TdAddr, pUrb);
+    for (unsigned iTd = 0; iTd < pUrb->pHci->cTds; iTd++)
+        ohci_in_flight_add(pThis, pUrb->paTds[iTd].TdAddr, pUrb);
 }
 
 
@@ -1888,13 +1918,13 @@ static int ohci_in_flight_remove(POHCI pThis, uint32_t GCPhysTD)
     int i = ohci_in_flight_find(pThis, GCPhysTD);
     if (i >= 0)
     {
-#ifdef LOG_ENABLED
-        const int cFramesInFlight = pThis->HcFmNumber - pThis->aInFlight[i].pUrb->Hci.u32FrameNo;
-#else
+# ifdef LOG_ENABLED
+        const int cFramesInFlight = pThis->HcFmNumber - pThis->aInFlight[i].pUrb->pHci->u32FrameNo;
+# else
         const int cFramesInFlight = 0;
-#endif
+# endif
         Log2(("ohci_in_flight_remove: reaping TD=%#010x %d frames (%#010x-%#010x)\n",
-              GCPhysTD, cFramesInFlight, pThis->aInFlight[i].pUrb->Hci.u32FrameNo, pThis->HcFmNumber));
+              GCPhysTD, cFramesInFlight, pThis->aInFlight[i].pUrb->pHci->u32FrameNo, pThis->HcFmNumber));
         pThis->aInFlight[i].GCPhysTD = 0;
         pThis->aInFlight[i].pUrb = NULL;
         pThis->cInFlight--;
@@ -1915,18 +1945,18 @@ static int ohci_in_flight_remove(POHCI pThis, uint32_t GCPhysTD)
  */
 static int ohci_in_flight_remove_urb(POHCI pThis, PVUSBURB pUrb)
 {
-    int cFramesInFlight = ohci_in_flight_remove(pThis, pUrb->Hci.paTds[0].TdAddr);
-    if (pUrb->Hci.cTds > 1)
+    int cFramesInFlight = ohci_in_flight_remove(pThis, pUrb->paTds[0].TdAddr);
+    if (pUrb->pHci->cTds > 1)
     {
-        for (unsigned iTd = 1; iTd < pUrb->Hci.cTds; iTd++)
-            if (ohci_in_flight_remove(pThis, pUrb->Hci.paTds[iTd].TdAddr) < 0)
+        for (unsigned iTd = 1; iTd < pUrb->pHci->cTds; iTd++)
+            if (ohci_in_flight_remove(pThis, pUrb->paTds[iTd].TdAddr) < 0)
                 cFramesInFlight = -1;
     }
     return cFramesInFlight;
 }
 
 
-#if defined(VBOX_STRICT) || defined(LOG_ENABLED)
+# if defined(VBOX_STRICT) || defined(LOG_ENABLED)
 
 /**
  * Empties the in-done-queue.
@@ -1961,7 +1991,7 @@ static int ohci_in_done_queue_find(POHCI pThis, uint32_t GCPhysTD)
 static bool ohci_in_done_queue_check(POHCI pThis, uint32_t GCPhysTD)
 {
     int i = ohci_in_done_queue_find(pThis, GCPhysTD);
-#if 0
+#  if 0
     /* This condition has been observed with the USB tablet emulation or with
      * a real USB mouse and an SMP XP guest.  I am also not sure if this is
      * really a problem for us.  The assertion checks that the guest doesn't
@@ -1973,12 +2003,12 @@ static bool ohci_in_done_queue_check(POHCI pThis, uint32_t GCPhysTD)
      * re-submitted (can't see anything like that either).
      */
     AssertMsg(i < 0, ("TD %#010x (i=%d)\n", GCPhysTD, i));
-#endif
+#  endif
     return i < 0;
 }
 
 
-# ifdef VBOX_STRICT
+#  ifdef VBOX_STRICT
 /**
  * Adds a TD to the in-done-queue tracking, checking that it's not there already.
  * @param   pThis       OHCI instance data.
@@ -1990,8 +2020,8 @@ static void ohci_in_done_queue_add(POHCI pThis, uint32_t GCPhysTD)
     if (ohci_in_done_queue_check(pThis, GCPhysTD))
         pThis->aInDoneQueue[pThis->cInDoneQueue++].GCPhysTD = GCPhysTD;
 }
-# endif /* VBOX_STRICT */
-#endif /* defined(VBOX_STRICT) || defined(LOG_ENABLED) */
+#  endif /* VBOX_STRICT */
+# endif /* defined(VBOX_STRICT) || defined(LOG_ENABLED) */
 
 
 /**
@@ -2150,16 +2180,16 @@ static bool ohciUnlinkTds(POHCI pThis, PVUSBURB pUrb, POHCIED pEd)
     /*
      * Don't unlink more than once.
      */
-    if (pUrb->Hci.fUnlinked)
+    if (pUrb->pHci->fUnlinked)
         return true;
-    pUrb->Hci.fUnlinked = true;
+    pUrb->pHci->fUnlinked = true;
 
     if (pUrb->enmType == VUSBXFERTYPE_ISOC)
     {
-        for (unsigned iTd = 0; iTd < pUrb->Hci.cTds; iTd++)
+        for (unsigned iTd = 0; iTd < pUrb->pHci->cTds; iTd++)
         {
-            POHCIITD pITd = (POHCIITD)&pUrb->Hci.paTds[iTd].TdCopy[0];
-            const uint32_t ITdAddr = pUrb->Hci.paTds[iTd].TdAddr;
+            POHCIITD pITd = (POHCIITD)&pUrb->paTds[iTd].TdCopy[0];
+            const uint32_t ITdAddr = pUrb->paTds[iTd].TdAddr;
 
             /*
              * Unlink the TD from the ED list.
@@ -2184,10 +2214,10 @@ static bool ohciUnlinkTds(POHCI pThis, PVUSBURB pUrb, POHCIED pEd)
     }
     else
     {
-        for (unsigned iTd = 0; iTd < pUrb->Hci.cTds; iTd++)
+        for (unsigned iTd = 0; iTd < pUrb->pHci->cTds; iTd++)
         {
-            POHCITD pTd = (POHCITD)&pUrb->Hci.paTds[iTd].TdCopy[0];
-            const uint32_t TdAddr = pUrb->Hci.paTds[iTd].TdAddr;
+            POHCITD pTd = (POHCITD)&pUrb->paTds[iTd].TdCopy[0];
+            const uint32_t TdAddr = pUrb->paTds[iTd].TdAddr;
 
             /** @todo r=bird: Messing with the toggle flag in prepare is probably not correct
              * when we encounter a STALL error, 4.3.1.3.7.2: "If an endpoint returns a STALL
@@ -2273,148 +2303,85 @@ static bool ohciHasUrbBeenCanceled(POHCI pThis, PVUSBURB pUrb, PCOHCIED pEd)
     OHCIED Ed;
     if (!pEd)
     {
-        ohciReadEd(pThis, pUrb->Hci.EdAddr, &Ed);
+        ohciReadEd(pThis, pUrb->pHci->EdAddr, &Ed);
         pEd = &Ed;
     }
 
     if (pUrb->enmType == VUSBXFERTYPE_ISOC)
     {
-        for (unsigned iTd = 0; iTd < pUrb->Hci.cTds; iTd++)
+        for (unsigned iTd = 0; iTd < pUrb->pHci->cTds; iTd++)
         {
             union
             {
                 OHCIITD     ITd;
                 uint32_t    au32[8];
             } u;
-            if (    (pUrb->Hci.paTds[iTd].TdAddr & ED_PTR_MASK)
+            if (    (pUrb->paTds[iTd].TdAddr & ED_PTR_MASK)
                 ==  (pEd->TailP & ED_PTR_MASK))
             {
                 Log(("%s: ohciHasUrbBeenCanceled: iTd=%d cTds=%d TdAddr=%#010RX32 canceled (tail)! [iso]\n",
-                     pUrb->pszDesc, iTd, pUrb->Hci.cTds, pUrb->Hci.paTds[iTd].TdAddr));
+                     pUrb->pszDesc, iTd, pUrb->pHci->cTds, pUrb->paTds[iTd].TdAddr));
                 STAM_COUNTER_INC(&pThis->StatCanceledIsocUrbs);
                 return true;
             }
-            ohciReadITd(pThis, pUrb->Hci.paTds[iTd].TdAddr, &u.ITd);
-            if (    u.au32[0] != pUrb->Hci.paTds[iTd].TdCopy[0]     /* hwinfo */
-                ||  u.au32[1] != pUrb->Hci.paTds[iTd].TdCopy[1]     /* bp0 */
-                ||  u.au32[3] != pUrb->Hci.paTds[iTd].TdCopy[3]     /* be */
-                ||  (   u.au32[2] != pUrb->Hci.paTds[iTd].TdCopy[2] /* NextTD */
-                     && iTd + 1 < pUrb->Hci.cTds /* ignore the last one */)
-                ||  u.au32[4] != pUrb->Hci.paTds[iTd].TdCopy[4]     /* psw0&1 */
-                ||  u.au32[5] != pUrb->Hci.paTds[iTd].TdCopy[5]     /* psw2&3 */
-                ||  u.au32[6] != pUrb->Hci.paTds[iTd].TdCopy[6]     /* psw4&5 */
-                ||  u.au32[7] != pUrb->Hci.paTds[iTd].TdCopy[7]     /* psw6&7 */
+            ohciReadITd(pThis, pUrb->paTds[iTd].TdAddr, &u.ITd);
+            if (    u.au32[0] != pUrb->paTds[iTd].TdCopy[0]     /* hwinfo */
+                ||  u.au32[1] != pUrb->paTds[iTd].TdCopy[1]     /* bp0 */
+                ||  u.au32[3] != pUrb->paTds[iTd].TdCopy[3]     /* be */
+                ||  (   u.au32[2] != pUrb->paTds[iTd].TdCopy[2] /* NextTD */
+                     && iTd + 1 < pUrb->pHci->cTds /* ignore the last one */)
+                ||  u.au32[4] != pUrb->paTds[iTd].TdCopy[4]     /* psw0&1 */
+                ||  u.au32[5] != pUrb->paTds[iTd].TdCopy[5]     /* psw2&3 */
+                ||  u.au32[6] != pUrb->paTds[iTd].TdCopy[6]     /* psw4&5 */
+                ||  u.au32[7] != pUrb->paTds[iTd].TdCopy[7]     /* psw6&7 */
                )
             {
                 Log(("%s: ohciHasUrbBeenCanceled: iTd=%d cTds=%d TdAddr=%#010RX32 canceled! [iso]\n",
-                     pUrb->pszDesc, iTd, pUrb->Hci.cTds, pUrb->Hci.paTds[iTd].TdAddr));
+                     pUrb->pszDesc, iTd, pUrb->pHci->cTds, pUrb->paTds[iTd].TdAddr));
                 Log2(("   %.*Rhxs (cur)\n"
                       "!= %.*Rhxs (copy)\n",
-                      sizeof(u.ITd), &u.ITd, sizeof(u.ITd), &pUrb->Hci.paTds[iTd].TdCopy[0]));
+                      sizeof(u.ITd), &u.ITd, sizeof(u.ITd), &pUrb->paTds[iTd].TdCopy[0]));
                 STAM_COUNTER_INC(&pThis->StatCanceledIsocUrbs);
                 return true;
             }
-            pUrb->Hci.paTds[iTd].TdCopy[2] = u.au32[2];
+            pUrb->paTds[iTd].TdCopy[2] = u.au32[2];
         }
     }
     else
     {
-        for (unsigned iTd = 0; iTd < pUrb->Hci.cTds; iTd++)
+        for (unsigned iTd = 0; iTd < pUrb->pHci->cTds; iTd++)
         {
             union
             {
                 OHCITD      Td;
                 uint32_t    au32[4];
             } u;
-            if (    (pUrb->Hci.paTds[iTd].TdAddr & ED_PTR_MASK)
+            if (    (pUrb->paTds[iTd].TdAddr & ED_PTR_MASK)
                 ==  (pEd->TailP & ED_PTR_MASK))
             {
                 Log(("%s: ohciHasUrbBeenCanceled: iTd=%d cTds=%d TdAddr=%#010RX32 canceled (tail)!\n",
-                     pUrb->pszDesc, iTd, pUrb->Hci.cTds, pUrb->Hci.paTds[iTd].TdAddr));
+                     pUrb->pszDesc, iTd, pUrb->pHci->cTds, pUrb->paTds[iTd].TdAddr));
                 STAM_COUNTER_INC(&pThis->StatCanceledGenUrbs);
                 return true;
             }
-            ohciReadTd(pThis, pUrb->Hci.paTds[iTd].TdAddr, &u.Td);
-            if (    u.au32[0] != pUrb->Hci.paTds[iTd].TdCopy[0]     /* hwinfo */
-                ||  u.au32[1] != pUrb->Hci.paTds[iTd].TdCopy[1]     /* cbp */
-                ||  u.au32[3] != pUrb->Hci.paTds[iTd].TdCopy[3]     /* be */
-                ||  (   u.au32[2] != pUrb->Hci.paTds[iTd].TdCopy[2] /* NextTD */
-                     && iTd + 1 < pUrb->Hci.cTds /* ignore the last one */)
+            ohciReadTd(pThis, pUrb->paTds[iTd].TdAddr, &u.Td);
+            if (    u.au32[0] != pUrb->paTds[iTd].TdCopy[0]     /* hwinfo */
+                ||  u.au32[1] != pUrb->paTds[iTd].TdCopy[1]     /* cbp */
+                ||  u.au32[3] != pUrb->paTds[iTd].TdCopy[3]     /* be */
+                ||  (   u.au32[2] != pUrb->paTds[iTd].TdCopy[2] /* NextTD */
+                     && iTd + 1 < pUrb->pHci->cTds /* ignore the last one */)
                )
             {
                 Log(("%s: ohciHasUrbBeenCanceled: iTd=%d cTds=%d TdAddr=%#010RX32 canceled!\n",
-                     pUrb->pszDesc, iTd, pUrb->Hci.cTds, pUrb->Hci.paTds[iTd].TdAddr));
+                     pUrb->pszDesc, iTd, pUrb->pHci->cTds, pUrb->paTds[iTd].TdAddr));
                 Log2(("   %.*Rhxs (cur)\n"
                       "!= %.*Rhxs (copy)\n",
-                      sizeof(u.Td), &u.Td, sizeof(u.Td), &pUrb->Hci.paTds[iTd].TdCopy[0]));
+                      sizeof(u.Td), &u.Td, sizeof(u.Td), &pUrb->paTds[iTd].TdCopy[0]));
                 STAM_COUNTER_INC(&pThis->StatCanceledGenUrbs);
                 return true;
             }
-            pUrb->Hci.paTds[iTd].TdCopy[2] = u.au32[2];
+            pUrb->paTds[iTd].TdCopy[2] = u.au32[2];
         }
-    }
-    return false;
-}
-
-
-/**
- * Calculate frame timer variables given a frame rate (1,000 Hz is the full speed).
- */
-static void ohciCalcTimerIntervals(POHCI pThis, uint32_t u32FrameRate)
-{
-    Assert(u32FrameRate <= OHCI_DEFAULT_TIMER_FREQ);
-
-    pThis->cTicksPerFrame = pThis->u64TimerHz / u32FrameRate;
-    if (!pThis->cTicksPerFrame)
-        pThis->cTicksPerFrame = 1;
-    pThis->cTicksPerUsbTick   = pThis->u64TimerHz >= VUSB_BUS_HZ ? pThis->u64TimerHz / VUSB_BUS_HZ : 1;
-    pThis->nsWait             = RT_NS_1SEC / u32FrameRate;
-    pThis->uFrameRate         = u32FrameRate;
-}
-
-
-/**
- * Calculates the new frame rate based on the idle detection and number of idle
- * cycles.
- *
- * @returns nothing.
- * @param   pThis    The OHCI device data.
- */
-static bool ohciFramerateCalcNew(POHCI pThis)
-{
-    uint32_t uNewFrameRate = pThis->uFrameRate;
-
-    /*
-     * Adjust the frame timer interval based on idle detection.
-     */
-    if (pThis->fIdle)
-    {
-        pThis->cIdleCycles++;
-        /* Set the new frame rate based on how long we've been idle. Tunable. */
-        switch (pThis->cIdleCycles)
-        {
-            case 4: uNewFrameRate = 500;    break;  /*  2ms interval */
-            case 16:uNewFrameRate = 125;    break;  /*  8ms interval */
-            case 24:uNewFrameRate = 50;     break;  /* 20ms interval */
-            default:    break;
-        }
-        /* Avoid overflow. */
-        if (pThis->cIdleCycles > 60000)
-            pThis->cIdleCycles = 20000;
-    }
-    else
-    {
-        if (pThis->cIdleCycles)
-        {
-            pThis->cIdleCycles = 0;
-            uNewFrameRate      = OHCI_DEFAULT_TIMER_FREQ;
-        }
-    }
-    if (uNewFrameRate != pThis->uFrameRate)
-    {
-        LogFlow(("Frame rate changed from %u to %u\n", pThis->uFrameRate, uNewFrameRate));
-        ohciCalcTimerIntervals(pThis, uNewFrameRate);
-        return true;
     }
     return false;
 }
@@ -2449,17 +2416,17 @@ static uint32_t ohciVUsbStatus2OhciStatus(VUSBSTATUS enmStatus)
  *
  * In general, all URBs should have status OK.
  */
-static void ohciRhXferCompleteIsochronousURB(POHCI pThis, PVUSBURB pUrb, POHCIED pEd, int cFmAge)
+static void ohciRhXferCompleteIsochronousURB(POHCI pThis, PVUSBURB pUrb /*, POHCIED pEd , int cFmAge*/)
 {
     /*
      * Copy the data back (if IN operation) and update the TDs.
      */
-    for (unsigned iTd = 0; iTd < pUrb->Hci.cTds; iTd++)
+    for (unsigned iTd = 0; iTd < pUrb->pHci->cTds; iTd++)
     {
-        POHCIITD pITd = (POHCIITD)&pUrb->Hci.paTds[iTd].TdCopy[0];
-        const uint32_t ITdAddr = pUrb->Hci.paTds[iTd].TdAddr;
+        POHCIITD pITd = (POHCIITD)&pUrb->paTds[iTd].TdCopy[0];
+        const uint32_t ITdAddr = pUrb->paTds[iTd].TdAddr;
         const unsigned cFrames = ((pITd->HwInfo & ITD_HWINFO_FC) >> ITD_HWINFO_FC_SHIFT) + 1;
-        unsigned       R = (pUrb->Hci.u32FrameNo & ITD_HWINFO_SF) - (pITd->HwInfo & ITD_HWINFO_SF);
+        unsigned       R = (pUrb->pHci->u32FrameNo & ITD_HWINFO_SF) - (pITd->HwInfo & ITD_HWINFO_SF);
         if (R >= 8)
             R = 0; /* submitted ahead of time. */
 
@@ -2567,20 +2534,20 @@ static void ohciRhXferCompleteIsochronousURB(POHCI pThis, PVUSBURB pUrb, POHCIED
         /*
          * Move on to the done list and write back the modified TD.
          */
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
         if (!pThis->done)
             pThis->u32FmDoneQueueTail = pThis->HcFmNumber;
-# ifdef VBOX_STRICT
+#  ifdef VBOX_STRICT
         ohci_in_done_queue_add(pThis, ITdAddr);
+#  endif
 # endif
-#endif
         pITd->NextTD = pThis->done;
         pThis->done = ITdAddr;
 
         Log(("%s: ohciRhXferCompleteIsochronousURB: ITdAddr=%#010x EdAddr=%#010x SF=%#x (%#x) CC=%#x FC=%d "
              "psw0=%x:%x psw1=%x:%x psw2=%x:%x psw3=%x:%x psw4=%x:%x psw5=%x:%x psw6=%x:%x psw7=%x:%x R=%d\n",
              pUrb->pszDesc, ITdAddr,
-             pUrb->Hci.EdAddr,
+             pUrb->pHci->EdAddr,
              pITd->HwInfo & ITD_HWINFO_SF, pThis->HcFmNumber,
              (pITd->HwInfo & ITD_HWINFO_CC) >> ITD_HWINFO_CC_SHIFT,
              (pITd->HwInfo & ITD_HWINFO_FC) >> ITD_HWINFO_FC_SHIFT,
@@ -2604,15 +2571,17 @@ static void ohciRhXferCompleteIsochronousURB(POHCI pThis, PVUSBURB pUrb, POHCIED
  */
 static void ohciRhXferCompleteGeneralURB(POHCI pThis, PVUSBURB pUrb, POHCIED pEd, int cFmAge)
 {
+    RT_NOREF(cFmAge);
+
     /*
      * Copy the data back (if IN operation) and update the TDs.
      */
     unsigned cbLeft = pUrb->cbData;
     uint8_t *pb     = &pUrb->abData[0];
-    for (unsigned iTd = 0; iTd < pUrb->Hci.cTds; iTd++)
+    for (unsigned iTd = 0; iTd < pUrb->pHci->cTds; iTd++)
     {
-        POHCITD pTd = (POHCITD)&pUrb->Hci.paTds[iTd].TdCopy[0];
-        const uint32_t TdAddr = pUrb->Hci.paTds[iTd].TdAddr;
+        POHCITD pTd = (POHCITD)&pUrb->paTds[iTd].TdCopy[0];
+        const uint32_t TdAddr = pUrb->paTds[iTd].TdAddr;
 
         /*
          * Setup a ohci transfer buffer and calc the new cbp value.
@@ -2668,12 +2637,12 @@ static void ohciRhXferCompleteGeneralURB(POHCI pThis, PVUSBURB pUrb, POHCIED pEd
                 &&  DoneInt < pThis->dqic)
                 pThis->dqic = DoneInt;
             Log(("%s: ohciRhXferCompleteGeneralURB: ED=%#010x TD=%#010x Age=%d enmStatus=%d cbTotal=%#x NewCbp=%#010RX32 dqic=%d\n",
-                 pUrb->pszDesc, pUrb->Hci.EdAddr, TdAddr, cFmAge, pUrb->enmStatus, Buf.cbTotal, NewCbp, pThis->dqic));
+                 pUrb->pszDesc, pUrb->pHci->EdAddr, TdAddr, cFmAge, pUrb->enmStatus, Buf.cbTotal, NewCbp, pThis->dqic));
         }
         else
         {
             Log(("%s: ohciRhXferCompleteGeneralURB: HALTED ED=%#010x TD=%#010x (age %d) pUrb->enmStatus=%d\n",
-                 pUrb->pszDesc, pUrb->Hci.EdAddr, TdAddr, cFmAge, pUrb->enmStatus));
+                 pUrb->pszDesc, pUrb->pHci->EdAddr, TdAddr, cFmAge, pUrb->enmStatus));
             pEd->HeadP |= ED_HEAD_HALTED;
             pThis->dqic = 0; /* "If the Transfer Descriptor is being retired with an error,
                              *  then the Done Queue Interrupt Counter is cleared as if the
@@ -2704,13 +2673,13 @@ static void ohciRhXferCompleteGeneralURB(POHCI pThis, PVUSBURB pUrb, POHCIED pEd
         /*
          * Move on to the done list and write back the modified TD.
          */
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
         if (!pThis->done)
             pThis->u32FmDoneQueueTail = pThis->HcFmNumber;
-# ifdef VBOX_STRICT
+#  ifdef VBOX_STRICT
         ohci_in_done_queue_add(pThis, TdAddr);
+#  endif
 # endif
-#endif
         pTd->NextTD = pThis->done;
         pThis->done = TdAddr;
 
@@ -2744,14 +2713,14 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
 {
     POHCI pThis = VUSBIROOTHUBPORT_2_OHCI(pInterface);
     LogFlow(("%s: ohciRhXferCompletion: EdAddr=%#010RX32 cTds=%d TdAddr0=%#010RX32\n",
-             pUrb->pszDesc, pUrb->Hci.EdAddr, pUrb->Hci.cTds, pUrb->Hci.paTds[0].TdAddr));
+             pUrb->pszDesc, pUrb->pHci->EdAddr, pUrb->pHci->cTds, pUrb->paTds[0].TdAddr));
 
     RTCritSectEnter(&pThis->CritSect);
     pThis->fIdle = false;   /* Mark as active */
 
     /* get the current end point descriptor. */
     OHCIED Ed;
-    ohciReadEd(pThis, pUrb->Hci.EdAddr, &Ed);
+    ohciReadEd(pThis, pUrb->pHci->EdAddr, &Ed);
 
     /*
      * Check that the URB hasn't been canceled and then try unlink the TDs.
@@ -2768,7 +2737,7 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
     {
         /* Leave the TD alone - the HCD doesn't want us talking to the device. */
         Log(("%s: ohciRhXferCompletion: CANCELED {ED=%#010x cTds=%d TD0=%#010x age %d}\n",
-             pUrb->pszDesc, pUrb->Hci.EdAddr, pUrb->Hci.cTds, pUrb->Hci.paTds[0].TdAddr, cFmAge));
+             pUrb->pszDesc, pUrb->pHci->EdAddr, pUrb->pHci->cTds, pUrb->paTds[0].TdAddr, cFmAge));
         STAM_COUNTER_INC(&pThis->StatDroppedUrbs);
         RTCritSectLeave(&pThis->CritSect);
         return;
@@ -2782,10 +2751,10 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
        )
     {
         Log(("%s: ohciRhXferCompletion: DROPPED {ED=%#010x cTds=%d TD0=%#010x age %d} because:%s%s%s%s%s!!!\n",
-             pUrb->pszDesc, pUrb->Hci.EdAddr, pUrb->Hci.cTds, pUrb->Hci.paTds[0].TdAddr, cFmAge,
+             pUrb->pszDesc, pUrb->pHci->EdAddr, pUrb->pHci->cTds, pUrb->paTds[0].TdAddr, cFmAge,
              (Ed.HeadP & ED_HEAD_HALTED)                            ? " ep halted" : "",
              (Ed.hwinfo & ED_HWINFO_SKIP)                           ? " ep skip" : "",
-             (Ed.HeadP & ED_PTR_MASK) != pUrb->Hci.paTds[0].TdAddr  ? " ep head-changed" : "",
+             (Ed.HeadP & ED_PTR_MASK) != pUrb->paTds[0].TdAddr      ? " ep head-changed" : "",
              cFmAge < 0                                             ? " td not-in-flight" : "",
              fHasBeenCanceled                                       ? " td canceled" : ""));
         NOREF(fHasBeenCanceled);
@@ -2799,16 +2768,12 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
      * When appropriate also copy data back to the guest memory.
      */
     if (pUrb->enmType == VUSBXFERTYPE_ISOC)
-        ohciRhXferCompleteIsochronousURB(pThis, pUrb, &Ed, cFmAge);
+        ohciRhXferCompleteIsochronousURB(pThis, pUrb /*, &Ed , cFmAge*/);
     else
         ohciRhXferCompleteGeneralURB(pThis, pUrb, &Ed, cFmAge);
 
     /* finally write back the endpoint descriptor. */
-    ohciWriteEd(pThis, pUrb->Hci.EdAddr, &Ed);
-
-    /* Calculate new frame rate and wakeup the framer thread if the rate was chnaged. */
-    if (ohciFramerateCalcNew(pThis))
-        RTSemEventMultiSignal(pThis->hSemEventFrame);
+    ohciWriteEd(pThis, pUrb->pHci->EdAddr, &Ed);
 
     RTCritSectLeave(&pThis->CritSect);
 }
@@ -2851,7 +2816,7 @@ static DECLCALLBACK(bool) ohciRhXferError(PVUSBIROOTHUBPORT pInterface, PVUSBURB
      * Check if the TDs still are valid.
      * This will make sure the TdCopy is up to date.
      */
-    const uint32_t  TdAddr = pUrb->Hci.paTds[0].TdAddr;
+    const uint32_t  TdAddr = pUrb->paTds[0].TdAddr;
 /** @todo IMPORTANT! we must check if the ED is still valid at this point!!! */
     if (ohciHasUrbBeenCanceled(pThis, pUrb, NULL))
     {
@@ -2863,7 +2828,7 @@ static DECLCALLBACK(bool) ohciRhXferError(PVUSBIROOTHUBPORT pInterface, PVUSBURB
         /*
          * Get and update the error counter.
          */
-        POHCITD     pTd = (POHCITD)&pUrb->Hci.paTds[0].TdCopy[0];
+        POHCITD     pTd = (POHCITD)&pUrb->paTds[0].TdCopy[0];
         unsigned    cErrs = (pTd->hwinfo & TD_HWINFO_ERRORS) >> TD_ERRORS_SHIFT;
         pTd->hwinfo &= ~TD_HWINFO_ERRORS;
         cErrs++;
@@ -2887,8 +2852,11 @@ static DECLCALLBACK(bool) ohciRhXferError(PVUSBIROOTHUBPORT pInterface, PVUSBURB
 /**
  * Service a general transport descriptor.
  */
-static bool ohciServiceTd(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pEd, uint32_t EdAddr, uint32_t TdAddr, uint32_t *pNextTdAddr, const char *pszListName)
+static bool ohciServiceTd(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pEd, uint32_t EdAddr, uint32_t TdAddr,
+                          uint32_t *pNextTdAddr, const char *pszListName)
 {
+    RT_NOREF(pszListName);
+
     /*
      * Read the TD and setup the buffer data.
      */
@@ -2915,7 +2883,7 @@ static bool ohciServiceTd(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pEd, uint3
                 case 0:             enmDir = VUSBDIRECTION_SETUP; break;
                 default:
                     Log(("ohciServiceTd: Invalid direction!!!! Td.hwinfo=%#x Ed.hwdinfo=%#x\n", Td.hwinfo, pEd->hwinfo));
-                    /* TODO: Do the correct thing here */
+                    /** @todo Do the correct thing here */
                     return false;
             }
             break;
@@ -2926,28 +2894,21 @@ static bool ohciServiceTd(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pEd, uint3
     /*
      * Allocate and initialize a new URB.
      */
-    PVUSBURB pUrb = VUSBIRhNewUrb(pThis->RootHub.pIRhConn, pEd->hwinfo & ED_HWINFO_FUNCTION, Buf.cbTotal, 1);
+    PVUSBURB pUrb = VUSBIRhNewUrb(pThis->RootHub.pIRhConn, pEd->hwinfo & ED_HWINFO_FUNCTION, NULL,
+                                  enmType, enmDir, Buf.cbTotal, 1, NULL);
     if (!pUrb)
         return false;                   /* retry later... */
-    Assert(pUrb->Hci.cTds == 1);
 
-    pUrb->enmType = enmType;
     pUrb->EndPt = (pEd->hwinfo & ED_HWINFO_ENDPOINT) >> ED_HWINFO_ENDPOINT_SHIFT;
-    pUrb->enmDir = enmDir;
     pUrb->fShortNotOk = !(Td.hwinfo & TD_HWINFO_ROUNDING);
     pUrb->enmStatus = VUSBSTATUS_OK;
-    pUrb->Hci.EdAddr = EdAddr;
-    pUrb->Hci.fUnlinked = false;
-    pUrb->Hci.paTds[0].TdAddr = TdAddr;
-    pUrb->Hci.u32FrameNo = pThis->HcFmNumber;
-    AssertCompile(sizeof(pUrb->Hci.paTds[0].TdCopy) >= sizeof(Td));
-    memcpy(pUrb->Hci.paTds[0].TdCopy, &Td, sizeof(Td));
-#ifdef LOG_ENABLED
-    static unsigned s_iSerial = 0;
-    s_iSerial = (s_iSerial + 1) % 10000;
-    RTStrAPrintf(&pUrb->pszDesc, "URB %p %10s/s%c%04d", pUrb, pszListName,
-                 enmDir == VUSBDIRECTION_IN ? '<' : enmDir == VUSBDIRECTION_OUT ? '>' : '-', s_iSerial);
-#endif
+    pUrb->pHci->EdAddr = EdAddr;
+    pUrb->pHci->fUnlinked = false;
+    pUrb->pHci->cTds = 1;
+    pUrb->paTds[0].TdAddr = TdAddr;
+    pUrb->pHci->u32FrameNo = pThis->HcFmNumber;
+    AssertCompile(sizeof(pUrb->paTds[0].TdCopy) >= sizeof(Td));
+    memcpy(pUrb->paTds[0].TdCopy, &Td, sizeof(Td));
 
     /* copy data if out bound transfer. */
     pUrb->cbData = Buf.cbTotal;
@@ -2992,9 +2953,9 @@ static bool ohciServiceHeadTd(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pEd, u
     uint32_t TdAddr = pEd->HeadP & ED_PTR_MASK;
     if (ohciIsTdInFlight(pThis, TdAddr))
         return false;
-#if defined(VBOX_STRICT) || defined(LOG_ENABLED)
+# if defined(VBOX_STRICT) || defined(LOG_ENABLED)
     ohci_in_done_queue_check(pThis, TdAddr);
-#endif
+# endif
     return ohciServiceTd(pThis, enmType, pEd, EdAddr, TdAddr, &TdAddr, pszListName);
 }
 
@@ -3005,6 +2966,8 @@ static bool ohciServiceHeadTd(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pEd, u
 static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pEd, uint32_t EdAddr,
                                   uint32_t TdAddr, uint32_t *pNextTdAddr, const char *pszListName)
 {
+    RT_NOREF(pszListName);
+
     /*
      * Read the TDs involved in this URB.
      */
@@ -3020,16 +2983,16 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
         struct OHCITDENTRY *pNext;
     }   Head;
 
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
     ohciPhysReadCacheClear(pThis->pCacheTD);
-#endif
+# endif
 
     /* read the head */
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
     ohciReadTdCached(pThis, TdAddr, &Head.Td);
-#else
+# else
     ohciReadTd(pThis, TdAddr, &Head.Td);
-#endif
+# endif
     ohciBufInit(&Head.Buf, Head.Td.cbp, Head.Td.be);
     Head.TdAddr = TdAddr;
     Head.pNext = NULL;
@@ -3047,11 +3010,11 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
 
         pCur->pNext = NULL;
         pCur->TdAddr = pTail->Td.NextTD & ED_PTR_MASK;
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
         ohciReadTdCached(pThis, pCur->TdAddr, &pCur->Td);
-#else
+# else
         ohciReadTd(pThis, pCur->TdAddr, &pCur->Td);
-#endif
+# endif
         ohciBufInit(&pCur->Buf, pCur->Td.cbp, pCur->Td.be);
 
         /* Don't combine if the direction doesn't match up. There can't actually be
@@ -3086,7 +3049,7 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
                 case TD_HWINFO_IN:  enmDir = VUSBDIRECTION_IN; break;
                 default:
                     Log(("ohciServiceTdMultiple: Invalid direction!!!! Head.Td.hwinfo=%#x Ed.hwdinfo=%#x\n", Head.Td.hwinfo, pEd->hwinfo));
-                    /* TODO: Do the correct thing here */
+                    /** @todo Do the correct thing here */
                     return false;
             }
             break;
@@ -3097,11 +3060,11 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
     /*
      * Allocate and initialize a new URB.
      */
-    PVUSBURB pUrb = VUSBIRhNewUrb(pThis->RootHub.pIRhConn, pEd->hwinfo & ED_HWINFO_FUNCTION, cbTotal, cTds);
+    PVUSBURB pUrb = VUSBIRhNewUrb(pThis->RootHub.pIRhConn, pEd->hwinfo & ED_HWINFO_FUNCTION, NULL,
+                                  enmType, enmDir, cbTotal, cTds, "ohciServiceTdMultiple");
     if (!pUrb)
         /* retry later... */
         return false;
-    Assert(pUrb->Hci.cTds == cTds);
     Assert(pUrb->cbData == cbTotal);
 
     pUrb->enmType = enmType;
@@ -3109,15 +3072,10 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
     pUrb->enmDir = enmDir;
     pUrb->fShortNotOk = !(pTail->Td.hwinfo & TD_HWINFO_ROUNDING);
     pUrb->enmStatus = VUSBSTATUS_OK;
-    pUrb->Hci.EdAddr = EdAddr;
-    pUrb->Hci.fUnlinked = false;
-    pUrb->Hci.u32FrameNo = pThis->HcFmNumber;
-#ifdef LOG_ENABLED
-    static unsigned s_iSerial = 0;
-    s_iSerial = (s_iSerial + 1) % 10000;
-    RTStrAPrintf(&pUrb->pszDesc, "URB %p %10s/m%c%04d", pUrb, pszListName,
-                 enmDir == VUSBDIRECTION_IN ? '<' : enmDir == VUSBDIRECTION_OUT ? '>' : '-', s_iSerial);
-#endif
+    pUrb->pHci->cTds = cTds;
+    pUrb->pHci->EdAddr = EdAddr;
+    pUrb->pHci->fUnlinked = false;
+    pUrb->pHci->u32FrameNo = pThis->HcFmNumber;
 
     /* Copy data and TD information. */
     unsigned iTd = 0;
@@ -3136,9 +3094,9 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
         pb += pCur->Buf.cbTotal;
 
         /* TD info */
-        pUrb->Hci.paTds[iTd].TdAddr = pCur->TdAddr;
-        AssertCompile(sizeof(pUrb->Hci.paTds[iTd].TdCopy) >= sizeof(pCur->Td));
-        memcpy(pUrb->Hci.paTds[iTd].TdCopy, &pCur->Td, sizeof(pCur->Td));
+        pUrb->paTds[iTd].TdAddr = pCur->TdAddr;
+        AssertCompile(sizeof(pUrb->paTds[iTd].TdCopy) >= sizeof(pCur->Td));
+        memcpy(pUrb->paTds[iTd].TdCopy, &pCur->Td, sizeof(pCur->Td));
     }
 
     /*
@@ -3173,9 +3131,9 @@ static bool ohciServiceHeadTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIE
     uint32_t TdAddr = pEd->HeadP & ED_PTR_MASK;
     if (ohciIsTdInFlight(pThis, TdAddr))
         return false;
-#if defined(VBOX_STRICT) || defined(LOG_ENABLED)
+# if defined(VBOX_STRICT) || defined(LOG_ENABLED)
     ohci_in_done_queue_check(pThis, TdAddr);
-#endif
+# endif
     return ohciServiceTdMultiple(pThis, enmType, pEd, EdAddr, TdAddr, &TdAddr, pszListName);
 }
 
@@ -3204,7 +3162,7 @@ static bool ohciServiceIsochronousTdUnlink(POHCI pThis, POHCIITD pITd, uint32_t 
             return false;
 
         /* Update the copy and write it back. */
-        POHCIITD pITdPrev = ((POHCIITD)pUrbPrev->Hci.paTds[0].TdCopy);
+        POHCIITD pITdPrev = ((POHCIITD)pUrbPrev->paTds[0].TdCopy);
         pITdPrev->NextTD = (pITdPrev->NextTD & ~ED_PTR_MASK) | ITdAddrNext;
         ohciWriteITd(pThis, ITdAddrPrev, pITdPrev, "ohciServiceIsochronousEndpoint");
     }
@@ -3221,11 +3179,11 @@ static bool ohciServiceIsochronousTdUnlink(POHCI pThis, POHCIITD pITd, uint32_t 
      */
     if (pUrb)
     {
-        pUrb->Hci.fUnlinked = true;
+        pUrb->pHci->fUnlinked = true;
         if (ohciHasUrbBeenCanceled(pThis, pUrb, pEd)) /* ensures the copy is correct (paranoia). */
             return false;
 
-        POHCIITD pITdCopy = ((POHCIITD)pUrb->Hci.paTds[0].TdCopy);
+        POHCIITD pITdCopy = ((POHCIITD)pUrb->paTds[0].TdCopy);
         pITd->NextTD = pITdCopy->NextTD &= ~ED_PTR_MASK;
     }
     else
@@ -3310,30 +3268,25 @@ static bool ohciServiceIsochronousTd(POHCI pThis, POHCIITD pITd, uint32_t ITdAdd
     /*
      * Allocate and initialize a new URB.
      */
-    PVUSBURB pUrb = VUSBIRhNewUrb(pThis->RootHub.pIRhConn, pEd->hwinfo & ED_HWINFO_FUNCTION, cbTotal, 1);
+    PVUSBURB pUrb = VUSBIRhNewUrb(pThis->RootHub.pIRhConn, pEd->hwinfo & ED_HWINFO_FUNCTION, NULL,
+                                  VUSBXFERTYPE_ISOC, enmDir, cbTotal, 1, NULL);
     if (!pUrb)
         /* retry later... */
         return false;
 
-    pUrb->enmType = VUSBXFERTYPE_ISOC;
-    pUrb->EndPt = (pEd->hwinfo & ED_HWINFO_ENDPOINT) >> ED_HWINFO_ENDPOINT_SHIFT;
-    pUrb->enmDir = enmDir;
-    pUrb->fShortNotOk = false;
-    pUrb->enmStatus = VUSBSTATUS_OK;
-    pUrb->Hci.EdAddr = EdAddr;
-    pUrb->Hci.fUnlinked = false;
-    pUrb->Hci.u32FrameNo = pThis->HcFmNumber;
-    pUrb->Hci.paTds[0].TdAddr = ITdAddr;
-    AssertCompile(sizeof(pUrb->Hci.paTds[0].TdCopy) >= sizeof(*pITd));
-    memcpy(pUrb->Hci.paTds[0].TdCopy, pITd, sizeof(*pITd));
-#if 0 /* color the data */
+    pUrb->EndPt           = (pEd->hwinfo & ED_HWINFO_ENDPOINT) >> ED_HWINFO_ENDPOINT_SHIFT;
+    pUrb->fShortNotOk     = false;
+    pUrb->enmStatus       = VUSBSTATUS_OK;
+    pUrb->pHci->EdAddr    = EdAddr;
+    pUrb->pHci->cTds      = 1;
+    pUrb->pHci->fUnlinked = false;
+    pUrb->pHci->u32FrameNo = pThis->HcFmNumber;
+    pUrb->paTds[0].TdAddr = ITdAddr;
+    AssertCompile(sizeof(pUrb->paTds[0].TdCopy) >= sizeof(*pITd));
+    memcpy(pUrb->paTds[0].TdCopy, pITd, sizeof(*pITd));
+# if 0 /* color the data */
     memset(pUrb->abData, 0xfe, cbTotal);
-#endif
-#ifdef LOG_ENABLED
-    static unsigned s_iSerial = 0;
-    s_iSerial = (s_iSerial + 1) % 10000;
-    RTStrAPrintf(&pUrb->pszDesc, "URB %p isoc%c%04d", pUrb, enmDir == VUSBDIRECTION_IN ? '<' : '>', s_iSerial);
-#endif
+# endif
 
     /* copy the data */
     if (    cbTotal
@@ -3456,7 +3409,7 @@ static void ohciServiceIsochronousEndpoint(POHCI pThis, POHCIED pEd, uint32_t Ed
         }
         else
         {
-#if 1
+# if 1
             /*
              * Ok, the launch window for this TD has passed.
              * If it's not in flight it should be retired with a DataOverrun status (TD).
@@ -3479,7 +3432,7 @@ static void ohciServiceIsochronousEndpoint(POHCI pThis, POHCIED pEd, uint32_t Ed
                 Log(("ohciServiceIsochronousEndpoint: Failed unlinking old ITD.\n"));
                 break;
             }
-#else /* BAD IDEA: */
+# else /* BAD IDEA: */
             /*
              * Ok, the launch window for this TD has passed.
              * If it's not in flight it should be retired with a DataOverrun status (TD).
@@ -3496,7 +3449,7 @@ static void ohciServiceIsochronousEndpoint(POHCI pThis, POHCIED pEd, uint32_t Ed
                 Log(("ohciServiceIsochronousEndpoint: Failed unlinking old ITD.\n"));
                 break;
             }
-#endif
+# endif
         }
 
         /* advance to the next ITD */
@@ -3541,12 +3494,12 @@ DECLINLINE(bool) ohciIsEdPresent(PCOHCIED pEd)
  */
 static void ohciServiceBulkList(POHCI pThis)
 {
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (g_fLogBulkEPs)
         ohciDumpEdList(pThis, pThis->bulk_head, "Bulk before", true);
     if (pThis->bulk_cur)
         Log(("ohciServiceBulkList: bulk_cur=%#010x before listprocessing!!! HCD have positioned us!!!\n", pThis->bulk_cur));
-#endif
+# endif
 
     /*
      * ", HC will start processing the Bulk list and will set BF [BulkListFilled] to 0"
@@ -3561,18 +3514,18 @@ static void ohciServiceBulkList(POHCI pThis)
     while (EdAddr)
     {
         OHCIED Ed;
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
         ohciReadEdCached(pThis, EdAddr, &Ed);
-#else
+# else
         ohciReadEd(pThis, EdAddr, &Ed);
-#endif
+# endif
         Assert(!(Ed.hwinfo & ED_HWINFO_ISO)); /* the guest is screwing us */
         if (ohciIsEdReady(&Ed))
         {
             pThis->status |= OHCI_STATUS_BLF;
             pThis->fBulkNeedsCleaning = true;
 
-#if 1
+# if 1
             /*
 
              * After we figured out that all the TDs submitted for dealing with MSD
@@ -3582,7 +3535,7 @@ static void ohciServiceBulkList(POHCI pThis)
              * on a bulk endpoint.
              */
             ohciServiceHeadTdMultiple(pThis, VUSBXFERTYPE_BULK, &Ed, EdAddr, "Bulk");
-#else
+# else
             /*
              * This alternative code was used before we started reassembling URBs from
              * multiple TDs. We keep it handy for debugging.
@@ -3607,7 +3560,7 @@ static void ohciServiceBulkList(POHCI pThis)
                     ohciReadEd(pThis, EdAddr, &Ed); /* It might have been updated on URB completion. */
                 } while (ohciIsEdReady(&Ed));
             }
-#endif
+# endif
         }
         else
         {
@@ -3629,10 +3582,10 @@ static void ohciServiceBulkList(POHCI pThis)
 
     }
 
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (g_fLogBulkEPs)
         ohciDumpEdList(pThis, pThis->bulk_head, "Bulk after ", true);
-#endif
+# endif
 }
 
 /**
@@ -3645,12 +3598,12 @@ static void ohciServiceBulkList(POHCI pThis)
  */
 static void ohciUndoBulkList(POHCI pThis)
 {
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (g_fLogBulkEPs)
         ohciDumpEdList(pThis, pThis->bulk_head, "Bulk before", true);
     if (pThis->bulk_cur)
         Log(("ohciUndoBulkList: bulk_cur=%#010x before list processing!!! HCD has positioned us!!!\n", pThis->bulk_cur));
-#endif
+# endif
 
     /* This flag follows OHCI_STATUS_BLF, but BLF doesn't change when list processing is disabled. */
     pThis->fBulkNeedsCleaning = false;
@@ -3659,11 +3612,11 @@ static void ohciUndoBulkList(POHCI pThis)
     while (EdAddr)
     {
         OHCIED Ed;
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
         ohciReadEdCached(pThis, EdAddr, &Ed);
-#else
+# else
         ohciReadEd(pThis, EdAddr, &Ed);
-#endif
+# endif
         Assert(!(Ed.hwinfo & ED_HWINFO_ISO)); /* the guest is screwing us */
         if (ohciIsEdPresent(&Ed))
         {
@@ -3690,12 +3643,12 @@ static void ohciUndoBulkList(POHCI pThis)
  */
 static void ohciServiceCtrlList(POHCI pThis)
 {
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (g_fLogControlEPs)
         ohciDumpEdList(pThis, pThis->ctrl_head, "Ctrl before", true);
     if (pThis->ctrl_cur)
         Log(("ohciServiceCtrlList: ctrl_cur=%010x before list processing!!! HCD have positioned us!!!\n", pThis->ctrl_cur));
-#endif
+# endif
 
     /*
      * ", HC will start processing the list and will set ControlListFilled to 0"
@@ -3713,7 +3666,7 @@ static void ohciServiceCtrlList(POHCI pThis)
         Assert(!(Ed.hwinfo & ED_HWINFO_ISO)); /* the guest is screwing us */
         if (ohciIsEdReady(&Ed))
         {
-#if 1
+# if 1
             /*
              * Control TDs depends on order and stage. Only one can be in-flight
              * at any given time. OTOH, some stages are completed immediately,
@@ -3730,21 +3683,21 @@ static void ohciServiceCtrlList(POHCI pThis)
                 }
                 ohciReadEd(pThis, EdAddr, &Ed); /* It might have been updated on URB completion. */
             } while (ohciIsEdReady(&Ed));
-#else
+# else
             /* Simplistic, for debugging. */
             ohciServiceHeadTd(pThis, VUSBXFERTYPE_CTRL, &Ed, EdAddr, "Control");
             pThis->status |= OHCI_STATUS_CLF;
-#endif
+# endif
         }
 
         /* next end point */
         EdAddr = Ed.NextED & ED_PTR_MASK;
     }
 
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (g_fLogControlEPs)
         ohciDumpEdList(pThis, pThis->ctrl_head, "Ctrl after ", true);
-#endif
+# endif
 }
 
 
@@ -3764,7 +3717,7 @@ static void ohciServicePeriodicList(POHCI pThis)
     uint32_t        EdAddr;
     ohciGetDWords(pThis, pThis->hcca + iList * sizeof(EdAddr), &EdAddr, 1);
 
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     const uint32_t EdAddrHead = EdAddr;
     if (g_fLogInterruptEPs)
     {
@@ -3772,7 +3725,7 @@ static void ohciServicePeriodicList(POHCI pThis)
         RTStrPrintf(sz, sizeof(sz), "Int%02x before", iList);
         ohciDumpEdList(pThis, EdAddrHead, sz, true);
     }
-#endif
+# endif
 
     /*
      * Iterate the endpoint list.
@@ -3780,11 +3733,11 @@ static void ohciServicePeriodicList(POHCI pThis)
     while (EdAddr)
     {
         OHCIED Ed;
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
         ohciReadEdCached(pThis, EdAddr, &Ed);
-#else
+# else
         ohciReadEd(pThis, EdAddr, &Ed);
-#endif
+# endif
 
         if (ohciIsEdReady(&Ed))
         {
@@ -3828,14 +3781,14 @@ static void ohciServicePeriodicList(POHCI pThis)
         EdAddr = Ed.NextED & ED_PTR_MASK;
     }
 
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (g_fLogInterruptEPs)
     {
         char sz[48];
         RTStrPrintf(sz, sizeof(sz), "Int%02x after ", iList);
         ohciDumpEdList(pThis, EdAddrHead, sz, true);
     }
-#endif
+# endif
 }
 
 
@@ -3868,13 +3821,13 @@ static void ohciUpdateHCCA(POHCI pThis)
 
         Log(("ohci: Writeback Done (%#010x) on frame %#x (age %#x)\n", hcca.done,
              pThis->HcFmNumber, pThis->HcFmNumber - pThis->u32FmDoneQueueTail));
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
         ohciDumpTdQueue(pThis, hcca.done & ED_PTR_MASK, "DoneQueue");
-#endif
+# endif
         Assert(RT_OFFSETOF(struct ohci_hcca, done) == 4);
-#if defined(VBOX_STRICT) || defined(LOG_ENABLED)
+# if defined(VBOX_STRICT) || defined(LOG_ENABLED)
         ohci_in_done_queue_zap(pThis);
-#endif
+# endif
         fWriteDoneHeadInterrupt = true;
     }
 
@@ -3916,11 +3869,11 @@ static void ohciCancelOrphanedURBs(POHCI pThis)
     }
     Assert(cLeft == 0);
 
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
     /* Get hcca data to minimize calls to ohciGetDWords/PDMDevHlpPhysRead. */
     uint32_t au32HCCA[OHCI_HCCA_NUM_INTR];
     ohciGetDWords(pThis, pThis->hcca, au32HCCA, OHCI_HCCA_NUM_INTR);
-#endif
+# endif
 
     /* Go over all bulk/control/interrupt endpoint lists; any URB found in these lists
      * is marked as active again.
@@ -3936,38 +3889,38 @@ static void ohciCancelOrphanedURBs(POHCI pThis)
             EdAddr = pThis->ctrl_head;
             break;
         default:
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
             EdAddr = au32HCCA[i];
-#else
+# else
             ohciGetDWords(pThis, pThis->hcca + i * sizeof(EdAddr), &EdAddr, 1);
-#endif
+# endif
             break;
         }
         while (EdAddr)
         {
             OHCIED Ed;
             OHCITD Td;
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
             ohciReadEdCached(pThis, EdAddr, &Ed);
-#else
+# else
             ohciReadEd(pThis, EdAddr, &Ed);
-#endif
+# endif
             uint32_t TdAddr = Ed.HeadP & ED_PTR_MASK;
             uint32_t TailP  = Ed.TailP & ED_PTR_MASK;
             unsigned k = 0;
             if (  !(Ed.hwinfo & ED_HWINFO_SKIP)
                 && (TdAddr != TailP))
             {
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
                 ohciPhysReadCacheClear(pThis->pCacheTD);
-#endif
+# endif
                 do
                 {
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
                     ohciReadTdCached(pThis, TdAddr, &Td);
-#else
+# else
                     ohciReadTd(pThis, TdAddr, &Td);
-#endif
+# endif
                     j = ohci_in_flight_find(pThis, TdAddr);
                     if (j > -1)
                         pThis->aInFlight[j].fInactive = false;
@@ -4013,9 +3966,9 @@ static void ohciCancelOrphanedURBs(POHCI pThis)
  */
 static void ohciStartOfFrame(POHCI pThis)
 {
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     const uint32_t status_old = pThis->status;
-#endif
+# endif
 
     /*
      * Update HcFmRemaining.FRT and update start of frame time.
@@ -4030,14 +3983,14 @@ static void ohciStartOfFrame(POHCI pThis)
     bool fValidHCCA = !(    pThis->hcca >= OHCI_HCCA_MASK
                         ||  pThis->hcca < ~OHCI_HCCA_MASK);
 
-#if 1
+# if 1
     /*
      * Update the HCCA.
      * Should be done after SOF but before HC read first ED in this frame.
      */
     if (fValidHCCA)
         ohciUpdateHCCA(pThis);
-#endif
+# endif
 
     /* "After writing to HCCA, HC will set SF in HcInterruptStatus" - guest isn't executing, so ignore the order! */
     ohciR3SetInterrupt(pThis, OHCI_INTR_START_OF_FRAME);
@@ -4079,7 +4032,7 @@ static void ohciStartOfFrame(POHCI pThis)
         &&    pThis->fBulkNeedsCleaning)
         ohciUndoBulkList(pThis);    /* If list disabled but not empty, abort endpoints. */
 
-#if 0
+# if 0
     /*
      * Update the HCCA after processing the lists and everything. A bit experimental.
      *
@@ -4094,9 +4047,9 @@ static void ohciStartOfFrame(POHCI pThis)
      * as it was submitted.
      */
     ohciUpdateHCCA(pThis);
-#endif
+# endif
 
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     if (pThis->status ^ status_old)
     {
         uint32_t val = pThis->status;
@@ -4109,12 +4062,7 @@ static void ohciStartOfFrame(POHCI pThis)
               chg & RT_BIT(3) ? "*" : "", (val >> 3) & 1,
               chg & (3<<16)? "*" : "", (val >> 16) & 3));
     }
-#endif
-
-    /*
-     * Adjust the frame timer interval based on idle detection.
-     */
-    ohciFramerateCalcNew(pThis);
+# endif
 }
 
 /**
@@ -4127,137 +4075,61 @@ static void bump_frame_number(POHCI pThis)
         pThis->fno = 1;
 }
 
-static DECLCALLBACK(int) ohciR3ThreadFrame(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
+/**
+ * Callback for periodic frame processing.
+ */
+static DECLCALLBACK(bool) ohciR3StartFrame(PVUSBIROOTHUBPORT pInterface, uint32_t u32FrameNo)
 {
-    POHCI pThis = (POHCI)pThread->pvUser;
-    uint64_t tsBeginServicing = 0;
-    uint64_t cFramesProcessed = 0;
+    RT_NOREF(u32FrameNo);
+    POHCI pThis = VUSBIROOTHUBPORT_2_OHCI(pInterface);
 
-    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
-        return VINF_SUCCESS;
+    RTCritSectEnter(&pThis->CritSect);
 
-    tsBeginServicing = RTTimeNanoTS();
-    cFramesProcessed = 0;
+    /* Reset idle detection flag */
+    pThis->fIdle = true;
 
-    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
-    {
-        while (   !ASMAtomicReadBool(&pThis->fBusStarted)
-               && pThread->enmState == PDMTHREADSTATE_RUNNING)
-        {
-            /* Signal the waiter that we are stopped now. */
-            int rc = RTSemEventMultiSignal(pThis->hSemEventFrameStopped);
-            AssertRC(rc);
-            rc = RTSemEventMultiReset(pThis->hSemEventFrame);
-            AssertRC(rc);
+# ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+    physReadStatsReset(&g_PhysReadState);
+# endif
 
-            /*
-             * We have to check that the Bus was not started and the thread state
-             * did not change or otherwise we risk hanging here indefinitely
-             * if the signaller set the event semaphore before we reset it.
-             */
-            if (ASMAtomicReadBool(&pThis->fBusStarted) || pThread->enmState != PDMTHREADSTATE_RUNNING)
-                break;
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+    ohciPhysReadCacheClear(pThis->pCacheED);
+    ohciPhysReadCacheClear(pThis->pCacheTD);
+# endif
 
-            rc = RTSemEventMultiWait(pThis->hSemEventFrame, RT_INDEFINITE_WAIT);
-            AssertLogRelMsgReturn(RT_SUCCESS(rc) || rc == VERR_TIMEOUT, ("%Rrc\n", rc), rc);
-            tsBeginServicing = RTTimeNanoTS();
-            cFramesProcessed = 0;
-        }
+    /* Frame boundary, so do EOF stuff here. */
+    bump_frame_number(pThis);
+    if ( (pThis->dqic != 0x7) && (pThis->dqic != 0))
+        pThis->dqic--;
 
-        if (RT_UNLIKELY(pThread->enmState != PDMTHREADSTATE_RUNNING))
-            break;
+    /* Clean up any URBs that have been removed. */
+    ohciCancelOrphanedURBs(pThis);
 
-        RTCritSectEnter(&pThis->CritSect);
+    /* Start the next frame. */
+    ohciStartOfFrame(pThis);
 
-        /* Reset idle detection flag */
-        pThis->fIdle = true;
+# ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+    physReadStatsPrint(&g_PhysReadState);
+# endif
 
-#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
-        physReadStatsReset(&physReadStats);
-#endif
+    RTCritSectLeave(&pThis->CritSect);
 
-        /*
-         * Process new frames until we reached the required amount of
-         * frames for this service period. We might need to catch up
-         * here and process multiple frames at once due to scheduling
-         * preempting us. This is required because isochronous transfers
-         * have a tight timing requirement.
-         */
-        uint64_t tsNow = RTTimeNanoTS();
-        uint64_t nsWait = 0;
-        while (tsBeginServicing + (cFramesProcessed * RT_NS_1MS) < tsNow)
-        {
-            uint64_t tsNanoStart = RTTimeNanoTS();
-            LogFlowFunc(("Starting new frame at ts %llu\n", tsNanoStart));
-
-#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
-            /* The cache must be invalidated at the start of each frame. */
-            ohciPhysReadCacheClear(pThis->pCacheED);
-            ohciPhysReadCacheClear(pThis->pCacheTD);
-#endif
-
-            /* Frame boundary, so do EOF stuff here. */
-            bump_frame_number(pThis);
-            if ( (pThis->dqic != 0x7) && (pThis->dqic != 0))
-                pThis->dqic--;
-
-            /* Clean up any URBs that have been removed. */
-            ohciCancelOrphanedURBs(pThis);
-
-            /* Start the next frame. */
-            ohciStartOfFrame(pThis);
-            cFramesProcessed++;
-
-            tsNow = RTTimeNanoTS();
-            uint64_t tsFrameNext = tsNanoStart + pThis->nsWait;
-
-            if (tsFrameNext > tsNow)
-            {
-                nsWait = tsFrameNext - tsNow;
-                LogFlowFunc(("Current frame took %llu nano seconds to finish, we can wait %llu ns for the next frame\n", tsNow - tsNanoStart, nsWait));
-                break;
-            }
-            else if (tsBeginServicing + (cFramesProcessed + 100) * RT_NS_1MS < tsNow)
-            {
-                /* If we lag to far behind stop trying to catch up. */
-                LogRelMax(10, ("OHCI#%u: Lagging too far behind, not trying to catch up anymore. Expect glitches with USB devices\n",
-                               pThis->pDevInsR3->iInstance));
-                tsBeginServicing = tsNow;
-                cFramesProcessed = 0;
-            }
-        }
-
-#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
-        physReadStatsPrint(&physReadStats);
-#endif
-
-        RTCritSectLeave(&pThis->CritSect);
-
-        /* Wait for the next round. */
-        if (nsWait >= 500 * RT_NS_1US)
-        {
-            LogFlowFunc(("Going to sleep for at least %llu ns\n", nsWait));
-            int rc = RTSemEventMultiWaitEx(pThis->hSemEventFrame, RTSEMWAIT_FLAGS_RELATIVE | RTSEMWAIT_FLAGS_NANOSECS | RTSEMWAIT_FLAGS_UNINTERRUPTIBLE,
-                                           nsWait);
-            AssertLogRelMsg(RT_SUCCESS(rc) || rc == VERR_TIMEOUT, ("%Rrc\n", rc));
-            RTSemEventMultiReset(pThis->hSemEventFrame);
-        }
-    }
-
-    return VINF_SUCCESS;
+    return pThis->fIdle;
 }
 
 /**
- * Unblock the framer thread so it can respond to a state change.
- *
- * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   pThread     The send thread.
+ * @interface_method_impl{VUSBIROOTHUBPORT,pfnFramerateChanged}.
  */
-static DECLCALLBACK(int) ohciR3ThreadFrameWakeup(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
+static DECLCALLBACK(void) ohciR3FrameRateChanged(PVUSBIROOTHUBPORT pInterface, uint32_t u32FrameRate)
 {
-    POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
-    return RTSemEventMultiSignal(pThis->hSemEventFrame);
+    POHCI pThis = VUSBIROOTHUBPORT_2_OHCI(pInterface);
+
+    Assert(u32FrameRate <= OHCI_DEFAULT_TIMER_FREQ);
+
+    pThis->cTicksPerFrame = pThis->u64TimerHz / u32FrameRate;
+    if (!pThis->cTicksPerFrame)
+        pThis->cTicksPerFrame = 1;
+    pThis->cTicksPerUsbTick = pThis->u64TimerHz >= VUSB_BUS_HZ ? pThis->u64TimerHz / VUSB_BUS_HZ : 1;
 }
 
 /**
@@ -4265,6 +4137,7 @@ static DECLCALLBACK(int) ohciR3ThreadFrameWakeup(PPDMDEVINS pDevIns, PPDMTHREAD 
  */
 static DECLCALLBACK(void) ohciFrameBoundaryTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer, pvUser);
 }
 
 /**
@@ -4279,9 +4152,8 @@ static void ohciBusStart(POHCI pThis)
     Log(("ohci: %s: Bus started\n", pThis->PciDev.name));
 
     pThis->SofTime = PDMDevHlpTMTimeVirtGet(pThis->CTX_SUFF(pDevIns));
-    bool fBusActive = ASMAtomicXchgBool(&pThis->fBusStarted, true);
-    if (!fBusActive)
-        RTSemEventMultiSignal(pThis->hSemEventFrame);
+    int rc = pThis->RootHub.pIRhConn->pfnSetPeriodicFrameProcessing(pThis->RootHub.pIRhConn, OHCI_DEFAULT_TIMER_FREQ);
+    AssertRC(rc);
 }
 
 /**
@@ -4289,19 +4161,8 @@ static void ohciBusStart(POHCI pThis)
  */
 static void ohciBusStop(POHCI pThis)
 {
-    bool fBusActive = ASMAtomicXchgBool(&pThis->fBusStarted, false);
-    if (fBusActive)
-    {
-        int rc = RTSemEventMultiReset(pThis->hSemEventFrameStopped);
-        AssertRC(rc);
-
-        /* Signal the frame thread to stop. */
-        RTSemEventMultiSignal(pThis->hSemEventFrame);
-
-        /* Wait for signal from the thrad that it stopped. */
-        rc = RTSemEventMultiWait(pThis->hSemEventFrameStopped, RT_INDEFINITE_WAIT);
-        AssertRC(rc);
-    }
+    int rc = pThis->RootHub.pIRhConn->pfnSetPeriodicFrameProcessing(pThis->RootHub.pIRhConn, 0);
+    AssertRC(rc);
     VUSBIDevPowerOff(pThis->RootHub.pIDev);
 }
 
@@ -4357,6 +4218,7 @@ static void rhport_power(POHCIROOTHUB pRh, unsigned iPort, bool fPowerUp)
  */
 static int HcRevision_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
+    RT_NOREF2(pThis, iReg);
     Log2(("HcRevision_r() -> 0x10\n"));
     *pu32Value = 0x10; /* OHCI revision 1.0, no emulation. */
     return VINF_SUCCESS;
@@ -4367,6 +4229,7 @@ static int HcRevision_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcRevision_w(POHCI pThis, uint32_t iReg, uint32_t u32Value)
 {
+    RT_NOREF3(pThis, iReg, u32Value);
     Log2(("HcRevision_w(%#010x) - denied\n", u32Value));
     AssertMsgFailed(("Invalid operation!!! u32Value=%#010x\n", u32Value));
     return VINF_SUCCESS;
@@ -4377,6 +4240,7 @@ static int HcRevision_w(POHCI pThis, uint32_t iReg, uint32_t u32Value)
  */
 static int HcControl_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
+    RT_NOREF1(iReg);
     uint32_t ctl = pThis->ctl;
     Log2(("HcControl_r -> %#010x - CBSR=%d PLE=%d IE=%d CLE=%d BLE=%d HCFS=%#x IR=%d RWC=%d RWE=%d\n",
           ctl, ctl & 3, (ctl >> 2) & 1, (ctl >> 3) & 1, (ctl >> 4) & 1, (ctl >> 5) & 1, (ctl >> 6) & 3, (ctl >> 8) & 1,
@@ -4390,6 +4254,8 @@ static int HcControl_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcControl_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
+
     /* log it. */
     uint32_t chg = pThis->ctl ^ val; NOREF(chg);
     Log2(("HcControl_w(%#010x) => %sCBSR=%d %sPLE=%d %sIE=%d %sCLE=%d %sBLE=%d %sHCFS=%#x %sIR=%d %sRWC=%d %sRWE=%d\n",
@@ -4461,6 +4327,7 @@ static int HcCommandStatus_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
     Log2(("HcCommandStatus_r() -> %#010x - HCR=%d CLF=%d BLF=%d OCR=%d SOC=%d\n",
           status, status & 1, (status >> 1) & 1, (status >> 2) & 1, (status >> 3) & 1, (status >> 16) & 3));
     *pu32Value = status;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4469,6 +4336,8 @@ static int HcCommandStatus_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcCommandStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
+
     /* log */
     uint32_t chg = pThis->status ^ val; NOREF(chg);
     Log2(("HcCommandStatus_w(%#010x) => %sHCR=%d %sCLF=%d %sBLF=%d %sOCR=%d %sSOC=%d\n",
@@ -4513,6 +4382,7 @@ static int HcInterruptStatus_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
           val, val & 1, (val >> 1) & 1, (val >> 2) & 1, (val >> 3) & 1, (val >> 4) & 1, (val >> 5) & 1,
           (val >> 6) & 1, (val >> 30) & 1));
     *pu32Value = val;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4521,6 +4391,8 @@ static int HcInterruptStatus_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcInterruptStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
+
     uint32_t res = pThis->intr_status & ~val;
     uint32_t chg = pThis->intr_status ^ res; NOREF(chg);
 
@@ -4561,6 +4433,7 @@ static int HcInterruptEnable_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
           val, val & 1, (val >> 1) & 1, (val >> 2) & 1, (val >> 3) & 1, (val >> 4) & 1, (val >> 5) & 1,
           (val >> 6) & 1, (val >> 30) & 1, (val >> 31) & 1));
     *pu32Value = val;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4569,6 +4442,7 @@ static int HcInterruptEnable_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcInterruptEnable_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
     uint32_t res = pThis->intr | val;
     uint32_t chg = pThis->intr ^ res; NOREF(chg);
 
@@ -4611,6 +4485,7 @@ static int HcInterruptDisable_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value
           (val >> 6) & 1, (val >> 30) & 1, (val >> 31) & 1));
 
     *pu32Value = val;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4619,6 +4494,7 @@ static int HcInterruptDisable_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value
  */
 static int HcInterruptDisable_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
     uint32_t res = pThis->intr & ~val;
     uint32_t chg = pThis->intr ^ res; NOREF(chg);
 
@@ -4653,6 +4529,7 @@ static int HcHCCA_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
     Log2(("HcHCCA_r() -> %#010x\n", pThis->hcca));
     *pu32Value = pThis->hcca;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4663,6 +4540,7 @@ static int HcHCCA_w(POHCI pThis, uint32_t iReg, uint32_t Value)
 {
     Log2(("HcHCCA_w(%#010x) - old=%#010x new=%#010x\n", Value, pThis->hcca, Value & OHCI_HCCA_MASK));
     pThis->hcca = Value & OHCI_HCCA_MASK;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4673,6 +4551,7 @@ static int HcPeriodCurrentED_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
     Log2(("HcPeriodCurrentED_r() -> %#010x\n", pThis->per_cur));
     *pu32Value = pThis->per_cur;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4686,6 +4565,7 @@ static int HcPeriodCurrentED_w(POHCI pThis, uint32_t iReg, uint32_t val)
     //AssertMsgFailed(("HCD (Host Controller Driver) should not write to HcPeriodCurrentED! val=%#010x (old=%#010x)\n", val, pThis->per_cur));
     AssertMsg(!(val & 7), ("Invalid alignment, val=%#010x\n", val));
     pThis->per_cur = val & ~7;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4696,6 +4576,7 @@ static int HcControlHeadED_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
     Log2(("HcControlHeadED_r() -> %#010x\n", pThis->ctrl_head));
     *pu32Value = pThis->ctrl_head;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4707,6 +4588,7 @@ static int HcControlHeadED_w(POHCI pThis, uint32_t iReg, uint32_t val)
     Log2(("HcControlHeadED_w(%#010x) - old=%#010x new=%#010x\n", val, pThis->ctrl_head, val & ~7));
     AssertMsg(!(val & 7), ("Invalid alignment, val=%#010x\n", val));
     pThis->ctrl_head = val & ~7;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4717,6 +4599,7 @@ static int HcControlCurrentED_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value
 {
     Log2(("HcControlCurrentED_r() -> %#010x\n", pThis->ctrl_cur));
     *pu32Value = pThis->ctrl_cur;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4729,6 +4612,7 @@ static int HcControlCurrentED_w(POHCI pThis, uint32_t iReg, uint32_t val)
     AssertMsg(!(pThis->ctl & OHCI_CTL_CLE), ("Illegal write! HcControl.ControlListEnabled is set! val=%#010x\n", val));
     AssertMsg(!(val & 7), ("Invalid alignment, val=%#010x\n", val));
     pThis->ctrl_cur = val & ~7;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4739,6 +4623,7 @@ static int HcBulkHeadED_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
     Log2(("HcBulkHeadED_r() -> %#010x\n", pThis->bulk_head));
     *pu32Value = pThis->bulk_head;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4750,6 +4635,7 @@ static int HcBulkHeadED_w(POHCI pThis, uint32_t iReg, uint32_t val)
     Log2(("HcBulkHeadED_w(%#010x) - old=%#010x new=%#010x\n", val, pThis->bulk_head, val & ~7));
     AssertMsg(!(val & 7), ("Invalid alignment, val=%#010x\n", val));
     pThis->bulk_head = val & ~7; /** @todo The ATI OHCI controller on my machine enforces 16-byte address alignment. */
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4760,6 +4646,7 @@ static int HcBulkCurrentED_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
     Log2(("HcBulkCurrentED_r() -> %#010x\n", pThis->bulk_cur));
     *pu32Value = pThis->bulk_cur;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4772,6 +4659,7 @@ static int HcBulkCurrentED_w(POHCI pThis, uint32_t iReg, uint32_t val)
     AssertMsg(!(pThis->ctl & OHCI_CTL_BLE), ("Illegal write! HcControl.BulkListEnabled is set! val=%#010x\n", val));
     AssertMsg(!(val & 7), ("Invalid alignment, val=%#010x\n", val));
     pThis->bulk_cur = val & ~7;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4783,6 +4671,7 @@ static int HcDoneHead_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
     Log2(("HcDoneHead_r() -> 0x%#08x\n", pThis->done));
     *pu32Value = pThis->done;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4791,6 +4680,7 @@ static int HcDoneHead_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcDoneHead_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF3(pThis, iReg, val);
     Log2(("HcDoneHead_w(0x%#08x) - denied!!!\n", val));
     /*AssertMsgFailed(("Illegal operation!!! val=%#010x\n", val)); - OS/2 does this */
     return VINF_SUCCESS;
@@ -4806,6 +4696,7 @@ static int HcFmInterval_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
     Log2(("HcFmInterval_r() -> 0x%#08x - FI=%d FSMPS=%d FIT=%d\n",
           val, val & 0x3fff, (val >> 16) & 0x7fff, val >> 31));
     *pu32Value = val;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -4814,6 +4705,8 @@ static int HcFmInterval_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcFmInterval_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
+
     /* log */
     uint32_t chg = val ^ ((pThis->fit << 31) | (pThis->fsmps << 16) | pThis->fi); NOREF(chg);
     Log2(("HcFmInterval_w(%#010x) => %sFI=%d %sFSMPS=%d %sFIT=%d\n",
@@ -4839,6 +4732,7 @@ static int HcFmInterval_w(POHCI pThis, uint32_t iReg, uint32_t val)
  */
 static int HcFmRemaining_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
+    RT_NOREF1(iReg);
     uint32_t Value = pThis->frt << 31;
     if ((pThis->ctl & OHCI_CTL_HCFS) == OHCI_USB_OPERATIONAL)
     {
@@ -4865,6 +4759,7 @@ static int HcFmRemaining_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcFmRemaining_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF3(pThis, iReg, val);
     Log2(("HcFmRemaining_w(%#010x) - denied\n", val));
     AssertMsgFailed(("Invalid operation!!! val=%#010x\n", val));
     return VINF_SUCCESS;
@@ -4875,6 +4770,7 @@ static int HcFmRemaining_w(POHCI pThis, uint32_t iReg, uint32_t val)
  */
 static int HcFmNumber_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
+    RT_NOREF1(iReg);
     uint32_t val = (uint16_t)pThis->HcFmNumber;
     Log2(("HcFmNumber_r() -> %#010x - FN=%#x(%d) (32-bit=%#x(%d))\n", val, val, val, pThis->HcFmNumber, pThis->HcFmNumber));
     *pu32Value = val;
@@ -4886,6 +4782,7 @@ static int HcFmNumber_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcFmNumber_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF3(pThis, iReg, val);
     Log2(("HcFmNumber_w(%#010x) - denied\n", val));
     AssertMsgFailed(("Invalid operation!!! val=%#010x\n", val));
     return VINF_SUCCESS;
@@ -4897,6 +4794,7 @@ static int HcFmNumber_w(POHCI pThis, uint32_t iReg, uint32_t val)
  */
 static int HcPeriodicStart_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
+    RT_NOREF1(iReg);
     Log2(("HcPeriodicStart_r() -> %#010x - PS=%d\n", pThis->pstart, pThis->pstart & 0x3fff));
     *pu32Value = pThis->pstart;
     return VINF_SUCCESS;
@@ -4908,6 +4806,7 @@ static int HcPeriodicStart_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcPeriodicStart_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
     Log2(("HcPeriodicStart_w(%#010x) => PS=%d\n", val, val & 0x3fff));
     if (val & ~0x3fff)
         Log2(("Unknown bits %#x are set!!!\n", val & ~0x3fff));
@@ -4920,6 +4819,7 @@ static int HcPeriodicStart_w(POHCI pThis, uint32_t iReg, uint32_t val)
  */
 static int HcLSThreshold_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
+    RT_NOREF2(pThis, iReg);
     Log2(("HcLSThreshold_r() -> %#010x\n", OHCI_LS_THRESH));
     *pu32Value = OHCI_LS_THRESH;
     return VINF_SUCCESS;
@@ -4939,6 +4839,7 @@ static int HcLSThreshold_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcLSThreshold_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF3(pThis, iReg, val);
     Log2(("HcLSThreshold_w(%#010x) => LST=0x%03x(%d)\n", val, val & 0x0fff, val & 0x0fff));
     AssertMsg(val == OHCI_LS_THRESH,
               ("HCD tried to write bad LS threshold: 0x%x (see function header)\n", val));
@@ -4951,6 +4852,7 @@ static int HcLSThreshold_w(POHCI pThis, uint32_t iReg, uint32_t val)
  */
 static int HcRhDescriptorA_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
 {
+    RT_NOREF1(iReg);
     uint32_t val = pThis->RootHub.desc_a;
 #if 0 /* annoying */
     Log2(("HcRhDescriptorA_r() -> %#010x - NDP=%d PSM=%d NPS=%d DT=%d OCPM=%d NOCP=%d POTGT=%#x\n",
@@ -4966,6 +4868,7 @@ static int HcRhDescriptorA_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcRhDescriptorA_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
     uint32_t chg = val ^ pThis->RootHub.desc_a; NOREF(chg);
     Log2(("HcRhDescriptorA_w(%#010x) => %sNDP=%d %sPSM=%d %sNPS=%d %sDT=%d %sOCPM=%d %sNOCP=%d %sPOTGT=%#x - %sPowerSwitching Set%sPower\n",
           val,
@@ -5003,6 +4906,7 @@ static int HcRhDescriptorB_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
     Log2(("HcRhDescriptorB_r() -> %#010x - DR=0x%04x PPCM=0x%04x\n",
           val, val & 0xffff, val >> 16));
     *pu32Value = val;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -5011,6 +4915,7 @@ static int HcRhDescriptorB_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcRhDescriptorB_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
+    RT_NOREF1(iReg);
     uint32_t chg = pThis->RootHub.desc_b ^ val; NOREF(chg);
     Log2(("HcRhDescriptorB_w(%#010x) => %sDR=0x%04x %sPPCM=0x%04x\n",
           val,
@@ -5035,6 +4940,7 @@ static int HcRhStatus_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
         Log2(("HcRhStatus_r() -> %#010x - LPS=%d OCI=%d DRWE=%d LPSC=%d OCIC=%d CRWE=%d\n",
               val, val & 1, (val >> 1) & 1, (val >> 15) & 1, (val >> 16) & 1, (val >> 17) & 1, (val >> 31) & 1));
     *pu32Value = val;
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 }
 
@@ -5092,8 +4998,10 @@ static int HcRhStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
           (chg >> 16) & 1 ? "*" : "", (val >> 16) & 1,
           (chg >> 17) & 1 ? "*" : "", (val >> 17) & 1,
           (chg >> 31) & 1 ? "*" : "", (val >> 31) & 1));
+    RT_NOREF1(iReg);
     return VINF_SUCCESS;
 #else  /* !IN_RING3 */
+    RT_NOREF3(pThis, iReg, val);
     return VINF_IOM_R3_MMIO_WRITE;
 #endif /* !IN_RING3 */
 }
@@ -5229,7 +5137,7 @@ static int HcRhPortStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
     POHCIHUBPORT    p = &pThis->RootHub.aPorts[i];
     uint32_t        old_state = p->fReg;
 
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
     /*
      * Log it.
      */
@@ -5249,7 +5157,7 @@ static int HcRhPortStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
         if (val & (1 << j))
             Log2((" %s", apszCmdNames[j]));
     Log2(("\n"));
-#endif
+# endif
 
     /* Write to clear any of the change bits: CSC, PESC, PSSC, OCIC and PRSC */
     if (val & OHCI_PORT_W_CLEAR_CHANGE_MASK)
@@ -5325,6 +5233,7 @@ static int HcRhPortStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
     }
     return VINF_SUCCESS;
 #else /* !IN_RING3 */
+    RT_NOREF3(pThis, iReg, val);
     return VINF_IOM_R3_MMIO_WRITE;
 #endif /* !IN_RING3 */
 }
@@ -5390,6 +5299,7 @@ AssertCompile(RT_ELEMENTS(g_aOpRegs) <= 36);
 PDMBOTHCBDECL(int) ohciMmioRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
+    RT_NOREF1(pvUser);
 
     /* Paranoia: Assert that IOMMMIO_FLAGS_READ_DWORD works. */
     AssertReturn(cb == sizeof(uint32_t), VERR_INTERNAL_ERROR_3);
@@ -5420,6 +5330,7 @@ PDMBOTHCBDECL(int) ohciMmioRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
 PDMBOTHCBDECL(int) ohciMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
+    RT_NOREF1(pvUser);
 
     /* Paranoia: Assert that IOMMMIO_FLAGS_WRITE_DWORD_ZEROED works. */
     AssertReturn(cb == sizeof(uint32_t), VERR_INTERNAL_ERROR_3);
@@ -5450,6 +5361,7 @@ PDMBOTHCBDECL(int) ohciMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPh
  */
 static DECLCALLBACK(int) ohciR3Map(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
 {
+    RT_NOREF(iRegion, enmType);
     POHCI pThis = (POHCI)pPciDev;
     int rc = PDMDevHlpMMIORegister(pThis->CTX_SUFF(pDevIns), GCPhysAddress, cb, NULL /*pvUser*/,
                                    IOMMMIO_FLAGS_READ_DWORD | IOMMMIO_FLAGS_WRITE_DWORD_ZEROED
@@ -5486,6 +5398,7 @@ static DECLCALLBACK(int) ohciR3Map(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCP
  */
 static DECLCALLBACK(int) ohciR3SavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
     POHCIROOTHUB pRh = &pThis->RootHub;
     LogFlow(("ohciR3SavePrep: \n"));
@@ -5517,8 +5430,8 @@ static DECLCALLBACK(int) ohciR3SavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
      * If the bus was started set the timer. This is ugly but avoids changing the
      * saved state version for now so we can backport the changes to other branches.
      */
-    /** @todo: Do it properly for 4.4 by changing the saved state. */
-    if (pThis->fBusStarted)
+    /** @todo Do it properly for 4.4 by changing the saved state. */
+    if (VUSBIRhGetPeriodicFrameRate(pRh->pIRhConn) != 0)
     {
         /* Calculate a new timer expiration so this saved state works with older releases. */
         uint64_t u64Expire = PDMDevHlpTMTimeVirtGet(pThis->CTX_SUFF(pDevIns)) + pThis->cTicksPerFrame;
@@ -5571,17 +5484,16 @@ static DECLCALLBACK(int) ohciR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) ohciR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
-    POHCIROOTHUB pRh = &pThis->RootHub;
-    OHCIROOTHUB Rh;
-    unsigned i;
     LogFlow(("ohciR3SaveDone: \n"));
 
     /*
      * NULL the dev pointers.
      */
-    Rh = *pRh;
-    for (i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
+    POHCIROOTHUB pRh = &pThis->RootHub;
+    OHCIROOTHUB Rh = *pRh;
+    for (unsigned i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
     {
         if (   pRh->aPorts[i].pDev
             && !VUSBIDevIsSavedStateSupported(pRh->aPorts[i].pDev))
@@ -5591,7 +5503,7 @@ static DECLCALLBACK(int) ohciR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     /*
      * Attach the devices.
      */
-    for (i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
     {
         PVUSBIDEVICE pDev = Rh.aPorts[i].pDev;
         if (   pDev
@@ -5615,22 +5527,20 @@ static DECLCALLBACK(int) ohciR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) ohciR3LoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    int rc = VINF_SUCCESS;
+    RT_NOREF(pSSM);
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
     LogFlow(("ohciR3LoadPrep:\n"));
     if (!pThis->pLoad)
     {
-        POHCIROOTHUB pRh = &pThis->RootHub;
-        OHCILOAD Load;
-        unsigned i;
-
         /*
          * Detach all devices which are present in this session. Save them in the load
          * structure so we can reattach them after restoring the guest.
          */
+        POHCIROOTHUB pRh = &pThis->RootHub;
+        OHCILOAD Load;
         Load.pTimer = NULL;
         Load.cDevs = 0;
-        for (i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
+        for (unsigned i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
         {
             PVUSBIDEVICE pDev = pRh->aPorts[i].pDev;
             if (   pDev
@@ -5655,7 +5565,7 @@ static DECLCALLBACK(int) ohciR3LoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     }
     /* else: we ASSUME no device can be attached or detach in the period
      *       between a state load and the pLoad stuff is processed. */
-    return rc;
+    return VINF_SUCCESS;
 }
 
 
@@ -5845,6 +5755,7 @@ static DECLCALLBACK(int) ohciR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
  */
 static DECLCALLBACK(int) ohciR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
     LogFlow(("ohciR3LoadDone:\n"));
 
@@ -5870,6 +5781,7 @@ static DECLCALLBACK(int) ohciR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(void) ohciR3LoadReattachDevices(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns);
     POHCI pThis = (POHCI)pvUser;
     POHCILOAD pLoad = pThis->pLoad;
     POHCIROOTHUB pRh = &pThis->RootHub;
@@ -5930,9 +5842,9 @@ static DECLCALLBACK(void) ohciR3Resume(PPDMDEVINS pDevIns)
         int rc = TMTimerStop(pThis->pEndOfFrameTimerR3);
         AssertRC(rc);
 
-        LogFlowFunc(("Bus was active, restart frame thread\n"));
-        ASMAtomicXchgBool(&pThis->fBusStarted, true);
-        RTSemEventMultiSignal(pThis->hSemEventFrame);
+        LogFlowFunc(("Bus was active, enable periodic frame processing\n"));
+        rc = pThis->RootHub.pIRhConn->pfnSetPeriodicFrameProcessing(pThis->RootHub.pIRhConn, OHCI_DEFAULT_TIMER_FREQ);
+        AssertRC(rc);
     }
 }
 
@@ -5946,6 +5858,7 @@ static DECLCALLBACK(void) ohciR3Resume(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) ohciR3InfoRegs(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF(pszArgs);
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
     uint32_t val, ctl, status;
 
@@ -6002,6 +5915,7 @@ static DECLCALLBACK(void) ohciR3InfoRegs(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
  */
 static DECLCALLBACK(void) ohciR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
+    RT_NOREF(offDelta);
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
     pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
     pThis->pEndOfFrameTimerRC = TMTimerRCPtr(pThis->pEndOfFrameTimerR3);
@@ -6029,13 +5943,6 @@ static DECLCALLBACK(int) ohciR3Destruct(PPDMDEVINS pDevIns)
     pThis->pCacheTD = NULL;
 #endif
 
-    /*
-     * Destroy event sempahores.
-     */
-    if (pThis->hSemEventFrame)
-        RTSemEventMultiDestroy(pThis->hSemEventFrame);
-    if (pThis->hSemEventFrameStopped)
-        RTSemEventMultiDestroy(pThis->hSemEventFrameStopped);
     if (RTCritSectIsInitialized(&pThis->CritSect))
         RTCritSectDelete(&pThis->CritSect);
     PDMR3CritSectDelete(&pThis->CsIrq);
@@ -6084,6 +5991,8 @@ static DECLCALLBACK(int) ohciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     pThis->RootHub.IRhPort.pfnReset              = ohciRhReset;
     pThis->RootHub.IRhPort.pfnXferCompletion     = ohciRhXferCompletion;
     pThis->RootHub.IRhPort.pfnXferError          = ohciRhXferError;
+    pThis->RootHub.IRhPort.pfnStartFrame         = ohciR3StartFrame;
+    pThis->RootHub.IRhPort.pfnFrameRateChanged   = ohciR3FrameRateChanged;
 
     /* USB LED */
     pThis->RootHub.Led.u32Magic                  = PDMLED_MAGIC;
@@ -6188,38 +6097,27 @@ static DECLCALLBACK(int) ohciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         return rc;
     }
 
+    /* Set URB parameters. */
+    rc = VUSBIRhSetUrbParams(pThis->RootHub.pIRhConn, sizeof(VUSBURBHCIINT), sizeof(VUSBURBHCITDINT));
+    if (RT_FAILURE(rc))
+        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                   N_("OHCI: Failed to set URB parameters"));
+
     /*
      * Calculate the timer intervals.
      * This assumes that the VM timer doesn't change frequency during the run.
      */
     pThis->u64TimerHz = TMTimerGetFreq(pThis->CTX_SUFF(pEndOfFrameTimer));
-    ohciCalcTimerIntervals(pThis, OHCI_DEFAULT_TIMER_FREQ);
-    Log(("ohci: cTicksPerFrame=%RU64 cTicksPerUsbTick=%RU64\n",
-         pThis->cTicksPerFrame, pThis->cTicksPerUsbTick));
-
-    pThis->fBusStarted = false;
 
     rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CsIrq, RT_SRC_POS, "OHCI#%uIrq", iInstance);
     if (RT_FAILURE(rc))
         return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
-                                   N_("EHCI: Failed to create critical section"));
-
-    rc = RTSemEventMultiCreate(&pThis->hSemEventFrame);
-    AssertRCReturn(rc, rc);
-
-    rc = RTSemEventMultiCreate(&pThis->hSemEventFrameStopped);
-    AssertRCReturn(rc, rc);
+                                   N_("OHCI: Failed to create critical section"));
 
     rc = RTCritSectInit(&pThis->CritSect);
     if (RT_FAILURE(rc))
         return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
                                    N_("OHCI: Failed to create critical section"));
-
-    rc = PDMDevHlpThreadCreate(pDevIns, &pThis->hThreadFrame, pThis, ohciR3ThreadFrame,
-                               ohciR3ThreadFrameWakeup, 0, RTTHREADTYPE_TIMER, "OhciFramer");
-    if (RT_FAILURE(rc))
-        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
-                                   N_("OHCI: Failed to create worker thread"));
 
 #ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
     pThis->pCacheED = ohciPhysReadCacheAlloc();

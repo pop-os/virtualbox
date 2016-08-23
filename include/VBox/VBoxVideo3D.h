@@ -1,10 +1,9 @@
 /** @file
- *
  * VirtualBox 3D common tooling
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,6 +93,7 @@ struct VBOXTLSREFDATA_DUMMY
 #define VBoxTlsRefAddRef(_p) do { \
         int cRefs = ASMAtomicIncS32(&(_p)->cTlsRefs); \
         VBoxTlsRefAssertImpl(cRefs > 1 || (_p)->enmTlsRefState == VBOXTLSREFDATA_STATE_DESTROYING); \
+        RT_NOREF(cRefs); \
     } while (0)
 
 #define VBoxTlsRefCountGet(_p) (ASMAtomicReadS32(&(_p)->cTlsRefs))

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -124,7 +124,7 @@ int DBGDiggerCommonParseElfMod(PUVM pUVM, const char *pszModName, const char *ps
         return VERR_BAD_EXE_FORMAT;
     if (pEhdr->e_shentsize != sizeof(Elf_Shdr))
         return VERR_BAD_EXE_FORMAT;
-    if (ASMMemIsAll8(&pEhdr->e_ident[EI_PAD], EI_NIDENT - EI_PAD, 0) != NULL) //??
+    if (!ASMMemIsZero(&pEhdr->e_ident[EI_PAD], EI_NIDENT - EI_PAD)) //??
         return VERR_BAD_EXE_FORMAT;
 
     /*
@@ -250,7 +250,6 @@ int DBGDiggerCommonParseElfMod(PUVM pUVM, const char *pszModName, const char *ps
     else
     {
         /* Add the segments and fill in the translation table. */
-        RTGCPTR uRvaNext = 0;
         for (unsigned i = 0; i < cSegs; i++)
             if (paShdrs[i].sh_flags & SHF_ALLOC)
             {

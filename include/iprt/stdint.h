@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,8 @@
  */
 #if !(defined(RT_OS_LINUX) && defined(__KERNEL__))  \
   && !(defined(RT_OS_FREEBSD) && defined(_KERNEL)) \
-  && !defined(_MSC_VER) \
+  && !(defined(RT_OS_NETBSD) && defined(_KERNEL)) \
+  && RT_MSC_PREREQ_EX(RT_MSC_VER_VS2010, 1 /*non-msc*/) \
   && !defined(__IBMC__) \
   && !defined(__IBMCPP__) \
   && !defined(IPRT_NO_CRT) \
@@ -47,7 +48,14 @@
 # ifndef __STDC_LIMIT_MACROS
 #  define __STDC_LIMIT_MACROS
 # endif
+# ifdef _MSC_VER
+#  pragma warning(push)
+#  pragma warning(disable:4668)
+# endif
 # include <stdint.h>
+# ifdef _MSC_VER
+#  pragma warning(pop)
+# endif
 
 # if defined(RT_OS_DARWIN) && defined(KERNEL) && defined(RT_ARCH_AMD64)
  /*
@@ -63,6 +71,16 @@
 # endif /* 64-bit darwin kludge. */
 
 #elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
+
+# ifndef __STDC_CONSTANT_MACROS
+#  define __STDC_CONSTANT_MACROS
+# endif
+# ifndef __STDC_LIMIT_MACROS
+#  define __STDC_LIMIT_MACROS
+# endif
+# include <sys/stdint.h>
+
+#elif defined(RT_OS_NETBSD) && defined(_KERNEL)
 
 # ifndef __STDC_CONSTANT_MACROS
 #  define __STDC_CONSTANT_MACROS
@@ -111,10 +129,18 @@ typedef signed short        int16_t;
 typedef unsigned short      uint16_t;
 #   endif
 #   if !defined(_INT32_T_DECLARED)  && !defined(_INT32_T)
+#    if ARCH_BITS != 16
 typedef signed int          int32_t;
+#    else
+typedef signed long         int32_t;
+#    endif
 #   endif
 #   if !defined(_UINT32_T_DECLARED) && !defined(_UINT32_T)
+#    if ARCH_BITS != 16
 typedef unsigned int        uint32_t;
+#    else
+typedef unsigned long       uint32_t;
+#    endif
 #   endif
 #   if defined(_MSC_VER)
 #    if !defined(_INT64_T_DECLARED)  && !defined(_INT64_T)
@@ -122,6 +148,13 @@ typedef signed _int64       int64_t;
 #    endif
 #    if !defined(_UINT64_T_DECLARED) && !defined(_UINT64_T)
 typedef unsigned _int64     uint64_t;
+#    endif
+#   elif defined(__WATCOMC__)
+#    if !defined(_INT64_T_DECLARED)  && !defined(_INT64_T)
+typedef signed __int64      int64_t;
+#    endif
+#    if !defined(_UINT64_T_DECLARED) && !defined(_UINT64_T)
+typedef unsigned __int64    uint64_t;
 #    endif
 #   elif defined(IPRT_STDINT_USE_STRUCT_FOR_64_BIT_TYPES)
 #    if !defined(_INT64_T_DECLARED)  && !defined(_INT64_T)
@@ -194,12 +227,19 @@ typedef uint64_t            uintptr_t;
  || !defined(UINTMAX_C)
 # define INT8_C(Value)      (Value)
 # define INT16_C(Value)     (Value)
-# define INT32_C(Value)     (Value)
-# define INT64_C(Value)     (Value ## LL)
 # define UINT8_C(Value)     (Value)
 # define UINT16_C(Value)    (Value)
-# define UINT32_C(Value)    (Value ## U)
-# define UINT64_C(Value)    (Value ## ULL)
+# if ARCH_BITS != 16
+#  define INT32_C(Value)    (Value)
+#  define UINT32_C(Value)   (Value ## U)
+#  define INT64_C(Value)    (Value ## LL)
+#  define UINT64_C(Value)   (Value ## ULL)
+# else
+#  define INT32_C(Value)    (Value ## L)
+#  define UINT32_C(Value)   (Value ## UL)
+#  define INT64_C(Value)    (Value ## LL)
+#  define UINT64_C(Value)   (Value ## ULL)
+# endif
 # define INTMAX_C(Value)    INT64_C(Value)
 # define UINTMAX_C(Value)   UINT64_C(Value)
 #endif

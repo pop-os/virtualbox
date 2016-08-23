@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -156,7 +156,7 @@ VBOX_ADD_STRIP_OBJ.linux = \
 	vboxmouse_drv.o \
 	vboxvideo_drv.o
 
-VBOX_ADD_KMOD_FILES = $(addprefix vboxguest-$(VBOX_VERSION_STRING)/, Makefile dkms.conf do_dkms build_in_tmp)
+VBOX_ADD_KMOD_FILES = $(addprefix vboxguest-$(VBOX_VERSION_STRING)/, Makefile build_in_tmp)
 VBOX_ADD_KMOD_DIRS =  $(addprefix vboxguest-$(VBOX_VERSION_STRING)/, vboxguest/ vboxsf/ vboxvideo/)
 
 VBOX_ADD_INIT.linux = \
@@ -366,7 +366,6 @@ LnxAdd-scripts_INSTTYPE = stage
 LnxAdd-scripts_SOURCES  = \
 	$(VBOX_REL_LNX_ADD_INST)deffiles
 LnxAdd-scripts_EXEC_SOURCES  = \
-	$(VBOX_REL_LNX_HOST_DRV)do_dkms \
 	$(VBOX_REL_LNX_INST_SRC)routines.sh \
 	$(VBOX_REL_LNX_ADD_INST)vboxadd.sh=>vboxadd \
 	$(VBOX_REL_LNX_ADD_INST)vboxadd-service.sh=>vboxadd-service \
@@ -389,18 +388,15 @@ LnxAdd-init-scripts_EXEC_SOURCES = \
 
 # this file needs editing before it can be included in the generic installer.
 $(VBOX_LNX_ADD_INST_STAGE_DIR)install.sh: \
-		$(VBOX_PATH_LNX_INST_SRC)run-inst.sh \
+		$(VBOX_PATH_LNX_ADD_INST)install.sh.in \
 		$(VBOX_VERSION_STAMP) | $$(dir $$@)
 	$(RM) -f -- $@
 	$(QUIET)$(SED) \
 		-e "s;_VERSION_;$(VBOX_VERSION_STRING);g" \
 		-e "s;_SVNREV_;$(VBOX_SVN_REV);g" \
- 		-e "s;_PACKAGE_NAME_;VirtualBox Guest Additions;g" \
-		-e "s;_PACKAGE_;VBoxGuestAdditions;g" \
 		-e "s;_BUILDTYPE_;$(KBUILD_TYPE);g" \
 		-e "s;_USERNAME_;$(USERNAME);g" \
 		-e "s;_ARCH_;$(KBUILD_TARGET_ARCH);g" \
-		-e "s;_UNINSTALL_SCRIPTS_;vboxadd-x11 vboxvfs vboxadd-timesync vboxadd-service vboxadd;g" \
 		--output $@ \
 		$<
 	$(QUIET)$(CHMOD) 0755 $@

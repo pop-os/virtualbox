@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2672,7 +2672,7 @@ int vmmdevHGCMLoadState(PVMMDEV pThis, PSSMHANDLE pSSM, uint32_t uVersion)
 }
 
 /** @thread EMT */
-int vmmdevHGCMLoadStateDone(PVMMDEV pThis, PSSMHANDLE pSSM)
+int vmmdevHGCMLoadStateDone(PVMMDEV pThis)
 {
     LogFlowFunc(("\n"));
 

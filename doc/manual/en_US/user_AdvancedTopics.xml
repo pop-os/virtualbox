@@ -301,7 +301,7 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
           <para>Edit the PAM configuration file for GDM found at
           <computeroutput>/etc/pam.d/gdm</computeroutput>, adding the line
           <computeroutput>auth requisite pam_vbox.so</computeroutput> at the
-          top. Additionaly, in most Linux distributions there is a file called
+          top. Additionally, in most Linux distributions there is a file called
           <computeroutput>/etc/pam.d/common-auth</computeroutput>. This file
           is included in many other services (like the GDM file mentioned
           above). There you also have to add the line <computeroutput>auth
@@ -758,7 +758,7 @@ VBoxManage controlvm "VM name" unplugcpu 3</screen></para>
     particular device. Both, regular PCI and some PCI Express cards, are
     supported. AGP and certain PCI Express cards are not supported at the
     moment if they rely on GART (Graphics Address Remapping Table) unit
-    programming for texture management as it does rather nontrivial operations
+    programming for texture management as it does rather non-trivial operations
     with pages remapping interfering with IOMMU. This limitation may be lifted
     in future releases.</para>
 
@@ -854,7 +854,8 @@ VBoxManage controlvm "VM name" unplugcpu 3</screen></para>
         </listitem>
 
         <listitem>
-           <para>No lazy physical memory allocation. The host will preallocate the whole RAM required for the VM on startup (as we cannot catch physical hardware accesses to the physical memory).</para>
+           <para>No lazy physical memory allocation. The host will preallocate the whole RAM required for the VM on startup
+           (as we cannot catch physical hardware accesses to the physical memory).</para>
         </listitem>
       </orderedlist></para>
   </sect1>
@@ -938,7 +939,7 @@ host path or identifier</screen>
     <sect2>
       <title>Mac OS X hosts</title>
 
-      <para>OS X version 10.7 or newer is required.</para>
+      <para>OS X version 10.9 or newer is required.</para>
 
       <para>When the webcam device is detached from the host, the emulated webcam device
       remains attached to the guest and must be manually detached using the
@@ -1425,7 +1426,7 @@ VBoxManage modifyvm "VM name" --nattftpfile1 /srv/tftp/boot/MyPXEBoot.pxe</scree
           <para>In some cases it might be useful to intercept the name resolving mechanism,
             providing a user-defined IP address on a particular DNS request. The intercepting
             mechanism allows the user to map not only a single host but domains and even more
-            complex namings conventions if required.</para>
+            complex naming conventions if required.</para>
             <para>
               The following command sets a rule for mapping a name to a specified IP:</para>
             <screen>VBoxManage setextradata "VM name" \
@@ -1995,7 +1996,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
   </sect1>
 
   <sect1 id="guitweaks">
-    <title>Locking down the VirtualBox manager GUI</title>
+    <title>Locking down the VirtualBox GUI</title>
 
     <sect2>
       <title>Customizing the VM manager</title>
@@ -2591,8 +2592,8 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
           <glossterm><computeroutput>FloppyDisks</computeroutput></glossterm>
           <glossdef>
             <para>Don't show the floppy icon in the VM window status bar. By default the
-              floppy icon is only shown if the VM configuration contains one more
-              more floppy drives.</para>
+              floppy icon is only shown if the VM configuration contains one or more
+              floppy drives.</para>
           </glossdef>
         </glossentry>
 
@@ -2880,6 +2881,67 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
               powering off the VM.</para>
           </glossdef>
         </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>Detach</computeroutput></glossterm>
+          <glossdef>
+            <para>Don't allow the user to detach from the VM process if the
+              VM was started in separate mode.</para>
+          </glossdef>
+        </glossentry>
+
+      </glosslist>
+
+      <para>This is a per-VM setting. Any combination of the above is allowed. If all
+        options are specified, the VM cannot be shut down at all.</para>
+    </sect2>
+
+    <sect2>
+      <title>Default action when terminating the VM</title>
+
+      <para>You can define a specific action for terminating a VM. In contrast to
+        the setting decribed in the previous section, this setting allows only
+        one action when the user terminates the VM. No exit menu is shown.</para>
+
+      <para><screen>VBoxManage setextradata "VM name" GUI/DefaultCloseAction ACTION</screen></para>
+
+      <para>where <computeroutput>ACTION</computeroutput> is one of the
+        following keywords:</para><glosslist>
+        <glossentry>
+          <glossterm><computeroutput>SaveState</computeroutput></glossterm>
+          <glossdef>
+            <para>Save the VM state before terminating the VM process.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>Shutdown</computeroutput></glossterm>
+          <glossdef>
+            <para>The VM is shut down by sending the ACPI power-off event to the guest.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>PowerOff</computeroutput></glossterm>
+          <glossdef>
+            <para>The VM is powered off.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>PowerOffRestoringSnapshot</computeroutput></glossterm>
+          <glossdef>
+            <para>The VM is powered off and the saved state returns to the last snapshot.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>Detach</computeroutput></glossterm>
+          <glossdef>
+            <para>Terminate the frontend but leave the VM process running.</para>
+          </glossdef>
+        </glossentry>
+
       </glosslist>
 
       <para>This is a per-VM setting. Any combination of the above is allowed. If all
@@ -2911,7 +2973,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
           <glossterm><computeroutput>PowerOff</computeroutput></glossterm>
           <glossdef>
             <para>The VM is immediately powered-off without showing any message
-              window. The VM logfile will show information about what happend.</para>
+              window. The VM logfile will show information about what happened.</para>
           </glossdef>
         </glossentry>
 
@@ -2932,7 +2994,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
 
       <para>
         By default, the mouse is captured if the user clicks on the guest window
-        and the guest expects relative mouse coordiantes at this time. This
+        and the guest expects relative mouse coordinates at this time. This
         happens if the pointing device is configured as PS/2 mouse and the guest did
         not (yet) start the VirtualBox Guest Additions (for instance, the guest is
         booting or no Guest Additions installed at all) or if the pointing device
@@ -2976,7 +3038,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
 
       <para>
         By default, the mouse is captured if the user clicks on the guest window
-        and the guest expects relative mouse coordiantes at this time. This
+        and the guest expects relative mouse coordinates at this time. This
         happens if the pointing device is configured as PS/2 mouse and the guest did
         not (yet) start the VirtualBox Guest Additions (for instance, the guest is
         booting or no Guest Additions installed at all) or if the pointing device
@@ -3201,7 +3263,7 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
       service use the following command: <screen>launchctl load ~/Library/LaunchAgents/org.virtualbox.vboxwebsrv.plist</screen>
       For additional information on how launchd services could be
       configured see <literal><ulink
-      url="http://developer.apple.com/mac/library/documentation/MacOSX/Conceptual/BPSystemStartup/BPSystemStartup.html">http://developer.apple.com/mac/library/documentation/MacOSX/Conceptual/BPSystemStartup/BPSystemStartup.html</ulink></literal>.</para>
+      url="https://developer.apple.com/library/mac/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html">https://developer.apple.com/library/mac/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html</ulink></literal>.</para>
     </sect2>
   </sect1>
 
@@ -3236,7 +3298,7 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
     <para>
     All configuration values can be either specified via command line or global
     extradata, whereas command line values always have a higher priority when set.
-    Some of the configuration values also be be specified on a per-VM basis. So
+    Some of the configuration values also be specified on a per-VM basis. So
     the overall lookup order is: command line, per-VM basis extradata (if available),
     global extradata.
     </para>
@@ -3636,7 +3698,7 @@ alice = {
              <para>
                This event is currently only handled on Windows hosts and Mac OS X hosts.
                When this event is generated, VirtualBox will save the state and
-               terminate all VMs in preperation of a potential host powerdown.
+               terminate all VMs in preparation of a potential host powerdown.
              </para>
              <para>The behavior can be configured. By executing the following command,
              no VM is saved:</para>
@@ -3716,9 +3778,9 @@ VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
     <para>
       VirtualBox ships a simple heartbeat service. Once the Guest Additions are
       active, the guest sends frequent heartbeat pings to the host. If the guest
-      stops sending the heartbeat pings without properly termination the service,
+      stops sending the heartbeat pings without properly terminating the service,
       the VM process will log this event in the VBox.log file. In the future it
-      might be possible to configure dedicated actions but for there is only a
+      might be possible to configure dedicated actions but for now there is only a
       warning in the log file.</para>
 
     <para>
@@ -3904,6 +3966,214 @@ VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
     </sect2>
   </sect1>
 
+  <sect1 id="gimdebug">
+    <title>Paravirtualized debugging</title>
+
+    <para>In this section we cover debugging of guest operating systems using interfaces
+    supported by paravirtualization providers.</para>
+
+    <note>
+      <para>Paravirtualized debugging significantly alter guest operating system behaviour
+      and should only be used by expert users for debugging and diagnostics.</para>
+    </note>
+
+    <para>These debug options are specified as a string of key-value pairs separated by
+    commas. An empty string disables paravirtualized debugging.</para>
+
+    <sect2 id="gimdebughyperv">
+      <title>Hyper-V debug options</title>
+
+      <para>All of the options listed below are optional, and thus the default value
+      specified will be used when the corresponding key-value pair is not
+      specified.</para>
+
+      <itemizedlist>
+        <listitem>
+          <para>Key: <emphasis role="bold"><computeroutput>enabled</computeroutput></emphasis></para>
+          <para>Value: <computeroutput>0</computeroutput> or <computeroutput>1</computeroutput></para>
+          <para>Default: <computeroutput>0</computeroutput></para>
+          <para>Specify <computeroutput>1</computeroutput> to enable the Hyper-V debug
+            interface. If this key-value pair is not specified or the value is not
+            <computeroutput>1</computeroutput>, the Hyper-V debug interface is disabled
+            regardless of other key-value pairs being present.</para>
+        </listitem>
+        <listitem>
+          <para>Key: <emphasis role="bold"><computeroutput>address</computeroutput></emphasis></para>
+          <para>Value: IPv4 address</para>
+          <para>Default: 127.0.0.1</para>
+          <para>Specify the IPv4 address where the remote debugger is connected.</para>
+        </listitem>
+        <listitem>
+          <para>Key: <emphasis role="bold"><computeroutput>port</computeroutput></emphasis></para>
+          <para>Value: UDP port number</para>
+          <para>Default: 50000</para>
+          <para>Specify the UDP port number where the remote debugger is connected.</para>
+        </listitem>
+        <listitem>
+          <para>Key: <emphasis role="bold"><computeroutput>vendor</computeroutput></emphasis></para>
+          <para>Value: Hyper-V vendor signature reported via CPUID to the guest</para>
+          <para>Default: When debugging is enabled: <computeroutput>Microsoft Hv</computeroutput>,
+          otherwise: <computeroutput>VBoxVBoxVBox</computeroutput></para>
+          <para>Specify the Hyper-V vendor signature which is exposed to the guest via CPUID.
+          For debugging Microsoft Windows guests, it is required the hypervisor reports
+          the Microsoft vendor.</para>
+        </listitem>
+        <listitem>
+          <para>Key: <emphasis role="bold"><computeroutput>hypercallinterface</computeroutput>
+          </emphasis></para>
+          <para>Value: <computeroutput>0</computeroutput> or <computeroutput>1</computeroutput></para>
+          <para>Default: <computeroutput>0</computeroutput></para>
+          <para>Specify whether hypercalls should be suggested for initiating debug data
+          transfers between host and guest rather than MSRs when requested by the guest.</para>
+        </listitem>
+        <listitem>
+          <para>Key: <emphasis role="bold"><computeroutput>vsinterface</computeroutput>
+          </emphasis></para>
+          <para>Value: <computeroutput>0</computeroutput> or <computeroutput>1</computeroutput></para>
+          <para>Default: When debugging is enabled, <computeroutput>1</computeroutput>,
+          otherwise <computeroutput>0</computeroutput></para>
+          <para>Specify whether to expose the "VS#1" (virtualization service) interface to the
+          guest. This interface is required for debugging Microsoft Windows 10 32-bit guests, but
+          is optional for other Windows versions.</para>
+        </listitem>
+      </itemizedlist>
+
+      <sect3 id="gimdebughyperv-windows-setup">
+        <title>Setting up Windows guests for debugging with the Hyper-V paravirtualization provider</title>
+
+        <para>Windows supports debugging over a serial cable, USB, IEEE 1394 Firewire, and Ethernet
+        (only Windows 8 and later). USB and IEEE 1394 are not applicable for virtual machines, and
+        Ethernet requires Windows 8 or later. While serial connection is universally usable, it is
+        slow.</para>
+
+        <para>Debugging using the Hyper-V debug transport, supported on Windows Vista and later,
+        offers significant benefits. It provides excellent performance due to direct host-to-guest
+        transfers, it is easy to set up and requires minimal support from the hypervisor. It can be
+        used with the debugger running on the same host as the VM or with the debugger and VM on
+        separate machines connected over a network.</para>
+
+        <sect4><title>Prerequisites</title>
+          <itemizedlist>
+            <listitem>
+              <para>A VM configured for Hyper-V paravirtualization running a Windows Vista or newer
+              Windows guest. You may check the effective paravirtualization provider for your VM from
+              the output of the following VBoxManage command:</para>
+              <para><screen>VBoxManage showvminfo "VM name"</screen></para>
+            </listitem>
+
+            <listitem>
+              <para>A sufficiently up-to-date version of the Microsoft WinDbg debugger required
+              to debug the version of Windows in your VM.</para>
+            </listitem>
+
+            <listitem>
+              <para>While Windows 8 and newer Windows guests ship with Hyper-V debug support,
+              Windows 7 and Vista do not. To use Hyper-V debugging with a Windows 7 or Vista
+              guest, copy the file
+              <computeroutput>kdvm.dll</computeroutput> from a Windows 8.0 installation<footnote>
+              <para>Only Windows 8.0 ships <computeroutput>kdvm.dll</computeroutput>. Windows 8.1
+              and newer Windows versions do not.</para></footnote>. This file is
+              typically located in <computeroutput>C:\Windows\System32</computeroutput>. Copy it
+              to the same location in your Windows 7/Vista guest. Make sure you copy the 32-bit or
+              64-bit version of the DLL which matches your guest OS.</para>
+            </listitem>
+          </itemizedlist>
+        </sect4>
+
+        <sect4><title>VM and guest configuration</title>
+          <orderedlist>
+            <listitem>
+              <para>Power off the VM.</para>
+            </listitem>
+
+            <listitem>
+              <para>Enable the debug options by executing the following VBoxManage command:</para>
+              <para><screen>VBoxManage modifyvm "VM name" --paravirtdebug "enabled=1"</screen></para>
+              <para>The above command assumes your debugger will connect to your host machine
+              on UDP port 50000. However, if you need to run the debugger on a remote machine
+              you may specify the remote address and port here, e.g. using:</para>
+              <para>
+              <screen>VBoxManage modifyvm "VM name" --paravirtdebug "enabled=1,address=192.168.32.1,port=55000"</screen>
+              </para>
+              <para>Refer <xref linkend="gimdebughyperv" /> for the complete set of options.</para>
+            </listitem>
+
+            <listitem>
+              <para>Start the VM.</para>
+            </listitem>
+
+            <listitem>
+              <para>In the guest, start an elevated command prompt and execute the
+              following commands:</para>
+              <itemizedlist>
+                <listitem><para>For a Windows 8 or newer Windows guest:</para>
+                  <para>
+                  <screen>bcdedit /dbgsettings net hostip:5.5.5.5 port:50000 key:1.2.3.4</screen>
+                  </para>
+                </listitem>
+                <listitem><para>For a Windows 7 or Vista guest:</para>
+                  <para>
+                  <screen>bcdedit /set loadoptions host_ip=5.5.5.5,host_port=50000,encryption_key=1.2.3.4</screen>
+                  <screen>bcdedit /set dbgtransport kdvm.dll</screen>
+                  </para>
+                  <para>The IP address and port in the <computeroutput>bcdedit</computeroutput> command
+                  are ignored when using the Hyper-V debug transport. Any valid IP and a port number greater
+                  than 49151 and lower than 65536 can be entered.</para>
+
+                  <para>The encryption key in the <computeroutput>bcdedit</computeroutput> command is
+                  relevant and must be valid. The key "1.2.3.4" used in the above example is valid
+                  and may be used if security is not a concern. If you do not specify any encryption key,
+                  <computeroutput>bcdedit</computeroutput> will generate one for you and you will need to copy
+                  this key to later enter in Microsoft WinDbg on the remote end. This encryption key is used
+                  to encrypt the debug data exchanged between Windows and the debugger.</para>
+                </listitem>
+                <listitem>
+                  <para>Execute one or more of the following commands to enable debugging for
+                  the appropriate phase or component of your Windows guest: </para>
+                  <para>
+                    <screen>bcdedit /set debug on</screen>
+                    <screen>bcdedit /set bootdebug on</screen>
+                    <screen>bcdedit /set {bootmgr} bootdebug on</screen>
+                  </para>
+                  <para>Please note that the <computeroutput>bootdebug</computeroutput> options are only
+                  effective on Windows 8 or newer when using the Hyper-V debug transport. Refer to Microsoft
+                  Windows documentation for detailed explanation of <computeroutput>bcdedit</computeroutput>
+                  options.</para>
+                </listitem>
+              </itemizedlist>
+            </listitem>
+
+            <listitem>
+              <para>Start Microsoft WinDbg on your host machine or remote host.</para>
+
+              <para>From the "File" menu, select "Kernel debug". Under the "NET" tab, specify the UDP port
+              number you used in the <computeroutput>paravirtdebug</computeroutput> options. If you didn't
+              specify any, leave it as 50000. Ensure that the UDP port is not blocked by a firewall or other
+              security software.</para>
+
+              <para>In the "Key" field, enter <computeroutput>1.2.3.4</computeroutput> or the encryption
+              key from the <computeroutput>bcdedit</computeroutput> command in your Windows guest.</para>
+
+              <para>Now press "OK" to start listening for connections. Microsoft WinDbg typically shows
+              a "Waiting to reconnect" message during this phase.</para>
+
+              <para>Alternatively, launch WinDbg from the command line to directly start a debug session:
+                <screen>windbg.exe -k net:port=50000,key=1.2.3.4</screen>
+              Please refer to the WinDbg documentation for complete command line syntax.
+              </para>
+
+            </listitem>
+
+            <listitem>
+              <para>Reboot your Windows guest and it should then connect as a debuggee with Microsoft
+              WinDbg.</para>
+            </listitem>
+          </orderedlist>
+        </sect4>
+      </sect3>
+    </sect2>
+  </sect1>
+
   <sect1 id="pcspeaker_passthrough">
     <title>PC speaker passthrough</title>
 
@@ -3992,7 +4262,7 @@ VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
     part. The real difficulty is making sure that VirtualBox can access the
     necessary device, because in a typical Linux install most of them can only
     be accessed by user <computeroutput>root</computeroutput>. You should
-    follow the preferred way to persistently change this, e.g by referring to
+    follow the preferred way to persistently change this, e.g. by referring to
     your distribution's documentation. Since there are countless Linux
     distribution variants, we can only give the general hints that there is
     often a way to give the X11 session user access to additional devices, or

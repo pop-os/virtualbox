@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,9 @@ enum X11WMType
     X11WMType_Mutter,
     X11WMType_Xfwm4,
 };
+
+/** X11: Determines and returns whether the compositing manager is running. */
+bool X11IsCompositingManagerRunning();
 
 /** X11: Determines and returns current Window Manager type. */
 X11WMType X11WindowManagerType();

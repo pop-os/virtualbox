@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -184,6 +184,11 @@ void HostDnsMonitor::releaseMonitorProxy(PCHostDnsMonitorProxy proxy) const
 
 void HostDnsMonitor::shutdown()
 {
+    /** @todo never called.
+     * HostDnsMonitor should be referenced by HostDnsMonitorProxy objects and the Host object
+     * and automatically deleted when not referenced anymore.
+     * Currently HostDnsMonitor can use already deleted m->virtualbox.
+     */
     if (g_monitor)
     {
         delete g_monitor;

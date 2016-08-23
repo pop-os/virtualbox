@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -149,7 +149,14 @@ private:
     int minimumHeightHint(bool fOpenedGroup) const;
     int minimumWidthHint() const;
     int minimumHeightHint() const;
+#ifdef VBOX_WS_MAC
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Woverloaded-virtual"
+#endif
     QSizeF minimumSizeHint(bool fOpenedGroup) const;
+#ifdef VBOX_WS_MAC
+# pragma clang diagnostic pop
+#endif
     QSizeF sizeHint(Qt::SizeHint which, const QSizeF &constraint = QSizeF()) const;
 
     /* Helpers: Drag&drop stuff: */

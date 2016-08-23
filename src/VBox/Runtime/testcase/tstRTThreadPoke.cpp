@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,7 @@ static RTTEST g_hTest;
 
 static DECLCALLBACK(int) test1Thread(RTTHREAD hSelf, void *pvUser)
 {
+    RT_NOREF_PV(hSelf); RT_NOREF_PV(pvUser);
     RTTEST_CHECK_RC(g_hTest, RTThreadSleep(60*1000), VERR_INTERRUPTED);
     return VINF_SUCCESS;
 }

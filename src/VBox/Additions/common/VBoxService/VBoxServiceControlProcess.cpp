@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,8 +49,6 @@ using namespace guestControl;
 *********************************************************************************************************************************/
 static int                  vgsvcGstCtrlProcessAssignPID(PVBOXSERVICECTRLPROCESS pThread, uint32_t uPID);
 static int                  vgsvcGstCtrlProcessLock(PVBOXSERVICECTRLPROCESS pProcess);
-static int                  vgsvcGstCtrlProcessRequest(PVBOXSERVICECTRLPROCESS pProcess, const PVBGLR3GUESTCTRLCMDCTX pHostCtx,
-                                                       PFNRT pfnFunction, unsigned cArgs, ...);
 static int                  vgsvcGstCtrlProcessSetupPipe(const char *pszHowTo, int fd, PRTHANDLE ph, PRTHANDLE *pph,
                                                          PRTPIPE phPipe);
 static int                  vgsvcGstCtrlProcessUnlock(PVBOXSERVICECTRLPROCESS pProcess);
@@ -303,6 +301,7 @@ static int vgsvcGstCtrlProcessPollsetCloseInput(PVBOXSERVICECTRLPROCESS pProcess
 }
 
 
+#ifdef DEBUG
 /**
  * Names a poll handle ID.
  *
@@ -329,6 +328,7 @@ static const char *vgsvcGstCtrlProcessPollHandleToString(uint32_t idPollHnd)
             return "unknown";
     }
 }
+#endif /* DEBUG */
 
 
 /**
@@ -361,6 +361,7 @@ static int vgsvcGstCtrlProcessPollsetOnInput(PVBOXSERVICECTRLPROCESS pProcess, u
 static int vgsvcGstCtrlProcessHandleOutputError(PVBOXSERVICECTRLPROCESS pProcess,
                                                 uint32_t fPollEvt, PRTPIPE phPipeR, uint32_t idPollHnd)
 {
+    RT_NOREF1(fPollEvt);
     AssertPtrReturn(pProcess, VERR_INVALID_POINTER);
 
     if (!phPipeR)
@@ -613,9 +614,6 @@ static int vgsvcGstCtrlProcessProcLoop(PVBOXSERVICECTRLPROCESS pProcess)
         if (fProcessAlive)
         {
             rc2 = RTProcWaitNoResume(pProcess->hProcess, RTPROCWAIT_FLAGS_NOBLOCK, &ProcessStatus);
-#if 0
-            VGSvcVerbose(4, "[PID %RU32]: RTProcWaitNoResume=%Rrc\n", pProcess->uPID, rc2);
-#endif
             if (RT_SUCCESS_NP(rc2))
             {
                 fProcessAlive = false;
@@ -649,6 +647,7 @@ static int vgsvcGstCtrlProcessProcLoop(PVBOXSERVICECTRLPROCESS pProcess)
                     && pProcess->hPipeStdErrR == NIL_RTPIPE)
                )
             {
+                VGSvcVerbose(3, "[PID %RU32]: RTProcWaitNoResume=%Rrc\n", pProcess->uPID, rc2);
                 break;
             }
         }
@@ -847,6 +846,7 @@ static int vgsvcGstCtrlProcessProcLoop(PVBOXSERVICECTRLPROCESS pProcess)
 }
 
 
+#if 0 /* unused */
 /**
  * Initializes a pipe's handle and pipe object.
  *
@@ -865,6 +865,7 @@ static int vgsvcGstCtrlProcessInitPipe(PRTHANDLE ph, PRTPIPE phPipe)
 
     return VINF_SUCCESS;
 }
+#endif
 
 
 /**
@@ -1215,6 +1216,9 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
                                             const char *pszAsUser, const char *pszPassword, const char *pszDomain,
                                             PRTPROCESS phProcess)
 {
+#ifndef RT_OS_WINDOWS
+    RT_NOREF1(pszDomain);
+#endif
     AssertPtrReturn(pszExec, VERR_INVALID_PARAMETER);
     AssertPtrReturn(papszArgs, VERR_INVALID_PARAMETER);
     /* phStdIn is optional. */
@@ -1305,7 +1309,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
     }
 #endif /* RT_OS_WINDOWS */
 
-#ifdef VBOXSERVICE_TOOLBOX
+#ifdef VBOX_WITH_VBOXSERVICE_TOOLBOX
     if (RTStrStr(pszExec, "vbox_") == pszExec)
     {
         /* We want to use the internal toolbox (all internal
@@ -1319,7 +1323,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
          * Do the environment variables expansion on executable and arguments.
          */
         rc = vgsvcGstCtrlProcessResolveExecutable(pszExec, szExecExp, sizeof(szExecExp));
-#ifdef VBOXSERVICE_TOOLBOX
+#ifdef VBOX_WITH_VBOXSERVICE_TOOLBOX
     }
 #endif
     if (RT_SUCCESS(rc))
@@ -1342,8 +1346,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
             {
                 if (fFlags & EXECUTEPROCESSFLAG_HIDDEN)
                     uProcFlags |= RTPROC_FLAGS_HIDDEN;
-                /** @todo Rename to EXECUTEPROCESSFLAG_PROFILE in next API change. */
-                if (!(fFlags & EXECUTEPROCESSFLAG_NO_PROFILE))
+                if (!(fFlags & EXECUTEPROCESSFLAG_PROFILE))
                     uProcFlags |= RTPROC_FLAGS_PROFILE;
                 if (fFlags & EXECUTEPROCESSFLAG_UNQUOTED_ARGS)
                     uProcFlags |= RTPROC_FLAGS_UNQUOTED_ARGS;
@@ -1364,7 +1367,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
 #endif
             VGSvcVerbose(3, "Starting process '%s' ...\n", szExecExp);
 
-            const char *pszUser;
+            const char *pszUser = pszAsUser;
 #ifdef RT_OS_WINDOWS
             /* If a domain name is given, construct an UPN (User Principle Name) with
              * the domain name built-in, e.g. "joedoe@example.com". */
@@ -1379,10 +1382,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
                     VGSvcVerbose(3, "Using UPN: %s\n", pszUserUPN);
                 }
             }
-
-            if (!pszUserUPN) /* Fallback */
 #endif
-                pszUser = pszAsUser;
 
             /* Do normal execution. */
             rc = RTProcCreateEx(szExecExp, papszArgsExp, hEnv, uProcFlags,
@@ -1534,164 +1534,166 @@ static int vgsvcGstCtrlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
     /*
      * Create the environment.
      */
-    RTENV hEnv;
-    if (RT_SUCCESS(rc))
-        rc = RTEnvClone(&hEnv, RTENV_DEFAULT);
     if (RT_SUCCESS(rc))
     {
-        size_t i;
-        for (i = 0; i < uNumEnvVars && papszEnv; i++)
-        {
-            rc = RTEnvPutEx(hEnv, papszEnv[i]);
-            if (RT_FAILURE(rc))
-                break;
-        }
+        RTENV hEnv;
+        rc = RTEnvClone(&hEnv, RTENV_DEFAULT);
         if (RT_SUCCESS(rc))
         {
-            /*
-             * Setup the redirection of the standard stuff.
-             */
-            /** @todo consider supporting: gcc stuff.c >file 2>&1.  */
-            RTHANDLE    hStdIn;
-            PRTHANDLE   phStdIn;
-            rc = vgsvcGstCtrlProcessSetupPipe("|", 0 /*STDIN_FILENO*/,
-                                         &hStdIn, &phStdIn, &pProcess->hPipeStdInW);
+            size_t i;
+            for (i = 0; i < uNumEnvVars && papszEnv; i++)
+            {
+                rc = RTEnvPutEx(hEnv, papszEnv[i]);
+                if (RT_FAILURE(rc))
+                    break;
+            }
             if (RT_SUCCESS(rc))
             {
-                RTHANDLE    hStdOut;
-                PRTHANDLE   phStdOut;
-                rc = vgsvcGstCtrlProcessSetupPipe(  (pProcess->StartupInfo.uFlags & EXECUTEPROCESSFLAG_WAIT_STDOUT)
-                                             ? "|" : "/dev/null",
-                                             1 /*STDOUT_FILENO*/,
-                                             &hStdOut, &phStdOut, &pProcess->hPipeStdOutR);
+                /*
+                 * Setup the redirection of the standard stuff.
+                 */
+                /** @todo consider supporting: gcc stuff.c >file 2>&1.  */
+                RTHANDLE    hStdIn;
+                PRTHANDLE   phStdIn;
+                rc = vgsvcGstCtrlProcessSetupPipe("|", 0 /*STDIN_FILENO*/,
+                                             &hStdIn, &phStdIn, &pProcess->hPipeStdInW);
                 if (RT_SUCCESS(rc))
                 {
-                    RTHANDLE    hStdErr;
-                    PRTHANDLE   phStdErr;
-                    rc = vgsvcGstCtrlProcessSetupPipe(  (pProcess->StartupInfo.uFlags & EXECUTEPROCESSFLAG_WAIT_STDERR)
+                    RTHANDLE    hStdOut;
+                    PRTHANDLE   phStdOut;
+                    rc = vgsvcGstCtrlProcessSetupPipe(  (pProcess->StartupInfo.uFlags & EXECUTEPROCESSFLAG_WAIT_STDOUT)
                                                  ? "|" : "/dev/null",
-                                                 2 /*STDERR_FILENO*/,
-                                                 &hStdErr, &phStdErr, &pProcess->hPipeStdErrR);
+                                                 1 /*STDOUT_FILENO*/,
+                                                 &hStdOut, &phStdOut, &pProcess->hPipeStdOutR);
                     if (RT_SUCCESS(rc))
                     {
-                        /*
-                         * Create a poll set for the pipes and let the
-                         * transport layer add stuff to it as well.
-                         */
-                        rc = RTPollSetCreate(&pProcess->hPollSet);
+                        RTHANDLE    hStdErr;
+                        PRTHANDLE   phStdErr;
+                        rc = vgsvcGstCtrlProcessSetupPipe(  (pProcess->StartupInfo.uFlags & EXECUTEPROCESSFLAG_WAIT_STDERR)
+                                                     ? "|" : "/dev/null",
+                                                     2 /*STDERR_FILENO*/,
+                                                     &hStdErr, &phStdErr, &pProcess->hPipeStdErrR);
                         if (RT_SUCCESS(rc))
                         {
-                            uint32_t uFlags = RTPOLL_EVT_ERROR;
-#if 0
-                            /* Add reading event to pollset to get some more information. */
-                            uFlags |= RTPOLL_EVT_READ;
-#endif
-                            /* Stdin. */
-                            if (RT_SUCCESS(rc))
-                                rc = RTPollSetAddPipe(pProcess->hPollSet,
-                                                      pProcess->hPipeStdInW, RTPOLL_EVT_ERROR, VBOXSERVICECTRLPIPEID_STDIN);
-                            /* Stdout. */
-                            if (RT_SUCCESS(rc))
-                                rc = RTPollSetAddPipe(pProcess->hPollSet,
-                                                      pProcess->hPipeStdOutR, uFlags, VBOXSERVICECTRLPIPEID_STDOUT);
-                            /* Stderr. */
-                            if (RT_SUCCESS(rc))
-                                rc = RTPollSetAddPipe(pProcess->hPollSet,
-                                                      pProcess->hPipeStdErrR, uFlags, VBOXSERVICECTRLPIPEID_STDERR);
-                            /* IPC notification pipe. */
-                            if (RT_SUCCESS(rc))
-                                rc = RTPipeCreate(&pProcess->hNotificationPipeR, &pProcess->hNotificationPipeW, 0 /* Flags */);
-                            if (RT_SUCCESS(rc))
-                                rc = RTPollSetAddPipe(pProcess->hPollSet,
-                                                      pProcess->hNotificationPipeR, RTPOLL_EVT_READ, VBOXSERVICECTRLPIPEID_IPC_NOTIFY);
+                            /*
+                             * Create a poll set for the pipes and let the
+                             * transport layer add stuff to it as well.
+                             */
+                            rc = RTPollSetCreate(&pProcess->hPollSet);
                             if (RT_SUCCESS(rc))
                             {
-                                AssertPtr(pProcess->pSession);
-                                bool fNeedsImpersonation = !(pProcess->pSession->fFlags & VBOXSERVICECTRLSESSION_FLAG_SPAWN);
-
-                                rc = vgsvcGstCtrlProcessCreateProcess(pProcess->StartupInfo.szCmd, papszArgs, hEnv,
-                                                                 pProcess->StartupInfo.uFlags,
-                                                                 phStdIn, phStdOut, phStdErr,
-                                                                 fNeedsImpersonation ? pProcess->StartupInfo.szUser     : NULL,
-                                                                 fNeedsImpersonation ? pProcess->StartupInfo.szPassword : NULL,
-                                                                 fNeedsImpersonation ? pProcess->StartupInfo.szDomain   : NULL,
-                                                                 &pProcess->hProcess);
-                                if (RT_FAILURE(rc))
-                                    VGSvcError("Error starting process, rc=%Rrc\n", rc);
-                                /*
-                                 * Tell the session thread that it can continue
-                                 * spawning guest processes. This needs to be done after the new
-                                 * process has been started because otherwise signal handling
-                                 * on (Open) Solaris does not work correctly (see @bugref{5068}).
-                                 */
-                                int rc2 = RTThreadUserSignal(RTThreadSelf());
+                                uint32_t uFlags = RTPOLL_EVT_ERROR;
+    #if 0
+                                /* Add reading event to pollset to get some more information. */
+                                uFlags |= RTPOLL_EVT_READ;
+    #endif
+                                /* Stdin. */
                                 if (RT_SUCCESS(rc))
-                                    rc = rc2;
-                                fSignalled = true;
-
+                                    rc = RTPollSetAddPipe(pProcess->hPollSet,
+                                                          pProcess->hPipeStdInW, RTPOLL_EVT_ERROR, VBOXSERVICECTRLPIPEID_STDIN);
+                                /* Stdout. */
+                                if (RT_SUCCESS(rc))
+                                    rc = RTPollSetAddPipe(pProcess->hPollSet,
+                                                          pProcess->hPipeStdOutR, uFlags, VBOXSERVICECTRLPIPEID_STDOUT);
+                                /* Stderr. */
+                                if (RT_SUCCESS(rc))
+                                    rc = RTPollSetAddPipe(pProcess->hPollSet,
+                                                          pProcess->hPipeStdErrR, uFlags, VBOXSERVICECTRLPIPEID_STDERR);
+                                /* IPC notification pipe. */
+                                if (RT_SUCCESS(rc))
+                                    rc = RTPipeCreate(&pProcess->hNotificationPipeR, &pProcess->hNotificationPipeW, 0 /* Flags */);
+                                if (RT_SUCCESS(rc))
+                                    rc = RTPollSetAddPipe(pProcess->hPollSet,
+                                                          pProcess->hNotificationPipeR, RTPOLL_EVT_READ, VBOXSERVICECTRLPIPEID_IPC_NOTIFY);
                                 if (RT_SUCCESS(rc))
                                 {
-                                    /*
-                                     * Close the child ends of any pipes and redirected files.
-                                     */
-                                    rc2 = RTHandleClose(phStdIn);   AssertRC(rc2);
-                                    phStdIn    = NULL;
-                                    rc2 = RTHandleClose(phStdOut);  AssertRC(rc2);
-                                    phStdOut   = NULL;
-                                    rc2 = RTHandleClose(phStdErr);  AssertRC(rc2);
-                                    phStdErr   = NULL;
+                                    AssertPtr(pProcess->pSession);
+                                    bool fNeedsImpersonation = !(pProcess->pSession->fFlags & VBOXSERVICECTRLSESSION_FLAG_SPAWN);
 
-                                    /* Enter the process main loop. */
-                                    rc = vgsvcGstCtrlProcessProcLoop(pProcess);
-
+                                    rc = vgsvcGstCtrlProcessCreateProcess(pProcess->StartupInfo.szCmd, papszArgs, hEnv,
+                                                                     pProcess->StartupInfo.uFlags,
+                                                                     phStdIn, phStdOut, phStdErr,
+                                                                     fNeedsImpersonation ? pProcess->StartupInfo.szUser     : NULL,
+                                                                     fNeedsImpersonation ? pProcess->StartupInfo.szPassword : NULL,
+                                                                     fNeedsImpersonation ? pProcess->StartupInfo.szDomain   : NULL,
+                                                                     &pProcess->hProcess);
+                                    if (RT_FAILURE(rc))
+                                        VGSvcError("Error starting process, rc=%Rrc\n", rc);
                                     /*
-                                     * The handles that are no longer in the set have
-                                     * been closed by the above call in order to prevent
-                                     * the guest from getting stuck accessing them.
-                                     * So, NIL the handles to avoid closing them again.
+                                     * Tell the session thread that it can continue
+                                     * spawning guest processes. This needs to be done after the new
+                                     * process has been started because otherwise signal handling
+                                     * on (Open) Solaris does not work correctly (see @bugref{5068}).
                                      */
-                                    if (RT_FAILURE(RTPollSetQueryHandle(pProcess->hPollSet,
-                                                                        VBOXSERVICECTRLPIPEID_IPC_NOTIFY, NULL)))
+                                    int rc2 = RTThreadUserSignal(RTThreadSelf());
+                                    if (RT_SUCCESS(rc))
+                                        rc = rc2;
+                                    fSignalled = true;
+
+                                    if (RT_SUCCESS(rc))
                                     {
-                                        pProcess->hNotificationPipeR = NIL_RTPIPE;
-                                        pProcess->hNotificationPipeW = NIL_RTPIPE;
-                                    }
-                                    if (RT_FAILURE(RTPollSetQueryHandle(pProcess->hPollSet,
-                                                                        VBOXSERVICECTRLPIPEID_STDERR, NULL)))
-                                        pProcess->hPipeStdErrR = NIL_RTPIPE;
-                                    if (RT_FAILURE(RTPollSetQueryHandle(pProcess->hPollSet,
-                                                                        VBOXSERVICECTRLPIPEID_STDOUT, NULL)))
-                                        pProcess->hPipeStdOutR = NIL_RTPIPE;
-                                    if (RT_FAILURE(RTPollSetQueryHandle(pProcess->hPollSet,
-                                                                        VBOXSERVICECTRLPIPEID_STDIN, NULL)))
-                                        pProcess->hPipeStdInW = NIL_RTPIPE;
-                                }
-                            }
-                            RTPollSetDestroy(pProcess->hPollSet);
+                                        /*
+                                         * Close the child ends of any pipes and redirected files.
+                                         */
+                                        rc2 = RTHandleClose(phStdIn);   AssertRC(rc2);
+                                        phStdIn    = NULL;
+                                        rc2 = RTHandleClose(phStdOut);  AssertRC(rc2);
+                                        phStdOut   = NULL;
+                                        rc2 = RTHandleClose(phStdErr);  AssertRC(rc2);
+                                        phStdErr   = NULL;
 
-                            RTPipeClose(pProcess->hNotificationPipeR);
-                            pProcess->hNotificationPipeR = NIL_RTPIPE;
-                            RTPipeClose(pProcess->hNotificationPipeW);
-                            pProcess->hNotificationPipeW = NIL_RTPIPE;
-                        }
-                        RTPipeClose(pProcess->hPipeStdErrR);
-                        pProcess->hPipeStdErrR = NIL_RTPIPE;
-                        RTHandleClose(phStdErr);
-                        if (phStdErr)
+                                        /* Enter the process main loop. */
+                                        rc = vgsvcGstCtrlProcessProcLoop(pProcess);
+
+                                        /*
+                                         * The handles that are no longer in the set have
+                                         * been closed by the above call in order to prevent
+                                         * the guest from getting stuck accessing them.
+                                         * So, NIL the handles to avoid closing them again.
+                                         */
+                                        if (RT_FAILURE(RTPollSetQueryHandle(pProcess->hPollSet,
+                                                                            VBOXSERVICECTRLPIPEID_IPC_NOTIFY, NULL)))
+                                        {
+                                            pProcess->hNotificationPipeR = NIL_RTPIPE;
+                                            pProcess->hNotificationPipeW = NIL_RTPIPE;
+                                        }
+                                        if (RT_FAILURE(RTPollSetQueryHandle(pProcess->hPollSet,
+                                                                            VBOXSERVICECTRLPIPEID_STDERR, NULL)))
+                                            pProcess->hPipeStdErrR = NIL_RTPIPE;
+                                        if (RT_FAILURE(RTPollSetQueryHandle(pProcess->hPollSet,
+                                                                            VBOXSERVICECTRLPIPEID_STDOUT, NULL)))
+                                            pProcess->hPipeStdOutR = NIL_RTPIPE;
+                                        if (RT_FAILURE(RTPollSetQueryHandle(pProcess->hPollSet,
+                                                                            VBOXSERVICECTRLPIPEID_STDIN, NULL)))
+                                            pProcess->hPipeStdInW = NIL_RTPIPE;
+                                    }
+                                }
+                                RTPollSetDestroy(pProcess->hPollSet);
+
+                                RTPipeClose(pProcess->hNotificationPipeR);
+                                pProcess->hNotificationPipeR = NIL_RTPIPE;
+                                RTPipeClose(pProcess->hNotificationPipeW);
+                                pProcess->hNotificationPipeW = NIL_RTPIPE;
+                            }
+                            RTPipeClose(pProcess->hPipeStdErrR);
+                            pProcess->hPipeStdErrR = NIL_RTPIPE;
                             RTHandleClose(phStdErr);
+                            if (phStdErr)
+                                RTHandleClose(phStdErr);
+                        }
+                        RTPipeClose(pProcess->hPipeStdOutR);
+                        pProcess->hPipeStdOutR = NIL_RTPIPE;
+                        RTHandleClose(&hStdOut);
+                        if (phStdOut)
+                            RTHandleClose(phStdOut);
                     }
-                    RTPipeClose(pProcess->hPipeStdOutR);
-                    pProcess->hPipeStdOutR = NIL_RTPIPE;
-                    RTHandleClose(&hStdOut);
-                    if (phStdOut)
-                        RTHandleClose(phStdOut);
+                    RTPipeClose(pProcess->hPipeStdInW);
+                    pProcess->hPipeStdInW = NIL_RTPIPE;
+                    RTHandleClose(phStdIn);
                 }
-                RTPipeClose(pProcess->hPipeStdInW);
-                pProcess->hPipeStdInW = NIL_RTPIPE;
-                RTHandleClose(phStdIn);
             }
+            RTEnvDestroy(hEnv);
         }
-        RTEnvDestroy(hEnv);
     }
 
     if (pProcess->uClientID)
@@ -1761,6 +1763,7 @@ static int vgsvcGstCtrlProcessLock(PVBOXSERVICECTRLPROCESS pProcess)
  */
 static DECLCALLBACK(int) vgsvcGstCtrlProcessThread(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF1(hThreadSelf);
     PVBOXSERVICECTRLPROCESS pProcess = (PVBOXSERVICECTRLPROCESS)pvUser;
     AssertPtrReturn(pProcess, VERR_INVALID_POINTER);
     return vgsvcGstCtrlProcessProcessWorker(pProcess);
@@ -2024,6 +2027,7 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnTerm(PVBOXSERVICECTRLPROCESS pThis
 static int vgsvcGstCtrlProcessRequestExV(PVBOXSERVICECTRLPROCESS pProcess, const PVBGLR3GUESTCTRLCMDCTX pHostCtx, bool fAsync,
                                          RTMSINTERVAL uTimeoutMS, PRTREQ pReq, PFNRT pfnFunction, unsigned cArgs, va_list Args)
 {
+    RT_NOREF1(pHostCtx);
     AssertPtrReturn(pProcess, VERR_INVALID_POINTER);
     /* pHostCtx is optional. */
     AssertPtrReturn(pfnFunction, VERR_INVALID_POINTER);

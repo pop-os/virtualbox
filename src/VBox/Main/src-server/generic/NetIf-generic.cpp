@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -112,7 +112,7 @@ int NetIfAdpCtlOut(const char * pcszName, const char * pcszCmd, char *pszBuffer,
     FILE *fp = popen(szAdpCtl, "r");
     if (fp)
     {
-        if (fgets(pszBuffer, cBufSize, fp))
+        if (fgets(pszBuffer, (int)cBufSize, fp))
         {
             if (!strncmp(VBOXNETADPCTL_NAME ":", pszBuffer, sizeof(VBOXNETADPCTL_NAME)))
             {

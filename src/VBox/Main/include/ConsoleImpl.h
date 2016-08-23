@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2015 Oracle Corporation
+ * Copyright (C) 2005-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,6 +50,8 @@ class ExtPackManager;
 #endif
 class VMMDevMouseInterface;
 class DisplayMouseInterface;
+class VMPowerUpTask;
+class VMPowerDownTask;
 
 #include <iprt/uuid.h>
 #include <iprt/memsafer.h>
@@ -57,10 +59,6 @@ class DisplayMouseInterface;
 #include <VBox/vmm/pdmdrv.h>
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>  /* For the property notification callback */
-#endif
-
-#ifdef RT_OS_WINDOWS
-# include "../src-server/win/VBoxComEvents.h"
 #endif
 
 struct VUSBIRHCONFIG;
@@ -383,7 +381,7 @@ private:
         }
     private:
         HRESULT mRC; /* Whether the caller was added. */
-        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoVMCallerBase)
+        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoVMCallerBase);
     };
 
 #if 0
@@ -477,7 +475,7 @@ private:
         }
         HRESULT mRC; /* Whether the VM ptr was retained. */
         PUVM    mpUVM;
-        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(SafeVMPtrBase)
+        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(SafeVMPtrBase);
     };
 
 public:
@@ -563,6 +561,9 @@ public:
     typedef std::map<Utf8Str, SharedFolderData> SharedFolderDataMap;
     typedef std::map<Utf8Str, ComPtr<IMediumAttachment> > MediumAttachmentMap;
     typedef std::list <USBStorageDevice> USBStorageDeviceList;
+
+    static void i_powerUpThreadTask(VMPowerUpTask *pTask);
+    static void i_powerDownThreadTask(VMPowerDownTask *pTask);
 
 private:
 
@@ -704,7 +705,7 @@ private:
     HRESULT i_detachUSBDevice(const ComObjPtr<OUSBDevice> &aHostDevice);
 
     static DECLCALLBACK(int) i_usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, PCRTUUID aUuid,
-                                                 bool aRemote, const char *aAddress, void *pvRemoteBackend,
+                                                 const char *aBackend, const char *aAddress, void *pvRemoteBackend,
                                                  USHORT aPortVersion, ULONG aMaskedIfs, const char *pszCaptureFilename);
     static DECLCALLBACK(int) i_usbDetachCallback(Console *that, PUVM pUVM, PCRTUUID aUuid);
 #endif
@@ -732,15 +733,13 @@ private:
     static DECLCALLBACK(void)   i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
                                                             const char *pszErrorFmt, va_list va);
 
-    void                        i_setVMRuntimeErrorCallbackF(uint32_t fFatal, const char *pszErrorId, const char *pszFormat, ...);
-    static DECLCALLBACK(void)   i_setVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFatal,
-                                                            const char *pszErrorId, const char *pszFormat, va_list va);
+    void                        i_atVMRuntimeErrorCallbackF(uint32_t fFatal, const char *pszErrorId, const char *pszFormat, ...);
+    static DECLCALLBACK(void)   i_atVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFatal,
+                                                           const char *pszErrorId, const char *pszFormat, va_list va);
 
     HRESULT                     i_captureUSBDevices(PUVM pUVM);
     void                        i_detachAllUSBDevices(bool aDone);
 
-    static DECLCALLBACK(int)    i_powerUpThread(RTTHREAD Thread, void *pvUser);
-    static DECLCALLBACK(int)    i_powerDownThread(RTTHREAD Thread, void *pvUser);
 
     static DECLCALLBACK(int)    i_vmm2User_SaveState(PCVMM2USERMETHODS pThis, PUVM pUVM);
     static DECLCALLBACK(void)   i_vmm2User_NotifyEmtInit(PCVMM2USERMETHODS pThis, PUVM pUVM, PUVMCPU pUVCpu);
@@ -812,7 +811,7 @@ private:
 
     /** @name Teleporter support
      * @{ */
-    static DECLCALLBACK(int)    i_teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser);
+    static DECLCALLBACK(int)    i_teleporterSrcThreadWrapper(RTTHREAD hThreadSelf, void *pvUser);
     HRESULT                     i_teleporterSrc(TeleporterStateSrc *pState);
     HRESULT                     i_teleporterSrcReadACK(TeleporterStateSrc *pState, const char *pszWhich, const char *pszNAckMsg = NULL);
     HRESULT                     i_teleporterSrcSubmitCommand(TeleporterStateSrc *pState, const char *pszCommand, bool fWaitForAck = true);
@@ -913,7 +912,9 @@ private:
         cLedSas     = 8,
         iLedUsb     = iLedSas + cLedSas,
         cLedUsb     = 8,
-        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas + cLedUsb
+        iLedNvme    = iLedUsb + cLedUsb,
+        cLedNvme    = 30,
+        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas + cLedUsb + cLedNvme
     };
     DeviceType_T maStorageDevType[cLedStorage];
     PPDMLED      mapStorageLeds[cLedStorage];
@@ -973,7 +974,7 @@ private:
 
     ComPtr<IEventListener> mVmListener;
 
-    friend struct VMTask;
+    friend class VMTask;
     friend class ConsoleVRDPServer;
 };
 

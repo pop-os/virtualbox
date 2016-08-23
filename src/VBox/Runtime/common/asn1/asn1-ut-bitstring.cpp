@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,6 +81,7 @@ static DECLCALLBACK(int) rtAsn1BitStringEncodeCompare(const void *pvBuf, size_t 
     if (memcmp(&pCtx->pbBuf[pCtx->offBuf], pvBuf, cbToWrite) != 0)
         return VERR_NOT_EQUAL;
     pCtx->offBuf += (uint32_t)cbToWrite;
+    RT_NOREF_PV(pErrInfo);
     return VINF_SUCCESS;
 }
 
@@ -266,12 +267,12 @@ static DECLCALLBACK(int) RTAsn1BitString_EncodeWrite(PRTASN1CORE pThisCore, uint
 {
     PRTASN1BITSTRING pThis = (PRTASN1BITSTRING)pThisCore;
 
-    AssertReturn(RT_ALIGN(pThis->cBits, 7) / 8 + 1 == pThis->Asn1Core.cb, VERR_INTERNAL_ERROR_3);
+    AssertReturn(RT_ALIGN(pThis->cBits, 8) / 8 + 1 == pThis->Asn1Core.cb, VERR_INTERNAL_ERROR_3);
 
     /*
      * First the header.
      */
-    int rc = RTAsnEncodeWriteHeader(&pThis->Asn1Core, fFlags, pfnWriter, pvUser, pErrInfo);
+    int rc = RTAsn1EncodeWriteHeader(&pThis->Asn1Core, fFlags, pfnWriter, pvUser, pErrInfo);
     if (RT_SUCCESS(rc) && rc != VINF_ASN1_NOT_ENCODED)
     {
         /*

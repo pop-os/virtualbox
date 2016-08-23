@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -174,7 +174,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 break;
             }
 
-            ClipboardMode_T mode;
+            ClipboardMode_T mode = ClipboardMode_Disabled; /* Shut up MSC */
             if (!strcmp(a->argv[2], "disabled"))
                 mode = ClipboardMode_Disabled;
             else if (!strcmp(a->argv[2], "hosttoguest"))
@@ -204,7 +204,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 break;
             }
 
-            DnDMode_T mode;
+            DnDMode_T mode = DnDMode_Disabled; /* Shup up MSC. */
             if (!strcmp(a->argv[2], "disabled"))
                 mode = DnDMode_Disabled;
             else if (!strcmp(a->argv[2], "hosttoguest"))
@@ -1120,7 +1120,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                                                      Bstr(domain).raw(),
                                                      fAllowLocalLogon));
         }
-#if 0 /* TODO: review & remove */
+#if 0 /** @todo review & remove */
         else if (!strcmp(a->argv[1], "dvdattach"))
         {
             Bstr uuid;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,7 +41,7 @@ private slots:
 
     /** Assigns property value. */
     void sltAssignProperty(const QString &strValue)
-        { parent()->setProperty(m_strName.toAscii().constData(), strValue); }
+        { parent()->setProperty(m_strName.toLatin1().constData(), strValue); }
 
 private:
 
@@ -275,9 +275,9 @@ private:
     QString m_strAuthPassword;
 };
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 # include "VBoxUtils-darwin.h"
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 #endif // !___VBoxUtils_h___
 

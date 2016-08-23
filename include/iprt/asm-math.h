@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,11 @@
 #include <iprt/types.h>
 
 #if defined(_MSC_VER) && RT_INLINE_ASM_USES_INTRIN
+# pragma warning(push)
+# pragma warning(disable:4668) /* Several incorrect __cplusplus uses. */
+# pragma warning(disable:4255) /* Incorrect __slwpcb prototype. */
 # include <intrin.h>
+# pragma warning(pop)
   /* Emit the intrinsics at all optimization levels. */
 # pragma intrinsic(__emul)
 # pragma intrinsic(__emulu)

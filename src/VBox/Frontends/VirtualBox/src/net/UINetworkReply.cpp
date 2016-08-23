@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -649,7 +649,7 @@ int UINetworkReplyPrivateThread::applyRawHeaders(RTHTTP hHttp, const UserDiction
     {
         /* Prepare formatted representation: */
         QString strFormattedString = QString("%1: %2").arg(header, headers.value(header));
-        formattedHeaders << strFormattedString.toAscii();
+        formattedHeaders << strFormattedString.toUtf8();
         formattedHeaderPointers << formattedHeaders.last().constData();
     }
     const char **ppFormattedHeaders = formattedHeaderPointers.data();
@@ -914,6 +914,7 @@ DECLCALLBACK(void) UINetworkReplyPrivateThread::handleProgressChange(RTHTTP hHtt
 
 
 #ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
+
 
 /*********************************************************************************************************************************
 *   Class UINetworkReplyPrivate implementation.                                                                                  *

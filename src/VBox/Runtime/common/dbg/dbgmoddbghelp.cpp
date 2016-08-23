@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,7 +42,7 @@
 #include <iprt/string.h>
 #include "internal/dbgmod.h"
 
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #include <Dbghelp.h>
 #include <iprt/win/lazy-dbghelp.h>
 
@@ -116,7 +116,7 @@ static DECLCALLBACK(int) rtDbgModDbgHelp_SymbolByName(PRTDBGMODINT pMod, const c
                                                       PRTDBGSYMBOL pSymInfo)
 {
     RTDBGMOD hCnt = (RTDBGMOD)pMod->pvDbgPriv;
-    Assert(!pszSymbol[cchSymbol]);
+    Assert(!pszSymbol[cchSymbol]); RT_NOREF_PV(cchSymbol);
     return RTDbgModSymbolByName(hCnt, pszSymbol/*, cchSymbol*/, pSymInfo);
 }
 
@@ -255,7 +255,7 @@ static BOOL CALLBACK rtDbgModDbgHelpCopyLineNumberCallback(PSRCCODEINFOW pLineIn
      */
     int rc = RTDbgModLineAdd(pArgs->hCnt, pArgs->pszPrev, pLineInfo->LineNumber,
                              RTDBGSEGIDX_RVA, pLineInfo->Address - pArgs->uModAddr, NULL);
-    Log((" %#018RX64 %05u  %s  [%Rrc]\n", pLineInfo->Address, pLineInfo->LineNumber, rc));
+    Log((" %#018RX64 %05u  %s  [%Rrc]\n", pLineInfo->Address, pLineInfo->LineNumber, pArgs->pszPrev, rc));
     NOREF(rc);
 
     return TRUE;
@@ -363,6 +363,7 @@ static int rtDbgModDbgHelpCopySymbols(PRTDBGMODINT pMod, RTDBGMOD hCnt, HANDLE h
 static DECLCALLBACK(int) rtDbgModDbgHelpAddSegmentsCallback(RTLDRMOD hLdrMod, PCRTLDRSEG pSeg, void *pvUser)
 {
     RTDBGMODBGHELPARGS *pArgs = (RTDBGMODBGHELPARGS *)pvUser;
+    RT_NOREF_PV(hLdrMod);
 
     Log(("Segment %.*s: LinkAddress=%#llx RVA=%#llx cb=%#llx\n",
          pSeg->cchName, pSeg->pszName, (uint64_t)pSeg->LinkAddress, (uint64_t)pSeg->RVA, pSeg->cb));

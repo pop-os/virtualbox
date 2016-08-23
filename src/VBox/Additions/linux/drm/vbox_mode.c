@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,7 +106,8 @@ static void vbox_do_modeset(struct drm_crtc *crtc,
                                 crtc->x * bpp / 8 + crtc->y * pitch,
                                 pitch, width, height,
                                 vbox_crtc->blanked ? 0 : bpp, flags);
-    VBoxHGSMIReportFlagsLocation(&vbox->submit_info, vbox->host_flags_offset);
+    VBoxHGSMIReportFlagsLocation(&vbox->submit_info,   vbox->vram_map_start
+                                                     + vbox->host_flags_offset);
     LogFunc(("vboxvideo: %d\n", __LINE__));
 }
 
@@ -132,9 +133,9 @@ static int vbox_set_view(struct drm_crtc *crtc)
         VBVAINFOVIEW *pInfo = (VBVAINFOVIEW *)p;
         pInfo->u32ViewIndex = vbox_crtc->crtc_id;
         pInfo->u32ViewOffset = vbox_crtc->fb_offset;
-        pInfo->u32ViewSize =   vbox->vram_size - vbox_crtc->fb_offset
+        pInfo->u32ViewSize =   vbox->available_vram_size - vbox_crtc->fb_offset
                              + vbox_crtc->crtc_id * VBVA_MIN_BUFFER_SIZE;
-        pInfo->u32MaxScreenSize = vbox->vram_size - vbox_crtc->fb_offset;
+        pInfo->u32MaxScreenSize = vbox->available_vram_size - vbox_crtc->fb_offset;
         VBoxHGSMIBufferSubmit(&vbox->submit_info, p);
         VBoxHGSMIBufferFree(&vbox->submit_info, p);
     }
@@ -224,6 +225,8 @@ static int vbox_crtc_do_set_base(struct drm_crtc *crtc,
         ret = ttm_bo_kmap(&bo->bo, 0, bo->bo.num_pages, &bo->kmap);
         if (ret)
             DRM_ERROR("failed to kmap fbcon\n");
+        else
+            vbox_fbdev_set_base(vbox, gpu_addr);
     }
     vbox_bo_unreserve(bo);
 
@@ -257,6 +260,10 @@ static int vbox_crtc_mode_set(struct drm_crtc *crtc,
     LogFunc(("vboxvideo: %d: vbox=%p\n", __LINE__, vbox));
     vbox_crtc_mode_set_base(crtc, x, y, old_fb);
     mutex_lock(&vbox->hw_mutex);
+    /* Disable VBVA when someone sets a new mode until they send us dirty
+     * rectangles, which proves that they can.  A single screen can work
+     * without VBVA. */
+    vbox_disable_accel(vbox);
     rc = vbox_set_view(crtc);
     if (!rc)
         vbox_do_modeset(crtc, mode);

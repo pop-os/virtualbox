@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -283,7 +283,7 @@ inline RTRCPTR CSAMResolveBranch(PDISCPUSTATE pCpu, RTRCPTR pBranchInstrGC)
 #endif
 }
 
-PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER)  csamCodePageWriteHandler;
+PGM_ALL_CB2_PROTO(FNPGMVIRTHANDLER) csamCodePageWriteHandler;
 RT_C_DECLS_BEGIN
 DECLEXPORT(FNPGMRCVIRTPFHANDLER)    csamRCCodePageWritePfHandler;
 RT_C_DECLS_END

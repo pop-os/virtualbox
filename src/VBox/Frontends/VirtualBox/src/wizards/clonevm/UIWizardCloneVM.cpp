@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,13 +39,13 @@ UIWizardCloneVM::UIWizardCloneVM(QWidget *pParent, const CMachine &machine, CSna
     , m_machine(machine)
     , m_snapshot(snapshot)
 {
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /* Assign watermark: */
     assignWatermark(":/vmw_clone.png");
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
     /* Assign background image: */
     assignBackground(":/vmw_clone_bg.png");
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 }
 
 bool UIWizardCloneVM::cloneVM()

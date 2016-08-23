@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,9 @@
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/cfgm.h>
+#ifdef VBOX_WITH_NEW_APIC
+# include <VBox/vmm/apic.h>
+#endif
 #ifdef VBOX_WITH_REM
 # include <VBox/vmm/rem.h>
 #endif
@@ -408,6 +411,21 @@ int pdmR3DevInit(PVM pVM)
         return rc;
 #endif
 
+    LogFlow(("pdmR3DevInit: returns %Rrc\n", VINF_SUCCESS));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Performs the init complete callback after ring-0 and raw-mode has been
+ * initialized.
+ *
+ * @returns VBox status code.
+ * @param   pVM     The cross context VM structure.
+ */
+int pdmR3DevInitComplete(PVM pVM)
+{
+    int rc;
 
     /*
      *
@@ -443,10 +461,12 @@ int pdmR3DevInit(PVM pVM)
     }
 
 #ifdef VBOX_WITH_USB
-    /* ditto for USB Devices. */
     rc = pdmR3UsbVMInitComplete(pVM);
     if (RT_FAILURE(rc))
+    {
+        Log(("pdmR3DevInit: returns %Rrc\n", rc));
         return rc;
+    }
 #endif
 
     LogFlow(("pdmR3DevInit: returns %Rrc\n", VINF_SUCCESS));
@@ -486,8 +506,16 @@ static int pdmR3DevLoadModules(PVM pVM)
     RegCB.pVM              = pVM;
     RegCB.pCfgNode         = NULL;
 
+#ifdef VBOX_WITH_NEW_APIC
     /*
-     * Load the builtin module
+     * Load the internal VMM APIC device.
+     */
+    int rc2 = pdmR3DevReg_Register(&RegCB.Core, &g_DeviceAPIC);
+    AssertRCReturn(rc2, rc2);
+#endif
+
+    /*
+     * Load the builtin module.
      */
     PCFGMNODE pDevicesNode = CFGMR3GetChild(CFGMR3GetRoot(pVM), "PDM/Devices");
     bool fLoadBuiltin;
@@ -867,7 +895,7 @@ VMMR3DECL(int) PDMR3DeviceDetach(PUVM pUVM, const char *pszDevice, unsigned iIns
  */
 VMMR3_INT_DECL(PPDMCRITSECT) PDMR3DevGetCritSect(PVM pVM, PPDMDEVINS pDevIns)
 {
-    VM_ASSERT_EMT(pVM);
+    VM_ASSERT_EMT(pVM); RT_NOREF_PV(pVM);
     VM_ASSERT_STATE(pVM, VMSTATE_CREATING);
     AssertPtr(pDevIns);
 

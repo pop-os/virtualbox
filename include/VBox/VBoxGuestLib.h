@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -426,7 +426,7 @@ DECLVBGL(int)     VbglSetMouseStatus(uint32_t fFeatures);
  * Ring 3 VBGL declaration.
  * @param   type    The return type of the function declaration.
  */
-# define VBGLR3DECL(type) type VBOXCALL
+# define VBGLR3DECL(type) DECLHIDDEN(type) VBOXCALL
 
 /** @name General-purpose functions
  * @{ */

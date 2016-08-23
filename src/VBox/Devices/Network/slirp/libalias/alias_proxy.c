@@ -426,7 +426,7 @@ ProxyEncodeTcpStream(struct alias_link *lnk,
 #endif
 
 /* Pad string out to a multiple of two in length */
-    slen = strlen(buffer);
+    slen = (int)strlen(buffer);
     switch (slen % 2) {
     case 0:
         strcat(buffer, " \n");
@@ -692,7 +692,7 @@ LibAliasProxyRule(struct libalias *la, const char *cmd)
     ret = 0;
 /* Copy command line into a buffer */
     cmd += strspn(cmd, " \t");
-    cmd_len = strlen(cmd);
+    cmd_len = (int)strlen(cmd);
     if (cmd_len > (int)(sizeof(buffer) - 1)) {
         ret = -1;
         goto getout;
@@ -700,7 +700,7 @@ LibAliasProxyRule(struct libalias *la, const char *cmd)
     strcpy(buffer, cmd);
 
 /* Convert to lower case */
-    len = strlen(buffer);
+    len = (int)strlen(buffer);
     for (i = 0; i < len; i++)
         buffer[i] = tolower((unsigned char)buffer[i]);
 
@@ -802,7 +802,7 @@ LibAliasProxyRule(struct libalias *la, const char *cmd)
                 } else {
                     *p = ' ';
 
-                    n = sscanf(token, "%s %s", s, str_server_port);
+                    n = sscanf(token, "%255s %255s", s, str_server_port);
                     if (n != 2) {
                         ret = -1;
                         goto getout;
@@ -885,7 +885,7 @@ LibAliasProxyRule(struct libalias *la, const char *cmd)
                     char s[sizeof(buffer)];
 
                     *p = ' ';
-                    n = sscanf(token, "%s %d", s, &nbits);
+                    n = sscanf(token, "%255s %d", s, &nbits);
                     if (n != 2) {
                         ret = -1;
                         goto getout;

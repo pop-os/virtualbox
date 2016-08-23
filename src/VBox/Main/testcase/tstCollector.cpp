@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,8 +34,8 @@
 #endif
 #ifdef RT_OS_WINDOWS
 # define _WIN32_DCOM
-# include <objidl.h>
-# include <objbase.h>
+# include <iprt/win/objidl.h>
+# include <iprt/win/objbase.h>
 # include "../src-server/win/PerformanceWin.cpp"
 #endif
 
@@ -82,7 +82,7 @@ void shutdownProcessList(std::vector<RTPROCESS> const &rProcesses)
 void measurePerformance(pm::CollectorHAL *collector, const char *pszName, int cVMs)
 {
 
-    static const char * const args[] = { pszName, "-child", NULL };
+    const char * const args[] = { pszName, "-child", NULL };
     pm::CollectorHints hints;
     std::vector<RTPROCESS> processes;
 
@@ -144,7 +144,7 @@ void measurePerformance(pm::CollectorHAL *collector, const char *pszName, int cV
         /* Process RAM usage */
         N_CALLS(cVMs, getProcessMemoryUsage(processes[call], &tmp));
     }
-    printf("\n%u VMs -- %.2f%% of CPU time\n", cVMs, (RTTimeNanoTS() - start) / 10000000. / times);
+    printf("\n%d VMs -- %.2f%% of CPU time\n", cVMs, (RTTimeNanoTS() - start) / 10000000. / times);
 
     /* Shut down fake VMs */
     shutdownProcessList(processes);

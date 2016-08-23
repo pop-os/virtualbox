@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -293,7 +293,8 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
     register struct tcpiphdr *ti;
     caddr_t optp = NULL;
     int optlen = 0;
-    int len, tlen, off;
+    int len, off;
+    int tlen = 0; /* Shut up MSC (didn't check whether MSC was right). */
     register struct tcpcb *tp = 0;
     register int tiflags;
     struct socket *so = 0;
@@ -302,13 +303,12 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
     int iss = 0;
     u_long tiwin;
 /*  int ts_present = 0; */
-    size_t ohdrlen;
+    unsigned ohdrlen;
     uint8_t ohdr[60 + 8]; /* max IP header plus 8 bytes of payload for icmp */
 
     STAM_PROFILE_START(&pData->StatTCP_input, counter_input);
 
-    LogFlow(("tcp_input: m = %8lx, iphlen = %2d, inso = %R[natsock]\n",
-             (long)m, iphlen, inso));
+    LogFlow(("tcp_input: m = %p, iphlen = %2d, inso = %R[natsock]\n", m, iphlen, inso));
 
     if (inso != NULL)
     {
@@ -359,7 +359,7 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
     ip = mtod(m, struct ip *);
 
     /* ip_input() subtracts iphlen from ip::ip_len */
-    AssertStmt((ip->ip_len + iphlen == m_length(m, NULL)), goto drop);
+    AssertStmt(ip->ip_len + iphlen == (ssize_t)m_length(m, NULL), goto drop);
     if (RT_UNLIKELY(ip->ip_len < sizeof(struct tcphdr)))
     {
         /* tcps_rcvshort++; */
@@ -480,7 +480,7 @@ findso:
         || so->so_faddr.s_addr != ti->ti_dst.s_addr)
     {
         QSOCKET_UNLOCK(tcb);
-        /* @todo fix SOLOOKUP macrodefinition to be usable here */
+        /** @todo fix SOLOOKUP macrodefinition to be usable here */
         so = solookup(&tcb, ti->ti_src, ti->ti_sport,
                       ti->ti_dst, ti->ti_dport);
         if (so)
@@ -1256,7 +1256,7 @@ close:
                 if (ti->ti_len == 0 && tiwin == tp->snd_wnd)
                 {
                     tcpstat.tcps_rcvdupack++;
-                    Log2((" dup ack  m = %lx, so = %lx\n", (long)m, (long)so));
+                    Log2((" dup ack  m = %p, so = %p\n", m, so));
                     /*
                      * If we have outstanding data (other than
                      * a window probe), this is a completely
@@ -1783,7 +1783,7 @@ tcp_fconnect_failed(PNATState pData, struct socket *so, int sockerr)
     if (code >= 0)
     {
         struct ip *oip;
-        size_t ohdrlen;
+        unsigned ohdrlen;
         struct mbuf *m;
 
         if (RT_UNLIKELY(so->so_ohdr == NULL))

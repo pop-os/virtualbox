@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
  *
  * Currently only supported for linux guests.
  */
+
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -317,13 +318,16 @@ static int vgsvcCpuHotPlugGetACPIDevicePath(char **ppszPath, uint32_t idCpuCore,
 
                         for (unsigned i = 0; i < RT_ELEMENTS(g_apszTopologyPath); i++)
                         {
-                            int64_t i64Core    = RTLinuxSysFsReadIntFile(10, "%s/%s/topology/core_id",
-                                                                         pszPathCurr, g_apszTopologyPath[i]);
-                            int64_t i64Package = RTLinuxSysFsReadIntFile(10, "%s/%s/topology/physical_package_id",
-                                                                         pszPathCurr, g_apszTopologyPath[i]);
+                            int64_t i64Core    = 0;
+                            int64_t i64Package = 0;
 
-                            if (   i64Core != -1
-                                && i64Package != -1)
+                            int rc2 = RTLinuxSysFsReadIntFile(10, &i64Core, "%s/%s/topology/core_id",
+                                                              pszPathCurr, g_apszTopologyPath[i]);
+                            if (RT_SUCCESS(rc2))
+                                rc2 = RTLinuxSysFsReadIntFile(10, &i64Package, "%s/%s/topology/physical_package_id",
+                                                              pszPathCurr, g_apszTopologyPath[i]);
+
+                            if (RT_SUCCESS(rc2))
                             {
                                 idCore = (uint32_t)i64Core;
                                 idPackage = (uint32_t)i64Package;

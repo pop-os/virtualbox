@@ -8,7 +8,7 @@ Base testdriver module.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2015 Oracle Corporation
+Copyright (C) 2010-2016 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 109382 $"
 
 
 # Standard Python imports.
@@ -171,10 +171,10 @@ def tryGetHostByName(sName):
         except:
             reporter.errorXcpt('gethostbyname(%s)' % (sName));
         else:
-            if sIpAddr == '0.0.0.0':
+            if sIpAddr != '0.0.0.0':
+                sName = sIpAddr;
+            else:
                 reporter.error('gethostbyname(%s) -> %s' % (sName, sIpAddr));
-                raise;
-            sName = sIpAddr;
     return sName;
 
 def processInterrupt(uPid):
@@ -393,7 +393,7 @@ class TdTaskBase(object):
 
     def lockTask(self):
         """ Wrapper around oCv.acquire(). """
-        if True: # change to False for debugging deadlocks.
+        if True is True: # change to False for debugging deadlocks.
             self.oCv.acquire();
         else:
             msStartWait = timestampMilli();
@@ -513,9 +513,10 @@ class TdTaskBase(object):
                 if cMsWait > 1000:
                     cMsWait = 1000;
                 try:
-                    self.oCv.wait(cMsWait / 1000)
+                    self.oCv.wait(cMsWait / 1000.0);
                 except:
                     pass;
+                reporter.doPollWork('TdTaskBase.waitForTask');
                 fState = self.pollTask(True);
 
         self.unlockTask();
@@ -606,7 +607,7 @@ class Process(TdTaskBase):
                         uStatus = 0xffffffff;
                 else:
                     uPid    = 0;
-                    uStatus = 0;
+                    uStatus = 0;        # pylint: disable=redefined-variable-type
             else:
                 try:
                     (uPid, uStatus) = os.waitpid(self.uPid, os.WNOHANG); # pylint: disable=E1101
@@ -844,12 +845,23 @@ class TestDriverBase(object): # pylint: disable=R0902
         self.secTimeoutAbs = os.environ.get('TESTBOX_TIMEOUT_ABS', None);
         if self.secTimeoutAbs is not None:
             self.secTimeoutAbs = long(self.secTimeoutAbs);
+            reporter.log('secTimeoutAbs: %s' % (self.secTimeoutAbs,));
+        else:
+            reporter.log('TESTBOX_TIMEOUT_ABS not found in the environment');
 
         # Distance from secTimeoutAbs that timeouts should be adjusted to.
         self.secTimeoutFudge = 30;
 
         # List of sub-test drivers (SubTestDriverBase derivatives).
         self.aoSubTstDrvs    = [];
+
+        # Use the scratch path for temporary files.
+        if self.sHost in ['win', 'os2']:
+            os.environ['TMP']     = self.sScratchPath;
+            os.environ['TEMP']    = self.sScratchPath;
+        os.environ['TMPDIR']      = self.sScratchPath;
+        os.environ['IPRT_TMPDIR'] = self.sScratchPath; # IPRT/VBox specific.
+
 
     def dump(self):
         """
@@ -868,6 +880,9 @@ class TestDriverBase(object): # pylint: disable=R0902
         print >> sys.stderr, "testdriver.base: asSpecialActions  = '%s'" % self.asSpecialActions;
         print >> sys.stderr, "testdriver.base: asNormalActions   = '%s'" % self.asNormalActions;
         print >> sys.stderr, "testdriver.base: asActions         = '%s'" % self.asActions;
+        print >> sys.stderr, "testdriver.base: secTimeoutAbs     = '%s'" % self.secTimeoutAbs;
+        for sVar in sorted(os.environ.keys()):
+            print >> sys.stderr, "os.environ[%s] = '%s'" % (sVar, os.environ[sVar],);
 
     #
     # Resource utility methods.
@@ -1105,10 +1120,10 @@ class TestDriverBase(object): # pylint: disable=R0902
                     cMsElapsed = timestampMilli() - msStart;
                     if cMsElapsed > cMsTimeout: # not ==, we want the final waitForEvents.
                         break;
-                    if cMsTimeout - cMsElapsed > 1000:
-                        fMore = self.waitForTasksSleepWorker(1000);
-                    else:
-                        fMore = self.waitForTasksSleepWorker(cMsTimeout - cMsElapsed);
+                    cMsSleep = cMsTimeout - cMsElapsed;
+                    if cMsSleep > 1000:
+                        cMsSleep = 1000;
+                    fMore = self.waitForTasksSleepWorker(cMsSleep);
         except KeyboardInterrupt:
             self.fInterrupted = True;
             reporter.errorXcpt('KeyboardInterrupt', 6);
@@ -1243,8 +1258,11 @@ class TestDriverBase(object): # pylint: disable=R0902
                 if cMsTimeout > cMsToDeadline:
                     reporter.log('adjusting timeout: %s ms -> %s ms (deadline)\n' % (cMsTimeout, cMsToDeadline,));
                     return cMsToDeadline;
-
-            #else: Don't bother, we've passed the deadline.
+                reporter.log('adjustTimeoutMs: cMsTimeout (%s) > cMsToDeadline (%s)' % (cMsTimeout, cMsToDeadline,));
+            else:
+                # Don't bother, we've passed the deadline.
+                reporter.log('adjustTimeoutMs: ooops! cMsToDeadline=%s (%s), timestampMilli()=%s, timestampSecond()=%s'
+                             % (cMsToDeadline, cMsToDeadline*1000, utils.timestampMilli(), utils.timestampSecond()));
 
         # Only enforce the minimum timeout if specified.
         if cMsMinimum is not None and cMsTimeout < cMsMinimum:
@@ -1574,7 +1592,7 @@ class TestDriverBase(object): # pylint: disable=R0902
         return iRc;
 
 
-    def innerMain(self, asArgs = None):
+    def innerMain(self, asArgs = None): # pylint: disable=R0915
         """
         Exception wrapped main() worker.
         """
@@ -1648,16 +1666,18 @@ class TestDriverBase(object): # pylint: disable=R0902
                 asActions.remove('config');
                 reporter.log('*** config action ***');
                 fRc = self.actionConfig();
-                if fRc is True: reporter.log("config succeeded");
-                else:           reporter.log("config failed");
+                if fRc is True:     reporter.log("config succeeded");
+                elif fRc is None:   reporter.log("config skipping test");
+                else:               reporter.log("config failed");
                 reporter.log('*** config action completed (fRc=%s) ***' % (fRc,));
 
             if 'execute' in asActions and fRc is True:
                 asActions.remove('execute');
                 reporter.log('*** execute action ***');
                 fRc = self.actionExecute();
-                if fRc is True: reporter.log("execute succeeded");
-                else:           reporter.log("execute failed (fRc=%s)" % (fRc,));
+                if fRc is True:     reporter.log("execute succeeded");
+                elif fRc is None:   reporter.log("execute skipping test");
+                else:               reporter.log("execute failed (fRc=%s)" % (fRc,));
                 reporter.testCleanup();
                 reporter.log('*** execute action completed (fRc=%s) ***' % (fRc,));
 

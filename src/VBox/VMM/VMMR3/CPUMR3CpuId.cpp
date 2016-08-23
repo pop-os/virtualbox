@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -324,8 +324,10 @@ VMMR3DECL(CPUMMICROARCH) CPUMR3CpuIdDetermineMicroarchEx(CPUMCPUVENDOR enmVendor
                 }
                 break;
             /* The following are not kosher but kind of follow intuitively from 6, 5 & 4. */
-            case 1:
+            case 0:
                 return kCpumMicroarch_Intel_8086;
+            case 1:
+                return kCpumMicroarch_Intel_80186;
             case 2:
                 return kCpumMicroarch_Intel_80286;
         }
@@ -514,6 +516,9 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
         CASE_RET_STR(kCpumMicroarch_Cyrix_M2);
         CASE_RET_STR(kCpumMicroarch_Cyrix_Unknown);
 
+        CASE_RET_STR(kCpumMicroarch_NEC_V20);
+        CASE_RET_STR(kCpumMicroarch_NEC_V30);
+
         CASE_RET_STR(kCpumMicroarch_Unknown);
 
 #undef CASE_RET_STR
@@ -530,6 +535,7 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
         case kCpumMicroarch_AMD_End:
         case kCpumMicroarch_VIA_End:
         case kCpumMicroarch_Cyrix_End:
+        case kCpumMicroarch_NEC_End:
         case kCpumMicroarch_32BitHack:
             break;
         /* no default! */
@@ -561,6 +567,7 @@ static PCPUMCPUIDLEAF cpumR3CpuIdGetLeaf(PCPUMCPUIDLEAF paLeaves, uint32_t cLeav
 }
 
 
+#ifndef IN_VBOX_CPU_REPORT
 /**
  * Gets a matching leaf in the CPUID leaf array, converted to a CPUMCPUID.
  *
@@ -585,6 +592,7 @@ static bool cpumR3CpuIdGetLeafLegacy(PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, 
     }
     return false;
 }
+#endif /* IN_VBOX_CPU_REPORT */
 
 
 /**
@@ -878,6 +886,7 @@ static int cpumR3CpuIdInsert(PVM pVM, PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLea
 }
 
 
+#ifndef IN_VBOX_CPU_REPORT
 /**
  * Removes a range of CPUID leaves.
  *
@@ -922,7 +931,7 @@ static void cpumR3CpuIdRemoveRange(PCPUMCPUIDLEAF paLeaves, uint32_t *pcLeaves, 
 
     cpumR3CpuIdAssertOrder(paLeaves, *pcLeaves);
 }
-
+#endif /* IN_VBOX_CPU_REPORT */
 
 
 /**
@@ -1181,6 +1190,13 @@ VMMR3DECL(int) CPUMR3CpuIdCollectLeaves(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcL
                              || ASMIsAmdCpuEx((*ppaLeaves)[0].uEbx, (*ppaLeaves)[0].uEcx, (*ppaLeaves)[0].uEdx)) )
                     fFlags |= CPUMCPUIDLEAF_F_CONTAINS_APIC_ID;
 
+                /* The APIC bit is per-VCpu and needs flagging. */
+                if (uLeaf == 1)
+                    fFlags |= CPUMCPUIDLEAF_F_CONTAINS_APIC;
+                else if (   uLeaf == UINT32_C(0x80000001)
+                         && (   (uEdx & X86_CPUID_AMD_FEATURE_EDX_APIC)
+                             || ASMIsAmdCpuEx((*ppaLeaves)[0].uEbx, (*ppaLeaves)[0].uEcx, (*ppaLeaves)[0].uEdx)) )
+                    fFlags |= CPUMCPUIDLEAF_F_CONTAINS_APIC;
 
                 /* Check three times here to reduce the chance of CPU migration
                    resulting in false positives with things like the APIC ID. */
@@ -2005,26 +2021,6 @@ static int cpumR3CpuIdInitLoadOverrideSet(uint32_t uStart, PCPUMCPUID paLeaves, 
     return VINF_SUCCESS;
 }
 
-/**
- * Init a set of host CPUID leaves.
- *
- * @returns VBox status code.
- * @param   paLeaves            The leaf array.
- * @param   cLeaves             The number of leaves.
- * @param   uStart              The start leaf number.
- * @param   pCfgNode            The /CPUM/HostCPUID/ node.
- */
-static int cpumR3CpuIdInitHostSet(uint32_t uStart, PCPUMCPUID paLeaves, uint32_t cLeaves, PCFGMNODE pCfgNode)
-{
-    /* Using the ECX variant for all of them can't hurt... */
-    for (uint32_t i = 0; i < cLeaves; i++)
-        ASMCpuIdExSlow(uStart + i, 0, 0, 0, &paLeaves[i].uEax, &paLeaves[i].uEbx, &paLeaves[i].uEcx, &paLeaves[i].uEdx);
-
-    /* Load CPUID leaf override; we currently don't care if the user
-       specifies features the host CPU doesn't support. */
-    return cpumR3CpuIdInitLoadOverrideSet(uStart, paLeaves, cLeaves, pCfgNode);
-}
-
 
 /**
  * Installs the CPUID leaves and explods the data into structures like
@@ -2218,49 +2214,10 @@ typedef struct CPUMCPUIDCONFIG
     uint32_t        uMaxExtLeaf;
     uint32_t        uMaxCentaurLeaf;
     uint32_t        uMaxIntelFamilyModelStep;
-    char        szCpuName[128];
+    char            szCpuName[128];
 } CPUMCPUIDCONFIG;
 /** Pointer to CPUID config (from CFGM). */
 typedef CPUMCPUIDCONFIG *PCPUMCPUIDCONFIG;
-
-
-/**
- * Insert hypervisor identification leaves.
- *
- * We only return minimal information, primarily ensuring that the
- * 0x40000000 function returns 0x40000001 and identifying ourselves.
- * Hypervisor-specific interface is supported through GIM which will
- * modify these leaves if required depending on the GIM provider.
- *
- * @returns VBox status code.
- * @param   pCpum       The CPUM instance data.
- * @param   pConfig     The CPUID configuration we've read from CFGM.
- */
-static int cpumR3CpuIdPlantHypervisorLeaves(PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
-{
-    CPUMCPUIDLEAF NewLeaf;
-    NewLeaf.uLeaf        = UINT32_C(0x40000000);
-    NewLeaf.uSubLeaf     = 0;
-    NewLeaf.fSubLeafMask = 0;
-    NewLeaf.uEax         = UINT32_C(0x40000001);
-    NewLeaf.uEbx         = 0x786f4256 /* 'VBox' */;
-    NewLeaf.uEcx         = 0x786f4256 /* 'VBox' */;
-    NewLeaf.uEdx         = 0x786f4256 /* 'VBox' */;
-    NewLeaf.fFlags       = 0;
-    int rc = cpumR3CpuIdInsert(NULL /* pVM */, &pCpum->GuestInfo.paCpuIdLeavesR3, &pCpum->GuestInfo.cCpuIdLeaves, &NewLeaf);
-    AssertLogRelRCReturn(rc, rc);
-
-    NewLeaf.uLeaf        = UINT32_C(0x40000001);
-    NewLeaf.uEax         = 0x656e6f6e;                            /* 'none' */
-    NewLeaf.uEbx         = 0;
-    NewLeaf.uEcx         = 0;
-    NewLeaf.uEdx         = 0;
-    NewLeaf.fFlags       = 0;
-    rc = cpumR3CpuIdInsert(NULL /* pVM */, &pCpum->GuestInfo.paCpuIdLeavesR3, &pCpum->GuestInfo.cCpuIdLeaves, &NewLeaf);
-    AssertLogRelRCReturn(rc, rc);
-
-    return VINF_SUCCESS;
-}
 
 
 /**
@@ -2913,7 +2870,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
         if (pConfig->enmMWaitExtensions)
         {
             pCurLeaf->uEcx = X86_CPUID_MWAIT_ECX_EXT | X86_CPUID_MWAIT_ECX_BREAKIRQIF0;
-            /** @todo: for now we just expose host's MWAIT C-states, although conceptually
+            /** @todo for now we just expose host's MWAIT C-states, although conceptually
                it shall be part of our power management virtualization model */
 #if 0
             /* MWAIT sub C-states */
@@ -2963,11 +2920,11 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                 pCurLeaf->uEbx &= 0
                                //| X86_CPUID_STEXT_FEATURE_EBX_FSGSBASE          RT_BIT(0)
                                //| X86_CPUID_STEXT_FEATURE_EBX_TSC_ADJUST        RT_BIT(1)
-                               //| RT_BIT(2) - reserved
+                               //| X86_CPUID_STEXT_FEATURE_EBX_SGX               RT_BIT(2)
                                //| X86_CPUID_STEXT_FEATURE_EBX_BMI1              RT_BIT(3)
                                //| X86_CPUID_STEXT_FEATURE_EBX_HLE               RT_BIT(4)
                                | (pConfig->enmAvx2 ? X86_CPUID_STEXT_FEATURE_EBX_AVX2 : 0)
-                               //| RT_BIT(6) - reserved
+                               | X86_CPUID_STEXT_FEATURE_EBX_FDP_EXCPTN_ONLY
                                //| X86_CPUID_STEXT_FEATURE_EBX_SMEP              RT_BIT(7)
                                //| X86_CPUID_STEXT_FEATURE_EBX_BMI2              RT_BIT(8)
                                //| X86_CPUID_STEXT_FEATURE_EBX_ERMS              RT_BIT(9)
@@ -3002,6 +2959,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                 if (pCpum->u8PortableCpuIdLevel > 0)
                 {
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, FSGSBASE,   X86_CPUID_STEXT_FEATURE_EBX_FSGSBASE);
+                    PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, SGX,        X86_CPUID_STEXT_FEATURE_EBX_SGX);
                     PORTABLE_DISABLE_FEATURE_BIT_CFG(1, pCurLeaf->uEbx, AVX2,       X86_CPUID_STEXT_FEATURE_EBX_AVX2, pConfig->enmAvx2);
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, SMEP,       X86_CPUID_STEXT_FEATURE_EBX_SMEP);
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, BMI2,       X86_CPUID_STEXT_FEATURE_EBX_BMI2);
@@ -3136,7 +3094,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
      *
      * Clear them all as we don't currently implement extended CPU state.
      */
-    /* Figure out the supported XCR0/XSS mask component. */
+    /* Figure out the supported XCR0/XSS mask component and make sure CPUID[1].ECX[27] = CR4.OSXSAVE. */
     uint64_t fGuestXcr0Mask = 0;
     pStdFeatureLeaf = cpumR3CpuIdGetExactLeaf(pCpum, 1, 0);
     if (pStdFeatureLeaf && (pStdFeatureLeaf->uEcx & X86_CPUID_FEATURE_ECX_XSAVE))
@@ -3148,6 +3106,8 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
         if (pCurLeaf && (pCurLeaf->uEbx & X86_CPUID_STEXT_FEATURE_EBX_AVX512F))
             fGuestXcr0Mask |= XSAVE_C_ZMM_16HI | XSAVE_C_ZMM_HI256 | XSAVE_C_OPMASK;
         fGuestXcr0Mask &= pCpum->fXStateHostMask;
+
+        pStdFeatureLeaf->fFlags |= CPUMCPUIDLEAF_F_CONTAINS_OSXSAVE;
     }
     pStdFeatureLeaf = NULL;
     pCpum->fXStateGuestMask = fGuestXcr0Mask;
@@ -3949,6 +3909,13 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
     PCFGMNODE   pCpumCfg = CFGMR3GetChild(CFGMR3GetRoot(pVM), "CPUM");
 
     /*
+     * Set the fCpuIdApicFeatureVisible flags so the APIC can assume visibility
+     * on construction and manage everything from here on.
+     */
+    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
+        pVM->aCpus[iCpu].cpum.s.fCpuIdApicFeatureVisible = true;
+
+    /*
      * Read the configuration.
      */
     CPUMCPUIDCONFIG Config;
@@ -4009,12 +3976,6 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
     }
 
     /*
-     * Plant our own hypervisor CPUID leaves.
-     */
-    if (RT_SUCCESS(rc))
-        rc = cpumR3CpuIdPlantHypervisorLeaves(pCpum, &Config);
-
-    /*
      * MSR fudging.
      */
     if (RT_SUCCESS(rc))
@@ -4064,19 +4025,13 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
         rc = CFGMR3QueryBoolDef(CFGMR3GetRoot(pVM), "EnablePAE", &fEnable, false);
         AssertRCReturn(rc, rc);
         if (fEnable)
-            CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE);
+            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE);
 
         /* We don't normally enable NX for raw-mode, so give the user a chance to force it on. */
         rc = CFGMR3QueryBoolDef(pCpumCfg, "EnableNX", &fEnable, false);
         AssertRCReturn(rc, rc);
         if (fEnable)
-            CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
-
-        /* We don't enable the Hypervisor Present bit by default, but it may be needed by some guests. */
-        rc = CFGMR3QueryBoolDef(pCpumCfg, "EnableHVP", &fEnable, false);
-        AssertRCReturn(rc, rc);
-        if (fEnable)
-            CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_HVP);
+            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
 
         return VINF_SUCCESS;
     }
@@ -4089,6 +4044,435 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
     RTMemFree(pCpum->GuestInfo.paMsrRangesR3);
     pCpum->GuestInfo.paMsrRangesR3 = NULL;
     return rc;
+}
+
+
+/**
+ * Sets a CPUID feature bit during VM initialization.
+ *
+ * Since the CPUID feature bits are generally related to CPU features, other
+ * CPUM configuration like MSRs can also be modified by calls to this API.
+ *
+ * @param   pVM             The cross context VM structure.
+ * @param   enmFeature      The feature to set.
+ */
+VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
+{
+    PCPUMCPUIDLEAF pLeaf;
+    PCPUMMSRRANGE  pMsrRange;
+
+    switch (enmFeature)
+    {
+        /*
+         * Set the APIC bit in both feature masks.
+         */
+        case CPUMCPUIDFEATURE_APIC:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf && (pLeaf->fFlags & CPUMCPUIDLEAF_F_CONTAINS_APIC))
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEdx = pLeaf->uEdx |= X86_CPUID_FEATURE_EDX_APIC;
+
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (pLeaf && (pLeaf->fFlags & CPUMCPUIDLEAF_F_CONTAINS_APIC))
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_AMD_FEATURE_EDX_APIC;
+
+            pVM->cpum.s.GuestFeatures.fApic = 1;
+
+            /* Make sure we've got the APICBASE MSR present. */
+            pMsrRange = cpumLookupMsrRange(pVM, MSR_IA32_APICBASE);
+            if (!pMsrRange)
+            {
+                static CPUMMSRRANGE const s_ApicBase =
+                {
+                    /*.uFirst =*/ MSR_IA32_APICBASE, /*.uLast =*/ MSR_IA32_APICBASE,
+                    /*.enmRdFn =*/ kCpumMsrRdFn_Ia32ApicBase, /*.enmWrFn =*/ kCpumMsrWrFn_Ia32ApicBase,
+                    /*.offCpumCpu =*/ UINT16_MAX, /*.fReserved =*/ 0, /*.uValue =*/ 0, /*.fWrIgnMask =*/ 0, /*.fWrGpMask =*/ 0,
+                    /*.szName = */ "IA32_APIC_BASE"
+                };
+                int rc = CPUMR3MsrRangesInsert(pVM, &s_ApicBase);
+                AssertLogRelRC(rc);
+            }
+
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled xAPIC\n"));
+            break;
+
+        /*
+         * Set the x2APIC bit in the standard feature mask.
+         * Note! ASSUMES CPUMCPUIDFEATURE_APIC is called first.
+         */
+        case CPUMCPUIDFEATURE_X2APIC:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEcx = pLeaf->uEcx |= X86_CPUID_FEATURE_ECX_X2APIC;
+            pVM->cpum.s.GuestFeatures.fX2Apic = 1;
+
+            /* Make sure the MSR doesn't GP or ignore the EXTD bit. */
+            pMsrRange = cpumLookupMsrRange(pVM, MSR_IA32_APICBASE);
+            if (pMsrRange)
+            {
+                pMsrRange->fWrGpMask  &= ~MSR_IA32_APICBASE_EXTD;
+                pMsrRange->fWrIgnMask &= ~MSR_IA32_APICBASE_EXTD;
+            }
+
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled x2APIC\n"));
+            break;
+
+        /*
+         * Set the sysenter/sysexit bit in the standard feature mask.
+         * Assumes the caller knows what it's doing! (host must support these)
+         */
+        case CPUMCPUIDFEATURE_SEP:
+            if (!pVM->cpum.s.HostFeatures.fSysEnter)
+            {
+                AssertMsgFailed(("ERROR: Can't turn on SEP when the host doesn't support it!!\n"));
+                return;
+            }
+
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEdx = pLeaf->uEdx |= X86_CPUID_FEATURE_EDX_SEP;
+            pVM->cpum.s.GuestFeatures.fSysEnter = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled SYSENTER/EXIT\n"));
+            break;
+
+        /*
+         * Set the syscall/sysret bit in the extended feature mask.
+         * Assumes the caller knows what it's doing! (host must support these)
+         */
+        case CPUMCPUIDFEATURE_SYSCALL:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (   !pLeaf
+                || !pVM->cpum.s.HostFeatures.fSysCall)
+            {
+#if HC_ARCH_BITS == 32
+                /* X86_CPUID_EXT_FEATURE_EDX_SYSCALL not set it seems in 32-bit
+                   mode by Intel, even when the cpu is capable of doing so in
+                   64-bit mode.  Long mode requires syscall support. */
+                if (!pVM->cpum.s.HostFeatures.fLongMode)
+#endif
+                {
+                    LogRel(("CPUM: WARNING! Can't turn on SYSCALL/SYSRET when the host doesn't support it!\n"));
+                    return;
+                }
+            }
+
+            /* Valid for both Intel and AMD CPUs, although only in 64 bits mode for Intel. */
+            pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_EXT_FEATURE_EDX_SYSCALL;
+            pVM->cpum.s.GuestFeatures.fSysCall = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled SYSCALL/RET\n"));
+            break;
+
+        /*
+         * Set the PAE bit in both feature masks.
+         * Assumes the caller knows what it's doing! (host must support these)
+         */
+        case CPUMCPUIDFEATURE_PAE:
+            if (!pVM->cpum.s.HostFeatures.fPae)
+            {
+                LogRel(("CPUM: WARNING! Can't turn on PAE when the host doesn't support it!\n"));
+                return;
+            }
+
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEdx = pLeaf->uEdx |= X86_CPUID_FEATURE_EDX_PAE;
+
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (    pLeaf
+                &&  pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_AMD_FEATURE_EDX_PAE;
+
+            pVM->cpum.s.GuestFeatures.fPae = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled PAE\n"));
+            break;
+
+        /*
+         * Set the LONG MODE bit in the extended feature mask.
+         * Assumes the caller knows what it's doing! (host must support these)
+         */
+        case CPUMCPUIDFEATURE_LONG_MODE:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (   !pLeaf
+                || !pVM->cpum.s.HostFeatures.fLongMode)
+            {
+                LogRel(("CPUM: WARNING! Can't turn on LONG MODE when the host doesn't support it!\n"));
+                return;
+            }
+
+            /* Valid for both Intel and AMD. */
+            pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_EXT_FEATURE_EDX_LONG_MODE;
+            pVM->cpum.s.GuestFeatures.fLongMode = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled LONG MODE\n"));
+            break;
+
+        /*
+         * Set the NX/XD bit in the extended feature mask.
+         * Assumes the caller knows what it's doing! (host must support these)
+         */
+        case CPUMCPUIDFEATURE_NX:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (   !pLeaf
+                || !pVM->cpum.s.HostFeatures.fNoExecute)
+            {
+                LogRel(("CPUM: WARNING! Can't turn on NX/XD when the host doesn't support it!\n"));
+                return;
+            }
+
+            /* Valid for both Intel and AMD. */
+            pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_EXT_FEATURE_EDX_NX;
+            pVM->cpum.s.GuestFeatures.fNoExecute = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled NX\n"));
+            break;
+
+
+        /*
+         * Set the LAHF/SAHF support in 64-bit mode.
+         * Assumes the caller knows what it's doing! (host must support this)
+         */
+        case CPUMCPUIDFEATURE_LAHF:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (   !pLeaf
+                || !pVM->cpum.s.HostFeatures.fLahfSahf)
+            {
+                LogRel(("CPUM: WARNING! Can't turn on LAHF/SAHF when the host doesn't support it!\n"));
+                return;
+            }
+
+            /* Valid for both Intel and AMD. */
+            pVM->cpum.s.aGuestCpuIdPatmExt[1].uEcx = pLeaf->uEcx |= X86_CPUID_EXT_FEATURE_ECX_LAHF_SAHF;
+            pVM->cpum.s.GuestFeatures.fLahfSahf = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled LAHF/SAHF\n"));
+            break;
+
+        /*
+         * Set the page attribute table bit.  This is alternative page level
+         * cache control that doesn't much matter when everything is
+         * virtualized, though it may when passing thru device memory.
+         */
+        case CPUMCPUIDFEATURE_PAT:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEdx = pLeaf->uEdx |= X86_CPUID_FEATURE_EDX_PAT;
+
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (   pLeaf
+                && pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_AMD_FEATURE_EDX_PAT;
+
+            pVM->cpum.s.GuestFeatures.fPat = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled PAT\n"));
+            break;
+
+        /*
+         * Set the RDTSCP support bit.
+         * Assumes the caller knows what it's doing! (host must support this)
+         */
+        case CPUMCPUIDFEATURE_RDTSCP:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (   !pLeaf
+                || !pVM->cpum.s.HostFeatures.fRdTscP
+                || pVM->cpum.s.u8PortableCpuIdLevel > 0)
+            {
+                if (!pVM->cpum.s.u8PortableCpuIdLevel)
+                    LogRel(("CPUM: WARNING! Can't turn on RDTSCP when the host doesn't support it!\n"));
+                return;
+            }
+
+            /* Valid for both Intel and AMD. */
+            pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_EXT_FEATURE_EDX_RDTSCP;
+            pVM->cpum.s.HostFeatures.fRdTscP = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled RDTSCP.\n"));
+            break;
+
+       /*
+        * Set the Hypervisor Present bit in the standard feature mask.
+        */
+        case CPUMCPUIDFEATURE_HVP:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEcx = pLeaf->uEcx |= X86_CPUID_FEATURE_ECX_HVP;
+            pVM->cpum.s.GuestFeatures.fHypervisorPresent = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled Hypervisor Present bit\n"));
+            break;
+
+        /*
+         * Set the MWAIT Extensions Present bit in the MWAIT/MONITOR leaf.
+         * This currently includes the Present bit and MWAITBREAK bit as well.
+         */
+        case CPUMCPUIDFEATURE_MWAIT_EXTS:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000005));
+            if (   !pLeaf
+                || !pVM->cpum.s.HostFeatures.fMWaitExtensions)
+            {
+                LogRel(("CPUM: WARNING! Can't turn on MWAIT Extensions when the host doesn't support it!\n"));
+                return;
+            }
+
+            /* Valid for both Intel and AMD. */
+            pVM->cpum.s.aGuestCpuIdPatmStd[5].uEcx = pLeaf->uEcx |= X86_CPUID_MWAIT_ECX_EXT | X86_CPUID_MWAIT_ECX_BREAKIRQIF0;
+            pVM->cpum.s.GuestFeatures.fMWaitExtensions = 1;
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled MWAIT Extensions.\n"));
+            break;
+
+        default:
+            AssertMsgFailed(("enmFeature=%d\n", enmFeature));
+            break;
+    }
+
+    /** @todo can probably kill this as this API is now init time only... */
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[i];
+        pVCpu->cpum.s.fChanged |= CPUM_CHANGED_CPUID;
+    }
+}
+
+
+/**
+ * Queries a CPUID feature bit.
+ *
+ * @returns boolean for feature presence
+ * @param   pVM             The cross context VM structure.
+ * @param   enmFeature      The feature to query.
+ * @deprecated Use the cpum.ro.GuestFeatures directly instead.
+ */
+VMMR3_INT_DECL(bool) CPUMR3GetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
+{
+    switch (enmFeature)
+    {
+        case CPUMCPUIDFEATURE_APIC:         return pVM->cpum.s.GuestFeatures.fApic;
+        case CPUMCPUIDFEATURE_X2APIC:       return pVM->cpum.s.GuestFeatures.fX2Apic;
+        case CPUMCPUIDFEATURE_SYSCALL:      return pVM->cpum.s.GuestFeatures.fSysCall;
+        case CPUMCPUIDFEATURE_SEP:          return pVM->cpum.s.GuestFeatures.fSysEnter;
+        case CPUMCPUIDFEATURE_PAE:          return pVM->cpum.s.GuestFeatures.fPae;
+        case CPUMCPUIDFEATURE_NX:           return pVM->cpum.s.GuestFeatures.fNoExecute;
+        case CPUMCPUIDFEATURE_LAHF:         return pVM->cpum.s.GuestFeatures.fLahfSahf;
+        case CPUMCPUIDFEATURE_LONG_MODE:    return pVM->cpum.s.GuestFeatures.fLongMode;
+        case CPUMCPUIDFEATURE_PAT:          return pVM->cpum.s.GuestFeatures.fPat;
+        case CPUMCPUIDFEATURE_RDTSCP:       return pVM->cpum.s.GuestFeatures.fRdTscP;
+        case CPUMCPUIDFEATURE_HVP:          return pVM->cpum.s.GuestFeatures.fHypervisorPresent;
+        case CPUMCPUIDFEATURE_MWAIT_EXTS:   return pVM->cpum.s.GuestFeatures.fMWaitExtensions;
+
+        case CPUMCPUIDFEATURE_INVALID:
+        case CPUMCPUIDFEATURE_32BIT_HACK:
+            break;
+    }
+    AssertFailed();
+    return false;
+}
+
+
+/**
+ * Clears a CPUID feature bit.
+ *
+ * @param   pVM             The cross context VM structure.
+ * @param   enmFeature      The feature to clear.
+ *
+ * @deprecated Probably better to default the feature to disabled and only allow
+ *             setting (enabling) it during construction.
+ */
+VMMR3_INT_DECL(void) CPUMR3ClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
+{
+    PCPUMCPUIDLEAF pLeaf;
+    switch (enmFeature)
+    {
+        case CPUMCPUIDFEATURE_APIC:
+            Assert(!pVM->cpum.s.GuestFeatures.fApic); /* We only expect this call during init. No MSR adjusting needed. */
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_FEATURE_EDX_APIC;
+
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (pLeaf && (pLeaf->fFlags & CPUMCPUIDLEAF_F_CONTAINS_APIC))
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_AMD_FEATURE_EDX_APIC;
+
+            pVM->cpum.s.GuestFeatures.fApic = 0;
+            Log(("CPUM: ClearGuestCpuIdFeature: Disabled xAPIC\n"));
+            break;
+
+        case CPUMCPUIDFEATURE_X2APIC:
+            Assert(!pVM->cpum.s.GuestFeatures.fX2Apic); /* We only expect this call during init. No MSR adjusting needed. */
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEcx = pLeaf->uEcx &= ~X86_CPUID_FEATURE_ECX_X2APIC;
+            pVM->cpum.s.GuestFeatures.fX2Apic = 0;
+            Log(("CPUM: ClearGuestCpuIdFeature: Disabled x2APIC\n"));
+            break;
+
+        case CPUMCPUIDFEATURE_PAE:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_FEATURE_EDX_PAE;
+
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (   pLeaf
+                && pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_AMD_FEATURE_EDX_PAE;
+
+            pVM->cpum.s.GuestFeatures.fPae = 0;
+            Log(("CPUM: ClearGuestCpuIdFeature: Disabled PAE!\n"));
+            break;
+
+        case CPUMCPUIDFEATURE_PAT:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_FEATURE_EDX_PAT;
+
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (   pLeaf
+                && pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_AMD_FEATURE_EDX_PAT;
+
+            pVM->cpum.s.GuestFeatures.fPat = 0;
+            Log(("CPUM: ClearGuestCpuIdFeature: Disabled PAT!\n"));
+            break;
+
+        case CPUMCPUIDFEATURE_LONG_MODE:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_EXT_FEATURE_EDX_LONG_MODE;
+            pVM->cpum.s.GuestFeatures.fLongMode = 0;
+            break;
+
+        case CPUMCPUIDFEATURE_LAHF:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEcx = pLeaf->uEcx &= ~X86_CPUID_EXT_FEATURE_ECX_LAHF_SAHF;
+            pVM->cpum.s.GuestFeatures.fLahfSahf = 0;
+            break;
+
+        case CPUMCPUIDFEATURE_RDTSCP:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_EXT_FEATURE_EDX_RDTSCP;
+            pVM->cpum.s.GuestFeatures.fRdTscP = 0;
+            Log(("CPUM: ClearGuestCpuIdFeature: Disabled RDTSCP!\n"));
+            break;
+
+        case CPUMCPUIDFEATURE_HVP:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[1].uEcx = pLeaf->uEcx &= ~X86_CPUID_FEATURE_ECX_HVP;
+            pVM->cpum.s.GuestFeatures.fHypervisorPresent = 0;
+            break;
+
+        case CPUMCPUIDFEATURE_MWAIT_EXTS:
+            pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000005));
+            if (pLeaf)
+                pVM->cpum.s.aGuestCpuIdPatmStd[5].uEcx = pLeaf->uEcx &= ~(X86_CPUID_MWAIT_ECX_EXT | X86_CPUID_MWAIT_ECX_BREAKIRQIF0);
+            pVM->cpum.s.GuestFeatures.fMWaitExtensions = 0;
+            Log(("CPUM: ClearGuestCpuIdFeature: Disabled MWAIT Extensions!\n"));
+            break;
+
+        default:
+            AssertMsgFailed(("enmFeature=%d\n", enmFeature));
+            break;
+    }
+
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[i];
+        pVCpu->cpum.s.fChanged |= CPUM_CHANGED_CPUID;
+    }
 }
 
 
@@ -5342,30 +5726,32 @@ static DBGFREGSUBFIELD const g_aLeaf1EcxSubFields[] =
 /** CPUID(7,0).EBX field descriptions. */
 static DBGFREGSUBFIELD const g_aLeaf7Sub0EbxSubFields[] =
 {
-    DBGFREGSUBFIELD_RO("FSGSBASE\0"     "RDFSBASE/RDGSBASE/WRFSBASE/WRGSBASE instr.",    0, 1, 0),
-    DBGFREGSUBFIELD_RO("TSCADJUST\0"    "Supports MSR_IA32_TSC_ADJUST",                  1, 1, 0),
-    DBGFREGSUBFIELD_RO("BMI1\0"         "Advanced Bit Manipulation extension 1",         3, 1, 0),
-    DBGFREGSUBFIELD_RO("HLE\0"          "Hardware Lock Elision",                         4, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX2\0"         "Advanced Vector Extensions 2",                  5, 1, 0),
-    DBGFREGSUBFIELD_RO("SMEP\0"         "Supervisor Mode Execution Prevention",          7, 1, 0),
-    DBGFREGSUBFIELD_RO("BMI2\0"         "Advanced Bit Manipulation extension 2",         8, 1, 0),
-    DBGFREGSUBFIELD_RO("ERMS\0"         "Enhanced REP MOVSB/STOSB instructions",         9, 1, 0),
-    DBGFREGSUBFIELD_RO("INVPCID\0"      "INVPCID instruction",                          10, 1, 0),
-    DBGFREGSUBFIELD_RO("RTM\0"          "Restricted Transactional Memory",              11, 1, 0),
-    DBGFREGSUBFIELD_RO("PQM\0"          "Platform Quality of Service Monitoring",       12, 1, 0),
-    DBGFREGSUBFIELD_RO("DEPFPU_CS_DS\0" "Deprecates FPU CS, FPU DS values if set",      13, 1, 0),
-    DBGFREGSUBFIELD_RO("MPE\0"          "Intel Memory Protection Extensions",           14, 1, 0),
-    DBGFREGSUBFIELD_RO("PQE\0"          "Platform Quality of Service Enforcement",      15, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX512F\0"      "AVX512 Foundation instructions",               16, 1, 0),
-    DBGFREGSUBFIELD_RO("RDSEED\0"       "RDSEED instruction",                           18, 1, 0),
-    DBGFREGSUBFIELD_RO("ADX\0"          "ADCX/ADOX instructions",                       19, 1, 0),
-    DBGFREGSUBFIELD_RO("SMAP\0"         "Supervisor Mode Access Prevention",            20, 1, 0),
-    DBGFREGSUBFIELD_RO("CLFLUSHOPT\0"   "CLFLUSHOPT (Cache Line Flush) instruction",    23, 1, 0),
-    DBGFREGSUBFIELD_RO("INTEL_PT\0"     "Intel Processor Trace",                        25, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX512PF\0"     "AVX512 Prefetch instructions",                 26, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX512ER\0"     "AVX512 Exponential & Reciprocal instructions", 27, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX512CD\0"     "AVX512 Conflict Detection instructions",       28, 1, 0),
-    DBGFREGSUBFIELD_RO("SHA\0"          "Secure Hash Algorithm extensions",             29, 1, 0),
+    DBGFREGSUBFIELD_RO("FSGSBASE\0"         "RDFSBASE/RDGSBASE/WRFSBASE/WRGSBASE instr.",    0, 1, 0),
+    DBGFREGSUBFIELD_RO("TSCADJUST\0"        "Supports MSR_IA32_TSC_ADJUST",                  1, 1, 0),
+    DBGFREGSUBFIELD_RO("SGX\0"              "Supports Software Guard Extensions",            2, 1, 0),
+    DBGFREGSUBFIELD_RO("BMI1\0"             "Advanced Bit Manipulation extension 1",         3, 1, 0),
+    DBGFREGSUBFIELD_RO("HLE\0"              "Hardware Lock Elision",                         4, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX2\0"             "Advanced Vector Extensions 2",                  5, 1, 0),
+    DBGFREGSUBFIELD_RO("FDP_EXCPTN_ONLY\0"  "FPU DP only updated on exceptions",             6, 1, 0),
+    DBGFREGSUBFIELD_RO("SMEP\0"             "Supervisor Mode Execution Prevention",          7, 1, 0),
+    DBGFREGSUBFIELD_RO("BMI2\0"             "Advanced Bit Manipulation extension 2",         8, 1, 0),
+    DBGFREGSUBFIELD_RO("ERMS\0"             "Enhanced REP MOVSB/STOSB instructions",         9, 1, 0),
+    DBGFREGSUBFIELD_RO("INVPCID\0"          "INVPCID instruction",                          10, 1, 0),
+    DBGFREGSUBFIELD_RO("RTM\0"              "Restricted Transactional Memory",              11, 1, 0),
+    DBGFREGSUBFIELD_RO("PQM\0"              "Platform Quality of Service Monitoring",       12, 1, 0),
+    DBGFREGSUBFIELD_RO("DEPFPU_CS_DS\0"     "Deprecates FPU CS, FPU DS values if set",      13, 1, 0),
+    DBGFREGSUBFIELD_RO("MPE\0"              "Intel Memory Protection Extensions",           14, 1, 0),
+    DBGFREGSUBFIELD_RO("PQE\0"              "Platform Quality of Service Enforcement",      15, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX512F\0"          "AVX512 Foundation instructions",               16, 1, 0),
+    DBGFREGSUBFIELD_RO("RDSEED\0"           "RDSEED instruction",                           18, 1, 0),
+    DBGFREGSUBFIELD_RO("ADX\0"              "ADCX/ADOX instructions",                       19, 1, 0),
+    DBGFREGSUBFIELD_RO("SMAP\0"             "Supervisor Mode Access Prevention",            20, 1, 0),
+    DBGFREGSUBFIELD_RO("CLFLUSHOPT\0"       "CLFLUSHOPT (Cache Line Flush) instruction",    23, 1, 0),
+    DBGFREGSUBFIELD_RO("INTEL_PT\0"         "Intel Processor Trace",                        25, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX512PF\0"         "AVX512 Prefetch instructions",                 26, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX512ER\0"         "AVX512 Exponential & Reciprocal instructions", 27, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX512CD\0"         "AVX512 Conflict Detection instructions",       28, 1, 0),
+    DBGFREGSUBFIELD_RO("SHA\0"              "Secure Hash Algorithm extensions",             29, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 
@@ -5591,14 +5977,11 @@ static void cpumR3CpuIdInfoVerboseCompareListU32(PCDBGFINFOHLP pHlp, uint32_t uV
  * Produces a detailed summary of standard leaf 0x00000001.
  *
  * @param   pHlp        The info helper functions.
- * @param   paLeaves    The CPUID leaves array.
- * @param   cLeaves     The number of leaves in the array.
  * @param   pCurLeaf    The 0x00000001 leaf.
  * @param   fVerbose    Whether to be very verbose or not.
  * @param   fIntel      Set if intel CPU.
  */
-static void cpumR3CpuIdInfoStdLeaf1Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves,
-                                           PCCPUMCPUIDLEAF pCurLeaf, bool fVerbose, bool fIntel)
+static void cpumR3CpuIdInfoStdLeaf1Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF pCurLeaf, bool fVerbose, bool fIntel)
 {
     Assert(pCurLeaf); Assert(pCurLeaf->uLeaf == 1);
     static const char * const s_apszTypes[4] = { "primary", "overdrive", "MP", "reserved" };
@@ -5708,6 +6091,7 @@ static void cpumR3CpuIdInfoStdLeaf7Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF p
 static void cpumR3CpuIdInfoStdLeaf13Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves,
                                             PCCPUMCPUIDLEAF pCurLeaf, bool fVerbose)
 {
+    RT_NOREF_PV(fVerbose);
     Assert(pCurLeaf); Assert(pCurLeaf->uLeaf == 13);
     pHlp->pfnPrintf(pHlp, "Processor Extended State Enumeration (leaf 0xd):\n");
     for (uint32_t uSubLeaf = 0; uSubLeaf < 64; uSubLeaf++)
@@ -5916,7 +6300,7 @@ DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
                         "Supports:", paLeaves[0].uEax);
 
     if (iVerbosity && (pCurLeaf = cpumR3CpuIdGetLeaf(paLeaves, cLeaves, UINT32_C(0x00000001), 0)) != NULL)
-        cpumR3CpuIdInfoStdLeaf1Details(pHlp, paLeaves, cLeaves, pCurLeaf, iVerbosity > 1, fIntel);
+        cpumR3CpuIdInfoStdLeaf1Details(pHlp, pCurLeaf, iVerbosity > 1, fIntel);
 
     if (iVerbosity && (pCurLeaf = cpumR3CpuIdGetLeaf(paLeaves, cLeaves, UINT32_C(0x00000007), 0)) != NULL)
         cpumR3CpuIdInfoStdLeaf7Details(pHlp, paLeaves, cLeaves, pCurLeaf, iVerbosity > 1);
@@ -6325,6 +6709,7 @@ VMMR3_INT_DECL(RCPTRTYPE(PCCPUMCPUID)) CPUMR3GetGuestCpuIdPatmDefRCPtr(PVM pVM)
  */
 VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmStdMax(PVM pVM)
 {
+    RT_NOREF_PV(pVM);
     return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmStd);
 }
 
@@ -6338,6 +6723,7 @@ VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmStdMax(PVM pVM)
  */
 VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmExtMax(PVM pVM)
 {
+    RT_NOREF_PV(pVM);
     return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmExt);
 }
 
@@ -6351,6 +6737,7 @@ VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmExtMax(PVM pVM)
  */
 VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmCentaurMax(PVM pVM)
 {
+    RT_NOREF_PV(pVM);
     return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmCentaur);
 }
 

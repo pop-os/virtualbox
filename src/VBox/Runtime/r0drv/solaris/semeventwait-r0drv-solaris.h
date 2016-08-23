@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -490,5 +490,5 @@ DECLINLINE(uint32_t) rtR0SemSolWaitGetResolution(void)
          : cyclic_getres();
 }
 
-#endif /* ___r0drv_solaris_semeventwait_r0drv_solaris_h */
+#endif /* !___r0drv_solaris_semeventwait_r0drv_solaris_h */
 

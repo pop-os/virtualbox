@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,7 +58,7 @@
 #else
 # include <Winnls.h>
 # define _WINSOCK2API_
-# include <IPHlpApi.h>
+# include <iprt/win/iphlpapi.h>
 #endif
 #include <alias.h>
 
@@ -235,7 +235,7 @@
 /*
  * Loging macros
  */
-#if VBOX_WITH_DEBUG_NAT_SOCKETS
+#ifdef VBOX_WITH_DEBUG_NAT_SOCKETS
 # if defined(RT_OS_WINDOWS)
 #  define  DO_LOG_NAT_SOCK(so, proto, winevent, r_fdset, w_fdset, x_fdset)             \
    do {                                                                                \
@@ -253,7 +253,7 @@
                     CHECK_FD_SET(so, ign, nval) ? "RDNVAL":""));                   \
    } while (0)
 # endif /* !RT_OS_WINDOWS */
-#else /* !VBOX_WITH_DEBUG_NAT_SOCKETS */
+#else  /* !VBOX_WITH_DEBUG_NAT_SOCKETS */
 # define DO_LOG_NAT_SOCK(so, proto, winevent, r_fdset, w_fdset, x_fdset) do {} while (0)
 #endif /* !VBOX_WITH_DEBUG_NAT_SOCKETS */
 
@@ -340,10 +340,10 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 
         WSAStartup(MAKEWORD(2, 0), &Data);
 
-        rc = RTLdrLoadSystem("Iphlpapi.dll", /* :fNoUnload */ true, &hLdrMod);
+        rc = RTLdrLoadSystem("Iphlpapi.dll", true /*fNoUnload*/, &hLdrMod);
         if (RT_SUCCESS(rc))
         {
-            rc = RTLdrGetSymbol(hLdrMod, "GetAdaptersAddresses", (void **)&pData->pfGetAdaptersAddresses);
+            rc = RTLdrGetSymbol(hLdrMod, "GetAdaptersAddresses", (void **)&pData->pfnGetAdaptersAddresses);
             if (RT_FAILURE(rc))
                 LogRel(("NAT: Can't find GetAdapterAddresses in Iphlpapi.dll\n"));
 
@@ -372,7 +372,7 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     pData->special_addr.s_addr = u32NetAddr;
     pData->slirp_ethaddr = &special_ethaddr[0];
     alias_addr.s_addr = pData->special_addr.s_addr | RT_H2N_U32_C(CTL_ALIAS);
-    /* @todo: add ability to configure this staff */
+    /** @todo add ability to configure this staff */
 
     /*
      * Some guests won't reacquire DHCP lease on link flap when VM is
@@ -410,14 +410,14 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
         flags |= PKT_ALIAS_PUNCH_FW;
 #endif
         flags |= pData->i32AliasMode; /* do transparent proxying */
-        flags = LibAliasSetMode(pData->proxy_alias, flags, ~0);
+        flags = LibAliasSetMode(pData->proxy_alias, flags, ~0U);
         proxy_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
         LibAliasSetAddress(pData->proxy_alias, proxy_addr);
         ftp_alias_load(pData);
         nbt_alias_load(pData);
     }
 #ifdef VBOX_WITH_NAT_SEND2HOME
-    /* @todo: we should know all interfaces available on host. */
+    /** @todo we should know all interfaces available on host. */
     pData->pInSockAddrHomeAddress = RTMemAllocZ(sizeof(struct sockaddr));
     pData->cInHomeAddressSize = 1;
     inet_aton("192.168.1.25", &pData->pInSockAddrHomeAddress[0].sin_addr);
@@ -733,7 +733,7 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
          * Set for reading (and urgent data) if we are connected, can
          * receive more, and we have room for it XXX /2 ?
          */
-        /* @todo: vvl - check which predicat here will be more useful here in rerm of new sbufs. */
+        /** @todo vvl - check which predicat here will be more useful here in rerm of new sbufs. */
         if (   CONN_CANFRCV(so)
             && (SBUF_LEN(&so->so_snd) < (SBUF_SIZE(&so->so_snd)/2))
 #ifdef RT_OS_WINDOWS
@@ -1069,7 +1069,7 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
                 /* Finish connection first */
                 /* should we ignore return value? */
                 bool fRet = slirpConnectOrWrite(pData, so, true);
-                LogFunc(("fRet:%RTbool\n", fRet));
+                LogFunc(("fRet:%RTbool\n", fRet)); NOREF(fRet);
                 if (slirpVerifyAndFreeSocket(pData, so))
                     CONTINUE(tcp);
             }
@@ -1379,7 +1379,7 @@ void slirp_input(PNATState pData, struct mbuf *m, size_t cbBuf)
     static bool fWarnedIpv6;
     struct ethhdr *eh;
 
-    m->m_len = cbBuf;
+    m->m_len = (int)cbBuf; Assert((size_t)m->m_len == cbBuf);
     if (cbBuf < ETH_HLEN)
     {
         Log(("NAT: packet having size %d has been ignored\n", m->m_len));
@@ -1430,7 +1430,7 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
 {
     struct ethhdr *eh;
     uint8_t *mbuf = NULL;
-    size_t mlen = 0;
+    int mlen;
     STAM_PROFILE_START(&pData->StatIF_encap, a);
     LogFlowFunc(("ENTER: pData:%p, eth_proto:%RX16, m:%p, flags:%d\n",
                 pData, eth_proto, m, flags));

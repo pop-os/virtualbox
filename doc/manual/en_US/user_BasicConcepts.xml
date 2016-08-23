@@ -171,7 +171,7 @@
 
             <para>These license restrictions are also enforced on a technical
             level. Mac OS X verifies whether it is running on Apple hardware,
-            and most DVDs that that come with Apple hardware even check for an
+            and most DVDs that come with Apple hardware even check for an
             exact model. These restrictions are <emphasis>not</emphasis>
             circumvented by VirtualBox and continue to apply.</para>
           </listitem>
@@ -657,7 +657,7 @@
 
       <para>On this tab you can also set the <emphasis role="bold">"CPU execution
       cap"</emphasis>. This setting
-      limits the amount of time a host CPU spents to emulate a virtual CPU.
+      limits the amount of time a host CPU spends to emulate a virtual CPU.
       The default setting is 100% meaning that there is no limitation. A setting
       of 50% implies a single virtual CPU can use up to 50% of a single host
       CPU. Note that limiting the execution time of the virtual CPUs may induce
@@ -714,7 +714,7 @@
       interfaces to improve time-keeping accuracy and performance of guest
       operating systems. The options available are documented under the
       <computeroutput>paravirtprovider</computeroutput> option
-      in <xref linkend="vboxmanage-modifyvm" />. For futher details on
+      in <xref linkend="vboxmanage-modifyvm" />. For further details on
       the paravirtualization providers, please refer to
       <xref linkend="gimproviders" />.</para>
     </sect2>
@@ -1009,6 +1009,9 @@
     <para>On a Linux host, depending on your host configuration, you can also
     select between the OSS, ALSA or the PulseAudio subsystem. On newer Linux
     distributions, the PulseAudio subsystem should be preferred.</para>
+
+    <para>Since VirtualBox 5.0 only OSS is supported on Solaris hosts - the "Solaris Audio" 
+    audio backend is no longer supported on Solaris hosts.</para>
   </sect1>
 
   <sect1 id="settings-network">

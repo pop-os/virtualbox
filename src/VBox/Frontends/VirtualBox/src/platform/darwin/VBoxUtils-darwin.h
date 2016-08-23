@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,9 +19,10 @@
 #define ___VBoxUtils_darwin_h
 
 #include <VBox/VBoxCocoa.h>
+#include <ApplicationServices/ApplicationServices.h>
+#undef PVM                              /* Stupid, stupid apple headers (sys/param.h)!!  */
 #include <iprt/cdefs.h> /* for RT_C_DECLS_BEGIN/RT_C_DECLS_END & stuff */
 
-#include <ApplicationServices/ApplicationServices.h>
 #include <QRect>
 
 ADD_COCOA_NATIVE_REF(NSEvent);
@@ -195,7 +196,6 @@ NativeNSButtonRef darwinNativeButtonOfWindow(QWidget *pWidget, StandardWindowBut
  * @returns CGContextRef of the QWidget.
  * @param   pWidget      Pointer to the QWidget
  */
-CGContextRef darwinToCGContextRef(QWidget *pWidget);
 CGImageRef darwinToCGImageRef(const QImage *pImage);
 CGImageRef darwinToCGImageRef(const QPixmap *pPixmap);
 CGImageRef darwinToCGImageRef(const char *pczSource);
@@ -253,7 +253,9 @@ void darwinSetShowsResizeIndicator(QWidget *pWidget, bool fEnabled);
 void darwinSetHidesAllTitleButtons(QWidget *pWidget);
 void darwinSetShowsWindowTransparent(QWidget *pWidget, bool fEnabled);
 void darwinSetWindowHasShadow(QWidget *pWidget, bool fEnabled);
+#if QT_VERSION < 0x050000
 void darwinSetDockIconMenu(QMenu *pMenu);
+#endif /* QT_VERSION < 0x050000 */
 void darwinDisableIconsInMenus(void);
 
 void darwinTest(QWidget *pWidget1, QWidget *pWidget2, int h);
@@ -292,6 +294,9 @@ void darwinUnregisterForUnifiedToolbarContextMenuEvents(QMainWindow *pWindow);
 
 void darwinMouseGrab(QWidget *pWidget);
 void darwinMouseRelease(QWidget *pWidget);
+
+void* darwinCocoaToCarbonEvent(void *pvCocoaEvent);
+
 #endif /* !__OBJC__ */
 
 #endif /* !___VBoxUtils_darwin_h */

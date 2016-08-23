@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,11 @@
 #include "ExtPackFileWrap.h"
 #include "ExtPackManagerWrap.h"
 #include <iprt/fs.h>
+
+
+/** The name of the oracle extension back. */
+#define ORACLE_PUEL_EXTPACK_NAME "Oracle VM VirtualBox Extension Pack"
+
 
 #if !defined(VBOX_COM_INPROC)
 /**
@@ -79,6 +84,7 @@ private:
     Data *m;
 
     friend class ExtPackManager;
+    friend class ExtPackInstallTask;
 };
 #endif
 
@@ -191,9 +197,7 @@ public:
     /** @name Internal interfaces used by other Main classes.
      * @{ */
 #if !defined(VBOX_COM_INPROC)
-    static DECLCALLBACK(int) i_doInstallThreadProc(RTTHREAD hThread, void *pvJob);
     HRESULT     i_doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace, Utf8Str const *a_pstrDisplayInfo);
-    static DECLCALLBACK(int) i_doUninstallThreadProc(RTTHREAD hThread, void *pvJob);
     HRESULT     i_doUninstall(const Utf8Str *a_pstrName, bool a_fForcedRemoval, const Utf8Str *a_pstrDisplayInfo);
 #endif
     void        i_callAllVirtualBoxReadyHooks(void);
@@ -204,7 +208,7 @@ public:
     void        i_callAllVmPowerOffHooks(IConsole *a_pConsole, PVM a_pVM);
     HRESULT     i_checkVrdeExtPack(Utf8Str const *a_pstrExtPack);
     int         i_getVrdeLibraryPathForExtPack(Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrVrdeLibrary);
-    HRESULT     i_getLibraryPathForExtPack(const char *a_pszModuleName, Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrLibrary);
+    HRESULT     i_getLibraryPathForExtPack(const char *a_pszModuleName, const char *a_pszExtPack, Utf8Str *a_pstrLibrary);
     HRESULT     i_getDefaultVrdeExtPack(Utf8Str *a_pstrExtPack);
     bool        i_isExtPackUsable(const char *a_pszExtPack);
     void        i_dumpAllToReleaseLog(void);
@@ -228,7 +232,7 @@ private:
                                        std::vector<com::Utf8Str> &aPlugInModules);
     HRESULT isExtPackUsable(const com::Utf8Str &aName,
                             BOOL *aUsable);
-							
+
     bool        i_areThereAnyRunningVMs(void) const;
     HRESULT     i_runSetUidToRootHelper(Utf8Str const *a_pstrDisplayInfo, const char *a_pszCommand, ...);
     ExtPack    *i_findExtPack(const char *a_pszName);
@@ -239,6 +243,8 @@ private:
     struct Data;
     /** Pointer to the private instance. */
     Data *m;
+
+    friend class ExtPackUninstallTask;
 };
 
 #endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,8 +42,8 @@ void QIArrowButtonPress::retranslateUi()
     /* Retranslate: */
     switch (m_buttonType)
     {
-        case ButtonType_Back: setText(QApplication::translate("QIArrowSplitter", "&Back")); break;
-        case ButtonType_Next: setText(QApplication::translate("QIArrowSplitter", "&Next")); break;
+        case ButtonType_Back: setText(tr("&Back")); break;
+        case ButtonType_Next: setText(tr("&Next")); break;
         default: break;
     }
 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -585,6 +585,7 @@ const char *mmGetTagName(MMTAG enmTag)
         TAG2STR(DBGF_STACK);
         TAG2STR(DBGF_SYMBOL);
         TAG2STR(DBGF_SYMBOL_DUP);
+        TAG2STR(DBGF_TYPE);
 
         TAG2STR(EM);
 

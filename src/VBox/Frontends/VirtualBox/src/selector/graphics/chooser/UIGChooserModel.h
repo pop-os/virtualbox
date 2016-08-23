@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,10 +60,6 @@ class UIGChooserModel : public QObject
     Q_OBJECT;
 
 signals:
-
-    /* Notifiers: Status-bar stuff: */
-    void sigShowStatusMessage(const QString &strStatusMessage);
-    void sigClearStatusMessage();
 
     /* Notifier: Current-item stuff: */
     void sigSelectionChanged();
@@ -194,9 +190,6 @@ private slots:
     /* Handlers: Drag&drop stuff: */
     void sltStartScrolling();
     void sltCurrentDragObjectDestroyed();
-
-    /* Handler: Context-menu stuff: */
-    void sltActionHovered(QAction *pAction);
 
     /* Handler: Item lookup stuff: */
     void sltEraseLookupTimer();

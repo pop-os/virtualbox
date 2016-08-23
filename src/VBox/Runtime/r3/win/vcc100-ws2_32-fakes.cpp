@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,8 +40,8 @@
 #define getaddrinfo                             Ignore_getaddrinfo
 #define freeaddrinfo                            Ignore_freeaddrinfo
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#include <iprt/win/winsock2.h>
+#include <iprt/win/ws2tcpip.h>
 
 #undef getaddrinfo
 #undef freeaddrinfo

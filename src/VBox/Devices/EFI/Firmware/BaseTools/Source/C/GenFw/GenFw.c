@@ -1,6 +1,7 @@
 /** @file
+Converts a pe32+ image to an FW, Te image type, or other specific image.
 
-Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -8,14 +9,6 @@ http://opensource.org/licenses/bsd-license.php
 
 THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-Module Name:
-
-    GenFw.c
-
-Abstract:
-
-    Converts a pe32+ image to an FW, Te image type, or other specific image.
 
 **/
 
@@ -65,10 +58,6 @@ Abstract:
 
 #define DEFAULT_MC_PAD_BYTE_VALUE  0xFF
 #define DEFAULT_MC_ALIGNMENT       16
-
-#ifndef _MAX_PATH
-#define _MAX_PATH 500
-#endif
 
 #define STATUS_IGNORE 0xA
 //
@@ -179,7 +168,7 @@ Returns:
   //
   // Copyright declaration
   //
-  fprintf (stdout, "Copyright (c) 2007 - 2010, Intel Corporation. All rights reserved.\n\n");
+  fprintf (stdout, "Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.\n\n");
 
   //
   // Details Option
@@ -251,7 +240,7 @@ Returns:
                         If it is combined with other action options, the later\n\
                         input action option will override the previous one.\n");
   fprintf (stdout, "  -a NUM, --align NUM   NUM is one HEX or DEC format alignment value.\n\
-                        This option is only used together with -j option.\n");  
+                        This option is only used together with -j option.\n");
   fprintf (stdout, "  -p NUM, --pad NUM     NUM is one HEX or DEC format padding value.\n\
                         This option is only used together with -j option.\n");
   fprintf (stdout, "  --keepexceptiontable  Don't clear exception table.\n\
@@ -496,7 +485,7 @@ SetHiiResourceHeader (
         }
 
         //
-        // Now it ought to be resource Data and update its OffsetToData value 
+        // Now it ought to be resource Data and update its OffsetToData value
         //
         if (!ResourceDirectoryEntry->u2.s.DataIsDirectory) {
           ResourceDataEntry = (EFI_IMAGE_RESOURCE_DATA_ENTRY *) (HiiBinData + ResourceDirectoryEntry->u2.OffsetToData);
@@ -507,7 +496,7 @@ SetHiiResourceHeader (
     }
     ResourceDirectoryEntry++;
   }
-  
+
   return;
 }
 
@@ -536,7 +525,7 @@ GetPeCoffHeader (
       return NULL;
     }
   }
-  
+
   return PeHdr;
 }
 
@@ -561,7 +550,7 @@ PeCoffConvertImageToXip (
   if (PeHdr == NULL) {
     return;
   }
-  
+
   if (PeHdr->Pe32.OptionalHeader.SectionAlignment != PeHdr->Pe32.OptionalHeader.FileAlignment) {
     //
     // The only reason to expand zero fill sections is to make them compatible with XIP images.
@@ -672,7 +661,7 @@ PeCoffConvertImageToXip (
 
 UINT8 *
 CreateHiiResouceSectionHeader (
-  UINT32 *pSectionHeaderSize, 
+  UINT32 *pSectionHeaderSize,
   UINT32 HiiDataSize
   )
 /*++
@@ -705,15 +694,15 @@ Returns:
   // Calculate the total size for the resource header (include Type, Name and Language)
   // then allocate memory for the resource header.
   //
-  HiiSectionHeaderSize = 3 * (sizeof (EFI_IMAGE_RESOURCE_DIRECTORY) + sizeof (EFI_IMAGE_RESOURCE_DIRECTORY_ENTRY)) 
-                          + 3 * (sizeof (UINT16) + 3 * sizeof (CHAR16)) 
+  HiiSectionHeaderSize = 3 * (sizeof (EFI_IMAGE_RESOURCE_DIRECTORY) + sizeof (EFI_IMAGE_RESOURCE_DIRECTORY_ENTRY))
+                          + 3 * (sizeof (UINT16) + 3 * sizeof (CHAR16))
                           + sizeof (EFI_IMAGE_RESOURCE_DATA_ENTRY);
   HiiSectionHeader = malloc (HiiSectionHeaderSize);
   memset (HiiSectionHeader, 0, HiiSectionHeaderSize);
 
   HiiSectionOffset = 0;
   //
-  // Create Type entry 
+  // Create Type entry
   //
   ResourceDirectory = (EFI_IMAGE_RESOURCE_DIRECTORY *) (HiiSectionHeader + HiiSectionOffset);
   HiiSectionOffset += sizeof (EFI_IMAGE_RESOURCE_DIRECTORY);
@@ -873,7 +862,7 @@ Returns:
 
   if (ImageContext.RelocationsStripped) {
     Error (NULL, 0, 3000, "Invalid", "The input PeImage %s has no relocation to be fixed up", FileName);
-    return Status;    
+    return Status;
   }
 
   //
@@ -886,8 +875,8 @@ Returns:
   //
   SectionHeader = (EFI_IMAGE_SECTION_HEADER *) (
     (UINTN) ImgHdr +
-    sizeof (UINT32) + 
-    sizeof (EFI_IMAGE_FILE_HEADER) +  
+    sizeof (UINT32) +
+    sizeof (EFI_IMAGE_FILE_HEADER) +
     ImgHdr->Pe32.FileHeader.SizeOfOptionalHeader
     );
 
@@ -907,7 +896,7 @@ Returns:
   if (Index == ImgHdr->Pe32.FileHeader.NumberOfSections) {
     return EFI_NOT_FOUND;
   }
-  
+
   //
   // BaseAddress is set to section header.
   //
@@ -960,7 +949,7 @@ Returns:
 
   if (ImageContext.RelocationsStripped) {
     Error (NULL, 0, 3000, "Invalid", "The input PeImage %s has no relocation to be fixed up", FileName);
-    return Status;    
+    return Status;
   }
 
   //
@@ -999,15 +988,15 @@ Returns:
   //
   SectionHeader = (EFI_IMAGE_SECTION_HEADER *) (
     (UINTN) ImgHdr +
-    sizeof (UINT32) + 
-    sizeof (EFI_IMAGE_FILE_HEADER) +  
+    sizeof (UINT32) +
+    sizeof (EFI_IMAGE_FILE_HEADER) +
     ImgHdr->Pe32.FileHeader.SizeOfOptionalHeader
     );
 
   for (Index = 0; Index < ImgHdr->Pe32.FileHeader.NumberOfSections; Index ++, SectionHeader ++) {
     CopyMem (
-      FileBuffer + SectionHeader->PointerToRawData, 
-      (VOID*) (UINTN) (ImageContext.ImageAddress + SectionHeader->VirtualAddress), 
+      FileBuffer + SectionHeader->PointerToRawData,
+      (VOID*) (UINTN) (ImageContext.ImageAddress + SectionHeader->VirtualAddress),
       SectionHeader->SizeOfRawData
       );
   }
@@ -1559,7 +1548,7 @@ Returns:
   // Open output file and Write image into the output file.
   //
   if (OutImageName != NULL) {
-    fpOut = fopen (OutImageName, "rb");
+    fpOut = fopen (LongFilePath (OutImageName), "rb");
     if (fpOut != NULL) {
       //
       // Get Output file time stamp
@@ -1590,7 +1579,7 @@ Returns:
   //
   // Open input file and read file data into file buffer.
   //
-  fpIn = fopen (mInImageName, "rb");
+  fpIn = fopen (LongFilePath (mInImageName), "rb");
   if (fpIn == NULL) {
     Error (NULL, 0, 0001, "Error opening file", mInImageName);
     goto Finish;
@@ -1621,7 +1610,7 @@ Returns:
     //
     // Open output file handle.
     //
-    fpOut = fopen (OutImageName, "wb");
+    fpOut = fopen (LongFilePath (OutImageName), "wb");
     if (!fpOut) {
       Error (NULL, 0, 0001, "Error opening output file", OutImageName);
       goto Finish;
@@ -1631,7 +1620,7 @@ Returns:
     //
     HiiPackageListHeader.PackageLength = sizeof (EFI_HII_PACKAGE_LIST_HEADER);
     for (Index = 0; Index < InputFileNum; Index ++) {
-      fpIn = fopen (InputFileName [Index], "rb");
+      fpIn = fopen (LongFilePath (InputFileName [Index]), "rb");
       if (fpIn == NULL) {
         Error (NULL, 0, 0001, "Error opening file", InputFileName [Index]);
         goto Finish;
@@ -1677,7 +1666,7 @@ Returns:
     memcpy (HiiPackageListBuffer, &HiiPackageListHeader, sizeof (HiiPackageListHeader));
     HiiPackageDataPointer = HiiPackageListBuffer + sizeof (HiiPackageListHeader);
     for (Index = 0; Index < InputFileNum; Index ++) {
-      fpIn = fopen (InputFileName [Index], "rb");
+      fpIn = fopen (LongFilePath (InputFileName [Index]), "rb");
       if (fpIn == NULL) {
         Error (NULL, 0, 0001, "Error opening file", InputFileName [Index]);
         free (HiiPackageListBuffer);
@@ -1757,13 +1746,13 @@ Returns:
     //
     // Open output file handle.
     //
-    fpOut = fopen (OutImageName, "wb");
+    fpOut = fopen (LongFilePath (OutImageName), "wb");
     if (!fpOut) {
       Error (NULL, 0, 0001, "Error opening output file", OutImageName);
       goto Finish;
     }
     for (Index = 0; Index < InputFileNum; Index ++) {
-      fpIn = fopen (InputFileName [Index], "rb");
+      fpIn = fopen (LongFilePath (InputFileName [Index]), "rb");
       if (!fpIn) {
         Error (NULL, 0, 0001, "Error opening file", InputFileName [Index]);
         goto Finish;
@@ -1805,7 +1794,7 @@ Returns:
   // Convert MicroCode.txt file to MicroCode.bin file
   //
   if (mOutImageType == FW_MCI_IMAGE) {
-    fpIn = fopen (mInImageName, "r");
+    fpIn = fopen (LongFilePath (mInImageName), "r");
     if (fpIn == NULL) {
       Error (NULL, 0, 0001, "Error opening file", mInImageName);
       goto Finish;
@@ -1928,14 +1917,14 @@ Returns:
     // Open the output file handle.
     //
     if (ReplaceFlag) {
-      fpInOut = fopen (mInImageName, "wb");
+      fpInOut = fopen (LongFilePath (mInImageName), "wb");
       if (fpInOut == NULL) {
         Error (NULL, 0, 0001, "Error opening file", mInImageName);
         goto Finish;
       }
     } else {
       if (OutImageName != NULL) {
-        fpOut = fopen (OutImageName, "wb");
+        fpOut = fopen (LongFilePath (OutImageName), "wb");
       } else {
         fpOut = stdout;
       }
@@ -2174,7 +2163,7 @@ Returns:
         goto Finish;
       }
     }
-    
+
     if (NegativeAddr) {
       //
       // Set Base Address to a negative value.
@@ -2520,7 +2509,7 @@ Returns:
     (TEImageHeader.DataDirectory[EFI_TE_IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0) && \
     (TEImageHeader.DataDirectory[EFI_TE_IMAGE_DIRECTORY_ENTRY_BASERELOC].Size == 0)) {
       //
-      // PeImage can be loaded into memory, but it has no relocation section. 
+      // PeImage can be loaded into memory, but it has no relocation section.
       // Fix TeImage Header to set VA of relocation data directory to not zero, the size is still zero.
       //
       if (Optional32 != NULL) {
@@ -2641,7 +2630,7 @@ WriteFile:
       //
       // Update File when File is changed.
       //
-      fpInOut = fopen (mInImageName, "wb");
+      fpInOut = fopen (LongFilePath (mInImageName), "wb");
       if (fpInOut == NULL) {
         Error (NULL, 0, 0001, "Error opening file", mInImageName);
         goto Finish;
@@ -2654,7 +2643,7 @@ WriteFile:
       //
       // Update File when File is changed or File is old.
       //
-      fpOut = fopen (OutImageName, "wb");
+      fpOut = fopen (LongFilePath (OutImageName), "wb");
       if (fpOut == NULL) {
         Error (NULL, 0, 0001, "Error opening output file", OutImageName);
         goto Finish;
@@ -2696,13 +2685,13 @@ Finish:
       if (OutputFileBuffer == NULL) {
         remove (OutImageName);
       } else {
-        fpOut = fopen (OutImageName, "wb");
+        fpOut = fopen (LongFilePath (OutImageName), "wb");
         fwrite (OutputFileBuffer, 1, OutputFileLength, fpOut);
         fclose (fpOut);
       }
     }
   }
-  
+
   if (InputFileBuffer != NULL) {
     free (InputFileBuffer);
   }
@@ -2721,8 +2710,8 @@ Finish:
     ReportFileName = (CHAR8 *) malloc (FileLen + 1);
     if (ReportFileName != NULL) {
       strcpy (ReportFileName, OutImageName);
-      strcpy (ReportFileName + (FileLen - 4), ".txt"); 
-      ReportFile = fopen (ReportFileName, "w+");
+      strcpy (ReportFileName + (FileLen - 4), ".txt");
+      ReportFile = fopen (LongFilePath (ReportFileName), "w+");
       if (ReportFile != NULL) {
         fprintf (ReportFile, "MODULE_SIZE = %u\n", (unsigned) mImageSize);
         fprintf (ReportFile, "TIME_STAMP = %u\n", (unsigned) mImageTimeStamp);
@@ -2773,7 +2762,7 @@ Returns:
   EFI_IMAGE_OPTIONAL_HEADER64     *Optional64Hdr;
   EFI_IMAGE_SECTION_HEADER        *SectionHeader;
   EFI_IMAGE_DEBUG_DIRECTORY_ENTRY *DebugEntry;
-  UINT32                          *NewTimeStamp;  
+  UINT32                          *NewTimeStamp;
 
   //
   // Init variable.
@@ -2930,7 +2919,7 @@ Returns:
   EFI_IMAGE_OPTIONAL_HEADER64     *Optional64Hdr;
   EFI_IMAGE_SECTION_HEADER        *SectionHeader;
   UINT32                          *NewTimeStamp;
-  
+
   //
   // Init variable.
   //

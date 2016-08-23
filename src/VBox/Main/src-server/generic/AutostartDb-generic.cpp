@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -83,7 +83,7 @@ int AutostartDb::autostartModifyDb(bool fAutostart, bool fAddVM)
                     /* Check if the file was just created. */
                     if (cbFile)
                     {
-                        rc = RTFileRead(hAutostartFile, abBuf, cbFile, NULL);
+                        rc = RTFileRead(hAutostartFile, abBuf, (size_t)cbFile, NULL);
                         if (RT_SUCCESS(rc))
                         {
                             rc = RTStrToUInt32Ex(abBuf, NULL, 10 /* uBase */, &cAutostartVms);

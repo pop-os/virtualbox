@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,7 @@
 
 RTDECL(int) RTAsn1DynType_Init(PRTASN1DYNTYPE pThis, PCRTASN1ALLOCATORVTABLE pAllocator)
 {
+    RT_NOREF_PV(pAllocator);
     RT_ZERO(*pThis);
     pThis->enmType = RTASN1TYPE_NOT_PRESENT;
     return VINF_SUCCESS;

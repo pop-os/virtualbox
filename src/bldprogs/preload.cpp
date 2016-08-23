@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
             if (   !strcmp(argv[i], "--version")
                 || !strcmp(argv[i], "-V"))
             {
-                printf("$Revision: 102116 $\n");
+                printf("$Revision: 109096 $\n");
                 return 0;
             }
             fprintf(stderr, "syntax error: unknown option '%s'\n", argv[i]);
@@ -190,7 +190,7 @@ int main(int argc, char **argv)
                 fclose(pFile);
             }
             else
-                fprintf(stderr, "error: fopen('%s','r'): %d\n", argv[i][1], errno);
+                fprintf(stderr, "error: fopen('%s','r'): %d\n", &argv[i][1], errno);
         }
         else
             load(argv[i]);

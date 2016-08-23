@@ -33,6 +33,10 @@
 #include "../../WINNT/Graphics/Video/common/wddm/VBoxMPIf.h"
 #endif
 
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+# include <VBox/VBoxCrHgsmi.h>
+#endif
+
 /**
  * If you change this, see the comments in tilesortspu_context.c
  */
@@ -65,9 +69,10 @@ CRtsd g_stubCurrentContextTSD;
 #endif
 
 
+#ifndef VBOX_NO_NATIVEGL
 static void stubInitNativeDispatch( void )
 {
-#define MAX_FUNCS 1000
+# define MAX_FUNCS 1000
     SPUNamedFunctionTable gl_funcs[MAX_FUNCS];
     int numFuncs;
 
@@ -83,8 +88,9 @@ static void stubInitNativeDispatch( void )
     crSPUInitDispatchTable( &stub.nativeDispatch );
     crSPUInitDispatch( &stub.nativeDispatch, gl_funcs );
     crSPUInitDispatchNops( &stub.nativeDispatch );
-#undef MAX_FUNCS
+# undef MAX_FUNCS
 }
+#endif /* !VBOX_NO_NATIVEGL */
 
 
 /** Pointer to the SPU's real glClear and glViewport functions */
@@ -173,6 +179,7 @@ static void stubCheckWindowsCB(unsigned long key, void *data1, void *data2)
 {
     WindowInfo *pWindow = (WindowInfo *) data1;
     ContextInfo *pCtx = (ContextInfo *) data2;
+    (void)key;
 
     if (pWindow == pCtx->currentDrawable
         || pWindow->type!=CHROMIUM
@@ -247,7 +254,7 @@ static void SPU_APIENTRY trapViewport(GLint x, GLint y, GLsizei w, GLsizei h)
     origViewport(x, y, w, h);
 }
 
-static void SPU_APIENTRY trapSwapBuffers(GLint window, GLint flags)
+/*static void SPU_APIENTRY trapSwapBuffers(GLint window, GLint flags)
 {
     stubCheckWindowsState();
     origSwapBuffers(window, flags);
@@ -257,18 +264,22 @@ static void SPU_APIENTRY trapDrawBuffer(GLenum buf)
 {
     stubCheckWindowsState();
     origDrawBuffer(buf);
-}
+}*/
 
+#if 0 /* unused */
 static void SPU_APIENTRY trapScissor(GLint x, GLint y, GLsizei w, GLsizei h)
 {
     int winX, winY;
     unsigned int winW, winH;
     WindowInfo *pWindow;
     ContextInfo *context = stubGetCurrentContext();
+    (void)x; (void)y; (void)w; (void)h;
+
     pWindow = context->currentDrawable;
     stubGetWindowGeometry(pWindow, &winX, &winY, &winW, &winH);
     origScissor(0, 0, winW, winH);
 }
+#endif /* unused */
 
 /**
  * Use the GL function pointers in <spu> to initialize the static glim
@@ -296,9 +307,12 @@ static void stubInitSPUDispatch(SPU *spu)
     crSPUCopyDispatchTable( &glim, &stub.spuDispatch );
 }
 
+#if 0 /** @todo stubSPUTearDown & stubSPUTearDownLocked are not referenced */
+
 // Callback function, used to destroy all created contexts
 static void hsWalkStubDestroyContexts(unsigned long key, void *data1, void *data2)
 {
+    (void)data1; (void)data2;
     stubDestroyContext(key);
 }
 
@@ -373,6 +387,8 @@ static void stubSPUTearDown(void)
     }
     STUB_INIT_UNLOCK();
 }
+
+#endif /** @todo stubSPUTearDown & stubSPUTearDownLocked are not referenced */
 
 static void stubSPUSafeTearDown(void)
 {
@@ -493,6 +509,7 @@ static void stubExitHandler(void)
  */
 static void stubSignalHandler(int signo)
 {
+    (void)signo;
     stubSPUSafeTearDown();
     exit(0);  /* this causes stubExitHandler() to be called */
 }
@@ -716,7 +733,7 @@ MothershipPhoneHome(int signo)
 
 #endif /* 0 */
 
-void stubSetDefaultConfigurationOptions(void)
+static void stubSetDefaultConfigurationOptions(void)
 {
     unsigned char key[16]= {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
@@ -750,7 +767,7 @@ void stubSetDefaultConfigurationOptions(void)
 
 #ifdef CR_NEWWINTRACK
 # ifdef VBOX_WITH_WDDM
-static stubDispatchVisibleRegions(WindowInfo *pWindow)
+static void stubDispatchVisibleRegions(WindowInfo *pWindow)
 {
     DWORD dwCount;
     LPRGNDATA lpRgnData;
@@ -793,7 +810,7 @@ static HRGN stubMakeRegionFromRects(PVBOXVIDEOCM_CMD_RECTS pRegions, uint32_t st
 static void stubSyncTrCheckWindowsCB(unsigned long key, void *data1, void *data2)
 {
     WindowInfo *pWindow = (WindowInfo *) data1;
-    (void) data2;
+    (void)key; (void) data2;
 
     if (pWindow->type!=CHROMIUM || pWindow->spuWindow==0)
     {
@@ -937,7 +954,6 @@ stubInitLocked(void)
      * HOW can I pass the mothership address to this if I already know it?
      */
 
-    CRConnection *conn = NULL;
     char response[1024];
     char **spuchain;
     int num_spus;
@@ -1122,35 +1138,6 @@ stubInit(void)
     STUB_INIT_UNLOCK();
     return bRc;
 }
-
-#if defined(Linux) && !defined(VBOXOGL_FAKEDRI)
-# include <dlfcn.h>
-/* We only support being used by GLX clients.  If the X server GLX extension
- * tries to use our OpenGL library it will fail, as it is written specifically
- * against Mesa.  So we detect this with the assumption that the server will
- * not have the DISPLAY variable set, and a client will do or we can't do much
- * with it anyway.  This is only needed on Linux, as Solaris lets us replace
- * the client library only.  To avoid complications with iprt initialisation
- * we use native system/C library APIs.
- * We do this in a very naive way, not even checking for failure (not much we
- * can do, better for GLX to fail than the whole X server).  To keep things as
- * simple and fail-safe as possible, we use a fixed path to the system GL
- * library. */
-#ifndef RTLD_DEEPBIND
-# define RTLD_DEEPBIND 0x8
-#endif
-
-void __attribute__ ((constructor)) checkServerGLX(void)
-{
-    char *pszDisplay = getenv("DISPLAY");
-
-    if (!pszDisplay || !*pszDisplay)
-    {
-        dlopen("/var/lib/VBoxGuestAdditions/lib/system/libGL.so.1", RTLD_LAZY | RTLD_GLOBAL | RTLD_DEEPBIND);
-        dlopen("/var/lib/VBoxGuestAdditions/lib/system/libEGL.so.1", RTLD_LAZY | RTLD_GLOBAL | RTLD_DEEPBIND);
-    }
-}
-#endif
 
 /* Sigh -- we can't do initialization at load time, since Windows forbids
  * the loading of other libraries from DLLMain. */

@@ -1,7 +1,7 @@
 /** @file
   Unicode and ASCII string primatives.
 
-  Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -14,8 +14,11 @@
 
 #include "BaseLibInternals.h"
 
+#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
 
 /**
+  [ATTENTION] This function will be deprecated for security reason.
+
   Copies one Null-terminated Unicode string to another Null-terminated Unicode
   string and returns the new Unicode string.
 
@@ -68,7 +71,9 @@ StrCpy (
 }
 
 /**
-  Copies up to a specified length from one Null-terminated Unicode string  to 
+  [ATTENTION] This function will be deprecated for security reason.
+
+  Copies up to a specified length from one Null-terminated Unicode string  to
   another Null-terminated Unicode string and returns the new Unicode string.
 
   This function copies the contents of the Unicode string Source to the Unicode
@@ -84,7 +89,7 @@ StrCpy (
   If Length > 0 and Source is NULL, then ASSERT().
   If Length > 0 and Source is not aligned on a 16-bit boundary, then ASSERT().
   If Source and Destination overlap, then ASSERT().
-  If PcdMaximumUnicodeStringLength is not zero, and Length is greater than 
+  If PcdMaximumUnicodeStringLength is not zero, and Length is greater than
   PcdMaximumUnicodeStringLength, then ASSERT().
   If PcdMaximumUnicodeStringLength is not zero, and Source contains more than
   PcdMaximumUnicodeStringLength Unicode characters, not including the Null-terminator,
@@ -137,6 +142,7 @@ StrnCpy (
   ZeroMem (Destination, Length * sizeof (*Destination));
   return ReturnValue;
 }
+#endif
 
 /**
   Returns the length of a Null-terminated Unicode string.
@@ -182,7 +188,7 @@ StrLen (
   Returns the size of a Null-terminated Unicode string in bytes, including the
   Null terminator.
 
-  This function returns the size, in bytes, of the Null-terminated Unicode string 
+  This function returns the size, in bytes, of the Null-terminated Unicode string
   specified by String.
 
   If String is NULL, then ASSERT().
@@ -256,7 +262,7 @@ StrCmp (
 /**
   Compares up to a specified length the contents of two Null-terminated Unicode strings,
   and returns the difference between the first mismatched Unicode characters.
-  
+
   This function compares the Null-terminated Unicode string FirstString to the
   Null-terminated Unicode string SecondString. At most, Length Unicode
   characters will be compared. If Length is 0, then 0 is returned. If
@@ -319,7 +325,11 @@ StrnCmp (
   return *FirstString - *SecondString;
 }
 
+#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
+
 /**
+  [ATTENTION] This function will be deprecated for security reason.
+
   Concatenates one Null-terminated Unicode string to another Null-terminated
   Unicode string, and returns the concatenated Unicode string.
 
@@ -369,8 +379,10 @@ StrCat (
 }
 
 /**
-  Concatenates up to a specified length one Null-terminated Unicode to the end 
-  of another Null-terminated Unicode string, and returns the concatenated 
+  [ATTENTION] This function will be deprecated for security reason.
+
+  Concatenates up to a specified length one Null-terminated Unicode to the end
+  of another Null-terminated Unicode string, and returns the concatenated
   Unicode string.
 
   This function concatenates two Null-terminated Unicode strings. The contents
@@ -386,7 +398,7 @@ StrCat (
   If Length > 0 and Source is NULL, then ASSERT().
   If Length > 0 and Source is not aligned on a 16-bit boundary, then ASSERT().
   If Source and Destination overlap, then ASSERT().
-  If PcdMaximumUnicodeStringLength is not zero, and Length is greater than 
+  If PcdMaximumUnicodeStringLength is not zero, and Length is greater than
   PcdMaximumUnicodeStringLength, then ASSERT().
   If PcdMaximumUnicodeStringLength is not zero, and Destination contains more
   than PcdMaximumUnicodeStringLength Unicode characters, not including the
@@ -427,6 +439,7 @@ StrnCat (
   ASSERT (StrSize (Destination) != 0);
   return Destination;
 }
+#endif
 
 /**
   Returns the first occurrence of a Null-terminated Unicode sub-string
@@ -478,13 +491,13 @@ StrStr (
   while (*String != L'\0') {
     SearchStringTmp = SearchString;
     FirstMatch = String;
-    
-    while ((*String == *SearchStringTmp) 
+
+    while ((*String == *SearchStringTmp)
             && (*String != L'\0')) {
       String++;
       SearchStringTmp++;
-    } 
-    
+    }
+
     if (*SearchStringTmp == L'\0') {
       return (CHAR16 *) FirstMatch;
     }
@@ -502,7 +515,7 @@ StrStr (
 /**
   Check if a Unicode character is a decimal character.
 
-  This internal function checks if a Unicode character is a 
+  This internal function checks if a Unicode character is a
   decimal character. The valid decimal character is from
   L'0' to L'9'.
 
@@ -522,7 +535,7 @@ InternalIsDecimalDigitCharacter (
 }
 
 /**
-  Convert a Unicode character to upper case only if 
+  Convert a Unicode character to upper case only if
   it maps to a valid small-case ASCII character.
 
   This internal function only deal with Unicode character
@@ -554,7 +567,7 @@ InternalCharToUpper (
 
   This internal function only deal with Unicode character
   which maps to a valid hexadecimal ASII character, i.e.
-  L'0' to L'9', L'a' to L'f' or L'A' to L'F'. For other 
+  L'0' to L'9', L'a' to L'f' or L'A' to L'F'. For other
   Unicode character, the value returned does not make sense.
 
   @param  Char  The character to convert.
@@ -578,8 +591,8 @@ InternalHexCharToUintn (
 /**
   Check if a Unicode character is a hexadecimal character.
 
-  This internal function checks if a Unicode character is a 
-  decimal character.  The valid hexadecimal character is 
+  This internal function checks if a Unicode character is a
+  decimal character.  The valid hexadecimal character is
   L'0' to L'9', L'a' to L'f', or L'A' to L'F'.
 
 
@@ -642,7 +655,7 @@ StrDecimalToUintn (
   )
 {
   UINTN     Result;
-  
+
   //
   // ASSERT String is less long than PcdMaximumUnicodeStringLength.
   // Length tests are performed inside StrLen().
@@ -667,7 +680,7 @@ StrDecimalToUintn (
 
   while (InternalIsDecimalDigitCharacter (*String)) {
     //
-    // If the number represented by String overflows according 
+    // If the number represented by String overflows according
     // to the range defined by UINTN, then ASSERT().
     //
     ASSERT (Result <= ((((UINTN) ~0) - (*String - L'0')) / 10));
@@ -675,7 +688,7 @@ StrDecimalToUintn (
     Result = Result * 10 + (*String - L'0');
     String++;
   }
-  
+
   return Result;
 }
 
@@ -721,7 +734,7 @@ StrDecimalToUint64 (
   )
 {
   UINT64     Result;
-  
+
   //
   // ASSERT String is less long than PcdMaximumUnicodeStringLength.
   // Length tests are performed inside StrLen().
@@ -746,7 +759,7 @@ StrDecimalToUint64 (
 
   while (InternalIsDecimalDigitCharacter (*String)) {
     //
-    // If the number represented by String overflows according 
+    // If the number represented by String overflows according
     // to the range defined by UINTN, then ASSERT().
     //
     ASSERT (Result <= DivU64x32 (((UINT64) ~0) - (*String - L'0') , 10));
@@ -754,7 +767,7 @@ StrDecimalToUint64 (
     Result = MultU64x32 (Result, 10) + (*String - L'0');
     String++;
   }
-  
+
   return Result;
 }
 
@@ -806,9 +819,9 @@ StrHexToUintn (
   // Length tests are performed inside StrLen().
   //
   ASSERT (StrSize (String) != 0);
-  
+
   //
-  // Ignore the pad spaces (space or tab) 
+  // Ignore the pad spaces (space or tab)
   //
   while ((*String == L' ') || (*String == L'\t')) {
     String++;
@@ -832,10 +845,10 @@ StrHexToUintn (
   }
 
   Result = 0;
-  
+
   while (InternalIsHexaDecimalDigitCharacter (*String)) {
     //
-    // If the Hex Number represented by String overflows according 
+    // If the Hex Number represented by String overflows according
     // to the range defined by UINTN, then ASSERT().
     //
     ASSERT (Result <= ((((UINTN) ~0) - InternalHexCharToUintn (*String)) >> 4));
@@ -896,9 +909,9 @@ StrHexToUint64 (
   // Length tests are performed inside StrLen().
   //
   ASSERT (StrSize (String) != 0);
-  
+
   //
-  // Ignore the pad spaces (space or tab) 
+  // Ignore the pad spaces (space or tab)
   //
   while ((*String == L' ') || (*String == L'\t')) {
     String++;
@@ -923,10 +936,10 @@ StrHexToUint64 (
   }
 
   Result = 0;
-  
+
   while (InternalIsHexaDecimalDigitCharacter (*String)) {
     //
-    // If the Hex Number represented by String overflows according 
+    // If the Hex Number represented by String overflows according
     // to the range defined by UINTN, then ASSERT().
     //
     ASSERT (Result <= RShiftU64 (((UINT64) ~0) - InternalHexCharToUintn (*String) , 4));
@@ -942,7 +955,7 @@ StrHexToUint64 (
 /**
   Check if a ASCII character is a decimal character.
 
-  This internal function checks if a Unicode character is a 
+  This internal function checks if a Unicode character is a
   decimal character. The valid decimal character is from
   '0' to '9'.
 
@@ -964,8 +977,8 @@ InternalAsciiIsDecimalDigitCharacter (
 /**
   Check if a ASCII character is a hexadecimal character.
 
-  This internal function checks if a ASCII character is a 
-  decimal character.  The valid hexadecimal character is 
+  This internal function checks if a ASCII character is a
+  decimal character.  The valid hexadecimal character is
   L'0' to L'9', L'a' to L'f', or L'A' to L'F'.
 
 
@@ -1040,14 +1053,14 @@ UnicodeStrToAsciiStr (
   //
   // Source and Destination should not overlap
   //
-  ASSERT ((UINTN) ((CHAR16 *) Destination -  Source) > StrLen (Source));
+  ASSERT ((UINTN) (Destination - (CHAR8 *) Source) >= StrSize (Source));
   ASSERT ((UINTN) ((CHAR8 *) Source - Destination) > StrLen (Source));
 
 
   ReturnValue = Destination;
   while (*Source != '\0') {
     //
-    // If any Unicode characters in Source contain 
+    // If any Unicode characters in Source contain
     // non-zero value in the upper 8 bits, then ASSERT().
     //
     ASSERT (*Source < 0x100);
@@ -1065,8 +1078,11 @@ UnicodeStrToAsciiStr (
   return ReturnValue;
 }
 
+#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
 
 /**
+  [ATTENTION] This function will be deprecated for security reason.
+
   Copies one Null-terminated ASCII string to another Null-terminated ASCII
   string and returns the new ASCII string.
 
@@ -1116,7 +1132,9 @@ AsciiStrCpy (
 }
 
 /**
-  Copies up to a specified length one Null-terminated ASCII string to another 
+  [ATTENTION] This function will be deprecated for security reason.
+
+  Copies up to a specified length one Null-terminated ASCII string to another
   Null-terminated ASCII string and returns the new ASCII string.
 
   This function copies the contents of the ASCII string Source to the ASCII
@@ -1129,7 +1147,7 @@ AsciiStrCpy (
   If Destination is NULL, then ASSERT().
   If Source is NULL, then ASSERT().
   If Source and Destination overlap, then ASSERT().
-  If PcdMaximumAsciiStringLength is not zero, and Length is greater than 
+  If PcdMaximumAsciiStringLength is not zero, and Length is greater than
   PcdMaximumAsciiStringLength, then ASSERT().
   If PcdMaximumAsciiStringLength is not zero, and Source contains more than
   PcdMaximumAsciiStringLength ASCII characters, not including the Null-terminator,
@@ -1181,6 +1199,7 @@ AsciiStrnCpy (
   ZeroMem (Destination, Length * sizeof (*Destination));
   return ReturnValue;
 }
+#endif
 
 /**
   Returns the length of a Null-terminated ASCII string.
@@ -1304,7 +1323,7 @@ AsciiStrCmp (
 
   @param  Chr   one Ascii character
 
-  @return The uppercase value of Ascii character 
+  @return The uppercase value of Ascii character
 
 **/
 CHAR8
@@ -1321,7 +1340,7 @@ InternalBaseLibAsciiToUpper (
 
   This internal function only deal with Unicode character
   which maps to a valid hexadecimal ASII character, i.e.
-  '0' to '9', 'a' to 'f' or 'A' to 'F'. For other 
+  '0' to '9', 'a' to 'f' or 'A' to 'F'. For other
   ASCII character, the value returned does not make sense.
 
   @param  Char  The character to convert.
@@ -1413,7 +1432,7 @@ AsciiStriCmp (
 
   If Length > 0 and FirstString is NULL, then ASSERT().
   If Length > 0 and SecondString is NULL, then ASSERT().
-  If PcdMaximumAsciiStringLength is not zero, and Length is greater than 
+  If PcdMaximumAsciiStringLength is not zero, and Length is greater than
   PcdMaximumAsciiStringLength, then ASSERT().
   If PcdMaximumAsciiStringLength is not zero, and FirstString contains more than
   PcdMaximumAsciiStringLength ASCII characters, not including the Null-terminator,
@@ -1425,7 +1444,7 @@ AsciiStriCmp (
   @param  FirstString   A pointer to a Null-terminated ASCII string.
   @param  SecondString  A pointer to a Null-terminated ASCII string.
   @param  Length        The maximum number of ASCII characters for compare.
-  
+
   @retval ==0       FirstString is identical to SecondString.
   @retval !=0       FirstString is not identical to SecondString.
 
@@ -1462,7 +1481,11 @@ AsciiStrnCmp (
   return *FirstString - *SecondString;
 }
 
+#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
+
 /**
+  [ATTENTION] This function will be deprecated for security reason.
+
   Concatenates one Null-terminated ASCII string to another Null-terminated
   ASCII string, and returns the concatenated ASCII string.
 
@@ -1507,8 +1530,10 @@ AsciiStrCat (
 }
 
 /**
-  Concatenates up to a specified length one Null-terminated ASCII string to 
-  the end of another Null-terminated ASCII string, and returns the 
+  [ATTENTION] This function will be deprecated for security reason.
+
+  Concatenates up to a specified length one Null-terminated ASCII string to
+  the end of another Null-terminated ASCII string, and returns the
   concatenated ASCII string.
 
   This function concatenates two Null-terminated ASCII strings. The contents
@@ -1563,6 +1588,7 @@ AsciiStrnCat (
   ASSERT (AsciiStrSize (Destination) != 0);
   return Destination;
 }
+#endif
 
 /**
   Returns the first occurrence of a Null-terminated ASCII sub-string
@@ -1611,13 +1637,13 @@ AsciiStrStr (
   while (*String != '\0') {
     SearchStringTmp = SearchString;
     FirstMatch = String;
-    
-    while ((*String == *SearchStringTmp) 
+
+    while ((*String == *SearchStringTmp)
             && (*String != '\0')) {
       String++;
       SearchStringTmp++;
-    } 
-    
+    }
+
     if (*SearchStringTmp == '\0') {
       return (CHAR8 *) FirstMatch;
     }
@@ -1669,7 +1695,7 @@ AsciiStrDecimalToUintn (
   )
 {
   UINTN     Result;
-  
+
   //
   // ASSERT Strings is less long than PcdMaximumAsciiStringLength
   //
@@ -1693,7 +1719,7 @@ AsciiStrDecimalToUintn (
 
   while (InternalAsciiIsDecimalDigitCharacter (*String)) {
     //
-    // If the number represented by String overflows according 
+    // If the number represented by String overflows according
     // to the range defined by UINTN, then ASSERT().
     //
     ASSERT (Result <= ((((UINTN) ~0) - (*String - L'0')) / 10));
@@ -1701,7 +1727,7 @@ AsciiStrDecimalToUintn (
     Result = Result * 10 + (*String - '0');
     String++;
   }
-  
+
   return Result;
 }
 
@@ -1743,7 +1769,7 @@ AsciiStrDecimalToUint64 (
   )
 {
   UINT64     Result;
-  
+
   //
   // ASSERT Strings is less long than PcdMaximumAsciiStringLength
   //
@@ -1767,7 +1793,7 @@ AsciiStrDecimalToUint64 (
 
   while (InternalAsciiIsDecimalDigitCharacter (*String)) {
     //
-    // If the number represented by String overflows according 
+    // If the number represented by String overflows according
     // to the range defined by UINTN, then ASSERT().
     //
     ASSERT (Result <= DivU64x32 (((UINT64) ~0) - (*String - L'0') , 10));
@@ -1775,7 +1801,7 @@ AsciiStrDecimalToUint64 (
     Result = MultU64x32 (Result, 10) + (*String - '0');
     String++;
   }
-  
+
   return Result;
 }
 
@@ -1825,9 +1851,9 @@ AsciiStrHexToUintn (
   // ASSERT Strings is less long than PcdMaximumAsciiStringLength
   //
   ASSERT (AsciiStrSize (String) != 0);
-  
+
   //
-  // Ignore the pad spaces (space or tab) 
+  // Ignore the pad spaces (space or tab)
   //
   while ((*String == ' ') || (*String == '\t' )) {
     String++;
@@ -1852,10 +1878,10 @@ AsciiStrHexToUintn (
   }
 
   Result = 0;
-  
+
   while (InternalAsciiIsHexaDecimalDigitCharacter (*String)) {
     //
-    // If the Hex Number represented by String overflows according 
+    // If the Hex Number represented by String overflows according
     // to the range defined by UINTN, then ASSERT().
     //
     ASSERT (Result <= ((((UINTN) ~0) - InternalHexCharToUintn (*String)) >> 4));
@@ -1914,12 +1940,12 @@ AsciiStrHexToUint64 (
   // ASSERT Strings is less long than PcdMaximumAsciiStringLength
   //
   ASSERT (AsciiStrSize (String) != 0);
-  
+
   //
   // Ignore the pad spaces (space or tab) and leading Zeros
   //
   //
-  // Ignore the pad spaces (space or tab) 
+  // Ignore the pad spaces (space or tab)
   //
   while ((*String == ' ') || (*String == '\t' )) {
     String++;
@@ -1944,10 +1970,10 @@ AsciiStrHexToUint64 (
   }
 
   Result = 0;
-  
+
   while (InternalAsciiIsHexaDecimalDigitCharacter (*String)) {
     //
-    // If the Hex Number represented by String overflows according 
+    // If the Hex Number represented by String overflows according
     // to the range defined by UINTN, then ASSERT().
     //
     ASSERT (Result <= RShiftU64 (((UINT64) ~0) - InternalHexCharToUintn (*String) , 4));
@@ -2008,9 +2034,9 @@ AsciiStrToUnicodeStr (
   // Source and Destination should not overlap
   //
   ASSERT ((UINTN) ((CHAR8 *) Destination - Source) > AsciiStrLen (Source));
-  ASSERT ((UINTN) (Source - (CHAR8 *) Destination) > (AsciiStrLen (Source) * sizeof (CHAR16)));
+  ASSERT ((UINTN) (Source - (CHAR8 *) Destination) >= (AsciiStrSize (Source) * sizeof (CHAR16)));
 
- 
+
   ReturnValue = Destination;
   while (*Source != '\0') {
     *(Destination++) = (CHAR16) *(Source++);

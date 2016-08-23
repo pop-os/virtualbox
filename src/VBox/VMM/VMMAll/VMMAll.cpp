@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -115,13 +115,17 @@ static DECLCALLBACK(size_t) vmmFormatTypeVmCpuSet(PFNRTSTROUTPUT pfnOutput, void
             int off = 0;
             if (cCpus != 0)
                 szTmp[off++] = ',';
+            cCpus++;
             off += vmmFormatTypeShortNumber(&szTmp[off], iCpu);
 
             /* Check for sequence. */
             uint32_t const iStart = ++iCpu;
             while (   iCpu < RT_ELEMENTS(pSet->au32Bitmap) * 32
                    && VMCPUSET_IS_PRESENT(pSet, iCpu))
+            {
                 iCpu++;
+                cCpus++;
+            }
             if (iCpu != iStart)
             {
                 szTmp[off++] = '-';
@@ -409,28 +413,37 @@ VMM_INT_DECL(int) VMMPatchHypercall(PVM pVM, void *pvBuf, size_t cbBuf, size_t *
     AssertReturn(pvBuf, VERR_INVALID_POINTER);
     AssertReturn(pcbWritten, VERR_INVALID_POINTER);
 
-    if (ASMIsAmdCpu())
+    CPUMCPUVENDOR enmHostCpu = CPUMGetHostCpuVendor(pVM);
+    switch (enmHostCpu)
     {
-        uint8_t abHypercall[] = { 0x0F, 0x01, 0xD9 };   /* VMMCALL */
-        if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
+        case CPUMCPUVENDOR_AMD:
         {
-            memcpy(pvBuf, abHypercall, sizeof(abHypercall));
-            *pcbWritten = sizeof(abHypercall);
-            return VINF_SUCCESS;
+            uint8_t abHypercall[] = { 0x0F, 0x01, 0xD9 };   /* VMMCALL */
+            if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
+            {
+                memcpy(pvBuf, abHypercall, sizeof(abHypercall));
+                *pcbWritten = sizeof(abHypercall);
+                return VINF_SUCCESS;
+            }
+            return VERR_BUFFER_OVERFLOW;
         }
-        return VERR_BUFFER_OVERFLOW;
-    }
-    else
-    {
-        AssertReturn(ASMIsIntelCpu() || ASMIsViaCentaurCpu(), VERR_UNSUPPORTED_CPU);
-        uint8_t abHypercall[] = { 0x0F, 0x01, 0xC1 };   /* VMCALL */
-        if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
+
+        case CPUMCPUVENDOR_INTEL:
+        case CPUMCPUVENDOR_VIA:
         {
-            memcpy(pvBuf, abHypercall, sizeof(abHypercall));
-            *pcbWritten = sizeof(abHypercall);
-            return VINF_SUCCESS;
+            uint8_t abHypercall[] = { 0x0F, 0x01, 0xC1 };   /* VMCALL */
+            if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
+            {
+                memcpy(pvBuf, abHypercall, sizeof(abHypercall));
+                *pcbWritten = sizeof(abHypercall);
+                return VINF_SUCCESS;
+            }
+            return VERR_BUFFER_OVERFLOW;
         }
-        return VERR_BUFFER_OVERFLOW;
+
+        default:
+            AssertFailed();
+            return VERR_UNSUPPORTED_CPU;
     }
 }
 
@@ -446,6 +459,8 @@ VMM_INT_DECL(void) VMMHypercallsEnable(PVMCPU pVCpu)
 #ifndef IN_RC
     if (HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         HMHypercallsEnable(pVCpu);
+#else
+    RT_NOREF_PV(pVCpu);
 #endif
 }
 
@@ -461,6 +476,8 @@ VMM_INT_DECL(void) VMMHypercallsDisable(PVMCPU pVCpu)
 #ifndef IN_RC
     if (HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         HMHypercallsDisable(pVCpu);
+#else
+    RT_NOREF_PV(pVCpu);
 #endif
 }
 

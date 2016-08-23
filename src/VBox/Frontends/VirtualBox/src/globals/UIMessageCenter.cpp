@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,9 +25,9 @@
 # include <QLocale>
 # include <QThread>
 # include <QProcess>
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include <QPushButton>
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -48,12 +48,12 @@
 # include "UIMachine.h"
 # include "VBoxAboutDlg.h"
 # include "UIHostComboEditor.h"
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include "VBoxUtils-darwin.h"
-# endif /* Q_WS_MAC */
-# ifdef Q_WS_WIN
+# endif /* VBOX_WS_MAC */
+# ifdef VBOX_WS_WIN
 #  include <Htmlhelp.h>
-# endif /* Q_WS_WIN */
+# endif /* VBOX_WS_WIN */
 
 /* COM includes: */
 # include "CConsole.h"
@@ -171,7 +171,7 @@ void UIMessageCenter::error(QWidget *pParent, MessageType type,
                            const char *pcszAutoConfirmId /* = 0*/) const
 {
     message(pParent, type, strMessage, strDetails, pcszAutoConfirmId,
-            AlertButton_Ok | AlertButtonOption_Default);
+            AlertButton_Ok | AlertButtonOption_Default | AlertButtonOption_Escape);
 }
 
 bool UIMessageCenter::errorWithQuestion(QWidget *pParent, MessageType type,
@@ -434,6 +434,14 @@ void UIMessageCenter::cannotCreateVirtualBoxClient(const CVirtualBoxClient &clie
 {
     error(0, MessageType_Critical,
           tr("<p>Failed to create the VirtualBoxClient COM object.</p>"
+             "<p>The application will now terminate.</p>"),
+          formatErrorInfo(client));
+}
+
+void UIMessageCenter::cannotAcquireVirtualBox(const CVirtualBoxClient &client) const
+{
+    error(0, MessageType_Critical,
+          tr("<p>Failed to acquire the VirtualBox COM object.</p>"
              "<p>The application will now terminate.</p>"),
           formatErrorInfo(client));
 }
@@ -1681,7 +1689,7 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
     MessageType type;
     QString severity;
 
-    // TODO: Move to Runtime UI!
+    /// @todo Move to Runtime UI!
     /* Preprocessing: */
     if (fFatal)
     {
@@ -1753,7 +1761,7 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
               formatted, autoConfimId.data());
     }
 
-    // TODO: Move to Runtime UI!
+    /// @todo Move to Runtime UI!
     /* Postprocessing: */
     if (fFatal)
     {
@@ -2503,7 +2511,7 @@ QString UIMessageCenter::formatRC(HRESULT rc)
     if (msg != NULL)
         errMsg = msg->pszDefine;
 
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
     PCRTWINERRMSG winMsg = NULL;
 
     /* If not found, try again using RTErrWinGet with masked off top 16bit: */
@@ -2514,7 +2522,7 @@ QString UIMessageCenter::formatRC(HRESULT rc)
         if (winMsg != NULL)
             errMsg = winMsg->pszDefine;
     }
-#endif /* Q_WS_WIN */
+#endif /* VBOX_WS_WIN */
 
     if (errMsg != NULL && *errMsg != '\0')
         str.sprintf("%s", errMsg);
@@ -2539,7 +2547,7 @@ QString UIMessageCenter::formatRCFull(HRESULT rc)
     if (msg != NULL)
         errMsg = msg->pszDefine;
 
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
     PCRTWINERRMSG winMsg = NULL;
 
     /* If not found, try again using RTErrWinGet with masked off top 16bit: */
@@ -2550,7 +2558,7 @@ QString UIMessageCenter::formatRCFull(HRESULT rc)
         if (winMsg != NULL)
             errMsg = winMsg->pszDefine;
     }
-#endif /* Q_WS_WIN */
+#endif /* VBOX_WS_WIN */
 
     if (errMsg != NULL && *errMsg != '\0')
         str.sprintf("%s (0x%08X)", errMsg, rc);
@@ -2610,6 +2618,21 @@ QString UIMessageCenter::formatErrorInfo(const COMResult &rc)
 void UIMessageCenter::sltShowHelpWebDialog()
 {
     vboxGlobal().openURL("https://www.virtualbox.org");
+}
+
+void UIMessageCenter::sltShowBugTracker()
+{
+    vboxGlobal().openURL("https://www.virtualbox.org/wiki/Bugtracker");
+}
+
+void UIMessageCenter::sltShowForums()
+{
+    vboxGlobal().openURL("https://forums.virtualbox.org/");
+}
+
+void UIMessageCenter::sltShowOracle()
+{
+    vboxGlobal().openURL("http://www.oracle.com/us/technologies/virtualization/virtualbox/overview/index.html");
 }
 
 void UIMessageCenter::sltShowHelpAboutDialog()
@@ -2674,9 +2697,9 @@ void UIMessageCenter::sltResetSuppressedMessages()
 
 void UIMessageCenter::sltShowUserManual(const QString &strLocation)
 {
-#if defined (Q_WS_WIN32)
+#if defined (VBOX_WS_WIN)
     HtmlHelp(GetDesktopWindow(), strLocation.utf16(), HH_DISPLAY_TOPIC, NULL);
-#elif defined (Q_WS_X11)
+#elif defined (VBOX_WS_X11)
 # ifndef VBOX_OSE
     char szViewerPath[RTPATH_MAX];
     int rc;
@@ -2686,7 +2709,7 @@ void UIMessageCenter::sltShowUserManual(const QString &strLocation)
 # else /* #ifndef VBOX_OSE */
     vboxGlobal().openURL("file://" + strLocation);
 # endif /* #ifdef VBOX_OSE */
-#elif defined (Q_WS_MAC)
+#elif defined (VBOX_WS_MAC)
     vboxGlobal().openURL("file://" + strLocation);
 #endif
 }
@@ -2783,11 +2806,11 @@ QString UIMessageCenter::errorInfoToString(const COMErrorInfo &info,
 
     if (info.isBasicAvailable())
     {
-#if defined (Q_WS_WIN)
+#if defined (VBOX_WS_WIN)
         haveResultCode = info.isFullAvailable();
         bool haveComponent = true;
         bool haveInterfaceID = true;
-#else /* defined (Q_WS_WIN) */
+#else /* defined (VBOX_WS_WIN) */
         haveResultCode = true;
         bool haveComponent = info.isFullAvailable();
         bool haveInterfaceID = info.isFullAvailable();
@@ -2806,7 +2829,7 @@ QString UIMessageCenter::errorInfoToString(const COMErrorInfo &info,
 
         if (haveInterfaceID)
         {
-            QString s = info.interfaceID();
+            QString s = info.interfaceID().toString();
             if (!info.interfaceName().isEmpty())
                 s = info.interfaceName() + ' ' + s;
             formatted += QString("<tr><td>%1</td><td>%2</td></tr>")
@@ -2815,7 +2838,7 @@ QString UIMessageCenter::errorInfoToString(const COMErrorInfo &info,
 
         if (!info.calleeIID().isNull() && info.calleeIID() != info.interfaceID())
         {
-            QString s = info.calleeIID();
+            QString s = info.calleeIID().toString();
             if (!info.calleeName().isEmpty())
                 s = info.calleeName() + ' ' + s;
             formatted += QString("<tr><td>%1</td><td>%2</td></tr>")
@@ -2850,12 +2873,11 @@ int UIMessageCenter::showMessageBox(QWidget *pParent, MessageType type,
         iButton1 = AlertButton_Ok | AlertButtonOption_Default;
 
     /* Check if message-box was auto-confirmed before: */
-    CVirtualBox vbox;
     QStringList confirmedMessageList;
     if (!strAutoConfirmId.isEmpty())
     {
-        vbox = vboxGlobal().virtualBox();
-        confirmedMessageList = gEDataManager->suppressedMessages();
+        const QString strID = vboxGlobal().isVMConsoleProcess() ? vboxGlobal().managedVMUuid() : UIExtraDataManager::GlobalID;
+        confirmedMessageList = gEDataManager->suppressedMessages(strID);
         if (   confirmedMessageList.contains(strAutoConfirmId)
             || confirmedMessageList.contains("allMessageBoxes")
             || confirmedMessageList.contains("all") )

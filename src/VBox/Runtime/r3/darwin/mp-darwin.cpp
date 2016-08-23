@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,6 +77,8 @@ static RTCPUID rtMpDarwinMaxPhysicalCpus(void)
     return 1;
 }
 
+
+#if 0 /* unused */
 /**
  * Internal worker that determines the current number of logical CPUs (hyperthreads).
  *
@@ -92,6 +94,8 @@ static RTCPUID rtMpDarwinOnlineLogicalCpus(void)
     AssertFailed();
     return 1;
 }
+#endif /* unused */
+
 
 /**
  * Internal worker that determines the current number of physical CPUs.

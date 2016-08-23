@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -339,6 +339,22 @@ RTDECL(int) RTSocketReadNB(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, si
  * @param   pcbWritten      Number of bytes written.
  */
 RTDECL(int) RTSocketWriteNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffer, size_t *pcbWritten);
+
+/**
+ * Send data to a socket, including destination address. Mainly useful
+ * for datagram sockets.
+ *
+ * This version doesn't block if there is not enough room for the message.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_INTERRUPTED if interrupted before anything was written.
+ *
+ * @param   hSocket         The socket handle.
+ * @param   pvBuffer        Buffer to write data to socket.
+ * @param   cbBuffer        How much to write.
+ * @param   pDstAddr        Pointer to destination address. May be NULL.
+ */
+RTDECL(int) RTSocketWriteToNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffer, PCRTNETADDR pDstAddr);
 
 /**
  * Send data from a scatter/gather buffer to a socket.

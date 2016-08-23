@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,9 +29,9 @@
 
 /* GUI includes: */
 # include "UIPopupBox.h"
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include "UIImageTools.h"
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 

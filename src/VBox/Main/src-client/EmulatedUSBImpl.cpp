@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -236,14 +236,14 @@ HRESULT EUSBWEBCAM::settingsParse(void)
             /* Does the setting belong to device of driver. Default is both. */
             bool fDev = true;
             bool fDrv = true;
-            if (RTStrNICmp(pszSrc, "drv:", strlen("drv:")) == 0)
+            if (RTStrNICmp(pszSrc, RT_STR_TUPLE("drv:")) == 0)
             {
-                pszSrc += strlen("drv:");
+                pszSrc += sizeof("drv:")-1;
                 fDev = false;
             }
-            else if (RTStrNICmp(pszSrc, "dev:", strlen("dev:")) == 0)
+            else if (RTStrNICmp(pszSrc, RT_STR_TUPLE("dev:")) == 0)
             {
-                pszSrc += strlen("dev:");
+                pszSrc += sizeof("dev:")-1;
                 fDrv = false;
             }
 

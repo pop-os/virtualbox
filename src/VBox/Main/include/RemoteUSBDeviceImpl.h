@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,6 +78,7 @@ private:
     HRESULT getPortVersion(USHORT *aPortVersion);
     HRESULT getSpeed(USBConnectionSpeed_T *aSpeed);
     HRESULT getRemote(BOOL *aRemote);
+    HRESULT getBackend(com::Utf8Str &aBackend);
     HRESULT getDeviceInfo(std::vector<com::Utf8Str> &aInfo);
 
     // wrapped IHostUSBDevice properties
@@ -101,6 +102,7 @@ private:
         const Utf8Str serialNumber;
 
         const Utf8Str address;
+        const Utf8Str backend;
 
         const uint16_t port;
         const uint16_t version;

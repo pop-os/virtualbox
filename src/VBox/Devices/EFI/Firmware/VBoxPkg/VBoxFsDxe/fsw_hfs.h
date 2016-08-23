@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,6 +88,7 @@ struct fsw_hfs_dnode
   fsw_u32                   ctime;
   fsw_u32                   mtime;
   fsw_u64                   used_bytes;
+  fsw_u32                   node_num;
 };
 
 /**

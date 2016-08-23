@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,14 +80,14 @@ private:
     void prepareActionGroups();
     void prepareActionConnections();
     void prepareMachineWindows();
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     void prepareMenu();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /* Cleanup helpers: */
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     void cleanupMenu();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     void cleanupMachineWindows();
     void cleanupActionConnections();
     void cleanupActionGroups();

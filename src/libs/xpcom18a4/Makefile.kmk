@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -91,7 +91,7 @@ VBOX_XPCOM_LIBRARIES := \
 LIBRARIES += $(VBOX_XPCOM_LIBRARIES)
 
 VBOX_XPCOM_DLLS := \
-    VBoxXPCOM \
+	VBoxXPCOM \
 	VBoxXPCOMIPCC
 DLLS += $(VBOX_XPCOM_DLLS)
 
@@ -511,6 +511,7 @@ VBox-xpcom-nspr_DEFS.darwin.amd64 = \
 	VBOX_USE_MORE_IPRT_IN_NSPR
 VBox-xpcom-nspr_DEFS.darwin = \
 	HAVE_BSD_FLOCK=1 \
+	HAVE_SOCKLEN_T=1 \
 	_PR_PTHREADS
 VBox-xpcom-nspr_DEFS.freebsd = \
 	FREEBSD=1 \
@@ -537,6 +538,7 @@ VBox-xpcom-nspr_DEFS.openbsd = \
 VBox-xpcom-nspr_DEFS.os2 =
 VBox-xpcom-nspr_DEFS.solaris = \
 	HAVE_FCNTL_FILE_LOCKING=1 \
+	HAVE_SOCKLEN_T=1 \
 	_PR_PTHREADS
 VBox-xpcom-nspr_INCS = \
 	nsprpub/pr/include/private \
@@ -1105,7 +1107,14 @@ TEMPLATE_XPCOMIPC-x86              = 32-bit XPCOM IPC libraries
 TEMPLATE_XPCOMIPC-x86_EXTENDS      = XPCOMIPC
 TEMPLATE_XPCOMIPC-x86_BLD_TRG_ARCH = x86
 TEMPLATE_XPCOMIPC-x86_LIBS         = $(VBoxXPCOM-x86_1_TARGET) $(TEMPLATE_XPCOM-x86_LIBS)
-
+ifeq ($(KBUILD_TARGET),solaris)
+ ifdef VBOX_WITH_RUNPATH
+  TEMPLATE_XPCOMIPC-x86_LDFLAGS = \
+	$(filter-out '$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)',$(TEMPLATE_XPCOMIPC_LDFLAGS)) \
+	'$(VBOX_GCC_RPATH_OPT)$(VBOX_PATH_APP_PRIVATE)' \
+	'$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)'
+ endif
+endif
 
 TEMPLATE_XPCOMIPCEXE               = XPCOM IPC executables
 TEMPLATE_XPCOMIPCEXE_EXTENDS       = XPCOMEXE

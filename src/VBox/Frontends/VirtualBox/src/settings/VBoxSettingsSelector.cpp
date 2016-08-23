@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -392,9 +392,9 @@ VBoxSettingsToolBarSelector::VBoxSettingsToolBarSelector (QWidget *aParent /* = 
     mTbSelector = new UIToolBar (aParent);
     mTbSelector->setUseTextLabels (true);
     mTbSelector->setIconSize (QSize (32, 32));
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     mTbSelector->setShowToolBarButton (false);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     /* Init the action group for house keeping */
     mActionGroup = new QActionGroup (this);
     mActionGroup->setExclusive (true);

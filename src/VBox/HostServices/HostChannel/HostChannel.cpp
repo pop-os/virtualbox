@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -142,7 +142,7 @@ static int vhcProviderRegister(VBOXHOSTCHCTX *pCtx, VBOXHOSTCHPROVIDER *pProvide
 
     if (RT_SUCCESS(rc))
     {
-        /* @todo check a duplicate. */
+        /** @todo check a duplicate. */
 
         RTListAppend(&pCtx->listProviders, &pProvider->nodeContext);
 
@@ -163,8 +163,8 @@ static int vhcProviderUnregister(VBOXHOSTCHPROVIDER *pProvider)
 
     if (RT_SUCCESS(rc))
     {
-        /* @todo check that the provider is in the list. */
-        /* @todo mark the provider as invalid in each instance. also detach channels? */
+        /** @todo check that the provider is in the list. */
+        /** @todo mark the provider as invalid in each instance. also detach channels? */
 
         RTListNodeRemove(&pProvider->nodeContext);
 
@@ -228,6 +228,7 @@ static int vhcHandleCreate(VBOXHOSTCHCLIENT *pClient, uint32_t *pu32Handle)
 
 static void vhcInstanceDestroy(VBOXHOSTCHINSTANCE *pInstance)
 {
+    RT_NOREF1(pInstance);
     HOSTCHLOG(("HostChannel: destroy %p\n", pInstance));
 }
 
@@ -927,6 +928,7 @@ static DECLCALLBACK(void) HostChannelCallbackEvent(void *pvCallbacks, void *pvCh
 /* @thread provider */
 static DECLCALLBACK(void) HostChannelCallbackDeleted(void *pvCallbacks, void *pvChannel)
 {
+    RT_NOREF1(pvChannel);
     vhcCallbackCtxDelete((VBOXHOSTCHCALLBACKCTX *)pvCallbacks);
 }
 
@@ -966,6 +968,7 @@ int vboxHostChannelRegister(const char *pszName,
                             const VBOXHOSTCHANNELINTERFACE *pInterface,
                             uint32_t cbInterface)
 {
+    RT_NOREF1(cbInterface);
     int rc = VINF_SUCCESS;
 
     VBOXHOSTCHCTX *pCtx = &g_ctx;

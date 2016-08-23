@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,6 +77,9 @@ enum UIActionIndex
     UIActionIndex_Menu_Help,
     UIActionIndex_Simple_Contents,
     UIActionIndex_Simple_WebSite,
+    UIActionIndex_Simple_BugTracker,
+    UIActionIndex_Simple_Forums,
+    UIActionIndex_Simple_Oracle,
 #ifndef RT_OS_DARWIN
     UIActionIndex_Simple_About,
 #endif /* !RT_OS_DARWIN */
@@ -107,7 +110,7 @@ public:
     /** Defines whether tool-tip should be shown. */
     void setShowToolTip(bool fShowToolTips) { m_fShowToolTip = fShowToolTips; }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Returns whether this menu is consumable by the menu-bar. */
     bool isConsumable() const { return m_fConsumable; }
     /** Mac OS X: Defines whether this menu is @a fConsumable by the menu-bar. */
@@ -117,7 +120,7 @@ public:
     bool isConsumed() const { return m_fConsumed; }
     /** Mac OS X: Defines whether this menu is @a fConsumed by the menu-bar. */
     void setConsumed(bool fConsumed) { m_fConsumed = fConsumed; }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 protected:
 
@@ -129,12 +132,12 @@ private:
     /** Holds whether tool-tip should be shown. */
     bool m_fShowToolTip;
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Holds whether this menu can be consumed by the menu-bar. */
     bool m_fConsumable;
     /** Mac OS X: Holds whether this menu is consumed by the menu-bar. */
     bool m_fConsumed;
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 };
 
 
@@ -395,6 +398,11 @@ signals:
     /** Notifies about menu prepare. */
     void sigNotifyAboutMenuPrepare(int iIndex, QMenu *pMenu);
 
+#ifdef VBOX_WS_MAC
+    /** Notifies about @a pAction hovered. */
+    void sigActionHovered(UIAction *pAction);
+#endif /* VBOX_WS_MAC */
+
 public:
 
     /** Static factory constructor. */
@@ -429,12 +437,12 @@ public:
     /** Defines 'Application' menu @a restriction for passed @a level. */
     void setRestrictionForMenuApplication(UIActionRestrictionLevel level, UIExtraDataMetaDefs::MenuApplicationActionType restriction);
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Returns whether the action with passed @a type is allowed in the 'Window' menu. */
     bool isAllowedInMenuWindow(UIExtraDataMetaDefs::MenuWindowActionType type) const;
     /** Mac OS X: Defines 'Window' menu @a restriction for passed @a level. */
     void setRestrictionForMenuWindow(UIActionRestrictionLevel level, UIExtraDataMetaDefs::MenuWindowActionType restriction);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /** Returns whether the action with passed @a type is allowed in the 'Help' menu. */
     bool isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType type) const;
@@ -457,6 +465,11 @@ protected slots:
 
     /** Loads keyboard shortcuts of action-pool into shortcuts-pool. */
     void sltApplyShortcuts() { updateShortcuts(); }
+
+#ifdef VBOX_WS_MAC
+    /** Handles action hovered signal. */
+    void sltActionHovered();
+#endif /* VBOX_WS_MAC */
 
 protected:
 
@@ -522,10 +535,10 @@ protected:
     QMap<UIActionRestrictionLevel, UIExtraDataMetaDefs::MenuType> m_restrictedMenus;
     /** Holds restricted action types of the 'Application' menu. */
     QMap<UIActionRestrictionLevel, UIExtraDataMetaDefs::MenuApplicationActionType> m_restrictedActionsMenuApplication;
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Holds restricted action types of the 'Window' menu. */
     QMap<UIActionRestrictionLevel, UIExtraDataMetaDefs::MenuWindowActionType> m_restrictedActionsMenuWindow;
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     /** Holds restricted action types of the Help menu. */
     QMap<UIActionRestrictionLevel, UIExtraDataMetaDefs::MenuHelpActionType> m_restrictedActionsMenuHelp;
 };

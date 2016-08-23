@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,6 +66,8 @@ typedef enum RTLOGGROUP
     RTLOGGROUP_THREAD,
     RTLOGGROUP_TIME,
     RTLOGGROUP_TIMER,
+    RTLOGGROUP_LOCALIPC,
+    RTLOGGROUP_VFS,
     RTLOGGROUP_ZIP = 31,
     RTLOGGROUP_FIRST_USER = 32
 } RTLOGGROUP;
@@ -99,8 +101,8 @@ typedef enum RTLOGGROUP
     "RT_THREAD",    \
     "RT_TIME",      \
     "RT_TIMER",     \
-    "RT_15", \
-    "RT_16", \
+    "RT_LOCALIPC", \
+    "RT_VFS", \
     "RT_17", \
     "RT_18", \
     "RT_19", \
@@ -1565,7 +1567,7 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup,
  */
 #define LogRelMax12(a_cMax, a)      LogRelMaxIt(a_cMax, RTLOGGRPFLAGS_LEVEL_12, LOG_GROUP, a)
 
-/** @def LogRelFlow
+/** @def LogRelMaxFlow
  * Logging of execution flow with a max number of log entries.
  */
 #define LogRelMaxFlow(a_cMax, a)    LogRelMaxIt(a_cMax, RTLOGGRPFLAGS_FLOW,     LOG_GROUP, a)

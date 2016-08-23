@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,9 +38,10 @@
 VMMR3DECL(int) VMMDoHmTest(PVM pVM);
 
 
+#if 0
 static DECLCALLBACK(int) tstVmmHmConfigConstructor(PUVM pUVM, PVM pVM, void *pvUser)
 {
-    NOREF(pvUser);
+    RT_NOREF2(pUVM, pvUser);
 
     /*
      * Get root node first.
@@ -61,11 +62,10 @@ static DECLCALLBACK(int) tstVmmHmConfigConstructor(PUVM pUVM, PVM pVM, void *pvU
 
     return VINF_SUCCESS;
 }
+#endif
 
 int main(int argc, char **argv)
 {
-    int     rcRet = 0;                  /* error count. */
-
     RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
 
     /*
@@ -75,8 +75,11 @@ int main(int argc, char **argv)
     RTPrintf(TESTCASE ": This testcase hits a bunch of breakpoint assertions which\n"
              TESTCASE ": causes kernel panics on linux regardless of what\n"
              TESTCASE ": RTAssertDoBreakpoint returns. Only checked AMD-V on linux.\n");
+#if 1
     /** @todo Make tstVMM-Hm to cause kernel panics. */
     return 1;
+#else
+    int     rcRet = 0;                  /* error count. */
 
     /*
      * Create empty VM.
@@ -114,4 +117,5 @@ int main(int argc, char **argv)
     }
 
     return rcRet;
+#endif
 }

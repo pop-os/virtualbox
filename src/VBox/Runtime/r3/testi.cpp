@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -172,5 +172,17 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...)
     int cch = RTTestFailureDetailsV(NIL_RTTEST, pszFormat, va);
     va_end(va);
     return cch;
+}
+
+
+RTR3DECL(int) RTTestIDisableAssertions(void)
+{
+    return RTTestDisableAssertions(NIL_RTTEST);
+}
+
+
+RTR3DECL(int) RTTestIRestoreAssertions(void)
+{
+    return RTTestRestoreAssertions(NIL_RTTEST);
 }
 

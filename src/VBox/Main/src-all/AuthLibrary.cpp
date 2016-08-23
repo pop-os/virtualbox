@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015 Oracle Corporation
+ * Copyright (C) 2015-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,8 +41,9 @@ typedef struct AuthCtx
     unsigned           clientId;
 } AuthCtx;
 
-static DECLCALLBACK(int) authThread(RTTHREAD self, void *pvUser)
+static DECLCALLBACK(int) authThread(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF(hThreadSelf);
     AuthCtx *pCtx = (AuthCtx *)pvUser;
 
     if (pCtx->pfnAuthEntry3)

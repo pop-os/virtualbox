@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 #define ___iprt_crypto_x509_h
 
 #include <iprt/asn1.h>
+#include <iprt/crypto/pem.h>
 
 
 RT_C_DECLS_BEGIN
@@ -91,6 +92,47 @@ RTDECL(int) RTCrX509AlgorithmIdentifier_CompareWithString(PCRTCRX509ALGORITHMIDE
  */
 RTDECL(int) RTCrX509AlgorithmIdentifier_CompareDigestAndEncryptedDigest(PCRTCRX509ALGORITHMIDENTIFIER pDigest,
                                                                         PCRTCRX509ALGORITHMIDENTIFIER pEncryptedDigest);
+/**
+ * Compares a digest OID with an encrypted digest algorithm OID, checking if
+ * they specify the same digest.
+ *
+ * @returns 0 if same digest, -1 if the digest is unknown, 1 if the encrypted
+ *          digest does not match.
+ * @param   pszDigestOid            The digest algorithm OID.
+ * @param   pszEncryptedDigestOid   The encrypted digest algorithm OID.
+ */
+RTDECL(int) RTCrX509AlgorithmIdentifier_CompareDigestOidAndEncryptedDigestOid(const char *pszDigestOid,
+                                                                              const char *pszEncryptedDigestOid);
+
+
+/**
+ * Combine the encryption algorithm with the digest algorithm.
+ *
+ * @returns OID of encrypted digest algorithm.
+ * @param   pEncryption         The encryption algorithm.  Will work if this is
+ *                              the OID of an encrypted digest algorithm too, as
+ *                              long as it matches @a pDigest.
+ * @param   pDigest             The digest algorithm.  Will work if this is the
+ *                              OID of an encrypted digest algorithm too, as
+ *                              long as it matches @a pEncryption.
+ */
+RTDECL(const char *) RTCrX509AlgorithmIdentifier_CombineEncryptionAndDigest(PCRTCRX509ALGORITHMIDENTIFIER pEncryption,
+                                                                            PCRTCRX509ALGORITHMIDENTIFIER pDigest);
+
+/**
+ * Combine the encryption algorithm OID with the digest algorithm OID.
+ *
+ * @returns OID of encrypted digest algorithm.
+ * @param   pszEncryptionOid    The encryption algorithm.  Will work if this is
+ *                              the OID of an encrypted digest algorithm too, as
+ *                              long as it matches @a pszDigestOid.
+ * @param   pszDigestOid        The digest algorithm.  Will work if this is the
+ *                              OID of an encrypted digest algorithm too, as
+ *                              long as it matches @a pszEncryptionOid.
+ */
+RTDECL(const char *) RTCrX509AlgorithmIdentifier_CombineEncryptionOidAndDigestOid(const char *pszEncryptionOid,
+                                                                                  const char *pszDigestOid);
+
 
 /** @name Typical Digest Algorithm OIDs.
  * @{ */
@@ -195,6 +237,14 @@ RTDECL(bool) RTCrX509Name_MatchWithString(PCRTCRX509NAME pThis, const char *pszS
  */
 RTDECL(int) RTCrX509Name_FormatAsString(PCRTCRX509NAME pThis, char *pszBuf, size_t cbBuf, size_t *pcbActual);
 
+
+/**
+ * Looks up the RDN ID and returns the short name for it, if found.
+ *
+ * @returns Short name (e.g. 'CN') or NULL.
+ * @param   pRdnId          The RDN ID to look up.
+ */
+RTDECL(const char *) RTCrX509Name_GetShortRdn(PCRTASN1OBJID pRdnId);
 
 /**
  * One X.509 OtherName (IPRT representation).
@@ -958,8 +1008,25 @@ RTDECL(bool) RTCrX509Certificate_IsSelfSigned(PCRTCRX509CERTIFICATE pCertificate
 RTDECL(int) RTCrX509Certificate_VerifySignature(PCRTCRX509CERTIFICATE pThis, PCRTASN1OBJID pAlgorithm,
                                                 PCRTASN1DYNTYPE pParameters, PCRTASN1BITSTRING pPublicKey,
                                                 PRTERRINFO pErrInfo);
+RTDECL(int) RTCrX509Certificate_VerifySignatureSelfSigned(PCRTCRX509CERTIFICATE pThis, PRTERRINFO pErrInfo);
 RTDECL(int) RTCrX509Certificate_ReadFromFile(PRTCRX509CERTIFICATE pCertificate, const char *pszFilename, uint32_t fFlags,
                                              PCRTASN1ALLOCATORVTABLE pAllocator, PRTERRINFO pErrInfo);
+RTDECL(int) RTCrX509Certificate_ReadFromBuffer(PRTCRX509CERTIFICATE pCertificate, const void *pvBuf, size_t cbBuf,
+                                               uint32_t fFlags, PCRTASN1ALLOCATORVTABLE pAllocator,
+                                               PRTERRINFO pErrInfo, const char *pszErrorTag);
+/** @name Flags for RTCrX509Certificate_ReadFromFile and
+ *        RTCrX509Certificate_ReadFromBuffer
+ * @{ */
+/** Only allow PEM certificates, not binary ones.
+ * @sa RTCRPEMREADFILE_F_ONLY_PEM  */
+#define RTCRX509CERT_READ_F_PEM_ONLY        RT_BIT(1)
+/** @} */
+
+/** X509 Certificate markers for RTCrPemFindFirstSectionInContent et al. */
+extern RTDATADECL(RTCRPEMMARKER const)  g_aRTCrX509CertificateMarkers[];
+/** Number of entries in g_aRTCrX509CertificateMarkers. */
+extern RTDATADECL(uint32_t const)       g_cRTCrX509CertificateMarkers;
+
 
 
 /** @name X.509 Certificate Extensions

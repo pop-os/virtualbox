@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2014 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,7 @@
 #define ___UISettingsDefs_h___
 
 /* Qt includes: */
+#include <QString>
 #include <QPair>
 #include <QMap>
 
@@ -54,6 +55,8 @@ public:
 
     /* Creates empty cache item: */
     UISettingsCache() { m_value = qMakePair(CacheData(), CacheData()); }
+
+    virtual ~UISettingsCache() { /* Makes MSC happy */ }
 
     /* Returns the NON-modifiable REFERENCE to the initial cached data: */
     const CacheData& base() const { return m_value.first; }

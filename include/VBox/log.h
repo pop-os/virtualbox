@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -121,8 +121,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_LPC,
     /** LsiLogic SCSI controller Device group. */
     LOG_GROUP_DEV_LSILOGICSCSI,
-    /** NE2000 Device group. */
-    LOG_GROUP_DEV_NE2000,
+    /** NVMe Device group. */
+    LOG_GROUP_DEV_NVME,
     /** USB OHCI Device group. */
     LOG_GROUP_DEV_OHCI,
     /** Parallel Device group */
@@ -227,6 +227,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_TRANSPORT_ASYNC,
     /** TUN network transport driver group */
     LOG_GROUP_DRV_TUN,
+    /** UDP socket stream driver group. */
+    LOG_GROUP_DRV_UDP,
     /** UDP tunnet network transport driver group. */
     LOG_GROUP_DRV_UDPTUNNEL,
     /** USB Proxy driver group. */
@@ -347,6 +349,8 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_BIOSSETTINGS,
     /** Main group, ICanShowWindowEvent. */
     LOG_GROUP_MAIN_CANSHOWWINDOWEVENT,
+    /** Main group, ICertificate. */
+    LOG_GROUP_MAIN_CERTIFICATE,
     /** Main group, IClipboardModeChangedEvent. */
     LOG_GROUP_MAIN_CLIPBOARDMODECHANGEDEVENT,
     /** Main group, IConsole. */
@@ -457,6 +461,8 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_GUESTPROCESSSTATECHANGEDEVENT,
     /** Main group, IGuestPropertyChangedEvent. */
     LOG_GROUP_MAIN_GUESTPROPERTYCHANGEDEVENT,
+    /** Main group, IGuestScreenInfo. */
+    LOG_GROUP_MAIN_GUESTSCREENINFO,
     /** Main group, IGuestSession. */
     LOG_GROUP_MAIN_GUESTSESSION,
     /** Main group, IGuestSessionEvent. */
@@ -613,6 +619,8 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_USBDEVICEFILTERS,
     /** Main group, IUSBDeviceStateChangedEvent. */
     LOG_GROUP_MAIN_USBDEVICESTATECHANGEDEVENT,
+    /** Main group, IUSBProxyBackend. */
+    LOG_GROUP_MAIN_USBPROXYBACKEND,
     /** Main group, IVBoxSVCAvailabilityChangedEvent. */
     LOG_GROUP_MAIN_VBOXSVCAVAILABILITYCHANGEDEVENT,
     /** Main group, IVetoEvent. */
@@ -831,7 +839,7 @@ typedef enum LOGGROUP
     "DEV_KBD",      \
     "DEV_LPC",      \
     "DEV_LSILOGICSCSI", \
-    "DEV_NE2000",   \
+    "DEV_NVME",     \
     "DEV_OHCI",     \
     "DEV_PARALLEL", \
     "DEV_PC",       \
@@ -881,9 +889,10 @@ typedef enum LOGGROUP
     "DRV_RAW_IMAGE", \
     "DRV_SCSI",     \
     "DRV_SCSIHOST", \
-    "DRV_TELNETSERVER", \
+    "DRV_TCP", \
     "DRV_TRANSPORT_ASYNC", \
     "DRV_TUN",      \
+    "DRV_UDP", \
     "DRV_UDPTUNNEL", \
     "DRV_USBPROXY", \
     "DRV_VBOXHDD",  \
@@ -944,6 +953,7 @@ typedef enum LOGGROUP
     "MAIN_BANDWIDTHGROUPCHANGEDEVENT", \
     "MAIN_BIOSSETTINGS", \
     "MAIN_CANSHOWWINDOWEVENT", \
+    "MAIN_CERTIFICATE", \
     "MAIN_CLIPBOARDMODECHANGEDEVENT", \
     "MAIN_CONSOLE", \
     "MAIN_CPUCHANGEDEVENT", \
@@ -999,6 +1009,7 @@ typedef enum LOGGROUP
     "MAIN_GUESTPROCESSREGISTEREDEVENT", \
     "MAIN_GUESTPROCESSSTATECHANGEDEVENT", \
     "MAIN_GUESTPROPERTYCHANGEDEVENT", \
+    "MAIN_GUESTSCREENINFO", \
     "MAIN_GUESTSESSION", \
     "MAIN_GUESTSESSIONEVENT", \
     "MAIN_GUESTSESSIONREGISTEREDEVENT", \
@@ -1077,6 +1088,7 @@ typedef enum LOGGROUP
     "MAIN_USBDEVICEFILTER", \
     "MAIN_USBDEVICEFILTERS", \
     "MAIN_USBDEVICESTATECHANGEDEVENT", \
+    "MAIN_USBPROXYBACKEND", \
     "MAIN_VBOXSVCAVAILABILITYCHANGEDEVENT", \
     "MAIN_VETOEVENT", \
     "MAIN_VFSEXPLORER", \

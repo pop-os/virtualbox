@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -136,14 +136,14 @@ int main(int argc, char **argv)
         /*
          * Allocate a bit of contiguous memory.
          */
-        pv = SUPR3ContAlloc(RT_ALIGN_Z(15003, PAGE_SIZE) >> PAGE_SHIFT, NIL_RTR0PTR, &HCPhys);
+        pv = SUPR3ContAlloc(RT_ALIGN_Z(15003, PAGE_SIZE) >> PAGE_SHIFT, NULL, &HCPhys);
         rcRet += pv == NULL || HCPhys == 0;
         if (pv && HCPhys)
         {
             RTPrintf("SUPR3ContAlloc(15003) -> HCPhys=%llx pv=%p\n", HCPhys, pv);
             void *pv0 = pv;
             memset(pv0, 0xaf, 15003);
-            pv = SUPR3ContAlloc(RT_ALIGN_Z(12999, PAGE_SIZE) >> PAGE_SHIFT, NIL_RTR0PTR, &HCPhys);
+            pv = SUPR3ContAlloc(RT_ALIGN_Z(12999, PAGE_SIZE) >> PAGE_SHIFT, NULL, &HCPhys);
             rcRet += pv == NULL || HCPhys == 0;
             if (pv && HCPhys)
             {

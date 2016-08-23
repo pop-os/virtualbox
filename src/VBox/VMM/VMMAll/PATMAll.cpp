@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,6 +51,7 @@ patmVirtPageHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvB
 {
     Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
     NOREF(pvPtr); NOREF(pvBuf); NOREF(cbBuf); NOREF(enmOrigin); NOREF(pvUser);
+    RT_NOREF_PV(pVCpu);
 
     Assert(pvUser);
     Assert(!((uintptr_t)pvUser & PAGE_OFFSET_MASK));
@@ -166,10 +167,12 @@ VMM_INT_DECL(void) PATMRawLeave(PVM pVM, PCPUMCTX pCtx, int rawRC)
     pCtx->eflags.u32 = efl;
     CTXSUFF(pVM->patm.s.pGCState)->uVMFlags = X86_EFL_IF;
 
-    AssertReleaseMsg((efl & X86_EFL_IF) || fPatchCode || rawRC == VINF_PATM_PENDING_IRQ_AFTER_IRET || RT_FAILURE(rawRC), ("Inconsistent state at %RRv rc=%Rrc\n", pCtx->eip, rawRC));
-    AssertReleaseMsg(CTXSUFF(pVM->patm.s.pGCState)->fPIF || fPatchCode || RT_FAILURE(rawRC), ("fPIF=%d eip=%RRv rc=%Rrc\n", CTXSUFF(pVM->patm.s.pGCState)->fPIF, pCtx->eip, rawRC));
-
 #ifdef IN_RING3
+    AssertReleaseMsg((efl & X86_EFL_IF) || fPatchCode   || rawRC == VINF_PATM_PENDING_IRQ_AFTER_IRET
+                     || rawRC == VINF_EM_RESCHEDULE     || rawRC == VINF_EM_RESCHEDULE_REM
+                     || rawRC == VINF_EM_RAW_GUEST_TRAP || RT_FAILURE(rawRC),
+                     ("Inconsistent state at %RRv rc=%Rrc\n", pCtx->eip, rawRC));
+    AssertReleaseMsg(CTXSUFF(pVM->patm.s.pGCState)->fPIF || fPatchCode || RT_FAILURE(rawRC), ("fPIF=%d eip=%RRv rc=%Rrc\n", CTXSUFF(pVM->patm.s.pGCState)->fPIF, pCtx->eip, rawRC));
     if (   (efl & X86_EFL_IF)
         && fPatchCode)
     {
@@ -221,6 +224,8 @@ VMM_INT_DECL(void) PATMRawLeave(PVM pVM, PCPUMCTX pCtx, int rawRC)
      * a single original guest instruction.
      */
     AssertMsg(!fPatchCode, ("eip=%RRv\n", pCtx->eip));
+    AssertReleaseMsg((efl & X86_EFL_IF) || fPatchCode || rawRC == VINF_PATM_PENDING_IRQ_AFTER_IRET || RT_FAILURE(rawRC), ("Inconsistent state at %RRv rc=%Rrc\n", pCtx->eip, rawRC));
+    AssertReleaseMsg(CTXSUFF(pVM->patm.s.pGCState)->fPIF || fPatchCode || RT_FAILURE(rawRC), ("fPIF=%d eip=%RRv rc=%Rrc\n", CTXSUFF(pVM->patm.s.pGCState)->fPIF, pCtx->eip, rawRC));
 #endif /* !IN_RING3 */
 
     if (!fPatchCode)

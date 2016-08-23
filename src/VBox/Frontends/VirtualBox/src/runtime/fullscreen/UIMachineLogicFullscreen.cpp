@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIMessageCenter.h"
 # include "UISession.h"
 # include "UIActionPoolRuntime.h"
@@ -33,13 +34,13 @@
 # include "UIShortcutPool.h"
 # include "UIMachineView.h"
 # include "QIMenu.h"
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include "UICocoaApplication.h"
 #  include "UIExtraDataManager.h"
 #  include "VBoxUtils.h"
 #  include "UIFrameBuffer.h"
 #  include <Carbon/Carbon.h>
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -47,9 +48,9 @@
 UIMachineLogicFullscreen::UIMachineLogicFullscreen(QObject *pParent, UISession *pSession)
     : UIMachineLogic(pParent, pSession, UIVisualStateType_Fullscreen)
     , m_pPopupMenu(0)
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     , m_fScreensHaveSeparateSpaces(darwinScreensHaveSeparateSpaces())
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 {
     /* Create multiscreen layout: */
     m_pScreenLayout = new UIMultiScreenLayout(this);
@@ -91,12 +92,12 @@ bool UIMachineLogicFullscreen::checkAvailability()
 Qt::WindowFlags UIMachineLogicFullscreen::windowFlags(ulong uScreenId) const
 {
     Q_UNUSED(uScreenId);
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     return vboxGlobal().osRelease() <= MacOSXRelease_Lion ? Qt::FramelessWindowHint :
            uScreenId == 0 || screensHaveSeparateSpaces() ? Qt::Window : Qt::FramelessWindowHint;
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
     return Qt::FramelessWindowHint;
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 
 void UIMachineLogicFullscreen::adjustMachineWindowsGeometry()
@@ -106,7 +107,7 @@ void UIMachineLogicFullscreen::adjustMachineWindowsGeometry()
     /* Rebuild multi-screen layout: */
     m_pScreenLayout->rebuild();
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* For Lion and previous: */
     if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
     {
@@ -116,11 +117,11 @@ void UIMachineLogicFullscreen::adjustMachineWindowsGeometry()
     }
     /* For ML and next revalidate native fullscreen: */
     else revalidateNativeFullScreen();
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
     /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         pMachineWindow->showInNecessaryMode();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 
 int UIMachineLogicFullscreen::hostScreenForGuestScreen(int iScreenId) const
@@ -395,7 +396,7 @@ void UIMachineLogicFullscreen::sltScreenLayoutChanged()
 {
     LogRel(("GUI: UIMachineLogicFullscreen::sltScreenLayoutChanged: Multi-screen layout changed\n"));
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* For Lion and previous: */
     if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
     {
@@ -405,11 +406,11 @@ void UIMachineLogicFullscreen::sltScreenLayoutChanged()
     }
     /* Revalidate native fullscreen for ML and next: */
     else revalidateNativeFullScreen();
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
     /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         pMachineWindow->showInNecessaryMode();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 
 void UIMachineLogicFullscreen::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
@@ -419,16 +420,16 @@ void UIMachineLogicFullscreen::sltGuestMonitorChange(KGuestMonitorChangedEventTy
     /* Rebuild multi-screen layout: */
     m_pScreenLayout->rebuild();
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Call to base-class for Lion and previous: */
     if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
         UIMachineLogic::sltGuestMonitorChange(changeType, uScreenId, screenGeo);
     /* Revalidate native fullscreen for ML and next: */
     else revalidateNativeFullScreen();
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
     /* Call to base-class: */
     UIMachineLogic::sltGuestMonitorChange(changeType, uScreenId, screenGeo);
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 
 void UIMachineLogicFullscreen::sltHostScreenCountChange()
@@ -438,21 +439,21 @@ void UIMachineLogicFullscreen::sltHostScreenCountChange()
     /* Rebuild multi-screen layout: */
     m_pScreenLayout->rebuild();
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Call to base-class for Lion and previous: */
     if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
         UIMachineLogic::sltHostScreenCountChange();
     /* Revalidate native fullscreen for ML and next: */
     else revalidateNativeFullScreen();
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
     /* Call to base-class: */
     UIMachineLogic::sltHostScreenCountChange();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 
 void UIMachineLogicFullscreen::sltHostScreenAvailableAreaChange()
 {
-    LogRel(("GUI: UIMachineLogicFullscreen: Host-screen available-area change ignored\n"));
+    LogRel2(("GUI: UIMachineLogicFullscreen: Host-screen available-area change ignored\n"));
 }
 
 void UIMachineLogicFullscreen::sltAdditionsStateChanged()
@@ -477,11 +478,11 @@ void UIMachineLogicFullscreen::prepareActionGroups()
                                                           UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBar |
                                                           UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBar |
                                                           UIExtraDataMetaDefs::RuntimeMenuViewActionType_Resize));
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Restrict 'Window' menu: */
     actionPool()->toRuntime()->setRestrictionForMenuBar(UIActionRestrictionLevel_Logic,
                                                         UIExtraDataMetaDefs::MenuType_Window);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Take care of view-action toggle state: */
     UIAction *pActionFullscreen = actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen);
@@ -513,7 +514,7 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
     if (isMachineWindowsCreated())
         return;
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* For ML and next: */
     if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
     {
@@ -527,7 +528,7 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
     /* We have to make sure that we are getting the front most process.
      * This is necessary for Qt versions > 4.3.3: */
     darwinSetFrontMostProcess();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Update the multi-screen layout: */
     m_pScreenLayout->update();
@@ -546,7 +547,7 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
     connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChange()),
             this, SLOT(sltScreenLayoutChanged()));
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* For ML and next: */
     if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
     {
@@ -578,12 +579,12 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
         /* Revalidate native fullscreen: */
         revalidateNativeFullScreen();
     }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     switch (vboxGlobal().typeOfWindowManager())
     {
         case X11WMType_GNOMEShell:
@@ -599,7 +600,7 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
         default:
             break;
     }
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 }
 
 void UIMachineLogicFullscreen::prepareMenu()
@@ -627,7 +628,7 @@ void UIMachineLogicFullscreen::cleanupMachineWindows()
     if (!isMachineWindowsCreated())
         return;
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* For ML and next: */
     if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
     {
@@ -635,7 +636,7 @@ void UIMachineLogicFullscreen::cleanupMachineWindows()
         UICocoaApplication::instance()->unregisterFromNotificationOfWorkspace("NSWorkspaceDidActivateApplicationNotification", this);
         UICocoaApplication::instance()->unregisterFromNotificationOfWorkspace("NSWorkspaceActiveSpaceDidChangeNotification", this);
     }
-#endif/* Q_WS_MAC */
+#endif/* VBOX_WS_MAC */
 
     /* Mark machine-window(s) destroyed: */
     setMachineWindowsCreated(false);
@@ -673,17 +674,17 @@ void UIMachineLogicFullscreen::cleanupActionGroups()
     /* Allow 'Adjust Window', 'Status Bar' and 'Resize' actions for 'View' menu: */
     actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Logic,
                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_Invalid);
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Allow 'Window' menu: */
     actionPool()->toRuntime()->setRestrictionForMenuBar(UIActionRestrictionLevel_Logic,
                                                         UIExtraDataMetaDefs::MenuType_Invalid);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Call to base-class: */
     UIMachineLogic::cleanupActionGroups();
 }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMachineWindow)
 {
     /* Make sure that is full-screen machine-window: */
@@ -765,9 +766,9 @@ void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMach
         {
             /* Variables to compare: */
             const int iWantedHostScreenIndex = hostScreenForGuestScreen((int)uScreenID);
-            const int iCurrentHostScreenIndex = vboxGlobal().screenNumber(pMachineWindow);
+            const int iCurrentHostScreenIndex = gpDesktop->screenNumber(pMachineWindow);
             const QSize frameBufferSize((int)uisession()->frameBuffer(uScreenID)->width(), (int)uisession()->frameBuffer(uScreenID)->height());
-            const QSize screenSize = vboxGlobal().screenGeometry(iWantedHostScreenIndex).size();
+            const QSize screenSize = gpDesktop->screenGeometry(iWantedHostScreenIndex).size();
 
             /* If that window
              * 1. shouldn't really be shown or
@@ -881,5 +882,5 @@ void UIMachineLogicFullscreen::nativeHandlerForActiveSpaceChange(const QMap<QStr
         if (pMachineWindow->screenId() > 0)
             revalidateNativeFullScreen(pMachineWindow);
 }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 

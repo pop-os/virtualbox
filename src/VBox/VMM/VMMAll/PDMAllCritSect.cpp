@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,11 @@
 #define PDMCRITSECT_SPIN_COUNT_RC       256
 
 
+/** Skips some of the overly paranoid atomic updates.
+ * Makes some assumptions about cache coherence, though not brave enough not to
+ * always end with an atomic update. */
+#define PDMCRITSECT_WITH_LESS_ATOMIC_STUFF
+
 /* Undefine the automatic VBOX_STRICT API mappings. */
 #undef PDMCritSectEnter
 #undef PDMCritSectTryEnter
@@ -93,7 +98,11 @@ DECL_FORCE_INLINE(int) pdmCritSectEnterFirst(PPDMCRITSECT pCritSect, RTNATIVETHR
     AssertMsg(pCritSect->s.Core.NativeThreadOwner == NIL_RTNATIVETHREAD, ("NativeThreadOwner=%p\n", pCritSect->s.Core.NativeThreadOwner));
     Assert(!(pCritSect->s.Core.fFlags & PDMCRITSECT_FLAGS_PENDING_UNLOCK));
 
+# ifdef PDMCRITSECT_WITH_LESS_ATOMIC_STUFF
+    pCritSect->s.Core.cNestings = 1;
+# else
     ASMAtomicWriteS32(&pCritSect->s.Core.cNestings, 1);
+# endif
     Assert(pCritSect->s.Core.cNestings == 1);
     ASMAtomicWriteHandle(&pCritSect->s.Core.NativeThreadOwner, hNativeSelf);
 
@@ -230,7 +239,9 @@ DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRT
      * See if we're lucky.
      */
     /* NOP ... */
-    if (pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP)
+    if (!(pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP))
+    { /* We're more likely to end up here with real critsects than a NOP one. */ }
+    else
         return VINF_SUCCESS;
 
     RTNATIVETHREAD hNativeSelf = pdmCritSectGetNativeSelf(pCritSect);
@@ -241,9 +252,13 @@ DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRT
     /* ... or nested. */
     if (pCritSect->s.Core.NativeThreadOwner == hNativeSelf)
     {
-        ASMAtomicIncS32(&pCritSect->s.Core.cLockers);
+        Assert(pCritSect->s.Core.cNestings >= 1);
+# ifdef PDMCRITSECT_WITH_LESS_ATOMIC_STUFF
+        pCritSect->s.Core.cNestings += 1;
+# else
         ASMAtomicIncS32(&pCritSect->s.Core.cNestings);
-        Assert(pCritSect->s.Core.cNestings > 1);
+# endif
+        ASMAtomicIncS32(&pCritSect->s.Core.cLockers);
         return VINF_SUCCESS;
     }
 
@@ -420,7 +435,9 @@ static int pdmCritSectTryEnter(PPDMCRITSECT pCritSect, PCRTLOCKVALSRCPOS pSrcPos
      * See if we're lucky.
      */
     /* NOP ... */
-    if (pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP)
+    if (!(pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP))
+    { /* We're more likely to end up here with real critsects than a NOP one. */ }
+    else
         return VINF_SUCCESS;
 
     RTNATIVETHREAD hNativeSelf = pdmCritSectGetNativeSelf(pCritSect);
@@ -431,9 +448,13 @@ static int pdmCritSectTryEnter(PPDMCRITSECT pCritSect, PCRTLOCKVALSRCPOS pSrcPos
     /* ... or nested. */
     if (pCritSect->s.Core.NativeThreadOwner == hNativeSelf)
     {
-        ASMAtomicIncS32(&pCritSect->s.Core.cLockers);
+        Assert(pCritSect->s.Core.cNestings >= 1);
+# ifdef PDMCRITSECT_WITH_LESS_ATOMIC_STUFF
+        pCritSect->s.Core.cNestings += 1;
+# else
         ASMAtomicIncS32(&pCritSect->s.Core.cNestings);
-        Assert(pCritSect->s.Core.cNestings > 1);
+# endif
+        ASMAtomicIncS32(&pCritSect->s.Core.cLockers);
         return VINF_SUCCESS;
     }
 
@@ -542,7 +563,9 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
     Assert(pCritSect->s.Core.u32Magic == RTCRITSECT_MAGIC);
 
     /* Check for NOP sections before asserting ownership. */
-    if (pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP)
+    if (!(pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP))
+    { /* We're more likely to end up here with real critsects than a NOP one. */ }
+    else
         return VINF_SUCCESS;
 
     /*
@@ -554,15 +577,19 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
                             pCritSect->s.Core.NativeThreadOwner, hNativeSelf,
                             pCritSect->s.Core.cLockers, pCritSect->s.Core.cNestings),
                            VERR_NOT_OWNER);
-    Assert(pCritSect->s.Core.cNestings >= 1);
 
     /*
      * Nested leave.
      */
-    if (pCritSect->s.Core.cNestings > 1)
+    int32_t const cNestings = pCritSect->s.Core.cNestings;
+    Assert(cNestings >= 1);
+    if (cNestings > 1)
     {
-        ASMAtomicDecS32(&pCritSect->s.Core.cNestings);
-        Assert(pCritSect->s.Core.cNestings >= 1);
+# ifdef PDMCRITSECT_WITH_LESS_ATOMIC_STUFF
+        pCritSect->s.Core.cNestings = cNestings - 1;
+# else
+        ASMAtomicWriteS32(&pCritSect->s.Core.cNestings, cNestings - 1);
+# endif
         ASMAtomicDecS32(&pCritSect->s.Core.cLockers);
         Assert(pCritSect->s.Core.cLockers >= 0);
         return VINF_SEM_NESTED;
@@ -590,15 +617,21 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
 #  endif
         Assert(!pCritSect->s.Core.pValidatorRec || pCritSect->s.Core.pValidatorRec->hThread == NIL_RTTHREAD);
 # endif
-        ASMAtomicAndU32(&pCritSect->s.Core.fFlags, ~PDMCRITSECT_FLAGS_PENDING_UNLOCK);
+# ifdef PDMCRITSECT_WITH_LESS_ATOMIC_STUFF
+        //pCritSect->s.Core.cNestings = 0; /* not really needed */
+        pCritSect->s.Core.NativeThreadOwner = NIL_RTNATIVETHREAD;
+# else
+        ASMAtomicWriteS32(&pCritSect->s.Core.cNestings, 0);
         ASMAtomicWriteHandle(&pCritSect->s.Core.NativeThreadOwner, NIL_RTNATIVETHREAD);
-        ASMAtomicDecS32(&pCritSect->s.Core.cNestings);
-        Assert(pCritSect->s.Core.cNestings == 0);
+# endif
+        ASMAtomicAndU32(&pCritSect->s.Core.fFlags, ~PDMCRITSECT_FLAGS_PENDING_UNLOCK);
 
         /* stop and decrement lockers. */
         STAM_PROFILE_ADV_STOP(&pCritSect->s.StatLocked, l);
         ASMCompilerBarrier();
-        if (ASMAtomicDecS32(&pCritSect->s.Core.cLockers) >= 0)
+        if (ASMAtomicDecS32(&pCritSect->s.Core.cLockers) < 0)
+        { /* hopefully likely */ }
+        else
         {
             /* Someone is waiting, wake up one of them. */
             SUPSEMEVENT     hEvent   = (SUPSEMEVENT)pCritSect->s.Core.EventSem;
@@ -608,7 +641,9 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
         }
 
         /* Signal exit event. */
-        if (hEventToSignal != NIL_SUPSEMEVENT)
+        if (RT_LIKELY(hEventToSignal == NIL_SUPSEMEVENT))
+        { /* likely */ }
+        else
         {
             Log8(("Signalling %#p\n", hEventToSignal));
             int rc = SUPSemEventSignal(pCritSect->s.CTX_SUFF(pVM)->pSession, hEventToSignal);
@@ -630,7 +665,11 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
          */
         if (pCritSect->s.Core.cLockers == 0)
         {
+# ifdef PDMCRITSECT_WITH_LESS_ATOMIC_STUFF
+            //pCritSect->s.Core.cNestings = 0; /* not really needed */
+# else
             ASMAtomicWriteS32(&pCritSect->s.Core.cNestings, 0);
+# endif
             RTNATIVETHREAD hNativeThread = pCritSect->s.Core.NativeThreadOwner;
             ASMAtomicAndU32(&pCritSect->s.Core.fFlags, ~PDMCRITSECT_FLAGS_PENDING_UNLOCK);
             STAM_PROFILE_ADV_STOP(&pCritSect->s.StatLocked, l);
@@ -642,8 +681,13 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
             /* darn, someone raced in on us. */
             ASMAtomicWriteHandle(&pCritSect->s.Core.NativeThreadOwner, hNativeThread);
             STAM_PROFILE_ADV_START(&pCritSect->s.StatLocked, l);
-            Assert(pCritSect->s.Core.cNestings == 0);
+# ifdef PDMCRITSECT_WITH_LESS_ATOMIC_STUFF
+            //pCritSect->s.Core.cNestings = 1;
+            Assert(pCritSect->s.Core.cNestings == 1);
+# else
+            //Assert(pCritSect->s.Core.cNestings == 0);
             ASMAtomicWriteS32(&pCritSect->s.Core.cNestings, 1);
+# endif
         }
         ASMAtomicOrU32(&pCritSect->s.Core.fFlags, PDMCRITSECT_FLAGS_PENDING_UNLOCK);
 

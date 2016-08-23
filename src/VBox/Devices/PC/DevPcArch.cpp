@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -145,6 +145,7 @@ SeeAlso: #P0416,#P0417,MSR 00001000h
 static DECLCALLBACK(int)
 pcarchIOPortPS2SysControlPortARead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF1(pvUser);
     if (cb == 1)
     {
         *pu32 = PDMDevHlpA20IsEnabled(pDevIns) << 1;
@@ -170,7 +171,7 @@ pcarchIOPortPS2SysControlPortAWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
         if (u32 & 1)
         {
             LogRel(("Reset initiated by system port A\n"));
-            return PDMDevHlpVMReset(pDevIns);
+            return PDMDevHlpVMReset(pDevIns, PDMVMRESET_F_PORT_A);
         }
 
         /*
@@ -188,6 +189,8 @@ pcarchIOPortPS2SysControlPortAWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
  */
 static DECLCALLBACK(int)  pcarchConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+    RT_NOREF1(iInstance);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
     PDEVPCARCH  pThis = PDMINS_2_DATA(pDevIns, PDEVPCARCH);
     int         rc;
     Assert(iInstance == 0);

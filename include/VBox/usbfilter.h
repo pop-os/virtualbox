@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -211,7 +211,7 @@ typedef USBFILTER *PUSBFILTER;
 typedef const USBFILTER *PCUSBFILTER;
 
 /** USBFILTER::u32Magic (Yasuhiro Nightow). */
-#define USBFILTER_MAGIC      0x19670408
+#define USBFILTER_MAGIC      UINT32_C(0x19670408)
 
 
 RT_C_DECLS_BEGIN

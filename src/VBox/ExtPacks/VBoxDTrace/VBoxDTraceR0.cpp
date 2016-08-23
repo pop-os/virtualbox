@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -205,6 +205,7 @@ static PVBDTSTACKDATA vboxDtGetStackData(void)
 void dtrace_toxic_ranges(void (*pfnAddOne)(uintptr_t uBase, uintptr_t cbRange))
 {
     /** @todo ? */
+    RT_NOREF_PV(pfnAddOne);
 }
 
 
@@ -435,6 +436,7 @@ uintptr_t dtrace_caller(int cCallFrames)
     PVBDTSTACKDATA pData = vboxDtGetStackData();
     if (pData->enmCaller == kVBoxDtCaller_ProbeFireKernel)
         return pData->u.ProbeFireKernel.uCaller;
+    RT_NOREF_PV(cCallFrames);
     return ~(uintptr_t)0;
 }
 
@@ -453,6 +455,7 @@ uint64_t dtrace_getarg(int iArg, int cCallFrames)
 
     if (pData->enmCaller == kVBoxDtCaller_ProbeFireKernel)
         return pData->u.ProbeFireKernel.pauStackArgs[iArg - 5];
+    RT_NOREF_PV(cCallFrames);
     return UINT64_MAX;
 }
 
@@ -474,6 +477,8 @@ void dtrace_getpcstack(pc_t *paPcStack, int cMaxFrames, int cSkipFrames, uint32_
         paPcStack[iFrame] = NULL;
         iFrame++;
     }
+    RT_NOREF_PV(pIntr);
+    RT_NOREF_PV(cSkipFrames);
 }
 
 
@@ -486,6 +491,7 @@ void dtrace_getpcstack(pc_t *paPcStack, int cMaxFrames, int cSkipFrames, uint32_
  */
 int dtrace_getstackdepth(int cSkipFrames)
 {
+    RT_NOREF_PV(cSkipFrames);
     return 1;
 }
 
@@ -607,7 +613,7 @@ void VBoxDtPanic(const char *pszFormat, ...)
     va_list va;
     va_start(va, pszFormat);
     dtrace_vpanic(pszFormat, va);
-    va_end(va);
+    /*va_end(va); - unreachable */
 }
 
 
@@ -623,6 +629,7 @@ void VBoxDtCmnErr(int iLevel, const char *pszFormat, ...)
     va_start(va, pszFormat);
     SUPR0Printf("%N", pszFormat, va);
     va_end(va);
+    RT_NOREF_PV(iLevel);
 }
 
 
@@ -676,7 +683,7 @@ cred_t *VBoxDtGetCurrentCreds(void)
 void VBoxDtCredHold(struct VBoxDtCred *pCred)
 {
     int32_t cRefs = ASMAtomicIncS32(&pCred->cr_refs);
-    Assert(cRefs > 1);
+    Assert(cRefs > 1); NOREF(cRefs);
 }
 
 
@@ -928,6 +935,7 @@ struct VBoxDtVMem *VBoxDtVMemCreate(const char *pszName, void *pvBase, size_t cb
     AssertReturn(!cbQCacheMax, NULL);
     AssertReturn(fFlags & VM_SLEEP, NULL);
     AssertReturn(fFlags & VMC_IDENTIFIER, NULL);
+    RT_NOREF_PV(pszName);
 
     /*
      * Allocate the instance.
@@ -1139,6 +1147,7 @@ void *VBoxDtKMemAlloc(size_t cbMem, uint32_t fFlags)
     uint32_t fMemAllocFlags = fFlags & KM_NOSLEEP ? RTMEMALLOCEX_FLAGS_ANY_CTX : 0;
 #else
     uint32_t fMemAllocFlags = 0;
+    RT_NOREF_PV(fFlags);
 #endif
     int rc = RTMemAllocEx(cbMem, 0, fMemAllocFlags, &pvMem);
     AssertRCReturn(rc, NULL);
@@ -1155,6 +1164,7 @@ void *VBoxDtKMemAllocZ(size_t cbMem, uint32_t fFlags)
     uint32_t fMemAllocFlags = (fFlags & KM_NOSLEEP ? RTMEMALLOCEX_FLAGS_ANY_CTX : 0) | RTMEMALLOCEX_FLAGS_ZEROED;
 #else
     uint32_t fMemAllocFlags = RTMEMALLOCEX_FLAGS_ZEROED;
+    RT_NOREF_PV(fFlags);
 #endif
     int rc = RTMemAllocEx(cbMem, 0, fMemAllocFlags, &pvMem);
     AssertRCReturn(rc, NULL);
@@ -1198,6 +1208,7 @@ struct VBoxDtMemCache *VBoxDtKMemCacheCreate(const char *pszName, size_t cbBuf, 
     AssertReturn(!pvUser, NULL);
     AssertReturn(!pvVM, NULL);
     AssertReturn(!fFlags, NULL);
+    RT_NOREF_PV(pszName);
 
     /*
      * Create a parameter container. Don't bother with anything fancy here yet,
@@ -1228,6 +1239,7 @@ void *VBoxDtKMemCacheAlloc(struct VBoxDtMemCache *pThis, uint32_t fFlags)
     uint32_t fMemAllocFlags = (fFlags & KM_NOSLEEP ? RTMEMALLOCEX_FLAGS_ANY_CTX : 0) | RTMEMALLOCEX_FLAGS_ZEROED;
 #else
     uint32_t fMemAllocFlags = RTMEMALLOCEX_FLAGS_ZEROED;
+    RT_NOREF_PV(fFlags);
 #endif
     int rc = RTMemAllocEx(pThis->cbBuf, /*pThis->cbAlign*/0, fMemAllocFlags, &pvMem);
     AssertRCReturn(rc, NULL);
@@ -1270,7 +1282,7 @@ void VBoxDtMutexDelete(struct VBoxDtMutex *pMtx)
 {
     AssertReturnVoid(pMtx != &g_DummyMtx);
     AssertPtr(pMtx);
-    if (pMtx->hMtx == NIL_RTSEMMUTEX || pMtx->hMtx == NULL)
+    if (pMtx->hMtx == NIL_RTSEMMUTEX)
         return;
 
     Assert(pMtx->hOwner == NIL_RTNATIVETHREAD);
@@ -1496,6 +1508,7 @@ static int      vboxDtPOps_Enable(void *pvProv, dtrace_id_t idProbe, void *pvPro
     PSUPDRVVDTPROVIDERCORE  pProv   = (PSUPDRVVDTPROVIDERCORE)pvProv;
     LOG_DTRACE(("%s: %p / %p - %#x / %p\n", __FUNCTION__, pProv, pProv->TracerData.DTrace.idProvider, idProbe, pvProbe));
     AssertPtrReturn(pProv->TracerData.DTrace.idProvider, EINVAL);
+    RT_NOREF_PV(idProbe);
 
     if (!pProv->TracerData.DTrace.fZombie)
     {
@@ -1511,6 +1524,8 @@ static int      vboxDtPOps_Enable(void *pvProv, dtrace_id_t idProbe, void *pvPro
             {
                 pProbeLocEn->fEnabled = 1;
                 ASMAtomicIncU32(&pProv->pacProbeEnabled[idxProbe]);
+                ASMAtomicIncU32(&pProv->pDesc->cProbesEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->uSettingsSerialNo);
             }
         }
         else
@@ -1520,6 +1535,8 @@ static int      vboxDtPOps_Enable(void *pvProv, dtrace_id_t idProbe, void *pvPro
             {
                 pProv->paR0ProbeLocs[idxProbeLoc].fEnabled = 1;
                 ASMAtomicIncU32(&pProv->paR0Probes[idxProbe].cEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->cProbesEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->uSettingsSerialNo);
             }
 
             /* Update user mode structure. */
@@ -1541,6 +1558,7 @@ static void     vboxDtPOps_Disable(void *pvProv, dtrace_id_t idProbe, void *pvPr
     AssertPtrReturnVoid(pProv);
     LOG_DTRACE(("%s: %p / %p - %#x / %p\n", __FUNCTION__, pProv, pProv->TracerData.DTrace.idProvider, idProbe, pvProbe));
     AssertPtrReturnVoid(pProv->TracerData.DTrace.idProvider);
+    RT_NOREF_PV(idProbe);
 
     if (!pProv->TracerData.DTrace.fZombie)
     {
@@ -1556,6 +1574,8 @@ static void     vboxDtPOps_Disable(void *pvProv, dtrace_id_t idProbe, void *pvPr
             {
                 pProbeLocEn->fEnabled = 0;
                 ASMAtomicDecU32(&pProv->pacProbeEnabled[idxProbe]);
+                ASMAtomicDecU32(&pProv->pDesc->cProbesEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->uSettingsSerialNo);
             }
         }
         else
@@ -1565,6 +1585,8 @@ static void     vboxDtPOps_Disable(void *pvProv, dtrace_id_t idProbe, void *pvPr
             {
                 pProv->paR0ProbeLocs[idxProbeLoc].fEnabled = 0;
                 ASMAtomicDecU32(&pProv->paR0Probes[idxProbe].cEnabled);
+                ASMAtomicDecU32(&pProv->pDesc->cProbesEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->uSettingsSerialNo);
             }
 
             /* Update user mode structure. */
@@ -1583,6 +1605,7 @@ static void     vboxDtPOps_GetArgDesc(void *pvProv, dtrace_id_t idProbe, void *p
 {
     PSUPDRVVDTPROVIDERCORE  pProv  = (PSUPDRVVDTPROVIDERCORE)pvProv;
     unsigned                uArg   = pArgDesc->dtargd_ndx;
+    RT_NOREF_PV(idProbe);
 
     pArgDesc->dtargd_ndx = DTRACE_ARGNONE;
     AssertPtrReturnVoid(pProv);
@@ -1626,6 +1649,8 @@ static uint64_t vboxDtPOps_GetArgVal(void *pvProv, dtrace_id_t idProbe, void *pv
     AssertPtrReturn(pProv, UINT64_MAX);
     LOG_DTRACE(("%s: %p / %p - %#x / %p iArg=%d cFrames=%u\n", __FUNCTION__, pProv, pProv->TracerData.DTrace.idProvider, idProbe, pvProbe, iArg, cFrames));
     AssertReturn(iArg >= 5, UINT64_MAX);
+    RT_NOREF_PV(idProbe); RT_NOREF_PV(cFrames);
+
     if (pProv->TracerData.DTrace.fZombie)
         return UINT64_MAX;
 
@@ -1847,7 +1872,8 @@ static DECLCALLBACK(void) vboxDtTOps_ProbeFireUser(PCSUPDRVTRACERREG pThis, PSUP
     LOG_DTRACE(("%s: %p / %p\n", __FUNCTION__, pCtx, pCtx->idProbe));
     AssertPtrReturnVoid(pProbeLocRO);
     AssertPtrReturnVoid(pVtgHdr);
-
+    RT_NOREF_PV(pThis);
+    RT_NOREF_PV(pSession);
     VBDT_SETUP_STACK_DATA(kVBoxDtCaller_ProbeFireUser);
 
     if (pCtx->cBits == 32)
@@ -1931,7 +1957,7 @@ static DECLCALLBACK(int) vboxDtTOps_TracerOpen(PCSUPDRVTRACERREG pThis, PSUPDRVS
         return VERR_INVALID_MAGIC;
     if (uArg)
         return VERR_INVALID_PARAMETER;
-
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pSession);
     VBDT_SETUP_STACK_DATA(kVBoxDtCaller_Generic);
 
     int rc = dtrace_open((dtrace_state_t **)puSessionData, VBoxDtGetCurrentCreds());
@@ -1948,6 +1974,7 @@ static DECLCALLBACK(int) vboxDtTOps_TracerIoCtl(PCSUPDRVTRACERREG pThis, PSUPDRV
                                                 uintptr_t uCmd, uintptr_t uArg, int32_t *piRetVal)
 {
     AssertPtrReturn(uSessionData, VERR_INVALID_POINTER);
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pSession);
     VBDT_SETUP_STACK_DATA(kVBoxDtCaller_Generic);
 
     int rc = dtrace_ioctl((dtrace_state_t *)uSessionData, (intptr_t)uCmd, (intptr_t)uArg, piRetVal);
@@ -1963,6 +1990,7 @@ static DECLCALLBACK(int) vboxDtTOps_TracerIoCtl(PCSUPDRVTRACERREG pThis, PSUPDRV
 static DECLCALLBACK(void) vboxDtTOps_TracerClose(PCSUPDRVTRACERREG pThis, PSUPDRVSESSION pSession, uintptr_t uSessionData)
 {
     AssertPtrReturnVoid(uSessionData);
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pSession);
     VBDT_SETUP_STACK_DATA(kVBoxDtCaller_Generic);
 
     dtrace_close((dtrace_state_t *)uSessionData);
@@ -1978,6 +2006,7 @@ static DECLCALLBACK(int) vboxDtTOps_ProviderRegister(PCSUPDRVTRACERREG pThis, PS
 {
     LOG_DTRACE(("%s: %p %s/%s\n", __FUNCTION__, pThis, pCore->pszModName, pCore->pszName));
     AssertReturn(pCore->TracerData.DTrace.idProvider == 0, VERR_INTERNAL_ERROR_3);
+    RT_NOREF_PV(pThis);
     VBDT_SETUP_STACK_DATA(kVBoxDtCaller_Generic);
 
     PVTGDESCPROVIDER    pDesc = pCore->pDesc;
@@ -2024,6 +2053,7 @@ static DECLCALLBACK(int) vboxDtTOps_ProviderDeregister(PCSUPDRVTRACERREG pThis, 
     uintptr_t idProvider = pCore->TracerData.DTrace.idProvider;
     LOG_DTRACE(("%s: %p / %p\n", __FUNCTION__, pThis, idProvider));
     AssertPtrReturn(idProvider, VERR_INTERNAL_ERROR_3);
+    RT_NOREF_PV(pThis);
     VBDT_SETUP_STACK_DATA(kVBoxDtCaller_Generic);
 
     dtrace_invalidate(idProvider);
@@ -2055,6 +2085,7 @@ static DECLCALLBACK(int) vboxDtTOps_ProviderDeregisterZombie(PCSUPDRVTRACERREG p
     LOG_DTRACE(("%s: %p / %p\n", __FUNCTION__, pThis, idProvider));
     AssertPtrReturn(idProvider, VERR_INTERNAL_ERROR_3);
     Assert(pCore->TracerData.DTrace.fZombie);
+    RT_NOREF_PV(pThis);
     VBDT_SETUP_STACK_DATA(kVBoxDtCaller_Generic);
 
     int rc = dtrace_unregister(idProvider);
@@ -2105,6 +2136,7 @@ DECLEXPORT(void) ModuleTerm(void *hMod)
 {
     SUPR0TracerDeregisterImpl(hMod, NULL);
     dtrace_detach();
+    vboxDtTermThreadDb();
 }
 
 
@@ -2115,20 +2147,27 @@ DECLEXPORT(void) ModuleTerm(void *hMod)
  */
 DECLEXPORT(int)  ModuleInit(void *hMod)
 {
-    int rc = dtrace_attach();
-    if (rc == DDI_SUCCESS)
+    int rc = vboxDtInitThreadDb();
+    if (RT_SUCCESS(rc))
     {
-        rc = SUPR0TracerRegisterImpl(hMod, NULL, &g_VBoxDTraceReg, &g_pVBoxDTraceHlp);
-        if (RT_SUCCESS(rc))
-            return rc;
+        rc = dtrace_attach();
+        if (rc == DDI_SUCCESS)
+        {
+            rc = SUPR0TracerRegisterImpl(hMod, NULL, &g_VBoxDTraceReg, &g_pVBoxDTraceHlp);
+            if (RT_SUCCESS(rc))
+                return rc;
 
-        dtrace_detach();
+            dtrace_detach();
+        }
+        else
+        {
+            SUPR0Printf("dtrace_attach -> %d\n", rc);
+            rc = VERR_INTERNAL_ERROR_5;
+        }
+        vboxDtTermThreadDb();
     }
     else
-    {
-        SUPR0Printf("dtrace_attach -> %d\n", rc);
-        rc = VERR_INTERNAL_ERROR_5;
-    }
+        SUPR0Printf("vboxDtInitThreadDb -> %d\n", rc);
 
     return rc;
 }

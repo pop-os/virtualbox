@@ -5,7 +5,7 @@ Index: virtualbox/configure
 ===================================================================
 --- virtualbox.orig/configure	2013-11-19 03:40:50.133475296 -0500
 +++ virtualbox/configure	2013-11-19 03:40:50.129475296 -0500
-@@ -350,7 +350,7 @@
+@@ -360,7 +360,7 @@
  check_environment()
  {
    test_header environment

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -343,7 +343,7 @@ static struct
     const char *pszInstr;               /**< The name. */
     size_t      cchInstr;               /**< The size of the name. */
     uint32_t    fFlag;                  /**< The corresponding destination flag. */
-} const s_aLogDst[] =
+} const g_aLogDst[] =
 {
     { RT_STR_TUPLE("file"),         RTLOGDEST_FILE },       /* Must be 1st! */
     { RT_STR_TUPLE("dir"),          RTLOGDEST_FILE },       /* Must be 2nd! */
@@ -358,6 +358,7 @@ static struct
     { RT_STR_TUPLE("user"),         RTLOGDEST_USER },
 };
 
+#ifdef IN_RING3
 /** Log rotation backoff table - millisecond sleep intervals.
  * Important on Windows host, especially for VBoxSVC release logging.  Only a
  * medium term solution, until a proper fix for log file handling is available.
@@ -365,6 +366,7 @@ static struct
  */
 static const uint32_t g_acMsLogBackoff[] =
 { 10, 10, 10, 20, 50, 100, 200, 200, 200, 200, 500, 500, 500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000 };
+#endif
 
 
 /**
@@ -473,7 +475,7 @@ static DECLCALLBACK(void) rtlogPhaseMsgLocked(PRTLOGGER pLogger, const char *psz
     Assert(pLogger->pInt->hSpinMtx != NIL_RTSEMSPINMUTEX);
 
     va_start(args, pszFormat);
-    rtlogLoggerExVLocked(pLogger, 0, ~0, pszFormat, args);
+    rtlogLoggerExVLocked(pLogger, 0, ~0U, pszFormat, args);
     va_end(args);
 }
 
@@ -493,7 +495,7 @@ static DECLCALLBACK(void) rtlogPhaseMsgNormal(PRTLOGGER pLogger, const char *psz
     Assert(pLogger->pInt->hSpinMtx != NIL_RTSEMSPINMUTEX);
 
     va_start(args, pszFormat);
-    RTLogLoggerExV(pLogger, 0, ~0, pszFormat, args);
+    RTLogLoggerExV(pLogger, 0, ~0U, pszFormat, args);
     va_end(args);
 }
 
@@ -850,7 +852,9 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
             pLogger->pInt->cSecsHistoryTimeSlot = UINT32_MAX;
         else
             pLogger->pInt->cSecsHistoryTimeSlot = cSecsHistoryTimeSlot;
-# endif  /* IN_RING3 */
+# else   /* !IN_RING3 */
+        RT_NOREF_PV(pfnPhase); RT_NOREF_PV(cHistory); RT_NOREF_PV(cbHistoryFileMax); RT_NOREF_PV(cSecsHistoryTimeSlot);
+# endif  /* !IN_RING3 */
         if (pszGroupSettings)
             RTLogGroupSettings(pLogger, pszGroupSettings);
 
@@ -933,7 +937,9 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
                 if (pszValue)
                     RTLogGroupSettings(pLogger, pszValue);
             }
-# endif /* IN_RING3 */
+# else  /* !IN_RING3 */
+            RT_NOREF_PV(pszEnvVarBase); RT_NOREF_PV(pszFilenameFmt); RT_NOREF_PV(args);
+# endif /* !IN_RING3 */
 
             /*
              * Open the destination(s).
@@ -2201,6 +2207,49 @@ RT_EXPORT_SYMBOL(RTLogGetFlags);
 
 
 /**
+ * Finds the end of a destination value.
+ *
+ * The value ends when we counter a ';' or a free standing word (space on both
+ * from the g_aLogDst table.  (If this is problematic for someone, we could
+ * always do quoting and escaping.)
+ *
+ * @returns Value length in chars.
+ * @param   pszValue            The first char after '=' or ':'.
+ */
+static size_t rtLogDestFindValueLength(const char *pszValue)
+{
+    size_t off = 0;
+    char   ch;
+    while ((ch = pszValue[off]) != '\0' && ch != ';')
+    {
+        if (!RT_C_IS_SPACE(ch))
+            off++;
+        else
+        {
+            unsigned i;
+            size_t   cchThusFar = off;
+            do
+                off++;
+            while ((ch = pszValue[off]) != '\0' && RT_C_IS_SPACE(ch));
+            if (ch == ';')
+                return cchThusFar;
+
+            if (ch == 'n' && pszValue[off + 1] == 'o')
+                off += 2;
+            for (i = 0; i < RT_ELEMENTS(g_aLogDst); i++)
+                if (!strncmp(&pszValue[off], g_aLogDst[i].pszInstr, g_aLogDst[i].cchInstr))
+                {
+                    ch = pszValue[off + g_aLogDst[i].cchInstr];
+                    if (ch == '\0' || RT_C_IS_SPACE(ch) || ch == '=' || ch == ':' || ch == ';')
+                        return cchThusFar;
+                }
+        }
+    }
+    return off;
+}
+
+
+/**
  * Updates the logger destination using the specified string.
  *
  * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
@@ -2242,15 +2291,15 @@ RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszValue)
         }
 
         /* instruction. */
-        for (i = 0; i < RT_ELEMENTS(s_aLogDst); i++)
+        for (i = 0; i < RT_ELEMENTS(g_aLogDst); i++)
         {
-            size_t cchInstr = strlen(s_aLogDst[i].pszInstr);
-            if (!strncmp(pszValue, s_aLogDst[i].pszInstr, cchInstr))
+            size_t cchInstr = strlen(g_aLogDst[i].pszInstr);
+            if (!strncmp(pszValue, g_aLogDst[i].pszInstr, cchInstr))
             {
                 if (!fNo)
-                    pLogger->fDestFlags |= s_aLogDst[i].fFlag;
+                    pLogger->fDestFlags |= g_aLogDst[i].fFlag;
                 else
-                    pLogger->fDestFlags &= ~s_aLogDst[i].fFlag;
+                    pLogger->fDestFlags &= ~g_aLogDst[i].fFlag;
                 pszValue += cchInstr;
 
                 /* check for value. */
@@ -2258,13 +2307,10 @@ RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszValue)
                     pszValue++;
                 if (*pszValue == '=' || *pszValue == ':')
                 {
-                    const char *pszEnd;
-
                     pszValue++;
-                    pszEnd = strchr(pszValue, ';');
-                    if (!pszEnd)
-                        pszEnd = strchr(pszValue, '\0');
-                    size_t cch = pszEnd - pszValue;
+                    size_t cch = rtLogDestFindValueLength(pszValue);
+                    const char *pszEnd = pszValue + cch;
+
 # ifdef IN_RING3
                     char szTmp[sizeof(pLogger->pInt->szFilename)];
 # else
@@ -2346,7 +2392,7 @@ RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszValue)
                     else if (i == 5 /* ringbuf */ && !fNo)
                     {
                         int rc = RTStrCopyEx(szTmp, sizeof(szTmp), pszValue, cch);
-                        uint32_t cbRingBuf;
+                        uint32_t cbRingBuf = 0;
                         if (RT_SUCCESS(rc))
                             rc = RTStrToUInt32Full(szTmp, 0, &cbRingBuf);
                         AssertMsgRCReturn(rc, ("Invalid ring buffer size value '%s' (%Rrc)!\n", szTmp, rc), rc);
@@ -2365,7 +2411,7 @@ RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszValue)
                     }
                     else
                         AssertMsgFailedReturn(("Invalid destination value! %s%s doesn't take a value!\n",
-                                               fNo ? "no" : "", s_aLogDst[i].pszInstr),
+                                               fNo ? "no" : "", g_aLogDst[i].pszInstr),
                                               VERR_INVALID_PARAMETER);
 
                     pszValue = pszEnd + (*pszEnd != '\0');
@@ -2381,7 +2427,7 @@ RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszValue)
         }
 
         /* assert known instruction */
-        AssertMsgReturn(i < RT_ELEMENTS(s_aLogDst),
+        AssertMsgReturn(i < RT_ELEMENTS(g_aLogDst),
                         ("Invalid destination value! unknown instruction %.20s\n", pszValue),
                         VERR_INVALID_PARAMETER);
 
@@ -2428,8 +2474,8 @@ RTDECL(int) RTLogGetDestinations(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf)
      * Add the flags in the list.
      */
     fDestFlags = pLogger->fDestFlags;
-    for (i = 6; i < RT_ELEMENTS(s_aLogDst); i++)
-        if (s_aLogDst[i].fFlag & fDestFlags)
+    for (i = 6; i < RT_ELEMENTS(g_aLogDst); i++)
+        if (g_aLogDst[i].fFlag & fDestFlags)
         {
             if (fNotFirst)
             {
@@ -2437,7 +2483,7 @@ RTDECL(int) RTLogGetDestinations(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf)
                 if (RT_FAILURE(rc))
                     return rc;
             }
-            rc = RTStrCopyP(&pszBuf, &cchBuf, s_aLogDst[i].pszInstr);
+            rc = RTStrCopyP(&pszBuf, &cchBuf, g_aLogDst[i].pszInstr);
             if (RT_FAILURE(rc))
                 return rc;
             fNotFirst = true;
@@ -2625,8 +2671,8 @@ RTDECL(PRTLOGGER)   RTLogDefaultInstanceEx(uint32_t fFlagsAndGroup)
             uint16_t const fFlags = RT_LO_U16(fFlagsAndGroup);
             uint16_t const iGroup = RT_HI_U16(fFlagsAndGroup);
             if (   iGroup != UINT16_MAX
-                 && (   (pLogger->afGroups[iGroup < pLogger->cGroups ? iGroup : 0] & (fFlags | RTLOGGRPFLAGS_ENABLED))
-                     != (fFlags | RTLOGGRPFLAGS_ENABLED)))
+                 && (   (pLogger->afGroups[iGroup < pLogger->cGroups ? iGroup : 0] & (fFlags | (uint32_t)RTLOGGRPFLAGS_ENABLED))
+                     != (fFlags | (uint32_t)RTLOGGRPFLAGS_ENABLED)))
             pLogger = NULL;
         }
     }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,6 +84,7 @@ typedef RTGZIPCMDOPTS const *PCRTGZIPCMDOPTS;
 static bool gzipIsStdHandleATty(RTHANDLESTD enmStdHandle)
 {
     /** @todo Add isatty() to IPRT. */
+    RT_NOREF1(enmStdHandle);
     return false;
 }
 
@@ -188,7 +189,7 @@ static RTEXITCODE gzipCompressFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpt
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTZipGzipCompressIoStream failed: %Rrc", rc);
 
     uint32_t cRefs = RTVfsIoStrmRelease(*phVfsDst);
-    Assert(cRefs > 0);
+    Assert(cRefs > 0); RT_NOREF_PV(cRefs);
     *phVfsDst = hVfsGzip;
 
     return gzipPushFlushAndClose(phVfsSrc, pOpts, phVfsDst);
@@ -215,8 +216,20 @@ static RTEXITCODE gzipSetupDecompressor(PRTVFSIOSTREAM phVfsSrc)
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTZipGzipDecompressIoStream failed: %Rrc", rc);
 
     uint32_t cRefs = RTVfsIoStrmRelease(*phVfsSrc);
-    Assert(cRefs > 0);
+    Assert(cRefs > 0); RT_NOREF_PV(cRefs);
     *phVfsSrc = hVfsGunzip;
+
+#if 0
+    /* This is a good place for testing stuff. */
+    rc = RTVfsCreateReadAheadForIoStream(*phVfsSrc, 0, 16, _4K+1, &hVfsGunzip);
+    AssertRC(rc);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t cRefs = RTVfsIoStrmRelease(*phVfsSrc);
+        Assert(cRefs > 0);
+        *phVfsSrc = hVfsGunzip;
+    }
+#endif
 
     return RTEXITCODE_SUCCESS;
 }
@@ -248,6 +261,8 @@ static RTEXITCODE gzipDecompressFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pO
  */
 static RTEXITCODE gzipTestFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpts)
 {
+    RT_NOREF_PV(pOpts);
+
     /*
      * Read the whole stream.
      */
@@ -271,6 +286,7 @@ static RTEXITCODE gzipTestFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpts)
 
 static RTEXITCODE gzipListFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpts)
 {
+    RT_NOREF2(phVfsSrc, pOpts);
     return RTMsgErrorExit(RTEXITCODE_FAILURE, "Listing has not been implemented");
 }
 
@@ -472,7 +488,7 @@ RTEXITCODE RTZipGzipCmd(unsigned cArgs, char **papszArgs)
 
     RTEXITCODE  rcExit      = RTEXITCODE_SUCCESS;
     unsigned    cProcessed  = 0;
-    RTVFSIOSTREAM hVfsStdOut= NIL_RTVFSIOSTREAM;
+    //RTVFSIOSTREAM hVfsStdOut= NIL_RTVFSIOSTREAM;
 
     RTGETOPTSTATE GetState;
     int rc = RTGetOptInit(&GetState, cArgs, papszArgs, s_aOptions, RT_ELEMENTS(s_aOptions), 1,

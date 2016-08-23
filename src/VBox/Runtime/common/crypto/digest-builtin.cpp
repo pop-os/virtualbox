@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,6 +63,7 @@ static DECLCALLBACK(void) rtCrDigestMd2_Final(void *pvState, uint8_t *pbHash)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestMd2_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(fReInit); RT_NOREF_PV(pvOpaque);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTMd2Init((PRTMD2CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -86,6 +87,8 @@ static RTCRDIGESTDESC const g_rtCrDigestMd2Desc =
     RTMD2_HASH_SIZE,
     sizeof(RTMD2CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestMd2_Update,
     rtCrDigestMd2_Final,
     rtCrDigestMd2_Init,
@@ -115,6 +118,7 @@ static DECLCALLBACK(void) rtCrDigestMd5_Final(void *pvState, uint8_t *pbHash)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestMd5_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(pvOpaque); RT_NOREF_PV(fReInit);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTMd5Init((PRTMD5CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -138,6 +142,8 @@ static RTCRDIGESTDESC const g_rtCrDigestMd5Desc =
     RTMD5_HASH_SIZE,
     sizeof(RTMD5CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestMd5_Update,
     rtCrDigestMd5_Final,
     rtCrDigestMd5_Init,
@@ -167,6 +173,7 @@ static DECLCALLBACK(void) rtCrDigestSha1_Final(void *pvState, uint8_t *pbHash)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestSha1_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(pvOpaque); RT_NOREF_PV(fReInit);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTSha1Init((PRTSHA1CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -190,6 +197,8 @@ static RTCRDIGESTDESC const g_rtCrDigestSha1Desc =
     RTSHA1_HASH_SIZE,
     sizeof(RTSHA1CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestSha1_Update,
     rtCrDigestSha1_Final,
     rtCrDigestSha1_Init,
@@ -219,6 +228,7 @@ static DECLCALLBACK(void) rtCrDigestSha256_Final(void *pvState, uint8_t *pbHash)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestSha256_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(pvOpaque); RT_NOREF_PV(fReInit);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTSha256Init((PRTSHA256CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -241,6 +251,8 @@ static RTCRDIGESTDESC const g_rtCrDigestSha256Desc =
     RTSHA256_HASH_SIZE,
     sizeof(RTSHA256CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestSha256_Update,
     rtCrDigestSha256_Final,
     rtCrDigestSha256_Init,
@@ -270,6 +282,7 @@ static DECLCALLBACK(void) rtCrDigestSha512_Final(void *pvState, uint8_t *pbHash)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestSha512_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(pvOpaque); RT_NOREF_PV(fReInit);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTSha512Init((PRTSHA512CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -292,6 +305,8 @@ static RTCRDIGESTDESC const g_rtCrDigestSha512Desc =
     RTSHA512_HASH_SIZE,
     sizeof(RTSHA512CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestSha512_Update,
     rtCrDigestSha512_Final,
     rtCrDigestSha512_Init,
@@ -321,6 +336,7 @@ static DECLCALLBACK(void) rtCrDigestSha224_Final(void *pvState, uint8_t *pbHash)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestSha224_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(pvOpaque); RT_NOREF_PV(fReInit);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTSha224Init((PRTSHA224CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -343,6 +359,8 @@ static RTCRDIGESTDESC const g_rtCrDigestSha224Desc =
     RTSHA224_HASH_SIZE,
     sizeof(RTSHA224CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestSha224_Update,
     rtCrDigestSha224_Final,
     rtCrDigestSha224_Init,
@@ -372,6 +390,7 @@ static DECLCALLBACK(void) rtCrDigestSha384_Final(void *pvState, uint8_t *pbHash)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestSha384_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(pvOpaque); RT_NOREF_PV(fReInit);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTSha384Init((PRTSHA384CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -394,6 +413,8 @@ static RTCRDIGESTDESC const g_rtCrDigestSha384Desc =
     RTSHA384_HASH_SIZE,
     sizeof(RTSHA384CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestSha384_Update,
     rtCrDigestSha384_Final,
     rtCrDigestSha384_Init,
@@ -424,6 +445,7 @@ static DECLCALLBACK(void) rtCrDigestSha512t224_Final(void *pvState, uint8_t *pbH
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestSha512t224_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(pvOpaque); RT_NOREF_PV(fReInit);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTSha512t224Init((PRTSHA512T224CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -445,6 +467,8 @@ static RTCRDIGESTDESC const g_rtCrDigestSha512t224Desc =
     RTSHA512T224_HASH_SIZE,
     sizeof(RTSHA512T224CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestSha512t224_Update,
     rtCrDigestSha512t224_Final,
     rtCrDigestSha512t224_Init,
@@ -476,6 +500,7 @@ static DECLCALLBACK(void) rtCrDigestSha512t256_Final(void *pvState, uint8_t *pbH
 /** @impl_interface_method{RTCRDIGESTDESC::pfnInit} */
 static DECLCALLBACK(int) rtCrDigestSha512t256_Init(void *pvState, void *pvOpaque, bool fReInit)
 {
+    RT_NOREF_PV(pvOpaque); RT_NOREF_PV(fReInit);
     AssertReturn(pvOpaque == NULL, VERR_INVALID_PARAMETER);
     RTSha512t256Init((PRTSHA512T256CONTEXT)pvState);
     return VINF_SUCCESS;
@@ -497,6 +522,8 @@ static RTCRDIGESTDESC const g_rtCrDigestSha512t256Desc =
     RTSHA512T256_HASH_SIZE,
     sizeof(RTSHA512T256CONTEXT),
     0,
+    NULL,
+    NULL,
     rtCrDigestSha512t256_Update,
     rtCrDigestSha512t256_Final,
     rtCrDigestSha512t256_Init,
@@ -534,12 +561,25 @@ static PCRTCRDIGESTDESC const g_apDigestOps[] =
  * OpenSSL EVP.
  */
 
+# if OPENSSL_VERSION_NUMBER >= 0x10100000
+/** @impl_interface_method{RTCRDIGESTDESC::pfnNew} */
+static DECLCALLBACK(void*) rtCrDigestOsslEvp_New(void)
+{
+    return EVP_MD_CTX_new();
+}
+
+static DECLCALLBACK(void) rtCrDigestOsslEvp_Free(void *pvState)
+{
+    EVP_MD_CTX_free((EVP_MD_CTX*)pvState);
+}
+
+# endif
+
 /** @impl_interface_method{RTCRDIGESTDESC::pfnUpdate} */
 static DECLCALLBACK(void) rtCrDigestOsslEvp_Update(void *pvState, const void *pvData, size_t cbData)
 {
     EVP_DigestUpdate((EVP_MD_CTX *)pvState, pvData, cbData);
 }
-
 
 /** @impl_interface_method{RTCRDIGESTDESC::pfnFinal} */
 static DECLCALLBACK(void) rtCrDigestOsslEvp_Final(void *pvState, uint8_t *pbHash)
@@ -557,7 +597,11 @@ static DECLCALLBACK(int) rtCrDigestOsslEvp_Init(void *pvState, void *pvOpaque, b
     if (fReInit)
     {
         pEvpType = EVP_MD_CTX_md(pThis);
+# if OPENSSL_VERSION_NUMBER >= 0x10100000
+        EVP_MD_CTX_reset(pThis);
+# else
         EVP_MD_CTX_cleanup(pThis);
+# endif
     }
 
     AssertPtrReturn(pEvpType, VERR_INVALID_PARAMETER);
@@ -572,7 +616,11 @@ static DECLCALLBACK(int) rtCrDigestOsslEvp_Init(void *pvState, void *pvOpaque, b
 static DECLCALLBACK(void) rtCrDigestOsslEvp_Delete(void *pvState)
 {
     EVP_MD_CTX *pThis = (EVP_MD_CTX *)pvState;
+# if OPENSSL_VERSION_NUMBER >= 0x10100000
+    EVP_MD_CTX_reset(pThis);
+# else
     EVP_MD_CTX_cleanup(pThis);
+# endif
 }
 
 
@@ -599,7 +647,7 @@ static DECLCALLBACK(uint32_t) rtCrDigestOsslEvp_GetHashSize(void *pvState)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnGetHashSize} */
 static DECLCALLBACK(RTDIGESTTYPE) rtCrDigestOsslEvp_GetDigestType(void *pvState)
 {
-    EVP_MD_CTX *pThis = (EVP_MD_CTX *)pvState;
+    RT_NOREF_PV(pvState); //EVP_MD_CTX *pThis = (EVP_MD_CTX *)pvState;
     /** @todo figure which digest algorithm it is! */
     return RTDIGESTTYPE_UNKNOWN;
 }
@@ -613,8 +661,19 @@ static RTCRDIGESTDESC const g_rtCrDigestOpenSslDesc =
     NULL,
     RTDIGESTTYPE_UNKNOWN,
     EVP_MAX_MD_SIZE,
-    sizeof(EVP_MD_CTX),
+# if OPENSSL_VERSION_NUMBER >= 0x10100000
     0,
+# else
+    sizeof(EVP_MD_CTX),
+# endif
+    0,
+# if OPENSSL_VERSION_NUMBER >= 0x10100000
+    rtCrDigestOsslEvp_New,
+    rtCrDigestOsslEvp_Free,
+# else
+    NULL,
+    NULL,
+# endif
     rtCrDigestOsslEvp_Update,
     rtCrDigestOsslEvp_Final,
     rtCrDigestOsslEvp_Init,

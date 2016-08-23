@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2015 Oracle Corporation
+# Copyright (C) 2008-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -482,6 +482,9 @@ ifdef VBOX_WITH_CRDUMPER
 VBoxOGLcrstate_SOURCES += state_tracker/dump.cpp \
 	$(VBOX_PATH_CROGL_GENFILES)/dump_gen.cpp
 endif
+VBoxOGLcrstate_SOURCES.win = \
+	$(PATH_ROOT)/src/VBox/Runtime/common/asm/ASMBitNextClear.asm \
+	$(PATH_ROOT)/src/VBox/Runtime/common/asm/ASMBitNextSet.asm
 
 VBoxOGLcrstate_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/state_buffer_gen.c \

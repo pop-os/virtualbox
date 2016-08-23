@@ -605,6 +605,8 @@ tcp_listen_input(struct tcp_pcb_listen *pcb, struct pbuf *syn)
        * tcp_proxy_accept_confirm(). */
       return ERR_OK;
     }
+#else
+    LWIP_UNUSED_ARG(syn);
 #endif
 
     snmp_inc_tcppassiveopens();

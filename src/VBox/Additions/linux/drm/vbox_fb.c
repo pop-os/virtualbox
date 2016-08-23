@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,6 +68,7 @@
 #include <drm/drm_crtc_helper.h>
 #include "vbox_drv.h"
 
+#define VBOX_DIRTY_DELAY (HZ / 30)
 /**
  * Tell the host about dirty rectangles to update.
  */
@@ -160,6 +161,40 @@ static void vbox_dirty_update(struct vbox_fbdev *fbdev,
 
     vbox_bo_unreserve(bo);
 }
+
+#ifdef CONFIG_FB_DEFERRED_IO
+static void vbox_deferred_io(struct fb_info *info,
+                             struct list_head *pagelist)
+{
+        struct vbox_fbdev *fbdev = info->par;
+        unsigned long start, end, min, max;
+        struct page *page;
+        int y1, y2;
+
+        min = ULONG_MAX;
+        max = 0;
+        list_for_each_entry(page, pagelist, lru) {
+                start = page->index << PAGE_SHIFT;
+                end = start + PAGE_SIZE - 1;
+                min = min(min, start);
+                max = max(max, end);
+        }
+
+        if (min < max) {
+                y1 = min / info->fix.line_length;
+                y2 = (max / info->fix.line_length) + 1;
+                printk(KERN_INFO "%s: Calling dirty update: 0, %d, %d, %d\n",
+                       __func__, y1, info->var.xres, y2 - y1 - 1);
+                vbox_dirty_update(fbdev, 0, y1, info->var.xres, y2 - y1 - 1);
+        }
+}
+
+static struct fb_deferred_io vbox_defio =
+{
+        .delay          = VBOX_DIRTY_DELAY,
+        .deferred_io    = vbox_deferred_io,
+};
+#endif
 
 static void vbox_fillrect(struct fb_info *info,
              const struct fb_fillrect *rect)
@@ -323,6 +358,11 @@ static int vboxfb_create(struct drm_fb_helper *helper,
     info->screen_base = sysram;
     info->screen_size = size;
 
+#ifdef CONFIG_FB_DEFERRED_IO
+    info->fbdefio = &vbox_defio;
+    fb_deferred_io_init(info);
+#endif
+
     info->pixmap.flags = FB_PIXMAP_SYSTEM;
 
     DRM_DEBUG_KMS("allocated %dx%d\n",
@@ -450,4 +490,12 @@ void vbox_fbdev_set_suspend(struct drm_device *dev, int state)
         return;
 
     fb_set_suspend(vbox->fbdev->helper.fbdev, state);
+}
+
+void vbox_fbdev_set_base(struct vbox_private *vbox, unsigned long gpu_addr)
+{
+        vbox->fbdev->helper.fbdev->fix.smem_start =
+                vbox->fbdev->helper.fbdev->apertures->ranges[0].base +
+                gpu_addr;
+        vbox->fbdev->helper.fbdev->fix.smem_len = vbox->available_vram_size - gpu_addr;
 }

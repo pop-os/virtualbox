@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -150,6 +150,7 @@ static int              SolarisTAPAttach(PDRVTAP pThis);
  */
 static DECLCALLBACK(int) drvTAPNetworkUp_BeginXmit(PPDMINETWORKUP pInterface, bool fOnWorkerThread)
 {
+    RT_NOREF(fOnWorkerThread);
     PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
     int rc = RTCritSectTryEnter(&pThis->XmitLock);
     if (RT_FAILURE(rc))
@@ -167,8 +168,11 @@ static DECLCALLBACK(int) drvTAPNetworkUp_BeginXmit(PPDMINETWORKUP pInterface, bo
 static DECLCALLBACK(int) drvTAPNetworkUp_AllocBuf(PPDMINETWORKUP pInterface, size_t cbMin,
                                                   PCPDMNETWORKGSO pGso, PPPDMSCATTERGATHER ppSgBuf)
 {
+    RT_NOREF(pInterface);
+#ifdef VBOX_STRICT
     PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
     Assert(RTCritSectIsOwner(&pThis->XmitLock));
+#endif
 
     /*
      * Allocate a scatter / gather buffer descriptor that is immediately
@@ -212,8 +216,12 @@ static DECLCALLBACK(int) drvTAPNetworkUp_AllocBuf(PPDMINETWORKUP pInterface, siz
  */
 static DECLCALLBACK(int) drvTAPNetworkUp_FreeBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGATHER pSgBuf)
 {
+    RT_NOREF(pInterface);
+#ifdef VBOX_STRICT
     PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
     Assert(RTCritSectIsOwner(&pThis->XmitLock));
+#endif
+
     if (pSgBuf)
     {
         Assert((pSgBuf->fFlags & PDMSCATTERGATHER_FLAGS_MAGIC_MASK) == PDMSCATTERGATHER_FLAGS_MAGIC);
@@ -229,6 +237,7 @@ static DECLCALLBACK(int) drvTAPNetworkUp_FreeBuf(PPDMINETWORKUP pInterface, PPDM
  */
 static DECLCALLBACK(int) drvTAPNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGATHER pSgBuf, bool fOnWorkerThread)
 {
+    RT_NOREF(fOnWorkerThread);
     PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
     STAM_COUNTER_INC(&pThis->StatPktSent);
     STAM_COUNTER_ADD(&pThis->StatPktSentBytes, pSgBuf->cbUsed);
@@ -300,6 +309,7 @@ static DECLCALLBACK(void) drvTAPNetworkUp_EndXmit(PPDMINETWORKUP pInterface)
  */
 static DECLCALLBACK(void) drvTAPNetworkUp_SetPromiscuousMode(PPDMINETWORKUP pInterface, bool fPromiscuous)
 {
+    RT_NOREF(pInterface, fPromiscuous);
     LogFlow(("drvTAPNetworkUp_SetPromiscuousMode: fPromiscuous=%d\n", fPromiscuous));
     /* nothing to do */
 }
@@ -314,6 +324,7 @@ static DECLCALLBACK(void) drvTAPNetworkUp_SetPromiscuousMode(PPDMINETWORKUP pInt
  */
 static DECLCALLBACK(void) drvTAPNetworkUp_NotifyLinkChanged(PPDMINETWORKUP pInterface, PDMNETWORKLINKSTATE enmLinkState)
 {
+    RT_NOREF(pInterface, enmLinkState);
     LogFlow(("drvTAPNetworkUp_NotifyLinkChanged: enmLinkState=%d\n", enmLinkState));
     /** @todo take action on link down and up. Stop the polling and such like. */
 }
@@ -466,6 +477,7 @@ static DECLCALLBACK(int) drvTAPAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
  */
 static DECLCALLBACK(int) drvTapAsyncIoWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
+    RT_NOREF(pThread);
     PDRVTAP pThis = PDMINS_2_DATA(pDrvIns, PDRVTAP);
 
     size_t cbIgnored;
@@ -842,8 +854,9 @@ static DECLCALLBACK(void) drvTAPDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVTAP pThis = PDMINS_2_DATA(pDrvIns, PDRVTAP);
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVTAP pThis = PDMINS_2_DATA(pDrvIns, PDRVTAP);
 
     /*
      * Init the static parts.

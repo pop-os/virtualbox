@@ -40,7 +40,7 @@ checkdep_svr4()
         return 1
     fi
     $BIN_PKGINFO $BASEDIR_OPT "$1" >/dev/null 2>&1
-    if test $? -eq 0; then
+    if test "$?" -eq 0; then
         return 0
     fi
     PKG_MISSING_SVR4="$PKG_MISSING_SVR4 $1"
@@ -55,7 +55,7 @@ checkdep_ips()
     fi
     # using "list" without "-a" only lists installed pkgs which is what we need
     $BIN_PKG $BASEDIR_OPT list "$1" >/dev/null 2>&1
-    if test $? -eq 0; then
+    if test "$?" -eq 0; then
         return 0
     fi
     PKG_MISSING_IPS="$PKG_MISSING_IPS $1"
@@ -70,11 +70,11 @@ checkdep_ips_either()
     fi
     # using "list" without "-a" only lists installed pkgs which is what we need
     $BIN_PKG $BASEDIR_OPT list "$1" >/dev/null 2>&1
-    if test $? -eq 0; then
+    if test "$?" -eq 0; then
         return 0
     fi
     $BIN_PKG $BASEDIR_OPT list "$2" >/dev/null 2>&1
-    if test $? -eq 0; then
+    if test "$?" -eq 0; then
         return 0
     fi
     PKG_MISSING_IPS="$PKG_MISSING_IPS $1 or $2"
@@ -96,6 +96,41 @@ disable_service()
     fi
 }
 
+# find_bin_path()
+# !! failure is always fatal
+find_bin_path()
+{
+    if test -z "$1"; then
+        errorprint "missing argument to find_bin_path()"
+        exit 1
+    fi
+
+    binfilename=`basename $1`
+    binfilepath=`which $binfilename 2> /dev/null`
+    if test -x "$binfilepath"; then
+        echo "$binfilepath"
+        return 0
+    else
+        errorprint "$1 missing or is not an executable"
+        exit 1
+    fi
+}
+
+# find_bins()
+# !! failure is always fatal
+find_mandatory_bins()
+{
+    # Search only for binaries that might be in different locations
+    if test ! -x "$BIN_SVCS"; then
+        BIN_SVCS=`find_bin_path "$BIN_SVCS"`
+    fi
+
+    if test ! -x "$BIN_SVCADM"; then
+        BIN_SVCADM=`find_bin_path "$BIN_SVCADM"`
+    fi
+}
+
+
 #
 # Begin execution
 #
@@ -109,34 +144,29 @@ fi
 
 # Nothing to check for non-global zones
 currentzone=`zonename`
-if test "$currentzone" != "global"; then
+if test "x$currentzone" != "xglobal"; then
     exit 0
 fi
 
 PKG_MISSING_IPS=""
 PKG_MISSING_SVR4=""
-BIN_PKGINFO=`which pkginfo 2> /dev/null`
-BIN_PKG=`which pkg 2> /dev/null`
-BIN_SVCS=`which svcs 2> /dev/null`
+BIN_PKGINFO=/usr/bin/pkginfo
+BIN_PKG=/usr/bin/pkg
+BIN_SVCS=/usr/bin/svcs
 BIN_SVCADM=/usr/sbin/svcadm
 
-# Check if our binaries are fine
-if test ! -x "$BIN_SVCS"; then
-    errorprint "Missing or non-executable binary: svcs ($BIN_SVCS)."
-    exit 1
-fi
-if test ! -x "$BIN_SVCADM"; then
-    errorprint "Missing or non-executable binary: svcadm ($BIN_SVCADM)."
-    exit 1
-fi
+# Check non-optional binaries
+find_mandatory_bins
 
 infoprint "Checking package dependencies..."
 
 if test -x "$BIN_PKG"; then
     checkdep_ips_either "runtime/python-26" "runtime/python-27"
     checkdep_ips_either "system/library/iconv/utf-8" "system/library/iconv/iconv-core"
+    checkdep_ips_either "system/library/gcc/gcc-c++-runtime" "system/library/gcc-45-runtime"
+    checkdep_ips_either "system/library/gcc/gcc-c-runtime" "system/library/gcc-45-runtime"
 else
-    PKG_MISSING_IPS="runtime/python-26 system/library/iconv/utf-8"
+    PKG_MISSING_IPS="runtime/python-26 system/library/iconv/utf-8 system/library/gcc/gcc-c++-runtime system/library/gcc/gcc-c-runtime"
 fi
 if test -x "$BIN_PKGINFO"; then
     checkdep_svr4 "SUNWPython"
@@ -146,7 +176,7 @@ else
     PKG_MISSING_SVR4="SUNWPython SUNWPython-devel SUNWuiu8"
 fi
 
-if test "$PKG_MISSING_IPS" != "" && test "$PKG_MISSING_SVR4" != ""; then
+if test "x$PKG_MISSING_IPS" != "x" && test "x$PKG_MISSING_SVR4" != "x"; then
     if test ! -x "$BIN_PKG" && test ! -x "$BIN_PKGINFO"; then
         errorprint "Missing or non-executable binaries: pkg ($BIN_PKG) and pkginfo ($BIN_PKGINFO)."
         errorprint "Cannot check for dependencies."

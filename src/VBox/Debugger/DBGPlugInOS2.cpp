@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_DBGF ///@todo add new log group.
+#define LOG_GROUP LOG_GROUP_DBGF /// @todo add new log group.
 #include "DBGPlugIns.h"
 #include <VBox/vmm/dbgf.h>
 #include <VBox/err.h>
@@ -88,11 +88,8 @@ typedef DBGDIGGEROS2 *PDBGDIGGEROS2;
 static DECLCALLBACK(int)  dbgDiggerOS2Init(PUVM pUVM, void *pvData);
 
 
-/*********************************************************************************************************************************
-*   Global Variables                                                                                                             *
-*********************************************************************************************************************************/
 
-
+#if 0 /* unused */
 /**
  * Process a PE image found in guest memory.
  *
@@ -109,10 +106,12 @@ static void dbgDiggerOS2ProcessImage(PDBGDIGGEROS2 pThis, PUVM pUVM, const char 
                                      PCDBGFADDRESS pImageAddr, uint32_t cbImage,
                                      uint8_t *pbBuf, size_t cbBuf)
 {
+    RT_NOREF7(pThis, pUVM, pszName, pImageAddr, cbImage, pbBuf, cbBuf);
     LogFlow(("DigOS2: %RGp %#x %s\n", pImageAddr->FlatPtr, cbImage, pszName));
 
     /* To be implemented.*/
 }
+#endif
 
 
 /**
@@ -120,6 +119,7 @@ static void dbgDiggerOS2ProcessImage(PDBGDIGGEROS2 pThis, PUVM pUVM, const char 
  */
 static DECLCALLBACK(void *) dbgDiggerOS2QueryInterface(PUVM pUVM, void *pvData, DBGFOSINTERFACE enmIf)
 {
+    RT_NOREF3(pUVM, pvData, enmIf);
     return NULL;
 }
 
@@ -129,6 +129,7 @@ static DECLCALLBACK(void *) dbgDiggerOS2QueryInterface(PUVM pUVM, void *pvData, 
  */
 static DECLCALLBACK(int)  dbgDiggerOS2QueryVersion(PUVM pUVM, void *pvData, char *pszVersion, size_t cchVersion)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGEROS2 pThis = (PDBGDIGGEROS2)pvData;
     Assert(pThis->fValid);
     char *achOS2ProductType[32];
@@ -173,6 +174,7 @@ static DECLCALLBACK(int)  dbgDiggerOS2QueryVersion(PUVM pUVM, void *pvData, char
  */
 static DECLCALLBACK(void)  dbgDiggerOS2Term(PUVM pUVM, void *pvData)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGEROS2 pThis = (PDBGDIGGEROS2)pvData;
     Assert(pThis->fValid);
 
@@ -320,7 +322,7 @@ static DECLCALLBACK(bool)  dbgDiggerOS2Probe(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(void)  dbgDiggerOS2Destruct(PUVM pUVM, void *pvData)
 {
-
+    RT_NOREF2(pUVM, pvData);
 }
 
 
@@ -329,6 +331,7 @@ static DECLCALLBACK(void)  dbgDiggerOS2Destruct(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(int)  dbgDiggerOS2Construct(PUVM pUVM, void *pvData)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGEROS2 pThis = (PDBGDIGGEROS2)pvData;
     pThis->fValid = false;
     pThis->f32Bit = false;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,7 +37,7 @@
 #include <iprt/param.h>
 #include "../allocex.h"
 
-#include <Windows.h>
+#include <iprt/win/windows.h>
 
 
 static int rtMemAllocExInRange(size_t cbAlloc, uint32_t fFlags, void **ppv, uintptr_t uAddr, uintptr_t uAddrLast)
@@ -114,7 +114,9 @@ DECLHIDDEN(int) rtMemAllocEx32BitReach(size_t cbAlloc, uint32_t fFlags, void **p
 
 DECLHIDDEN(void) rtMemFreeExYyBitReach(void *pv, size_t cb, uint32_t fFlags)
 {
+    RT_NOREF_PV(fFlags);
+
     BOOL fRc = VirtualFree(pv, cb, MEM_RELEASE);
-    Assert(fRc);
+    Assert(fRc); RT_NOREF_PV(fRc);
 }
 

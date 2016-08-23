@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,6 +85,9 @@ const UIPortForwardingDataList& UIGlobalSettingsPortForwardingDlg::ipv6rules() c
 
 void UIGlobalSettingsPortForwardingDlg::accept()
 {
+    /* Make sure both tables have their data committed: */
+    m_pIPv4Table->makeSureEditorDataCommitted();
+    m_pIPv6Table->makeSureEditorDataCommitted();
     /* Validate table: */
     bool fPassed = m_pIPv4Table->validate() && m_pIPv6Table->validate();
     if (!fPassed)

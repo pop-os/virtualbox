@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,13 +47,15 @@
 #include <iprt/stream.h>
 #include <iprt/time.h>
 #include <iprt/string.h>
+#ifdef RT_OS_WINDOWS
+# include <iprt/thread.h>
+#endif
 
 #include <VBox/sup.h>
 #include <VBox/intnet.h>
 #include <VBox/intnetinline.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/version.h>
-
 
 #include "../NetLib/VBoxNetLib.h"
 #include "../NetLib/shared_ptr.h"
@@ -67,7 +69,7 @@
 #include "../NetLib/utils.h"
 
 #ifdef RT_OS_WINDOWS /* WinMain */
-# include <Windows.h>
+# include <iprt/win/windows.h>
 # include <stdlib.h>
 # ifdef INET_ADDRSTRLEN
 /* On Windows INET_ADDRSTRLEN defined as 22 Ws2ipdef.h, because it include port number */
@@ -88,7 +90,7 @@
 /**
  * DHCP server instance.
  */
-class VBoxNetDhcp: public VBoxNetBaseService, public NATNetworkEventAdapter
+class VBoxNetDhcp : public VBoxNetBaseService, public NATNetworkEventAdapter
 {
 public:
     VBoxNetDhcp();
@@ -344,7 +346,7 @@ int  VBoxNetDhcp::processUDP(void *pv, size_t cbPv)
 /**
  * Handles a DHCP message.
  *
- * @returns true if handled, false if not.
+ * @returns true if handled, false if not.  (IGNORED BY CALLER)
  * @param   uMsgType        The message type.
  * @param   pDhcpMsg        The DHCP message.
  * @param   cb              The size of the DHCP message.
@@ -610,7 +612,7 @@ int VBoxNetDhcp::fetchAndUpdateDnsInfo()
 
 HRESULT VBoxNetDhcp::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
 {
-    switch(aEventType)
+    switch (aEventType)
     {
         case VBoxEventType_OnHostNameResolutionConfigurationChange:
             fetchAndUpdateDnsInfo();
@@ -639,10 +641,87 @@ HRESULT VBoxNetDhcp::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
             shutdown();
             break;
         }
+
+        default: break; /* Shut up MSC. */
     }
 
     return S_OK;
 }
+
+#ifdef RT_OS_WINDOWS
+
+/** The class name for the DIFx-killable window.    */
+static WCHAR g_wszWndClassName[] = L"VBoxNetDHCPClass";
+/** Whether to exit the process on quit.   */
+static bool g_fExitProcessOnQuit = true;
+
+/**
+ * Window procedure for making us DIFx-killable.
+ */
+static LRESULT CALLBACK DIFxKillableWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    if (uMsg == WM_DESTROY)
+    {
+        PostQuitMessage(0);
+        return 0;
+    }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+/** @callback_method_impl{FNRTTHREAD,
+ *      Thread that creates service a window the DIFx can destroy, thereby
+ *      triggering process termination. }
+ */
+static DECLCALLBACK(int) DIFxKillableProcessThreadProc(RTTHREAD hThreadSelf, void *pvUser)
+{
+    RT_NOREF(hThreadSelf, pvUser);
+    HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(NULL);
+
+    /* Register the Window Class. */
+    WNDCLASSW WndCls;
+    WndCls.style         = 0;
+    WndCls.lpfnWndProc   = DIFxKillableWindowProc;
+    WndCls.cbClsExtra    = 0;
+    WndCls.cbWndExtra    = sizeof(void *);
+    WndCls.hInstance     = hInstance;
+    WndCls.hIcon         = NULL;
+    WndCls.hCursor       = NULL;
+    WndCls.hbrBackground = (HBRUSH)(COLOR_BACKGROUND + 1);
+    WndCls.lpszMenuName  = NULL;
+    WndCls.lpszClassName = g_wszWndClassName;
+
+    ATOM atomWindowClass = RegisterClassW(&WndCls);
+    if (atomWindowClass != 0)
+    {
+        /* Create the window. */
+        HWND hwnd = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_TOPMOST,
+                                    g_wszWndClassName, g_wszWndClassName,
+                                    WS_POPUPWINDOW,
+                                    -200, -200, 100, 100, NULL, NULL, hInstance, NULL);
+        if (hwnd)
+        {
+            SetWindowPos(hwnd, HWND_TOPMOST, -200, -200, 0, 0,
+                         SWP_NOACTIVATE | SWP_HIDEWINDOW | SWP_NOCOPYBITS | SWP_NOREDRAW | SWP_NOSIZE);
+
+            MSG msg;
+            while (GetMessage(&msg, NULL, 0, 0))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+
+            DestroyWindow(hwnd);
+        }
+
+        UnregisterClassW(g_wszWndClassName, hInstance);
+
+        if (hwnd && g_fExitProcessOnQuit)
+            exit(0);
+    }
+    return 0;
+}
+
+#endif /* RT_OS_WINDOWS */
 
 /**
  *  Entry point.
@@ -652,40 +731,56 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv)
     /*
      * Instantiate the DHCP server and hand it the options.
      */
-
     VBoxNetDhcp *pDhcp = new VBoxNetDhcp();
     if (!pDhcp)
     {
         RTStrmPrintf(g_pStdErr, "VBoxNetDHCP: new VBoxNetDhcp failed!\n");
         return 1;
     }
-    int rc = pDhcp->parseArgs(argc - 1, argv + 1);
-    if (rc)
-        return rc;
+
+    RTEXITCODE rcExit = (RTEXITCODE)pDhcp->parseArgs(argc - 1, argv + 1);
+    if (rcExit != RTEXITCODE_SUCCESS)
+        return rcExit;
+
+#ifdef RT_OS_WINDOWS
+    /* DIFx hack. */
+    RTTHREAD hMakeUseKillableThread = NIL_RTTHREAD;
+    int rc2 = RTThreadCreate(&hMakeUseKillableThread, DIFxKillableProcessThreadProc, NULL, 0,
+                             RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "DIFxKill");
+    if (RT_FAILURE(rc2))
+        hMakeUseKillableThread = NIL_RTTHREAD;
+#endif
 
     pDhcp->init();
 
     /*
      * Try connect the server to the network.
      */
-    rc = pDhcp->tryGoOnline();
-    if (RT_FAILURE(rc))
+    int rc = pDhcp->tryGoOnline();
+    if (RT_SUCCESS(rc))
     {
-        delete pDhcp;
-        return 1;
+        /*
+         * Process requests.
+         */
+        g_pDhcp = pDhcp;
+        rc = pDhcp->run();
+        pDhcp->done();
+
+        g_pDhcp = NULL;
     }
-
-    /*
-     * Process requests.
-     */
-    g_pDhcp = pDhcp;
-    rc = pDhcp->run();
-    pDhcp->done();
-
-    g_pDhcp = NULL;
     delete pDhcp;
 
-    return 0;
+#ifdef RT_OS_WINDOWS
+    /* Kill DIFx hack. */
+    if (hMakeUseKillableThread != NIL_RTTHREAD)
+    {
+        g_fExitProcessOnQuit = false;
+        PostThreadMessage((DWORD)RTThreadGetNative(hMakeUseKillableThread), WM_QUIT, 0, 0);
+        RTThreadWait(hMakeUseKillableThread, RT_MS_1SEC * 5U, NULL);
+    }
+#endif
+
+    return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 
@@ -702,98 +797,12 @@ int main(int argc, char **argv)
 
 # ifdef RT_OS_WINDOWS
 
-static LRESULT CALLBACK WindowProc(HWND hwnd,
-    UINT uMsg,
-    WPARAM wParam,
-    LPARAM lParam
-)
-{
-    if(uMsg == WM_DESTROY)
-    {
-        PostQuitMessage(0);
-        return 0;
-    }
-    return DefWindowProc (hwnd, uMsg, wParam, lParam);
-}
-
-static LPCWSTR g_WndClassName = L"VBoxNetDHCPClass";
-
-static DWORD WINAPI MsgThreadProc(__in  LPVOID lpParameter)
-{
-     HWND                 hwnd = 0;
-     HINSTANCE hInstance = (HINSTANCE)GetModuleHandle (NULL);
-     bool bExit = false;
-
-     /* Register the Window Class. */
-     WNDCLASS wc;
-     wc.style         = 0;
-     wc.lpfnWndProc   = WindowProc;
-     wc.cbClsExtra    = 0;
-     wc.cbWndExtra    = sizeof(void *);
-     wc.hInstance     = hInstance;
-     wc.hIcon         = NULL;
-     wc.hCursor       = NULL;
-     wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND + 1);
-     wc.lpszMenuName  = NULL;
-     wc.lpszClassName = g_WndClassName;
-
-     ATOM atomWindowClass = RegisterClass(&wc);
-
-     if (atomWindowClass != 0)
-     {
-         /* Create the window. */
-         hwnd = CreateWindowEx (WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_TOPMOST,
-                 g_WndClassName, g_WndClassName,
-                                                   WS_POPUPWINDOW,
-                                                  -200, -200, 100, 100, NULL, NULL, hInstance, NULL);
-
-         if (hwnd)
-         {
-             SetWindowPos(hwnd, HWND_TOPMOST, -200, -200, 0, 0,
-                          SWP_NOACTIVATE | SWP_HIDEWINDOW | SWP_NOCOPYBITS | SWP_NOREDRAW | SWP_NOSIZE);
-
-             MSG msg;
-             while (GetMessage(&msg, NULL, 0, 0))
-             {
-                 TranslateMessage(&msg);
-                 DispatchMessage(&msg);
-             }
-
-             DestroyWindow (hwnd);
-
-             bExit = true;
-         }
-
-         UnregisterClass (g_WndClassName, hInstance);
-     }
-
-     if(bExit)
-     {
-         /* no need any accuracy here, in anyway the DHCP server usually gets terminated with TerminateProcess */
-         exit(0);
-     }
-
-     return 0;
-}
 
 
 /** (We don't want a console usually.) */
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     NOREF(hInstance); NOREF(hPrevInstance); NOREF(lpCmdLine); NOREF(nCmdShow);
-
-    HANDLE hThread = CreateThread(
-      NULL, /*__in_opt   LPSECURITY_ATTRIBUTES lpThreadAttributes, */
-      0, /*__in       SIZE_T dwStackSize, */
-      MsgThreadProc, /*__in       LPTHREAD_START_ROUTINE lpStartAddress,*/
-      NULL, /*__in_opt   LPVOID lpParameter,*/
-      0, /*__in       DWORD dwCreationFlags,*/
-      NULL /*__out_opt  LPDWORD lpThreadId*/
-    );
-
-    if(hThread != NULL)
-        CloseHandle(hThread);
-
     return main(__argc, __argv);
 }
 # endif /* RT_OS_WINDOWS */

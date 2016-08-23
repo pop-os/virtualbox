@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,7 +69,7 @@ int main(int argc, char **argv)
         if (!pb)
         {
             printf("\nalloc-1: calloc failed, cbDone=%lu MB (%lu bytes)\n",
-                   cbDone/1024/1024/1024, cbDone);
+                   cbDone/1024/1024, cbDone);
             return 1;
         }
         cbDone += cbThis;
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
         if (uPctNow != uPct && !(uPctNow & 1))
         {
             if (!(uPctNow % 10))
-                printf("%u%%", (unsigned)uPctNow);
+                printf("%u%%", uPctNow);
             else
                 printf(".");
             fflush(stdout);

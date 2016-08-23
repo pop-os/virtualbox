@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -316,7 +316,7 @@ VBGLR3DECL(int) VbglR3SharedFolderGetMountPrefix(char **ppszPrefix)
 VBGLR3DECL(int) VbglR3SharedFolderGetMountDir(char **ppszDir)
 {
     AssertPtrReturn(ppszDir, VERR_INVALID_POINTER);
-    int rc;
+    int rc = VERR_NOT_FOUND;
 #ifdef VBOX_WITH_GUEST_PROPS
     HGCMCLIENTID idClientGuestProp;
     rc = VbglR3GuestPropConnect(&idClientGuestProp);

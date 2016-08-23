@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,16 +27,17 @@
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
 # include "UISession.h"
 # include "UIMachineLogic.h"
 # include "UIMachineWindowScale.h"
 # include "UIMachineView.h"
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include "VBoxUtils.h"
 #  include "UIImageTools.h"
 #  include "UICocoaApplication.h"
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -58,7 +59,7 @@ void UIMachineWindowScale::prepareMainLayout()
     m_pRightSpacer->changeSize(0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
 }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 void UIMachineWindowScale::prepareVisualState()
 {
     /* Call to base-class: */
@@ -82,7 +83,7 @@ void UIMachineWindowScale::prepareVisualState()
                                                                                 UIMachineWindow::handleStandardWindowButtonCallback);
     }
 }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 void UIMachineWindowScale::loadSettings()
 {
@@ -111,8 +112,8 @@ void UIMachineWindowScale::loadSettings()
         else
         {
             /* Get available geometry, for screen with (x,y) coords if possible: */
-            QRect availableGeo = !geo.isNull() ? vboxGlobal().availableGeometry(QPoint(geo.x(), geo.y())) :
-                                                 vboxGlobal().availableGeometry(this);
+            QRect availableGeo = !geo.isNull() ? gpDesktop->availableGeometry(QPoint(geo.x(), geo.y())) :
+                                                 gpDesktop->availableGeometry(this);
 
             /* Resize to default size: */
             resize(640, 480);
@@ -121,6 +122,13 @@ void UIMachineWindowScale::loadSettings()
             m_normalGeometry.moveCenter(availableGeo.center());
             setGeometry(m_normalGeometry);
         }
+
+        /* Normalize to the optimal size: */
+#ifdef VBOX_WS_X11
+        QTimer::singleShot(0, this, SLOT(sltNormalizeGeometry()));
+#else /* !VBOX_WS_X11 */
+        normalizeGeometry(true /* adjust position */);
+#endif /* !VBOX_WS_X11 */
     }
 }
 
@@ -137,14 +145,14 @@ void UIMachineWindowScale::saveSettings()
     UIMachineWindow::saveSettings();
 }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 void UIMachineWindowScale::cleanupVisualState()
 {
     /* Unregister 'Zoom' button from using our full-screen since Yosemite: */
     if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
         UICocoaApplication::instance()->unregisterCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom);
 }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 void UIMachineWindowScale::showInNecessaryMode()
 {
@@ -163,12 +171,57 @@ void UIMachineWindowScale::showInNecessaryMode()
     m_pMachineView->setFocus();
 }
 
+void UIMachineWindowScale::restoreCachedGeometry()
+{
+    /* Restore the geometry cached by the window: */
+    resize(m_normalGeometry.size());
+    move(m_normalGeometry.topLeft());
+
+    /* Adjust machine-view accordingly: */
+    adjustMachineViewSize();
+}
+
+void UIMachineWindowScale::normalizeGeometry(bool fAdjustPosition)
+{
+#ifndef VBOX_GUI_WITH_CUSTOMIZATIONS1
+    /* Skip if maximized: */
+    if (isMaximized())
+        return;
+
+    /* Calculate client window offsets: */
+    QRect frGeo = frameGeometry();
+    const QRect geo = geometry();
+    const int dl = geo.left() - frGeo.left();
+    const int dt = geo.top() - frGeo.top();
+    const int dr = frGeo.right() - geo.right();
+    const int db = frGeo.bottom() - geo.bottom();
+
+    /* Adjust position if necessary: */
+    if (fAdjustPosition)
+        frGeo = VBoxGlobal::normalizeGeometry(frGeo, gpDesktop->overallAvailableRegion());
+
+    /* Finally, set the frame geometry: */
+    setGeometry(frGeo.left() + dl, frGeo.top() + dt,
+                frGeo.width() - dl - dr, frGeo.height() - dt - db);
+#else /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
+    /* Customer request: There should no be
+     * machine-window resize/move on machine-view resize: */
+    Q_UNUSED(fAdjustPosition);
+#endif /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
+}
+
 bool UIMachineWindowScale::event(QEvent *pEvent)
 {
     switch (pEvent->type())
     {
         case QEvent::Resize:
         {
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+            /* Prevent handling if fake screen detected: */
+            if (gpDesktop->isFakeScreenDetected())
+                break;
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
             QResizeEvent *pResizeEvent = static_cast<QResizeEvent*>(pEvent);
             if (!isMaximizedChecked())
             {
@@ -182,6 +235,12 @@ bool UIMachineWindowScale::event(QEvent *pEvent)
         }
         case QEvent::Move:
         {
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+            /* Prevent handling if fake screen detected: */
+            if (gpDesktop->isFakeScreenDetected())
+                break;
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+
             if (!isMaximizedChecked())
             {
                 m_normalGeometry.moveTo(geometry().x(), geometry().y());
@@ -198,7 +257,8 @@ bool UIMachineWindowScale::event(QEvent *pEvent)
     return UIMachineWindow::event(pEvent);
 }
 
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
+# if QT_VERSION < 0x050000
 bool UIMachineWindowScale::winEvent(MSG *pMessage, long *pResult)
 {
     /* Try to keep aspect ratio during window resize if:
@@ -243,16 +303,17 @@ bool UIMachineWindowScale::winEvent(MSG *pMessage, long *pResult)
     /* Call to base-class: */
     return UIMachineWindow::winEvent(pMessage, pResult);
 }
-#endif /* Q_WS_WIN */
+# endif /* QT_VERSION < 0x050000 */
+#endif /* VBOX_WS_WIN */
 
 bool UIMachineWindowScale::isMaximizedChecked()
 {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* On the Mac the WindowStateChange signal doesn't seems to be delivered
      * when the user get out of the maximized state. So check this ourself. */
     return ::darwinIsWindowMaximized(this);
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
     return isMaximized();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 

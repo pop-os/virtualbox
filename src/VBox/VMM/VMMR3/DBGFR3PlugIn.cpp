@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -226,7 +226,7 @@ static int dbgfR3PlugInTryLoad(PDBGFPLUGIN pPlugIn, const char *pszModule, PRTER
         rc = RTLdrGetSymbol(pPlugIn->hLdrMod, DBGF_PLUG_IN_ENTRYPOINT, (void **)&pPlugIn->pfnEntry);
         if (RT_SUCCESS(rc))
         {
-            LogRel(("DBGF: Loaded Plug-In '%s' (%s).\n", pPlugIn->szName, pszModule));
+            LogRel(("DBGF: Loaded Plug-In '%s' (%s)\n", pPlugIn->szName, pszModule));
             return VINF_SUCCESS;
         }
 
@@ -543,6 +543,7 @@ VMMR3DECL(int) DBGFR3PlugInUnload(PUVM pUVM, const char *pszName)
         pPlugIn->pfnEntry = NULL;
         pPlugIn->hLdrMod  = NIL_RTLDRMOD;
         MMR3HeapFree(pPlugIn->pNext);
+        rc = VINF_SUCCESS;
     }
     else
         rc = VERR_NOT_FOUND;
@@ -600,6 +601,7 @@ VMMR3DECL(void) DBGFR3PlugInUnloadAll(PUVM pUVM)
 static DECLCALLBACK(void) dbgfR3PlugInInfoList(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     PDBGFPLUGIN pPlugIn = pVM->pUVM->dbgf.s.pPlugInHead;
+    RT_NOREF_PV(pszArgs);
     if (pPlugIn)
     {
         pHlp->pfnPrintf(pHlp, "Debugging plug-in%s: %s", pPlugIn->pNext ? "s" : "", pPlugIn->szName);

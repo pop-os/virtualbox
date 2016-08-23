@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -241,7 +241,7 @@ public:
 
     uint64_t addProcessed(uint32_t cbDataAdd)
     {
-        const uint64_t cbTotal = getTotal();
+        const uint64_t cbTotal = getTotal(); NOREF(cbTotal);
         Assert(cbProcessed + cbDataAdd <= cbTotal);
         cbProcessed += cbDataAdd;
         return cbProcessed;
@@ -537,6 +537,7 @@ public:
 
     GuestDnDURIObjCtx &getObj(uint64_t uID = 0)
     {
+        RT_NOREF(uID);
         AssertMsg(uID == 0, ("Other objects than object 0 is not supported yet\n"));
         return objCtx;
     }
@@ -1123,7 +1124,10 @@ private:
     static GuestDnD           *s_pInstance;
 };
 
-/** Access to the GuestDnD's singleton instance. */
+/** Access to the GuestDnD's singleton instance.
+ * @todo r=bird: Please add a 'Get' or something to this as it currently looks
+ *       like a class instantiation rather than a getter.  Alternatively, use
+ *       UPPER_CASE like the coding guideline suggest for macros. */
 #define GuestDnDInst() GuestDnD::getInstance()
 
 /** List of pointers to guest DnD Messages. */

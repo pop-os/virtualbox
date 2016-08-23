@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -304,7 +304,8 @@ out:
 static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszFilename)
 {
     int      rc = VINF_SUCCESS;
-    uint32_t cb, cbMaxLen = RT_BE2H_U32(pLocator->u32DataSpace);
+    uint32_t cb = 0;
+    uint32_t cbMaxLen = RT_BE2H_U32(pLocator->u32DataSpace);
     void     *pvBuf = RTMemTmpAllocZ(cbMaxLen);
     char     *pszTmp;
 
@@ -352,7 +353,10 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
             /* Update plain absolute name. */
             rc = RTPathAbs(pszFilename, (char *)pvBuf, cbMaxLen);
             if (RT_SUCCESS(rc))
-                pLocator->u32DataLength = RT_H2BE_U32((uint32_t)strlen((const char *)pvBuf));
+            {
+                cb = (uint32_t)strlen((const char *)pvBuf);
+                pLocator->u32DataLength = RT_H2BE_U32(cb);
+            }
             break;
         case VHD_PLATFORM_CODE_W2RU:
             if (RTPathStartsWithRoot(pszFilename))
@@ -398,9 +402,12 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
     }
 
     if (RT_SUCCESS(rc))
+    {
+        Assert(cb > 0);
         rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage,
                                     RT_BE2H_U64(pLocator->u64DataOffset),
                                     pvBuf, cb);
+    }
 
     if (pvBuf)
         RTMemTmpFree(pvBuf);
@@ -915,6 +922,7 @@ DECLINLINE(bool) vhdBlockBitmapSectorContainsData(PVHDIMAGE pImage, uint32_t cBl
  */
 DECLINLINE(bool) vhdBlockBitmapSectorSet(PVHDIMAGE pImage, uint8_t *pu8Bitmap, uint32_t cBlockBitmapEntry)
 {
+    RT_NOREF1(pImage);
     uint32_t iBitmap = (cBlockBitmapEntry / 8); /* Byte in the block bitmap. */
 
     /*
@@ -987,6 +995,7 @@ static void vhdSetDiskGeometry(PVHDIMAGE pImage, uint64_t cbSize)
 
 static uint32_t vhdAllocateParentLocators(PVHDIMAGE pImage, VHDDynamicDiskHeader *pDDH, uint64_t u64Offset)
 {
+    RT_NOREF1(pImage);
     PVHDPLE pLocator = pDDH->ParentLocatorEntry;
 
     /*
@@ -1106,6 +1115,7 @@ static int vhdCreateImage(PVHDIMAGE pImage, uint64_t cbSize,
                           PFNVDPROGRESS pfnProgress, void *pvUser,
                           unsigned uPercentStart, unsigned uPercentSpan)
 {
+    RT_NOREF3(pszComment, pPCHSGeometry, pLCHSGeometry);
     int rc;
     VHDFooter Footer;
     RTTIMESPEC now;
@@ -1159,10 +1169,8 @@ static int vhdCreateImage(PVHDIMAGE pImage, uint64_t cbSize,
          */
         pImage->u64DataOffset     = VHD_FOOTER_DATA_OFFSET_FIXED;
         pImage->uCurrentEndOfFile = cbSize;
-        /** @todo r=klaus replace this with actual data writes, see the experience
-         * with VDI files on Windows, can cause long freezes when writing. */
-        rc = vdIfIoIntFileSetSize(pImage->pIfIo, pImage->pStorage,
-                                  pImage->uCurrentEndOfFile + sizeof(VHDFooter));
+        rc = vdIfIoIntFileSetAllocationSize(pImage->pIfIo, pImage->pStorage, pImage->uCurrentEndOfFile + sizeof(VHDFooter),
+                                            0 /* fFlags */, pfnProgress, pvUser, uPercentStart, uPercentSpan);
         if (RT_FAILURE(rc))
         {
             vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot set the file size for '%s'"), pImage->pszFilename);
@@ -1241,6 +1249,7 @@ out:
 static DECLCALLBACK(int) vhdCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
                                          PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
 {
+    RT_NOREF1(pVDIfsDisk);
     LogFlowFunc(("pszFilename=\"%s\" pVDIfsDisk=%#p pVDIfsImage=%#p\n", pszFilename, pVDIfsDisk, pVDIfsImage));
     int rc;
     PVDIOSTORAGE pStorage;
@@ -1381,7 +1390,7 @@ static DECLCALLBACK(int) vhdCreate(const char *pszFilename, uint64_t cbSize,
         return rc;
     }
 
-    /* @todo Check the values of other params */
+    /** @todo Check the values of other params */
 
     pImage = (PVHDIMAGE)RTMemAllocZ(sizeof(VHDIMAGE));
     if (!pImage)
@@ -2087,6 +2096,7 @@ out:
 static DECLCALLBACK(int) vhdGetComment(void *pBackendData, char *pszComment,
                                        size_t cbComment)
 {
+    RT_NOREF2(pszComment, cbComment);
     LogFlowFunc(("pBackendData=%#p pszComment=%#p cbComment=%zu\n", pBackendData, pszComment, cbComment));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc;
@@ -2105,6 +2115,7 @@ static DECLCALLBACK(int) vhdGetComment(void *pBackendData, char *pszComment,
 /** @interface_method_impl{VBOXHDDBACKEND,pfnSetComment} */
 static DECLCALLBACK(int) vhdSetComment(void *pBackendData, const char *pszComment)
 {
+    RT_NOREF1(pszComment);
     LogFlowFunc(("pBackendData=%#p pszComment=\"%s\"\n", pBackendData, pszComment));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc;
@@ -2184,6 +2195,7 @@ static DECLCALLBACK(int) vhdSetUuid(void *pBackendData, PCRTUUID pUuid)
 /** @interface_method_impl{VBOXHDDBACKEND,pfnGetModificationUuid} */
 static DECLCALLBACK(int) vhdGetModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc;
@@ -2202,6 +2214,7 @@ static DECLCALLBACK(int) vhdGetModificationUuid(void *pBackendData, PRTUUID pUui
 /** @interface_method_impl{VBOXHDDBACKEND,pfnSetModificationUuid} */
 static DECLCALLBACK(int) vhdSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc;
@@ -2272,6 +2285,7 @@ static DECLCALLBACK(int) vhdSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 /** @interface_method_impl{VBOXHDDBACKEND,pfnGetParentModificationUuid} */
 static DECLCALLBACK(int) vhdGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc;
@@ -2290,6 +2304,7 @@ static DECLCALLBACK(int) vhdGetParentModificationUuid(void *pBackendData, PRTUUI
 /** @interface_method_impl{VBOXHDDBACKEND,pfnSetParentModificationUuid} */
 static DECLCALLBACK(int) vhdSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc;
@@ -2435,9 +2450,10 @@ static DECLCALLBACK(int) vhdCompact(void *pBackendData, unsigned uPercentStart,
                                     unsigned uPercentSpan, PVDINTERFACE pVDIfsDisk,
                                     PVDINTERFACE pVDIfsImage, PVDINTERFACE pVDIfsOperation)
 {
+    RT_NOREF2(pVDIfsDisk, pVDIfsImage);
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc = VINF_SUCCESS;
-    void *pvBuf = NULL, *pvReplace = NULL;
+    void *pvBuf = NULL;
     uint32_t *paBlocks = NULL;
 
     DECLCALLBACKMEMBER(int, pfnParentRead)(void *, uint64_t, void *, size_t) = NULL;
@@ -2546,7 +2562,7 @@ static DECLCALLBACK(int) vhdCompact(void *pBackendData, unsigned uPercentStart,
 
                 if (ASMBitFirstSet((volatile void *)pvBuf, (uint32_t)pImage->cbDataBlock * 8) == -1)
                 {
-                    paBat[i] = ~0;
+                    paBat[i] = UINT32_MAX;
                     paBlocks[idxBlock] = ~0U;
                     /* Adjust progress info, one block to be relocated. */
                     cBlocksToMove++;
@@ -2676,6 +2692,7 @@ static DECLCALLBACK(int) vhdResize(void *pBackendData, uint64_t cbSize,
                                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                                    PVDINTERFACE pVDIfsOperation)
 {
+    RT_NOREF4(uPercentSpan, uPercentStart, pVDIfsDisk, pVDIfsImage);
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc = VINF_SUCCESS;
 
@@ -3208,7 +3225,7 @@ const VBOXHDDBACKEND g_VhdBackend =
     /* uBackendCaps */
     VD_CAP_UUID | VD_CAP_DIFF | VD_CAP_FILE |
     VD_CAP_CREATE_FIXED | VD_CAP_CREATE_DYNAMIC |
-    VD_CAP_ASYNC | VD_CAP_VFS,
+    VD_CAP_ASYNC | VD_CAP_VFS | VD_CAP_PREFERRED,
     /* paFileExtensions */
     s_aVhdFileExtensions,
     /* paConfigInfo */

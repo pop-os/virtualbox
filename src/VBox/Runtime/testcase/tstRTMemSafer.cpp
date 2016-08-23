@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,8 @@
 
 static void doMemSaferScramble(RTTEST hTest, void *pvBuf, size_t cbAlloc)
 {
+    RT_NOREF_PV(hTest);
+
     /*
      * Fill it with random bytes and make a reference copy of these.
      */
@@ -128,7 +130,7 @@ static void doMemRealloc(RTTEST hTest)
         uint32_t cbNew = RTRandS32Ex(1, _16K + (i / 4) * _16K);
         RTTESTI_CHECK_RC_OK_RETV(RTMemSaferReallocZEx(cbAlloc, pvBuf, cbNew, &pvBuf, 0));
 
-        RTTESTI_CHECK(ASMMemIsAll8(pvBuf, RT_MIN(cbAlloc, cbNew), chFiller) == NULL);
+        RTTESTI_CHECK(ASMMemIsAllU8(pvBuf, RT_MIN(cbAlloc, cbNew), chFiller));
 
         chFiller += 0x31;
         memset(pvBuf, chFiller, cbNew);

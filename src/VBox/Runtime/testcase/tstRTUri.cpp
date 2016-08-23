@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@
 
 #if 0 && defined(RT_OS_WINDOWS) /* Enable for windows API reference results. */
 # define TSTRTURI_WITH_WINDOWS_REFERENCE_RESULTS
-# include <Shlwapi.h>
+# include <iprt/win/shlwapi.h>
 # include <iprt/stream.h>
 #endif
 
@@ -782,6 +782,7 @@ static void tstRTUriFilePathEx(void)
             }
             else
                 RTTestIFailed("#%u: bad testcase; pszCreatedPath is NULL\n", i);
+            RTStrFree(pszPath);
         }
         else if (rc != VERR_PATH_ZERO_LENGTH || RTStrCmp(pszUri, "file://") != 0)
             RTTestIFailed("#%u: '%s'/%#x => %Rrc", i, pszUri, fPathStyle, rc);
@@ -812,6 +813,7 @@ static void tstRTUriFileCreateEx(void)
             }
             else
                 RTTestIFailed("#%u: bad testcase; pszCreatedUri is NULL\n", i);
+            RTStrFree(pszUri);
         }
         else if (rc != VERR_INVALID_POINTER || pszPath != NULL)
             RTTestIFailed("#%u: '%s'/%#x => %Rrc", i, pszPath, fPathStyle, rc);

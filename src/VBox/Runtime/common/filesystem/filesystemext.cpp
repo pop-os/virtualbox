@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -273,7 +273,7 @@ static DECLCALLBACK(int) rtFsExtProbe(RTVFSFILE hVfsFile, uint32_t *puScore)
             if (RT_SUCCESS(rc))
             {
 #if defined(RT_BIGENDIAN)
-                /** @todo: Convert to host endianess. */
+                /** @todo Convert to host endianess. */
 #endif
                 if (SuperBlock.u16Signature == RTFILESYSTEM_EXT2_SIGNATURE)
                     *puScore = RTFILESYSTEM_MATCH_SCORE_SUPPORTED;
@@ -297,7 +297,7 @@ static DECLCALLBACK(int) rtFsExtInit(void *pvThis, RTVFSFILE hVfsFile)
     if (RT_SUCCESS(rc))
     {
 #if defined(RT_BIGENDIAN)
-        /** @todo: Convert to host endianess. */
+        /** @todo Convert to host endianess. */
 #endif
         if (SuperBlock.u16FilesystemState == RTFILESYSTEM_EXT2_STATE_ERRORS)
             rc = VERR_FILESYSTEM_CORRUPT;

@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -638,7 +638,6 @@ static void pcnetPollTimerStart(PPCNETSTATE pThis);
 #endif
 static int  pcnetXmitPending(PPCNETSTATE pThis, bool fOnWorkerThread);
 #ifdef PCNET_NO_POLLING
-PGM_ALL_CB_DECL(FNPGMPHYSHANDLER)   pcnetHandleRingWrite;
 # ifndef IN_RING3
 RT_C_DECLS_BEGIN
 DECLEXPORT(FNPGMRZPHYSPFHANDLER)    pcnetHandleRingWritePf;
@@ -766,7 +765,7 @@ DECLINLINE(void) pcnetTmdStorePassHost(PPCNETSTATE pThis, TMD *tmd, RTGCPHYS32 a
  * @param fRetIfNotOwn  return immediately after reading the own flag if we don't own the descriptor
  * @return              true if we own the descriptor, false otherwise
  */
-DECLINLINE(int) pcnetRmdLoad(PPCNETSTATE pThis, RMD *rmd, RTGCPHYS32 addr, bool fRetIfNotOwn)
+DECLINLINE(bool) pcnetRmdLoad(PPCNETSTATE pThis, RMD *rmd, RTGCPHYS32 addr, bool fRetIfNotOwn)
 {
     PPDMDEVINS pDevIns = PCNETSTATE_2_DEVINS(pThis);
     uint8_t    ownbyte;
@@ -1030,6 +1029,7 @@ DECLINLINE(int) padr_match(PPCNETSTATE pThis, const uint8_t *buf, size_t size)
          hdr->ether_dhost[3],hdr->ether_dhost[4],hdr->ether_dhost[5],
          padr[0],padr[1],padr[2],padr[3],padr[4],padr[5], result));
 #endif
+    RT_NOREF_PV(size);
     return result;
 }
 
@@ -1041,6 +1041,7 @@ DECLINLINE(int) padr_bcast(PPCNETSTATE pThis, const uint8_t *buf, size_t size)
 #ifdef PCNET_DEBUG_MATCH
     Log(("#%d padr_bcast result=%d\n", PCNET_INST_NR, result));
 #endif
+    RT_NOREF_PV(size);
    return result;
 }
 
@@ -1067,6 +1068,7 @@ static int ladr_match(PPCNETSTATE pThis, const uint8_t *buf, size_t size)
         return (ladr[index >> 3] & (1 << (index & 7)));
 #endif
     }
+    RT_NOREF_PV(size);
     return 0;
 }
 
@@ -1541,6 +1543,7 @@ static void pcnetStop(PPCNETSTATE pThis)
 }
 
 #ifdef IN_RING3
+
 static DECLCALLBACK(void) pcnetWakeupReceive(PPDMDEVINS pDevIns)
 {
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
@@ -1551,9 +1554,11 @@ static DECLCALLBACK(void) pcnetWakeupReceive(PPDMDEVINS pDevIns)
 
 static DECLCALLBACK(bool) pcnetCanRxQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem)
 {
+    RT_NOREF(pItem);
     pcnetWakeupReceive(pDevIns);
     return true;
 }
+
 #endif /* IN_RING3 */
 
 
@@ -1858,7 +1863,7 @@ static void pcnetReceiveNoSync(PPCNETSTATE pThis, const uint8_t *buf, size_t cbT
 
                 if (fAddFCS)
                 {
-                    uint32_t fcs = ~0;
+                    uint32_t fcs = UINT32_MAX;
                     uint8_t *p = src;
 
                     while (p != &src[cbToRecv])
@@ -2008,6 +2013,7 @@ static void pcnetReceiveNoSync(PPCNETSTATE pThis, const uint8_t *buf, size_t cbT
 }
 
 
+#ifdef IN_RING3
 /**
  * Transmit queue consumer
  * This is just a very simple way of delaying sending to R3.
@@ -2029,6 +2035,7 @@ static DECLCALLBACK(bool) pcnetXmitQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEIT
 
     return true;
 }
+#endif /* IN_RING3 */
 
 
 /**
@@ -2619,7 +2626,8 @@ static int pcnetAsyncTransmit(PPCNETSTATE pThis, bool fOnWorkerThread)
  */
 static int pcnetXmitPending(PPCNETSTATE pThis, bool fOnWorkerThread)
 {
-    int rc = VINF_SUCCESS;
+    RT_NOREF_PV(fOnWorkerThread);
+    int rc;
 
     /*
      * Grab the xmit lock of the driver as well as the E1K device state.
@@ -3301,7 +3309,7 @@ PDMBOTHCBDECL(int) pcnetIOPortAPromRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
     int         rc    = VINF_SUCCESS;
     STAM_PROFILE_ADV_START(&pThis->StatAPROMRead, a);
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
-
+    RT_NOREF_PV(pvUser);
 
     /* FreeBSD is accessing in dwords. */
     if (cb == 1)
@@ -3334,6 +3342,7 @@ PDMBOTHCBDECL(int) pcnetIOPortAPromWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
     int         rc    = VINF_SUCCESS;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    RT_NOREF_PV(pvUser);
 
     if (cb == 1)
     {
@@ -3354,11 +3363,9 @@ PDMBOTHCBDECL(int) pcnetIOPortAPromWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 
 static int pcnetIoportWriteU8(PPCNETSTATE pThis, uint32_t addr, uint32_t val)
 {
-    int rc = VINF_SUCCESS;
-
+    RT_NOREF1(val);
 #ifdef PCNET_DEBUG_IO
-    Log2(("#%d pcnetIoportWriteU8: addr=%#010x val=%#06x\n", PCNET_INST_NR,
-         addr, val));
+    Log2(("#%d pcnetIoportWriteU8: addr=%#010x val=%#06x\n", PCNET_INST_NR, addr, val));
 #endif
     if (RT_LIKELY(!BCR_DWIO(pThis)))
     {
@@ -3371,12 +3378,12 @@ static int pcnetIoportWriteU8(PPCNETSTATE pThis, uint32_t addr, uint32_t val)
     else
         Log(("#%d pcnetIoportWriteU8: addr=%#010x val=%#06x BCR_DWIO !!\n", PCNET_INST_NR, addr, val));
 
-    return rc;
+    return VINF_SUCCESS;
 }
 
 static uint32_t pcnetIoportReadU8(PPCNETSTATE pThis, uint32_t addr, int *pRC)
 {
-    uint32_t val = ~0U;
+    uint32_t val = UINT32_MAX;
 
     *pRC = VINF_SUCCESS;
 
@@ -3406,8 +3413,7 @@ static int pcnetIoportWriteU16(PPCNETSTATE pThis, uint32_t addr, uint32_t val)
     int rc = VINF_SUCCESS;
 
 #ifdef PCNET_DEBUG_IO
-    Log2(("#%d pcnetIoportWriteU16: addr=%#010x val=%#06x\n", PCNET_INST_NR,
-         addr, val));
+    Log2(("#%d pcnetIoportWriteU16: addr=%#010x val=%#06x\n", PCNET_INST_NR, addr, val));
 #endif
     if (RT_LIKELY(!BCR_DWIO(pThis)))
     {
@@ -3568,6 +3574,7 @@ PDMBOTHCBDECL(int) pcnetIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
     int         rc    = VINF_SUCCESS;
     STAM_PROFILE_ADV_START(&pThis->CTX_SUFF_Z(StatIORead), a);
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    RT_NOREF_PV(pvUser);
 
     switch (cb)
     {
@@ -3595,6 +3602,7 @@ PDMBOTHCBDECL(int) pcnetIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
     int         rc    = VINF_SUCCESS;
     STAM_PROFILE_ADV_START(&pThis->CTX_SUFF_Z(StatIOWrite), a);
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    RT_NOREF_PV(pvUser);
 
     switch (cb)
     {
@@ -3716,6 +3724,7 @@ PDMBOTHCBDECL(int) pcnetMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPh
     PPCNETSTATE pThis = (PPCNETSTATE)pvUser;
     int         rc    = VINF_SUCCESS;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    RT_NOREF_PV(pDevIns);
 
     /*
      * We have to check the range, because we're page aligning the MMIO.
@@ -3752,6 +3761,7 @@ PDMBOTHCBDECL(int) pcnetMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCP
     PPCNETSTATE pThis = (PPCNETSTATE)pvUser;
     int         rc    = VINF_SUCCESS;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    RT_NOREF_PV(pDevIns);
 
     /*
      * We have to check the range, because we're page aligning the MMIO stuff presently.
@@ -3787,6 +3797,7 @@ PDMBOTHCBDECL(int) pcnetMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCP
  */
 static DECLCALLBACK(void) pcnetTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     PPCNETSTATE pThis = (PPCNETSTATE)pvUser;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
 
@@ -3802,6 +3813,7 @@ static DECLCALLBACK(void) pcnetTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *
  */
 static DECLCALLBACK(void) pcnetTimerSoftInt(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     PPCNETSTATE pThis = (PPCNETSTATE)pvUser;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
 
@@ -3820,6 +3832,7 @@ static DECLCALLBACK(void) pcnetTimerSoftInt(PPDMDEVINS pDevIns, PTMTIMER pTimer,
  */
 static DECLCALLBACK(void) pcnetTimerRestore(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pTimer, pvUser);
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
     int         rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
     AssertReleaseRC(rc);
@@ -3856,6 +3869,7 @@ static DECLCALLBACK(void) pcnetTimerRestore(PPDMDEVINS pDevIns, PTMTIMER pTimer,
 static DECLCALLBACK(int) pcnetIOPortMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion,
                                         RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
 {
+    RT_NOREF(iRegion, cb, enmType);
     int         rc;
     PPDMDEVINS  pDevIns = pPciDev->pDevIns;
     RTIOPORT    Port    = (RTIOPORT)GCPhysAddress;
@@ -3907,6 +3921,7 @@ static DECLCALLBACK(int) pcnetIOPortMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRe
 static DECLCALLBACK(int) pcnetMMIOMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion,
                                       RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
 {
+    RT_NOREF(iRegion, cb, enmType);
     PPCNETSTATE pThis = PCIDEV_2_PCNETSTATE(pPciDev);
     int         rc;
 
@@ -4199,6 +4214,7 @@ static void pcnetSaveConfig(PPCNETSTATE pThis, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) pcnetLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF(uPass);
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
     pcnetSaveConfig(pThis, pSSM);
     return VINF_SSM_DONT_CALL_AGAIN;
@@ -4211,6 +4227,7 @@ static DECLCALLBACK(int) pcnetLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint
  */
 static DECLCALLBACK(int) pcnetSavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
 
     int rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
@@ -4394,6 +4411,7 @@ static DECLCALLBACK(int) pcnetLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint
  */
 static DECLCALLBACK(int) pcnetLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
     int rc = VINF_SUCCESS;
     if (pThis->fSharedRegion)
@@ -4685,6 +4703,7 @@ static DECLCALLBACK(void) pcnetPowerOff(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) pcnetDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
     Log(("#%d pcnetDetach:\n", PCNET_INST_NR));
 
@@ -4692,7 +4711,7 @@ static DECLCALLBACK(void) pcnetDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
 
     PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
-    /** @todo: r=pritesh still need to check if i missed
+    /** @todo r=pritesh still need to check if i missed
      * to clean something in this function
      */
 
@@ -4714,6 +4733,7 @@ static DECLCALLBACK(void) pcnetDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
  */
 static DECLCALLBACK(int) pcnetAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
     LogFlow(("#%d pcnetAttach:\n", PCNET_INST_NR));
 
@@ -4798,6 +4818,7 @@ static DECLCALLBACK(void) pcnetReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) pcnetRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
+    RT_NOREF(offDelta);
     PPCNETSTATE pThis = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
     pThis->pDevInsRC     = PDMDEVINS_2_RCPTR(pDevIns);
     pThis->pXmitQueueRC  = PDMQueueRCPtr(pThis->pXmitQueueR3);

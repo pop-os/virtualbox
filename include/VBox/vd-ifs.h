@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -431,8 +431,32 @@ typedef struct VDINTERFACEIO
      * @param   pvUser          The opaque data passed on container creation.
      * @param   pStorage        The opaque storage handle to close.
      * @param   cbSize          The new size of the image.
+     *
+     * @note Depending on the host the underlying storage (backing file, etc.)
+     *       might not have all required storage allocated (sparse file) which
+     *       can delay writes or fail with a not enough free space error if there
+     *       is not enough space on the storage medium when writing to the range for
+     *       the first time.
+     *       Use VDINTERFACEIO::pfnSetAllocationSize to make sure the storage is
+     *       really alloacted.
      */
     DECLR3CALLBACKMEMBER(int, pfnSetSize, (void *pvUser, void *pStorage, uint64_t cbSize));
+
+    /**
+     * Sets the size of the opened storage backend making sure the given size
+     * is really allocated.
+     *
+     * @return VBox status code.
+     * @retval VERR_NOT_SUPPORTED if the implementer of the interface doesn't support
+     *         this method.
+     * @param  pvUser          The opaque data passed on container creation.
+     * @param  pStorage        The storage handle.
+     * @param  cbSize          The new size of the image.
+     * @param  fFlags          Flags for controlling the allocation strategy.
+     *                         Reserved for future use, MBZ.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetAllocationSize, (void *pvUser, void *pStorage,
+                                                     uint64_t cbSize, uint32_t fFlags));
 
     /**
      * Synchronous write callback.
@@ -644,6 +668,29 @@ VBOXDDU_DECL(int) VDIfCreateVfsStream(PVDINTERFACEIO pVDIfsIo, void *pvStorage, 
  * @param   phVfsFile       Where to return the VFS file handle on success.
  */
 VBOXDDU_DECL(int) VDIfCreateVfsFile(PVDINTERFACEIO pVDIfs, struct VDINTERFACEIOINT *pVDIfsInt, void *pvStorage, uint32_t fFlags, PRTVFSFILE phVfsFile);
+
+/**
+ * Creates an VD I/O interface wrapper around an IPRT VFS I/O stream.
+ *
+ * @return  VBox status code.
+ * @param   hVfsIos         The IPRT VFS I/O stream handle. The handle will be
+ *                          retained by the returned I/O interface (released on
+ *                          close or destruction).
+ * @param   fAccessMode     The access mode (RTFILE_O_ACCESS_MASK) to accept.
+ * @param   ppIoIf          Where to return the pointer to the VD I/O interface.
+ *                          This must be passed to VDIfDestroyFromVfsStream().
+ */
+VBOXDDU_DECL(int) VDIfCreateFromVfsStream(RTVFSIOSTREAM hVfsIos, uint32_t fAccessMode, PVDINTERFACEIO *ppIoIf);
+
+/**
+ * Destroys the VD I/O interface returned by VDIfCreateFromVfsStream.
+ *
+ * @returns VBox status code.
+ * @param   pIoIf           The I/O interface pointer returned by
+ *                          VDIfCreateFromVfsStream.  NULL will be quietly
+ *                          ignored.
+ */
+VBOXDDU_DECL(int) VDIfDestroyFromVfsStream(PVDINTERFACEIO pIoIf);
 
 
 /**
@@ -1099,7 +1146,7 @@ typedef struct VDINTERFACETCPNET
      * Destroys the socket.
      *
      * @return iprt status code.
-     * @param  Sock       Socket descriptor.
+     * @param  Sock       Socket handle (/ pointer).
      */
     DECLR3CALLBACKMEMBER(int, pfnSocketDestroy, (VDSOCKET Sock));
 
@@ -1107,7 +1154,7 @@ typedef struct VDINTERFACETCPNET
      * Connect as a client to a TCP port.
      *
      * @return  iprt status code.
-     * @param   Sock            Socket descriptor.
+     * @param   Sock            Socket handle (/ pointer)..
      * @param   pszAddress      The address to connect to.
      * @param   uPort           The port to connect to.
      * @param   cMillies        Number of milliseconds to wait for the connect attempt to complete.
@@ -1122,7 +1169,7 @@ typedef struct VDINTERFACETCPNET
      * Close a TCP connection.
      *
      * @return  iprt status code.
-     * @param   Sock            Socket descriptor.
+     * @param   Sock            Socket handle (/ pointer).
      */
     DECLR3CALLBACKMEMBER(int, pfnClientClose, (VDSOCKET Sock));
 
@@ -1131,7 +1178,7 @@ typedef struct VDINTERFACETCPNET
      *
      * @returns true if the socket is connected.
      *          false otherwise.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      */
     DECLR3CALLBACKMEMBER(bool, pfnIsClientConnected, (VDSOCKET Sock));
 
@@ -1140,7 +1187,7 @@ typedef struct VDINTERFACETCPNET
      * Checks if the socket is ready for reading.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   cMillies    Number of milliseconds to wait for the socket.
      *                      Use RT_INDEFINITE_WAIT to wait for ever.
      */
@@ -1150,7 +1197,7 @@ typedef struct VDINTERFACETCPNET
      * Receive data from a socket.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   pvBuffer    Where to put the data we read.
      * @param   cbBuffer    Read buffer size.
      * @param   pcbRead     Number of bytes read.
@@ -1163,7 +1210,7 @@ typedef struct VDINTERFACETCPNET
      * Send data to a socket.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   pvBuffer    Buffer to write data to socket.
      * @param   cbBuffer    How much to write.
      */
@@ -1173,7 +1220,7 @@ typedef struct VDINTERFACETCPNET
      * Send data from scatter/gather buffer to a socket.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   pSgBuffer   Scatter/gather buffer to write data to socket.
      */
     DECLR3CALLBACKMEMBER(int, pfnSgWrite, (VDSOCKET Sock, PCRTSGBUF pSgBuffer));
@@ -1182,7 +1229,7 @@ typedef struct VDINTERFACETCPNET
      * Receive data from a socket - not blocking.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   pvBuffer    Where to put the data we read.
      * @param   cbBuffer    Read buffer size.
      * @param   pcbRead     Number of bytes read.
@@ -1193,7 +1240,7 @@ typedef struct VDINTERFACETCPNET
      * Send data to a socket - not blocking.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   pvBuffer    Buffer to write data to socket.
      * @param   cbBuffer    How much to write.
      * @param   pcbWritten  Number of bytes written.
@@ -1204,7 +1251,7 @@ typedef struct VDINTERFACETCPNET
      * Send data from scatter/gather buffer to a socket - not blocking.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   pSgBuffer   Scatter/gather buffer to write data to socket.
      * @param   pcbWritten  Number of bytes written.
      */
@@ -1214,7 +1261,7 @@ typedef struct VDINTERFACETCPNET
      * Flush socket write buffers.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      */
     DECLR3CALLBACKMEMBER(int, pfnFlush, (VDSOCKET Sock));
 
@@ -1222,7 +1269,7 @@ typedef struct VDINTERFACETCPNET
      * Enables or disables delaying sends to coalesce packets.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   fEnable     When set to true enables coalescing.
      */
     DECLR3CALLBACKMEMBER(int, pfnSetSendCoalescing, (VDSOCKET Sock, bool fEnable));
@@ -1231,7 +1278,7 @@ typedef struct VDINTERFACETCPNET
      * Gets the address of the local side.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   pAddr       Where to store the local address on success.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetLocalAddress, (VDSOCKET Sock, PRTNETADDR pAddr));
@@ -1240,7 +1287,7 @@ typedef struct VDINTERFACETCPNET
      * Gets the address of the other party.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket descriptor.
+     * @param   Sock        Socket handle (/ pointer).
      * @param   pAddr       Where to store the peer address on success.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetPeerAddress, (VDSOCKET Sock, PRTNETADDR pAddr));
@@ -1251,7 +1298,7 @@ typedef struct VDINTERFACETCPNET
      *
      * @return  iprt status code.
      * @retval  VERR_INTERRUPTED if the thread was woken up by a pfnPoke call.
-     * @param   Sock        Socket descriptor.
+     * @param   hVdSock     VD Socket handle(/pointer).
      * @param   fEvents     Mask of events to wait for.
      * @param   pfEvents    Where to store the received events.
      * @param   cMillies    Number of milliseconds to wait for the socket.
@@ -1264,7 +1311,7 @@ typedef struct VDINTERFACETCPNET
      * Wakes up the thread waiting in pfnSelectOneEx.
      *
      * @return iprt status code.
-     * @param  Sock        Socket descriptor.
+     * @param  hVdSock      VD Socket handle(/pointer).
      */
     DECLR3CALLBACKMEMBER(int, pfnPoke, (VDSOCKET Sock));
 

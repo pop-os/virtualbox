@@ -6,11 +6,11 @@ Index: virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp	2015-04-02 15:46:54.415740583 +0200
 +++ virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp	2015-04-02 15:46:54.411740580 +0200
-@@ -3865,34 +3865,12 @@
+@@ -4102,34 +4102,12 @@ int Console::i_configMediumAttachment(const char *pcszDevice,
                      if (   enmFsTypeFile == RTFSTYPE_EXT4
                          || enmFsTypeFile == RTFSTYPE_XFS)
                      {
--                        i_setVMRuntimeErrorCallbackF(0, "Ext4PartitionDetected",
+-                        i_atVMRuntimeErrorCallbackF(0, "Ext4PartitionDetected",
 -                                N_("The host I/O cache for at least one controller is disabled "
 -                                   "and the medium '%ls' for this VM "
 -                                   "is located on an %s partition. There is a known Linux "
@@ -27,7 +27,7 @@ Index: virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
                                  || enmFsTypeSnap == RTFSTYPE_XFS)
                               && !mfSnapshotFolderExt4WarningShown)
                      {
--                        i_setVMRuntimeErrorCallbackF(0, "Ext4PartitionDetected",
+-                        i_atVMRuntimeErrorCallbackF(0, "Ext4PartitionDetected",
 -                                N_("The host I/O cache for at least one controller is disabled "
 -                                   "and the snapshot folder for this VM "
 -                                   "is located on an %s partition. There is a known Linux "

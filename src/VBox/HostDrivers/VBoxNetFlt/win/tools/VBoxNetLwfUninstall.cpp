@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,16 +35,16 @@ static int VBoxNetLwfUninstall()
     VBoxNetCfgWinSetLogging(winNetCfgLogger);
 
     HRESULT hr = CoInitialize(NULL);
-    if(hr == S_OK)
+    if (hr == S_OK)
     {
         int i = 0;
         do
         {
             hr = VBoxNetCfgWinQueryINetCfg(&pnc, TRUE, VBOX_NETCFG_APP_NAME, 10000, &lpszLockedBy);
-            if(hr == S_OK)
+            if (hr == S_OK)
             {
                 hr = VBoxNetCfgWinNetLwfUninstall(pnc);
-                if(hr != S_OK)
+                if (hr != S_OK)
                 {
                     wprintf(L"error uninstalling VBoxNetLwf (0x%x)\n", hr);
                     r = 1;
@@ -58,9 +58,9 @@ static int VBoxNetLwfUninstall()
                 VBoxNetCfgWinReleaseINetCfg(pnc, TRUE);
                 break;
             }
-            else if(hr == NETCFG_E_NO_WRITE_LOCK && lpszLockedBy)
+            else if (hr == NETCFG_E_NO_WRITE_LOCK && lpszLockedBy)
             {
-                if(i < VBOX_NETLWF_RETRIES && !wcscmp(lpszLockedBy, L"6to4svc.dll"))
+                if (i < VBOX_NETLWF_RETRIES && !wcscmp(lpszLockedBy, L"6to4svc.dll"))
                 {
                     wprintf(L"6to4svc.dll is holding the lock, retrying %d out of %d\n", ++i, VBOX_NETLWF_RETRIES);
                     CoTaskMemFree(lpszLockedBy);
@@ -79,7 +79,7 @@ static int VBoxNetLwfUninstall()
                 r = 1;
                 break;
             }
-        } while(true);
+        } while (true);
 
         CoUninitialize();
     }
@@ -96,5 +96,6 @@ static int VBoxNetLwfUninstall()
 
 int __cdecl main(int argc, char **argv)
 {
+    RT_NOREF2(argc, argv);
     return VBoxNetLwfUninstall();
 }

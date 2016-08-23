@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -362,7 +362,7 @@ QTextLayout* UIGraphicsTextPane::buildTextLayout(const QFont &font, QPaintDevice
     int iLeading = fm.leading();
 
     /* Parse incoming string with UIRichTextString capabilities: */
-    //printf("Text: {%s}\n", strText.toAscii().constData());
+    //printf("Text: {%s}\n", strText.toUtf8().constData());
     UIRichTextString ms(strText);
     ms.setHoveredAnchor(strHoveredAnchor);
 

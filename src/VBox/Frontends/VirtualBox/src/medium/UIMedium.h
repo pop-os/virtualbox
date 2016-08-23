@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -257,7 +257,7 @@ public:
     /** Returns whether this medium is hidden.
       * @note The medium is considered 'hidden' if it has corresponding
       *       medium property or is connected to 'hidden' VMs only. */
-    bool isHidden() const { return m_fHidden | m_fUsedByHiddenMachinesOnly; }
+    bool isHidden() const { return m_fHidden || m_fUsedByHiddenMachinesOnly; }
 
     /** Returns whether this medium is read-only
       * (either because it is Immutable or because it has child hard drives).

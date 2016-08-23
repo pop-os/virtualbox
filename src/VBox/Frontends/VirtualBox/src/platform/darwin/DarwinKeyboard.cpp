@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1699,7 +1699,7 @@ static CGEventRef darwinCarbonCallback(CGEventTapProxy unused, CGEventType unuse
     bool         fNum  = (bool)(fMask & NX_NUMERICPADMASK);
     CGKeyCode    key   = CGEventGetIntegerValueField(pEventRef, kCGKeyboardEventKeycode);
 
-    VBoxHidsState_t *pHidState = (VBoxHidsState_t *)pData; AssertReturn(pHidState, pEventRef);
+    VBoxHidsState_t *pHidState = (VBoxHidsState_t *)pData;
     AssertReturn(pHidState, pEventRef);
 
     if (RT_FAILURE(RTSemMutexRequest(pHidState->fifoEventQueueLock, RT_INDEFINITE_WAIT)))

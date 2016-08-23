@@ -1,10 +1,10 @@
 /* $Id: DnDPath.cpp $ */
 /** @file
- * DnD: Path handling.
+ * DnD - Path handling.
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,15 +37,26 @@ int DnDPathSanitizeFilename(char *pszPath, size_t cbPath)
 {
     int rc = VINF_SUCCESS;
 #ifdef RT_OS_WINDOWS
-    /* Filter out characters not allowed on Windows platforms, put in by
-       RTTimeSpecToString(). */
-    /** @todo Use something like RTPathSanitize() when available. Later. */
-    RTUNICP aCpSet[] =
-        { ' ', ' ', '(', ')', '-', '.', '0', '9', 'A', 'Z', 'a', 'z', '_', '_',
-          0xa0, 0xd7af, '\0' };
-    ssize_t cReplaced = RTStrPurgeComplementSet(pszPath, aCpSet, '_' /* Replacement */);
+    RT_NOREF1(cbPath);
+    /* Replace out characters not allowed on Windows platforms, put in by RTTimeSpecToString(). */
+    /** @todo Use something like RTPathSanitize() if available later some time. */
+    static const RTUNICP s_uszValidRangePairs[] =
+    {
+        ' ', ' ',
+        '(', ')',
+        '-', '.',
+        '0', '9',
+        'A', 'Z',
+        'a', 'z',
+        '_', '_',
+        0xa0, 0xd7af,
+        '\0'
+    };
+    ssize_t cReplaced = RTStrPurgeComplementSet(pszPath, s_uszValidRangePairs, '_' /* chReplacement */);
     if (cReplaced < 0)
         rc = VERR_INVALID_UTF8_ENCODING;
+#else
+    RT_NOREF2(pszPath, cbPath);
 #endif
     return rc;
 }
@@ -53,6 +64,7 @@ int DnDPathSanitizeFilename(char *pszPath, size_t cbPath)
 int DnDPathSanitize(char *pszPath, size_t cbPath)
 {
     /** @todo */
+    RT_NOREF2(pszPath, cbPath);
     return VINF_SUCCESS;
 }
 

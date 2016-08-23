@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,9 +48,9 @@
 # include "CStorageController.h"
 # include "CMediumAttachment.h"
 
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include "UIWindowMenuManager.h"
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -1086,12 +1086,12 @@ void UIMediumManager::prepareMenuBar()
         m_pMenu->addAction(m_pActionRefresh);
     }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Prepare 'Window' menu: */
     AssertPtrReturnVoid(gpWindowMenuManager);
     menuBar()->addMenu(gpWindowMenuManager->createMenu(this));
     gpWindowMenuManager->addWindow(this);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 }
 
 void UIMediumManager::prepareContextMenu()
@@ -1153,20 +1153,20 @@ void UIMediumManager::prepareToolBar()
             m_pToolBar->addAction(m_pActionRefresh);
         /* Integrate tool-bar into dialog: */
         QVBoxLayout *pMainLayout = qobject_cast<QVBoxLayout*>(centralWidget()->layout());
-#if MAC_LEOPARD_STYLE
+#ifdef VBOX_WS_MAC
         /* Enable unified tool-bars on Mac OS X. Available on Qt >= 4.3: */
         addToolBar(m_pToolBar);
         m_pToolBar->enableMacToolbar();
         /* No spacing/margin on the Mac: */
         pMainLayout->setContentsMargins(0, 0, 0, 0);
         pMainLayout->insertSpacing(0, 10);
-#else /* MAC_LEOPARD_STYLE */
+#else /* !VBOX_WS_MAC */
         /* Add the tool-bar: */
         pMainLayout->insertWidget(0, m_pToolBar);
         /* Set spacing/margin like in the selector window: */
         pMainLayout->setSpacing(5);
         pMainLayout->setContentsMargins(5, 5, 5, 5);
-#endif /* !MAC_LEOPARD_STYLE */
+#endif /* !VBOX_WS_MAC */
     }
 }
 
@@ -1230,11 +1230,23 @@ void UIMediumManager::prepareTreeWidget(UIMediumType type, int iColumns)
         pTreeWidget->setColumnCount(iColumns);
         pTreeWidget->sortItems(0, Qt::AscendingOrder);
         if (iColumns > 0)
+#if QT_VERSION >= 0x050000
+            pTreeWidget->header()->setSectionResizeMode(0, QHeaderView::Fixed);
+#else /* QT_VERSION < 0x050000 */
             pTreeWidget->header()->setResizeMode(0, QHeaderView::Fixed);
+#endif /* QT_VERSION < 0x050000 */
         if (iColumns > 1)
+#if QT_VERSION >= 0x050000
+            pTreeWidget->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+#else /* QT_VERSION < 0x050000 */
             pTreeWidget->header()->setResizeMode(1, QHeaderView::ResizeToContents);
+#endif /* QT_VERSION < 0x050000 */
         if (iColumns > 2)
+#if QT_VERSION >= 0x050000
+            pTreeWidget->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+#else /* QT_VERSION < 0x050000 */
             pTreeWidget->header()->setResizeMode(2, QHeaderView::ResizeToContents);
+#endif /* QT_VERSION < 0x050000 */
         pTreeWidget->header()->setStretchLastSection(false);
         pTreeWidget->setSortingEnabled(true);
         connect(pTreeWidget, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)),
@@ -1382,11 +1394,11 @@ void UIMediumManager::refetchCurrentMediumItem(UIMediumType type)
     /* Get corresponding medium-item: */
     UIMediumItem *pMediumItem = mediumItem(type);
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Set the file for the proxy icon: */
     if (pMediumItem == currentMediumItem())
         setWindowFilePath(pMediumItem ? pMediumItem->location() : QString());
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Make sure current medium-item visible: */
     if (pMediumItem)
@@ -1565,6 +1577,8 @@ void UIMediumManager::updateTabIcons(UIMediumItem *pMediumItem, Action action)
 
             break;
         }
+
+        case Action_Copy: case Action_Modify: case Action_Release: break; /* Shut up MSC */
     }
 }
 
@@ -1702,12 +1716,12 @@ void UIMediumManager::updateInformationFieldsFD()
 
 void UIMediumManager::cleanupMenuBar()
 {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Cleanup 'Window' menu: */
     AssertPtrReturnVoid(gpWindowMenuManager);
     gpWindowMenuManager->removeWindow(this);
     gpWindowMenuManager->destroyMenu(this);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 }
 
 void UIMediumManager::cleanup()
@@ -1718,7 +1732,7 @@ void UIMediumManager::cleanup()
 
 void UIMediumManager::retranslateUi()
 {
-    // TODO: Rename translation context in .nls files!
+    /// @todo Rename translation context in .nls files!
     /* Most of these translations were moved from VBoxMediaManagerDlg.ui file
      * to keep old translation context.. */
 
@@ -1762,16 +1776,14 @@ void UIMediumManager::retranslateUi()
     }
 
     /* Translate tool-bar: */
-#ifdef Q_WS_MAC
-# ifdef QT_MAC_USE_COCOA
+#ifdef VBOX_WS_MAC
     /* There is a bug in Qt Cocoa which result in showing a "more arrow" when
        the necessary size of the toolbar is increased. Also for some languages
        the with doesn't match if the text increase. So manually adjust the size
        after changing the text. */
     if (m_pToolBar)
         m_pToolBar->updateLayout();
-# endif /* QT_MAC_USE_COCOA */
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Translate tab-widget: */
     if (m_pTabWidget)
@@ -1842,14 +1854,14 @@ void UIMediumManager::retranslateUi()
     if (m_pProgressBar)
     {
         m_pProgressBar->setText(QApplication::translate("VBoxMediaManagerDlg", "Checking accessibility"));
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /* Make sure that the widgets aren't jumping around
          * while the progress-bar get visible. */
         m_pProgressBar->adjustSize();
         int h = m_pProgressBar->height();
         if (m_pButtonBox)
             m_pButtonBox->setMinimumHeight(h + 12);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     }
 
     /* Full refresh if there is at least one item present: */
@@ -1900,7 +1912,7 @@ UIMediumItem* UIMediumManager::createMediumItem(const UIMedium &medium)
                 /* Make sure item was created: */
                 if (!pMediumItem)
                     break;
-                LogRel2(("UIMediumManager: Optical medium-item with ID={%s} created.\n", medium.id().toAscii().constData()));
+                LogRel2(("UIMediumManager: Optical medium-item with ID={%s} created.\n", medium.id().toUtf8().constData()));
                 if (pMediumItem->id() == m_strCurrentIdCD)
                 {
                     setCurrentItem(pTreeWidget, pMediumItem);
@@ -1921,7 +1933,7 @@ UIMediumItem* UIMediumManager::createMediumItem(const UIMedium &medium)
                 /* Make sure item was created: */
                 if (!pMediumItem)
                     break;
-                LogRel2(("UIMediumManager: Floppy medium-item with ID={%s} created.\n", medium.id().toAscii().constData()));
+                LogRel2(("UIMediumManager: Floppy medium-item with ID={%s} created.\n", medium.id().toUtf8().constData()));
                 if (pMediumItem->id() == m_strCurrentIdFD)
                 {
                     setCurrentItem(pTreeWidget, pMediumItem);
@@ -1974,7 +1986,7 @@ UIMediumItem* UIMediumManager::createHardDiskItem(const UIMedium &medium)
                     /* Make sure corresponding parent medium is already cached! */
                     UIMedium parentMedium = vboxGlobal().medium(medium.parentID());
                     if (parentMedium.isNull())
-                        AssertMsgFailed(("Parent medium with ID={%s} was not found!\n", medium.parentID().toAscii().constData()));
+                        AssertMsgFailed(("Parent medium with ID={%s} was not found!\n", medium.parentID().toUtf8().constData()));
                     /* Try to create parent medium-item: */
                     else
                         pParentMediumItem = createHardDiskItem(parentMedium);
@@ -1983,14 +1995,14 @@ UIMediumItem* UIMediumManager::createHardDiskItem(const UIMedium &medium)
                 if (pParentMediumItem)
                 {
                     pMediumItem = new UIMediumItemHD(medium, pParentMediumItem);
-                    LogRel2(("UIMediumManager: Child hard-disk medium-item with ID={%s} created.\n", medium.id().toAscii().constData()));
+                    LogRel2(("UIMediumManager: Child hard-disk medium-item with ID={%s} created.\n", medium.id().toUtf8().constData()));
                 }
             }
             /* Else just create item as top-level one: */
             if (!pMediumItem)
             {
                 pMediumItem = new UIMediumItemHD(medium, pTreeWidget);
-                LogRel2(("UIMediumManager: Root hard-disk medium-item with ID={%s} created.\n", medium.id().toAscii().constData()));
+                LogRel2(("UIMediumManager: Root hard-disk medium-item with ID={%s} created.\n", medium.id().toUtf8().constData()));
             }
         }
 
@@ -2020,7 +2032,7 @@ void UIMediumManager::updateMediumItem(const UIMedium &medium)
 
     /* Update medium-item: */
     pMediumItem->setMedium(medium);
-    LogRel2(("UIMediumManager: Medium-item with ID={%s} updated.\n", medium.id().toAscii().constData()));
+    LogRel2(("UIMediumManager: Medium-item with ID={%s} updated.\n", medium.id().toUtf8().constData()));
 
     /* Update tab-icons: */
     updateTabIcons(pMediumItem, Action_Edit);
@@ -2056,7 +2068,7 @@ void UIMediumManager::deleteMediumItem(const QString &strMediumID)
 
     /* Delete medium-item: */
     delete pMediumItem;
-    LogRel2(("UIMediumManager: Medium-item with ID={%s} deleted.\n", strMediumID.toAscii().constData()));
+    LogRel2(("UIMediumManager: Medium-item with ID={%s} deleted.\n", strMediumID.toUtf8().constData()));
 
     /* If there is no current medium-item now selected
      * we have to choose first-available medium-item as current one: */
@@ -2312,6 +2324,8 @@ bool UIMediumManager::checkMediumFor(UIMediumItem *pItem, Action action)
             /* Releasable if attached but not in snapshots: */
             return pItem->isUsed() && !pItem->isUsedInSnapshots();
         }
+
+        case Action_Add: break; /* Shut up MSC */
     }
 
     AssertFailedReturn(false);

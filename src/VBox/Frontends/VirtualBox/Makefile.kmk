@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -91,8 +91,12 @@ IMAGES         :=
 #
 # VirtualBox - The GUI program.
 #
-USES += qt4
-VirtualBox_TEMPLATE := $(if $(VBOX_WITH_HARDENING),VBOXQT4GUI,VBOXQT4GUIEXE)
+ifndef VBOX_WITH_QTGUI_V5
+ USES += qt4
+else # VBOX_WITH_QTGUI_V5
+ USES += qt5
+endif # VBOX_WITH_QTGUI_V5
+VirtualBox_TEMPLATE := $(if $(VBOX_WITH_HARDENING),VBOXQTGUI,VBOXQTGUIEXE)
 VirtualBox_NAME = VirtualBox
 ifndef VBOX_WITH_HARDENING      # For the launch trick we need different inode numbers.
  VirtualBox_INST.darwin = $(INST_BIN)VirtualBox $(INST_BIN)VirtualBoxVM
@@ -108,14 +112,19 @@ VirtualBox_DEFS.darwin    = VBOX_WITH_TRANSLUCENT_SEAMLESS # VBOX_WITH_MASKED_SE
 VirtualBox_DEFS.win       = VBOX_WITH_MASKED_SEAMLESS # VBOX_WITH_TRANSLUCENT_SEAMLESS
 VirtualBox_DEFS.win       += UNICODE QT_DLL
 ifdef VBOX_WITH_ICHAT_THEATER
- VirtualBox_DEFS.darwin += VBOX_WITH_ICHAT_THEATER
+ VirtualBox_DEFS.darwin   += VBOX_WITH_ICHAT_THEATER
 endif
-VirtualBox_DEFS          += \
+VirtualBox_DEFS.linux     += VBOX_WS_X11
+VirtualBox_DEFS.solaris   += VBOX_WS_X11
+VirtualBox_DEFS.freebsd   += VBOX_WS_X11
+VirtualBox_DEFS.darwin    += VBOX_WS_MAC
+VirtualBox_DEFS.win       += VBOX_WS_WIN
+VirtualBox_DEFS           += \
 	$(if $(VBOX_WITH_ADDITIONS_AUTOUPDATE_UI),VBOX_WITH_ADDITIONS_AUTOUPDATE_UI) \
 	$(if $(VBOX_WITH_UPDATE_REQUEST),VBOX_WITH_UPDATE_REQUEST) \
-	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA) \
-	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE) \
-	$(if $(VBOX_WITH_SOLARIS_OSS),VBOX_WITH_SOLARIS_OSS) \
+	$(if $(VBOX_WITH_AUDIO_OSS),VBOX_WITH_AUDIO_OSS) \
+	$(if $(VBOX_WITH_AUDIO_ALSA),VBOX_WITH_AUDIO_ALSA) \
+	$(if $(VBOX_WITH_AUDIO_PULSE),VBOX_WITH_AUDIO_PULSE) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
 	$(if $(VBOX_WITH_NETFLT)$(eq $(KBUILD_TARGET),freebsd),VBOX_WITH_NETFLT) \
 	$(if $(VBOX_WITH_VDE),VBOX_WITH_VDE) \
@@ -151,6 +160,9 @@ ifdef VBOX_WITH_LIBCURL
  VirtualBox_DEFS        += VBOX_GUI_WITH_NETWORK_MANAGER
  VBOX_GUI_WITH_NETWORK_MANAGER := 1
 endif
+ifneq ($(KBUILD_TYPE),release)
+ VirtualBox_DEFS        += VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
+endif
 ifdef VBOX_BLEEDING_EDGE
 VirtualBox_src/selector/UISelectorWindow.cpp_DEFS += \
     VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\"
@@ -182,6 +194,7 @@ VBOX_GUI_INC_DIRS = \
 	./src/runtime/normal \
 	./src/runtime/scale \
 	./src/runtime/seamless \
+	./src/runtime/information \
 	./src/selector \
 	./src/selector/graphics/chooser \
 	./src/selector/graphics/details \
@@ -220,8 +233,26 @@ VirtualBox_LIBS.linux   += Xinerama
 VirtualBox_LIBS.solaris += Xinerama
 VirtualBox_LIBS.freebsd += Xinerama
 
+ifdef VBOX_WITH_QTGUI_V5
+ # No Qt5 without Xcb under X11:
+ VirtualBox_LIBS.linux   += xcb
+ VirtualBox_LIBS.solaris += xcb
+ VirtualBox_LIBS.freebsd += xcb
+endif # VBOX_WITH_QTGUI_V5
+
 ifneq ($(KBUILD_TARGET),win)
 VirtualBox_CXXFLAGS += -Wno-switch
+endif
+
+## @todo we're using a number of deprecated APIs, please fix and remove these!
+ifdef VBOX_WITH_NEW_XCODE
+ VirtualBox_CXXFLAGS.darwin    += -Wno-error=deprecated-declarations
+ VirtualBox_OBJCFLAGS.darwin   += -Wno-error=deprecated-declarations
+ VirtualBox_OBJCXXFLAGS.darwin += -Wno-error=deprecated-declarations
+else
+ VirtualBox_CXXFLAGS.darwin    += -Wno-deprecated-declarations
+ VirtualBox_OBJCFLAGS.darwin   += -Wno-deprecated-declarations
+ VirtualBox_OBJCXXFLAGS.darwin += -Wno-deprecated-declarations
 endif
 
 ifeq ($(KBUILD_TYPE),release)
@@ -287,6 +318,7 @@ VirtualBox_QT_MOCHDRS = \
 	src/extensions/QILabelSeparator.h \
 	src/extensions/QIListView.h \
 	src/extensions/QIMainDialog.h \
+	src/extensions/QIMainWindow.h \
 	src/extensions/QIMenu.h \
 	src/extensions/QIMessageBox.h \
 	src/extensions/QIProcess.h \
@@ -409,6 +441,8 @@ VirtualBox_QT_MOCHDRS = \
 	src/widgets/UIApplianceImportEditorWidget.h \
 	src/widgets/UIBar.h \
 	src/widgets/UIBootTable.h \
+	src/widgets/UIFilePathSelector.h \
+	src/widgets/UIEmptyFilePathSelector.h \
 	src/widgets/UIHostComboEditor.h \
 	src/widgets/UIHotKeyEditor.h \
 	src/widgets/UILineTextEdit.h \
@@ -424,7 +458,6 @@ VirtualBox_QT_MOCHDRS = \
 	src/widgets/UISpacerWidgets.h \
 	src/widgets/UISpecialControls.h \
 	src/widgets/UIToolBar.h \
-	src/widgets/VBoxFilePathSelectorWidget.h \
 	src/widgets/VBoxMediaComboBox.h \
 	src/widgets/UIMiniToolBar.h \
 	src/widgets/VBoxOSTypeSelectorButton.h \
@@ -470,7 +503,14 @@ VirtualBox_QT_MOCHDRS = \
 	src/wizards/importappliance/UIWizardImportAppPageBasic2.h \
 	src/wizards/importappliance/UIWizardImportAppPageExpert.h \
 	src/wizards/firstrun/UIWizardFirstRun.h \
-	src/wizards/firstrun/UIWizardFirstRunPageBasic.h
+	src/wizards/firstrun/UIWizardFirstRunPageBasic.h \
+	src/runtime/information/UIInformationConfiguration.h \
+	src/runtime/information/UIInformationDataItem.h \
+	src/runtime/information/UIInformationItem.h \
+	src/runtime/information/UIInformationModel.h \
+	src/runtime/information/UIInformationRuntime.h \
+	src/runtime/information/UIInformationView.h \
+	src/runtime/information/UIVMInformationDialog.h
 
 ifdef VBOX_GUI_WITH_NETWORK_MANAGER
  VirtualBox_QT_MOCHDRS += \
@@ -508,18 +548,21 @@ VirtualBox_QT_MOCSRCS = \
 	src/extensions/QIArrowSplitter.cpp \
 	src/extensions/QISplitter.cpp \
 	src/extensions/QIAdvancedToolBar.cpp \
+	src/extensions/QITableView.cpp \
 	src/extradata/UIExtraDataManager.cpp \
 	src/globals/UIActionPool.cpp \
-	src/globals/UIDesktopWidgetWatchdog.cpp \
+	src/globals/UIMainEventListener.cpp \
 	src/globals/UIThreadPool.cpp \
 	src/medium/UIMediumEnumerator.cpp \
 	src/medium/UIMediumManager.cpp \
 	src/runtime/UIActionPoolRuntime.cpp \
 	src/runtime/UIAddDiskEncryptionPasswordDialog.cpp \
+	src/runtime/UIConsoleEventHandler.cpp \
 	src/runtime/UIFrameBuffer.cpp \
 	src/runtime/UIIndicatorsPool.cpp \
 	src/runtime/UIStatusBarEditorWindow.cpp \
 	src/selector/UIActionPoolSelector.cpp \
+	src/selector/UIVirtualBoxEventHandler.cpp \
 	src/selector/UIVMDesktop.cpp \
 	src/settings/machine/UIMachineSettingsStorage.cpp \
 	src/settings/machine/UIMachineSettingsUSB.cpp \
@@ -535,9 +578,15 @@ ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 endif
 
 VirtualBox_QT_MOCSRCS.darwin += \
-    src/platform/darwin/UIWindowMenuManager.cpp
+	src/platform/darwin/UIWindowMenuManager.cpp
 VirtualBox_QT_MOCSRCS.win += \
 	src/extensions/QIFileDialog.cpp
+VirtualBox_QT_MOCSRCS.linux += \
+	src/globals/UIDesktopWidgetWatchdog.cpp
+VirtualBox_QT_MOCSRCS.solaris += \
+	src/globals/UIDesktopWidgetWatchdog.cpp
+VirtualBox_QT_MOCSRCS.freebsd += \
+	src/globals/UIDesktopWidgetWatchdog.cpp
 
 ifdef VBOX_WITH_XPCOM
  VirtualBox_QT_MOCSRCS += \
@@ -569,6 +618,7 @@ VirtualBox_SOURCES = \
 	src/extensions/QILineEdit.cpp \
 	src/extensions/QIListView.cpp \
 	src/extensions/QIMainDialog.cpp \
+	src/extensions/QIMainWindow.cpp \
 	src/extensions/QIMenu.cpp \
 	src/extensions/QIMessageBox.cpp \
 	src/extensions/QIProcess.cpp \
@@ -695,6 +745,8 @@ VirtualBox_SOURCES = \
 	src/widgets/UIApplianceImportEditorWidget.cpp \
 	src/widgets/UIBar.cpp \
 	src/widgets/UIBootTable.cpp \
+	src/widgets/UIFilePathSelector.cpp \
+	src/widgets/UIEmptyFilePathSelector.cpp \
 	src/widgets/UIHostComboEditor.cpp \
 	src/widgets/UIHotKeyEditor.cpp \
 	src/widgets/UILineTextEdit.cpp \
@@ -709,7 +761,6 @@ VirtualBox_SOURCES = \
 	src/widgets/UIProgressDialog.cpp \
 	src/widgets/UISpecialControls.cpp \
 	src/widgets/UIToolBar.cpp \
-	src/widgets/VBoxFilePathSelectorWidget.cpp \
 	src/widgets/VBoxGuestRAMSlider.cpp \
 	src/widgets/VBoxMediaComboBox.cpp \
 	src/widgets/UIMiniToolBar.cpp \
@@ -756,7 +807,14 @@ VirtualBox_SOURCES = \
 	src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp \
 	src/wizards/importappliance/UIWizardImportAppPageExpert.cpp \
 	src/wizards/firstrun/UIWizardFirstRun.cpp \
-	src/wizards/firstrun/UIWizardFirstRunPageBasic.cpp
+	src/wizards/firstrun/UIWizardFirstRunPageBasic.cpp \
+	src/runtime/information/UIInformationConfiguration.cpp \
+	src/runtime/information/UIInformationDataItem.cpp \
+	src/runtime/information/UIInformationItem.cpp \
+	src/runtime/information/UIInformationModel.cpp \
+	src/runtime/information/UIInformationRuntime.cpp \
+	src/runtime/information/UIInformationView.cpp \
+	src/runtime/information/UIVMInformationDialog.cpp
 
 ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 VirtualBox_SOURCES += \
@@ -794,6 +852,19 @@ VirtualBox_SOURCES.win += \
 	src/platform/win/UIDesktopServices_win.cpp \
 	src/platform/win/VBoxUtils-win.cpp \
 	src/platform/win/WinKeyboard.cpp
+
+if defined(VBOX_WITH_QTGUI_V5) && (defined(VBOX_WITH_ORACLE_QT) || defined(VBOX_WITH_QT_PAYLOAD))
+ INSTALLS.linux += VirtualBox.qt.conf
+ INSTALLS.solaris += VirtualBox.qt.conf
+ VirtualBox.qt.conf_INST = $(INST_BIN)
+ VirtualBox.qt.conf_MODE = 644
+ VirtualBox.qt.conf_SOURCES = $(VirtualBox_0_OUTDIR)/qt.conf=>qt.conf
+
+$$(VirtualBox_0_OUTDIR)/qt.conf: $(PATH_SUB_CURRENT)/Makefile.kmk $(VBOX_VERSION_MK) | $$(@D)/
+	$(QUIET)$(RM) -f $@
+	$(QUIET)$(APPEND) $@ "[Paths]"
+	$(QUIET)$(APPEND) $@ "Plugins =" $(PATH_OUT)/$(INST_BIN)/plugins
+endif
 
 VirtualBox_DEFS.darwin += VBOX_DARWIN_USE_NATIVE_CONTROLS
 VirtualBox_SOURCES.darwin += \
@@ -838,6 +909,15 @@ endif
 # The Qt modules we're using.
 # (The include directory and lib/framework for each module will be added by the Qt4 unit.)
 VirtualBox_QT_MODULES = Core Gui
+ifdef VBOX_WITH_QTGUI_V5
+ # Qt5 requires additional modules:
+ VirtualBox_QT_MODULES += Widgets PrintSupport
+ VirtualBox_QT_MODULES.linux   += X11Extras
+ VirtualBox_QT_MODULES.solaris += X11Extras
+ VirtualBox_QT_MODULES.freebsd += X11Extras
+ VirtualBox_QT_MODULES.darwin  += MacExtras
+ VirtualBox_QT_MODULES.win     += WinExtras
+endif # VBOX_WITH_QTGUI_V5
 if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
  VirtualBox_QT_MODULES += OpenGL
 endif
@@ -1048,7 +1128,13 @@ VirtualBox.app_SOURCES = \
 	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-vhd.icns=>Resources/virtualbox-vhd.icns \
 	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-hdd.icns=>Resources/virtualbox-hdd.icns
 
-$$(VirtualBox.app_0_OUTDIR)/Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/Info.plist $(VBOX_VERSION_MK) | $$(@D)/
+ ifdef VBOX_WITH_QTGUI_V5
+ # Qt5 requires qt.conf on Mac OS X:
+ VirtualBox.app_SOURCES += \
+ 	$(VirtualBox.app_0_OUTDIR)/qt.conf=>Resources/qt.conf
+ endif # VBOX_WITH_QTGUI_V5
+
+ $$(VirtualBox.app_0_OUTDIR)/Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/Info.plist $(VBOX_VERSION_MK) | $$(@D)/
 	$(call MSG_GENERATE,VirtualBox.app,$<,$@)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
@@ -1061,17 +1147,22 @@ $$(VirtualBox.app_0_OUTDIR)/Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/
 		-e 's/@VBOX_C_YEAR@/$(VBOX_C_YEAR)/g' \
 		$< > $@
 
-INSTALLS += VirtualBoxVM.app
-VirtualBoxVM.app_INST = $(VirtualBox.app_INST)Resources/VirtualBoxVM.app/Contents/
-VirtualBoxVM.app_MODE = 644
-VirtualBoxVM.app_SOURCES = \
-	src/platform/darwin/VM-PkgInfo=>PkgInfo \
-	$(VirtualBoxVM.app_0_OUTDIR)/VM-Info.plist=>Info.plist \
-       $(foreach mysrc,$(VirtualBox.app_SOURCES),$(if-expr $(pos =>Resources/,$(mysrc)) > 0,$(mysrc),))
-VirtualBoxVM.app_SYMLINKS = \
-	MacOS=>../../../MacOS/
+ $$(VirtualBox.app_0_OUTDIR)/qt.conf: $(PATH_SUB_CURRENT)/Makefile.kmk $(VBOX_VERSION_MK) | $$(@D)/
+	$(QUIET)$(RM) -f $@
+	$(QUIET)$(APPEND) $@ "[Paths]"
+	$(QUIET)$(APPEND) $@ "Prefix =" $(PATH_OUT)/$(VirtualBox.app_INST)
 
-$$(VirtualBoxVM.app_0_OUTDIR)/VM-Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/VM-Info.plist $(VBOX_VERSION_MK) | $$(@D)/
+ INSTALLS += VirtualBoxVM.app
+ VirtualBoxVM.app_INST = $(VirtualBox.app_INST)Resources/VirtualBoxVM.app/Contents/
+ VirtualBoxVM.app_MODE = 644
+ VirtualBoxVM.app_SOURCES = \
+ 	src/platform/darwin/VM-PkgInfo=>PkgInfo \
+ 	$(VirtualBoxVM.app_0_OUTDIR)/VM-Info.plist=>Info.plist \
+        $(foreach mysrc,$(VirtualBox.app_SOURCES),$(if-expr $(pos =>Resources/,$(mysrc)) > 0,$(mysrc),))
+ VirtualBoxVM.app_SYMLINKS = \
+ 	MacOS=>../../../MacOS/
+
+ $$(VirtualBoxVM.app_0_OUTDIR)/VM-Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/VM-Info.plist $(VBOX_VERSION_MK) | $$(@D)/
 	$(call MSG_GENERATE,VirtualBoxVM.app,$<,$@)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
@@ -1084,23 +1175,28 @@ $$(VirtualBoxVM.app_0_OUTDIR)/VM-Info.plist: $(PATH_SUB_CURRENT)/src/platform/da
 		-e 's/@VBOX_C_YEAR@/$(VBOX_C_YEAR)/g' \
 		--output $@ $<
 
-PROGRAMS += vmstarter
-vmstarter_TEMPLATE = VBOXR3EXE
-vmstarter_SOURCES = src/platform/darwin/vmstarter.mm
-vmstarter_LDFLAGS += -framework AppKit
-vmstarter_INST = $(INST_BIN)vmstarter
+ PROGRAMS += vmstarter
+ vmstarter_TEMPLATE = VBOXR3EXE
+ ifdef VBOX_WITH_NEW_XCODE
+  vmstarter_OBJCXXFLAGS += -Wno-error=deprecated-declarations ## @todo fix deprecate API use!
+ else
+  vmstarter_OBJCXXFLAGS += -Wno-deprecated-declarations
+ endif
+ vmstarter_LDFLAGS += -framework AppKit
+ vmstarter_SOURCES = src/platform/darwin/vmstarter.mm
+ vmstarter_INST = $(INST_BIN)vmstarter
 
-INSTALLS += vmstarter.app
-vmstarter.app_INST = $(VirtualBox.app_INST)Resources/vmstarter.app/Contents/
-vmstarter.app_MODE = 644
-vmstarter.app_SOURCES = \
-	src/platform/darwin/vmstarter-PkgInfo=>PkgInfo \
-	$(vmstarter.app_0_OUTDIR)/vmstarter-Info.plist=>Info.plist \
-       $(foreach mysrc,$(VirtualBox.app_SOURCES),$(if-expr $(pos =>Resources/,$(mysrc)) > 0,$(mysrc),))
-vmstarter.app_SYMLINKS = \
-	MacOS=>../../../MacOS \
+ INSTALLS += vmstarter.app
+ vmstarter.app_INST = $(VirtualBox.app_INST)Resources/vmstarter.app/Contents/
+ vmstarter.app_MODE = 644
+ vmstarter.app_SOURCES = \
+ 	src/platform/darwin/vmstarter-PkgInfo=>PkgInfo \
+ 	$(vmstarter.app_0_OUTDIR)/vmstarter-Info.plist=>Info.plist \
+ 	$(foreach mysrc,$(VirtualBox.app_SOURCES),$(if-expr $(pos =>Resources/,$(mysrc)) > 0,$(mysrc),))
+ vmstarter.app_SYMLINKS = \
+ 	MacOS=>../../../MacOS \
 
-$$(vmstarter.app_0_OUTDIR)/vmstarter-Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/vmstarter-Info.plist $(VBOX_VERSION_MK) | $$(@D)/
+ $$(vmstarter.app_0_OUTDIR)/vmstarter-Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/vmstarter-Info.plist $(VBOX_VERSION_MK) | $$(@D)/
 	$(call MSG_GENERATE,vmstarter.app,$<,$@)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
@@ -1120,7 +1216,7 @@ endif # darwin
 if defined(VBOX_WITH_VIDEOHWACCEL)
  if1of ($(KBUILD_TARGET), win linux freebsd)
   LIBRARIES += VBoxOGL2D
-  VBoxOGL2D_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQT4GUI,VBOXQT4GUIEXE),VBOXMAINEXE)
+  VBoxOGL2D_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQTGUI,VBOXQTGUIEXE),VBOXMAINEXE)
   VBoxOGL2D_DEFS = QT_NO_DEBUG QT_THREAD_SUPPORT QT_SHARED HAVE_CONFIG_H VBOX_WITH_VIDEOHWACCEL VBOX_GUI_USE_QGL
   VBoxOGL2D_QT_MODULES += OpenGL
   VBoxOGL2D_SOURCES = \
@@ -1154,9 +1250,14 @@ endif
 #
 if defined(VBOX_WITH_TESTCASES) && defined(VBOX_GUI_WITH_NETWORK_MANAGER)
  PROGRAMS += tstSSLCertDownloads
- tstSSLCertDownloads_TEMPLATE   = VBOXQT4GUIEXE
- tstSSLCertDownloads_USES       = qt4
- tstSSLCertDownloads_QTTOOL     = QT4
+ tstSSLCertDownloads_TEMPLATE   = VBOXQTGUIEXE
+ ifndef VBOX_WITH_QTGUI_V5
+  tstSSLCertDownloads_USES       = qt4
+  tstSSLCertDownloads_QTTOOL     = QT4
+ else # VBOX_WITH_QTGUI_V5
+  tstSSLCertDownloads_USES       = qt5
+  tstSSLCertDownloads_QTTOOL     = QT5
+ endif # VBOX_WITH_QTGUI_V5
  tstSSLCertDownloads_QT_MODULES = Core Gui
  tstSSLCertDownloads_DEFS = VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
  tstSSLCertDownloads_INCS = \
@@ -1234,7 +1335,7 @@ makeallnls:: \
 		$(foreach header,$(VBOX_GUI_INC_DIRS),$(wildcard $(header)/*.h)) \
 		$(filter-out %.qrc,$(VirtualBox_SOURCES) $(VirtualBox_VBOX_EXTRA_NLS_SOURCES))
 	$(call MSG_L1,lupdate all languages (nls/*.ts))
-	$(QUIET)$(TOOL_QT4_LUPDATE) \
+	$(QUIET)$(if $(VBOX_WITH_QTGUI_V5),$(TOOL_QT5_LUPDATE),$(TOOL_QT4_LUPDATE)) \
 		$^ \
 		-ts \
 		$(filter-out nls/VirtualBox_en.ts,$(filter-out nls/qt_%.ts,$(VirtualBox_QT_TRANSLATIONS))) \
@@ -1246,7 +1347,7 @@ nls/VirtualBox_en.ts: \
 		$(foreach header,$(VBOX_GUI_INC_DIRS),$(wildcard $(header)/*.h)) \
 		$(filter-out %.qrc,$(VirtualBox_SOURCES) $(VirtualBox_VBOX_EXTRA_NLS_SOURCES))
 	$(call MSG_L1,lupdate $@)
-	$(QUIET)$(TOOL_QT4_LUPDATE) \
+	$(QUIET)$(if $(VBOX_WITH_QTGUI_V5),$(TOOL_QT5_LUPDATE),$(TOOL_QT4_LUPDATE)) \
 		$^ \
 		-ts \
 		$@

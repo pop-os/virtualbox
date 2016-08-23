@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -321,7 +321,7 @@ static int vbsvcAutoMountSharedFolder(const char *pszShareName, const char *pszM
 #elif defined(RT_OS_LINUX)
         unsigned long fFlags = MS_NODEV;
 
-        const char *szOptions = { "rw" };
+        /*const char *szOptions = { "rw" }; - ??? */
         struct vbsf_mount_info_new mntinf;
 
         mntinf.nullchar     = '\0';
@@ -633,9 +633,6 @@ static DECLCALLBACK(int) vbsvcAutoMountWorker(bool volatile *pfShutdown)
         RTThreadSleep(500);
     }
 
-    RTSemEventMultiDestroy(g_AutoMountEvent);
-    g_AutoMountEvent = NIL_RTSEMEVENTMULTI;
-
     VGSvcVerbose(3, "vbsvcAutoMountWorker: Finished with rc=%Rrc\n", rc);
     return VINF_SUCCESS;
 }
@@ -665,13 +662,7 @@ static DECLCALLBACK(void) vbsvcAutoMountTerm(void)
  */
 static DECLCALLBACK(void) vbsvcAutoMountStop(void)
 {
-    /*
-     * We need this check because at the moment our auto-mount
-     * thread really is a one-timer which destroys the event itself
-     * after running.
-     */
-    if (g_AutoMountEvent != NIL_RTSEMEVENTMULTI)
-        RTSemEventMultiSignal(g_AutoMountEvent);
+    RTSemEventMultiSignal(g_AutoMountEvent);
 }
 
 

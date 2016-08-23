@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -99,6 +99,7 @@ RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI phEventMultiSem)
 RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t fFlags, RTLOCKVALCLASS hClass,
                                      const char *pszNameFmt, ...)
 {
+    RT_NOREF(hClass, pszNameFmt);
     AssertReturn(!(fFlags & ~RTSEMEVENTMULTI_FLAGS_NO_LOCK_VAL), VERR_INVALID_PARAMETER);
     AssertCompile(sizeof(RTSEMEVENTMULTIINTERNAL) > sizeof(void *));
     AssertPtrReturn(phEventMultiSem, VERR_INVALID_POINTER);
@@ -138,6 +139,7 @@ DECLINLINE(void) rtR0SemEventMultiDarwinRetain(PRTSEMEVENTMULTIINTERNAL pThis)
 {
     uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
     Assert(cRefs && cRefs < 100000);
+    RT_NOREF_PV(cRefs);
 }
 
 
@@ -263,6 +265,8 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
 static int rtR0SemEventMultiDarwinWait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t fFlags, uint64_t uTimeout,
                                        PCRTLOCKVALSRCPOS pSrcPos)
 {
+    RT_NOREF(pSrcPos);
+
     /*
      * Validate input.
      */

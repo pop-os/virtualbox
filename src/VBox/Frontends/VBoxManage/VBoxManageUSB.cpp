@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,7 @@ public:
            m_cRefs(0)
     {
     }
+    virtual ~MyUSBDevice() {}
 
     STDMETHOD_(ULONG, AddRef)(void)
     {
@@ -73,15 +74,15 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(COMGETTER(Id))(OUT_GUID a_pId)                    { return E_NOTIMPL; }
+    STDMETHOD(COMGETTER(Id))(OUT_GUID a_pId)                    { NOREF(a_pId); return E_NOTIMPL; }
     STDMETHOD(COMGETTER(VendorId))(USHORT *a_pusVendorId)       { *a_pusVendorId    = m_usVendorId;     return S_OK; }
     STDMETHOD(COMGETTER(ProductId))(USHORT *a_pusProductId)     { *a_pusProductId   = m_usProductId;    return S_OK; }
     STDMETHOD(COMGETTER(Revision))(USHORT *a_pusRevision)       { *a_pusRevision    = m_bcdRevision;    return S_OK; }
     STDMETHOD(COMGETTER(SerialHash))(ULONG64 *a_pullSerialHash) { *a_pullSerialHash = m_u64SerialHash;  return S_OK; }
-    STDMETHOD(COMGETTER(Manufacturer))(BSTR *a_pManufacturer)   { return E_NOTIMPL; }
-    STDMETHOD(COMGETTER(Product))(BSTR *a_pProduct)             { return E_NOTIMPL; }
-    STDMETHOD(COMGETTER(SerialNumber))(BSTR *a_pSerialNumber)   { return E_NOTIMPL; }
-    STDMETHOD(COMGETTER(Address))(BSTR *a_pAddress)             { return E_NOTIMPL; }
+    STDMETHOD(COMGETTER(Manufacturer))(BSTR *a_pManufacturer)   { NOREF(a_pManufacturer);   return E_NOTIMPL; }
+    STDMETHOD(COMGETTER(Product))(BSTR *a_pProduct)             { NOREF(a_pProduct);        return E_NOTIMPL; }
+    STDMETHOD(COMGETTER(SerialNumber))(BSTR *a_pSerialNumber)   { NOREF(a_pSerialNumber);   return E_NOTIMPL; }
+    STDMETHOD(COMGETTER(Address))(BSTR *a_pAddress)             { NOREF(a_pAddress);        return E_NOTIMPL; }
 
 private:
     /** The vendor id of this USB device. */
@@ -546,4 +547,54 @@ RTEXITCODE handleUSBFilter(HandlerArg *a)
 
     return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
+
+RTEXITCODE handleUSBDevSource(HandlerArg *a)
+{
+    HRESULT rc = S_OK;
+
+    /* at least: 0: command, 1: source id */
+    if (a->argc < 2)
+        return errorSyntax(USAGE_USBDEVSOURCE, "Not enough parameters");
+
+    ComPtr<IHost> host;
+    if (!strcmp(a->argv[0], "add"))
+    {
+        Bstr strBackend;
+        Bstr strAddress;
+        if (a->argc != 6)
+            return errorSyntax(USAGE_USBDEVSOURCE, "Invalid number of parameters");
+
+        for (int i = 2; i < a->argc; i++)
+        {
+            if (!strcmp(a->argv[i], "--backend"))
+            {
+                i++;
+                strBackend = a->argv[i];
+            }
+            else if (!strcmp(a->argv[i], "--address"))
+            {
+                i++;
+                strAddress = a->argv[i];
+            }
+            else
+                return errorSyntax(USAGE_USBDEVSOURCE, "Parameter \"%s\" is invalid", a->argv[i]);
+        }
+
+        SafeArray<BSTR> usbSourcePropNames;
+        SafeArray<BSTR> usbSourcePropValues;
+
+        CHECK_ERROR_RET(a->virtualBox, COMGETTER(Host)(host.asOutParam()), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(host, AddUSBDeviceSource(strBackend.raw(), Bstr(a->argv[1]).raw(), strAddress.raw(),
+                                                 ComSafeArrayAsInParam(usbSourcePropNames), ComSafeArrayAsInParam(usbSourcePropValues)),
+                        RTEXITCODE_FAILURE);
+    }
+    else if (!strcmp(a->argv[0], "remove"))
+    {
+        CHECK_ERROR_RET(a->virtualBox, COMGETTER(Host)(host.asOutParam()), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(host, RemoveUSBDeviceSource(Bstr(a->argv[1]).raw()), RTEXITCODE_FAILURE);
+    }
+
+    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,14 +27,17 @@
 # include <QTimer>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
 # include "UISession.h"
 # include "UIActionPoolRuntime.h"
 # include "UIMachineLogic.h"
 # include "UIMachineWindow.h"
 # include "UIMachineViewNormal.h"
-# include "UIExtraDataManager.h"
 # include "UIFrameBuffer.h"
+# include "UIExtraDataManager.h"
+# include "UIDesktopWidgetWatchdog.h"
+
+/* Other VBox includes: */
+# include "VBox/log.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -53,14 +56,6 @@ UIMachineViewNormal::UIMachineViewNormal(  UIMachineWindow *pMachineWindow
                     )
     , m_bIsGuestAutoresizeEnabled(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize)->isChecked())
 {
-    /* Resend the last resize hint: */
-    resendSizeHint();
-}
-
-UIMachineViewNormal::~UIMachineViewNormal()
-{
-    /* Cleanup frame buffer: */
-    cleanupFrameBuffer();
 }
 
 void UIMachineViewNormal::sltAdditionsStateChanged()
@@ -88,6 +83,25 @@ bool UIMachineViewNormal::eventFilter(QObject *pWatched, QEvent *pEvent)
         }
     }
 
+    /* For scroll-bars of the machine-view: */
+    if (   pWatched == verticalScrollBar()
+        || pWatched == horizontalScrollBar())
+    {
+        switch (pEvent->type())
+        {
+            /* On show/hide event: */
+            case QEvent::Show:
+            case QEvent::Hide:
+            {
+                /* Set maximum-size to size-hint: */
+                setMaximumSize(sizeHint());
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
     return UIMachineView::eventFilter(pWatched, pEvent);
 }
 
@@ -98,7 +112,7 @@ void UIMachineViewNormal::prepareCommon()
 
     /* Setup size-policy: */
     setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
-    /* Maximum size to sizehint: */
+    /* Set maximum-size to size-hint: */
     setMaximumSize(sizeHint());
 }
 
@@ -107,10 +121,14 @@ void UIMachineViewNormal::prepareFilters()
     /* Base class filters: */
     UIMachineView::prepareFilters();
 
-#ifdef Q_WS_WIN
+    /* Install scroll-bars event-filters: */
+    verticalScrollBar()->installEventFilter(this);
+    horizontalScrollBar()->installEventFilter(this);
+
+#ifdef VBOX_WS_WIN
     /* Install menu-bar event-filter: */
     machineWindow()->menuBar()->installEventFilter(this);
-#endif /* Q_WS_WIN */
+#endif /* VBOX_WS_WIN */
 }
 
 void UIMachineViewNormal::prepareConsoleConnections()
@@ -217,9 +235,29 @@ void UIMachineViewNormal::adjustGuestScreenSize()
     }
 }
 
+QSize UIMachineViewNormal::sizeHint() const
+{
+    /* Call to base-class: */
+    QSize size = UIMachineView::sizeHint();
+
+    /* If guest-screen auto-resize is not enabled
+     * or the guest-additions doesn't support graphics
+     * we should take scroll-bars size-hints into account: */
+    if (!m_bIsGuestAutoresizeEnabled || !uisession()->isGuestSupportsGraphics())
+    {
+        if (verticalScrollBar()->isVisible())
+            size += QSize(verticalScrollBar()->sizeHint().width(), 0);
+        if (horizontalScrollBar()->isVisible())
+            size += QSize(0, horizontalScrollBar()->sizeHint().height());
+    }
+
+    /* Return resulting size-hint finally: */
+    return size;
+}
+
 QRect UIMachineViewNormal::workingArea() const
 {
-    return vboxGlobal().availableGeometry(this);
+    return gpDesktop->availableGeometry(this);
 }
 
 QSize UIMachineViewNormal::calculateMaxGuestSize() const

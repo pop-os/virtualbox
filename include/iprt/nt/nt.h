@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,6 +41,7 @@
 # define NtQueryInformationThread       ZwQueryInformationThread
 # define NtQuerySystemInformation       ZwQuerySystemInformation
 # define NtQuerySecurityObject          ZwQuerySecurityObject
+# define NtSetInformationFile           ZwSetInformationFile
 # define NtClose                        ZwClose
 # define NtCreateFile                   ZwCreateFile
 # define NtReadFile                     ZwReadFile
@@ -124,12 +125,15 @@
 # define SystemPolicyInformation                IncompleteWinternl_SystemPolicyInformation
 
 
+# pragma warning(push)
+# pragma warning(disable: 4668)
 # define WIN32_NO_STATUS
 # include <windef.h>
 # include <winnt.h>
 # include <winternl.h>
 # undef WIN32_NO_STATUS
 # include <ntstatus.h>
+# pragma warning(pop)
 
 
 # undef _FILE_INFORMATION_CLASS
@@ -178,18 +182,21 @@
 /*
  * Use ntifs.h and wdm.h.
  */
+# pragma warning(push)
 # ifdef RT_ARCH_X86
 #  define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
-#  pragma warning(disable : 4163)
+#  pragma warning(disable: 4163)
 # endif
+# pragma warning(disable: 4668)
+# pragma warning(disable: 4255) /* warning C4255: 'ObGetFilterVersion' : no function prototype given: converting '()' to '(void)' */
 
 # include <ntifs.h>
 # include <wdm.h>
 
 # ifdef RT_ARCH_X86
-#  pragma warning(default : 4163)
 #  undef _InterlockedAddLargeStatistic
 # endif
+# pragma warning(pop)
 
 # define IPRT_NT_NEED_API_GROUP_NTIFS
 #endif
@@ -1593,6 +1600,96 @@ typedef FILE_INFORMATION_CLASS *PFILE_INFORMATION_CLASS;
 NTSYSAPI NTSTATUS NTAPI NtQueryInformationFile(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
 NTSYSAPI NTSTATUS NTAPI NtQueryDirectoryFile(HANDLE, HANDLE, PIO_APC_ROUTINE, PVOID, PIO_STATUS_BLOCK, PVOID, ULONG,
                                              FILE_INFORMATION_CLASS, BOOLEAN, PUNICODE_STRING, BOOLEAN);
+NTSYSAPI NTSTATUS NTAPI NtSetInformationFile(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
+
+
+/** For use with KeyBasicInformation. */
+typedef struct _KEY_BASIC_INFORMATION
+{
+    LARGE_INTEGER   LastWriteTime;
+    ULONG           TitleIndex;
+    ULONG           NameLength;
+    WCHAR           Name[1];
+} KEY_BASIC_INFORMATION;
+typedef KEY_BASIC_INFORMATION *PKEY_BASIC_INFORMATION;
+
+/** For use with KeyNodeInformation. */
+typedef struct _KEY_NODE_INFORMATION
+{
+    LARGE_INTEGER   LastWriteTime;
+    ULONG           TitleIndex;
+    ULONG           ClassOffset; /**< Offset from the start of the structure. */
+    ULONG           ClassLength;
+    ULONG           NameLength;
+    WCHAR           Name[1];
+} KEY_NODE_INFORMATION;
+typedef KEY_NODE_INFORMATION *PKEY_NODE_INFORMATION;
+
+/** For use with KeyFullInformation. */
+typedef struct _KEY_FULL_INFORMATION
+{
+    LARGE_INTEGER   LastWriteTime;
+    ULONG           TitleIndex;
+    ULONG           ClassOffset; /**< Offset of the Class member. */
+    ULONG           ClassLength;
+    ULONG           SubKeys;
+    ULONG           MaxNameLen;
+    ULONG           MaxClassLen;
+    ULONG           Values;
+    ULONG           MaxValueNameLen;
+    ULONG           MaxValueDataLen;
+    WCHAR           Class[1];
+} KEY_FULL_INFORMATION;
+typedef KEY_FULL_INFORMATION *PKEY_FULL_INFORMATION;
+
+/** For use with KeyNameInformation. */
+typedef struct _KEY_NAME_INFORMATION
+{
+    ULONG           NameLength;
+    WCHAR           Name[1];
+} KEY_NAME_INFORMATION;
+typedef KEY_NAME_INFORMATION *PKEY_NAME_INFORMATION;
+
+/** For use with KeyCachedInformation. */
+typedef struct _KEY_CACHED_INFORMATION
+{
+    LARGE_INTEGER   LastWriteTime;
+    ULONG           TitleIndex;
+    ULONG           SubKeys;
+    ULONG           MaxNameLen;
+    ULONG           Values;
+    ULONG           MaxValueNameLen;
+    ULONG           MaxValueDataLen;
+    ULONG           NameLength;
+} KEY_CACHED_INFORMATION;
+typedef KEY_CACHED_INFORMATION *PKEY_CACHED_INFORMATION;
+
+/** For use with KeyVirtualizationInformation. */
+typedef struct _KEY_VIRTUALIZATION_INFORMATION
+{
+    ULONG           VirtualizationCandidate : 1;
+    ULONG           VirtualizationEnabled   : 1;
+    ULONG           VirtualTarget           : 1;
+    ULONG           VirtualStore            : 1;
+    ULONG           VirtualSource           : 1;
+    ULONG           Reserved                : 27;
+} KEY_VIRTUALIZATION_INFORMATION;
+typedef KEY_VIRTUALIZATION_INFORMATION *PKEY_VIRTUALIZATION_INFORMATION;
+
+typedef enum _KEY_INFORMATION_CLASS
+{
+    KeyBasicInformation = 0,
+    KeyNodeInformation,
+    KeyFullInformation,
+    KeyNameInformation,
+    KeyCachedInformation,
+    KeyFlagsInformation,
+    KeyVirtualizationInformation,
+    KeyHandleTagsInformation,
+    MaxKeyInfoClass
+} KEY_INFORMATION_CLASS;
+NTSYSAPI NTSTATUS NTAPI NtQueryKey(HANDLE, KEY_INFORMATION_CLASS, PVOID, ULONG, PULONG);
+NTSYSAPI NTSTATUS NTAPI NtEnumerateKey(HANDLE, ULONG, KEY_INFORMATION_CLASS, PVOID, ULONG, PULONG);
 
 typedef struct _MEMORY_SECTION_NAME
 {
@@ -2113,6 +2210,9 @@ typedef SYSTEM_SESSION_PROCESS_INFORMATION *PSYSTEM_SESSION_PROCESS_INFORMATION;
 
 NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS, PVOID, ULONG, PULONG);
 
+NTSYSAPI NTSTATUS NTAPI NtSetTimerResolution(ULONG cNtTicksWanted, BOOLEAN fSetResolution, PULONG pcNtTicksCur);
+NTSYSAPI NTSTATUS NTAPI NtQueryTimerResolution(PULONG pcNtTicksMin, PULONG pcNtTicksMax, PULONG pcNtTicksCur);
+
 NTSYSAPI NTSTATUS NTAPI NtDelayExecution(BOOLEAN, PLARGE_INTEGER);
 NTSYSAPI NTSTATUS NTAPI NtYieldExecution(void);
 #ifndef IPRT_NT_USE_WINTERNL
@@ -2269,6 +2369,9 @@ typedef struct _RTL_CRITICAL_SECTION
 } RTL_CRITICAL_SECTION;
 typedef RTL_CRITICAL_SECTION *PRTL_CRITICAL_SECTION;
 #endif
+
+/*NTSYSAPI ULONG NTAPI RtlNtStatusToDosError(NTSTATUS rcNt);*/
+
 
 RT_C_DECLS_END
 /** @} */

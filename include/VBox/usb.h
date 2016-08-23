@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -97,6 +97,8 @@ typedef struct USBDEVICE
     const char     *pszSerialNumber;
     /** The address of the device. */
     const char     *pszAddress;
+    /** The backend to use for this device. */
+    const char     *pszBackend;
 
     /** Vendor ID. */
     uint16_t        idVendor;

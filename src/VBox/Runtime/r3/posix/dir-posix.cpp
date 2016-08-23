@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,6 +78,8 @@ RTDECL(bool) RTDirExists(const char *pszPath)
 
 RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
 {
+    RT_NOREF_PV(fCreate);
+
     int rc;
     fMode = rtFsModeNormalize(fMode, pszPath, 0);
     if (rtFsModeIsValidPermissions(fMode))
@@ -183,7 +185,16 @@ RTDECL(int) RTDirFlush(const char *pszPath)
         if (fsync(fd) == 0)
             rc = VINF_SUCCESS;
         else
-            rc = RTErrConvertFromErrno(errno);
+        {
+            /* Linux fsync(2) man page documents both errors as an indication
+             * that the file descriptor can't be flushed (seen EINVAL for usual
+             * directories on CIFS). BSD (OS X) fsync(2) documents only the
+             * latter, and Solaris fsync(3C) pretends there is no problem. */
+            if (errno == EROFS || errno == EINVAL)
+                rc = VERR_NOT_SUPPORTED;
+            else
+                rc = RTErrConvertFromErrno(errno);
+        }
         close(fd);
     }
     else

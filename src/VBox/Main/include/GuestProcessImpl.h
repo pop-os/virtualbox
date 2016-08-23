@@ -25,6 +25,7 @@
 
 class Console;
 class GuestSession;
+class GuestProcessStartTask;
 
 /**
  * Class for handling a guest process.
@@ -50,29 +51,27 @@ public:
      * @{ */
     int i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
     inline int i_checkPID(uint32_t uPID);
-    static Utf8Str i_guestErrorToString(int guestRc);
     int i_onRemove(void);
-    int i_readData(uint32_t uHandle, uint32_t uSize, uint32_t uTimeoutMS, void *pvData,
-                   size_t cbData, uint32_t *pcbRead, int *pGuestRc);
-    static HRESULT i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
-    int i_startProcess(uint32_t uTimeoutMS, int *pGuestRc);
+    int i_readData(uint32_t uHandle, uint32_t uSize, uint32_t uTimeoutMS, void *pvData, size_t cbData, uint32_t *pcbRead, int *pGuestRc);
+    int i_startProcess(uint32_t cMsTimeout, int *pGuestRc);
+    int i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock, GuestWaitEvent *pEvent, int *pGuestRc);
     int i_startProcessAsync(void);
     int i_terminateProcess(uint32_t uTimeoutMS, int *pGuestRc);
-    static ProcessWaitResult_T i_waitFlagsToResultEx(uint32_t fWaitFlags, ProcessStatus_T oldStatus,
-                                                     ProcessStatus_T newStatus, uint32_t uProcFlags,
-                                                     uint32_t uProtocol);
     ProcessWaitResult_T i_waitFlagsToResult(uint32_t fWaitFlags);
     int i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, ProcessWaitResult_T &waitResult, int *pGuestRc);
-    int i_waitForInputNotify(GuestWaitEvent *pEvent, uint32_t uHandle, uint32_t uTimeoutMS,
-                             ProcessInputStatus_T *pInputStatus, uint32_t *pcbProcessed);
-    int i_waitForOutput(GuestWaitEvent *pEvent, uint32_t uHandle, uint32_t uTimeoutMS,
-                        void* pvData, size_t cbData, uint32_t *pcbRead);
-    int i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
-                              ProcessStatus_T *pProcessStatus, int *pGuestRc);
-    static bool i_waitResultImpliesEx(ProcessWaitResult_T waitResult, ProcessStatus_T procStatus,
-                                      uint32_t uProcFlags, uint32_t uProtocol);
-    int i_writeData(uint32_t uHandle, uint32_t uFlags, void *pvData, size_t cbData,
-                    uint32_t uTimeoutMS, uint32_t *puWritten, int *pGuestRc);
+    int i_waitForInputNotify(GuestWaitEvent *pEvent, uint32_t uHandle, uint32_t uTimeoutMS, ProcessInputStatus_T *pInputStatus, uint32_t *pcbProcessed);
+    int i_waitForOutput(GuestWaitEvent *pEvent, uint32_t uHandle, uint32_t uTimeoutMS, void* pvData, size_t cbData, uint32_t *pcbRead);
+    int i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, ProcessStatus_T *pProcessStatus, int *pGuestRc);
+    int i_writeData(uint32_t uHandle, uint32_t uFlags, void *pvData, size_t cbData, uint32_t uTimeoutMS, uint32_t *puWritten, int *pGuestRc);
+    /** @}  */
+
+    /** @name Static internal methods.
+     * @{ */
+    static Utf8Str i_guestErrorToString(int guestRc);
+    static bool i_isGuestError(int guestRc);
+    static HRESULT i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
+    static ProcessWaitResult_T i_waitFlagsToResultEx(uint32_t fWaitFlags, ProcessStatus_T oldStatus, ProcessStatus_T newStatus, uint32_t uProcFlags, uint32_t uProtocol);
+    static bool i_waitResultImpliesEx(ProcessWaitResult_T waitResult, ProcessStatus_T procStatus, uint32_t uProcFlags, uint32_t uProtocol);
     /** @}  */
 
 protected:
@@ -87,7 +86,7 @@ protected:
     int i_onProcessOutput(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
     int i_prepareExecuteEnv(const char *pszEnv, void **ppvList, ULONG *pcbList, ULONG *pcEnvVars);
     int i_setProcessStatus(ProcessStatus_T procStatus, int procRc);
-    static DECLCALLBACK(int) i_startProcessThread(RTTHREAD Thread, void *pvUser);
+    static void i_startProcessThreadTask(GuestProcessStartTask *pTask);
     /** @}  */
 
 private:
@@ -166,6 +165,8 @@ private:
             }
         }
     } mData;
+
+    friend class GuestProcessStartTask;
 };
 
 /**
@@ -254,6 +255,7 @@ protected:
     GuestProcessStartupInfo     mStartupInfo;
     GuestProcessStream          mStdOut;
     GuestProcessStream          mStdErr;
+
 };
 
 #endif /* !____H_GUESTPROCESSIMPL */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -921,7 +921,7 @@ typedef struct VBVAHOSTCMD
 /** Returns VINF_SUCCESS if the host can report mode hints via VBVA.
  * Set value to VERR_NOT_SUPPORTED before calling. */
 #define VBOX_VBVA_CONF32_MODE_HINT_REPORTING  2
-/** Returns VINF_SUCCESS if the host can receive guest cursor information via
+/** Returns VINF_SUCCESS if the host can report guest cursor enabled status via
  * VBVA.  Set value to VERR_NOT_SUPPORTED before calling. */
 #define VBOX_VBVA_CONF32_GUEST_CURSOR_REPORTING  3
 /** Returns the currently available host cursor capabilities.  Available if

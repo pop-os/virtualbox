@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,7 @@
 using namespace com;
 
 class ATL_NO_VTABLE VirtualBoxErrorInfo
-    : public CComObjectRootEx<CComMultiThreadModel>
+    : public ATL::CComObjectRootEx<ATL::CComMultiThreadModel>
     , VBOX_SCRIPTABLE_IMPL(IVirtualBoxErrorInfo)
 #ifndef VBOX_WITH_XPCOM /* IErrorInfo doesn't inherit from IDispatch, ugly 3am hack: */
     , public IDispatch
@@ -67,7 +67,7 @@ public:
     HRESULT init(IErrorInfo *aInfo);
 
     STDMETHOD(GetGUID)(GUID *guid);
-    STDMETHOD(GetSource)(BSTR *source);
+    STDMETHOD(GetSource)(BSTR *pBstrSource);
     STDMETHOD(GetDescription)(BSTR *description);
     STDMETHOD(GetHelpFile)(BSTR *pBstrHelpFile);
     STDMETHOD(GetHelpContext)(DWORD *pdwHelpContext);
@@ -108,6 +108,7 @@ public:
         : m_resultCode(S_OK),
           m_resultDetail(0)
     {}
+    virtual ~VirtualBoxErrorInfo() {}
 
     // public initializer/uninitializer for internal purposes only
     HRESULT init(HRESULT aResultCode,

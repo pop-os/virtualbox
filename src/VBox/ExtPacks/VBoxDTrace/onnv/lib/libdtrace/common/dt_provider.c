@@ -154,7 +154,11 @@ dt_provider_xref(dtrace_hdl_t *dtp, dt_provider_t *pvp, id_t id)
 	size_t oldsize = BT_SIZEOFMAP(pvp->pv_xrmax);
 	size_t newsize = BT_SIZEOFMAP(dtp->dt_xlatorid);
 
+#ifdef VBOX /* range */
+	assert(id < dtp->dt_xlatorid);
+#else
 	assert(id >= 0 && id < dtp->dt_xlatorid);
+#endif
 
 	if (newsize > oldsize) {
 		ulong_t *xrefs = dt_zalloc(dtp, newsize);
@@ -648,6 +652,8 @@ dt_probe_tag(dt_probe_t *prp, uint_t argn, dt_node_t *dnp)
 static int
 dt_probe_desc(dtrace_hdl_t *dtp, const dtrace_probedesc_t *pdp, void *arg)
 {
+	RT_NOREF1(dtp);
+
 	if (((dtrace_probedesc_t *)arg)->dtpd_id == DTRACE_IDNONE) {
 		bcopy(pdp, arg, sizeof (dtrace_probedesc_t));
 		return (0);
@@ -806,6 +812,7 @@ static int
 dt_probe_iter(dt_idhash_t *ihp, dt_ident_t *idp, dt_probe_iter_t *pit)
 {
 	const dt_probe_t *prp = idp->di_data;
+	RT_NOREF1(ihp);
 
 	if (!dt_gmatch(prp->pr_name, pit->pit_pat))
 		return (0); /* continue on and examine next probe in hash */

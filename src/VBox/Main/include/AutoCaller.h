@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -189,8 +189,8 @@ protected:
     }
 
 private:
-    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoCaller)
-    DECLARE_CLS_NEW_DELETE_NOOP(AutoCaller)
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoCaller);
+    DECLARE_CLS_NEW_DELETE_NOOP(AutoCaller);
 
     VirtualBoxBase *mObj;
     HRESULT mRC;
@@ -246,6 +246,8 @@ public:
         AutoCaller::init(aObj, true);
     }
 
+private:
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoLimitedCaller); /* Shuts up MSC warning C4625. */
 };
 
 /**
@@ -333,19 +335,26 @@ public:
      * call its uninit() method which is supposed to place the object back
      * to the NotReady state using AutoUninitSpan.
      */
-    void setFailed() { mResult = Failed; }
+    void setFailed(HRESULT rc = E_ACCESSDENIED)
+    {
+        mResult = Failed;
+        mFailedRC = rc;
+        mpFailedEI = new ErrorInfo();
+    }
 
     /** Returns the current initialization result. */
     Result result() { return mResult; }
 
 private:
 
-    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoInitSpan)
-    DECLARE_CLS_NEW_DELETE_NOOP(AutoInitSpan)
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoInitSpan);
+    DECLARE_CLS_NEW_DELETE_NOOP(AutoInitSpan);
 
     VirtualBoxBase *mObj;
     Result mResult : 3; // must be at least total number of bits + 1 (sign)
     bool mOk : 1;
+    HRESULT mFailedRC;
+    ErrorInfo *mpFailedEI;
 };
 
 /**
@@ -415,8 +424,8 @@ public:
 
 private:
 
-    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoReinitSpan)
-    DECLARE_CLS_NEW_DELETE_NOOP(AutoReinitSpan)
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoReinitSpan);
+    DECLARE_CLS_NEW_DELETE_NOOP(AutoReinitSpan);
 
     VirtualBoxBase *mObj;
     bool mSucceeded : 1;
@@ -479,8 +488,8 @@ public:
 
 private:
 
-    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoUninitSpan)
-    DECLARE_CLS_NEW_DELETE_NOOP(AutoUninitSpan)
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoUninitSpan);
+    DECLARE_CLS_NEW_DELETE_NOOP(AutoUninitSpan);
 
     VirtualBoxBase *mObj;
     bool mInitFailed : 1;

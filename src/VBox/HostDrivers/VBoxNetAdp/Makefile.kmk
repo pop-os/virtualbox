@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2015 Oracle Corporation
+# Copyright (C) 2009-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -162,8 +162,6 @@ ifeq ($(KBUILD_TARGET),linux)
  VBoxNetAdp-src_SOURCES = \
 	$(subst $(DQUOTE),,$(VBOX_VBOXNETADP_SOURCES)) \
 	$(VBoxNetAdp-src_0_OUTDIR)/Makefile
- VBoxNetAdp-src_EXEC_SOURCES = \
-	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
  VBoxNetAdp-src_CLEAN = \
 	$(VBoxNetAdp-src_0_OUTDIR)/Makefile \
 	$(PATH_TARGET)/VBoxNetAdp-src-1.dep \

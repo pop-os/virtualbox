@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -263,12 +263,14 @@ static void rtc_raise_irq(PRTCSTATE pThis, uint32_t iLevel)
 }
 
 
+#ifdef IN_RING3
 DECLINLINE(int) to_bcd(PRTCSTATE pThis, int a)
 {
     if (pThis->cmos_data[RTC_REG_B] & 0x04)
         return a;
     return ((a / 10) << 4) | (a % 10);
 }
+#endif
 
 
 DECLINLINE(int) from_bcd(PRTCSTATE pThis, int a)
@@ -477,6 +479,7 @@ PDMBOTHCBDECL(int) rtcIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
  */
 static DECLCALLBACK(void) rtcCmosBankInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF1(pszArgs);
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
 
     pHlp->pfnPrintf(pHlp,
@@ -501,6 +504,7 @@ static DECLCALLBACK(void) rtcCmosBankInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp
  */
 static DECLCALLBACK(void) rtcCmosBank2Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF1(pszArgs);
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
 
     pHlp->pfnPrintf(pHlp, "Second CMOS bank, offsets 0x80 - 0xFF\n");
@@ -523,6 +527,7 @@ static DECLCALLBACK(void) rtcCmosBank2Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHl
  */
 static DECLCALLBACK(void) rtcCmosClockInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF1(pszArgs);
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
     uint8_t u8Sec   = from_bcd(pThis, pThis->cmos_data[RTC_SECONDS]);
     uint8_t u8Min   = from_bcd(pThis, pThis->cmos_data[RTC_MINUTES]);
@@ -550,6 +555,7 @@ static DECLCALLBACK(void) rtcCmosClockInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHl
  */
 static DECLCALLBACK(void) rtcTimerPeriodic(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF2(pTimer, pvUser);
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
     Assert(TMTimerIsLockOwner(pThis->CTX_SUFF(pPeriodicTimer)));
     Assert(PDMCritSectIsOwner(pThis->CTX_SUFF(pDevIns)->CTX_SUFF(pCritSectRo)));
@@ -631,6 +637,7 @@ static void rtc_next_second(struct my_tm *tm)
  */
 static DECLCALLBACK(void) rtcTimerSecond(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF2(pTimer, pvUser);
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
     Assert(TMTimerIsLockOwner(pThis->CTX_SUFF(pPeriodicTimer)));
     Assert(PDMCritSectIsOwner(pThis->CTX_SUFF(pDevIns)->CTX_SUFF(pCritSectRo)));
@@ -691,6 +698,7 @@ static void rtc_copy_date(PRTCSTATE pThis)
  */
 static DECLCALLBACK(void) rtcTimerSecond2(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF2(pTimer, pvUser);
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
     Assert(TMTimerIsLockOwner(pThis->CTX_SUFF(pPeriodicTimer)));
     Assert(PDMCritSectIsOwner(pThis->CTX_SUFF(pDevIns)->CTX_SUFF(pCritSectRo)));
@@ -738,6 +746,7 @@ static DECLCALLBACK(void) rtcTimerSecond2(PPDMDEVINS pDevIns, PTMTIMER pTimer, v
  */
 static DECLCALLBACK(int) rtcLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF1(uPass);
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
 
     SSMR3PutU8(    pSSM, pThis->irq);
@@ -1037,6 +1046,7 @@ static DECLCALLBACK(int)  rtcInitComplete(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) rtcRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
+    RT_NOREF1(offDelta);
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
 
     pThis->pDevInsRC        = PDMDEVINS_2_RCPTR(pDevIns);
@@ -1053,25 +1063,9 @@ static DECLCALLBACK(void) rtcReset(PPDMDEVINS pDevIns)
 {
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
 
-    /* If shutdown status is non-zero, log its value. */
-    if (pThis->cmos_data[0xF])
-    {
-        LogRel(("CMOS shutdown status byte is %02X\n", pThis->cmos_data[0xF]));
-
-#if 0   /* It would be nice to log the warm reboot vector but alas, we already trashed it. */
-        uint32_t u32WarmVector;
-        int rc;
-        rc = PDMDevHlpPhysRead(pDevIns, 0x467, &u32WarmVector, sizeof(u32WarmVector));
-        AssertRC(rc);
-        LogRel((", 40:67 contains %04X:%04X\n", u32WarmVector >> 16, u32WarmVector & 0xFFFF));
-#endif
-        /* If we're going to trash the VM's memory, we also have to clear this. */
-        pThis->cmos_data[0xF] = 0;
-    }
-
     /* Reset index values (important for second bank). */
-    pThis->cmos_index[0]        = 0;
-    pThis->cmos_index[1]        = CMOS_BANK_SIZE;   /* Point to start of second bank. */
+    pThis->cmos_index[0] = 0;
+    pThis->cmos_index[1] = CMOS_BANK_SIZE;   /* Point to start of second bank. */
 }
 
 
@@ -1080,6 +1074,8 @@ static DECLCALLBACK(void) rtcReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+    RT_NOREF1(iInstance);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
     PRTCSTATE   pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
     int         rc;
     Assert(iInstance == 0);
@@ -1091,7 +1087,7 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                               "Irq\0"
                               "Base\0"
                               "UseUTC\0"
-                              "GCEnabled\0"
+                              "RCEnabled\0"
                               "R0Enabled\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
@@ -1115,8 +1111,8 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"UseUTC\" as a bool failed"));
 
-    bool fGCEnabled;
-    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
+    bool fRCEnabled;
+    rc = CFGMR3QueryBoolDef(pCfg, "RCEnabled", &fRCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: failed to read GCEnabled as boolean"));
@@ -1127,8 +1123,8 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: failed to read R0Enabled as boolean"));
 
-    Log(("RTC: Irq=%#x Base=%#x fGCEnabled=%RTbool fR0Enabled=%RTbool\n",
-         u8Irq, pThis->IOPortBase, fGCEnabled, fR0Enabled));
+    Log(("RTC: Irq=%#x Base=%#x fRCEnabled=%RTbool fR0Enabled=%RTbool\n",
+         u8Irq, pThis->IOPortBase, fRCEnabled, fR0Enabled));
 
 
     pThis->pDevInsR3            = pDevIns;
@@ -1198,7 +1194,7 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                                  rtcIOPortWrite, rtcIOPortRead, NULL, NULL, "MC146818 RTC/CMOS");
     if (RT_FAILURE(rc))
         return rc;
-    if (fGCEnabled)
+    if (fRCEnabled)
     {
         rc = PDMDevHlpIOPortRegisterRC(pDevIns, pThis->IOPortBase, 4, NIL_RTRCPTR,
                                        "rtcIOPortWrite", "rtcIOPortRead", NULL, NULL, "MC146818 RTC/CMOS");

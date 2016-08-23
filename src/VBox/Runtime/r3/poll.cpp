@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@
 *********************************************************************************************************************************/
 #include <iprt/cdefs.h>
 #ifdef RT_OS_WINDOWS
-# include <Windows.h>
+# include <iprt/win/windows.h>
 
 #elif defined(RT_OS_OS2)
 # define INCL_BASE
@@ -240,12 +240,14 @@ static int rtPollNoResumeWorker(RTPOLLSETINTERNAL *pThis, uint64_t MsStart, RTMS
      * Wait.
      */
 # ifdef RT_OS_WINDOWS
+    RT_NOREF_PV(MsStart);
+
     DWORD dwRc = WaitForMultipleObjectsEx(cHandles, pThis->pahNative,
                                           FALSE /*fWaitAll */,
                                           cMillies == RT_INDEFINITE_WAIT ? INFINITE : cMillies,
                                           TRUE /*fAlertable*/);
-    if (    dwRc >= WAIT_OBJECT_0
-        &&  dwRc <  WAIT_OBJECT_0 + cHandles)
+    AssertCompile(WAIT_OBJECT_0 == 0);
+    if (dwRc < WAIT_OBJECT_0 + cHandles)
         rc = VERR_INTERRUPTED;
     else if (dwRc == WAIT_TIMEOUT)
         rc = VERR_TIMEOUT;
@@ -352,6 +354,8 @@ static int rtPollNoResumeWorker(RTPOLLSETINTERNAL *pThis, uint64_t MsStart, RTMS
     }
 
 #else  /* POSIX */
+
+    RT_NOREF_PV(MsStart);
 
     /* clear the revents. */
     uint32_t i = pThis->cHandles;

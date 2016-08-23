@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,8 +48,9 @@ static const char *getHostIfMediumTypeText(HostNetworkInterfaceMediumType_T enmT
         case HostNetworkInterfaceMediumType_Ethernet: return "Ethernet";
         case HostNetworkInterfaceMediumType_PPP: return "PPP";
         case HostNetworkInterfaceMediumType_SLIP: return "SLIP";
+        case HostNetworkInterfaceMediumType_Unknown: return "Unknown";
     }
-    return "Unknown";
+    return "unknown";
 }
 
 static const char *getHostIfStatusText(HostNetworkInterfaceStatus_T enmStatus)
@@ -58,8 +59,9 @@ static const char *getHostIfStatusText(HostNetworkInterfaceStatus_T enmStatus)
     {
         case HostNetworkInterfaceStatus_Up: return "Up";
         case HostNetworkInterfaceStatus_Down: return "Down";
+        case HostNetworkInterfaceStatus_Unknown: return "Unknown";
     }
-    return "Unknown";
+    return "unknown";
 }
 #endif /* VBOX_WITH_HOSTNETIF_API */
 
@@ -70,6 +72,12 @@ static const char*getDeviceTypeText(DeviceType_T enmType)
         case DeviceType_HardDisk: return "HardDisk";
         case DeviceType_DVD: return "DVD";
         case DeviceType_Floppy: return "Floppy";
+        /* Make MSC happy */
+        case DeviceType_Null: return "Null";
+        case DeviceType_Network:        return "Network";
+        case DeviceType_USB:            return "USB";
+        case DeviceType_SharedFolder:   return "SharedFolder";
+        case DeviceType_Graphics3D:     return "Graphics3D";
     }
     return "Unknown";
 }
@@ -117,6 +125,7 @@ static HRESULT listNetworkInterfaces(const ComPtr<IVirtualBox> pVirtualBox,
         CHECK_ERROR(host, FindHostNetworkInterfacesOfType(HostNetworkInterfaceType_HostOnly,
                                                           ComSafeArrayAsOutParam(hostNetworkInterfaces)));
 #else
+    RT_NOREF(fIsBridged);
     CHECK_ERROR(host, COMGETTER(NetworkInterfaces)(ComSafeArrayAsOutParam(hostNetworkInterfaces)));
 #endif
     for (size_t i = 0; i < hostNetworkInterfaces.size(); ++i)
@@ -601,6 +610,7 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
     ULONG ulValue;
     LONG64 i64Value;
     BOOL fValue;
+    const char *psz;
 
     pVirtualBox->COMGETTER(APIVersion)(str.asOutParam());
     RTPrintf("API version:                     %ls\n", str.raw());
@@ -699,6 +709,22 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
     RTPrintf("Log history count:               %u\n", ulValue);
     systemProperties->COMGETTER(DefaultFrontend)(str.asOutParam());
     RTPrintf("Default frontend:                %ls\n", str.raw());
+    AudioDriverType_T enmAudio;
+    systemProperties->COMGETTER(DefaultAudioDriver)(&enmAudio);
+    switch (enmAudio)
+    {
+        case AudioDriverType_Null:          psz = "Null";           break;
+        case AudioDriverType_WinMM:         psz = "WinMM";          break;
+        case AudioDriverType_OSS:           psz = "OSS";            break;
+        case AudioDriverType_ALSA:          psz = "ALSA";           break;
+        case AudioDriverType_DirectSound:   psz = "DirectSound";    break;
+        case AudioDriverType_CoreAudio:     psz = "CoreAudio";      break;
+        case AudioDriverType_MMPM:          psz = "MMPM";           break;
+        case AudioDriverType_Pulse:         psz = "Pulse";          break;
+        case AudioDriverType_SolAudio:      psz = "SolAudio";       break;
+        default:                            psz = "Unknown";
+    }
+    RTPrintf("Default audio driver:            %s\n", psz);
     systemProperties->COMGETTER(AutostartDatabasePath)(str.asOutParam());
     RTPrintf("Autostart database path:         %ls\n", str.raw());
     systemProperties->COMGETTER(DefaultAdditionsISO)(str.asOutParam());
@@ -949,6 +975,7 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
                             case MachineState_TeleportingPausedVM:
                                 rc = showVMInfo(pVirtualBox, machines[i], NULL, fOptLong ? VMINFO_STANDARD : VMINFO_COMPACT);
                                 break;
+                            default: break; /* Shut up MSC */
                         }
                     }
                 }

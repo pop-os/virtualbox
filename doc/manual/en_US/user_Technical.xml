@@ -81,7 +81,7 @@
       <computeroutput>Logs</computeroutput>, and once you have taken
       snapshots, they will appear in a
       <computeroutput>Snapshots</computeroutput> subfolder. For each VM, you
-      can change the location of its snapsnots folder in the VM
+      can change the location of its snapshots folder in the VM
       settings.</para>
 
       <para>You can change the default machine folder by selecting
@@ -421,8 +421,13 @@
       </listitem>
 
       <listitem>
-        <para>HWACCM (Hardware Acceleration Manager), provides support for
-        VT-x and AMD-V.</para>
+        <para>HM (Hardware Acceleration Manager), provides support for VT-x
+        and AMD-V.</para>
+      </listitem>
+
+      <listitem>
+        <para>GIM (Guest Interface Manager), provides support for various
+        paravirtualization interfaces to the guest.</para>
       </listitem>
 
       <listitem>
@@ -594,11 +599,11 @@
     to recognize their presence and make use of them in order to leverage
     the benefits of communicating with the VirtualBox hypervisor.</para>
 
-    <para>Most mainstream, modern guest operating systems, including Windows
-    and Linux, ship with support for one or more paravirtualization interfaces.
-    Hence, there is typically no need to install additional software in the
-    guest (including VirtualBox Guest Additions) to make use of this
-    feature.</para>
+    <para>Most modern mainstream guest operating systems, including 
+    Windows and Linux, ship with support for one or more paravirtualization 
+    interfaces. Hence, there is typically no need to install additional software 
+    in the guest to take advantage of this feature.
+    </para>
 
     <para>Exposing a paravirtualization provider to the guest operating
     system does not rely on the choice of host platforms. For example, the
@@ -627,9 +632,9 @@
           <para><emphasis role="bold">Hyper-V</emphasis>: Presents a Microsoft
           Hyper-V hypervisor interface which is recognized by Windows 7 and newer
           operating systems. VirtualBox's implementation currently supports
-          paravirtualized clocks, APIC frequency reporting, guest crash reporting
-          and relaxed timer checks. This provider is recommended for Windows
-          guests.
+          paravirtualized clocks, APIC frequency reporting, guest debugging,
+          guest crash reporting and relaxed timer checks. This provider is
+          recommended for Windows guests.
           </para>
         </listitem>
      </itemizedlist>

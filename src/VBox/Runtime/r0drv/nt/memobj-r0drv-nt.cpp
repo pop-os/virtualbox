@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,6 +76,35 @@ typedef struct RTR0MEMOBJNT
     /** Array of MDL pointers. (variable size) */
     PMDL                apMdls[1];
 } RTR0MEMOBJNT, *PRTR0MEMOBJNT;
+
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+/** Pointer to the MmProtectMdlSystemAddress kernel function if it's available.
+ * This API was introduced in XP. */
+static decltype(MmProtectMdlSystemAddress) *g_pfnMmProtectMdlSystemAddress = NULL;
+/** Set if we've resolved the dynamic APIs. */
+static bool volatile g_fResolvedDynamicApis = false;
+static ULONG g_uMajorVersion = 5;
+static ULONG g_uMinorVersion = 1;
+
+
+static void rtR0MemObjNtResolveDynamicApis(void)
+{
+    ULONG uBuildNumber  = 0;
+    PsGetVersion(&g_uMajorVersion, &g_uMinorVersion, &uBuildNumber, NULL);
+
+#ifndef IPRT_TARGET_NT4 /* MmGetSystemRoutineAddress was introduced in w2k. */
+
+    UNICODE_STRING RoutineName;
+    RtlInitUnicodeString(&RoutineName, L"MmProtectMdlSystemAddress");
+    g_pfnMmProtectMdlSystemAddress = (decltype(MmProtectMdlSystemAddress) *)MmGetSystemRoutineAddress(&RoutineName);
+
+#endif
+    ASMCompilerBarrier();
+    g_fResolvedDynamicApis = true;
+}
 
 
 DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
@@ -218,6 +247,7 @@ DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
 {
     AssertMsgReturn(cb <= _1G, ("%#x\n", cb), VERR_OUT_OF_RANGE); /* for safe size_t -> ULONG */
+    RT_NOREF1(fExecutable);
 
     /*
      * Try allocate the memory and create an MDL for them so
@@ -316,8 +346,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, 
             }
             __except(EXCEPTION_EXECUTE_HANDLER)
             {
+# ifdef LOG_ENABLED
                 NTSTATUS rcNt = GetExceptionCode();
                 Log(("rtR0MemObjNativeAllocLow: Exception Code %#x\n", rcNt));
+# endif
                 /* nothing */
             }
         }
@@ -350,6 +382,7 @@ static int rtR0MemObjNativeAllocContEx(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bo
                                        size_t uAlignment)
 {
     AssertMsgReturn(cb <= _1G, ("%#x\n", cb), VERR_OUT_OF_RANGE); /* for safe size_t -> ULONG */
+    RT_NOREF1(fExecutable);
 #ifdef IPRT_TARGET_NT4
     if (uAlignment != PAGE_SIZE)
         return VERR_NOT_SUPPORTED;
@@ -489,6 +522,7 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t c
     }
     return VERR_NO_MEMORY;
 #else   /* IPRT_TARGET_NT4 */
+    RT_NOREF(ppMem, cb, PhysHighest);
     return VERR_NOT_SUPPORTED;
 #endif  /* IPRT_TARGET_NT4 */
 }
@@ -660,6 +694,7 @@ DECLHIDDEN(int) rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *
     /*
      * MmCreateSection(SEC_RESERVE) + MmMapViewInSystemSpace perhaps?
      */
+    RT_NOREF4(ppMem, pvFixed, cb, uAlignment);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -670,6 +705,7 @@ DECLHIDDEN(int) rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR 
     /*
      * ZeCreateSection(SEC_RESERVE) + ZwMapViewOfSection perhaps?
      */
+    RT_NOREF5(ppMem, R3PtrFixed, cb, uAlignment, R0Process);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -758,8 +794,10 @@ static int rtR0MemObjNtMap(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, voi
         }
         __except(EXCEPTION_EXECUTE_HANDLER)
         {
+#ifdef LOG_ENABLED
             NTSTATUS rcNt = GetExceptionCode();
             Log(("rtR0MemObjNtMap: Exception Code %#x\n", rcNt));
+#endif
 
             /* nothing */
             rc = VERR_MAP_FAILED;
@@ -819,10 +857,130 @@ DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ p
 
 DECLHIDDEN(int) rtR0MemObjNativeProtect(PRTR0MEMOBJINTERNAL pMem, size_t offSub, size_t cbSub, uint32_t fProt)
 {
-    NOREF(pMem);
-    NOREF(offSub);
-    NOREF(cbSub);
-    NOREF(fProt);
+#if 0
+    PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)pMem;
+#endif
+    if (!g_fResolvedDynamicApis)
+        rtR0MemObjNtResolveDynamicApis();
+
+    /*
+     * Seems there are some issues with this MmProtectMdlSystemAddress API, so
+     * this code isn't currently enabled until we've tested it with the verifier.
+     */
+#if 0
+    /*
+     * The API we've got requires a kernel mapping.
+     */
+    if (   pMemNt->cMdls
+        && g_pfnMmProtectMdlSystemAddress
+        && (g_uMajorVersion > 6 || (g_uMajorVersion == 6 && g_uMinorVersion >= 1)) /* Windows 7 and later. */
+        && pMemNt->Core.pv != NULL
+        && (   pMemNt->Core.enmType == RTR0MEMOBJTYPE_PAGE
+            || pMemNt->Core.enmType == RTR0MEMOBJTYPE_LOW
+            || pMemNt->Core.enmType == RTR0MEMOBJTYPE_CONT
+            || (   pMemNt->Core.enmType             == RTR0MEMOBJTYPE_LOCK
+                && pMemNt->Core.u.Lock.R0Process    == NIL_RTPROCESS)
+            || (   pMemNt->Core.enmType             == RTR0MEMOBJTYPE_MAPPING
+                && pMemNt->Core.u.Mapping.R0Process == NIL_RTPROCESS) ) )
+    {
+        /* Convert the protection. */
+        LOCK_OPERATION enmLockOp;
+        ULONG fAccess;
+        switch (fProt)
+        {
+            case RTMEM_PROT_NONE:
+                fAccess = PAGE_NOACCESS;
+                enmLockOp = IoReadAccess;
+                break;
+            case RTMEM_PROT_READ:
+                fAccess = PAGE_READONLY;
+                enmLockOp = IoReadAccess;
+                break;
+            case RTMEM_PROT_WRITE:
+            case RTMEM_PROT_WRITE | RTMEM_PROT_READ:
+                fAccess = PAGE_READWRITE;
+                enmLockOp = IoModifyAccess;
+                break;
+            case RTMEM_PROT_EXEC:
+                fAccess = PAGE_EXECUTE;
+                enmLockOp = IoReadAccess;
+                break;
+            case RTMEM_PROT_EXEC | RTMEM_PROT_READ:
+                fAccess = PAGE_EXECUTE_READ;
+                enmLockOp = IoReadAccess;
+                break;
+            case RTMEM_PROT_EXEC | RTMEM_PROT_WRITE:
+            case RTMEM_PROT_EXEC | RTMEM_PROT_WRITE | RTMEM_PROT_READ:
+                fAccess = PAGE_EXECUTE_READWRITE;
+                enmLockOp = IoModifyAccess;
+                break;
+            default:
+                AssertFailedReturn(VERR_INVALID_FLAGS);
+        }
+
+        NTSTATUS rcNt = STATUS_SUCCESS;
+# if 0 /** @todo test this against the verifier. */
+        if (offSub == 0 && pMemNt->Core.cb == cbSub)
+        {
+            uint32_t iMdl = pMemNt->cMdls;
+            while (iMdl-- > 0)
+            {
+                rcNt = g_pfnMmProtectMdlSystemAddress(pMemNt->apMdls[i], fAccess);
+                if (!NT_SUCCESS(rcNt))
+                    break;
+            }
+        }
+        else
+# endif
+        {
+            /*
+             * We ASSUME the following here:
+             *   - MmProtectMdlSystemAddress can deal with nonpaged pool memory
+             *   - MmProtectMdlSystemAddress doesn't actually store anything in the MDL we pass it.
+             *   - We are not required to call MmProtectMdlSystemAddress with PAGE_READWRITE for the
+             *     exact same ranges prior to freeing them.
+             *
+             * So, we lock the pages temporarily, call the API and unlock them.
+             */
+            uint8_t *pbCur = (uint8_t *)pMemNt->Core.pv + offSub;
+            while (cbSub > 0 && NT_SUCCESS(rcNt))
+            {
+                size_t cbCur = cbSub;
+                if (cbCur > MAX_LOCK_MEM_SIZE)
+                    cbCur = MAX_LOCK_MEM_SIZE;
+                PMDL pMdl = IoAllocateMdl(pbCur, (ULONG)cbCur, FALSE, FALSE, NULL);
+                if (pMdl)
+                {
+                    __try
+                    {
+                        MmProbeAndLockPages(pMdl, KernelMode, enmLockOp);
+                    }
+                    __except(EXCEPTION_EXECUTE_HANDLER)
+                    {
+                        rcNt = GetExceptionCode();
+                    }
+                    if (NT_SUCCESS(rcNt))
+                    {
+                        rcNt = g_pfnMmProtectMdlSystemAddress(pMdl, fAccess);
+                        MmUnlockPages(pMdl);
+                    }
+                    IoFreeMdl(pMdl);
+                }
+                else
+                    rcNt = STATUS_NO_MEMORY;
+                pbCur += cbCur;
+                cbSub -= cbCur;
+            }
+        }
+
+        if (NT_SUCCESS(rcNt))
+            return VINF_SUCCESS;
+        return RTErrConvertFromNtStatus(rcNt);
+    }
+#else
+    RT_NOREF4(pMem, offSub, cbSub, fProt);
+#endif
+
     return VERR_NOT_SUPPORTED;
 }
 

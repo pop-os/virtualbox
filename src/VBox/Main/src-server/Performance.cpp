@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -247,7 +247,7 @@ int CollectorGuest::enableVMMStats(bool mCollectVMMStats)
 
     if (mGuest)
     {
-        /* @todo: replace this with a direct call to mGuest in trunk! */
+        /** @todo replace this with a direct call to mGuest in trunk! */
         AutoCaller autoCaller(mMachine);
         if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
@@ -1459,7 +1459,7 @@ bool Filter::patternMatch(const char *pszPat, const char *pszName,
         pszName++;
         pszPat++;
     }
-    return true;
+    /* not reached */
 }
 
 bool Filter::match(const ComPtr<IUnknown> object, const RTCString &name) const

@@ -397,12 +397,14 @@
 
     <itemizedlist>
       <listitem>
-        <para><emphasis role="bold">Windows</emphasis> hosts:<itemizedlist>
+        <para><emphasis role="bold">Windows</emphasis> hosts:<footnote>
+          <para>Support for 64-bit Windows was added with VirtualBox
+          1.5. Support for Windows XP was removed with VirtualBox 5.0.</para>
+          </footnote>
+          
+          <itemizedlist>
             <listitem>
-              <para>Windows Vista SP1 and later (32-bit and 64-bit<footnote>
-                  <para>Support for 64-bit Windows was added with VirtualBox
-                  1.5.</para>
-                </footnote>).</para>
+              <para>Windows Vista SP1 and later (32-bit and 64-bit)</para>
             </listitem>
 
             <listitem>
@@ -420,15 +422,15 @@
             <listitem>
               <para>Windows 8 (32-bit and 64-bit)</para>
             </listitem>
-            
+
             <listitem>
               <para>Windows 8.1 (32-bit and 64-bit)</para>
             </listitem>
-            
+
             <listitem>
               <para>Windows 10 RTM build 10240 (32-bit and 64-bit)</para>
             </listitem>
-            
+
             <listitem>
               <para>Windows Server 2012 (64-bit)</para>
             </listitem>
@@ -444,14 +446,12 @@
         <para><emphasis role="bold">Mac OS X</emphasis> hosts (64-bit):<footnote>
             <para>Preliminary Mac OS X support (beta stage) was added with
             VirtualBox 1.4, full support with 1.6. Mac OS X 10.4 (Tiger)
-            support was removed with VirtualBox 3.1. Mac OS X 10.7 (Lion)
-            and earlier was removed with VirtualBox 5.0.</para>
+            support was removed with VirtualBox 3.1. Support for Mac OS X 10.7 (Lion)
+            and earlier was removed with VirtualBox 5.0. Support for Mac OS X 10.8
+            (Mountain Lion) was removed with VirtualBox 5.1.</para>
           </footnote></para>
 
         <itemizedlist>
-          <listitem>
-            <para>10.8 (Mountain Lion)</para>
-          </listitem>
 
           <listitem>
             <para>10.9 (Mavericks)</para>
@@ -478,7 +478,7 @@
             1.4.</para>
           </footnote>). Among others, this includes:<itemizedlist>
             <listitem>
-              <para>Ubuntu 10.04 to 15.04</para>
+              <para>Ubuntu 10.04 to 16.04</para>
             </listitem>
 
             <listitem>
@@ -494,7 +494,7 @@
             </listitem>
 
             <listitem>
-              <para>Fedora Core / Fedora 6 to 22</para>
+              <para>Fedora Core / Fedora 6 to 24</para>
             </listitem>
 
             <listitem>
@@ -502,12 +502,9 @@
             </listitem>
 
             <listitem>
-              <para>openSUSE 11.4, 12.1, 12.2, 13.1</para>
+              <para>openSUSE 11.4 to 13.2</para>
             </listitem>
 
-            <listitem>
-              <para>Mandriva 2011</para>
-            </listitem>
           </itemizedlist></para>
 
         <para>It should be possible to use VirtualBox on most systems based on
@@ -1265,15 +1262,15 @@
   <sect1 id="gui-vmgroups">
     <title>Using VM groups</title>
 
-    <para>VM groups enable the user to create ad hoc groups of VMs, and to 
-    manage and perform functions on them collectively, as well as individually. 
+    <para>VM groups enable the user to create ad hoc groups of VMs, and to
+    manage and perform functions on them collectively, as well as individually.
     There are a number of features relating to groups:</para>
- 
+
     <orderedlist>
         <listitem>
           <para>
             Create a group using GUI option 1) Drag one VM on top of another
-            VM. 
+            VM.
           </para>
           <para>
             Create a group using GUI option 2) Select multiple VMs and select
@@ -1582,7 +1579,7 @@
     or to simply backup a VM, VirtualBox can create a full or a linked copy of
     an existing VM.<footnote><para>Cloning support was introduced with VirtualBox
     4.1.</para></footnote></para>
-    
+
     <para>A wizard will guide you through the clone process:</para>
 
     <mediaobject>
@@ -1591,7 +1588,7 @@
                    width="10cm" />
       </imageobject>
     </mediaobject>
-    
+
     <para>This wizard can be invoked from the context menu of the Manager's VM
     list (select "Clone") or the "Snapshots" view of the selected VM. First
     choose a new name for the clone. When you select <emphasis
@@ -1620,7 +1617,7 @@
          </para>
       </listitem>
     </itemizedlist>
-        
+
     <para>After selecting the clone mode, you need to decide about what exactly
     should be cloned. You can always create a clone of the <emphasis
         role="italic">current state</emphasis> only or <emphasis
@@ -1629,7 +1626,7 @@
     snapshots are cloned. Have you started from a snapshot which has additional
     children, you can also clone the <emphasis role="italic">current state and
         all children</emphasis>. This creates a clone starting with this
-    snapshot and includes all child snaphots.</para>
+    snapshot and includes all child snapshots.</para>
 
     <para>The clone operation itself can be a lengthy operation depending on
     the size and count of the attached disk images. Also keep in mind that

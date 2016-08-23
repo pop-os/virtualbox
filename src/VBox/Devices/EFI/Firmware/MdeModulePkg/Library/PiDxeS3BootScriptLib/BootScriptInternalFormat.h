@@ -2,7 +2,7 @@
   This file declares the internal Framework Boot Script format used by
   the PI implementation of Script Saver and Executor.
 
-  Copyright (c) 2006, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions
@@ -144,8 +144,8 @@ typedef struct {
 typedef struct {
   UINT16  OpCode;
   UINT8   Length;
-  UINT32                InformationLength;  
-  EFI_PHYSICAL_ADDRESS  Information;
+  UINT32  InformationLength;
+// UINT8   InformationData[InformationLength];
 } EFI_BOOT_SCRIPT_INFORMATION;
 
 typedef struct {
@@ -169,7 +169,7 @@ typedef struct {
   UINT8   Length;
   UINT32  Width;
   UINT64  Address;
-  UINT16  Segment;  
+  UINT16  Segment;
   UINT64  Delay;
 } EFI_BOOT_SCRIPT_PCI_CONFIG2_POLL;
 

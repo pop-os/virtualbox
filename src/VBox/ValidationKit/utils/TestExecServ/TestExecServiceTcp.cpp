@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -125,9 +125,8 @@ static void txsTcpDisconnectClient(void)
  *
  * @returns NIL_RTSOCKET if consumed, other wise hTcpClient.
  * @param   hTcpClient      The client socket.
- * @param   fFromServer     Set if server type connection.
  */
-static RTSOCKET txsTcpSetClient(RTSOCKET hTcpClient, bool fFromServer)
+static RTSOCKET txsTcpSetClient(RTSOCKET hTcpClient)
 {
     RTCritSectEnter(&g_TcpCritSect);
     if (   g_hTcpClient  == NIL_RTSOCKET
@@ -158,10 +157,11 @@ static DECLCALLBACK(int) txsTcpServerConnectThread(RTTHREAD hSelf, void *pvUser)
     Log(("txsTcpConnectServerThread: RTTcpServerListen2 -> %Rrc\n", rc));
     if (RT_SUCCESS(rc))
     {
-        hTcpClient = txsTcpSetClient(hTcpClient, true /*fFromServer*/);
+        hTcpClient = txsTcpSetClient(hTcpClient);
         RTTcpServerDisconnectClient2(hTcpClient);
     }
 
+    RT_NOREF2(hSelf, pvUser);
     return rc;
 }
 
@@ -191,6 +191,8 @@ static bool txsTcpIsFatalClientConnectStatus(int rc)
  */
 static DECLCALLBACK(int) txsTcpClientConnectThread(RTTHREAD hSelf, void *pvUser)
 {
+    RT_NOREF1(pvUser);
+
     for (;;)
     {
         /* Stop? */
@@ -208,7 +210,7 @@ static DECLCALLBACK(int) txsTcpClientConnectThread(RTTHREAD hSelf, void *pvUser)
         Log(("txsTcpRecvPkt: RTTcpClientConnect -> %Rrc\n", rc));
         if (RT_SUCCESS(rc))
         {
-            hTcpClient = txsTcpSetClient(hTcpClient, true /*fFromServer*/);
+            hTcpClient = txsTcpSetClient(hTcpClient);
             RTTcpClientCloseEx(hTcpClient, true /* fGracefulShutdown*/);
             break;
         }
@@ -725,7 +727,7 @@ static DECLCALLBACK(int) txsTcpOption(int ch, PCRTGETOPTUNION pVal)
                  g_enmTcpMode = TXSTCPMODE_SERVER;
             else
                 return RTMsgErrorRc(VERR_INVALID_PARAMETER, "Invalid TCP mode: '%s'\n", pVal->psz);
-            break;
+            return VINF_SUCCESS;
 
         case TXSTCPOPT_BIND_ADDRESS:
             rc = RTStrCopy(g_szTcpBindAddr, sizeof(g_szTcpBindAddr), pVal->psz);
@@ -735,7 +737,7 @@ static DECLCALLBACK(int) txsTcpOption(int ch, PCRTGETOPTUNION pVal)
 
         case TXSTCPOPT_BIND_PORT:
             g_uTcpBindPort = pVal->u16 == 0 ? TXS_TCP_DEF_BIND_PORT : pVal->u16;
-            break;
+            return VINF_SUCCESS;
 
         case TXSTCPOPT_LEGACY_CONNECT:
             g_enmTcpMode = TXSTCPMODE_CLIENT;
@@ -750,7 +752,7 @@ static DECLCALLBACK(int) txsTcpOption(int ch, PCRTGETOPTUNION pVal)
 
         case TXSTCPOPT_CONNECT_PORT:
             g_uTcpConnectPort = pVal->u16 == 0 ? TXS_TCP_DEF_CONNECT_PORT : pVal->u16;
-            break;
+            return VINF_SUCCESS;
 
         case TXSTCPOPT_LEGACY_PORT:
             if (pVal->u16 == 0)

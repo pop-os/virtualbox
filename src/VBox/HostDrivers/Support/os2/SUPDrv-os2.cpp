@@ -125,7 +125,7 @@ DECLASM(int) VBoxDrvInit(const char *pszArgs)
                            "\r\n"
                            "VirtualBox.org Support Driver for OS/2 version " VBOX_VERSION_STRING "\r\n"
                            "Copyright (C) 2007 Knut St. Osmundsen\r\n"
-                           "Copyright (C) 2007-2015 Oracle Corporation\r\n");
+                           "Copyright (C) 2007-2016 Oracle Corporation\r\n");
                     g_cchInitText = strlen(&g_szInitText[0]);
                 }
                 return VINF_SUCCESS;
@@ -427,12 +427,6 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 }
 
 
-void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
-{
-    NOREF(pDevExt); NOREF(pImage);
-}
-
-
 int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
@@ -448,6 +442,18 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 
 
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyUnloaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     NOREF(pDevExt); NOREF(pImage);
 }

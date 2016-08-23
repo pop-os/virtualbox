@@ -1,7 +1,7 @@
 ## @file
 # This file is used to be the main entrance of EOT tool
 #
-# Copyright (c) 2008 - 2010, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2008 - 2014, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
 # which accompanies this distribution.  The full text of the license may be found at
@@ -14,7 +14,7 @@
 ##
 # Import Modules
 #
-import os, time, glob
+import Common.LongFilePathOs as os, time, glob
 import Common.EdkLogger as EdkLogger
 import EotGlobalData
 from optparse import OptionParser
@@ -30,6 +30,7 @@ from Report import Report
 from Common.Misc import ParseConsoleLog
 from Common.BuildVersion import gBUILD_VERSION
 from Parser import ConvertGuid
+from Common.LongFilePathSupport import OpenLongFilePath as open
 
 ## Class Eot
 #
@@ -60,7 +61,7 @@ class Eot(object):
         self.FvFileList = FvFileList
         self.MapFileList = MapFileList
         self.Dispatch = Dispatch
-        
+
         # Check workspace environment
         if "EFI_SOURCE" not in os.environ:
             if "EDK_SOURCE" not in os.environ:
@@ -100,13 +101,13 @@ class Eot(object):
                 if not os.path.isfile(MapFile):
                     EdkLogger.error("Eot", EdkLogger.EOT_ERROR, "Can not find file %s " % MapFile)
                 EotGlobalData.gMAP_FILE.append(MapFile)
-                
+
         # Generate source file list
         self.GenerateSourceFileList(self.SourceFileList, self.IncludeDirList)
 
         # Generate guid list of dec file list
         self.ParseDecFile(self.DecFileList)
-        
+
         # Generate guid list from GUID list file
         self.ParseGuidList(self.GuidList)
 
@@ -166,7 +167,7 @@ class Eot(object):
                         if len(list) == 2:
                             EotGlobalData.gGuidDict[list[0].strip()] = GuidStructureStringToGuidString(list[1].strip())
 
-    
+
     ## ParseGuidList() method
     #
     #  Parse Guid list and get all GUID names with GUID values as {GuidName : GuidValue}
@@ -181,7 +182,7 @@ class Eot(object):
             for Line in open(Path):
                 (GuidName, GuidValue) = Line.split()
                 EotGlobalData.gGuidDict[GuidName] = GuidValue
-            
+
     ## ConvertLogFile() method
     #
     #  Parse a real running log file to get real dispatch order
@@ -548,7 +549,7 @@ class Eot(object):
 
         if Options.FvFileList:
             self.FvFileList = Options.FvFileList
- 
+
         if Options.MapFileList:
             self.MapFileList = Options.FvMapFileList
 
@@ -560,7 +561,7 @@ class Eot(object):
 
         if Options.DecFileList:
             self.DecFileList = Options.DecFileList
-        
+
         if Options.GuidList:
             self.GuidList = Options.GuidList
 

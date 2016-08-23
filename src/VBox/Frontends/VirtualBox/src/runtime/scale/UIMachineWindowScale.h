@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,29 +36,38 @@ private:
 
     /** Prepare main-layout routine. */
     void prepareMainLayout();
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Prepare visual-state routine. */
     void prepareVisualState();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     /** Load settings routine. */
     void loadSettings();
 
     /** Save settings routine. */
     void saveSettings();
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Cleanup visual-state routine. */
     void cleanupVisualState();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /** Updates visibility according to visual-state. */
     void showInNecessaryMode();
 
+    /** Restores cached window geometry. */
+    virtual void restoreCachedGeometry() /* override */;
+
+    /** Performs window geometry normalization according to guest-size and host's available geometry.
+      * @param  fAdjustPosition  Determines whether is it necessary to adjust position as well. */
+    virtual void normalizeGeometry(bool fAdjustPosition) /* override */;
+
     /** Common @a pEvent handler. */
     bool event(QEvent *pEvent);
-#ifdef Q_WS_WIN
-    /** Windows: Common native @a pEvent handler. */
+#ifdef VBOX_WS_WIN
+# if QT_VERSION < 0x050000
+    /** Qt4: Win: Handles all native messages. */
     bool winEvent(MSG *pMessage, long *pResult);
-#endif /* Q_WS_WIN */
+# endif /* QT_VERSION < 0x050000 */
+#endif /* VBOX_WS_WIN */
 
     /** Returns whether this window is maximized. */
     bool isMaximizedChecked();

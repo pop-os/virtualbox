@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0" language="ja">
+<TS version="2.1" language="ja">
 <context>
     <name>@@@</name>
     <message>
@@ -137,7 +137,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBoxのLinuxカーネルドライバー(vboxdrv)は読み込まれていないか、/dev/vboxdrvのパーミッションに問題があります。root権限で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行してカーネルモジュールを再インストールしてください。もしディストリビューションにある場合、まずDKMSパッケージをインストールしてください。このパッケージはLinuxカーネルの変更を把握し、必要ならばvboxdrvカーネルモジュールを再コンパイルします。</translation>
+        <translation type="vanished">VirtualBoxのLinuxカーネルドライバー(vboxdrv)は読み込まれていないか、/dev/vboxdrvのパーミッションに問題があります。root権限で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行してカーネルモジュールを再インストールしてください。もしディストリビューションにある場合、まずDKMSパッケージをインストールしてください。このパッケージはLinuxカーネルの変更を把握し、必要ならばvboxdrvカーネルモジュールを再コンパイルします。</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
@@ -145,7 +145,7 @@
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>カーネルモジュールのバージョンが適合しません。VirtualBoxのインストールは成功しませんでした。&lt;/br&gt;&lt;/br&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行すると、この問題は修正されるでしょう。VirtualBoxのOSEバージョンとPUELバージョンを混在して使用しないでください。</translation>
+        <translation type="vanished">カーネルモジュールのバージョンが適合しません。VirtualBoxのインストールは成功しませんでした。&lt;/br&gt;&lt;/br&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行すると、この問題は修正されるでしょう。VirtualBoxのOSEバージョンとPUELバージョンを混在して使用しないでください。</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
@@ -155,9 +155,17 @@
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
         <translation type="obsolete">フレームサイズ: %1x%2, フレームレート: %3fps, ビットレート: %4kbps</translation>
     </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation>VirtualBox Linux カーネルドライバー (vboxdrv) は読み込まれていないか、 /dev/vboxdrv のパーミッションに関する問題があります。 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; をroot権限で実行し、カーネルモジュールを再インストールしてください。</translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>VirtualBox の現在のカーネルモジュールがこのバージョンの VirtualBox と適合していません。VirtualBoxのインストールに失敗しています。 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; を実行すれば修正できるでしょう。OSE バージョンと PUEL バージョンのVirtualBoxを同じ環境にインストールしないでください。</translation>
+    </message>
 </context>
 <context>
-    <name>QIArrowSplitter</name>
+    <name>QIArrowButtonPress</name>
     <message>
         <source>&amp;Back</source>
         <translation>戻る(&amp;B)</translation>
@@ -165,6 +173,25 @@
     <message>
         <source>&amp;Next</source>
         <translation>次へ(&amp;N)</translation>
+    </message>
+</context>
+<context>
+    <name>QIArrowSplitter</name>
+    <message>
+        <source>&amp;Back</source>
+        <translation type="vanished">戻る(&amp;B)</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation type="vanished">次へ(&amp;N)</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation>詳細(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Details (%1 of %2)</source>
+        <translation>詳細(%2の%1)(&amp;D)</translation>
     </message>
 </context>
 <context>
@@ -242,11 +269,11 @@
     </message>
     <message>
         <source>&amp;Details</source>
-        <translation>詳細(&amp;D)</translation>
+        <translation type="vanished">詳細(&amp;D)</translation>
     </message>
     <message>
         <source>&amp;Details (%1 of %2)</source>
-        <translation>詳細(%2の%1)(&amp;D)</translation>
+        <translation type="vanished">詳細(%2の%1)(&amp;D)</translation>
     </message>
 </context>
 <context>
@@ -1517,6 +1544,42 @@
         <source>Power off selected virtual machines</source>
         <translation>選択した仮想マシンを電源オフ</translation>
     </message>
+    <message>
+        <source>&amp;VirtualBox Bug Tracker...</source>
+        <translation>&amp;VirtualBox バグトラッカー...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product bug tracker</source>
+        <translation>WebブラウザーでVirtualBoxのバグトラッカーを開く</translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Forums...</source>
+        <translation>&amp;VirtualBox フォーラム...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product forums</source>
+        <translation>WebブラウザーでVirtualBox製品のフォーラムを開く</translation>
+    </message>
+    <message>
+        <source>&amp;Oracle Web Site...</source>
+        <translation>&amp;Oracle Webサイト...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the Oracle web site</source>
+        <translation>WebブラウザーでOracleのWebサイトを開く</translation>
+    </message>
+    <message>
+        <source>&amp;Detach GUI</source>
+        <translation>GUIをデタッチ(&amp;D)</translation>
+    </message>
+    <message>
+        <source>Detach the GUI from headless VM</source>
+        <translation>GUIをヘッドレスＶＭからデタッチします</translation>
+    </message>
+    <message>
+        <source>Disable Dock Icon Overlay</source>
+        <translation>ドックアイコンのオーバーレイを無効にする</translation>
+    </message>
 </context>
 <context>
     <name>UIActionPoolRuntime</name>
@@ -1733,6 +1796,79 @@
     <message>
         <source>Reading Appliance ...</source>
         <translation>仮想アプライアンスの読み込み...</translation>
+    </message>
+</context>
+<context>
+    <name>UIApplianceUnverifiedCertificateViewer</name>
+    <message>
+        <source>Unverifiable Certificate! Continue?</source>
+        <translation>検証できない証明書です。継続しますか?</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The appliance is signed by an unverified self signed certificate issued by &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
+        <translation>&lt;b&gt;この仮想アプライアンスは検証できない &apos;%1&apos; によって自己署名された証明書が使われています。完全に信用できる場合のみインポートを継続することをオススメします。&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The appliance is signed by an unverified certificate issued to &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
+        <translation>&lt;b&gt;この仮想アプライアンスは検証できない &apos;%1&apos; によって署名された証明書が使われています。完全に信用できる場合のみインポートを継続することをオススメします。&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>True</source>
+        <translation>あり</translation>
+    </message>
+    <message>
+        <source>False</source>
+        <translation>なし</translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
+        <translation>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</translation>
+    </message>
+    <message>
+        <source>Issuer</source>
+        <translation>発行者</translation>
+    </message>
+    <message>
+        <source>Subject</source>
+        <translation>発行先</translation>
+    </message>
+    <message>
+        <source>Not Valid Before</source>
+        <translation>発行日</translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation>失効日</translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation>証明書</translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation>自己署名</translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation>認証局 (CA)</translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation>公開鍵暗号方式</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation>署名アルゴリズム</translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
+        <translation>X.509 バージョン番号</translation>
     </message>
 </context>
 <context>
@@ -2380,6 +2516,13 @@
     </message>
 </context>
 <context>
+    <name>UIEmptyFilePathSelector</name>
+    <message>
+        <source>Choose...</source>
+        <translation>選択...</translation>
+    </message>
+</context>
+<context>
     <name>UIEncryptionDataModel</name>
     <message>
         <source>Status</source>
@@ -2735,6 +2878,61 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
         <translation type="obsolete">選択した仮想マシンの構成を変更することができます。項目をダブルクリックして表示されているプロパティを変更できます。</translation>
+    </message>
+</context>
+<context>
+    <name>UIFilePathSelector</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>コピー(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Other...</source>
+        <translation>その他...</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>リセット</translation>
+    </message>
+    <message>
+        <source>Displays a window to select a different folder.</source>
+        <translation>他のフォルダーを選択するウィンドウを表示します。</translation>
+    </message>
+    <message>
+        <source>Resets the folder path to the default value.</source>
+        <translation>フォルダーパスの値をデフォルトに戻します。</translation>
+    </message>
+    <message>
+        <source>Displays a window to select a different file.</source>
+        <translation>他のファイルを選択するウィンドウを表示します。</translation>
+    </message>
+    <message>
+        <source>Resets the file path to the default value.</source>
+        <translation>ファイルパスの値をデフォルトに戻します。</translation>
+    </message>
+    <message>
+        <source>&lt;reset to default&gt;</source>
+        <translation>&lt;デフォルトに戻す&gt;</translation>
+    </message>
+    <message>
+        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
+        <translation>変更後、再度このウィンドウを開くとデフォルトパスが表示されます。</translation>
+    </message>
+    <message>
+        <source>&lt;not selected&gt;</source>
+        <translation>&lt;選択されていません&gt;</translation>
+    </message>
+    <message>
+        <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
+        <translation>ドロップダウンリストから&lt;b&gt;[その他...]&lt;/b&gt;を実行して、使用するパスを選択してください。</translation>
+    </message>
+    <message>
+        <source>Holds the folder path.</source>
+        <translation>フォルダーのパスを指定します。</translation>
+    </message>
+    <message>
+        <source>Holds the file path.</source>
+        <translation>ファイルのパスを指定します。</translation>
     </message>
 </context>
 <context>
@@ -4321,6 +4519,10 @@ p, li { white-space: pre-wrap; }
         <source>Edits selected host-only network.</source>
         <translation>選択したホストオンリーネットワークを編集します。</translation>
     </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <translation>ホストインターフェース &lt;b&gt;%1&lt;/b&gt; は正しいIPv6ネットワークマスクプレフィックス長ではありません。</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetworkDetails</name>
@@ -4690,27 +4892,27 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>VirtualBoxがネットワーク経由でのGuest Additionsのダウンロードやアップデートの確認にホストのプロキシー設定を自動的に検出するようになります。</translation>
     </message>
     <message>
         <source>&amp;Auto-detect Host Proxy Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>ホストのプロキシー設定を自動検出(&amp;A)</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>VirtualBoxはGuest Additionsのネットワークからのダウンロードやアップデートの確認に直接インターネットに接続します。</translation>
     </message>
     <message>
         <source>&amp;Direct Connection to the Internet</source>
-        <translation type="unfinished"></translation>
+        <translation>インターネットに直接接続(&amp;D)</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>VirtualBoxはGuest Additionsのネットワークからのダウンロードやアップデートの確認にプロキシー設定を使用します。</translation>
     </message>
     <message>
         <source>&amp;Manual Proxy Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>手動プロキシー設定(&amp;M)</translation>
     </message>
 </context>
 <context>
@@ -5311,6 +5513,439 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates whether the host keyboard is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is captured&lt;/nobr&gt;</source>
         <translation>ホストのキーボードがゲストOSにキャプチャーされているかどうかを示します: &lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;キーボードはキャプチャーされていません&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;キーボードはキャプチャーされています&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataAudio</name>
+    <message>
+        <source>Audio</source>
+        <translation type="obsolete">オーディオ</translation>
+    </message>
+    <message>
+        <source>Host Driver</source>
+        <comment>details report (audio)</comment>
+        <translation>ホストドライバー</translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <comment>details report (audio)</comment>
+        <translation>コントローラー</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataDisplay</name>
+    <message>
+        <source>Display</source>
+        <comment>details report</comment>
+        <translation type="obsolete">ディスプレイ</translation>
+    </message>
+    <message>
+        <source>Video Memory</source>
+        <comment>details report</comment>
+        <translation>ビデオメモリー</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation>スクリーン</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation>有効</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation>無効</translation>
+    </message>
+    <message>
+        <source>3D Acceleration</source>
+        <comment>details report</comment>
+        <translation>3D アクセラレーション</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>有効</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>無効</translation>
+    </message>
+    <message>
+        <source>2D Video Acceleration</source>
+        <comment>details report</comment>
+        <translation>2D ビデオアクセラレーション</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>リモートデスクトップサーバーポート</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>リモートデスクトップサーバー</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>無効</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataGeneral</name>
+    <message>
+        <source>General</source>
+        <comment>details report</comment>
+        <translation type="obsolete">一般</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>details report</comment>
+        <translation>名前</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>details report</comment>
+        <translation>OSタイプ</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataNetwork</name>
+    <message>
+        <source>Network</source>
+        <translation type="obsolete">ネットワーク</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation>ブリッジアダプター, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>内部ネットワーク, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>ホストオンリーアダプター, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>一般, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>NAT network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>NATネットワーク, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details report (network)</comment>
+        <translation>アダプター %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataNetworkStatistics</name>
+    <message>
+        <source>Data Transmitted</source>
+        <translation>データ送信</translation>
+    </message>
+    <message>
+        <source>Data Received</source>
+        <translation>データ受信</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <comment>details report</comment>
+        <translation type="obsolete">ネットワーク 統計</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataParallelPorts</name>
+    <message>
+        <source>Parallel Ports</source>
+        <comment>details report</comment>
+        <translation type="obsolete">パラレルポート</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (parallel ports)</comment>
+        <translation>ポート %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (parallel ports)</comment>
+        <translation>無効</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataRuntimeAttributes</name>
+    <message>
+        <source>Runtime Attributes</source>
+        <comment>details report</comment>
+        <translation type="obsolete">ランタイム属性</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest additions</comment>
+        <translation>未検出</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest os type</comment>
+        <translation>未検出</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDE server port)</comment>
+        <translation>利用不可</translation>
+    </message>
+    <message>
+        <source>Screen Resolution</source>
+        <translation>画面解像度</translation>
+    </message>
+    <message>
+        <source>VM Uptime</source>
+        <translation>VM 起動時間</translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation>クリップボードモード</translation>
+    </message>
+    <message>
+        <source>Drag and Drop Mode</source>
+        <translation>ドラッグ＆ドロップモード</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation>ネステッドページング</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <comment>details report</comment>
+        <translation>Unrestricted Execution</translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation>準仮想化インターフェース</translation>
+    </message>
+    <message>
+        <source>Guest Additions</source>
+        <translation>Guest Additions</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <comment>details report</comment>
+        <translation>ゲストOSのタイプ</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>リモートデスクトップサーバーポート</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSerialPorts</name>
+    <message>
+        <source>Serial Ports</source>
+        <translation type="obsolete">シリアルポート</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (serial ports)</comment>
+        <translation>ポート %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSharedFolders</name>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report</comment>
+        <translation type="obsolete">共有フォルダー</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report (shared folders)</comment>
+        <translation>共有フォルダー</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataStorage</name>
+    <message>
+        <source>Storage</source>
+        <translation type="obsolete">ストレージ</translation>
+    </message>
+    <message>
+        <source>(Optical Drive)</source>
+        <translation>(光学ドライブ)</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataStorageStatistics</name>
+    <message>
+        <source>DMA Transfers</source>
+        <translation>DMA 転送</translation>
+    </message>
+    <message>
+        <source>PIO Transfers</source>
+        <translation>PIO 転送</translation>
+    </message>
+    <message>
+        <source>Data Read</source>
+        <translation>データ読み込み</translation>
+    </message>
+    <message>
+        <source>Data Written</source>
+        <translation>データ書き込み</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <comment>details report</comment>
+        <translation type="obsolete">ストレージ統計</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSystem</name>
+    <message>
+        <source>System</source>
+        <comment>details report</comment>
+        <translation type="obsolete">システム</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (ACPI)</comment>
+        <translation>有効</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (ACPI)</comment>
+        <translation>無効</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (I/O APIC)</comment>
+        <translation>有効</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (I/O APIC)</comment>
+        <translation>無効</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (PAE/NX)</comment>
+        <translation>有効</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (PAE/NX)</comment>
+        <translation>無効</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>details report</comment>
+        <translation>メインメモリー</translation>
+    </message>
+    <message>
+        <source>Processor(s)</source>
+        <comment>details report</comment>
+        <translation>プロセッサー数</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation>使用率制限</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details report</comment>
+        <translation>起動順序</translation>
+    </message>
+    <message>
+        <source>ACPI</source>
+        <comment>details report</comment>
+        <translation>ACPI</translation>
+    </message>
+    <message>
+        <source>I/O APIC</source>
+        <comment>details report</comment>
+        <translation>I/O APIC</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details report</comment>
+        <translation>PAE/NX</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (VT-x/AMD-V)</comment>
+        <translation>有効</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VT-x/AMD-V)</comment>
+        <translation>無効</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation>有効</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation>無効</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation>ネステッドページング</translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation>準仮想化インターフェース</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataUSB</name>
+    <message>
+        <source>USB</source>
+        <comment>details report</comment>
+        <translation type="obsolete">USB</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (USB)</comment>
+        <translation>無効</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details report (USB)</comment>
+        <translation>デバイスフィルター</translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details report (USB)</comment>
+        <translation>%1 (%2 アクティブ)</translation>
     </message>
 </context>
 <context>
@@ -7677,6 +8312,10 @@ p, li { white-space: pre-wrap; }
         <comment>This is used for hard disks, optical media and floppies</comment>
         <translation>ディスクイメージを選択...</translation>
     </message>
+    <message>
+        <source>Add NVMe Controller</source>
+        <translation>NVMe コントローラーを追加</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
@@ -8404,6 +9043,30 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Choose mode:</source>
         <translation>メディアタイプを選択:</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly or indirectly, preserved when taking snapshots.</source>
+        <translation>このタイプのメディアは直接あるいは間接的に割り当てられます。スナップショットでは保持されます。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached indirectly, changes are wiped out the next time the virtual machine is started.</source>
+        <translation>このタイプのメディアは間接的に割り当てられます。変更は次に仮想マシンが起動するときには消去しています。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, ignored when taking snapshots.</source>
+        <translation>このタイプのメディアは直接割り当てられます。スナップショットでは無視されます。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, allowed to be used concurrently by several machines.</source>
+        <translation>このタイプのメディアは直接割り当てられます。いくつかのマシンから同時利用できます。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, and can be used by several machines.</source>
+        <translation>このタイプのメディアは直接割り当てられます。いくつかのマシンから使用されることもあります。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached indirectly, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications.</source>
+        <translation>このタイプのメディアは間接的に割り当てられます。一つのベースとなるメディアを元に独自の変更を加えた上で、いくつかのVMから使用されています。</translation>
     </message>
 </context>
 <context>
@@ -10340,15 +11003,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; の暗号化パスワードは無効です。</translation>
     </message>
     <message>
         <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>現在のポートフォワーディングルールは無効です。 すべてのホストまたはゲストのアドレス値は正確か、あるいは空でなくてはなりません。</translation>
     </message>
     <message>
         <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>現在のポートフォワーディングルールは無効です。 ゲストアドレス値は空であってはなりません。</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to acquire the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;VirtualBox COMオブジェクトの作成に失敗しました。&lt;/p&gt;&lt;p&gt;アプリケーションを終了します。&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -10452,6 +11119,10 @@ p, li { white-space: pre-wrap; }
         <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
         <translation>仮想マシンで実行するOS(ゲストOSと呼びます)のタイプを選択します。</translation>
     </message>
+    <message>
+        <source>Holds the location of the virtual machine.</source>
+        <translation>仮想マシンの場所を指定します。</translation>
+    </message>
 </context>
 <context>
     <name>UINetworkManagerDialog</name>
@@ -10541,42 +11212,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>%1: %2</source>
         <comment>Context description: Error description</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: %2</translation>
     </message>
     <message>
         <source>Unable to initialize HTTP library</source>
-        <translation type="unfinished"></translation>
+        <translation>HTTPライブラリーを初期化できません</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>接続が拒否されました</translation>
     </message>
     <message>
         <source>Content moved</source>
-        <translation type="unfinished"></translation>
+        <translation>内容が移動しました</translation>
     </message>
     <message>
         <source>Proxy not found</source>
-        <translation type="unfinished"></translation>
+        <translation>プロキシが見つかりません</translation>
     </message>
     <message>
         <source>Url not found on the server</source>
-        <translation type="unfinished"></translation>
+        <translation>サーバーでURLが見つかりません</translation>
     </message>
 </context>
 <context>
     <name>UINetworkReplyPrivateThread</name>
     <message>
         <source>During proxy configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>プロキシの設定中</translation>
     </message>
     <message>
         <source>During certificate downloading</source>
-        <translation type="unfinished"></translation>
+        <translation>認証のダウンロード中</translation>
     </message>
     <message>
         <source>During network request</source>
-        <translation type="unfinished"></translation>
+        <translation>ネットワークリクエスト中</translation>
     </message>
 </context>
 <context>
@@ -12048,11 +12719,26 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>VM Uptime</source>
-        <translation>VM アップデート</translation>
+        <translation>VM 起動時間</translation>
     </message>
     <message>
         <source>Drag and Drop Mode</source>
         <translation>ドラッグ＆ドロップモード</translation>
+    </message>
+</context>
+<context>
+    <name>UIVMInformationDialog</name>
+    <message>
+        <source>%1 - Session Information</source>
+        <translation>%1 - セッション情報</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation>設定の詳細(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation>ランタイム情報(&amp;R)</translation>
     </message>
 </context>
 <context>
@@ -12169,6 +12855,18 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     <message>
         <source>Close</source>
         <translation>閉じる</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>フィルター</translation>
+    </message>
+    <message>
+        <source>Enter filtering string here</source>
+        <translation>フィルタリングする文字列をここに入力</translation>
+    </message>
+    <message>
+        <source>Fil&amp;ter</source>
+        <translation>フィルター(&amp;T)</translation>
     </message>
 </context>
 <context>
@@ -12532,11 +13230,11 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>&lt;p&gt;Please select the virtual machines that should be added to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;アプライアンスに追加する仮想マシンを選択してください。複数の仮想マシンを選択できます。それらのマシンはエクスポートする前に電源オフにしている必要があります。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;仮想アプライアンスに追加する仮想マシンを選択してください。複数の仮想マシンを選択できます。それらのマシンはエクスポートする前に電源オフにしている必要があります。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Appliance settings</source>
-        <translation>アプライアンスの設定</translation>
+        <translation>仮想アプライアンスの設定</translation>
     </message>
     <message>
         <source>Please choose where to create the virtual appliance. You can create it on your own computer, on the Sun Cloud service or on an S3 storage server.</source>
@@ -12652,7 +13350,7 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>Appliance &amp;settings</source>
-        <translation>アプライアンスの設定(&amp;S)</translation>
+        <translation>仮想アプライアンスの設定(&amp;S)</translation>
     </message>
     <message>
         <source>&amp;Destination</source>
@@ -12736,7 +13434,7 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>Appliance to import</source>
-        <translation>インポートしたいアプライアンス</translation>
+        <translation>インポートしたい仮想アプライアンス</translation>
     </message>
     <message>
         <source>&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below.&lt;/p&gt;</source>
@@ -12764,11 +13462,39 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>Appliance settings</source>
-        <translation>アプライアンスの設定</translation>
+        <translation>仮想アプライアンスの設定</translation>
     </message>
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
         <translation>VirtualBoxにインポートする仮想アプライアンス情報で記載された仮想マシン構成です。項目をダブルクリックすると、表示されているプロパティの大部分を変更できます。また、以下のチェックボックスを使用して他のプロパティを無効にすることができます。</translation>
+    </message>
+    <message>
+        <source>Appliance is not signed</source>
+        <translation>仮想アプライアンスは署名されていません</translation>
+    </message>
+    <message>
+        <source>Appliance signed by %1 (trusted)</source>
+        <translation>仮想アプライアンスは %1 によって署名されています (信頼できる)</translation>
+    </message>
+    <message>
+        <source>Appliance signed by %1 (expired!)</source>
+        <translation>仮想アプライアンスは %1 によって署名されています (失効済！)</translation>
+    </message>
+    <message>
+        <source>Unverified signature by %1!</source>
+        <translation>%1 による検証できない署名です！</translation>
+    </message>
+    <message>
+        <source>Self signed by %1 (trusted)</source>
+        <translation>%1 による自己署名 (信頼できる)</translation>
+    </message>
+    <message>
+        <source>Self signed by %1 (expired!)</source>
+        <translation>%1 による自己署名 (失効済！)</translation>
+    </message>
+    <message>
+        <source>Unverified self signed signature by %1!</source>
+        <translation>%1 による検証できない自己署名された証明書です！</translation>
     </message>
 </context>
 <context>
@@ -13011,6 +13737,14 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     <message>
         <source>Choose a virtual hard disk file...</source>
         <translation>仮想ハードディスクファイルの選択...</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;nobr&gt;Holds the name or full path to the virtual machine folder you are about to create.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;nobr&gt;作成しようとしている名前もしくは仮想マシンのフォルダーのフルパスを指定してください。&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;nobr&gt;You are about to create the virtual machine in the following folder:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;nobr&gt;次のフォルダーに仮想マシンを作成しようとしています:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -14098,14 +14832,14 @@ Version %1</source>
     </message>
     <message>
         <source>Choose...</source>
-        <translation>選択...</translation>
+        <translation type="vanished">選択...</translation>
     </message>
 </context>
 <context>
     <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
-        <translation>&lt;デフォルトに戻す&gt;</translation>
+        <translation type="vanished">&lt;デフォルトに戻す&gt;</translation>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
@@ -14113,23 +14847,23 @@ Version %1</source>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <translation>変更後、再度このウィンドウを開くとデフォルトパスが表示されます。</translation>
+        <translation type="vanished">変更後、再度このウィンドウを開くとデフォルトパスが表示されます。</translation>
     </message>
     <message>
         <source>&lt;not selected&gt;</source>
-        <translation>&lt;選択されていません&gt;</translation>
+        <translation type="vanished">&lt;選択されていません&gt;</translation>
     </message>
     <message>
         <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
-        <translation>ドロップダウンリストから&lt;b&gt;[その他...]&lt;/b&gt;を実行して、使用するパスを選択してください。</translation>
+        <translation type="vanished">ドロップダウンリストから&lt;b&gt;[その他...]&lt;/b&gt;を実行して、使用するパスを選択してください。</translation>
     </message>
     <message>
         <source>Other...</source>
-        <translation>その他...</translation>
+        <translation type="vanished">その他...</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>リセット</translation>
+        <translation type="vanished">リセット</translation>
     </message>
     <message>
         <source>Opens a window to select a different folder.</source>
@@ -14137,7 +14871,7 @@ Version %1</source>
     </message>
     <message>
         <source>Resets the folder path to the default value.</source>
-        <translation>フォルダーパスの値をデフォルトに戻します。</translation>
+        <translation type="vanished">フォルダーパスの値をデフォルトに戻します。</translation>
     </message>
     <message>
         <source>Opens a window to select a different file.</source>
@@ -14145,11 +14879,11 @@ Version %1</source>
     </message>
     <message>
         <source>Resets the file path to the default value.</source>
-        <translation>ファイルパスの値をデフォルトに戻します。</translation>
+        <translation type="vanished">ファイルパスの値をデフォルトに戻します。</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>コピー(&amp;C)</translation>
+        <translation type="vanished">コピー(&amp;C)</translation>
     </message>
     <message>
         <source>Please type the folder path here.</source>
@@ -14161,19 +14895,19 @@ Version %1</source>
     </message>
     <message>
         <source>Displays a window to select a different folder.</source>
-        <translation>他のフォルダーを選択するウィンドウを表示します。</translation>
+        <translation type="vanished">他のフォルダーを選択するウィンドウを表示します。</translation>
     </message>
     <message>
         <source>Displays a window to select a different file.</source>
-        <translation>他のファイルを選択するウィンドウを表示します。</translation>
+        <translation type="vanished">他のファイルを選択するウィンドウを表示します。</translation>
     </message>
     <message>
         <source>Holds the folder path.</source>
-        <translation>フォルダーのパスを指定します。</translation>
+        <translation type="vanished">フォルダーのパスを指定します。</translation>
     </message>
     <message>
         <source>Holds the file path.</source>
-        <translation>ファイルのパスを指定します。</translation>
+        <translation type="vanished">ファイルのパスを指定します。</translation>
     </message>
 </context>
 <context>
@@ -16200,6 +16934,106 @@ Version %1</source>
     <message>
         <source>Please choose a location for new virtual hard disk file</source>
         <translation>新しい仮想ハードディスクファイルの場所を選択</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageBus</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>PCIe</source>
+        <comment>StorageBus</comment>
+        <translation>PCIe</translation>
+    </message>
+    <message>
+        <source>NVMe</source>
+        <comment>StorageControllerType</comment>
+        <translation>NVMe</translation>
+    </message>
+    <message>
+        <source>NVMe Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>NVMe ポート %1</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation>一般</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation>プレビュー</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation>システム</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation>ディスプレイ</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation>ストレージ</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation>オーディオ</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation>ネットワーク</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation>シリアルポート</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation>パラレルポート</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation>共有フォルダー</translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation>ユーザーインターフェース</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation>説明</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation>ランタイム属性</translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation>ストレージ統計</translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation>ネットワーク 統計</translation>
     </message>
 </context>
 <context>
@@ -18761,7 +19595,7 @@ value.&lt;/qt&gt;</source>
     </message>
     <message>
         <source>&amp;Description</source>
-        <translation type="obsolete">コメント(&amp;D)</translation>
+        <translation type="obsolete">説明(&amp;D)</translation>
     </message>
     <message>
         <source>&amp;Mount Floppy Drive</source>

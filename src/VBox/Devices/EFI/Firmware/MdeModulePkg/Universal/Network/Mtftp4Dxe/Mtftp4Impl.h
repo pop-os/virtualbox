@@ -1,15 +1,15 @@
 /** @file
-  
+
   Mtftp4 Implementation.
-  
+
   Mtftp4 Implementation, it supports the following RFCs:
   RFC1350 - THE TFTP PROTOCOL (REVISION 2)
   RFC2090 - TFTP Multicast Option
   RFC2347 - TFTP Option Extension
   RFC2348 - TFTP Blocksize Option
   RFC2349 - TFTP Timeout Interval and Transfer Size Options
-  
-Copyright (c) 2006 - 2009, Intel Corporation. All rights reserved.<BR>
+
+Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -34,6 +34,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UdpIoLib.h>
+#include <Library/PrintLib.h>
 
 extern EFI_MTFTP4_PROTOCOL  gMtftp4ProtocolTemplate;
 
@@ -59,7 +60,7 @@ typedef struct _MTFTP4_PROTOCOL MTFTP4_PROTOCOL;
 
 #define MTFTP4_STATE_UNCONFIGED     0
 #define MTFTP4_STATE_CONFIGED       1
-#define MTFTP4_STATE_DESTORY        2
+#define MTFTP4_STATE_DESTROY        2
 
 ///
 /// Mtftp service block
@@ -67,8 +68,6 @@ typedef struct _MTFTP4_PROTOCOL MTFTP4_PROTOCOL;
 struct _MTFTP4_SERVICE {
   UINT32                        Signature;
   EFI_SERVICE_BINDING_PROTOCOL  ServiceBinding;
-
-  BOOLEAN                       InDestory;
 
   UINT16                        ChildrenNum;
   LIST_ENTRY                    Children;
@@ -99,7 +98,7 @@ struct _MTFTP4_PROTOCOL {
   EFI_MTFTP4_PROTOCOL           Mtftp4;
 
   INTN                          State;
-  BOOLEAN                       InDestory;
+  BOOLEAN                       InDestroy;
 
   MTFTP4_SERVICE                *Service;
   EFI_HANDLE                    Handle;
@@ -149,6 +148,12 @@ struct _MTFTP4_PROTOCOL {
   UDP_IO                        *McastUdpPort;
 };
 
+typedef struct {
+  EFI_SERVICE_BINDING_PROTOCOL  *ServiceBinding;
+  UINTN                         NumberOfChildren;
+  EFI_HANDLE                    *ChildHandleBuffer;
+} MTFTP4_DESTROY_CHILD_IN_HANDLE_BUF_CONTEXT;
+
 /**
   Clean up the MTFTP session to get ready for new operation.
 
@@ -164,8 +169,8 @@ Mtftp4CleanOperation (
 
 /**
   Start the MTFTP session for upload.
-  
-  It will first init some states, then send the WRQ request packet, 
+
+  It will first init some states, then send the WRQ request packet,
   and start receiving the packet.
 
   @param  Instance              The MTFTP session
@@ -183,9 +188,9 @@ Mtftp4WrqStart (
   );
 
 /**
-  Start the MTFTP session to download. 
-  
-  It will first initialize some of the internal states then build and send a RRQ 
+  Start the MTFTP session to download.
+
+  It will first initialize some of the internal states then build and send a RRQ
   reqeuest packet, at last, it will start receive for the downloading.
 
   @param  Instance              The Mtftp session

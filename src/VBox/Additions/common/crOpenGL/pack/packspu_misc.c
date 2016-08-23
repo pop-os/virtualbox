@@ -93,12 +93,12 @@ void PACKSPU_APIENTRY packspu_ChromiumParametervCR(GLenum target, GLenum type, G
         packspuFlush( (void *) thread );
 }
 
-GLboolean packspuSyncOnFlushes()
+GLboolean packspuSyncOnFlushes(void)
 {
-    GLint buffer;
-
-    /*Seems to still cause issues, always sync for now*/
+#if 1 /*Seems to still cause issues, always sync for now*/
     return 1;
+#else
+    GLint buffer;
 
     crStateGetIntegerv(GL_DRAW_BUFFER, &buffer);
     /*Usually buffer==GL_BACK, so put this extra check to simplify boolean eval on runtime*/
@@ -109,6 +109,7 @@ GLboolean packspuSyncOnFlushes()
                 || buffer == GL_FRONT_AND_BACK
                 || buffer == GL_LEFT
                 || buffer == GL_RIGHT);
+#endif
 }
 
 void PACKSPU_APIENTRY packspu_DrawBuffer(GLenum mode)
@@ -550,6 +551,7 @@ GLenum PACKSPU_APIENTRY packspu_GetError( void )
     int writeback = 1;
     GLenum return_val = (GLenum) 0;
     CRContext *pCurState = crStateGetCurrent();
+    NOREF(pCurState); /* it's unused, but I don't know about side effects.. */
 
     if (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
     {
@@ -582,6 +584,7 @@ GLint PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(struct VBOXUHGSMI *pHgsmi
     int i;
     GET_THREAD(thread);
     CRASSERT(!thread);
+    RT_NOREF(pHgsmi);
     crLockMutex(&_PackMutex);
     {
         CRASSERT(CRPACKSPU_IS_WDDM_CRHGSMI() || (pack_spu.numThreads>0));
@@ -840,10 +843,14 @@ void PACKSPU_APIENTRY packspu_VBoxPackDetachThread()
 }
 #endif /*CHROMIUM_THREADSAFE*/
 
-void PACKSPU_APIENTRY packspu_VBoxPresentComposition(GLint win, const struct VBOXVR_SCR_COMPOSITOR * pCompositor, const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry)
+void PACKSPU_APIENTRY packspu_VBoxPresentComposition(GLint win, const struct VBOXVR_SCR_COMPOSITOR * pCompositor,
+                                                     const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry)
 {
+    RT_NOREF(win, pCompositor, pChangedEntry);
 }
 
 void PACKSPU_APIENTRY packspu_StringMarkerGREMEDY(GLsizei len, const GLvoid *string)
 {
+    RT_NOREF(len, string);
 }
+

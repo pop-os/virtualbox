@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,6 +35,16 @@ RT_C_DECLS_END
 static int  gX11ScreenSaverTimeout;
 static BOOL gX11ScreenSaverDpmsAvailable;
 static BOOL gX11DpmsState;
+
+bool X11IsCompositingManagerRunning()
+{
+    /* Get display: */
+    Display *pDisplay = QX11Info::display();
+    /* For each screen it manage, compositing manager MUST acquire ownership
+     * of a selection named _NET_WM_CM_Sn, where n is the screen number. */
+    Atom atom_property_name = XInternAtom(pDisplay, "_NET_WM_CM_S0", True);
+    return XGetSelectionOwner(pDisplay, atom_property_name);
+}
 
 X11WMType X11WindowManagerType()
 {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@
 # endif /* linux */
 
 #elif defined(RT_OS_WINDOWS)
-# include <Windows.h>
+# include <iprt/win/windows.h>
 #endif
 
 #include "VBoxDD.h"
@@ -171,7 +171,7 @@ static DECLCALLBACK(void *) drvHostSerialQueryInterface(PPDMIBASE pInterface, co
 
 /* -=-=-=-=- ICharConnector -=-=-=-=- */
 
-/** @copydoc PDMICHARCONNECTOR::pfnWrite */
+/** @interface_method_impl{PDMICHARCONNECTOR,pfnWrite} */
 static DECLCALLBACK(int) drvHostSerialWrite(PPDMICHARCONNECTOR pInterface, const void *pvBuf, size_t cbWrite)
 {
     PDRVHOSTSERIAL pThis = PDMICHAR_2_DRVHOSTSERIAL(pInterface);
@@ -203,7 +203,7 @@ static DECLCALLBACK(int) drvHostSerialSetParameters(PPDMICHARCONNECTOR pInterfac
 
     LogFlow(("%s: Bps=%u chParity=%c cDataBits=%u cStopBits=%u\n", __FUNCTION__, Bps, chParity, cDataBits, cStopBits));
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     termiosSetup = (struct termios *)RTMemTmpAllocZ(sizeof(struct termios));
 
     /* Enable receiver */

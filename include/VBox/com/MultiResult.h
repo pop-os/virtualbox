@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -212,7 +212,7 @@ public:
 
 private:
 
-    DECLARE_CLS_NEW_DELETE_NOOP(MultiResult)
+    DECLARE_CLS_NEW_DELETE_NOOP(MultiResult);
 
     static void incCounter();
     static void decCounter();
@@ -251,7 +251,7 @@ public:
 
 private:
 
-    DECLARE_CLS_NEW_DELETE_NOOP (MultiResultRef)
+    DECLARE_CLS_NEW_DELETE_NOOP(MultiResultRef);
 
     HRESULT &mRC;
 };

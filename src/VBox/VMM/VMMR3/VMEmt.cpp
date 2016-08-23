@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,20 +46,20 @@
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu);
+int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu);
 
 
 /**
  * The emulation thread main function.
  *
  * @returns Thread exit code.
- * @param   ThreadSelf  The handle to the executing thread.
+ * @param   hThreadSelf The handle to the executing thread.
  * @param   pvArgs      Pointer to the user mode per-VCpu structure (UVMPCU).
  */
-DECLCALLBACK(int) vmR3EmulationThread(RTTHREAD ThreadSelf, void *pvArgs)
+DECLCALLBACK(int) vmR3EmulationThread(RTTHREAD hThreadSelf, void *pvArgs)
 {
     PUVMCPU pUVCpu = (PUVMCPU)pvArgs;
-    return vmR3EmulationThreadWithId(ThreadSelf, pUVCpu, pUVCpu->idCpu);
+    return vmR3EmulationThreadWithId(hThreadSelf, pUVCpu, pUVCpu->idCpu);
 }
 
 
@@ -67,14 +67,15 @@ DECLCALLBACK(int) vmR3EmulationThread(RTTHREAD ThreadSelf, void *pvArgs)
  * The emulation thread main function, with Virtual CPU ID for debugging.
  *
  * @returns Thread exit code.
- * @param   ThreadSelf  The handle to the executing thread.
+ * @param   hThreadSelf The handle to the executing thread.
  * @param   pUVCpu      Pointer to the user mode per-VCpu structure.
  * @param   idCpu       The virtual CPU ID, for backtrace purposes.
  */
-int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu)
+int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu)
 {
     PUVM    pUVM = pUVCpu->pUVM;
     int     rc;
+    RT_NOREF_PV(hThreadSelf);
 
     AssertReleaseMsg(VALID_PTR(pUVM) && pUVM->u32Magic == UVM_MAGIC,
                      ("Invalid arguments to the emulation thread!\n"));
@@ -90,7 +91,7 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
      * The request loop.
      */
     rc = VINF_SUCCESS;
-    Log(("vmR3EmulationThread: Emulation thread starting the days work... Thread=%#x pUVM=%p\n", ThreadSelf, pUVM));
+    Log(("vmR3EmulationThread: Emulation thread starting the days work... Thread=%#x pUVM=%p\n", hThreadSelf, pUVM));
     VMSTATE enmBefore = VMSTATE_CREATED; /* (only used for logging atm.) */
     for (;;)
     {
@@ -152,7 +153,8 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
              * We check for state changes in addition to status codes when
              * servicing requests. (Look after the ifs.)
              */
-            PVM pVM = pUVM->pVM;
+            PVM    pVM   = pUVM->pVM;
+            PVMCPU pVCpu = pUVCpu->pVCpu;
             enmBefore = pVM->enmVMState;
             if (pUVM->vm.s.fTerminateEMT)
             {
@@ -181,12 +183,13 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
                 rc = VMR3ReqProcessU(pUVM, pUVCpu->idCpu, false /*fPriorityOnly*/);
                 Log(("vmR3EmulationThread: Req (cpu=%u) rc=%Rrc, VM state %s -> %s\n", pUVCpu->idCpu, rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
-            else if (VM_FF_IS_SET(pVM, VM_FF_DBGF))
+            else if (   VM_FF_IS_SET(pVM, VM_FF_DBGF)
+                     || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_DBGF))
             {
                 /*
                  * Service the debugger request.
                  */
-                rc = DBGFR3VMMForcedAction(pVM);
+                rc = DBGFR3VMMForcedAction(pVM, pVCpu);
                 Log(("vmR3EmulationThread: Dbg rc=%Rrc, VM state %s -> %s\n", rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
             else if (VM_FF_TEST_AND_CLEAR(pVM, VM_FF_RESET))
@@ -194,7 +197,7 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
                 /*
                  * Service a delayed reset request.
                  */
-                rc = VMR3Reset(pVM->pUVM);
+                rc = VBOXSTRICTRC_VAL(VMR3ResetFF(pVM));
                 VM_FF_CLEAR(pVM, VM_FF_RESET);
                 Log(("vmR3EmulationThread: Reset rc=%Rrc, VM state %s -> %s\n", rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
@@ -234,8 +237,6 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
             {
                 rc = EMR3ExecuteVM(pVM, pVCpu);
                 Log(("vmR3EmulationThread: EMR3ExecuteVM() -> rc=%Rrc, enmVMState=%d\n", rc, pVM->enmVMState));
-                if (EMGetState(pVCpu) == EMSTATE_GURU_MEDITATION)
-                    vmR3SetGuruMeditation(pVM);
             }
         }
 
@@ -246,7 +247,7 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
      * Cleanup and exit.
      */
     Log(("vmR3EmulationThread: Terminating emulation thread! Thread=%#x pUVM=%p rc=%Rrc enmBefore=%d enmVMState=%d\n",
-         ThreadSelf, pUVM, rc, enmBefore, pUVM->pVM ? pUVM->pVM->enmVMState : VMSTATE_TERMINATED));
+         hThreadSelf, pUVM, rc, enmBefore, pUVM->pVM ? pUVM->pVM->enmVMState : VMSTATE_TERMINATED));
     if (   idCpu == 0
         && pUVM->pVM)
     {
@@ -960,6 +961,8 @@ static DECLCALLBACK(void) vmR3DefaultNotifyCpuFF(PUVMCPU pUVCpu, uint32_t fFlags
              && pUVCpu->pVCpu
              && pUVCpu->pVCpu->enmState == VMCPUSTATE_STARTED_EXEC_REM)
         REMR3NotifyFF(pUVCpu->pVM);
+#else
+    RT_NOREF(fFlags);
 #endif
 }
 
@@ -1057,7 +1060,7 @@ VMMR3_INT_DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts
      */
     const uint32_t fMask = !fIgnoreInterrupts
         ? VMCPU_FF_EXTERNAL_HALTED_MASK
-        : VMCPU_FF_EXTERNAL_HALTED_MASK & ~(VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC);
+        : VMCPU_FF_EXTERNAL_HALTED_MASK & ~(VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC);
     if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
         ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
     {

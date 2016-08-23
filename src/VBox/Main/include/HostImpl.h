@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -143,6 +143,11 @@ private:
     HRESULT findUSBDeviceByAddress(const com::Utf8Str &aName,
                                    ComPtr<IHostUSBDevice> &aDevice);
     HRESULT generateMACAddress(com::Utf8Str &aAddress);
+
+    HRESULT addUSBDeviceSource(const com::Utf8Str &aBackend, const com::Utf8Str &aId, const com::Utf8Str &aAddress,
+                               const std::vector<com::Utf8Str> &aPropertyNames, const std::vector<com::Utf8Str> &aPropertyValues);
+
+    HRESULT removeUSBDeviceSource(const com::Utf8Str &aId);
 
     // Internal Methods.
 

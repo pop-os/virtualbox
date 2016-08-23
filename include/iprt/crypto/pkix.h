@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,10 +48,35 @@ RT_C_DECLS_BEGIN
  * @param   pvData          The signed data.
  * @param   cbData          The amount of signed data.
  * @param   pErrInfo        Where to return extended error info. Optional.
+ *
+ * @remarks Depending on the IPRT build configuration, the verficiation may be
+ *          performed more than once using all available crypto implementations.
  */
 RTDECL(int) RTCrPkixPubKeyVerifySignature(PCRTASN1OBJID pAlgorithm, PCRTASN1DYNTYPE pParameters, PCRTASN1BITSTRING pPublicKey,
                                           PCRTASN1BITSTRING pSignatureValue, const void *pvData, size_t cbData,
                                           PRTERRINFO pErrInfo);
+
+
+/**
+ * Verifies the signed digest (@a pvSignedDigest) against our digest (@a
+ * hDigest) using the specfied public key (@a pPublicKey) and algorithm.
+ *
+ * @returns IPRT status code.
+ * @param   pAlgorithm      The signature algorithm (digest w/ cipher).
+ * @param   pParameters     Parameter to the public key algorithm. Optional.
+ * @param   pPublicKey      The public key.
+ * @param   pvSignedDigest  The signed digest.
+ * @param   cbSignedDigest  The signed digest size.
+ * @param   hDigest         The digest of the data to compare @a pvSignedDigest
+ *                          with.
+ * @param   pErrInfo        Where to return extended error info. Optional.
+ *
+ * @remarks Depending on the IPRT build configuration, the verficiation may be
+ *          performed more than once using all available crypto implementations.
+ */
+RTDECL(int) RTCrPkixPubKeyVerifySignedDigest(PCRTASN1OBJID pAlgorithm, PCRTASN1DYNTYPE pParameters,
+                                             PCRTASN1BITSTRING pPublicKey, void const *pvSignedDigest, size_t cbSignedDigest,
+                                             RTCRDIGEST hDigest, PRTERRINFO pErrInfo);
 
 
 /**
@@ -373,11 +398,11 @@ PCRTCRPKIXENCRYPTIONDESC RTCrPkixEncryptionFindByObjId(PCRTASN1OBJID pObjId, voi
 RTDECL(int) RTCrPkixEncryptionCreateByObjIdString(PRTCRPKIXENCRYPTION phEncryption, const char *pszObjId,
                                                   bool fEncrypt, PCRTASN1BITSTRING pKey,PCRTASN1DYNTYPE pParams);
 RTDECL(int) RTCrPkixEncryptionCreateByObjId(PRTCRPKIXENCRYPTION phEncryption, PCRTASN1OBJID pObjId, bool fEncrypt,
-                                           PCRTASN1BITSTRING pKey, PCRTASN1DYNTYPE pParams);
+                                            PCRTASN1BITSTRING pKey, PCRTASN1DYNTYPE pParams);
 
 
 RTDECL(int) RTCrPkixEncryptionCreate(PRTCRPKIXENCRYPTION phEncryption, PCRTCRPKIXENCRYPTIONDESC pDesc, void *pvOpaque,
-                                    bool fEncrypt, PCRTASN1BITSTRING pKey, PCRTASN1DYNTYPE pParams);
+                                     bool fEncrypt, PCRTASN1BITSTRING pKey, PCRTASN1DYNTYPE pParams);
 RTDECL(int) RTCrPkixEncryptionReset(RTCRPKIXENCRYPTION hEncryption);
 RTDECL(uint32_t) RTCrPkixEncryptionRetain(RTCRPKIXENCRYPTION hEncryption);
 RTDECL(uint32_t) RTCrPkixEncryptionRelease(RTCRPKIXENCRYPTION hEncryption);

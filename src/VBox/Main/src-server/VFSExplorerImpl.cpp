@@ -1,11 +1,10 @@
 /* $Id: VFSExplorerImpl.cpp $ */
 /** @file
- *
  * IVFSExplorer COM class implementations.
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +32,7 @@
 
 #include "AutoCaller.h"
 #include "Logging.h"
+#include "ThreadTask.h"
 
 #include <memory>
 
@@ -149,8 +149,9 @@ HRESULT VFSExplorer::getType(VFSType_T *aType)
     return S_OK;
 }
 
-struct VFSExplorer::TaskVFSExplorer
+class VFSExplorer::TaskVFSExplorer : public ThreadTask
 {
+public:
     enum TaskType
     {
         Update,
@@ -158,104 +159,89 @@ struct VFSExplorer::TaskVFSExplorer
     };
 
     TaskVFSExplorer(TaskType aTaskType, VFSExplorer *aThat, Progress *aProgress)
-        : taskType(aTaskType),
-          pVFSExplorer(aThat),
-          progress(aProgress),
-          rc(S_OK)
-    {}
+        : m_taskType(aTaskType),
+          m_pVFSExplorer(aThat),
+          m_ptrProgress(aProgress),
+          m_rc(S_OK)
+    {
+        m_strTaskName = "Explorer::Task";
+    }
     ~TaskVFSExplorer() {}
 
-    int startThread();
-    static DECLCALLBACK(int) taskThread(RTTHREAD aThread, void *pvUser);
-    static DECLCALLBACK(int) uploadProgress(unsigned uPercent, void *pvUser);
+private:
+    void handler();
 
-    TaskType taskType;
-    VFSExplorer *pVFSExplorer;
-    ComObjPtr<Progress> progress;
-    HRESULT rc;
+#if 0 /* unused */
+    static DECLCALLBACK(int) uploadProgress(unsigned uPercent, void *pvUser);
+#endif
+
+    TaskType m_taskType;
+    VFSExplorer *m_pVFSExplorer;
+
+    ComObjPtr<Progress> m_ptrProgress;
+    HRESULT m_rc;
 
     /* task data */
-    std::list<Utf8Str> filenames;
+    std::list<Utf8Str> m_lstFilenames;
+
+    friend class VFSExplorer;
 };
 
-int VFSExplorer::TaskVFSExplorer::startThread()
-{
-    int vrc = RTThreadCreate(NULL, VFSExplorer::TaskVFSExplorer::taskThread, this,
-                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                             "Explorer::Task");
-
-    if (RT_FAILURE(vrc))
-        return VFSExplorer::setErrorStatic(E_FAIL, Utf8StrFmt("Could not create taskThreadVFS (%Rrc)\n", vrc));
-
-    return vrc;
-}
-
 /* static */
-DECLCALLBACK(int) VFSExplorer::TaskVFSExplorer::taskThread(RTTHREAD /* aThread */, void *pvUser)
+void VFSExplorer::TaskVFSExplorer::handler()
 {
-    std::auto_ptr<TaskVFSExplorer> task(static_cast<TaskVFSExplorer*>(pvUser));
-    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
-
-    VFSExplorer *pVFSExplorer = task->pVFSExplorer;
+    VFSExplorer *pVFSExplorer = this->m_pVFSExplorer;
 
     LogFlowFuncEnter();
     LogFlowFunc(("VFSExplorer %p\n", pVFSExplorer));
 
     HRESULT rc = S_OK;
 
-    switch(task->taskType)
+    switch (this->m_taskType)
     {
         case TaskVFSExplorer::Update:
         {
             if (pVFSExplorer->m->storageType == VFSType_File)
-                rc = pVFSExplorer->i_updateFS(task.get());
+                rc = pVFSExplorer->i_updateFS(this);
             else if (pVFSExplorer->m->storageType == VFSType_S3)
-#ifdef VBOX_WITH_S3
-                rc = pVFSExplorer->i_updateS3(task.get());
-#else
                 rc = VERR_NOT_IMPLEMENTED;
-#endif
             break;
         }
         case TaskVFSExplorer::Delete:
         {
             if (pVFSExplorer->m->storageType == VFSType_File)
-                rc = pVFSExplorer->i_deleteFS(task.get());
+                rc = pVFSExplorer->i_deleteFS(this);
             else if (pVFSExplorer->m->storageType == VFSType_S3)
-#ifdef VBOX_WITH_S3
-                rc = pVFSExplorer->i_deleteS3(task.get());
-#else
                 rc = VERR_NOT_IMPLEMENTED;
-#endif
             break;
         }
         default:
-            AssertMsgFailed(("Invalid task type %u specified!\n", task->taskType));
+            AssertMsgFailed(("Invalid task type %u specified!\n", this->m_taskType));
             break;
     }
 
     LogFlowFunc(("rc=%Rhrc\n", rc)); NOREF(rc);
     LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
 }
 
+#if 0 /* unused */
 /* static */
 DECLCALLBACK(int) VFSExplorer::TaskVFSExplorer::uploadProgress(unsigned uPercent, void *pvUser)
 {
     VFSExplorer::TaskVFSExplorer* pTask = *(VFSExplorer::TaskVFSExplorer**)pvUser;
 
     if (pTask &&
-        !pTask->progress.isNull())
+        !pTask->m_ptrProgress.isNull())
     {
         BOOL fCanceled;
-        pTask->progress->COMGETTER(Canceled)(&fCanceled);
+        pTask->m_ptrProgress->COMGETTER(Canceled)(&fCanceled);
         if (fCanceled)
             return -1;
-        pTask->progress->SetCurrentOperationProgress(uPercent);
+        pTask->m_ptrProgress->SetCurrentOperationProgress(uPercent);
     }
     return VINF_SUCCESS;
 }
+#endif
 
 FsObjType_T VFSExplorer::i_iprtToVfsObjType(RTFMODE aType) const
 {
@@ -301,8 +287,8 @@ HRESULT VFSExplorer::i_updateFS(TaskVFSExplorer *aTask)
         if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR, tr ("Can't open directory '%s' (%Rrc)"), pszPath, vrc);
 
-        if (aTask->progress)
-            aTask->progress->SetCurrentOperationProgress(33);
+        if (aTask->m_ptrProgress)
+            aTask->m_ptrProgress->SetCurrentOperationProgress(33);
         RTDIRENTRYEX entry;
         while (RT_SUCCESS(vrc))
         {
@@ -317,8 +303,8 @@ HRESULT VFSExplorer::i_updateFS(TaskVFSExplorer *aTask)
                                        entry.Info.Attr.fMode & (RTFS_UNIX_IRWXU | RTFS_UNIX_IRWXG | RTFS_UNIX_IRWXO)));
             }
         }
-        if (aTask->progress)
-            aTask->progress->SetCurrentOperationProgress(66);
+        if (aTask->m_ptrProgress)
+            aTask->m_ptrProgress->SetCurrentOperationProgress(66);
     }
     catch(HRESULT aRC)
     {
@@ -331,17 +317,17 @@ HRESULT VFSExplorer::i_updateFS(TaskVFSExplorer *aTask)
     if (pDir)
         RTDirClose(pDir);
 
-    if (aTask->progress)
-        aTask->progress->SetCurrentOperationProgress(99);
+    if (aTask->m_ptrProgress)
+        aTask->m_ptrProgress->SetCurrentOperationProgress(99);
 
     /* Assign the result on success (this clears the old list) */
     if (rc == S_OK)
         m->entryList.assign(fileList.begin(), fileList.end());
 
-    aTask->rc = rc;
+    aTask->m_rc = rc;
 
-    if (!aTask->progress.isNull())
-        aTask->progress->i_notifyComplete(rc);
+    if (!aTask->m_ptrProgress.isNull())
+        aTask->m_ptrProgress->i_notifyComplete(rc);
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
@@ -360,14 +346,14 @@ HRESULT VFSExplorer::i_deleteFS(TaskVFSExplorer *aTask)
 
     HRESULT rc = S_OK;
 
-    float fPercentStep = 100.0f / aTask->filenames.size();
+    float fPercentStep = 100.0f / (float)aTask->m_lstFilenames.size();
     try
     {
         char szPath[RTPATH_MAX];
         std::list<Utf8Str>::const_iterator it;
         size_t i = 0;
-        for (it = aTask->filenames.begin();
-             it != aTask->filenames.end();
+        for (it = aTask->m_lstFilenames.begin();
+             it != aTask->m_lstFilenames.end();
              ++it, ++i)
         {
             int vrc = RTPathJoin(szPath, sizeof(szPath), m->strPath.c_str(), (*it).c_str());
@@ -376,162 +362,25 @@ HRESULT VFSExplorer::i_deleteFS(TaskVFSExplorer *aTask)
             vrc = RTFileDelete(szPath);
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_FILE_ERROR, tr("Can't delete file '%s' (%Rrc)"), szPath, vrc);
-            if (aTask->progress)
-                aTask->progress->SetCurrentOperationProgress((ULONG)(fPercentStep * i));
+            if (aTask->m_ptrProgress)
+                aTask->m_ptrProgress->SetCurrentOperationProgress((ULONG)(fPercentStep * (float)i));
         }
     }
-    catch(HRESULT aRC)
+    catch (HRESULT aRC)
     {
         rc = aRC;
     }
 
-    aTask->rc = rc;
+    aTask->m_rc = rc;
 
-    if (!aTask->progress.isNull())
-        aTask->progress->i_notifyComplete(rc);
+    if (aTask->m_ptrProgress.isNotNull())
+        aTask->m_ptrProgress->i_notifyComplete(rc);
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
 
     return VINF_SUCCESS;
 }
-
-#ifdef VBOX_WITH_S3
-HRESULT VFSExplorer::i_updateS3(TaskVFSExplorer *aTask)
-{
-    LogFlowFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoWriteLock appLock(this COMMA_LOCKVAL_SRC_POS);
-
-    HRESULT rc = S_OK;
-
-    RTS3 hS3 = NULL;
-    std::list<VFSExplorer::Data::DirEntry> fileList;
-    try
-    {
-        int vrc = RTS3Create(&hS3, m->strUsername.c_str(), m->strPassword.c_str(),
-                             m->strHostname.c_str(), "virtualbox-agent/" VBOX_VERSION_STRING);
-        if (RT_FAILURE(vrc))
-            throw setError(E_FAIL, tr ("Can't open S3 storage service (%Rrc)"), vrc);
-
-        RTS3SetProgressCallback(hS3, VFSExplorer::TaskVFSExplorer::uploadProgress, &aTask);
-        /* Do we need the list of buckets or keys? */
-        if (m->strBucket.isEmpty())
-        {
-            PCRTS3BUCKETENTRY pBuckets = NULL;
-            vrc = RTS3GetBuckets(hS3, &pBuckets);
-            if (RT_FAILURE(vrc))
-                throw setError(E_FAIL, tr ("Can't get buckets (%Rrc)"), vrc);
-
-            PCRTS3BUCKETENTRY pTmpBuckets = pBuckets;
-            while (pBuckets)
-            {
-                /* Set always read/write permissions of the current logged in user. */
-                fileList.push_back(VFSExplorer::Data::DirEntry(pBuckets->pszName, FsObjType_Directory,
-                                   0, RTFS_UNIX_IRUSR | RTFS_UNIX_IWUSR));
-                pBuckets = pBuckets->pNext;
-            }
-            RTS3BucketsDestroy(pTmpBuckets);
-        }
-        else
-        {
-            PCRTS3KEYENTRY pKeys = NULL;
-            vrc = RTS3GetBucketKeys(hS3, m->strBucket.c_str(), &pKeys);
-            if (RT_FAILURE(vrc))
-                throw setError(E_FAIL, tr ("Can't get keys for bucket (%Rrc)"), vrc);
-
-            PCRTS3KEYENTRY pTmpKeys = pKeys;
-            while (pKeys)
-            {
-                Utf8Str name(pKeys->pszName);
-                /* Set always read/write permissions of the current logged in user. */
-                fileList.push_back(VFSExplorer::Data::DirEntry(pKeys->pszName, FsObjType_File, pKeys->cbFile,
-                                   RTFS_UNIX_IRUSR | RTFS_UNIX_IWUSR));
-                pKeys = pKeys->pNext;
-            }
-            RTS3KeysDestroy(pTmpKeys);
-        }
-    }
-    catch(HRESULT aRC)
-    {
-        rc = aRC;
-    }
-
-    if (hS3 != NULL)
-        RTS3Destroy(hS3);
-
-    /* Assign the result on success (this clears the old list) */
-    if (rc == S_OK)
-        m->entryList.assign(fileList.begin(), fileList.end());
-
-    aTask->rc = rc;
-
-    if (!aTask->progress.isNull())
-        aTask->progress->i_notifyComplete(rc);
-
-    LogFlowFunc(("rc=%Rhrc\n", rc));
-    LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
-}
-
-HRESULT VFSExplorer::i_deleteS3(TaskVFSExplorer *aTask)
-{
-    LogFlowFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoWriteLock appLock(this COMMA_LOCKVAL_SRC_POS);
-
-    HRESULT rc = S_OK;
-
-    RTS3 hS3 = NULL;
-    float fPercentStep = 100.0f / aTask->filenames.size();
-    try
-    {
-        int vrc = RTS3Create(&hS3, m->strUsername.c_str(), m->strPassword.c_str(),
-                             m->strHostname.c_str(), "virtualbox-agent/" VBOX_VERSION_STRING);
-        if (RT_FAILURE(vrc))
-            throw setError(E_FAIL, tr ("Can't open S3 storage service (%Rrc)"), vrc);
-
-        RTS3SetProgressCallback(hS3, VFSExplorer::TaskVFSExplorer::uploadProgress, &aTask);
-
-        std::list<Utf8Str>::const_iterator it;
-        size_t i = 0;
-        for (it = aTask->filenames.begin();
-             it != aTask->filenames.end();
-             ++it, ++i)
-        {
-            vrc = RTS3DeleteKey(hS3, m->strBucket.c_str(), (*it).c_str());
-            if (RT_FAILURE(vrc))
-                throw setError(VBOX_E_FILE_ERROR, tr ("Can't delete file '%s' (%Rrc)"), (*it).c_str(), vrc);
-            if (aTask->progress)
-                aTask->progress->SetCurrentOperationProgress((ULONG)(fPercentStep * i));
-        }
-    }
-    catch(HRESULT aRC)
-    {
-        rc = aRC;
-    }
-
-    aTask->rc = rc;
-
-    if (hS3 != NULL)
-        RTS3Destroy(hS3);
-
-    if (!aTask->progress.isNull())
-        aTask->progress->i_notifyComplete(rc);
-
-    LogFlowFunc(("rc=%Rhrc\n", rc));
-    LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
-}
-#endif /* VBOX_WITH_S3 */
 
 HRESULT VFSExplorer::update(ComPtr<IProgress> &aProgress)
 {
@@ -554,13 +403,10 @@ HRESULT VFSExplorer::update(ComPtr<IProgress> &aProgress)
         if (FAILED(rc)) throw rc;
 
         /* Initialize our worker task */
-        std::auto_ptr<TaskVFSExplorer> task(new TaskVFSExplorer(TaskVFSExplorer::Update, this, progress));
+        TaskVFSExplorer* pTask = new TaskVFSExplorer(TaskVFSExplorer::Update, this, progress);
 
-        rc = task->startThread();
-        if (FAILED(rc)) throw rc;
-
-        /* Don't destruct on success */
-        task.release();
+        //this function delete task in case of exceptions, so there is no need in the call of delete operator
+        rc = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
     }
     catch (HRESULT aRC)
     {
@@ -671,17 +517,14 @@ HRESULT VFSExplorer::remove(const std::vector<com::Utf8Str> &aNames,
         if (FAILED(rc)) throw rc;
 
         /* Initialize our worker task */
-        std::auto_ptr<TaskVFSExplorer> task(new TaskVFSExplorer(TaskVFSExplorer::Delete, this, progress));
+        TaskVFSExplorer* pTask = new TaskVFSExplorer(TaskVFSExplorer::Delete, this, progress);
 
         /* Add all filenames to delete as task data */
         for (size_t i = 0; i < aNames.size(); ++i)
-            task->filenames.push_back(aNames[i]);
+            pTask->m_lstFilenames.push_back(aNames[i]);
 
-        rc = task->startThread();
-        if (FAILED(rc)) throw rc;
-
-        /* Don't destruct on success */
-        task.release();
+        //this function delete task in case of exceptions, so there is no need in the call of delete operator
+        rc = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
     }
     catch (HRESULT aRC)
     {

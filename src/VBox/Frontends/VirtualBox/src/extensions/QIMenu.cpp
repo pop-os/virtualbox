@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,10 +30,10 @@ QIMenu::QIMenu(QWidget *pParent /* = 0 */)
 
 void QIMenu::sltHighlightFirstAction()
 {
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
     /* Windows host requires window-activation: */
     activateWindow();
-#endif /* Q_WS_WIN */
+#endif /* VBOX_WS_WIN */
     /* Focus next child: */
     QMenu::focusNextChild();
 }

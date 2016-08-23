@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,23 +24,29 @@
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
 #include "UIExtraDataDefs.h"
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 # include "VBoxUtils-darwin.h"
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 /* COM includes: */
 #include "COMEnums.h"
 #include "CMachine.h"
 
 /* Forward declarations: */
+class QCloseEvent;
 class QGridLayout;
 class QSpacerItem;
-class QCloseEvent;
-class CSession;
+class UIActionPool;
 class UISession;
 class UIMachineLogic;
 class UIMachineView;
-class UIActionPool;
+class CSession;
+#ifdef VBOX_WS_X11
+# if QT_VERSION < 0x050000
+typedef union _XEvent XEvent;
+# endif /* QT_VERSION < 0x050000 */
+#endif /* VBOX_WS_X11 */
+
 
 /* Machine-window interface: */
 class UIMachineWindow : public QIWithRetranslateUI2<QMainWindow>
@@ -79,6 +85,10 @@ public:
     /** Returns the machine name. */
     const QString& machineName() const;
 
+    /** Restores cached window geometry.
+      * @note Reimplemented in sub-classes. Base implementation does nothing. */
+    virtual void restoreCachedGeometry() {}
+
     /** Adjusts machine-window size to correspond current machine-view size.
       * @param fAdjustPosition determines whether is it necessary to adjust position too.
       * @note  Reimplemented in sub-classes. Base implementation does nothing. */
@@ -96,6 +106,11 @@ public:
 #endif /* VBOX_WITH_MASKED_SEAMLESS */
 
 protected slots:
+
+#ifdef VBOX_WS_X11
+    /** X11: Performs machine-window geometry normalization. */
+    void sltNormalizeGeometry() { normalizeGeometry(true /* adjust position */); }
+#endif /* VBOX_WS_X11 */
 
     /** Performs machine-window activation. */
     void sltActivateWindow() { activateWindow(); }
@@ -115,10 +130,12 @@ protected:
     void retranslateUi();
 
     /* Event handlers: */
-#ifdef Q_WS_X11
-    /** X11: Native event handler. */
+#ifdef VBOX_WS_X11
+# if QT_VERSION < 0x050000
+    /** X11: Qt4: Handles all native events. */
     bool x11Event(XEvent *pEvent);
-#endif /* Q_WS_X11 */
+# endif /* QT_VERSION < 0x050000 */
+#endif /* VBOX_WS_X11 */
 
     /** Show event handler. */
     void showEvent(QShowEvent *pShowEvent);
@@ -126,7 +143,7 @@ protected:
     /** Close event handler. */
     void closeEvent(QCloseEvent *pCloseEvent);
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Handles native notifications.
       * @param  strNativeNotificationName  Native notification name. */
     virtual void handleNativeNotification(const QString & /* strNativeNotificationName */) {}
@@ -135,7 +152,7 @@ protected:
       * @param  enmButtonType   Brings standard window button type.
       * @param  fWithOptionKey  Brings whether the Option key was held. */
     virtual void handleStandardWindowButtonCallback(StandardWindowButtonType enmButtonType, bool fWithOptionKey);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Prepare helpers: */
     virtual void prepareSessionConnections();
@@ -167,7 +184,7 @@ protected:
     const QString& defaultWindowTitle() const { return m_strWindowTitlePrefix; }
     static Qt::Alignment viewAlignment(UIVisualStateType visualStateType);
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Handles native notifications.
       * @param  strNativeNotificationName  Native notification name.
       * @param  pWidget                    Widget, notification related to. */
@@ -178,7 +195,7 @@ protected:
       * @param  fWithOptionKey  Brings whether the Option key was held.
       * @param  pWidget         Brings widget, callback related to. */
     static void handleStandardWindowButtonCallback(StandardWindowButtonType enmButtonType, bool fWithOptionKey, QWidget *pWidget);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Variables: */
     UIMachineLogic *m_pMachineLogic;

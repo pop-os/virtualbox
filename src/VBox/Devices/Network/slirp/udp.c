@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -122,7 +122,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
      * If not enough data to reflect UDP length, drop.
      */
     len = RT_N2H_U16((u_int16_t)uh->uh_ulen);
-    Assert((ip->ip_len + iphlen == m_length(m, NULL)));
+    Assert(ip->ip_len + iphlen == (ssize_t)m_length(m, NULL));
 
     if (ip->ip_len != len)
     {
@@ -333,9 +333,8 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
          * Different OSes have different socket options for DF.  We
          * can't use IP_HDRINCL here as it's only valid for SOCK_RAW.
          */
-#     define USE_DF_OPTION(_Optname)                    \
-        const int dfopt = _Optname;                     \
-        const char * const dfoptname = #_Optname;
+#     define USE_DF_OPTION(_Optname) \
+        const int dfopt = _Optname
 #if   defined(IP_MTU_DISCOVER)
         USE_DF_OPTION(IP_MTU_DISCOVER);
 #elif defined(IP_DONTFRAG)      /* Solaris 11+, FreeBSD */
@@ -433,7 +432,7 @@ int udp_output2(PNATState pData, struct socket *so, struct mbuf *m,
     ui = mtod(m, struct udpiphdr *);
     memset(ui->ui_x1, 0, 9);
     ui->ui_pr = IPPROTO_UDP;
-    ui->ui_len = RT_H2N_U16(mlen - sizeof(struct ip));
+    ui->ui_len = RT_H2N_U16((uint16_t)(mlen - sizeof(struct ip)));
     /* XXXXX Check for from-one-location sockets, or from-any-location sockets */
     ui->ui_src = saddr->sin_addr;
     ui->ui_dst = daddr->sin_addr;
@@ -472,8 +471,7 @@ int udp_output(PNATState pData, struct socket *so, struct mbuf *m,
     struct socket *pSocketClone = NULL;
 #endif
     Assert(so->so_type == IPPROTO_UDP);
-    LogFlowFunc(("ENTER: so = %R[natsock], m = %p, saddr = %RTnaipv4\n",
-                 so, (long)m, addr->sin_addr.s_addr));
+    LogFlowFunc(("ENTER: so = %R[natsock], m = %p, saddr = %RTnaipv4\n", so, m, addr->sin_addr.s_addr));
 
     if (so->so_laddr.s_addr == INADDR_ANY)
     {
@@ -687,7 +685,7 @@ udp_listen(PNATState pData, u_int32_t bind_addr, u_int port, u_int32_t laddr, u_
 #if 0
     /* The original check was completely broken, as the commented out
      * if statement was always true (INADDR_ANY=0). */
-    /* @todo: vvl - alias_addr should be set (if required)
+    /** @todo vvl - alias_addr should be set (if required)
      * later by liabalias module.
      */
     if (addr.sin_addr.s_addr == 0 || addr.sin_addr.s_addr == loopback_addr.s_addr)

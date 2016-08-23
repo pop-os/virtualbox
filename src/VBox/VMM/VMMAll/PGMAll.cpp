@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/selm.h>
+#include <VBox/vmm/iem.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/sup.h>
 #include <VBox/vmm/mm.h>
@@ -730,6 +731,7 @@ VMMDECL(int) PGMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCPtrPage)
      */
     REMNotifyInvalidatePage(pVM, GCPtrPage);
 #endif /* !IN_RING3 */
+    IEMTlbInvalidatePage(pVCpu, GCPtrPage);
 
 
 #ifdef IN_RC
@@ -2020,6 +2022,7 @@ VMMDECL(int) PGMFlushTLB(PVMCPU pVCpu, uint64_t cr3, bool fGlobal)
             STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,FlushTLBSameCR3));
     }
 
+    IEMTlbInvalidateAll(pVCpu, false /*fVmm*/);
     STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,FlushTLB), a);
     return rc;
 }
@@ -2092,7 +2095,9 @@ VMMDECL(int) PGMUpdateCR3(PVMCPU pVCpu, uint64_t cr3)
  * VM_FF_PGM_SYNC_CR3_NONGLOBAL. Those two force action flags are set
  * in several places, most importantly whenever the CR3 is loaded.
  *
- * @returns VBox status code.
+ * @returns VBox status code. May return VINF_PGM_SYNC_CR3 in RC/R0.
+ * @retval  VERR_PGM_NO_HYPERVISOR_ADDRESS in raw-mode when we're unable to map
+ *          the VMM into guest context.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   cr0         Guest context CR0 register
  * @param   cr3         Guest context CR3 register

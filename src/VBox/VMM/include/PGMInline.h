@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -434,7 +434,7 @@ DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE p
     {
         Assert(pPage->idx < pVM->pgm.s.CTX_SUFF(pPool)->cCurPages);
         void *pv;
-        Assert(pVCpu == VMMGetCpu(pVM));
+        Assert(pVCpu == VMMGetCpu(pVM)); RT_NOREF_PV(pVM);
         pgmRZDynMapHCPageInlined(pVCpu, pPage->Core.Key, &pv RTLOG_COMMA_SRC_POS_ARGS);
         return pv;
     }
@@ -1409,7 +1409,7 @@ DECLINLINE(void) pgmPoolCacheUsed(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  */
 DECLINLINE(void) pgmPoolLockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
-    PGM_LOCK_ASSERT_OWNER(pPool->CTX_SUFF(pVM));
+    PGM_LOCK_ASSERT_OWNER(pPool->CTX_SUFF(pVM)); NOREF(pPool);
     ASMAtomicIncU32(&pPage->cLocked);
 }
 
@@ -1422,7 +1422,7 @@ DECLINLINE(void) pgmPoolLockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  */
 DECLINLINE(void) pgmPoolUnlockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
-    PGM_LOCK_ASSERT_OWNER(pPool->CTX_SUFF(pVM));
+    PGM_LOCK_ASSERT_OWNER(pPool->CTX_SUFF(pVM)); NOREF(pPool);
     Assert(pPage->cLocked);
     ASMAtomicDecU32(&pPage->cLocked);
 }
@@ -1457,7 +1457,7 @@ DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVM pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
     /* There are no mappings in VT-x and AMD-V mode. */
-    Assert(HMIsEnabled(pVM));
+    Assert(HMIsEnabled(pVM)); NOREF(pVM);
     return false;
 #else
     Assert(pVM->cCpus == 1 || HMIsEnabled(pVM));
@@ -1476,7 +1476,7 @@ DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PVM pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
     /* There are no mappings in VT-x and AMD-V mode. */
-    Assert(HMIsEnabled(pVM));
+    Assert(HMIsEnabled(pVM)); NOREF(pVM);
     return false;
 #else
     return !pVM->pgm.s.fMappingsFixed

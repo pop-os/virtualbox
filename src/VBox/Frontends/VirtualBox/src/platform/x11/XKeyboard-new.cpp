@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* Define GUI log group.
+ * This define should go *before* VBox/log.h include: */
 #define LOG_GROUP LOG_GROUP_GUI
 
-#include <QString>
-#include <QStringList>
-#include <X11/XKBlib.h>
-#include <X11/Xlib.h>
-#include <X11/keysym.h>
+/* Qt includes: */
+# include <QString>
+# include <QStringList>
+
+/* Other VBox includes: */
+# include <VBox/log.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* GUI includes: */
 #include <XKeyboard.h>
-#include <VBox/log.h>
+
+/* Other VBox includes: */
 #include <VBox/VBoxKeyboard.h>
+
+/* External includes: */
+#include <X11/XKBlib.h>
+#include <X11/keysym.h>
 
 
 /* VBoxKeyboard uses the deprecated XKeycodeToKeysym(3) API, but uses it safely.
@@ -222,6 +238,9 @@ void doXKeyboardLogging(Display *dpy)
             LogRel((",%d=%d",i,keyc2scan[i]));
         LogRel(("\n"));
     }
+    LogRel(("X Server details: vendor: %s, release: %d, protocol version: %d.%d, display string: %s\n",
+            ServerVendor(dpy), VendorRelease(dpy), ProtocolVersion(dpy),
+            ProtocolRevision(dpy), DisplayString(dpy)));
     LogRel(("Using %s for keycode to scan code conversion\n",
               gfByXkbOK ? "XKB"
             : gfByTypeOK ? "known keycode mapping"
@@ -231,12 +250,12 @@ void doXKeyboardLogging(Display *dpy)
 /*
  * Translate an X server scancode to a PC keyboard scancode.
  */
-unsigned handleXKeyEvent(XEvent *event)
+unsigned handleXKeyEvent(Display *pDisplay, unsigned int iDetail)
 {
     // call the WINE event handler
-    unsigned key = X11DRV_KeyEvent(event->xkey.display, event->xkey.keycode);
+    unsigned key = X11DRV_KeyEvent(pDisplay, iDetail);
     LogRel3(("VBoxKeyboard: converting keycode %d to scancode %s0x%x\n",
-          event->xkey.keycode, key > 0x100 ? "0xe0 " : "", key & 0xff));
+             iDetail, key > 0x100 ? "0xe0 " : "", key & 0xff));
     return key;
 }
 
@@ -247,7 +266,7 @@ unsigned handleXKeyEvent(XEvent *event)
  * keyboard scancode that is emitted when the key attached to the X11
  * keycode is pressed.
  */
-void initMappedX11Keyboard(Display *pDisplay, QString remapScancodes)
+void initMappedX11Keyboard(Display *pDisplay, const QString &remapScancodes)
 {
     int (*scancodes)[2] = NULL;
     int (*scancodesTail)[2] = NULL;

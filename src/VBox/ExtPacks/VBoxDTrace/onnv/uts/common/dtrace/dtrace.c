@@ -593,7 +593,9 @@ static intptr_t dtrace_buffer_reserve(dtrace_buffer_t *, size_t, size_t,
 static int dtrace_state_option(dtrace_state_t *, dtrace_optid_t,
     dtrace_optval_t);
 static int dtrace_ecb_create_enable(dtrace_probe_t *, void *);
+#ifndef VBOX
 static void dtrace_helper_provider_destroy(dtrace_helper_provider_t *);
+#endif
 
 /*
  * DTrace Probe Context Functions
@@ -1233,6 +1235,7 @@ dtrace_priv_proc_common_nocd(VBDTVOID)
 #endif
 }
 
+#ifndef VBOX
 static int
 dtrace_priv_proc_destructive(dtrace_state_t *state)
 {
@@ -1257,6 +1260,7 @@ bad:
 
 	return (0);
 }
+#endif /* !VBOX */
 
 static int
 dtrace_priv_proc_control(dtrace_state_t *state)
@@ -1916,6 +1920,7 @@ retry:
 static void
 dtrace_aggregate_min(uint64_t *oval, uint64_t nval, uint64_t arg)
 {
+	RT_NOREF_PV(arg);
 	if ((int64_t)nval < (int64_t)*oval)
 		*oval = nval;
 }
@@ -1924,6 +1929,7 @@ dtrace_aggregate_min(uint64_t *oval, uint64_t nval, uint64_t arg)
 static void
 dtrace_aggregate_max(uint64_t *oval, uint64_t nval, uint64_t arg)
 {
+	RT_NOREF_PV(arg);
 	if ((int64_t)nval > (int64_t)*oval)
 		*oval = nval;
 }
@@ -1997,6 +2003,7 @@ dtrace_aggregate_lquantize(uint64_t *lquanta, uint64_t nval, uint64_t incr)
 static void
 dtrace_aggregate_avg(uint64_t *data, uint64_t nval, uint64_t arg)
 {
+	RT_NOREF_PV(arg);
 	data[0]++;
 	data[1] += nval;
 }
@@ -2007,6 +2014,7 @@ dtrace_aggregate_stddev(uint64_t *data, uint64_t nval, uint64_t arg)
 {
 	int64_t snval = (int64_t)nval;
 	uint64_t tmp[2];
+	RT_NOREF_PV(arg);
 
 	data[0]++;
 	data[1] += nval;
@@ -2030,6 +2038,8 @@ dtrace_aggregate_stddev(uint64_t *data, uint64_t nval, uint64_t arg)
 static void
 dtrace_aggregate_count(uint64_t *oval, uint64_t nval, uint64_t arg)
 {
+	RT_NOREF_PV(arg); RT_NOREF_PV(nval);
+
 	*oval = *oval + 1;
 }
 
@@ -2037,6 +2047,7 @@ dtrace_aggregate_count(uint64_t *oval, uint64_t nval, uint64_t arg)
 static void
 dtrace_aggregate_sum(uint64_t *oval, uint64_t nval, uint64_t arg)
 {
+	RT_NOREF_PV(arg);
 	*oval += nval;
 }
 
@@ -2324,8 +2335,8 @@ dtrace_speculation(dtrace_state_t *state)
 			continue;
 		}
 
-		if (dtrace_cas32((uint32_t *)&spec->dtsp_state,
-		    current, DTRACESPEC_ACTIVE) == current)
+		if (   (dtrace_speculation_state_t)dtrace_cas32((uint32_t *)&spec->dtsp_state, current, DTRACESPEC_ACTIVE)
+		    == current)
 			return (i + 1);
 	}
 
@@ -2420,8 +2431,7 @@ dtrace_speculation_commit(dtrace_state_t *state, processorid_t cpu,
 			AssertFatalMsgFailed(("%d\n",  current));
 #endif
 		}
-	} while (dtrace_cas32((uint32_t *)&spec->dtsp_state,
-	    current, new) != current);
+	} while ((dtrace_speculation_state_t)dtrace_cas32((uint32_t *)&spec->dtsp_state, current, new) != current);
 
 	/*
 	 * We have set the state to indicate that we are committing this
@@ -2475,7 +2485,7 @@ out:
 		uint32_t rval = dtrace_cas32((uint32_t *)&spec->dtsp_state,
 		    DTRACESPEC_COMMITTING, DTRACESPEC_INACTIVE);
 
-		ASSERT(rval == DTRACESPEC_COMMITTING);
+		ASSERT(rval == DTRACESPEC_COMMITTING); NOREF(rval);
 	}
 
 	src->dtb_offset = 0;
@@ -2538,8 +2548,7 @@ dtrace_speculation_discard(dtrace_state_t *state, processorid_t cpu,
 			AssertFatalMsgFailed(("%d\n", current));
 #endif
 		}
-	} while (dtrace_cas32((uint32_t *)&spec->dtsp_state,
-	    current, new) != current);
+	} while ((dtrace_speculation_state_t)dtrace_cas32((uint32_t *)&spec->dtsp_state, current, new) != current);
 
 	buf->dtb_offset = 0;
 	buf->dtb_drops = 0;
@@ -2729,8 +2738,7 @@ dtrace_speculation_buffer(dtrace_state_t *state, processorid_t cpuid,
 			AssertFatalMsgFailed(("%d\n", current));
 #endif
 		}
-	} while (dtrace_cas32((uint32_t *)&spec->dtsp_state,
-	    current, new) != current);
+	} while ((dtrace_speculation_state_t)dtrace_cas32((uint32_t *)&spec->dtsp_state, current, new) != current);
 
 	ASSERT(new == DTRACESPEC_ACTIVEONE || new == DTRACESPEC_ACTIVEMANY);
 	return (buf);
@@ -5712,6 +5720,7 @@ dtrace_action_chill(dtrace_mstate_t *mstate, hrtime_t val)
 
 #endif /* !VBOX */
 
+#ifndef VBOX
 static void
 dtrace_action_ustack(dtrace_mstate_t *mstate, dtrace_state_t *state,
     uint64_t *buf, uint64_t arg)
@@ -5832,6 +5841,7 @@ dtrace_action_ustack(dtrace_mstate_t *mstate, dtrace_state_t *state,
 out:
 	mstate->dtms_scratch_ptr = old;
 }
+#endif /* !VBOX */
 
 #ifdef VBOX
 extern void dtrace_probe6(dtrace_id_t, uintptr_t arg0, uintptr_t arg1,
@@ -6063,8 +6073,8 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 
 				do {
 					current = state->dts_activity;
-				} while (dtrace_cas32(activity, current,
-				    DTRACE_ACTIVITY_KILLED) != current);
+				} while (   (dtrace_activity_t)dtrace_cas32(activity, current, DTRACE_ACTIVITY_KILLED)
+					 != current);
 
 				continue;
 			}
@@ -6358,8 +6368,8 @@ dtrace_probe(dtrace_id_t id, uintptr_t arg0, uintptr_t arg1,
 				if (current != DTRACE_ACTIVITY_WARMUP)
 					current = DTRACE_ACTIVITY_ACTIVE;
 
-				if (dtrace_cas32(activity, current,
-				    DTRACE_ACTIVITY_DRAINING) != current) {
+				if (   (dtrace_activity_t)dtrace_cas32(activity, current, DTRACE_ACTIVITY_DRAINING)
+				    != current) {
 					*flags |= CPU_DTRACE_DROP;
 					continue;
 				}
@@ -6779,7 +6789,7 @@ dtrace_cred2priv(cred_t *cr, uint32_t *privp, uid_t *uidp, zoneid_t *zoneidp)
 		 */
 		priv = DTRACE_PRIV_ALL;
 #ifdef VBOX
-		*uidp = ~0;
+		*uidp = UINT32_MAX;
 		*zoneidp = 0;
 #endif
 	} else {
@@ -7038,6 +7048,7 @@ top:
 static int
 dtrace_match_string(const char *s, const char *p, int depth)
 {
+	RT_NOREF_PV(depth);
 	return (s != NULL && strcmp(s, p) == 0);
 }
 
@@ -7045,6 +7056,7 @@ dtrace_match_string(const char *s, const char *p, int depth)
 static int
 dtrace_match_nul(const char *s, const char *p, int depth)
 {
+	RT_NOREF_PV(s); RT_NOREF_PV(p); RT_NOREF_PV(depth);
 	return (1); /* always match the empty pattern */
 }
 
@@ -7052,6 +7064,7 @@ dtrace_match_nul(const char *s, const char *p, int depth)
 static int
 dtrace_match_nonzero(const char *s, const char *p, int depth)
 {
+	RT_NOREF_PV(p); RT_NOREF_PV(depth);
 	return (s != NULL && s[0] != '\0');
 }
 
@@ -7834,6 +7847,7 @@ dtrace_probe_provide(dtrace_probedesc_t *desc, dtrace_provider_t *prv)
 	} while (all && (prv = prv->dtpv_next) != NULL);
 }
 
+#ifndef VBOX
 /*
  * Iterate over each probe, and call the Framework-to-Provider API function
  * denoted by offs.
@@ -7874,6 +7888,7 @@ dtrace_probe_foreach(uintptr_t offs)
 
 	dtrace_interrupt_enable(cookie);
 }
+#endif /* !VBOX */
 
 static int
 dtrace_probe_enable(const dtrace_probedesc_t *desc, dtrace_enabling_t *enab)
@@ -8045,6 +8060,8 @@ dtrace_helper_provide(dof_helper_t *dhp, pid_t pid)
 	dtrace_enabling_matchall();
 }
 
+#ifndef VBOX
+
 static void
 dtrace_helper_provider_remove_one(dof_helper_t *dhp, dof_sec_t *sec, pid_t pid)
 {
@@ -8092,6 +8109,8 @@ dtrace_helper_provider_remove(dof_helper_t *dhp, pid_t pid)
 		dtrace_helper_provider_remove_one(dhp, sec, pid);
 	}
 }
+
+#endif /* !VBOX */
 
 /*
  * DTrace Meta Provider-to-Framework API Functions
@@ -8639,6 +8658,7 @@ dtrace_difo_validate(dtrace_difo_t *dp, dtrace_vstate_t *vstate, uint_t nregs,
 	return (err);
 }
 
+#ifndef VBOX
 /*
  * Validate a DTrace DIF object that it is to be used as a helper.  Helpers
  * are much more constrained than normal DIFOs.  Specifically, they may
@@ -8793,6 +8813,7 @@ dtrace_difo_validate_helper(dtrace_difo_t *dp)
 
 	return (err);
 }
+#endif /* !VBOX */
 
 /*
  * Returns 1 if the expression in the DIF object can be cached on a per-thread
@@ -9136,6 +9157,7 @@ dtrace_difo_init(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
 	dtrace_difo_hold(dp);
 }
 
+#ifndef VBOX
 static dtrace_difo_t *
 dtrace_difo_duplicate(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
 {
@@ -9179,6 +9201,7 @@ dtrace_difo_duplicate(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
 	dtrace_difo_init(new, vstate);
 	return (new);
 }
+#endif
 
 static void
 dtrace_difo_destroy(dtrace_difo_t *dp, dtrace_vstate_t *vstate)
@@ -9409,7 +9432,9 @@ dtrace_predicate_hold(dtrace_predicate_t *pred)
 static void
 dtrace_predicate_release(dtrace_predicate_t *pred, dtrace_vstate_t *vstate)
 {
+#ifdef VBOX_STRICT
 	dtrace_difo_t *dp = pred->dtp_difo;
+#endif
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
 	ASSERT(dp != NULL && dp->dtdo_refcnt != 0);
@@ -9736,7 +9761,7 @@ dtrace_ecb_aggregation_create(dtrace_ecb_t *ecb, dtrace_actdesc_t *desc)
 		break;
 
 	case DTRACEAGG_MAX:
-		agg->dtag_initial = INT64_MIN;
+		agg->dtag_initial = (uint64_t)INT64_MIN;
 		agg->dtag_aggregate = dtrace_aggregate_max;
 		break;
 
@@ -11013,6 +11038,7 @@ dtrace_enabling_addlike(dtrace_enabling_t *enab, dtrace_ecbdesc_t *ecb,
 	dtrace_enabling_add(enab, new);
 }
 
+#ifndef VBOX
 static void
 dtrace_enabling_dump(dtrace_enabling_t *enab)
 {
@@ -11026,6 +11052,7 @@ dtrace_enabling_dump(dtrace_enabling_t *enab)
 		    desc->dtpd_func, desc->dtpd_name);
 	}
 }
+#endif /* !VBOX */
 
 static void
 dtrace_enabling_destroy(dtrace_enabling_t *enab)
@@ -11293,9 +11320,9 @@ dtrace_enabling_matchall(void)
 	 * block pending our completion.
 	 */
 	for (enab = dtrace_retained; enab != NULL; enab = enab->dten_next) {
+#ifndef VBOX
 		cred_t *cr = enab->dten_vstate->dtvs_state->dts_cred.dcr_cred;
 
-#ifndef VBOX
 		if (INGLOBALZONE(curproc) ||
 		    cr != NULL && getzoneid() == crgetzoneid(cr))
 #endif
@@ -11404,6 +11431,8 @@ retry:
 static void
 dtrace_dof_error(dof_hdr_t *dof, const char *str)
 {
+	RT_NOREF_PV(dof);
+
 	if (dtrace_err_verbose)
 		cmn_err(CE_WARN, "failed to process DOF: %s", str);
 
@@ -11519,6 +11548,7 @@ dtrace_dof_copyin(uintptr_t uarg, int *errp)
 	return (dof);
 }
 
+#ifndef VBOX
 static dof_hdr_t *
 dtrace_dof_property(const char *name)
 {
@@ -11564,9 +11594,11 @@ dtrace_dof_property(const char *name)
 
 	return (dof);
 #else  /* VBOX */
+	RT_NOREF_PV(name);
 	return (NULL);
 #endif /* VBOX */
 }
+#endif /* !VBOX */
 
 static void
 dtrace_dof_destroy(dof_hdr_t *dof)
@@ -12614,7 +12646,7 @@ dtrace_state_create(dev_t *devp, cred_t *cr)
 	state->dts_aggid_arena = vmem_create(c, (void *)1, UINT32_MAX, 1,
 	    NULL, NULL, NULL, 0, VM_SLEEP | VMC_IDENTIFIER);
 #else
-        state->dts_aggid_arena = vmem_create(c, (void *)1, _1G, 1,
+        state->dts_aggid_arena = vmem_create(c, (void *)(uintptr_t)1, _1G, 1,
             NULL, NULL, NULL, 0, VM_SLEEP | VMC_IDENTIFIER);
 #endif
 
@@ -12800,7 +12832,7 @@ static int
 dtrace_state_buffer(dtrace_state_t *state, dtrace_buffer_t *buf, int which)
 {
 	dtrace_optval_t *opt = state->dts_options, size;
-	processorid_t cpu VBDTUNASS(DTRACE_CPUALL);
+	processorid_t cpu VBDTUNASS((processorid_t)DTRACE_CPUALL);
 	int flags = 0, rval;
 
 	ASSERT(MUTEX_HELD(&dtrace_lock));
@@ -14726,8 +14758,6 @@ dtrace_module_unloaded(struct modctl *ctl)
 	mutex_exit(&dtrace_provider_lock);
 }
 
-#endif /* !VBOX */
-
 VBDTSTATIC void
 dtrace_suspend(void)
 {
@@ -14740,6 +14770,8 @@ dtrace_resume(void)
 	dtrace_probe_foreach(offsetof(dtrace_pops_t, dtps_resume));
 }
 
+#endif /* !VBOX */
+
 #ifdef VBOX
 typedef enum {
     CPU_INVALID,
@@ -14748,6 +14780,7 @@ typedef enum {
 } cpu_setup_t;
 #endif
 
+#ifndef VBOX
 
 static int
 dtrace_cpu_setup(cpu_setup_t what, processorid_t cpu)
@@ -14808,12 +14841,12 @@ dtrace_cpu_setup(cpu_setup_t what, processorid_t cpu)
 	return (0);
 }
 
-#ifndef VBOX
 static void
 dtrace_cpu_setup_initial(processorid_t cpu)
 {
 	(void) dtrace_cpu_setup(CPU_CONFIG, cpu);
 }
+
 #endif /* !VBOX */
 
 static void
@@ -14930,7 +14963,7 @@ dtrace_attach(dev_info_t *devi, ddi_attach_cmd_t cmd)
 	dtrace_arena = vmem_create("dtrace", (void *)1, UINT32_MAX, 1,
 	    NULL, NULL, NULL, 0, VM_SLEEP | VMC_IDENTIFIER);
 #else
-        dtrace_arena = vmem_create("dtrace", (void *)1, UINT32_MAX - 16, 1,
+        dtrace_arena = vmem_create("dtrace", (void *)(uintptr_t)1, UINT32_MAX - 16, 1,
             NULL, NULL, NULL, 0, VM_SLEEP | VMC_IDENTIFIER);
 #endif
 #ifndef VBOX
@@ -15837,7 +15870,7 @@ dtrace_ioctl(dev_t dev, int cmd, intptr_t arg, int md, cred_t *cr, int *rv)
 		dtrace_xcall(desc.dtbd_cpu,
 		    (dtrace_xcall_t)dtrace_buffer_switch, buf);
 #else
-		if ((int32_t)desc.dtbd_cpu == DTRACE_CPUALL)
+		if (desc.dtbd_cpu == DTRACE_CPUALL)
 		    RTMpOnAll(dtrace_buffer_switch_wrapper, buf, NULL);
 		else
 		    RTMpOnSpecific(desc.dtbd_cpu, dtrace_buffer_switch_wrapper, buf, NULL);

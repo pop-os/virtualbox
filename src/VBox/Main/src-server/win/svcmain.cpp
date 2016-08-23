@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2004-2013 Oracle Corporation
+ * Copyright (C) 2004-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,9 +16,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <tchar.h>
 
 #include "VBox/com/defs.h"
 
@@ -39,13 +40,9 @@
 #include <iprt/path.h>
 #include <iprt/getopt.h>
 #include <iprt/message.h>
+#include <iprt\asm.h>
 
-#include <atlbase.h>
-#include <atlcom.h>
-
-#define _ATL_FREE_THREADED
-
-class CExeModule : public CComModule
+class CExeModule : public ATL::CComModule
 {
 public:
     LONG Unlock();
@@ -53,11 +50,13 @@ public:
     HANDLE hEventShutdown;
     void MonitorShutdown();
     bool StartMonitor();
+    bool HasActiveConnection();
     bool bActivity;
 };
 
-const DWORD dwTimeOut = 5000; /* time for EXE to be idle before shutting down */
-const DWORD dwPause = 100; /* time to wait for threads to finish up */
+/* Normal timeout usually used in Shutdown Monitor */
+const DWORD dwNormalTimeout = 5000;
+volatile uint32_t dwTimeOut = dwNormalTimeout; /* time for EXE to be idle before shutting down. Can be decreased at system shutdown phase. */
 
 /* Passed to CreateThread to monitor the shutdown event */
 static DWORD WINAPI MonitorProc(void* pv)
@@ -69,13 +68,18 @@ static DWORD WINAPI MonitorProc(void* pv)
 
 LONG CExeModule::Unlock()
 {
-    LONG l = CComModule::Unlock();
+    LONG l = ATL::CComModule::Unlock();
     if (l == 0)
     {
         bActivity = true;
         SetEvent(hEventShutdown); /* tell monitor that we transitioned to zero */
     }
     return l;
+}
+
+bool CExeModule::HasActiveConnection()
+{
+    return bActivity || GetLockCount() > 0;
 }
 
 /* Monitors the shutdown event */
@@ -91,7 +95,7 @@ void CExeModule::MonitorShutdown()
             dwWait = WaitForSingleObject(hEventShutdown, dwTimeOut);
         } while (dwWait == WAIT_OBJECT_0);
         /* timed out */
-        if (!bActivity && m_nLockCnt == 0) /* if no activity let's really bail */
+        if (!HasActiveConnection()) /* if no activity let's really bail */
         {
             /* Disable log rotation at this point, worst case a log file
              * becomes slightly bigger than it should. Avoids quirks with
@@ -113,9 +117,9 @@ void CExeModule::MonitorShutdown()
                     }
                 }
             }
-#if _WIN32_WINNT >= 0x0400 & defined(_ATL_FREE_THREADED)
+#if _WIN32_WINNT >= 0x0400
             CoSuspendClassObjects();
-            if (!bActivity && m_nLockCnt == 0)
+            if (!HasActiveConnection())
 #endif
                 break;
         }
@@ -134,11 +138,164 @@ bool CExeModule::StartMonitor()
     return (h != NULL);
 }
 
-CExeModule _Module;
 
 BEGIN_OBJECT_MAP(ObjectMap)
     OBJECT_ENTRY(CLSID_VirtualBox, VirtualBox)
 END_OBJECT_MAP()
+
+CExeModule _Module;
+HWND g_hMainWindow = NULL;
+HINSTANCE g_hInstance = NULL;
+#define MAIN_WND_CLASS L"VirtualBox Interface"
+
+/*
+* Wrapper for Win API function ShutdownBlockReasonCreate
+* This function defined starting from Vista only.
+*/
+BOOL ShutdownBlockReasonCreateAPI(HWND hWnd,LPCWSTR pwszReason)
+{
+    BOOL result = FALSE;
+    typedef BOOL(WINAPI *PFNSHUTDOWNBLOCKREASONCREATE)(HWND hWnd, LPCWSTR pwszReason);
+
+    PFNSHUTDOWNBLOCKREASONCREATE pfn = (PFNSHUTDOWNBLOCKREASONCREATE)GetProcAddress(
+            GetModuleHandle(L"User32.dll"), "ShutdownBlockReasonCreate");
+    _ASSERTE(pfn);
+    if (pfn)
+        result = pfn(hWnd, pwszReason);
+    return result;
+}
+
+/*
+* Wrapper for Win API function ShutdownBlockReasonDestroy
+* This function defined starting from Vista only.
+*/
+BOOL ShutdownBlockReasonDestroyAPI(HWND hWnd)
+{
+    BOOL result = FALSE;
+    typedef BOOL(WINAPI *PFNSHUTDOWNBLOCKREASONDESTROY)(HWND hWnd);
+
+    PFNSHUTDOWNBLOCKREASONDESTROY pfn = (PFNSHUTDOWNBLOCKREASONDESTROY)GetProcAddress(
+        GetModuleHandle(L"User32.dll"), "ShutdownBlockReasonDestroy");
+    _ASSERTE(pfn);
+    if (pfn)
+        result = pfn(hWnd);
+    return result;
+}
+
+
+LRESULT CALLBACK WinMainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    LRESULT rc = 0;
+    switch (msg)
+    {
+    case WM_QUERYENDSESSION:
+    {
+        rc = !_Module.HasActiveConnection();
+        if (!rc)
+        {
+            /* place the VBoxSVC into system shutdown list */
+            ShutdownBlockReasonCreateAPI(hwnd, L"Has active connections.");
+            /* decrease a latency of MonitorShutdown loop */
+            ASMAtomicXchgU32(&dwTimeOut, 100);
+            Log(("VBoxSVCWinMain: VBoxSvc has active connections. bActivity = %d. Loc count = %d\n",
+                _Module.bActivity, _Module.GetLockCount()));
+        }
+        Log(("VBoxSVCWinMain: WM_QUERYENDSESSION msg: %d rc= %d\n", msg, rc));
+    } break;
+    case WM_ENDSESSION:
+    {
+        /* Restore timeout of Monitor Shutdown if user canceled system shutdown */
+        if (wParam == FALSE)
+        {
+            ASMAtomicXchgU32(&dwTimeOut, dwNormalTimeout);
+            Log(("VBoxSVCWinMain: user canceled system shutdown.\n"));
+        }
+        Log(("VBoxSVCWinMain: WM_ENDSESSION msg: %d. wParam: %d. lParam: %d\n", msg, wParam, lParam));
+    } break;
+    case WM_DESTROY:
+    {
+        Log(("VBoxSVCWinMain: WM_DESTROY \n"));
+        ShutdownBlockReasonDestroyAPI(hwnd);
+        PostQuitMessage(0);
+    } break;
+
+    default:
+    {
+        Log(("VBoxSVCWinMain: msg %p\n", msg));
+        rc = DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    }
+    return rc;
+}
+
+
+int CreateMainWindow()
+{
+    int rc = VINF_SUCCESS;
+    _ASSERTE(g_hMainWindow == NULL);
+
+    LogFlow(("CreateMainWindow\n"));
+
+    g_hInstance = (HINSTANCE)GetModuleHandle(NULL);
+
+    /* Register the Window Class. */
+    WNDCLASS wc;
+    RT_ZERO(wc);
+
+    wc.style = CS_NOCLOSE;
+    wc.lpfnWndProc = WinMainWndProc;
+    wc.hInstance = g_hInstance;
+    wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND + 1);
+    wc.lpszClassName = MAIN_WND_CLASS;
+
+
+    ATOM atomWindowClass = RegisterClass(&wc);
+
+    if (atomWindowClass == 0)
+    {
+        Log(("Failed to register main window class\n"));
+        rc = VERR_NOT_SUPPORTED;
+    }
+    else
+    {
+        /* Create the window. */
+        g_hMainWindow = CreateWindowEx(WS_EX_TOOLWINDOW |  WS_EX_TOPMOST,
+            MAIN_WND_CLASS, MAIN_WND_CLASS,
+            WS_POPUPWINDOW,
+            0, 0, 1, 1, NULL, NULL, g_hInstance, NULL);
+
+        if (g_hMainWindow == NULL)
+        {
+            Log(("Failed to create main window\n"));
+            rc = VERR_NOT_SUPPORTED;
+        }
+        else
+        {
+            SetWindowPos(g_hMainWindow, HWND_TOPMOST, -200, -200, 0, 0,
+                SWP_NOACTIVATE | SWP_HIDEWINDOW | SWP_NOCOPYBITS | SWP_NOREDRAW | SWP_NOSIZE);
+
+        }
+    }
+    return 0;
+}
+
+
+void DestroyMainWindow()
+{
+    _ASSERTE(g_hMainWindow != NULL);
+    Log(("SVCMain: DestroyMainWindow \n"));
+    if (g_hMainWindow != NULL)
+    {
+        DestroyWindow(g_hMainWindow);
+        g_hMainWindow = NULL;
+
+        if (g_hInstance != NULL)
+        {
+            UnregisterClass(MAIN_WND_CLASS, g_hInstance);
+            g_hInstance = NULL;
+        }
+    }
+}
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -176,6 +333,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
      * the support driver.
      */
     RTR3InitExe(argc, &argv, 0);
+
 
     /* Note that all options are given lowercase/camel case/uppercase to
      * approximate case insensitive matching, which RTGetOpt doesn't offer. */
@@ -337,8 +495,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, vrc);
     }
 
+    /* Set up a build identifier so that it can be seen from core dumps what
+     * exact build was used to produce the core. Same as in Console::i_powerUpThread(). */
+    static char saBuildID[48];
+    RTStrPrintf(saBuildID, sizeof(saBuildID), "%s%s%s%s VirtualBox %s r%u %s%s%s%s",
+                "BU", "IL", "DI", "D", RTBldCfgVersion(), RTBldCfgRevision(), "BU", "IL", "DI", "D");
+
     int nRet = 0;
-    HRESULT hRes = com::Initialize();
+    HRESULT hRes = com::Initialize(false /*fGui*/, fRun /*fAutoRegUpdate*/);
 
     _ASSERTE(SUCCEEDED(hRes));
     _Module.Init(ObjectMap, hInstance, &LIBID_VirtualBox);
@@ -346,6 +510,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
 
     if (!fRun)
     {
+#ifndef VBOX_WITH_MIDL_PROXY_STUB /* VBoxProxyStub.dll does all the registration work. */
         if (fUnregister)
         {
             _Module.UpdateRegistryFromResource(IDR_VIRTUALBOX, FALSE);
@@ -356,6 +521,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
             _Module.UpdateRegistryFromResource(IDR_VIRTUALBOX, TRUE);
             nRet = _Module.RegisterServer(TRUE);
         }
+#endif
         if (pszPipeName)
         {
             Log(("SVCMAIN: Processing Helper request (cmdline=\"%s\")...\n", pszPipeName));
@@ -381,7 +547,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
     else
     {
         _Module.StartMonitor();
-#if _WIN32_WINNT >= 0x0400 & defined(_ATL_FREE_THREADED)
+#if _WIN32_WINNT >= 0x0400
         hRes = _Module.RegisterClassObjects(CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE | REGCLS_SUSPENDED);
         _ASSERTE(SUCCEEDED(hRes));
         hRes = CoResumeClassObjects();
@@ -390,12 +556,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
 #endif
         _ASSERTE(SUCCEEDED(hRes));
 
+        if (RT_SUCCESS(CreateMainWindow()))
+        {
+            Log(("SVCMain: Main window succesfully created\n"));
+        }
+        else
+        {
+            Log(("SVCMain: Failed to create main window\n"));
+        }
+
         MSG msg;
-        while (GetMessage(&msg, 0, 0, 0))
+        while (GetMessage(&msg, 0, 0, 0) > 0)
+        {
             DispatchMessage(&msg);
+            TranslateMessage(&msg);
+        }
+
+        DestroyMainWindow();
 
         _Module.RevokeClassObjects();
-        Sleep(dwPause); //wait for any threads to finish
     }
 
     _Module.Term();

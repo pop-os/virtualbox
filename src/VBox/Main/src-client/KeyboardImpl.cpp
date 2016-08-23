@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -233,7 +233,7 @@ HRESULT Keyboard::putScancodes(const std::vector<LONG> &aScancodes,
  */
 HRESULT Keyboard::putCAD()
 {
-    static std::vector<LONG> cadSequence;
+    std::vector<LONG> cadSequence;
     cadSequence.resize(8);
 
     cadSequence[0] = 0x1d; // Ctrl down
@@ -365,6 +365,7 @@ DECLCALLBACK(void) Keyboard::i_drvDestruct(PPDMDRVINS pDrvIns)
  */
 DECLCALLBACK(int) Keyboard::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVMAINKEYBOARD pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
     LogFlow(("Keyboard::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));

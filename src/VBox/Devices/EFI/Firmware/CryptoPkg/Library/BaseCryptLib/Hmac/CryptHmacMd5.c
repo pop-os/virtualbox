@@ -30,7 +30,7 @@ HmacMd5GetContextSize (
   //
   // Retrieves the OpenSSL HMAC-MD5 Context Size
   //
-  return (UINTN)(sizeof (HMAC_CTX));
+  return (UINTN) (sizeof (HMAC_CTX));
 }
 
 /**
@@ -58,7 +58,7 @@ HmacMd5Init (
   //
   // Check input parameters.
   //
-  if (HmacMd5Context == NULL) {
+  if (HmacMd5Context == NULL || KeySize > INT_MAX) {
     return FALSE;
   }
 
@@ -97,7 +97,7 @@ HmacMd5Duplicate (
   if (HmacMd5Context == NULL || NewHmacMd5Context == NULL) {
     return FALSE;
   }
-  
+
   CopyMem (NewHmacMd5Context, HmacMd5Context, sizeof (HMAC_CTX));
 
   return TRUE;

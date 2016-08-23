@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,17 +26,17 @@
 #include <QHash>
 #include <QFileIconProvider>
 #include <QReadWriteLock>
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 # include <QSet>
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 /* GUI includes: */
 #include "UIDefs.h"
 #include "UIMediumDefs.h"
 #include "VBoxGlobalSettings.h"
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 # include "VBoxX11Helper.h"
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
 /* COM includes: */
 #include "VBox/com/Guid.h"
@@ -47,9 +47,9 @@
 #include "CGuestOSType.h"
 
 /* Other includes: */
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 # include <X11/Xdefs.h>
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
 /* Forward declarations: */
 class QAction;
@@ -65,9 +65,6 @@ class UIMediumEnumerator;
 class UIMedium;
 class UIIconPoolGeneral;
 class UIThreadPool;
-#ifdef Q_WS_X11
-class UIDesktopWidgetWatchdog;
-#endif /* Q_WS_X11 */
 
 // VBoxGlobal class
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,12 +115,12 @@ public:
     /** Returns whether GUI is separate (from VM) process. */
     bool isSeparateProcess() const { return m_fSeparateProcess; }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Returns #MacOSXRelease determined using <i>uname</i> call. */
     static MacOSXRelease determineOsRelease();
     /** Mac OS X: Returns #MacOSXRelease determined during VBoxGlobal prepare routine. */
     MacOSXRelease osRelease() const { return m_osRelease; }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /** Try to acquire COM cleanup protection token for reading. */
     bool comTokenTryLockForRead() { return m_comCleanupProtectionToken.tryLockForRead(); }
@@ -144,34 +141,6 @@ public:
 
     /** Returns the thread-pool instance. */
     UIThreadPool* threadPool() const { return m_pThreadPool; }
-
-    /** @name Host-screen geometry stuff
-      * @{ */
-        /** Returns the number of host-screens currently available on the system. */
-        int screenCount() const;
-
-        /** Returns the index of the screen which contains contains @a pWidget. */
-        int screenNumber(const QWidget *pWidget) const;
-        /** Returns the index of the screen which contains contains @a point. */
-        int screenNumber(const QPoint &point) const;
-
-        /** Returns the geometry of the host-screen with @a iHostScreenIndex.
-          * @note The default screen is used if @a iHostScreenIndex is -1. */
-        const QRect screenGeometry(int iHostScreenIndex = -1) const;
-        /** Returns the available-geometry of the host-screen with @a iHostScreenIndex.
-          * @note The default screen is used if @a iHostScreenIndex is -1. */
-        const QRect availableGeometry(int iHostScreenIndex = -1) const;
-
-        /** Returns the geometry of the host-screen which contains @a pWidget. */
-        const QRect screenGeometry(const QWidget *pWidget) const;
-        /** Returns the available-geometry of the host-screen which contains @a pWidget. */
-        const QRect availableGeometry(const QWidget *pWidget) const;
-
-        /** Returns the geometry of the host-screen which contains @a point. */
-        const QRect screenGeometry(const QPoint &point) const;
-        /** Returns the available-geometry of the host-screen which contains @a point. */
-        const QRect availableGeometry(const QPoint &point) const;
-    /** @} */
 
     VBoxGlobalSettings &settings() { return gset; }
     bool setSettings (VBoxGlobalSettings &gs);
@@ -202,10 +171,12 @@ public:
     QString managedVMUuid() const { return vmUuid; }
     QList<QUrl> &argUrlList() { return m_ArgUrlList; }
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
+    /** X11: Returns whether the Window Manager we are running at is composition one. */
+    bool isCompositingManagerRunning() const { return m_fCompositingManagerRunning; }
     /** X11: Returns the type of the Window Manager we are running under. */
     X11WMType typeOfWindowManager() const { return m_enmWindowManagerType; }
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
     /** Returns whether we should restore current snapshot before VM started. */
     bool shouldRestoreCurrentSnapshot() const { return mRestoreCurrentSnapshot; }
@@ -414,7 +385,7 @@ public:
 
     static bool activateWindow (WId aWId, bool aSwitchDesktop = true);
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     /** X11: Test whether the current window manager supports full screen mode. */
     static bool supportsFullScreenMonitorsProtocolX11();
     /** X11: Performs mapping of the passed @a pWidget to host-screen with passed @a uScreenId. */
@@ -426,7 +397,7 @@ public:
     static bool isFullScreenFlagSet(QWidget *pWidget);
     /** X11: Sets _NET_WM_STATE_FULLSCREEN flag for passed @a pWidget. */
     static void setFullScreenFlag(QWidget *pWidget);
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
     static QString removeAccelMark (const QString &aText);
 
@@ -455,7 +426,6 @@ public:
 
 #ifdef VBOX_WITH_CRHGSMI
     static bool isWddmCompatibleOsType(const QString &strGuestOSTypeId);
-    static quint64 required3DWddmOffscreenVideoMemory(const QString &strGuestOSTypeId, int cMonitors = 1);
 #endif /* VBOX_WITH_CRHGSMI */
 
     /* Returns full medium-format name for the given base medium-format name: */
@@ -525,10 +495,10 @@ private:
 
     bool mValid;
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Mac OS X: Holds the #MacOSXRelease determined using <i>uname</i> call. */
     MacOSXRelease m_osRelease;
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /** COM cleanup protection token. */
     QReadWriteLock m_comCleanupProtectionToken;
@@ -566,16 +536,12 @@ private:
     UIMediumEnumerator *m_pMediumEnumerator;
     mutable QReadWriteLock m_mediumEnumeratorDtorRwLock;
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
+    /** X11: Holds whether the Window Manager we are running at is composition one. */
+    bool m_fCompositingManagerRunning;
     /** X11: Holds the type of the Window Manager we are running under. */
     X11WMType m_enmWindowManagerType;
-
-    /** @name Host-screen geometry stuff
-      * @{ */
-        /** X11: Holds the desktop-widget watchdog instance aware of host-screen geometry changes. */
-        UIDesktopWidgetWatchdog *m_pDesktopWidgetWatchdog;
-    /** @} */
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
     /** The --aggressive-caching / --no-aggressive-caching option. */
     bool mAgressiveCaching;
@@ -625,7 +591,7 @@ private:
     enum StartRunning m_enmStartRunning;
 #endif
 
-#if defined (Q_WS_WIN32)
+#if defined (VBOX_WS_WIN)
     DWORD dwHTMLHelpCookie;
 #endif
 

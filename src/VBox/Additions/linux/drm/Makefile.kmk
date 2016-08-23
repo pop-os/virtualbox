@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -27,8 +27,7 @@ vboxvideo_drm-mod_INST         = $(INST_ADDITIONS)src/vboxvideo/
 vboxvideo_drm-mod_SOURCES      = \
 	$(subst $(DQUOTE),,$(FILES_VBOXVIDEO_DRM_NOBIN))
 vboxvideo_drm-mod_EXEC_SOURCES = \
-	$(subst $(DQUOTE),,$(FILES_VBOXVIDEO_DRM_BIN)) \
-	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
+	$(subst $(DQUOTE),,$(FILES_VBOXVIDEO_DRM_BIN))
 
 
 #

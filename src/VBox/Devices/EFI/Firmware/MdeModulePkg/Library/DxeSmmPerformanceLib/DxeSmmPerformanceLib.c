@@ -5,7 +5,7 @@
   StartPerformanceMeasurement(), EndPerformanceMeasurement(), StartPerformanceMeasurementEx()
   and EndPerformanceMeasurementEx() are not implemented.
 
-  Copyright (c) 2011, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2011 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -189,7 +189,6 @@ StartPerformanceMeasurement (
   then TimeStamp is added to the record as the end time.
   If the record is found and TimeStamp is zero, then this function reads
   the current time stamp and adds that time stamp value to the record as the end time.
-  If this function is called multiple times for the same record, then the end time is overwritten.
 
   @param  Handle                  Pointer to environment specific context used
                                   to identify the component being measured.
@@ -243,12 +242,12 @@ GetAllSmmGaugeData (VOID)
   }
 
   //
-  // Initialize communicate buffer 
+  // Initialize communicate buffer
   //
   SmmCommBufferHeader = (EFI_SMM_COMMUNICATE_HEADER *)mSmmPerformanceBuffer;
   SmmPerfCommData = (SMM_PERF_COMMUNICATE *)SmmCommBufferHeader->Data;
   ZeroMem((UINT8*)SmmPerfCommData, sizeof(SMM_PERF_COMMUNICATE));
-    
+
   CopyGuid (&SmmCommBufferHeader->HeaderGuid, &gSmmPerformanceProtocolGuid);
   SmmCommBufferHeader->MessageLength = sizeof(SMM_PERF_COMMUNICATE);
   CommSize = SMM_PERFORMANCE_COMMUNICATION_BUFFER_SIZE;
@@ -263,14 +262,14 @@ GetAllSmmGaugeData (VOID)
   }
 
   mGaugeNumberOfEntries = SmmPerfCommData->NumberOfEntries;
-  
+
   DataSize = mGaugeNumberOfEntries * sizeof(GAUGE_DATA_ENTRY);
   mGaugeData = AllocateZeroPool(DataSize);
   ASSERT (mGaugeData != NULL);
-  
+
   //
   // Get all SMM gauge data
-  //  
+  //
   SmmPerfCommData->Function = SMM_PERF_FUNCTION_GET_GAUGE_DATA;
   SmmPerfCommData->LogEntryKey = 0;
   SmmPerfCommData->NumberOfEntries = mGaugeNumberOfEntries;
@@ -313,12 +312,12 @@ GetAllSmmGaugeDataEx (VOID)
   }
 
   //
-  // Initialize communicate buffer 
+  // Initialize communicate buffer
   //
   SmmCommBufferHeader = (EFI_SMM_COMMUNICATE_HEADER *)mSmmPerformanceBuffer;
   SmmPerfCommData = (SMM_PERF_COMMUNICATE_EX *)SmmCommBufferHeader->Data;
   ZeroMem((UINT8*)SmmPerfCommData, sizeof(SMM_PERF_COMMUNICATE_EX));
-    
+
   CopyGuid (&SmmCommBufferHeader->HeaderGuid, &gSmmPerformanceExProtocolGuid);
   SmmCommBufferHeader->MessageLength = sizeof(SMM_PERF_COMMUNICATE_EX);
   CommSize = SMM_PERFORMANCE_COMMUNICATION_BUFFER_SIZE;
@@ -333,14 +332,14 @@ GetAllSmmGaugeDataEx (VOID)
   }
 
   mGaugeNumberOfEntriesEx = SmmPerfCommData->NumberOfEntries;
-  
+
   DataSize = mGaugeNumberOfEntriesEx * sizeof(GAUGE_DATA_ENTRY_EX);
   mGaugeDataEx = AllocateZeroPool(DataSize);
   ASSERT (mGaugeDataEx != NULL);
-  
+
   //
   // Get all SMM gauge data
-  //  
+  //
   SmmPerfCommData->Function = SMM_PERF_FUNCTION_GET_GAUGE_DATA;
   SmmPerfCommData->LogEntryKey = 0;
   SmmPerfCommData->NumberOfEntries = mGaugeNumberOfEntriesEx;
@@ -351,7 +350,7 @@ GetAllSmmGaugeDataEx (VOID)
     mGaugeDataEx = NULL;
     mGaugeNumberOfEntriesEx = 0;
   }
- 
+
   return mGaugeDataEx;
 }
 
@@ -399,7 +398,7 @@ GetAllSmmGaugeDataEx (VOID)
 UINTN
 EFIAPI
 GetPerformanceMeasurementEx (
-  IN  UINTN       LogEntryKey, 
+  IN  UINTN       LogEntryKey,
   OUT CONST VOID  **Handle,
   OUT CONST CHAR8 **Token,
   OUT CONST CHAR8 **Module,

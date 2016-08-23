@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -179,8 +179,7 @@ DECLINLINE(uint32_t) pdmNetSegPayloadLen(PCPDMNETWORKGSO pGso, uint32_t iSeg, ui
 {
     if (iSeg + 1 == cSegs)
         return cbFrame - iSeg * pGso->cbMaxSeg - pdmNetSegHdrLen(pGso, iSeg);
-    else
-        return pGso->cbMaxSeg - (iSeg ? 0 : pGso->cbHdrsTotal - pGso->cbHdrsSeg);
+    return pGso->cbMaxSeg - (iSeg ? 0 : pGso->cbHdrsTotal - pGso->cbHdrsSeg);
 }
 
 /**

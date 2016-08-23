@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,13 +69,14 @@ void vbox_enable_accel(struct vbox_private *vbox)
 {
     unsigned i;
     struct VBVABUFFER *vbva;
+    uint32_t vram_map_offset = vbox->available_vram_size - vbox->vram_map_start;
 
     AssertLogRelReturnVoid(vbox->vbva_info != NULL);
     for (i = 0; i < vbox->num_crtcs; ++i) {
         if (vbox->vbva_info[i].pVBVA == NULL) {
             LogFunc(("vboxvideo: enabling VBVA.\n"));
-            vbva = (struct VBVABUFFER *) (  ((uint8_t *)vbox->vram)
-                                           + vbox->vram_size
+            vbva = (struct VBVABUFFER *) (  ((uint8_t *)vbox->mapped_vram)
+                                           + vram_map_offset
                                            + i * VBVA_MIN_BUFFER_SIZE);
             if (!VBoxVBVAEnable(&vbox->vbva_info[i], &vbox->submit_info, vbva, i))
                 AssertReleaseMsgFailed(("VBoxVBVAEnable failed - heap allocation error, very old host or driver error.\n"));
@@ -110,38 +111,38 @@ void vbox_framebuffer_dirty_rectangles(struct drm_framebuffer *fb,
                                        unsigned num_rects)
 {
     struct vbox_private *vbox = fb->dev->dev_private;
+    struct drm_crtc *crtc;
     unsigned i;
 
     LogFunc(("vboxvideo: %d: fb=%p, num_rects=%u, vbox=%p\n", __LINE__, fb,
              num_rects, vbox));
-    vbox_enable_accel(vbox);
     mutex_lock(&vbox->hw_mutex);
-    for (i = 0; i < num_rects; ++i)
-    {
-        struct drm_crtc *crtc;
-        list_for_each_entry(crtc, &fb->dev->mode_config.crtc_list, head)
-        {
-            unsigned crtc_id = to_vbox_crtc(crtc)->crtc_id;
-            VBVACMDHDR cmd_hdr;
-
-            if (   CRTC_FB(crtc) != fb
-                || rects[i].x1 >   crtc->x
-                                  + crtc->hwmode.hdisplay
-                || rects[i].y1 >   crtc->y
-                                  + crtc->hwmode.vdisplay
-                || rects[i].x2 < crtc->x
-                || rects[i].y2 < crtc->y)
-                continue;
-            cmd_hdr.x = (int16_t)rects[i].x1;
-            cmd_hdr.y = (int16_t)rects[i].y1;
-            cmd_hdr.w = (uint16_t)rects[i].x2 - rects[i].x1;
-            cmd_hdr.h = (uint16_t)rects[i].y2 - rects[i].y1;
-            if (VBoxVBVABufferBeginUpdate(&vbox->vbva_info[crtc_id],
-                                          &vbox->submit_info))
+    list_for_each_entry(crtc, &fb->dev->mode_config.crtc_list, head) {
+        if (CRTC_FB(crtc) == fb) {
+            vbox_enable_accel(vbox);
+            for (i = 0; i < num_rects; ++i)
             {
-                VBoxVBVAWrite(&vbox->vbva_info[crtc_id], &vbox->submit_info, &cmd_hdr,
-                              sizeof(cmd_hdr));
-                VBoxVBVABufferEndUpdate(&vbox->vbva_info[crtc_id]);
+                unsigned crtc_id = to_vbox_crtc(crtc)->crtc_id;
+                VBVACMDHDR cmd_hdr;
+
+                if (   rects[i].x1 >   crtc->x
+                                      + crtc->hwmode.hdisplay
+                    || rects[i].y1 >   crtc->y
+                                      + crtc->hwmode.vdisplay
+                    || rects[i].x2 < crtc->x
+                    || rects[i].y2 < crtc->y)
+                    continue;
+                cmd_hdr.x = (int16_t)rects[i].x1;
+                cmd_hdr.y = (int16_t)rects[i].y1;
+                cmd_hdr.w = (uint16_t)rects[i].x2 - rects[i].x1;
+                cmd_hdr.h = (uint16_t)rects[i].y2 - rects[i].y1;
+                if (VBoxVBVABufferBeginUpdate(&vbox->vbva_info[crtc_id],
+                                              &vbox->submit_info))
+                {
+                    VBoxVBVAWrite(&vbox->vbva_info[crtc_id], &vbox->submit_info, &cmd_hdr,
+                                  sizeof(cmd_hdr));
+                    VBoxVBVABufferEndUpdate(&vbox->vbva_info[crtc_id]);
+                }
             }
         }
     }
@@ -155,7 +156,6 @@ static int vbox_user_framebuffer_dirty(struct drm_framebuffer *fb,
                                        struct drm_clip_rect *rects,
                                        unsigned num_rects)
 {
-    LogFunc(("vboxvideo: %d, flags=%u\n", __LINE__, flags));
     vbox_framebuffer_dirty_rectangles(fb, rects, num_rects);
     return 0;
 }
@@ -255,13 +255,13 @@ static int vbox_accel_init(struct vbox_private *vbox)
             return -ENOMEM;
     }
     /* Take a command buffer for each screen from the end of usable VRAM. */
-    vbox->vram_size -= vbox->num_crtcs * VBVA_MIN_BUFFER_SIZE;
+    vbox->available_vram_size -= vbox->num_crtcs * VBVA_MIN_BUFFER_SIZE;
     for (i = 0; i < vbox->num_crtcs; ++i)
         VBoxVBVASetupBufferContext(&vbox->vbva_info[i],
-                                   vbox->vram_size + i * VBVA_MIN_BUFFER_SIZE,
+                                   vbox->available_vram_size + i * VBVA_MIN_BUFFER_SIZE,
                                    VBVA_MIN_BUFFER_SIZE);
-    LogFunc(("vboxvideo: %d: vbox->vbva_info=%p, vbox->vram_size=%u\n",
-             __LINE__, vbox->vbva_info, (unsigned)vbox->vram_size));
+    LogFunc(("vboxvideo: %d: vbox->vbva_info=%p, vbox->available_vram_size=%u\n",
+             __LINE__, vbox->vbva_info, (unsigned)vbox->available_vram_size));
     return 0;
 }
 
@@ -301,12 +301,16 @@ static bool have_hgsmi_mode_hints(struct vbox_private *vbox)
            && have_cursor == VINF_SUCCESS;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+# define pci_iomap_range(dev, bar, offset, maxlen) \
+    ioremap(pci_resource_start(dev, bar) + offset, maxlen)
+#endif
 
 /** Set up our heaps and data exchange buffers in VRAM before handing the rest
  *  to the memory manager. */
 static int vbox_hw_init(struct vbox_private *vbox)
 {
-    uint32_t base_offset, guest_heap_offset, guest_heap_size, host_flags_offset;
+    uint32_t base_offset, map_start, guest_heap_offset, guest_heap_size, host_flags_offset;
     void *guest_heap;
 
     vbox->full_vram_size = VBoxVideoGetVRAMSize();
@@ -314,17 +318,26 @@ static int vbox_hw_init(struct vbox_private *vbox)
     DRM_INFO("VRAM %08x\n", vbox->full_vram_size);
     VBoxHGSMIGetBaseMappingInfo(vbox->full_vram_size, &base_offset, NULL,
                                 &guest_heap_offset, &guest_heap_size, &host_flags_offset);
-    guest_heap =   ((uint8_t *)vbox->vram) + base_offset + guest_heap_offset;
-    vbox->host_flags_offset = base_offset + host_flags_offset;
+    map_start = (uint32_t)max((int)base_offset
+                              - VBOX_MAX_SCREENS * VBVA_MIN_BUFFER_SIZE, 0);
+    vbox->mapped_vram = pci_iomap_range(vbox->dev->pdev, 0, map_start,
+                                        vbox->full_vram_size - map_start);
+    if (!vbox->mapped_vram)
+        return -ENOMEM;
+    vbox->vram_map_start = map_start;
+    guest_heap = ((uint8_t *)vbox->mapped_vram) + base_offset - map_start
+                   + guest_heap_offset;
+    vbox->host_flags_offset = base_offset - map_start + host_flags_offset;
     if (RT_FAILURE(VBoxHGSMISetupGuestContext(&vbox->submit_info, guest_heap,
                                               guest_heap_size,
                                               base_offset + guest_heap_offset,
                                               &hgsmi_environ)))
         return -ENOMEM;
     /* Reduce available VRAM size to reflect the guest heap. */
-    vbox->vram_size = base_offset;
+    vbox->available_vram_size = base_offset;
     /* Linux drm represents monitors as a 32-bit array. */
-    vbox->num_crtcs = RT_MIN(VBoxHGSMIGetMonitorCount(&vbox->submit_info), 32);
+    vbox->num_crtcs = min(VBoxHGSMIGetMonitorCount(&vbox->submit_info),
+                          (uint32_t)VBOX_MAX_SCREENS);
     if (!have_hgsmi_mode_hints(vbox))
         return -ENOTSUPP;
     vbox->last_mode_hints = kzalloc(sizeof(VBVAMODEHINT) * vbox->num_crtcs, GFP_KERNEL);
@@ -357,12 +370,6 @@ int vbox_driver_load(struct drm_device *dev, unsigned long flags)
     vbox->dev = dev;
 
     mutex_init(&vbox->hw_mutex);
-    /* I hope this won't interfere with the memory manager. */
-    vbox->vram = pci_iomap(dev->pdev, 0, 0);
-    if (!vbox->vram) {
-        ret = -EIO;
-        goto out_free;
-    }
 
     ret = vbox_hw_init(vbox);
     if (ret)
@@ -392,8 +399,8 @@ int vbox_driver_load(struct drm_device *dev, unsigned long flags)
     ret = vbox_fbdev_init(dev);
     if (ret)
         goto out_free;
-    LogFunc(("vboxvideo: %d: vbox=%p, vbox->vram=%p, vbox->full_vram_size=%u\n",
-             __LINE__, vbox, vbox->vram, (unsigned)vbox->full_vram_size));
+    LogFunc(("vboxvideo: %d: vbox=%p, vbox->mapped_vram=%p, vbox->full_vram_size=%u\n",
+             __LINE__, vbox, vbox->mapped_vram, (unsigned)vbox->full_vram_size));
     return 0;
 out_free:
     vbox_driver_unload(dev);
@@ -414,8 +421,8 @@ int vbox_driver_unload(struct drm_device *dev)
 
     vbox_hw_fini(vbox);
     vbox_mm_fini(vbox);
-    if (vbox->vram)
-        pci_iounmap(dev->pdev, vbox->vram);
+    if (vbox->mapped_vram)
+        pci_iounmap(dev->pdev, vbox->mapped_vram);
     kfree(vbox);
     dev->dev_private = NULL;
     LogFunc(("vboxvideo: %d\n", __LINE__));

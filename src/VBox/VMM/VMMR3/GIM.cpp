@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,14 +50,17 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
-#include <VBox/log.h>
-#include "GIMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/gim.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/pdmdev.h>
+#include "GIMInternal.h"
+#include <VBox/vmm/vm.h>
+
+#include <VBox/log.h>
 
 #include <iprt/err.h>
+#include <iprt/semaphore.h>
 #include <iprt/string.h>
 
 /* Include all GIM providers. */
@@ -71,7 +74,6 @@
 *********************************************************************************************************************************/
 static FNSSMINTSAVEEXEC  gimR3Save;
 static FNSSMINTLOADEXEC  gimR3Load;
-static FNPGMPHYSHANDLER gimR3Mmio2WriteHandler;
 
 
 /**
@@ -88,6 +90,7 @@ VMMR3_INT_DECL(int) GIMR3Init(PVM pVM)
      * Assert alignment and sizes.
      */
     AssertCompile(sizeof(pVM->gim.s) <= sizeof(pVM->gim.padding));
+    AssertCompile(sizeof(pVM->aCpus[0].gim.s) <= sizeof(pVM->aCpus[0].gim.padding));
 
     /*
      * Initialize members.
@@ -108,6 +111,18 @@ VMMR3_INT_DECL(int) GIMR3Init(PVM pVM)
      * Read configuration.
      */
     PCFGMNODE pCfgNode = CFGMR3GetChild(CFGMR3GetRoot(pVM), "GIM/");
+
+    /*
+     * Validate the GIM settings.
+     */
+    rc = CFGMR3ValidateConfig(pCfgNode, "/GIM/", /* pszNode */
+                              "Provider"         /* pszValidValues */
+                              "|Version",
+                              "HyperV",          /* pszValidNodes */
+                              "GIM",             /* pszWho */
+                              0);                /* uInstance */
+    if (RT_FAILURE(rc))
+        return rc;
 
     /** @cfgm{/GIM/Provider, string}
      * The name of the GIM provider. The default is "none". */
@@ -142,7 +157,7 @@ VMMR3_INT_DECL(int) GIMR3Init(PVM pVM)
         else if (!RTStrCmp(szProvider, "HyperV"))
         {
             pVM->gim.s.enmProviderId = GIMPROVIDERID_HYPERV;
-            rc = gimR3HvInit(pVM);
+            rc = gimR3HvInit(pVM, pCfgNode);
         }
         else if (!RTStrCmp(szProvider, "KVM"))
         {
@@ -152,6 +167,16 @@ VMMR3_INT_DECL(int) GIMR3Init(PVM pVM)
         else
             rc = VMR3SetError(pVM->pUVM, VERR_GIM_INVALID_PROVIDER, RT_SRC_POS, "Provider '%s' unknown.", szProvider);
     }
+
+    /*
+     * Statistics.
+     */
+    STAM_REL_REG_USED(pVM, &pVM->gim.s.StatDbgXmit,      STAMTYPE_COUNTER, "/GIM/Debug/Transmit",      STAMUNIT_OCCURENCES, "Debug packets sent.");
+    STAM_REL_REG_USED(pVM, &pVM->gim.s.StatDbgXmitBytes, STAMTYPE_COUNTER, "/GIM/Debug/TransmitBytes", STAMUNIT_OCCURENCES, "Debug bytes sent.");
+    STAM_REL_REG_USED(pVM, &pVM->gim.s.StatDbgRecv,      STAMTYPE_COUNTER, "/GIM/Debug/Receive",       STAMUNIT_OCCURENCES, "Debug packets received.");
+    STAM_REL_REG_USED(pVM, &pVM->gim.s.StatDbgRecvBytes, STAMTYPE_COUNTER, "/GIM/Debug/ReceiveBytes",  STAMUNIT_OCCURENCES, "Debug bytes received.");
+
+    STAM_REL_REG_USED(pVM, &pVM->gim.s.StatHypercalls,   STAMTYPE_COUNTER, "/GIM/Hypercalls",          STAMUNIT_OCCURENCES, "Number of hypercalls initiated.");
     return rc;
 }
 
@@ -186,52 +211,6 @@ VMMR3_INT_DECL(int) GIMR3InitCompleted(PVM pVM)
         LogRel(("GIM: Warning!!! Host TSC is unstable. The guest may behave unpredictably with a paravirtualized clock.\n"));
 
     return VINF_SUCCESS;
-}
-
-
-/**
- * Applies relocations to data and code managed by this component.
- *
- * This function will be called at init and whenever the VMM need to relocate
- * itself inside the GC.
- *
- * @param   pVM         The cross context VM structure.
- * @param   offDelta    Relocation delta relative to old location.
- */
-VMM_INT_DECL(void) GIMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
-{
-    LogFlow(("GIMR3Relocate\n"));
-
-    if (   pVM->gim.s.enmProviderId == GIMPROVIDERID_NONE
-        || HMIsEnabled(pVM))
-        return;
-
-    switch (pVM->gim.s.enmProviderId)
-    {
-        case GIMPROVIDERID_MINIMAL:
-        {
-            gimR3MinimalRelocate(pVM, offDelta);
-            break;
-        }
-
-        case GIMPROVIDERID_HYPERV:
-        {
-            gimR3HvRelocate(pVM, offDelta);
-            break;
-        }
-
-        case GIMPROVIDERID_KVM:
-        {
-            gimR3KvmRelocate(pVM, offDelta);
-            break;
-        }
-
-        default:
-        {
-            AssertMsgFailed(("Invalid provider Id %#x\n", pVM->gim.s.enmProviderId));
-            break;
-        }
-    }
 }
 
 
@@ -327,12 +306,12 @@ static DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
     switch (pVM->gim.s.enmProviderId)
     {
         case GIMPROVIDERID_HYPERV:
-            rc = gimR3HvLoad(pVM, pSSM, uVersion);
+            rc = gimR3HvLoad(pVM, pSSM);
             AssertRCReturn(rc, rc);
             break;
 
         case GIMPROVIDERID_KVM:
-            rc = gimR3KvmLoad(pVM, pSSM, uVersion);
+            rc = gimR3KvmLoad(pVM, pSSM);
             AssertRCReturn(rc, rc);
             break;
 
@@ -398,12 +377,112 @@ VMMR3_INT_DECL(void) GIMR3Reset(PVM pVM)
 /**
  * Registers the GIM device with VMM.
  *
- * @param   pVM         The cross context VM structure.
- * @param   pDevIns     Pointer to the GIM device instance.
+ * @param   pVM             The cross context VM structure.
+ * @param   pDevIns         Pointer to the GIM device instance.
+ * @param   pDbg            Pointer to the GIM device debug structure, can be
+ *                          NULL.
  */
-VMMR3DECL(void) GIMR3GimDeviceRegister(PVM pVM, PPDMDEVINS pDevIns)
+VMMR3DECL(void) GIMR3GimDeviceRegister(PVM pVM, PPDMDEVINS pDevIns, PGIMDEBUG pDbg)
 {
     pVM->gim.s.pDevInsR3 = pDevIns;
+    pVM->gim.s.pDbgR3    = pDbg;
+}
+
+
+/**
+ * Gets debug setup specified by the provider.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
+ * @param   pDbgSetup       Where to store the debug setup details.
+ */
+VMMR3DECL(int) GIMR3GetDebugSetup(PVM pVM, PGIMDEBUGSETUP pDbgSetup)
+{
+    AssertReturn(pVM, VERR_INVALID_PARAMETER);
+    AssertReturn(pDbgSetup, VERR_INVALID_PARAMETER);
+
+    switch (pVM->gim.s.enmProviderId)
+    {
+        case GIMPROVIDERID_HYPERV:
+            return gimR3HvGetDebugSetup(pVM, pDbgSetup);
+        default:
+            break;
+    }
+    return VERR_GIM_NO_DEBUG_CONNECTION;
+}
+
+
+/**
+ * Read data from a host debug session.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM                 The cross context VM structure.
+ * @param   pvRead              The read buffer.
+ * @param   pcbRead             The size of the read buffer as well as where to store
+ *                              the number of bytes read.
+ * @param   pfnReadComplete     Callback when the buffer has been read and
+ *                              before signaling reading of the next buffer.
+ *                              Optional, can be NULL.
+ * @thread  EMT.
+ */
+VMMR3_INT_DECL(int) gimR3DebugRead(PVM pVM, void *pvRead, size_t *pcbRead, PFNGIMDEBUGBUFREADCOMPLETED pfnReadComplete)
+{
+    PGIMDEBUG pDbg = pVM->gim.s.pDbgR3;
+    if (pDbg)
+    {
+        if (ASMAtomicReadBool(&pDbg->fDbgRecvBufRead) == true)
+        {
+            STAM_REL_COUNTER_INC(&pVM->gim.s.StatDbgRecv);
+            STAM_REL_COUNTER_ADD(&pVM->gim.s.StatDbgRecvBytes, pDbg->cbDbgRecvBufRead);
+
+            memcpy(pvRead, pDbg->pvDbgRecvBuf, pDbg->cbDbgRecvBufRead);
+            *pcbRead = pDbg->cbDbgRecvBufRead;
+            if (pfnReadComplete)
+                pfnReadComplete(pVM);
+            RTSemEventMultiSignal(pDbg->hDbgRecvThreadSem);
+            ASMAtomicWriteBool(&pDbg->fDbgRecvBufRead, false);
+            return VINF_SUCCESS;
+        }
+        else
+            *pcbRead = 0;
+        return VERR_NO_DATA;
+    }
+    return VERR_GIM_NO_DEBUG_CONNECTION;
+}
+
+
+/**
+ * Write data to a host debug session.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   pvWrite     The write buffer.
+ * @param   pcbWrite    The size of the write buffer as well as where to store
+ *                      the number of bytes written.
+ * @thread  EMT.
+ */
+VMMR3_INT_DECL(int) gimR3DebugWrite(PVM pVM, void *pvWrite, size_t *pcbWrite)
+{
+    PGIMDEBUG pDbg = pVM->gim.s.pDbgR3;
+    if (pDbg)
+    {
+        PPDMISTREAM pDbgStream = pDbg->pDbgDrvStream;
+        if (pDbgStream)
+        {
+            size_t cbWrite = *pcbWrite;
+            int rc = pDbgStream->pfnWrite(pDbgStream, pvWrite, pcbWrite);
+            if (   RT_SUCCESS(rc)
+                && *pcbWrite == cbWrite)
+            {
+                STAM_REL_COUNTER_INC(&pVM->gim.s.StatDbgXmit);
+                STAM_REL_COUNTER_ADD(&pVM->gim.s.StatDbgXmitBytes, *pcbWrite);
+            }
+            return rc;
+        }
+    }
+    return VERR_GIM_NO_DEBUG_CONNECTION;
 }
 
 
@@ -437,6 +516,29 @@ VMMR3DECL(PGIMMMIO2REGION) GIMR3GetMmio2Regions(PVM pVM, uint32_t *pcRegions)
     return NULL;
 }
 
+#if 0 /* ??? */
+
+/**
+ * @callback_method_impl{FNPGMPHYSHANDLER,
+ *      Write access handler for mapped MMIO2 pages.  Currently ignores writes.}
+ *
+ * @todo In the future we might want to let the GIM provider decide what the
+ *       handler should do (like throwing \#GP faults).
+ */
+static DECLCALLBACK(VBOXSTRICTRC) gimR3Mmio2WriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf,
+                                                         size_t cbBuf, PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin,
+                                                         void *pvUser)
+{
+    RT_NOREF6(pVM, pVCpu, GCPhys, pvPhys, pvBuf, cbBuf);
+    RT_NOREF3(enmAccessType, enmOrigin, pvUser);
+
+    /*
+     * Ignore writes to the mapped MMIO2 page.
+     */
+    Assert(enmAccessType == PGMACCESSTYPE_WRITE);
+    return VINF_SUCCESS;        /** @todo Hyper-V says we should \#GP(0) fault for writes to the Hypercall and TSC page. */
+}
+
 
 /**
  * Unmaps a registered MMIO2 region in the guest address space and removes any
@@ -446,7 +548,7 @@ VMMR3DECL(PGIMMMIO2REGION) GIMR3GetMmio2Regions(PVM pVM, uint32_t *pcRegions)
  * @param   pVM         The cross context VM structure.
  * @param   pRegion     Pointer to the GIM MMIO2 region.
  */
-VMMR3_INT_DECL(int) GIMR3Mmio2Unmap(PVM pVM, PGIMMMIO2REGION pRegion)
+VMMR3_INT_DECL(int) gimR3Mmio2Unmap(PVM pVM, PGIMMMIO2REGION pRegion)
 {
     AssertPtr(pVM);
     AssertPtr(pRegion);
@@ -466,25 +568,6 @@ VMMR3_INT_DECL(int) GIMR3Mmio2Unmap(PVM pVM, PGIMMMIO2REGION pRegion)
         }
     }
     return VINF_SUCCESS;
-}
-
-
-/**
- * @callback_method_impl{FNPGMPHYSHANDLER,
- *      Write access handler for mapped MMIO2 pages.  Currently ignores writes.}
- *
- * @todo In the future we might want to let the GIM provider decide what the
- *       handler should do (like throwing \#GP faults).
- */
-static DECLCALLBACK(VBOXSTRICTRC)
-gimR3Mmio2WriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                       PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
-{
-    /*
-     * Ignore writes to the mapped MMIO2 page.
-     */
-    Assert(enmAccessType == PGMACCESSTYPE_WRITE);
-    return VINF_SUCCESS;        /** @todo Hyper-V says we should \#GP(0) fault for writes to the Hypercall and TSC page. */
 }
 
 
@@ -562,7 +645,7 @@ VMMR3_INT_DECL(int) GIMR3Mmio2Map(PVM pVM, PGIMMMIO2REGION pRegion, RTGCPHYS GCP
     return rc;
 }
 
-#if 0
+
 /**
  * Registers the physical handler for the registered and mapped MMIO2 region.
  *
@@ -570,7 +653,7 @@ VMMR3_INT_DECL(int) GIMR3Mmio2Map(PVM pVM, PGIMMMIO2REGION pRegion, RTGCPHYS GCP
  * @param   pVM         The cross context VM structure.
  * @param   pRegion     Pointer to the GIM MMIO2 region.
  */
-VMMR3_INT_DECL(int) GIMR3Mmio2HandlerPhysicalRegister(PVM pVM, PGIMMMIO2REGION pRegion)
+VMMR3_INT_DECL(int) gimR3Mmio2HandlerPhysicalRegister(PVM pVM, PGIMMMIO2REGION pRegion)
 {
     AssertPtr(pRegion);
     AssertReturn(pRegion->fRegistered, VERR_GIM_IPE_2);
@@ -593,9 +676,10 @@ VMMR3_INT_DECL(int) GIMR3Mmio2HandlerPhysicalRegister(PVM pVM, PGIMMMIO2REGION p
  * @param   pVM         The cross context VM structure.
  * @param   pRegion     Pointer to the GIM MMIO2 region.
  */
-VMMR3_INT_DECL(int) GIMR3Mmio2HandlerPhysicalDeregister(PVM pVM, PGIMMMIO2REGION pRegion)
+VMMR3_INT_DECL(int) gimR3Mmio2HandlerPhysicalDeregister(PVM pVM, PGIMMMIO2REGION pRegion)
 {
     return PGMHandlerPhysicalDeregister(pVM, pRegion->GCPhysPage);
 }
+
 #endif
 

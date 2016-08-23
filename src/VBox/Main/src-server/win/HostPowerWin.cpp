@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <windows.h>
+#include <iprt/win/windows.h>
 /* Some SDK versions lack the extern "C" and thus cause linking failures.
  * This workaround isn't pretty, but there are not many options. */
 extern "C" {
@@ -53,10 +53,8 @@ HostPowerServiceWin::~HostPowerServiceWin()
     {
         Log(("HostPowerServiceWin::!HostPowerServiceWin: destroy window %x\n", mHwnd));
 
-        /* Is this allowed from another thread? */
-        SetWindowLongPtr(mHwnd, 0, 0);
         /* Poke the thread out of the event loop and wait for it to clean up. */
-        PostMessage(mHwnd, WM_QUIT, 0, 0);
+        PostMessage(mHwnd, WM_CLOSE, 0, 0);
         RTThreadWait(mThread, 5000, NULL);
         mThread = NIL_RTTHREAD;
     }
@@ -64,8 +62,9 @@ HostPowerServiceWin::~HostPowerServiceWin()
 
 
 
-DECLCALLBACK(int) HostPowerServiceWin::NotificationThread(RTTHREAD ThreadSelf, void *pInstance)
+DECLCALLBACK(int) HostPowerServiceWin::NotificationThread(RTTHREAD hThreadSelf, void *pInstance)
 {
+    RT_NOREF(hThreadSelf);
     HostPowerServiceWin *pPowerObj = (HostPowerServiceWin *)pInstance;
     HWND                 hwnd = 0;
 
@@ -116,25 +115,21 @@ DECLCALLBACK(int) HostPowerServiceWin::NotificationThread(RTTHREAD ThreadSelf, v
 
             MSG msg;
             BOOL fRet;
-            while ((fRet = GetMessage(&msg, NULL, 0, 0)) != 0)
+            while ((fRet = GetMessage(&msg, NULL, 0, 0)) > 0)
             {
-                if (fRet != -1)
-                {
-                    TranslateMessage(&msg);
-                    DispatchMessage(&msg);
-                }
-                else
-                {
-                    // handle the error and possibly exit
-                    break;
-                }
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
             }
+            /*
+            * Window procedure can return error,
+            * but this is exceptional situation
+            * that should be identified in testing
+            */
+            Assert(fRet >= 0);
         }
     }
 
     Log(("HostPowerServiceWin::NotificationThread: exit thread\n"));
-    if (hwnd)
-        DestroyWindow(hwnd);
 
     if (atomWindowClass != 0)
     {
@@ -211,6 +206,14 @@ LRESULT CALLBACK HostPowerServiceWin::WndProc(HWND hwnd, UINT msg, WPARAM wParam
                 }
             }
             return TRUE;
+        }
+
+        case WM_DESTROY:
+        {
+            /* moved here. it can't work across theads */
+            SetWindowLongPtr(hwnd, 0, 0);
+            PostQuitMessage(0);
+            return 0;
         }
 
         default:

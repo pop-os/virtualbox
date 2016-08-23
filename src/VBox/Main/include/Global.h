@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,6 +40,8 @@
 #define VBOXOSHINT_FLOPPY               RT_BIT(11)
 #define VBOXOSHINT_NOUSB                RT_BIT(12)
 #define VBOXOSHINT_TFRESET              RT_BIT(13)
+#define VBOXOSHINT_USB3                 RT_BIT(14)
+#define VBOXOSHINT_X2APIC               RT_BIT(15)
 
 /** The VBoxVRDP kludge extension pack name.
  *
@@ -80,7 +82,7 @@ public:
     };
 
     static const OSType sOSTypes[];
-    static uint32_t cOSTypes;
+    static size_t cOSTypes;
 
     /**
      * Maps VBOXOSTYPE to the OS type which is used in VM configs.

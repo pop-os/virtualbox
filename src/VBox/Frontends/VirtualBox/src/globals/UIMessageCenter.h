@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -159,6 +159,7 @@ public:
     void cannotInitUserHome(const QString &strUserHome) const;
     void cannotInitCOM(HRESULT rc) const;
     void cannotCreateVirtualBoxClient(const CVirtualBoxClient &client) const;
+    void cannotAcquireVirtualBox(const CVirtualBoxClient &client) const;
 
     /* API: Global warnings: */
     void cannotFindLanguage(const QString &strLangId, const QString &strNlsPath) const;
@@ -382,6 +383,9 @@ public slots:
 
     /* Handlers: Help menu stuff: */
     void sltShowHelpWebDialog();
+    void sltShowBugTracker();
+    void sltShowForums();
+    void sltShowOracle();
     void sltShowHelpAboutDialog();
     void sltShowHelpHelpDialog();
     void sltResetSuppressedMessages();

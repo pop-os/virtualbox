@@ -1,5 +1,7 @@
+## @file
+# Target Tool Parser
 #
-#  Copyright (c) 2007 - 2010, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -10,7 +12,7 @@
 #  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #
 
-import os
+import Common.LongFilePathOs as os
 import sys
 import traceback
 from optparse import OptionParser
@@ -19,6 +21,7 @@ import Common.EdkLogger as EdkLogger
 import Common.BuildToolError as BuildToolError
 from Common.DataType import *
 from Common.BuildVersion import gBUILD_VERSION
+from Common.LongFilePathSupport import OpenLongFilePath as open
 
 # To Do 1.set clean, 2. add item, if the line is disabled.
 
@@ -87,13 +90,13 @@ class TargetTool():
             if type(self.TargetTxtDictionary[Key]) == type([]):
                 print "%-30s = %s" % (Key, ''.join(elem + ' ' for elem in self.TargetTxtDictionary[Key]))
             elif self.TargetTxtDictionary[Key] == None:
-                errMsg += "  Missing %s configuration information, please use TargetTool to set value!" % Key + os.linesep 
+                errMsg += "  Missing %s configuration information, please use TargetTool to set value!" % Key + os.linesep
             else:
                 print "%-30s = %s" % (Key, self.TargetTxtDictionary[Key])
-        
+
         if errMsg != '':
             print os.linesep + 'Warning:' + os.linesep + errMsg
-            
+
     def RWFile(self, CommentCharacter, KeySplitCharacter, Num):
         try:
             fr = open(self.FileName, 'r')
@@ -112,7 +115,7 @@ class TargetTool():
                                 existKeys.append(Key)
                             else:
                                 print "Warning: Found duplicate key item in original configuration files!"
-                                
+
                             if Num == 0:
                                 Line = "%-30s = \n" % Key
                             else:
@@ -127,12 +130,12 @@ class TargetTool():
                     if Line == None:
                         Line = "%-30s = " % key
                     fw.write(Line)
-                
+
             fr.close()
             fw.close()
             os.remove(self.FileName)
             os.rename(os.path.normpath(os.path.join(self.WorkSpace, 'Conf\\targetnew.txt')), self.FileName)
-            
+
         except:
             last_type, last_value, last_tb = sys.exc_info()
             traceback.print_exception(last_type, last_value, last_tb)
@@ -144,20 +147,20 @@ def GetConfigureKeyValue(self, Key):
         if os.path.exists(dscFullPath):
             Line = "%-30s = %s\n" % (Key, self.Opt.DSCFILE)
         else:
-            EdkLogger.error("TagetTool", BuildToolError.FILE_NOT_FOUND, 
+            EdkLogger.error("TagetTool", BuildToolError.FILE_NOT_FOUND,
                             "DSC file %s does not exist!" % self.Opt.DSCFILE, RaiseError=False)
     elif Key == TAB_TAT_DEFINES_TOOL_CHAIN_CONF and self.Opt.TOOL_DEFINITION_FILE != None:
         tooldefFullPath = os.path.join(self.WorkSpace, self.Opt.TOOL_DEFINITION_FILE)
         if os.path.exists(tooldefFullPath):
             Line = "%-30s = %s\n" % (Key, self.Opt.TOOL_DEFINITION_FILE)
         else:
-            EdkLogger.error("TagetTool", BuildToolError.FILE_NOT_FOUND, 
+            EdkLogger.error("TagetTool", BuildToolError.FILE_NOT_FOUND,
                             "Tooldef file %s does not exist!" % self.Opt.TOOL_DEFINITION_FILE, RaiseError=False)
 
     elif self.Opt.NUM >= 2:
         Line = "%-30s = %s\n" % (Key, 'Enable')
     elif self.Opt.NUM <= 1:
-        Line = "%-30s = %s\n" % (Key, 'Disable')        
+        Line = "%-30s = %s\n" % (Key, 'Disable')
     elif Key == TAB_TAT_DEFINES_MAX_CONCURRENT_THREAD_NUMBER and self.Opt.NUM != None:
         Line = "%-30s = %s\n" % (Key, str(self.Opt.NUM))
     elif Key == TAB_TAT_DEFINES_TARGET and self.Opt.TARGET != None:
@@ -171,7 +174,7 @@ def GetConfigureKeyValue(self, Key):
         if os.path.exists(buildruleFullPath):
             Line = "%-30s = %s\n" % (Key, self.Opt.BUILD_RULE_FILE)
         else:
-            EdkLogger.error("TagetTool", BuildToolError.FILE_NOT_FOUND, 
+            EdkLogger.error("TagetTool", BuildToolError.FILE_NOT_FOUND,
                             "Build rule file %s does not exist!" % self.Opt.BUILD_RULE_FILE, RaiseError=False)
     return Line
 
@@ -201,11 +204,11 @@ def RangeCheckCallback(option, opt_str, value, parser):
             setattr(parser.values, option.dest, value)
     else:
         parser.error("Option %s only allows one instance in command line!" % option)
-        
+
 def MyOptionParser():
     parser = OptionParser(version=__version__,prog="TargetTool.exe",usage=__usage__,description=__copyright__)
-    parser.add_option("-a", "--arch", action="append", type="choice", choices=['IA32','X64','IPF','EBC', 'ARM','0'], dest="TARGET_ARCH",
-        help="ARCHS is one of list: IA32, X64, IPF, ARM or EBC, which replaces target.txt's TARGET_ARCH definition. To specify more archs, please repeat this option. 0 will clear this setting in target.txt and can't combine with other value.")
+    parser.add_option("-a", "--arch", action="append", type="choice", choices=['IA32','X64','IPF','EBC', 'ARM', 'AARCH64','0'], dest="TARGET_ARCH",
+        help="ARCHS is one of list: IA32, X64, IPF, ARM, AARCH64 or EBC, which replaces target.txt's TARGET_ARCH definition. To specify more archs, please repeat this option. 0 will clear this setting in target.txt and can't combine with other value.")
     parser.add_option("-p", "--platform", action="callback", type="string", dest="DSCFILE", callback=SingleCheckCallback,
         help="Specify a DSC file, which replace target.txt's ACTIVE_PLATFORM definition. 0 will clear this setting in target.txt and can't combine with other value.")
     parser.add_option("-c", "--tooldef", action="callback", type="string", dest="TOOL_DEFINITION_FILE", callback=SingleCheckCallback,
@@ -227,7 +230,7 @@ if __name__ == '__main__':
     if os.getenv('WORKSPACE') == None:
         print "ERROR: WORKSPACE should be specified or edksetup script should be executed before run TargetTool"
         sys.exit(1)
-        
+
     (opt, args) = MyOptionParser()
     if len(args) != 1 or (args[0].lower() != 'print' and args[0].lower() != 'clean' and args[0].lower() != 'set'):
         print "The number of args isn't 1 or the value of args is invalid."

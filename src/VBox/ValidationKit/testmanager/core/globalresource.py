@@ -7,7 +7,7 @@ Test Manager - Global Resources.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2015 Oracle Corporation
+Copyright (C) 2012-2016 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,14 +26,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 109040 $"
 
 
 # Standard python imports.
 import unittest;
 
 # Validation Kit imports.
-from testmanager.core.base import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase;
+from testmanager.core.base import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMRowNotFound;
 
 
 class GlobalResourceData(ModelDataBase):
@@ -72,11 +72,11 @@ class GlobalResourceData(ModelDataBase):
 
     def initFromDbRow(self, aoRow):
         """
-        Reinitialize from a SELECT * FROM TestCases row.
+        Reinitialize from a SELECT * FROM GlobalResources row.
         Returns self. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMExceptionBase('Global resource not found.')
+            raise TMRowNotFound('Global resource not found.')
 
         self.idGlobalRsrc       = aoRow[0]
         self.tsEffective        = aoRow[1]
@@ -98,7 +98,7 @@ class GlobalResourceData(ModelDataBase):
                                                        , ( idGlobalRsrc,), tsNow, sPeriodBack));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMExceptionBase('idGlobalRsrc=%s not found (tsNow=%s sPeriodBack=%s)' % (idGlobalRsrc, tsNow, sPeriodBack,));
+            raise TMRowNotFound('idGlobalRsrc=%s not found (tsNow=%s sPeriodBack=%s)' % (idGlobalRsrc, tsNow, sPeriodBack,));
         return self.initFromDbRow(aoRow);
 
     def isEqual(self, oOther):
@@ -219,7 +219,7 @@ class GlobalResourceLogic(ModelLogicBase):
         try:
             return GlobalResourceData().initFromDbRow(aRows[0])
         except IndexError:
-            raise TMExceptionBase('Global resource not found.')
+            raise TMRowNotFound('Global resource not found.')
 
     def allocateResources(self, idTestBox, aoGlobalRsrcs, fCommit = False):
         """

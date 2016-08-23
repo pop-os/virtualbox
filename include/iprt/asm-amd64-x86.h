@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,11 @@
 #endif
 
 #if defined(_MSC_VER) && RT_INLINE_ASM_USES_INTRIN
+# pragma warning(push)
+# pragma warning(disable:4668) /* Several incorrect __cplusplus uses. */
+# pragma warning(disable:4255) /* Incorrect __slwpcb prototype. */
 # include <intrin.h>
+# pragma warning(pop)
    /* Emit the intrinsics at all optimization levels. */
 # pragma intrinsic(_ReadWriteBarrier)
 # pragma intrinsic(__cpuid)
@@ -69,6 +73,9 @@
 #  pragma intrinsic(__readcr8)
 #  pragma intrinsic(__writecr8)
 # endif
+# if RT_INLINE_ASM_USES_INTRIN >= 14
+#  pragma intrinsic(__halt)
+# endif
 # if RT_INLINE_ASM_USES_INTRIN >= 15
 #  pragma intrinsic(__readeflags)
 #  pragma intrinsic(__writeeflags)
@@ -76,6 +83,15 @@
 # endif
 #endif
 
+
+/*
+ * Include #pragma aux definitions for Watcom C/C++.
+ */
+#if defined(__WATCOMC__) && ARCH_BITS == 16
+# include "asm-amd64-x86-watcom-16.h"
+#elif defined(__WATCOMC__) && ARCH_BITS == 32
+# include "asm-amd64-x86-watcom-32.h"
+#endif
 
 
 /** @defgroup grp_rt_asm_amd64_x86  AMD64 and x86 Specific ASM Routines
@@ -92,7 +108,11 @@ typedef struct RTIDTR
     /** Size of the IDT. */
     uint16_t    cbIdt;
     /** Address of the IDT. */
-    uintptr_t   pIdt;
+#if ARCH_BITS != 64
+    uint32_t    pIdt;
+#else
+    uint64_t    pIdt;
+#endif
 } RTIDTR, *PRTIDTR;
 #pragma pack()
 
@@ -101,7 +121,7 @@ typedef struct RTIDTR
 typedef struct RTIDTRALIGNEDINT
 {
     /** Alignment padding.   */
-    uint8_t     au16Padding[ARCH_BITS == 64 ? 3 : 1];
+    uint16_t    au16Padding[ARCH_BITS == 64 ? 3 : 1];
     /** The IDTR structure.  */
     RTIDTR      Idtr;
 } RTIDTRALIGNEDINT;
@@ -115,7 +135,7 @@ typedef union RTIDTRALIGNED
     /** Aligned structure. */
     RTIDTRALIGNEDINT    s;
 } RTIDTRALIGNED;
-AssertCompileSize(RTIDTRALIGNED, ARCH_BITS * 2 / 8);
+AssertCompileSize(RTIDTRALIGNED, ((ARCH_BITS == 64) + 1) * 8);
 /** Pointer to a an RTIDTR alignment wrapper. */
 typedef RTIDTRALIGNED *PRIDTRALIGNED;
 
@@ -127,7 +147,11 @@ typedef struct RTGDTR
     /** Size of the GDT. */
     uint16_t    cbGdt;
     /** Address of the GDT. */
-    uintptr_t   pGdt;
+#if ARCH_BITS != 64
+    uint32_t    pGdt;
+#else
+    uint64_t    pGdt;
+#endif
 } RTGDTR, *PRTGDTR;
 #pragma pack()
 
@@ -136,7 +160,7 @@ typedef struct RTGDTR
 typedef struct RTGDTRALIGNEDINT
 {
     /** Alignment padding.   */
-    uint8_t     au16Padding[ARCH_BITS == 64 ? 3 : 1];
+    uint16_t    au16Padding[ARCH_BITS == 64 ? 3 : 1];
     /** The GDTR structure.  */
     RTGDTR      Gdtr;
 } RTGDTRALIGNEDINT;
@@ -150,7 +174,7 @@ typedef union RTGDTRALIGNED
     /** Aligned structure. */
     RTGDTRALIGNEDINT    s;
 } RTGDTRALIGNED;
-AssertCompileSize(RTGDTRALIGNED, ARCH_BITS * 2 / 8);
+AssertCompileSize(RTIDTRALIGNED, ((ARCH_BITS == 64) + 1) * 8);
 /** Pointer to a an RTGDTR alignment wrapper. */
 typedef RTGDTRALIGNED *PRGDTRALIGNED;
 
@@ -1252,13 +1276,16 @@ DECLINLINE(uint32_t) ASMCpuId_EDX(uint32_t uOperator)
  *
  * @returns true if CPUID is supported.
  */
+#ifdef __WATCOMC__
+DECLASM(bool) ASMHasCpuId(void);
+#else
 DECLINLINE(bool) ASMHasCpuId(void)
 {
-#ifdef RT_ARCH_AMD64
+# ifdef RT_ARCH_AMD64
     return true; /* ASSUME that all amd64 compatible CPUs have cpuid. */
-#else /* !RT_ARCH_AMD64 */
+# else /* !RT_ARCH_AMD64 */
     bool        fRet = false;
-# if RT_INLINE_ASM_GNU_STYLE
+#  if RT_INLINE_ASM_GNU_STYLE
     uint32_t    u1;
     uint32_t    u2;
     __asm__ ("pushf\n\t"
@@ -1274,7 +1301,7 @@ DECLINLINE(bool) ASMHasCpuId(void)
              "push  %2\n\t"
              "popf\n\t"
              : "=m" (fRet), "=r" (u1), "=r" (u2));
-# else
+#  else
     __asm
     {
         pushfd
@@ -1290,10 +1317,11 @@ DECLINLINE(bool) ASMHasCpuId(void)
         push    ebx
         popfd
     }
-# endif
+#  endif
     return fRet;
-#endif /* !RT_ARCH_AMD64 */
+# endif /* !RT_ARCH_AMD64 */
 }
+#endif
 
 
 /**
@@ -1439,7 +1467,7 @@ DECLINLINE(bool) ASMIsViaCentaurCpu(void)
 {
     uint32_t uEAX, uEBX, uECX, uEDX;
     ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
-    return ASMIsAmdCpuEx(uEBX, uECX, uEDX);
+    return ASMIsViaCentaurCpuEx(uEBX, uECX, uEDX);
 }
 
 
@@ -1552,11 +1580,11 @@ DECLINLINE(uint32_t) ASMGetCpuStepping(uint32_t uEAX)
  * @returns cr0.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetCR0(void);
+DECLASM(RTCCUINTXREG) ASMGetCR0(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetCR0(void)
+DECLINLINE(RTCCUINTXREG) ASMGetCR0(void)
 {
-    RTCCUINTREG uCR0;
+    RTCCUINTXREG uCR0;
 # if RT_INLINE_ASM_USES_INTRIN
     uCR0 = __readcr0();
 
@@ -1588,9 +1616,9 @@ DECLINLINE(RTCCUINTREG) ASMGetCR0(void)
  * @param   uCR0 The new CR0 value.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetCR0(RTCCUINTREG uCR0);
+DECLASM(void) ASMSetCR0(RTCCUINTXREG uCR0);
 #else
-DECLINLINE(void) ASMSetCR0(RTCCUINTREG uCR0)
+DECLINLINE(void) ASMSetCR0(RTCCUINTXREG uCR0)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writecr0(uCR0);
@@ -1622,11 +1650,11 @@ DECLINLINE(void) ASMSetCR0(RTCCUINTREG uCR0)
  * @returns cr2.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetCR2(void);
+DECLASM(RTCCUINTXREG) ASMGetCR2(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetCR2(void)
+DECLINLINE(RTCCUINTXREG) ASMGetCR2(void)
 {
-    RTCCUINTREG uCR2;
+    RTCCUINTXREG uCR2;
 # if RT_INLINE_ASM_USES_INTRIN
     uCR2 = __readcr2();
 
@@ -1658,9 +1686,9 @@ DECLINLINE(RTCCUINTREG) ASMGetCR2(void)
  * @param   uCR2 The new CR0 value.
  */
 #if RT_INLINE_ASM_EXTERNAL
-DECLASM(void) ASMSetCR2(RTCCUINTREG uCR2);
+DECLASM(void) ASMSetCR2(RTCCUINTXREG uCR2);
 #else
-DECLINLINE(void) ASMSetCR2(RTCCUINTREG uCR2)
+DECLINLINE(void) ASMSetCR2(RTCCUINTXREG uCR2)
 {
 # if RT_INLINE_ASM_GNU_STYLE
 #  ifdef RT_ARCH_AMD64
@@ -1689,11 +1717,11 @@ DECLINLINE(void) ASMSetCR2(RTCCUINTREG uCR2)
  * @returns cr3.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetCR3(void);
+DECLASM(RTCCUINTXREG) ASMGetCR3(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetCR3(void)
+DECLINLINE(RTCCUINTXREG) ASMGetCR3(void)
 {
-    RTCCUINTREG uCR3;
+    RTCCUINTXREG uCR3;
 # if RT_INLINE_ASM_USES_INTRIN
     uCR3 = __readcr3();
 
@@ -1726,9 +1754,9 @@ DECLINLINE(RTCCUINTREG) ASMGetCR3(void)
  * @param   uCR3    New CR3 value.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetCR3(RTCCUINTREG uCR3);
+DECLASM(void) ASMSetCR3(RTCCUINTXREG uCR3);
 #else
-DECLINLINE(void) ASMSetCR3(RTCCUINTREG uCR3)
+DECLINLINE(void) ASMSetCR3(RTCCUINTXREG uCR3)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writecr3(uCR3);
@@ -1767,7 +1795,7 @@ DECLINLINE(void) ASMReloadCR3(void)
     __writecr3(__readcr3());
 
 # elif RT_INLINE_ASM_GNU_STYLE
-    RTCCUINTREG u;
+    RTCCUINTXREG u;
 #  ifdef RT_ARCH_AMD64
     __asm__ __volatile__("movq %%cr3, %0\n\t"
                          "movq %0, %%cr3\n\t"
@@ -1798,11 +1826,11 @@ DECLINLINE(void) ASMReloadCR3(void)
  * @returns cr4.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetCR4(void);
+DECLASM(RTCCUINTXREG) ASMGetCR4(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetCR4(void)
+DECLINLINE(RTCCUINTXREG) ASMGetCR4(void)
 {
-    RTCCUINTREG uCR4;
+    RTCCUINTXREG uCR4;
 # if RT_INLINE_ASM_USES_INTRIN
     uCR4 = __readcr4();
 
@@ -1840,9 +1868,9 @@ DECLINLINE(RTCCUINTREG) ASMGetCR4(void)
  * @param   uCR4    New CR4 value.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetCR4(RTCCUINTREG uCR4);
+DECLASM(void) ASMSetCR4(RTCCUINTXREG uCR4);
 #else
-DECLINLINE(void) ASMSetCR4(RTCCUINTREG uCR4)
+DECLINLINE(void) ASMSetCR4(RTCCUINTXREG uCR4)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writecr4(uCR4);
@@ -1877,12 +1905,12 @@ DECLINLINE(void) ASMSetCR4(RTCCUINTREG uCR4)
  * @remark  The lock prefix hack for access from non-64-bit modes is NOT used and 0 is returned.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetCR8(void);
+DECLASM(RTCCUINTXREG) ASMGetCR8(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetCR8(void)
+DECLINLINE(RTCCUINTXREG) ASMGetCR8(void)
 {
 # ifdef RT_ARCH_AMD64
-    RTCCUINTREG uCR8;
+    RTCCUINTXREG uCR8;
 #  if RT_INLINE_ASM_USES_INTRIN
     uCR8 = __readcr8();
 
@@ -2020,13 +2048,15 @@ DECLINLINE(bool) ASMIntAreEnabled(void)
 /**
  * Halts the CPU until interrupted.
  */
-#if RT_INLINE_ASM_EXTERNAL
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 14
 DECLASM(void) ASMHalt(void);
 #else
 DECLINLINE(void) ASMHalt(void)
 {
 # if RT_INLINE_ASM_GNU_STYLE
     __asm__ __volatile__("hlt\n\t");
+# elif RT_INLINE_ASM_USES_INTRIN
+    __halt();
 # else
     __asm {
         hlt
@@ -2117,9 +2147,9 @@ DECLINLINE(void) ASMWrMsr(uint32_t uRegister, uint64_t u64Val)
  * @param   uXDI        RDI/EDI value.
  */
 #if RT_INLINE_ASM_EXTERNAL
-DECLASM(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTREG uXDI);
+DECLASM(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI);
 #else
-DECLINLINE(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTREG uXDI)
+DECLINLINE(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI)
 {
     RTUINT64U u;
 # if RT_INLINE_ASM_GNU_STYLE
@@ -2155,9 +2185,9 @@ DECLINLINE(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTREG uXDI)
  * @param   u64Val      Value to write.
  */
 #if RT_INLINE_ASM_EXTERNAL
-DECLASM(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTREG uXDI, uint64_t u64Val);
+DECLASM(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI, uint64_t u64Val);
 #else
-DECLINLINE(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTREG uXDI, uint64_t u64Val)
+DECLINLINE(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI, uint64_t u64Val)
 {
     RTUINT64U u;
 
@@ -2261,11 +2291,11 @@ DECLINLINE(uint32_t) ASMRdMsr_High(uint32_t uRegister)
  * @returns dr0.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetDR0(void);
+DECLASM(RTCCUINTXREG) ASMGetDR0(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetDR0(void)
+DECLINLINE(RTCCUINTXREG) ASMGetDR0(void)
 {
-    RTCCUINTREG uDR0;
+    RTCCUINTXREG uDR0;
 # if RT_INLINE_ASM_USES_INTRIN
     uDR0 = __readdr(0);
 # elif RT_INLINE_ASM_GNU_STYLE
@@ -2297,11 +2327,11 @@ DECLINLINE(RTCCUINTREG) ASMGetDR0(void)
  * @returns dr1.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetDR1(void);
+DECLASM(RTCCUINTXREG) ASMGetDR1(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetDR1(void)
+DECLINLINE(RTCCUINTXREG) ASMGetDR1(void)
 {
-    RTCCUINTREG uDR1;
+    RTCCUINTXREG uDR1;
 # if RT_INLINE_ASM_USES_INTRIN
     uDR1 = __readdr(1);
 # elif RT_INLINE_ASM_GNU_STYLE
@@ -2333,11 +2363,11 @@ DECLINLINE(RTCCUINTREG) ASMGetDR1(void)
  * @returns dr2.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetDR2(void);
+DECLASM(RTCCUINTXREG) ASMGetDR2(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetDR2(void)
+DECLINLINE(RTCCUINTXREG) ASMGetDR2(void)
 {
-    RTCCUINTREG uDR2;
+    RTCCUINTXREG uDR2;
 # if RT_INLINE_ASM_USES_INTRIN
     uDR2 = __readdr(2);
 # elif RT_INLINE_ASM_GNU_STYLE
@@ -2369,11 +2399,11 @@ DECLINLINE(RTCCUINTREG) ASMGetDR2(void)
  * @returns dr3.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetDR3(void);
+DECLASM(RTCCUINTXREG) ASMGetDR3(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetDR3(void)
+DECLINLINE(RTCCUINTXREG) ASMGetDR3(void)
 {
-    RTCCUINTREG uDR3;
+    RTCCUINTXREG uDR3;
 # if RT_INLINE_ASM_USES_INTRIN
     uDR3 = __readdr(3);
 # elif RT_INLINE_ASM_GNU_STYLE
@@ -2405,11 +2435,11 @@ DECLINLINE(RTCCUINTREG) ASMGetDR3(void)
  * @returns dr6.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetDR6(void);
+DECLASM(RTCCUINTXREG) ASMGetDR6(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetDR6(void)
+DECLINLINE(RTCCUINTXREG) ASMGetDR6(void)
 {
-    RTCCUINTREG uDR6;
+    RTCCUINTXREG uDR6;
 # if RT_INLINE_ASM_USES_INTRIN
     uDR6 = __readdr(6);
 # elif RT_INLINE_ASM_GNU_STYLE
@@ -2441,16 +2471,16 @@ DECLINLINE(RTCCUINTREG) ASMGetDR6(void)
  * @returns DR6.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetAndClearDR6(void);
+DECLASM(RTCCUINTXREG) ASMGetAndClearDR6(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetAndClearDR6(void)
+DECLINLINE(RTCCUINTXREG) ASMGetAndClearDR6(void)
 {
-    RTCCUINTREG uDR6;
+    RTCCUINTXREG uDR6;
 # if RT_INLINE_ASM_USES_INTRIN
     uDR6 = __readdr(6);
     __writedr(6, 0xffff0ff0U);          /* 31-16 and 4-11 are 1's, 12 and 63-31 are zero. */
 # elif RT_INLINE_ASM_GNU_STYLE
-    RTCCUINTREG uNewValue = 0xffff0ff0U;/* 31-16 and 4-11 are 1's, 12 and 63-31 are zero. */
+    RTCCUINTXREG uNewValue = 0xffff0ff0U;/* 31-16 and 4-11 are 1's, 12 and 63-31 are zero. */
 #  ifdef RT_ARCH_AMD64
     __asm__ __volatile__("movq   %%dr6, %0\n\t"
                          "movq   %1, %%dr6\n\t"
@@ -2490,11 +2520,11 @@ DECLINLINE(RTCCUINTREG) ASMGetAndClearDR6(void)
  * @returns dr7.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(RTCCUINTREG) ASMGetDR7(void);
+DECLASM(RTCCUINTXREG) ASMGetDR7(void);
 #else
-DECLINLINE(RTCCUINTREG) ASMGetDR7(void)
+DECLINLINE(RTCCUINTXREG) ASMGetDR7(void)
 {
-    RTCCUINTREG uDR7;
+    RTCCUINTXREG uDR7;
 # if RT_INLINE_ASM_USES_INTRIN
     uDR7 = __readdr(7);
 # elif RT_INLINE_ASM_GNU_STYLE
@@ -2526,9 +2556,9 @@ DECLINLINE(RTCCUINTREG) ASMGetDR7(void)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetDR0(RTCCUINTREG uDRVal);
+DECLASM(void) ASMSetDR0(RTCCUINTXREG uDRVal);
 #else
-DECLINLINE(void) ASMSetDR0(RTCCUINTREG uDRVal)
+DECLINLINE(void) ASMSetDR0(RTCCUINTXREG uDRVal)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writedr(0, uDRVal);
@@ -2560,9 +2590,9 @@ DECLINLINE(void) ASMSetDR0(RTCCUINTREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetDR1(RTCCUINTREG uDRVal);
+DECLASM(void) ASMSetDR1(RTCCUINTXREG uDRVal);
 #else
-DECLINLINE(void) ASMSetDR1(RTCCUINTREG uDRVal)
+DECLINLINE(void) ASMSetDR1(RTCCUINTXREG uDRVal)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writedr(1, uDRVal);
@@ -2594,9 +2624,9 @@ DECLINLINE(void) ASMSetDR1(RTCCUINTREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetDR2(RTCCUINTREG uDRVal);
+DECLASM(void) ASMSetDR2(RTCCUINTXREG uDRVal);
 #else
-DECLINLINE(void) ASMSetDR2(RTCCUINTREG uDRVal)
+DECLINLINE(void) ASMSetDR2(RTCCUINTXREG uDRVal)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writedr(2, uDRVal);
@@ -2628,9 +2658,9 @@ DECLINLINE(void) ASMSetDR2(RTCCUINTREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetDR3(RTCCUINTREG uDRVal);
+DECLASM(void) ASMSetDR3(RTCCUINTXREG uDRVal);
 #else
-DECLINLINE(void) ASMSetDR3(RTCCUINTREG uDRVal)
+DECLINLINE(void) ASMSetDR3(RTCCUINTXREG uDRVal)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writedr(3, uDRVal);
@@ -2662,9 +2692,9 @@ DECLINLINE(void) ASMSetDR3(RTCCUINTREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetDR6(RTCCUINTREG uDRVal);
+DECLASM(void) ASMSetDR6(RTCCUINTXREG uDRVal);
 #else
-DECLINLINE(void) ASMSetDR6(RTCCUINTREG uDRVal)
+DECLINLINE(void) ASMSetDR6(RTCCUINTXREG uDRVal)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writedr(6, uDRVal);
@@ -2696,9 +2726,9 @@ DECLINLINE(void) ASMSetDR6(RTCCUINTREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMSetDR7(RTCCUINTREG uDRVal);
+DECLASM(void) ASMSetDR7(RTCCUINTXREG uDRVal);
 #else
-DECLINLINE(void) ASMSetDR7(RTCCUINTREG uDRVal)
+DECLINLINE(void) ASMSetDR7(RTCCUINTXREG uDRVal)
 {
 # if RT_INLINE_ASM_USES_INTRIN
     __writedr(7, uDRVal);
@@ -3135,27 +3165,27 @@ DECLINLINE(void) ASMInStrU32(RTIOPORT Port, uint32_t *pau32, size_t c)
 /**
  * Invalidate page.
  *
- * @param   pv      Address of the page to invalidate.
+ * @param   uPtr    Address of the page to invalidate.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(void) ASMInvalidatePage(void *pv);
+DECLASM(void) ASMInvalidatePage(RTCCUINTXREG uPtr);
 #else
-DECLINLINE(void) ASMInvalidatePage(void *pv)
+DECLINLINE(void) ASMInvalidatePage(RTCCUINTXREG uPtr)
 {
 # if RT_INLINE_ASM_USES_INTRIN
-    __invlpg(pv);
+    __invlpg((void *)uPtr);
 
 # elif RT_INLINE_ASM_GNU_STYLE
     __asm__ __volatile__("invlpg %0\n\t"
-                         : : "m" (*(uint8_t *)pv));
+                         : : "m" (*(uint8_t *)(uintptr_t)uPtr));
 # else
     __asm
     {
 #  ifdef RT_ARCH_AMD64
-        mov     rax, [pv]
+        mov     rax, [uPtr]
         invlpg  [rax]
 #  else
-        mov     eax, [pv]
+        mov     eax, [uPtr]
         invlpg  [eax]
 #  endif
     }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,10 +65,10 @@ private:
 
 UIMenu::UIMenu()
     : m_fShowToolTip(false)
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     , m_fConsumable(false)
     , m_fConsumed(false)
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 {
 }
 
@@ -107,11 +107,16 @@ UIAction::UIAction(UIActionPool *pParent, UIActionType type)
     /* By default there is no specific menu role.
      * It will be set explicitly later. */
     setMenuRole(QAction::NoRole);
+
+#ifdef VBOX_WS_MAC
+    /* Make sure each action notifies it's parent about hovering: */
+    connect(this, SIGNAL(hovered()), parent(), SLOT(sltActionHovered()));
+#endif /* VBOX_WS_MAC */
 }
 
 UIMenu* UIAction::menu() const
 {
-    return qobject_cast<UIMenu*>(QAction::menu());
+    return QAction::menu() ? qobject_cast<UIMenu*>(QAction::menu()) : 0;
 }
 
 UIActionPolymorphic* UIAction::toActionPolymorphic()
@@ -638,6 +643,105 @@ protected:
     }
 };
 
+class UIActionSimpleBugTracker : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleBugTracker(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/site_bugtracker_16px.png")
+    {
+        retranslateUi();
+    }
+
+protected:
+
+    /** Returns action extra-data ID. */
+    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuHelpActionType_BugTracker; }
+    /** Returns action extra-data key. */
+    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuHelpActionType_BugTracker); }
+    /** Returns whether action is allowed. */
+    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType_BugTracker); }
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("BugTracker");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&VirtualBox Bug Tracker..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the browser and go to the VirtualBox product bug tracker"));
+    }
+};
+
+class UIActionSimpleForums : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleForums(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/site_forum_16px.png")
+    {
+        retranslateUi();
+    }
+
+protected:
+
+    /** Returns action extra-data ID. */
+    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuHelpActionType_Forums; }
+    /** Returns action extra-data key. */
+    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuHelpActionType_Forums); }
+    /** Returns whether action is allowed. */
+    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType_Forums); }
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("Forums");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&VirtualBox Forums..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the browser and go to the VirtualBox product forums"));
+    }
+};
+
+class UIActionSimpleOracle : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleOracle(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/site_oracle_16px.png")
+    {
+        retranslateUi();
+    }
+
+protected:
+
+    /** Returns action extra-data ID. */
+    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuHelpActionType_Oracle; }
+    /** Returns action extra-data key. */
+    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuHelpActionType_Oracle); }
+    /** Returns whether action is allowed. */
+    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType_Oracle); }
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("Oracle");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Oracle Web Site..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the browser and go to the Oracle web site"));
+    }
+};
+
 class UIActionSimpleResetWarnings : public UIActionSimple
 {
     Q_OBJECT;
@@ -925,7 +1029,7 @@ void UIActionPool::setRestrictionForMenuApplication(UIActionRestrictionLevel lev
     m_invalidations << UIActionIndex_M_Application;
 }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 bool UIActionPool::isAllowedInMenuWindow(UIExtraDataMetaDefs::MenuWindowActionType type) const
 {
     foreach (const UIExtraDataMetaDefs::MenuWindowActionType &restriction, m_restrictedActionsMenuWindow.values())
@@ -939,7 +1043,7 @@ void UIActionPool::setRestrictionForMenuWindow(UIActionRestrictionLevel level, U
     m_restrictedActionsMenuWindow[level] = restriction;
     m_invalidations << UIActionIndex_M_Window;
 }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 bool UIActionPool::isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType type) const
 {
@@ -958,9 +1062,11 @@ void UIActionPool::setRestrictionForMenuHelp(UIActionRestrictionLevel level, UIE
 void UIActionPool::sltHandleMenuPrepare()
 {
     /* Make sure menu is valid: */
+    AssertPtrReturnVoid(sender());
     UIMenu *pMenu = qobject_cast<UIMenu*>(sender());
     AssertPtrReturnVoid(pMenu);
     /* Make sure action is valid: */
+    AssertPtrReturnVoid(pMenu->menuAction());
     UIAction *pAction = qobject_cast<UIAction*>(pMenu->menuAction());
     AssertPtrReturnVoid(pAction);
 
@@ -973,6 +1079,19 @@ void UIActionPool::sltHandleMenuPrepare()
     /* Notify listeners about menu prepared: */
     emit sigNotifyAboutMenuPrepare(iIndex, pMenu);
 }
+
+#ifdef VBOX_WS_MAC
+void UIActionPool::sltActionHovered()
+{
+    /* Acquire sender action: */
+    UIAction *pAction = qobject_cast<UIAction*>(sender());
+    AssertPtrReturnVoid(pAction);
+    //printf("Action hovered: {%s}\n", pAction->name().toUtf8().constData());
+
+    /* Notify listener about action hevering: */
+    emit sigActionHovered(pAction);
+}
+#endif /* VBOX_WS_MAC */
 
 void UIActionPool::prepare()
 {
@@ -1011,6 +1130,9 @@ void UIActionPool::preparePool()
     m_pool[UIActionIndex_Menu_Help] = new UIActionMenuHelp(this);
     m_pool[UIActionIndex_Simple_Contents] = new UIActionSimpleContents(this);
     m_pool[UIActionIndex_Simple_WebSite] = new UIActionSimpleWebSite(this);
+    m_pool[UIActionIndex_Simple_BugTracker] = new UIActionSimpleBugTracker(this);
+    m_pool[UIActionIndex_Simple_Forums] = new UIActionSimpleForums(this);
+    m_pool[UIActionIndex_Simple_Oracle] = new UIActionSimpleOracle(this);
 #ifndef RT_OS_DARWIN
     m_pool[UIActionIndex_Simple_About] = new UIActionSimpleAbout(this);
 #endif /* !RT_OS_DARWIN */
@@ -1050,6 +1172,12 @@ void UIActionPool::prepareConnections()
             &msgCenter(), SLOT(sltShowHelpHelpDialog()), Qt::UniqueConnection);
     connect(action(UIActionIndex_Simple_WebSite), SIGNAL(triggered()),
             &msgCenter(), SLOT(sltShowHelpWebDialog()), Qt::UniqueConnection);
+    connect(action(UIActionIndex_Simple_BugTracker), SIGNAL(triggered()),
+            &msgCenter(), SLOT(sltShowBugTracker()), Qt::UniqueConnection);
+    connect(action(UIActionIndex_Simple_Forums), SIGNAL(triggered()),
+            &msgCenter(), SLOT(sltShowForums()), Qt::UniqueConnection);
+    connect(action(UIActionIndex_Simple_Oracle), SIGNAL(triggered()),
+            &msgCenter(), SLOT(sltShowOracle()), Qt::UniqueConnection);
 #ifndef RT_OS_DARWIN
     connect(action(UIActionIndex_Simple_About), SIGNAL(triggered()),
             &msgCenter(), SLOT(sltShowHelpAboutDialog()), Qt::UniqueConnection);
@@ -1085,7 +1213,7 @@ bool UIActionPool::processHotKey(const QKeySequence &key)
             continue;
         /* Get the hot-key of the current action: */
         const QString strHotKey = gShortcutPool->shortcut(this, pAction).toString();
-        if (pAction->isEnabled() && pAction->isVisible() && !strHotKey.isEmpty())
+        if (pAction->isEnabled() && pAction->isAllowed() && !strHotKey.isEmpty())
         {
             if (key.matches(QKeySequence(strHotKey)) == QKeySequence::ExactMatch)
             {
@@ -1225,9 +1353,15 @@ void UIActionPool::updateMenuHelp()
     bool fSeparator = false;
 
     /* 'Contents' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_Contents)) || fSeparator;;
+    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_Contents)) || fSeparator;
     /* 'Web Site' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_WebSite)) || fSeparator;;
+    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_WebSite)) || fSeparator;
+    /* 'Bug Tracker' action: */
+    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_BugTracker)) || fSeparator;
+    /* 'Forums' action: */
+    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_Forums)) || fSeparator;
+    /* 'Oracle' action: */
+    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_Oracle)) || fSeparator;
 
     /* Separator? */
     if (fSeparator)
@@ -1257,7 +1391,7 @@ void UIActionPool::retranslateUi()
 bool UIActionPool::event(QEvent *pEvent)
 {
     /* Depending on event-type: */
-    switch (pEvent->type())
+    switch ((UIEventType)pEvent->type())
     {
         case ActivateActionEventType:
         {

@@ -15,7 +15,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -569,7 +569,7 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
             return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(pVCpu, uErr, pRegFrame, pvFault, pPage,
                                                                                  pfLockTaken));
         rc = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrcDummy, pvFault, 1, uErr);
-#   endif
+#endif
         AssertRC(rc);
         PGM_INVL_PG(pVCpu, pvFault);
         return rc; /* Restart with the corrected entry. */
@@ -788,8 +788,6 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
 # else
         return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(pVCpu, uErr, pRegFrame, pvFault, pPage, pfLockTaken));
 # endif
-
-    STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTimeOutOfSync, c);
 
 #  if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) && !defined(IN_RING0)
     if (uErr & X86_TRAP_PF_P)
@@ -1071,18 +1069,20 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                 PGM_INVL_PG(pVCpu, pvFault);
 #   endif
 #   ifdef VBOX_STRICT
-                RTGCPHYS GCPhys2;
-                uint64_t fPageGst;
+                RTGCPHYS GCPhys2 = RTGCPHYS_MAX;
+                uint64_t fPageGst = UINT64_MAX;
                 if (!pVM->pgm.s.fNestedPaging)
                 {
                     rc = PGMGstGetPage(pVCpu, pvFault, &fPageGst, &GCPhys2);
                     AssertMsg(RT_SUCCESS(rc) && ((fPageGst & X86_PTE_RW) || ((CPUMGetGuestCR0(pVCpu) & (X86_CR0_WP | X86_CR0_PG)) == X86_CR0_PG && CPUMGetGuestCPL(pVCpu) < 3)), ("rc=%Rrc fPageGst=%RX64\n", rc, fPageGst));
                     LogFlow(("Obsolete physical monitor page out of sync %RGv - phys %RGp flags=%08llx\n", pvFault, GCPhys2, (uint64_t)fPageGst));
                 }
-                uint64_t fPageShw;
+#    if 0 /* Bogus! Triggers incorrectly with w7-64 and later for the SyncPage case: "Pde at %RGv changed behind our back?" */
+                uint64_t fPageShw = 0;
                 rc = PGMShwGetPage(pVCpu, pvFault, &fPageShw, NULL);
                 AssertMsg((RT_SUCCESS(rc) && (fPageShw & X86_PTE_RW)) || pVM->cCpus > 1 /* new monitor can be installed/page table flushed between the trap exit and PGMTrap0eHandler */,
-                          ("rc=%Rrc fPageShw=%RX64\n", rc, fPageShw));
+                          ("rc=%Rrc fPageShw=%RX64 GCPhys2=%RGp fPageGst=%RX64 pvFault=%RGv\n", rc, fPageShw, GCPhys2, fPageGst, pvFault));
+#    endif
 #   endif /* VBOX_STRICT */
                 STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndObs; });
                 return VINF_SUCCESS;
@@ -1125,11 +1125,11 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
         {
             /* Get guest page flags. */
             uint64_t fPageGst;
-            rc = PGMGstGetPage(pVCpu, pvFault, &fPageGst, NULL);
-            if (RT_SUCCESS(rc))
+            int rc2 = PGMGstGetPage(pVCpu, pvFault, &fPageGst, NULL);
+            if (RT_SUCCESS(rc2))
             {
-                uint64_t fPageShw;
-                rc = PGMShwGetPage(pVCpu, pvFault, &fPageShw, NULL);
+                uint64_t fPageShw = 0;
+                rc2 = PGMShwGetPage(pVCpu, pvFault, &fPageShw, NULL);
 
                 /*
                  * Compare page flags.
@@ -1142,8 +1142,8 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                                  == (fPageGst & ~(X86_PTE_A | X86_PTE_D | X86_PTE_AVL_MASK | X86_PTE_RW | X86_PTE_US))
                               && (fPageShw & (X86_PTE_RW | X86_PTE_US)) == X86_PTE_RW
                               && (fPageGst & (X86_PTE_RW | X86_PTE_US)) == X86_PTE_US),
-                          ("Page flags mismatch! pvFault=%RGv uErr=%x GCPhys=%RGp fPageShw=%RX64 fPageGst=%RX64\n",
-                           pvFault, (uint32_t)uErr, GCPhys, fPageShw, fPageGst));
+                          ("Page flags mismatch! pvFault=%RGv uErr=%x GCPhys=%RGp fPageShw=%RX64 fPageGst=%RX64 rc=%d\n",
+                           pvFault, (uint32_t)uErr, GCPhys, fPageShw, fPageGst, rc));
             }
             else
                 AssertMsgFailed(("PGMGstGetPage rc=%Rrc\n", rc));
@@ -1598,7 +1598,8 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackAddref)(PVMCPU pVCpu, PPGMPOOLP
  */
 DECLINLINE(void) PGM_BTH_NAME(SyncHandlerPte)(PVM pVM, PCPGMPAGE pPage, uint64_t fPteSrc, PSHWPTE pPteDst)
 {
-    NOREF(pVM);
+    NOREF(pVM); RT_NOREF_PV(fPteSrc);
+
     /** @todo r=bird: Are we actually handling dirty and access bits for pages with access handlers correctly? No.
      *  Update: \#PF should deal with this before or after calling the handlers. It has all the info to do the job efficiently. */
     if (!PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
@@ -1897,6 +1898,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPU pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPage
     PVM      pVM   = pVCpu->CTX_SUFF(pVM);
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool); NOREF(pPool);
     LogFlow(("SyncPage: GCPtrPage=%RGv cPages=%u uErr=%#x\n", GCPtrPage, cPages, uErr));
+    RT_NOREF_PV(uErr); RT_NOREF_PV(cPages); RT_NOREF_PV(GCPtrPage);
 
     PGM_LOCK_ASSERT_OWNER(pVM);
 
@@ -2386,6 +2388,7 @@ DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnNP)(PVMCPU pVCpu, uint32_t uErr
         TRPMSetErrorCode(pVCpu, uErr & ~(X86_TRAP_PF_RSVD | X86_TRAP_PF_P));
 
     Log(("CheckPageFault: real page fault (notp) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
+    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
     return VINF_EM_RAW_GUEST_TRAP;
 }
 
@@ -2408,6 +2411,7 @@ DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnRSVD)(PVMCPU pVCpu, uint32_t uE
         TRPMSetErrorCode(pVCpu, uErr | X86_TRAP_PF_RSVD | X86_TRAP_PF_P);
 
     Log(("CheckPageFault: real page fault (rsvd) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
+    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
     return VINF_EM_RAW_GUEST_TRAP;
 }
 
@@ -2430,6 +2434,7 @@ DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnProt)(PVMCPU pVCpu, uint32_t uE
         TRPMSetErrorCode(pVCpu, (uErr & ~X86_TRAP_PF_RSVD) | X86_TRAP_PF_P);
 
     Log(("CheckPageFault: real page fault (prot) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
+    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
     return VINF_EM_RAW_GUEST_TRAP;
 }
 
@@ -2641,7 +2646,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPU pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, RT
 #if 0 /* rarely useful; leave for debugging. */
     STAM_COUNTER_INC(&pVCpu->pgm.s.StatSyncPtPD[iPDSrc]);
 #endif
-    LogFlow(("SyncPT: GCPtrPage=%RGv\n", GCPtrPage));
+    LogFlow(("SyncPT: GCPtrPage=%RGv\n", GCPtrPage)); RT_NOREF_PV(GCPtrPage);
 
     PGM_LOCK_ASSERT_OWNER(pVM);
 
@@ -3493,6 +3498,7 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPU pVCpu, RTGCPTR GCPtrPage, unsigne
     PVM pVM = pVCpu->CTX_SUFF(pVM); NOREF(pVM);
 
     LogFlow(("VerifyAccessSyncPage: GCPtrPage=%RGv fPage=%#x uErr=%#x\n", GCPtrPage, fPage, uErr));
+    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(fPage); RT_NOREF_PV(uErr);
 
     Assert(!pVM->pgm.s.fNestedPaging);
 #if   (   PGM_GST_TYPE == PGM_TYPE_32BIT \
@@ -3670,7 +3676,10 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPU pVCpu, RTGCPTR GCPtrPage, unsigne
 /**
  * Syncs the paging hierarchy starting at CR3.
  *
- * @returns VBox status code, no specials.
+ * @returns VBox status code, R0/RC may return VINF_PGM_SYNC_CR3, no other
+ *          informational status codes.
+ * @retval  VERR_PGM_NO_HYPERVISOR_ADDRESS in raw-mode when we're unable to map
+ *          the VMM into guest context.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   cr0         Guest context CR0 register.
  * @param   cr3         Guest context CR3 register. Not subjected to the A20
@@ -3736,11 +3745,17 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr
     {
         int rc = pgmMapResolveConflicts(pVM);
         Assert(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3);
-        if (rc == VINF_PGM_SYNC_CR3)
+        if (rc == VINF_SUCCESS)
+        { /* likely */ }
+        else if (rc == VINF_PGM_SYNC_CR3)
         {
             LogFlow(("SyncCR3: detected conflict -> VINF_PGM_SYNC_CR3\n"));
             return VINF_PGM_SYNC_CR3;
         }
+        else if (RT_FAILURE(rc))
+            return rc;
+        else
+            AssertMsgFailed(("%Rrc\n", rc));
     }
 #  else
     Assert(!pgmMapAreMappingsEnabled(pVM));

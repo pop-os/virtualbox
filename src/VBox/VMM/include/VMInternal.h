@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -456,7 +456,6 @@ void                vmSetErrorCopy(PVM pVM, int rc, RT_SRC_POS_DECL, const char 
 DECLCALLBACK(int)   vmR3SetRuntimeError(PVM pVM, uint32_t fFlags, const char *pszErrorId, char *pszMessage);
 DECLCALLBACK(int)   vmR3SetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list *pVa);
 void                vmSetRuntimeErrorCopy(PVM pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va);
-void                vmR3SetGuruMeditation(PVM pVM);
 void                vmR3SetTerminated(PVM pVM);
 
 RT_C_DECLS_END

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,13 +57,17 @@
 #include "../PC/DevPit-i8254.cpp"
 #undef LOG_GROUP
 #include "../PC/DevRTC.cpp"
-#undef LOG_GROUP
-#include "../PC/DevAPIC.cpp"
+# undef LOG_GROUP
+#ifdef VBOX_WITH_NEW_APIC
+# include "../../VMM/VMMR3/APIC.cpp"
+#else
+# include "../PC/DevAPIC.cpp"
+#endif
 #undef LOG_GROUP
 #ifdef VBOX_WITH_NEW_IOAPIC
-# include "../PC/DevIOAPIC_New.cpp"
-#else
 # include "../PC/DevIoApic.cpp"
+#else
+# include "../PC/DevIoApic_Old.cpp"
 #endif
 #undef LOG_GROUP
 #include "../PC/DevHPET.cpp"
@@ -103,6 +107,10 @@
 # undef LOG_GROUP
 # include "../Storage/DevLsiLogicSCSI.cpp"
 #endif
+#ifdef VBOX_WITH_NVME_IMPL
+# undef LOG_GROUP
+# include "../Storage/DevNVMe.cpp"
+#endif
 
 #ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
 # undef LOG_GROUP
@@ -111,10 +119,10 @@
 
 #include <VBox/vmm/pdmaudioifs.h>
 
-#undef LOG_GROUP
-#include "../Audio/DevIchAc97.cpp"
-#undef LOG_GROUP
-#include "../Audio/DevIchHda.cpp"
+# undef LOG_GROUP
+# include "../Audio/DevIchAc97.cpp"
+# undef LOG_GROUP
+# include "../Audio/DevIchHda.cpp"
 
 #include <stdio.h>
 
@@ -280,8 +288,13 @@ int main()
      */
     CHECK_MEMBER_ALIGNMENT(AHCI, lock, 8);
     CHECK_MEMBER_ALIGNMENT(AHCIPort, StatDMA, 8);
-#ifdef VBOX_WITH_STATISTICS
+#ifdef VBOX_WITH_NEW_APIC
+    CHECK_MEMBER_ALIGNMENT(APICDEV, pDevInsR0, 8);
+    CHECK_MEMBER_ALIGNMENT(APICDEV, pDevInsRC, 8);
+#else
+# ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(APICDeviceInfo, StatMMIOReadGC, 8);
+# endif
 #endif
     CHECK_MEMBER_ALIGNMENT(ATADevState, cTotalSectors, 8);
     CHECK_MEMBER_ALIGNMENT(ATADevState, StatATADMA, 8);
@@ -309,6 +322,9 @@ int main()
 #  endif
 # endif
 # ifdef VBOX_WITH_XHCI_IMPL
+    CHECK_MEMBER_ALIGNMENT(XHCI, pWorkerThread, 8);
+    CHECK_MEMBER_ALIGNMENT(XHCI, IBase, 8);
+    CHECK_MEMBER_ALIGNMENT(XHCI, MMIOBase, 8);
     CHECK_MEMBER_ALIGNMENT(XHCI, RootHub2, 8);
     CHECK_MEMBER_ALIGNMENT(XHCI, RootHub3, 8);
     CHECK_MEMBER_ALIGNMENT(XHCI, cmdr_dqp, 8);
@@ -322,7 +338,7 @@ int main()
 #ifdef VBOX_WITH_NEW_IOAPIC
     CHECK_MEMBER_ALIGNMENT(IOAPIC, au64RedirTable, 8);
 # ifdef VBOX_WITH_STATISTICS
-    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMmioReadR0, 8);
+    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMmioReadRZ, 8);
 # endif
 #else
 # ifdef VBOX_WITH_STATISTICS
@@ -363,6 +379,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VGASTATE, Dev, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSect, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, StatRZMemoryRead, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSectIRQ, 8);
     CHECK_MEMBER_ALIGNMENT(VMMDevState, CritSect, 8);
 #ifdef VBOX_WITH_VIRTIO
     CHECK_MEMBER_ALIGNMENT(VPCISTATE, cs, 8);

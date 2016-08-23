@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 /* Forward declarations: */
 class CMediumAttachment;
 class UIIndicatorsPool;
+class UIAction;
 
 /** UIMachineWindow reimplementation,
   * providing GUI with machine-window for the normal mode. */
@@ -43,11 +44,6 @@ protected:
 
 private slots:
 
-#ifdef Q_WS_X11
-    /** X11: Performs machine-window async geometry normalization. */
-    void sltNormalizeGeometry() { normalizeGeometry(true /* adjust position */); }
-#endif /* Q_WS_X11 */
-
     /** Handles machine state change event. */
     void sltMachineStateChanged();
     /** Handles medium change event. */
@@ -64,6 +60,8 @@ private slots:
     void sltVideoCaptureChange();
     /** Handles CPU execution cap change event. */
     void sltCPUExecutionCapChange();
+    /** Handles UISession initialized event. */
+    void sltHandleSessionInitialized();
 
 #ifndef RT_OS_DARWIN
     /** Handles menu-bar configuration-change. */
@@ -79,14 +77,19 @@ private slots:
     /** Handles status-bar indicator context-menu-request. */
     void sltHandleIndicatorContextMenuRequest(IndicatorType indicatorType, const QPoint &position);
 
+#ifdef VBOX_WS_MAC
+    /** Handles signal about some @a pAction hovered. */
+    void sltActionHovered(UIAction *pAction);
+#endif /* VBOX_WS_MAC */
+
 private:
 
     /** Prepare session connections routine. */
     void prepareSessionConnections();
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /** Prepare menu routine. */
     void prepareMenu();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     /** Prepare status-bar routine. */
     void prepareStatusBar();
     /** Prepare visual-state routine. */
@@ -104,16 +107,20 @@ private:
     /** Updates visibility according to visual-state. */
     void showInNecessaryMode();
 
-    /** Normalizes geometry according to guest-size. */
-    void normalizeGeometry(bool fAdjustPosition);
+    /** Restores cached window geometry. */
+    virtual void restoreCachedGeometry() /* override */;
+
+    /** Performs window geometry normalization according to guest-size and host's available geometry.
+      * @param  fAdjustPosition  Determines whether is it necessary to adjust position as well. */
+    virtual void normalizeGeometry(bool fAdjustPosition) /* override */;
 
     /** Common update routine. */
     void updateAppearanceOf(int aElement);
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /** Updates menu-bar content. */
     void updateMenu();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /** Common @a pEvent handler. */
     bool event(QEvent *pEvent);

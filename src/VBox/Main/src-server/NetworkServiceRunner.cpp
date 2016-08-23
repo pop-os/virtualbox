@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -150,8 +150,9 @@ int NetworkServiceRunner::stop()
 
     if (fDoKillProc)
     {
-        int rc = RTProcTerminate(m->mProcess);
-        rc = RTProcWait(m->mProcess, RTPROCWAIT_FLAGS_BLOCK, NULL);
+        RTProcTerminate(m->mProcess);
+        int rc = RTProcWait(m->mProcess, RTPROCWAIT_FLAGS_BLOCK, NULL);
+        NOREF(rc);
     }
 
     m->mProcess = NIL_RTPROCESS;

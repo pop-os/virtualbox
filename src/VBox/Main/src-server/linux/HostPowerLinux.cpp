@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015 Oracle Corporation
+ * Copyright (C) 2015-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,6 @@
 #include <iprt/asm.h>
 #include <iprt/power.h>
 #include <iprt/time.h>
-#include <iprt/stream.h>
 
 static bool checkDBusError(DBusError *pError, DBusConnection **pConnection)
 {

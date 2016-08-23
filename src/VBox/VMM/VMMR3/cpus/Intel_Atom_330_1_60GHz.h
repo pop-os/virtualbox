@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,10 +24,10 @@
 /**
  * CPUID leaves for Intel(R) Atom(TM) CPU  330   @ 1.60GHz.
  */
-static CPUMCPUIDLEAF const g_aCpuIdLeaves_Intel_Atom_330_1_60GHz[] = 
+static CPUMCPUIDLEAF const g_aCpuIdLeaves_Intel_Atom_330_1_60GHz[] =
 {
     { 0x00000000, 0x00000000, 0x00000000, 0x0000000a, 0x756e6547, 0x6c65746e, 0x49656e69, 0 },
-    { 0x00000001, 0x00000000, 0x00000000, 0x000106c2, 0x01040800, 0x0040e31d, 0xbfe9fbff, 0 | CPUMCPUIDLEAF_F_CONTAINS_APIC_ID },
+    { 0x00000001, 0x00000000, 0x00000000, 0x000106c2, 0x01040800, 0x0040e31d, 0xbfe9fbff, 0 | CPUMCPUIDLEAF_F_CONTAINS_APIC_ID | CPUMCPUIDLEAF_F_CONTAINS_APIC },
     { 0x00000002, 0x00000000, 0x00000000, 0x4fba5901, 0x0e3080c0, 0x00000000, 0x00000000, 0 },
     { 0x00000003, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0 },
     { 0x00000004, 0x00000000, UINT32_MAX, 0x04004121, 0x0140003f, 0x0000003f, 0x00000001, 0 },
@@ -57,7 +57,7 @@ static CPUMCPUIDLEAF const g_aCpuIdLeaves_Intel_Atom_330_1_60GHz[] =
 /**
  * MSR ranges for Intel(R) Atom(TM) CPU  330   @ 1.60GHz.
  */
-static CPUMMSRRANGE const g_aMsrRanges_Intel_Atom_330_1_60GHz[] = 
+static CPUMMSRRANGE const g_aMsrRanges_Intel_Atom_330_1_60GHz[] =
 {
     MFI(0x00000000, "IA32_P5_MC_ADDR", Ia32P5McAddr), /* value=0x0 */
     MFX(0x00000001, "IA32_P5_MC_TYPE", Ia32P5McType, Ia32P5McType, 0, 0, UINT64_MAX), /* value=0x0 */
@@ -181,7 +181,7 @@ static CPUMMSRRANGE const g_aMsrRanges_Intel_Atom_330_1_60GHz[] =
 /**
  * Database entry for Intel(R) Atom(TM) CPU  330   @ 1.60GHz.
  */
-static CPUMDBENTRY const g_Entry_Intel_Atom_330_1_60GHz = 
+static CPUMDBENTRY const g_Entry_Intel_Atom_330_1_60GHz =
 {
     /*.pszName          = */ "Intel Atom 330 1.60GHz",
     /*.pszFullName      = */ "Intel(R) Atom(TM) CPU  330   @ 1.60GHz",

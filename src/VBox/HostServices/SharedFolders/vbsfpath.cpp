@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -528,8 +528,8 @@ int vbsfPathGuestToHost(SHFLCLIENTDATA *pClient, SHFLROOT hRoot,
      * Get the UTF8 string with the relative path provided by the guest.
      * If guest uses UTF-16 then convert it to UTF-8.
      */
-    uint32_t    cbGuestPath;
-    const char *pchGuestPath;
+    uint32_t    cbGuestPath = 0;        /* Shut up MSC */
+    const char *pchGuestPath = NULL;    /* Ditto. */
     char *pchGuestPathAllocated = NULL; /* Converted from UTF-16. */
     if (BIT_FLAG(pClient->fu32Flags, SHFL_CF_UTF8))
     {
@@ -578,7 +578,7 @@ int vbsfPathGuestToHost(SHFLCLIENTDATA *pClient, SHFLROOT hRoot,
                         /* Terminate the string. */
                         pchGuestPathAllocated[cbPathAsUtf8] = '\0';
 
-                        cbGuestPath = cbPathAsUtf8;
+                        cbGuestPath = (uint32_t)cbPathAsUtf8; Assert(cbGuestPath == cbPathAsUtf8);
                         pchGuestPath = pchGuestPathAllocated;
                     }
                 }

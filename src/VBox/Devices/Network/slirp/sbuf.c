@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,7 +76,7 @@ sbreserve(PNATState pData, struct sbuf *sb, int size)
     if (sb->sb_data)
     {
         /* Already alloced, realloc if necessary */
-        if (sb->sb_datalen != size)
+        if (sb->sb_datalen != (u_int)size)
         {
             sb->sb_wptr =
             sb->sb_rptr =
@@ -112,7 +112,7 @@ sbappend(PNATState pData, struct socket *so, struct mbuf *m)
     int mlen = 0;
 
     STAM_PROFILE_START(&pData->StatIOSBAppend_pf, a);
-    LogFlow(("sbappend: so = %lx, m = %lx, m->m_len = %d\n", (long)so, (long)m, m ? m->m_len : 0));
+    LogFlow(("sbappend: so = %p, m = %p, m->m_len = %d\n", so, m, m ? m->m_len : 0));
 
     STAM_COUNTER_INC(&pData->StatIOSBAppend);
     /* Shouldn't happen, but...  e.g. foreign host closes connection */

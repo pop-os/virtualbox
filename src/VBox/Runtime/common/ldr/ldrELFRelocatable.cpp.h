@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -240,7 +240,7 @@ static int RTLDRELF_NAME(RelocateSectionExecDyn)(PRTLDRMODELF pModElf, Elf_Addr 
             /* Try to resolve the symbol. */
             const char *pszName = ELF_STR(pModElf, pSym->st_name);
             RTUINTPTR   ExtValue;
-            int rc = pfnGetImport(&pModElf->Core, "", pszName, ~0, &ExtValue, pvUser);
+            int rc = pfnGetImport(&pModElf->Core, "", pszName, ~0U, &ExtValue, pvUser);
             AssertMsgRCReturn(rc, ("Failed to resolve '%s' rc=%Rrc\n", pszName, rc), rc);
             SymValue = (Elf_Addr)ExtValue;
             AssertMsgReturn((RTUINTPTR)SymValue == ExtValue, ("Symbol value overflowed! '%s'\n", pszName),
@@ -249,7 +249,7 @@ static int RTLDRELF_NAME(RelocateSectionExecDyn)(PRTLDRMODELF pModElf, Elf_Addr 
         }
         else
         {
-            AssertMsgReturn(pSym->st_shndx < pModElf->cSyms || pSym->st_shndx == SHN_ABS, ("%#x\n", pSym->st_shndx),
+            AssertMsgReturn(pSym->st_shndx < pModElf->Ehdr.e_shnum || pSym->st_shndx == SHN_ABS, ("%#x\n", pSym->st_shndx),
                             VERR_LDRELF_INVALID_RELOCATION_OFFSET);
 #if   ELF_MODE == 64
             SymValue = pSym->st_value;
@@ -257,11 +257,11 @@ static int RTLDRELF_NAME(RelocateSectionExecDyn)(PRTLDRMODELF pModElf, Elf_Addr 
         }
 
 #if   ELF_MODE == 64
-        /* Calc the value. */
+        /* Calc the value (indexes checked above; assumes SHN_UNDEF == 0). */
         Elf_Addr Value;
-        if (pSym->st_shndx < pModElf->cSyms)
+        if (pSym->st_shndx < pModElf->Ehdr.e_shnum)
             Value = SymValue + offDelta;
-        else
+        else /* SHN_ABS: */
             Value = SymValue + paRels[iRel].r_addend;
 #endif
 
@@ -444,7 +444,7 @@ static int RTLDRELF_NAME(Symbol)(PRTLDRMODELF pModElf, Elf_Addr BaseAddr, PFNRTL
         {
             /* Try to resolve the symbol. */
             RTUINTPTR Value;
-            int rc = pfnGetImport(&pModElf->Core, "", pszName, ~0, &Value, pvUser);
+            int rc = pfnGetImport(&pModElf->Core, "", pszName, ~0U, &Value, pvUser);
             if (RT_FAILURE(rc))
             {
                 AssertMsgFailed(("Failed to resolve '%s' rc=%Rrc\n", pszName, rc));
@@ -746,7 +746,7 @@ static DECLCALLBACK(int) RTLDRELF_NAME(EnumSymbols)(PRTLDRMODINTERNAL pMod, unsi
                  * Call back.
                  */
                 AssertMsgReturn(Value == (RTUINTPTR)Value, (FMT_ELF_ADDR "\n", Value), VERR_SYMBOL_VALUE_TOO_BIG);
-                rc = pfnCallback(pMod, pszName, ~0, (RTUINTPTR)Value, pvUser);
+                rc = pfnCallback(pMod, pszName, ~0U, (RTUINTPTR)Value, pvUser);
                 if (rc)
                     return rc;
             }
@@ -1019,6 +1019,7 @@ static DECLCALLBACK(int) RTLDRELF_NAME(EnumDbgInfo)(PRTLDRMODINTERNAL pMod, cons
                                                     PFNRTLDRENUMDBG pfnCallback, void *pvUser)
 {
     PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+    RT_NOREF_PV(pvBits);
 
     /*
      * Map the image bits if not already done and setup pointer into it.
@@ -1289,6 +1290,8 @@ static DECLCALLBACK(int) RTLDRELF_NAME(RvaToSegOffset)(PRTLDRMODINTERNAL pMod, R
 static DECLCALLBACK(int) RTLDRELF_NAME(GetImportStubCallback)(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol,
                                                               unsigned uSymbol, PRTLDRADDR pValue, void *pvUser)
 {
+    RT_NOREF_PV(hLdrMod); RT_NOREF_PV(pszModule); RT_NOREF_PV(pszSymbol);
+    RT_NOREF_PV(uSymbol); RT_NOREF_PV(pValue); RT_NOREF_PV(pvUser);
     return VERR_SYMBOL_NOT_FOUND;
 }
 
@@ -1743,6 +1746,7 @@ static int RTLDRELF_NAME(Open)(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH 
 {
     const char *pszLogName = pReader->pfnLogName(pReader);
     RTFOFF      cbRawImage = pReader->pfnSize(pReader);
+    RT_NOREF_PV(fFlags);
 
     /*
      * Create the loader module instance.

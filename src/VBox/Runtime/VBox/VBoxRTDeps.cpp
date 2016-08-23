@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 #endif
 #include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/localipc.h>
 #include <iprt/buildconfig.h>
 #include <iprt/system.h>
 
@@ -40,7 +41,10 @@
 #include <libxml/globals.h>
 #include <openssl/md5.h>
 #include <openssl/rc4.h>
-#include <openssl/pem.h>
+#ifdef RT_OS_WINDOWS
+# include <iprt/win/windows.h>
+#endif
+#include <openssl/pem.h> /* drags in Windows.h */
 #include <openssl/x509.h>
 #include <openssl/rsa.h>
 #include <openssl/ssl.h>
@@ -61,6 +65,7 @@ PFNRT g_VBoxRTDeps[] =
     (PFNRT)SUPGetTscDeltaSlow,
 #endif
     (PFNRT)xmlLoadCatalogs,
+    (PFNRT)RTLocalIpcServerCreate,
     (PFNRT)MD5_Init,
     (PFNRT)RC4,
     (PFNRT)RC4_set_key,
@@ -82,6 +87,7 @@ PFNRT g_VBoxRTDeps[] =
     (PFNRT)RTAssertShouldPanic,
     (PFNRT)ASMAtomicReadU64,
     (PFNRT)ASMAtomicCmpXchgU64,
+    (PFNRT)ASMBitFirstSet,
     (PFNRT)RTBldCfgRevision,
     (PFNRT)SSL_free,
     (PFNRT)SSL_library_init,

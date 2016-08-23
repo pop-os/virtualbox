@@ -25,6 +25,11 @@
 #import <AppKit/NSEvent.h>
 #import <AppKit/NSColor.h>
 #import <AppKit/NSFont.h>
+#if QT_VERSION >= 0x050000
+# import <AppKit/NSScreen.h>
+# import <AppKit/NSWindow.h>
+# import <AppKit/NSImageView.h>
+#endif /* QT_VERSION >= 0x050000 */
 
 #import <objc/objc-class.h>
 
@@ -209,6 +214,7 @@ void darwinSetWindowHasShadow(NativeNSWindowRef pWindow, bool fEnabled)
 
 void darwinMinaturizeWindow(NativeNSWindowRef pWindow)
 {
+    RT_NOREF(pWindow);
 //    [[NSApplication sharedApplication] miniaturizeAll];
 //    printf("bla\n");
 //    [pWindow miniaturize:pWindow];
@@ -287,11 +293,13 @@ double darwinBackingScaleFactor(NativeNSWindowRef pWindow)
     return 1.0;
 }
 
+#if QT_VERSION < 0x050000
 void darwinSetDockIconMenu(QMenu* pMenu)
 {
     extern void qt_mac_set_dock_menu(QMenu *);
     qt_mac_set_dock_menu(pMenu);
 }
+#endif /* QT_VERSION < 0x050000 */
 
 /**
  * Calls the + (void)setMouseCoalescingEnabled:(BOOL)flag class method.
@@ -305,6 +313,8 @@ void darwinSetMouseCoalescingEnabled(bool fEnabled)
 
 void darwinWindowAnimateResizeImpl(NativeNSWindowRef pWindow, int x, int y, int width, int height)
 {
+    RT_NOREF(x, y, width);
+
     /* It seems that Qt doesn't return the height of the window with the
      * toolbar height included. So add this size manually. Could easily be that
      * the Trolls fix this in the final release. */
@@ -506,6 +516,8 @@ bool darwinMouseGrabEvents(const void *pvCocoaEvent, const void *pvCarbonEvent, 
    toolbar or the title area. */
 bool darwinUnifiedToolbarEvents(const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser)
 {
+    RT_NOREF(pvCarbonEvent);
+
     NSEvent *pEvent = (NSEvent*)pvCocoaEvent;
     NSEventType EvtType = [pEvent type];
     NSWindow *pWin = ::darwinToNativeWindow((QWidget*)pvUser);
@@ -655,6 +667,7 @@ static UIResizeProxy *gSharedResizeProxy = nil;
 }
 - (NSSize)qtWindowWillResize:(NSWindow *)pWindow toSize:(NSSize)newFrameSize
 {
+    RT_NOREF(pWindow);
     /* This is a fake implementation. It will be replaced by the original Qt
        method. */
     return newFrameSize;
@@ -670,12 +683,16 @@ static UIResizeProxy *gSharedResizeProxy = nil;
        the shift modifier state during the resize. If it is not available the
        user have to press shift before he start to resize. */
     if ([NSEvent respondsToSelector:@selector(modifierFlags)])
+    {
         if (((int)(intptr_t)[NSEvent performSelector:@selector(modifierFlags)] & NSShiftKeyMask) == NSShiftKeyMask)
             return qtSize;
+    }
     else
+    {
         /* Shift key pressed when this resize event was initiated? */
         if (([pWindow resizeFlags] & NSShiftKeyMask) == NSShiftKeyMask)
             return qtSize;
+    }
     /* The default case is to calculate the aspect radio of the old size and
        used it for the new size. */
     NSSize s = [pWindow frame].size;
@@ -711,5 +728,11 @@ void darwinInstallResizeDelegate(NativeNSWindowRef pWindow)
 void darwinUninstallResizeDelegate(NativeNSWindowRef pWindow)
 {
     [[UIResizeProxy sharedResizeProxy] removeWindow:pWindow];
+}
+
+void* darwinCocoaToCarbonEvent(void *pvCocoaEvent)
+{
+    NSEvent *pEvent = (NSEvent*)pvCocoaEvent;
+    return (void*)[pEvent eventRef];
 }
 

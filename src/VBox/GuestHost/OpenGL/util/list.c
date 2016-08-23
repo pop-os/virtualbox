@@ -2,6 +2,9 @@
 #include "cr_error.h"
 #include "cr_mem.h"
 
+#ifndef CR_TESTING_LIST			/* vbox */
+# define CR_TESTING_LIST 0      	/* vbox */
+#endif  				/* vbox */
 #if CR_TESTING_LIST
 #include <stdio.h>
 #include <stdlib.h>
@@ -291,7 +294,7 @@ int main( void )
 
 	crListClear( l );
 	printList( l );
-	fprintf( stderr, "size: %d\n", crListSize( l ) );
+	fprintf( stderr, "size: %u\n", crListSize( l ) );
 	fprintf( stderr, "is empty: %d\n", crListIsEmpty( l ) );
 
 	crListPushBack( l, "w" );
@@ -301,11 +304,11 @@ int main( void )
 
 	fprintf( stderr, "front: %s\n", ( char * ) crListFront( l ) );
 	fprintf( stderr, "back: %s\n", ( char * ) crListBack( l ) );
-	fprintf( stderr, "size: %d\n", crListSize( l ) );
+	fprintf( stderr, "size: %u\n", crListSize( l ) );
 	fprintf( stderr, "is empty: %d\n", crListIsEmpty( l ) );
 
 	crFreeList( l );
 	return 0;
 }
 
-#endif // CR_TESTING_LIST
+#endif /* CR_TESTING_LIST */

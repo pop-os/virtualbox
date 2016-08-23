@@ -1,6 +1,7 @@
 /** @file
+Include file for the WinNt Library
 
-Copyright (c) 2006 - 2008, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -8,12 +9,6 @@ http://opensource.org/licenses/bsd-license.php
 
 THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-Module Name:
-  WinNtInclude.h
-
-Abstract:
-  Include file for the WinNt Library
 
 **/
 
@@ -23,11 +18,15 @@ Abstract:
 #define GUID  _WINNT_DUP_GUID_____
 #define _LIST_ENTRY  _WINNT_DUP_LIST_ENTRY_FORWARD
 #define LIST_ENTRY   _WINNT_DUP_LIST_ENTRY
-#if !defined(VBOX) || !defined(_MSC_VER) /* Not necessary for SDK v7.1 WinNt.h. */
+
+#ifndef VBOX
+#if (_MSC_VER < 1800)
 #define InterlockedIncrement _WINNT_DUP_InterlockedIncrement
 #define InterlockedDecrement _WINNT_DUP_InterlockedDecrement
 #define InterlockedCompareExchange64 _WINNT_DUP_InterlockedCompareExchange64
 #endif
+#endif
+
 #undef UNALIGNED
 #undef CONST
 #undef VOID
@@ -36,7 +35,11 @@ Abstract:
 # ifdef VBOX
 #  define RUNTIME_FUNCTION _WINNT_DUP_RUNTIME_FUNCTION
 # endif
+#ifdef VBOX
+#include <iprt/win/windows.h>
+#else
 #include "windows.h"
+#endif
 
 //
 // Win32 include files do not compile clean with /W4, so we use the warning

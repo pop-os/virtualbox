@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,6 +38,9 @@
 #include <iprt/file.h>
 #include <iprt/stream.h>
 
+#ifdef RT_OS_WINDOWS /* OpenSSL drags in Windows.h, which isn't compatible with -Wall.  */
+# include <iprt/win/windows.h>
+#endif
 #include <curl/curl.h>
 #include <openssl/hmac.h>
 #include <libxml/parser.h>
@@ -968,7 +971,7 @@ RTR3DECL(int) RTS3PutKey(RTS3 hS3, const char *pszBucketName, const char *pszKey
     /* Create the three basic header entries */
     char *apszHead[5] =
     {
-        /* todo: For now we use octet-stream for all types. Later we should try
+        /** @todo For now we use octet-stream for all types. Later we should try
          * to set the right one (libmagic from the file packet could be a
          * candidate for finding the right type). */
         RTStrDup("Content-Type: octet-stream"),            /* Content type entry */

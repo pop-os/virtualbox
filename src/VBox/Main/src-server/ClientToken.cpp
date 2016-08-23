@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2004-2013 Oracle Corporation
+ * Copyright (C) 2004-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,9 +16,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/log.h>
+#include <VBox/log.h>
 #include <iprt/semaphore.h>
 #include <iprt/process.h>
 
@@ -48,7 +49,10 @@ Machine::ClientToken::~ClientToken()
 {
 #if defined(RT_OS_WINDOWS)
     if (mClientToken)
+    {
+        LogFlowFunc(("Closing mClientToken=%p\n", mClientToken));
         ::CloseHandle(mClientToken);
+    }
 #elif defined(RT_OS_OS2)
     if (mClientToken != NULLHANDLE)
         ::DosCloseMutexSem(mClientToken);

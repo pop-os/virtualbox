@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -359,6 +359,7 @@ HRESULT SystemProperties::getMaxDevicesPerPortForStorageBus(StorageBus_T aBus,
         case StorageBus_SCSI:
         case StorageBus_SAS:
         case StorageBus_USB:
+        case StorageBus_PCIe:
         {
             /* SATA and both SCSI controllers only support one device per port. */
             *aMaxDevicesPerPort = 1;
@@ -387,6 +388,7 @@ HRESULT SystemProperties::getMinPortCountForStorageBus(StorageBus_T aBus,
     {
         case StorageBus_SATA:
         case StorageBus_SAS:
+        case StorageBus_PCIe:
         {
             *aMinPortCount = 1;
             break;
@@ -445,6 +447,7 @@ HRESULT SystemProperties::getMaxPortCountForStorageBus(StorageBus_T aBus,
             break;
         }
         case StorageBus_SAS:
+        case StorageBus_PCIe:
         {
             *aMaxPortCount = 255;
             break;
@@ -473,6 +476,7 @@ HRESULT SystemProperties::getMaxInstancesOfStorageBus(ChipsetType_T aChipset,
         case StorageBus_SATA:
         case StorageBus_SCSI:
         case StorageBus_SAS:
+        case StorageBus_PCIe:
             cCtrs = aChipset == ChipsetType_ICH9 ? 8 : 1;
             break;
         case StorageBus_USB:
@@ -516,6 +520,12 @@ HRESULT SystemProperties::getDeviceTypesForStorageBus(StorageBus_T aBus,
             aDeviceTypes[0] = DeviceType_Floppy;
             break;
         }
+        case StorageBus_PCIe:
+        {
+            aDeviceTypes.resize(1);
+            aDeviceTypes[0] = DeviceType_HardDisk;
+            break;
+        }
         default:
             AssertMsgFailed(("Invalid bus type %d\n", aBus));
     }
@@ -534,6 +544,7 @@ HRESULT SystemProperties::getDefaultIoCacheSettingForStorageController(StorageCo
         case StorageControllerType_IntelAhci:
         case StorageControllerType_LsiLogicSas:
         case StorageControllerType_USB:
+        case StorageControllerType_NVMe:
             *aEnabled = false;
             break;
         case StorageControllerType_PIIX3:
@@ -560,6 +571,7 @@ HRESULT SystemProperties::getStorageControllerHotplugCapable(StorageControllerTy
         case StorageControllerType_LsiLogic:
         case StorageControllerType_LsiLogicSas:
         case StorageControllerType_BusLogic:
+        case StorageControllerType_NVMe:
         case StorageControllerType_PIIX3:
         case StorageControllerType_PIIX4:
         case StorageControllerType_ICH6:
@@ -935,9 +947,10 @@ HRESULT SystemProperties::getDefaultAdditionsISO(com::Utf8Str &aDefaultAdditions
 
 HRESULT SystemProperties::setDefaultAdditionsISO(const com::Utf8Str &aDefaultAdditionsISO)
 {
+    RT_NOREF(aDefaultAdditionsISO);
     /** @todo not yet implemented, settings handling is missing */
     ReturnComNotImplemented();
-
+#if 0 /* not implemented */
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     HRESULT rc = i_setDefaultAdditionsISO(aDefaultAdditionsISO);
     alock.release();
@@ -950,6 +963,7 @@ HRESULT SystemProperties::setDefaultAdditionsISO(const com::Utf8Str &aDefaultAdd
     }
 
     return rc;
+#endif
 }
 
 HRESULT SystemProperties::getDefaultFrontend(com::Utf8Str &aDefaultFrontend)

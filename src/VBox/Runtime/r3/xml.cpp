@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1470,6 +1470,7 @@ AttributeNode::AttributeNode(const ElementNode *pElmRoot,
            pLibAttr)
 {
     m_pcszName = (const char *)pLibAttr->name;
+    RT_NOREF_PV(pElmRoot);
 
     if (   pLibAttr->ns
         && pLibAttr->ns->prefix)
@@ -1837,6 +1838,9 @@ struct IOContext
     {
         error = x.what();
     }
+
+private:
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(IOContext); /* (shuts up C4626 and C4625 MSC warnings) */
 };
 
 struct ReadContext : IOContext
@@ -1845,6 +1849,9 @@ struct ReadContext : IOContext
         : IOContext(pcszFilename, File::Mode_Read)
     {
     }
+
+private:
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(ReadContext); /* (shuts up C4626 and C4625 MSC warnings) */
 };
 
 struct WriteContext : IOContext
@@ -1853,6 +1860,9 @@ struct WriteContext : IOContext
         : IOContext(pcszFilename, File::Mode_Overwrite, fFlush)
     {
     }
+
+private:
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(WriteContext); /* (shuts up C4626 and C4625 MSC warnings) */
 };
 
 /**

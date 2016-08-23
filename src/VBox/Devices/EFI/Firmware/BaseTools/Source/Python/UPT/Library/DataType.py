@@ -1,11 +1,11 @@
 ## @file
 # This file is used to define class for data type structure
 #
-# Copyright (c) 2011, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2011 - 2014, Intel Corporation. All rights reserved.<BR>
 #
-# This program and the accompanying materials are licensed and made available 
-# under the terms and conditions of the BSD License which accompanies this 
-# distribution. The full text of the license may be found at 
+# This program and the accompanying materials are licensed and made available
+# under the terms and conditions of the BSD License which accompanies this
+# distribution. The full text of the license may be found at
 # http://opensource.org/licenses/bsd-license.php
 #
 # THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
@@ -47,7 +47,10 @@ USAGE_LIST = ["CONSUMES",
               "PRODUCES",
               "SOMETIMES_PRODUCES"]
 
-LANGUAGE_EN_US = 'en-US'
+TAB_LANGUAGE_EN_US = 'en-US'
+TAB_LANGUAGE_ENG   = 'eng'
+TAB_LANGUAGE_EN    = 'en'
+TAB_LANGUAGE_EN_X  = 'en-x-tianocore'
 
 USAGE_ITEM_PRODUCES           = 'PRODUCES'
 USAGE_ITEM_SOMETIMES_PRODUCES = 'SOMETIMES_PRODUCES'
@@ -61,13 +64,13 @@ USAGE_ITEM_UNDEFINED          = 'UNDEFINED'
 USAGE_CONSUMES_LIST = [USAGE_ITEM_CONSUMES,
                        'CONSUMED',
                        'ALWAYS_CONSUMED',
-                       'ALWAYS_CONSUMES'                     
+                       'ALWAYS_CONSUMES'
                        ]
 
 USAGE_PRODUCES_LIST = [USAGE_ITEM_PRODUCES,
                        'PRODUCED',
                        'ALWAYS_PRODUCED',
-                       'ALWAYS_PRODUCES'                     
+                       'ALWAYS_PRODUCES'
                        ]
 
 USAGE_SOMETIMES_PRODUCES_LIST = [USAGE_ITEM_SOMETIMES_PRODUCES,
@@ -80,10 +83,18 @@ USAGE_SOMETIMES_CONSUMES_LIST = [USAGE_ITEM_SOMETIMES_CONSUMES,
 
 ITEM_UNDEFINED = 'UNDEFINED'
 
+TAB_PCD_VALIDRANGE = '@ValidRange'
+TAB_PCD_VALIDLIST = '@ValidList'
+TAB_PCD_EXPRESSION = '@Expression'
+TAB_PCD_PROMPT = '@Prompt'
+TAB_STR_TOKENCNAME = 'STR'
+TAB_STR_TOKENPROMPT = 'PROMPT'
+TAB_STR_TOKENHELP = 'HELP'
+TAB_STR_TOKENERR = 'ERR'
 
 #
 # Dictionary of usage tokens and their synonmys
-#  
+#
 ALL_USAGE_TOKENS = {
   "PRODUCES"           : "PRODUCES",
   "PRODUCED"           : "PRODUCES",
@@ -98,20 +109,20 @@ ALL_USAGE_TOKENS = {
   "SOMETIMES_CONSUMES" : "SOMETIMES_CONSUMES",
   "SOMETIMES_CONSUMED" : "SOMETIMES_CONSUMES",
   "SOMETIME_CONSUMES"  : "SOMETIMES_CONSUMES",
-  "UNDEFINED"          : "UNDEFINED" 
+  "UNDEFINED"          : "UNDEFINED"
   }
 
 PROTOCOL_USAGE_TOKENS = {
   "TO_START"           : "TO_START",
   "BY_START"           : "BY_START"
   }
- 
+
 PROTOCOL_USAGE_TOKENS.update (ALL_USAGE_TOKENS)
-  
+
 #
 # Dictionary of GUID type tokens
-#  
-GUID_TYPE_TOKENS = {  
+#
+GUID_TYPE_TOKENS = {
   "Event"          : "Event",
   "File"           : "File",
   "FV"             : "FV",
@@ -123,31 +134,31 @@ GUID_TYPE_TOKENS = {
   "Hob:"           : "HOB",
   "SystemTable"    : "SystemTable",
   "TokenSpaceGuid" : "TokenSpaceGuid",
-  "UNDEFINED"      : "UNDEFINED" 
+  "UNDEFINED"      : "UNDEFINED"
   }
-  
+
 #
 # Dictionary of Protocol Notify tokens and their synonyms
-#  
-PROTOCOL_NOTIFY_TOKENS = {  
+#
+PROTOCOL_NOTIFY_TOKENS = {
   "NOTIFY"          : "NOTIFY",
   "PROTOCOL_NOTIFY" : "NOTIFY",
-  "UNDEFINED"       : "UNDEFINED" 
+  "UNDEFINED"       : "UNDEFINED"
   }
 
 #
 # Dictionary of PPI Notify tokens and their synonyms
-#  
-PPI_NOTIFY_TOKENS = {  
+#
+PPI_NOTIFY_TOKENS = {
   "NOTIFY"     : "NOTIFY",
   "PPI_NOTIFY" : "NOTIFY",
-  "UNDEFINED"  : "UNDEFINED" 
+  "UNDEFINED"  : "UNDEFINED"
   }
 
 EVENT_TOKENS = {
   "EVENT_TYPE_PERIODIC_TIMER" : "EVENT_TYPE_PERIODIC_TIMER",
   "EVENT_TYPE_RELATIVE_TIMER" : "EVENT_TYPE_RELATIVE_TIMER",
-  "UNDEFINED"                 : "UNDEFINED" 
+  "UNDEFINED"                 : "UNDEFINED"
   }
 
 BOOTMODE_TOKENS = {
@@ -171,16 +182,16 @@ BOOTMODE_TOKENS = {
   "RECOVERY_S4_RESUME"    : "RECOVERY_S4_RESUME",
   "RECOVERY_S5_RESUME"    : "RECOVERY_S5_RESUME",
   "RECOVERY_FLASH_UPDATE" : "RECOVERY_FLASH_UPDATE",
-  "UNDEFINED"             : "UNDEFINED" 
+  "UNDEFINED"             : "UNDEFINED"
   }
 
-HOB_TOKENS = {  
+HOB_TOKENS = {
   "PHIT"                : "PHIT",
   "MEMORY_ALLOCATION"   : "MEMORY_ALLOCATION",
   "LOAD_PEIM"           : "LOAD_PEIM",
   "RESOURCE_DESCRIPTOR" : "RESOURCE_DESCRIPTOR",
   "FIRMWARE_VOLUME"     : "FIRMWARE_VOLUME",
-  "UNDEFINED"           : "UNDEFINED" 
+  "UNDEFINED"           : "UNDEFINED"
   }
 
 ##
@@ -212,22 +223,22 @@ PCD_DIRVER_TYPE_LIST = ["PEI_PCD_DRIVER", "DXE_PCD_DRIVER"]
 #
 BOOT_MODE_LIST = ["FULL",
                   "MINIMAL",
-                  "NO_CHANGE", 
-                  "DIAGNOSTICS", 
-                  "DEFAULT", 
+                  "NO_CHANGE",
+                  "DIAGNOSTICS",
+                  "DEFAULT",
                   "S2_RESUME",
-                  "S3_RESUME", 
-                  "S4_RESUME", 
-                  "S5_RESUME", 
+                  "S3_RESUME",
+                  "S4_RESUME",
+                  "S5_RESUME",
                   "FLASH_UPDATE",
-                  "RECOVERY_FULL", 
-                  "RECOVERY_MINIMAL", 
+                  "RECOVERY_FULL",
+                  "RECOVERY_MINIMAL",
                   "RECOVERY_NO_CHANGE",
-                  "RECOVERY_DIAGNOSTICS", 
+                  "RECOVERY_DIAGNOSTICS",
                   "RECOVERY_DEFAULT",
-                  "RECOVERY_S2_RESUME", 
+                  "RECOVERY_S2_RESUME",
                   "RECOVERY_S3_RESUME",
-                  "RECOVERY_S4_RESUME", 
+                  "RECOVERY_S4_RESUME",
                   "RECOVERY_S5_RESUME",
                   "RECOVERY_FLASH_UPDATE"]
 
@@ -240,9 +251,9 @@ EVENT_TYPE_LIST = ["EVENT_TYPE_PERIODIC_TIMER",
 ##
 # Hob Type List Items
 #
-HOB_TYPE_LIST = ["PHIT", 
+HOB_TYPE_LIST = ["PHIT",
                  "MEMORY_ALLOCATION",
-                 "RESOURCE_DESCRIPTOR", 
+                 "RESOURCE_DESCRIPTOR",
                  "FIRMWARE_VOLUME",
                  "LOAD_PEIM"]
 
@@ -269,27 +280,29 @@ PCD_USAGE_TYPE_LIST_OF_UPT = PCD_USAGE_TYPE_LIST_OF_MODULE
 ##
 # Binary File Type List
 #
-BINARY_FILE_TYPE_LIST = ["GUID", "PE32", "PIC", "TE", "DXE_DEPEX", "VER", "UI", "COMPAT16", "FV", "BIN", "RAW",
+BINARY_FILE_TYPE_LIST = ["PE32", "PIC", "TE", "DXE_DEPEX", "VER", "UI", "COMPAT16", "FV", "BIN", "RAW",
                          "ACPI", "ASL",
                          "PEI_DEPEX",
                          "SMM_DEPEX",
-                         "SUBTYPE_GUID"                                    
+                         "SUBTYPE_GUID",
+                         "DISPOSABLE"
                          ]
 BINARY_FILE_TYPE_LIST_IN_UDP = \
                         ["GUID", "FREEFORM",
                          "UEFI_IMAGE", "PE32", "PIC",
-                         "PEI_DEPEX", 
+                         "PEI_DEPEX",
                          "DXE_DEPEX",
                          "SMM_DEPEX",
                          "FV", "TE",
-                         "BIN", "VER", "UI"                      
+                         "BIN", "VER", "UI"
                          ]
 
+SUBTYPE_GUID_BINARY_FILE_TYPE = "FREEFORM"
 ##
-# Possible values for COMPONENT_TYPE, and their descriptions, are listed in 
-# the table, 
-# "Component (module) Types." For each component, the BASE_NAME and 
-# COMPONENT_TYPE 
+# Possible values for COMPONENT_TYPE, and their descriptions, are listed in
+# the table,
+# "Component (module) Types." For each component, the BASE_NAME and
+# COMPONENT_TYPE
 # are required. The COMPONENT_TYPE definition is case sensitive.
 #
 COMPONENT_TYPE_LIST = [
@@ -328,6 +341,7 @@ TAB_EQUAL_SPLIT = '='
 TAB_DEQUAL_SPLIT = '=='
 TAB_VALUE_SPLIT = '|'
 TAB_COMMA_SPLIT = ','
+TAB_HORIZON_LINE_SPLIT = '-'
 TAB_SPACE_SPLIT = ' '
 TAB_UNDERLINE_SPLIT = '_'
 TAB_SEMI_COLON_SPLIT = ';'
@@ -340,7 +354,14 @@ TAB_SLASH = '\\'
 TAB_BACK_SLASH = '/'
 TAB_SPECIAL_COMMENT = '##'
 TAB_HEADER_COMMENT = '@file'
-TAB_STAR = "*"
+TAB_BINARY_HEADER_COMMENT = '@BinaryHeader'
+TAB_STAR = '*'
+TAB_ENCODING_UTF16LE = 'utf_16_le'
+TAB_CAPHEX_START = '0X'
+TAB_HEX_START = '0x'
+TAB_PCD_ERROR = 'Error'
+TAB_PCD_ERROR_SECTION_COMMENT = 'Error message section'
+TAB_UNI_FILE_SUFFIXS = ['.uni', '.UNI', '.Uni']
 
 TAB_EDK_SOURCE = '$(EDK_SOURCE)'
 TAB_EFI_SOURCE = '$(EFI_SOURCE)'
@@ -415,7 +436,7 @@ BINARY_FILE_TYPE_FV = 'FV'
 BINARY_FILE_TYPE_UI_LIST = [BINARY_FILE_TYPE_UNI_UI,
                             BINARY_FILE_TYPE_SEC_UI,
                             BINARY_FILE_TYPE_UI
-                            ] 
+                            ]
 BINARY_FILE_TYPE_VER_LIST = [BINARY_FILE_TYPE_UNI_VER,
                             BINARY_FILE_TYPE_SEC_VER,
                             BINARY_FILE_TYPE_VER
@@ -677,6 +698,7 @@ TAB_INF_DEFINES_EFI_SPECIFICATION_VERSION = 'EFI_SPECIFICATION_VERSION'
 TAB_INF_DEFINES_UEFI_SPECIFICATION_VERSION = 'UEFI_SPECIFICATION_VERSION'
 TAB_INF_DEFINES_PI_SPECIFICATION_VERSION = 'PI_SPECIFICATION_VERSION'
 TAB_INF_DEFINES_EDK_RELEASE_VERSION = 'EDK_RELEASE_VERSION'
+TAB_INF_DEFINES_MODULE_UNI_FILE    = 'MODULE_UNI_FILE'
 TAB_INF_DEFINES_BINARY_MODULE = 'BINARY_MODULE'
 TAB_INF_DEFINES_LIBRARY_CLASS = 'LIBRARY_CLASS'
 TAB_INF_DEFINES_COMPONENT_TYPE = 'COMPONENT_TYPE'
@@ -688,7 +710,7 @@ TAB_INF_DEFINES_FV_EXT = 'FV_EXT'
 TAB_INF_DEFINES_SOURCE_FV = 'SOURCE_FV'
 TAB_INF_DEFINES_PACKAGE   = 'PACKAGE'
 TAB_INF_DEFINES_VERSION_NUMBER = 'VERSION_NUMBER'
-TAB_INF_DEFINES_VERSION = 'VERSION'         
+TAB_INF_DEFINES_VERSION = 'VERSION'
 TAB_INF_DEFINES_VERSION_STRING = 'VERSION_STRING'
 TAB_INF_DEFINES_PCD_IS_DRIVER = 'PCD_IS_DRIVER'
 TAB_INF_DEFINES_TIANO_EDK1_FLASHMAP_H = 'TIANO_EDK1_FLASHMAP_H'
@@ -696,9 +718,9 @@ TAB_INF_DEFINES_ENTRY_POINT = 'ENTRY_POINT'
 TAB_INF_DEFINES_UNLOAD_IMAGE = 'UNLOAD_IMAGE'
 TAB_INF_DEFINES_CONSTRUCTOR = 'CONSTRUCTOR'
 TAB_INF_DEFINES_DESTRUCTOR = 'DESTRUCTOR'
-TAB_INF_DEFINES_PCI_VENDOR_ID  = 'PCI_VENDOR_ID'    
-TAB_INF_DEFINES_PCI_DEVICE_ID  = 'PCI_DEVICE_ID'    
-TAB_INF_DEFINES_PCI_CLASS_CODE = 'PCI_CLASS_CODE'   
+TAB_INF_DEFINES_PCI_VENDOR_ID  = 'PCI_VENDOR_ID'
+TAB_INF_DEFINES_PCI_DEVICE_ID  = 'PCI_DEVICE_ID'
+TAB_INF_DEFINES_PCI_CLASS_CODE = 'PCI_CLASS_CODE'
 TAB_INF_DEFINES_PCI_REVISION   = 'PCI_REVISION'
 TAB_INF_DEFINES_PCI_COMPRESS   = 'PCI_COMPRESS'
 TAB_INF_DEFINES_DEFINE = 'DEFINE'
@@ -714,7 +736,12 @@ TAB_INF_PATCH_PCD = 'PatchPcd'
 TAB_INF_PCD = 'Pcd'
 TAB_INF_PCD_EX = 'PcdEx'
 TAB_INF_GUIDTYPE_VAR = 'Variable'
-
+TAB_INF_ABSTRACT = 'STR_MODULE_ABSTRACT'
+TAB_INF_DESCRIPTION = 'STR_MODULE_DESCRIPTION'
+TAB_INF_LICENSE = 'STR_MODULE_LICENSE'
+TAB_INF_BINARY_ABSTRACT = 'STR_MODULE_BINARY_ABSTRACT'
+TAB_INF_BINARY_DESCRIPTION = 'STR_MODULE_BINARY_DESCRIPTION'
+TAB_INF_BINARY_LICENSE = 'STR_MODULE_BINARY_LICENSE'
 #
 # Dec Definitions
 #
@@ -723,8 +750,13 @@ TAB_DEC_DEFINES_DEC_SPECIFICATION = 'DEC_SPECIFICATION'
 TAB_DEC_DEFINES_PACKAGE_NAME = 'PACKAGE_NAME'
 TAB_DEC_DEFINES_PACKAGE_GUID = 'PACKAGE_GUID'
 TAB_DEC_DEFINES_PACKAGE_VERSION = 'PACKAGE_VERSION'
-TAB_DEC_DEFINES_PKG_UNI_FILE    = 'PKG_UNI_FILE'
-
+TAB_DEC_DEFINES_PKG_UNI_FILE    = 'PACKAGE_UNI_FILE'
+TAB_DEC_PACKAGE_ABSTRACT = 'STR_PACKAGE_ABSTRACT'
+TAB_DEC_PACKAGE_DESCRIPTION = 'STR_PACKAGE_DESCRIPTION'
+TAB_DEC_PACKAGE_LICENSE = 'STR_PACKAGE_LICENSE'
+TAB_DEC_BINARY_ABSTRACT = 'STR_PACKAGE_BINARY_ABSTRACT'
+TAB_DEC_BINARY_DESCRIPTION = 'STR_PACKAGE_BINARY_DESCRIPTION'
+TAB_DEC_BINARY_LICENSE = 'STR_PACKAGE_ASBUILT_LICENSE'
 #
 # Dsc Definitions
 #
@@ -785,18 +817,21 @@ TAB_IF_EXIST = '!if exist'
 TAB_UNKNOWN = 'UNKNOWN'
 
 #
-# Header section (virtual section for abstract, description, copyright, 
+# Header section (virtual section for abstract, description, copyright,
 # license)
 #
 TAB_HEADER = 'Header'
 TAB_HEADER_ABSTRACT = 'Abstract'
-TAB_HEADER_DESCRIPTION = 'Description' 
+TAB_HEADER_DESCRIPTION = 'Description'
 TAB_HEADER_COPYRIGHT = 'Copyright'
 TAB_HEADER_LICENSE = 'License'
+TAB_BINARY_HEADER_IDENTIFIER = 'BinaryHeader'
+TAB_BINARY_HEADER_USERID = 'TianoCore'
+
 #
 # Build database path
 #
-DATABASE_PATH = ":memory:" 
+DATABASE_PATH = ":memory:"
 #
 # used by ECC
 #
@@ -818,7 +853,7 @@ TAB_DEPENDENCY_EXPRESSION_FILE = "DEPENDENCY-EXPRESSION-FILE"
 TAB_UNKNOWN_FILE = "UNKNOWN-TYPE-FILE"
 TAB_DEFAULT_BINARY_FILE = "_BINARY_FILE_"
 #
-# used to indicate the state of processing header comment section of dec, 
+# used to indicate the state of processing header comment section of dec,
 # inf files
 #
 HEADER_COMMENT_NOT_STARTED = -1
@@ -916,4 +951,6 @@ TOOL_FAMILY_LIST = ["MSFT",
 
 TYPE_HOB_SECTION = 'HOB'
 TYPE_EVENT_SECTION = 'EVENT'
-TYPE_BOOTMODE_SECTION = 'BOOTMODE' 
+TYPE_BOOTMODE_SECTION = 'BOOTMODE'
+
+PCD_ERR_CODE_MAX_SIZE = 4294967295

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1032,6 +1032,20 @@ static const RTVFSIOSTREAMOPS g_rtZipXarFssIosOps =
 
 
 /**
+ * @interface_method_impl{RTVFSOBJOPS,pfnClose}
+ */
+static DECLCALLBACK(int) rtZipXarFssFile_Close(void *pvThis)
+{
+    PRTZIPXARFILE pThis = (PRTZIPXARFILE)pvThis;
+
+    RTVfsFileRelease(pThis->hVfsFile);
+    pThis->hVfsFile = NIL_RTVFSFILE;
+
+    return rtZipXarFssIos_Close(&pThis->Ios);
+}
+
+
+/**
  * @interface_method_impl{RTVFSOBJSETOPS,pfnMode}
  */
 static DECLCALLBACK(int) rtZipXarFssFile_SetMode(void *pvThis, RTFMODE fMode, RTFMODE fMask)
@@ -1129,7 +1143,7 @@ static const RTVFSFILEOPS g_rtZipXarFssFileOps =
             RTVFSOBJOPS_VERSION,
             RTVFSOBJTYPE_FILE,
             "XarFsStream::File",
-            rtZipXarFssIos_Close,
+            rtZipXarFssFile_Close,
             rtZipXarFssIos_QueryInfo,
             RTVFSOBJOPS_VERSION
         },
@@ -1172,11 +1186,11 @@ static DECLCALLBACK(int) rtZipXarFssDecompIos_Close(void *pvThis)
     RTVfsIoStrmRelease(pThis->hVfsIosDecompressor);
     pThis->hVfsIosDecompressor = NIL_RTVFSIOSTREAM;
 
-    int rc = RTVfsIoStrmRelease(pThis->hVfsIosRaw);
+    RTVfsIoStrmRelease(pThis->hVfsIosRaw);
     pThis->hVfsIosRaw = NIL_RTVFSIOSTREAM;
     pThis->pIosRaw = NULL;
 
-    return rc;
+    return VINF_SUCCESS;
 }
 
 
@@ -1387,12 +1401,13 @@ static DECLCALLBACK(int) rtZipXarFssSym_SetOwner(void *pvThis, RTUID uid, RTGID 
 /**
  * @interface_method_impl{RTVFSSYMLINKOPS,pfnRead}
  */
-static DECLCALLBACK(int) rtZipXarFssSym_Read(void *pvThis, char *pszTarget, size_t cbXarget)
+static DECLCALLBACK(int) rtZipXarFssSym_Read(void *pvThis, char *pszTarget, size_t cbTarget)
 {
     PRTZIPXARBASEOBJ pThis = (PRTZIPXARBASEOBJ)pvThis;
 #if 0
     return RTStrCopy(pszTarget, cbXarget, pThis->pXarReader->szTarget);
 #else
+    RT_NOREF_PV(pThis); RT_NOREF_PV(pszTarget); RT_NOREF_PV(cbTarget);
     return VERR_NOT_IMPLEMENTED;
 #endif
 }
@@ -1438,6 +1453,14 @@ static DECLCALLBACK(int) rtZipXarFss_Close(void *pvThis)
 
     RTVfsFileRelease(pThis->hVfsFile);
     pThis->hVfsFile = NIL_RTVFSFILE;
+
+    if (pThis->XarReader.pDoc)
+        delete pThis->XarReader.pDoc;
+    pThis->XarReader.pDoc = NULL;
+    /* The other XarReader fields only point to elements within pDoc. */
+    pThis->XarReader.pToc = NULL;
+    pThis->XarReader.cCurDepth = 0;
+    pThis->XarReader.pCurFile = NULL;
 
     return VINF_SUCCESS;
 }
@@ -1750,10 +1773,9 @@ static DECLCALLBACK(int) rtZipXarFss_Next(void *pvThis, char **ppszName, RTVFSOB
     }
 
     if (phVfsObj)
-    {
-        RTVfsObjRetain(hVfsObj);
         *phVfsObj = hVfsObj;
-    }
+    else
+        RTVfsObjRelease(hVfsObj);
 
     if (penmType)
         *penmType = enmType;
@@ -1797,6 +1819,7 @@ static const RTVFSFSSTREAMOPS rtZipXarFssOps =
 static int rtZipXarValidateTocPart2(PRTZIPXARFSSTREAM pThis, PCXARHEADER pXarHdr, PCRTZIPXARHASHDIGEST pTocDigest)
 {
     int rc;
+    RT_NOREF_PV(pXarHdr);
 
     /*
      * Check that the hash function in the TOC matches the one in the XAR header.

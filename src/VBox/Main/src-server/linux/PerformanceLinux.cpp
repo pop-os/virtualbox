@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,7 +81,7 @@ private:
     uint64_t     mUser, mKernel, mIdle;
     uint64_t     mSingleUser, mSingleKernel, mSingleIdle;
     uint32_t     mHZ;
-    ULONG        totalRAM;
+    ULONG        mTotalRAM;
 };
 
 CollectorHAL *createHAL()
@@ -100,15 +100,15 @@ CollectorLinux::CollectorLinux()
         mHZ = 100;
     }
     else
-        mHZ = hz;
+        mHZ = (uint32_t)hz;
     LogFlowThisFunc(("mHZ=%u\n", mHZ));
 
     uint64_t cb;
     int rc = RTSystemQueryTotalRam(&cb);
     if (RT_FAILURE(rc))
-        totalRAM = 0;
+        mTotalRAM = 0;
     else
-        totalRAM = (ULONG)(cb / 1024);
+        mTotalRAM = (ULONG)(cb / 1024);
 }
 
 int CollectorLinux::preCollect(const CollectorHints& hints, uint64_t /* iTick */)
@@ -211,13 +211,13 @@ int CollectorLinux::getRawProcessCpuLoad(RTPROCESS process, uint64_t *user, uint
 
 int CollectorLinux::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *available)
 {
-    AssertReturn(totalRAM, VERR_INTERNAL_ERROR);
+    AssertReturn(mTotalRAM, VERR_INTERNAL_ERROR);
     uint64_t cb;
     int rc = RTSystemQueryAvailableRam(&cb);
     if (RT_SUCCESS(rc))
     {
-        *total = totalRAM;
-        *available = cb / 1024;
+        *total = mTotalRAM;
+        *available = (ULONG)(cb / 1024);
         *used = *total - *available;
     }
     return rc;
@@ -252,10 +252,9 @@ int CollectorLinux::getHostDiskSize(const char *pszFile, uint64_t *size)
         rc = VERR_FILE_NOT_FOUND;
     else
     {
-        int64_t cSize = RTLinuxSysFsReadIntFile(0, pszPath);
-        if (cSize < 0)
-            rc = VERR_ACCESS_DENIED;
-        else
+        int64_t cSize = 0;
+        rc = RTLinuxSysFsReadIntFile(0, &cSize, pszPath);
+        if (RT_SUCCESS(rc))
             *size = cSize * 512;
     }
     RTStrFree(pszPath);
@@ -287,7 +286,7 @@ int CollectorLinux::getRawProcessStats(RTPROCESS process, uint64_t *cpuUser, uin
     unsigned long ulTmp;
     signed long ilTmp;
     ULONG u32user, u32kernel;
-    char buf[80]; /* @todo: this should be tied to max allowed proc name. */
+    char buf[80]; /** @todo this should be tied to max allowed proc name. */
 
     RTStrAPrintf(&pszName, "/proc/%d/stat", process);
     FILE *f = fopen(pszName, "r");
@@ -324,9 +323,10 @@ int CollectorLinux::getRawHostNetworkLoad(const char *pszFile, uint64_t *rx, uin
     if (!RTLinuxSysFsExists(szIfName))
         return VERR_FILE_NOT_FOUND;
 
-    int64_t cSize = RTLinuxSysFsReadIntFile(0, szIfName);
-    if (cSize < 0)
-        return VERR_ACCESS_DENIED;
+    int64_t cSize = 0;
+    int rc = RTLinuxSysFsReadIntFile(0, &cSize, szIfName);
+    if (RT_FAILURE(rc))
+        return rc;
 
     *rx = cSize;
 
@@ -334,9 +334,9 @@ int CollectorLinux::getRawHostNetworkLoad(const char *pszFile, uint64_t *rx, uin
     if (!RTLinuxSysFsExists(szIfName))
         return VERR_FILE_NOT_FOUND;
 
-    cSize = RTLinuxSysFsReadIntFile(0, szIfName);
-    if (cSize < 0)
-        return VERR_ACCESS_DENIED;
+    rc = RTLinuxSysFsReadIntFile(0, &cSize, szIfName);
+    if (RT_FAILURE(rc))
+        return rc;
 
     *tx = cSize;
     return VINF_SUCCESS;
@@ -412,7 +412,7 @@ int CollectorLinux::getRawHostDiskLoad(const char *name, uint64_t *disk_ms, uint
 
 char *CollectorLinux::trimNewline(char *pszName)
 {
-    unsigned cbName = strlen(pszName);
+    size_t cbName = strlen(pszName);
     if (cbName == 0)
         return pszName;
 
@@ -426,7 +426,7 @@ char *CollectorLinux::trimNewline(char *pszName)
 
 char *CollectorLinux::trimTrailingDigits(char *pszName)
 {
-    unsigned cbName = strlen(pszName);
+    size_t cbName = strlen(pszName);
     if (cbName == 0)
         return pszName;
 
@@ -451,7 +451,7 @@ char *CollectorLinux::trimTrailingDigits(char *pszName)
 void CollectorLinux::getDiskName(char *pszDiskName, size_t cbDiskName, const char *pszDevName, bool fTrimDigits)
 {
     unsigned cbName = 0;
-    unsigned cbDevName = strlen(pszDevName);
+    size_t cbDevName = strlen(pszDevName);
     const char *pszEnd = pszDevName + cbDevName - 1;
     if (fTrimDigits)
         while (pszEnd > pszDevName && RT_C_IS_DIGIT(*pszEnd))

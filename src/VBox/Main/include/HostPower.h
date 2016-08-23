@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,11 @@
 #ifndef ____H_HOSTPOWER
 #define ____H_HOSTPOWER
 
+#ifdef RT_OS_DARWIN /* first, so we can undef pVM in iprt/cdefs.h */
+# include <IOKit/pwr_mgt/IOPMLib.h>
+# include <Carbon/Carbon.h>
+#endif
+
 #include "VirtualBoxBase.h"
 
 #include <vector>
@@ -26,11 +31,6 @@
 #ifdef RT_OS_LINUX
 # include <VBox/dbus.h>
 #endif
-
-#ifdef RT_OS_DARWIN
-# include <IOKit/pwr_mgt/IOPMLib.h>
-# include <Carbon/Carbon.h>
-#endif /* RT_OS_DARWIN */
 
 class HostPowerService
 {

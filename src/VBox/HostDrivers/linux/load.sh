@@ -15,15 +15,32 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
-MY_DIR=`dirname "$0"`
-MY_DIR=`cd "${MY_DIR}" && pwd`
-if [ ! -d "${MY_DIR}" ]; then
-    echo "Cannot find ${MY_DIR} or it's not a directory..."
-    exit 1;
-fi
+TARGET=`readlink -e -- "${0}"` || exit 1  # The GNU-specific way.
+MY_DIR="${TARGET%/[!/]*}"
 
 set -e
-make -C "${MY_DIR}/src/vboxdrv" "$@"
-sudo make -C "${MY_DIR}/src/" unload
-echo "Installing SUPDrv (aka VBoxDrv/vboxdrv)"
-sudo /sbin/insmod "${MY_DIR}/src/vboxdrv/vboxdrv.ko"
+
+# Parse parameters.
+OPT_UNLOAD_ONLY=
+if [ ${#} -ge 1 -a "${1}" = "-u" ]; then
+    OPT_UNLOAD_ONLY=yes
+    shift
+fi
+if [ ${#} -ge 1 -a '(' "${1}" = "-h"  -o  "${1}" = "--help" ')' ]; then
+    echo "usage: load.sh [-u] [make arguments]"
+    exit 1
+fi
+
+# Unload, but keep the udev rules.
+sudo "${MY_DIR}/vboxdrv.sh" stop_keep_udev
+
+if [ -z "${OPT_UNLOAD_ONLY}" ]; then
+    # Build and load.
+    MAKE_JOBS=`grep vendor_id /proc/cpuinfo | wc -l`
+    if [ "${MAKE_JOBS}" -le "0" ]; then MAKE_JOBS=1; fi
+    make "-j${MAKE_JOBS}" -C "${MY_DIR}/src/vboxdrv" "$@"
+
+    echo "Installing SUPDrv (aka VBoxDrv/vboxdrv)"
+    sudo /sbin/insmod "${MY_DIR}/src/vboxdrv/vboxdrv.ko"
+fi
+

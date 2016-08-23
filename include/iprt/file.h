@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -678,15 +678,15 @@ RTDECL(int) RTFileRename(const char *pszSrc, const char *pszDst, unsigned fRenam
  * Converts file opening modes (used by fopen, for example) to IPRT
  * compatible flags, which then can be used with RTFileOpen* APIs.
  *
- * Note: Handling sharing modes is not supported yet, so RTFILE_O_DENY_NONE
- *       will be used by default.
+ * @note    Handling sharing modes is not supported yet, so RTFILE_O_DENY_NONE
+ *          will always be used.
  *
  * @return  IPRT status code.
  * @param   pszMode                 Mode string to convert.
- * @param   puMode                  Where to store the converted mode flags
- *                                  on success.
+ * @param   pfMode                  Where to store the converted mode flags on
+ *                                  success.
  */
-RTDECL(int) RTFileModeToFlags(const char *pszMode, uint64_t *puMode);
+RTDECL(int) RTFileModeToFlags(const char *pszMode, uint64_t *pfMode);
 
 /**
  * Converts file opening modes along with a separate disposition command
@@ -708,19 +708,18 @@ RTDECL(int) RTFileModeToFlags(const char *pszMode, uint64_t *puMode);
  *      "oe" - Opens an existing file or fail if it does not exist.
  *      "ot" - Opens and truncate an existing file or fail if it does not exist.
  *
- * Sharing modes:
- *      Not implemented yet. RTFILE_O_DENY_NONE will be
- *      used by default.
+ * @note    Sharing modes are not implemented yet, so RTFILE_O_DENY_NONE will
+ *          always be used.
  *
  * @return  IPRT status code.
  * @param   pszAccess               Access mode string to convert.
  * @param   pszDisposition          Disposition mode string to convert.
- * @param   pszSharing              Sharing mode string to convert. Not
- *                                  implemented yet.
- * @param   puMode                  Where to store the converted mode flags
+ * @param   pszSharing              Sharing mode string to convert.  Not
+ *                                  implemented yet - completely ignored!
+ * @param   pfMode                  Where to store the converted mode flags
  *                                  on success.
  */
-RTDECL(int) RTFileModeToFlagsEx(const char *pszAccess, const char *pszDisposition, const char *pszSharing, uint64_t *puMode);
+RTDECL(int) RTFileModeToFlagsEx(const char *pszAccess, const char *pszDisposition, const char *pszSharing, uint64_t *pfMode);
 
 /**
  * Moves a file.
@@ -1129,6 +1128,33 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
 #define RTFILE_RDALL_VALID_MASK             RTFILE_RDALL_O_DENY_MASK
 /** @} */
 
+/** @name RTFileSetAllocationSize flags
+ * @{ */
+/** Default flags. */
+#define RTFILE_ALLOC_SIZE_F_DEFAULT         0
+/** Do not change the size of the file if the given size is
+ * bigger than the current file size. Useful to preallocate
+ * blocks beyond the current size for appending data in an efficient
+ * manner. Might not be supported on all hosts and will return
+ * VERR_NOT_SUPPORTED in that case. */
+#define RTFILE_ALLOC_SIZE_F_KEEP_SIZE       RT_BIT(0)
+/** Mask of valid flags. */
+#define RTFILE_ALLOC_SIZE_F_VALID           (RTFILE_ALLOC_SIZE_F_KEEP_SIZE)
+/** @} */
+
+/**
+ * Sets the current size of the file ensuring that all required blocks
+ * are allocated on the underlying medium.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if either this operation is not supported on the current host
+ *                             in an efficient manner or the given combination of flags is
+ *                             not supported.
+ * @param   hFile           The handle to the file.
+ * @param   cbSize          The new size of the file to allocate.
+ * @param   fFlags          Combination of RTFILE_ALLOC_SIZE_F_*
+ */
+RTDECL(int) RTFileSetAllocationSize(RTFILE hFile, uint64_t cbSize, uint32_t fFlags);
 
 #ifdef IN_RING3
 

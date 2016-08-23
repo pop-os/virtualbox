@@ -487,13 +487,13 @@ out:
 }
 
 static int
-dt_nullprobe()
+dt_nullprobe(void)
 {
 	return (DTRACE_CONSUME_THIS);
 }
 
 static int
-dt_nullrec()
+dt_nullrec(void)
 {
 	return (DTRACE_CONSUME_NEXT);
 }
@@ -701,6 +701,7 @@ dt_print_average(dtrace_hdl_t *dtp, FILE *fp, caddr_t addr,
 {
 	/* LINTED - alignment */
 	int64_t *data = (int64_t *)addr;
+	RT_NOREF1(size);
 
 	return (dt_printf(dtp, fp, " %16lld", data[0] ?
 	    (long long)(data[1] / (int64_t)normal / data[0]) : 0));
@@ -713,6 +714,7 @@ dt_print_stddev(dtrace_hdl_t *dtp, FILE *fp, caddr_t addr,
 {
 	/* LINTED - alignment */
 	uint64_t *data = (uint64_t *)addr;
+	RT_NOREF1(size);
 
 	return (dt_printf(dtp, fp, " %16llu", data[0] ?
 	    (unsigned long long) dt_stddev(data, normal) : 0));
@@ -728,7 +730,12 @@ dt_print_bytes(dtrace_hdl_t *dtp, FILE *fp, caddr_t addr,
 	 * a terminating byte, we print it out as a string.  Otherwise, we
 	 * assume that it's something else and just print the bytes.
 	 */
+#ifdef VBOX
+	size_t i, j;
+	int margin = 5;
+#else
 	int i, j, margin = 5;
+#endif
 	char *c = (char *)addr;
 
 	if (nbytes == 0)
@@ -1042,7 +1049,7 @@ dt_print_ustack(dtrace_hdl_t *dtp, FILE *fp, const char *format,
 
 		if (str != NULL) {
 			str += strlen(str) + 1;
-			if (str - strbase >= strsize)
+			if ((uintptr_t/*vbox*/)(str - strbase) >= strsize)
 				str = NULL;
 		}
 	}
@@ -1085,6 +1092,8 @@ dt_print_usym(dtrace_hdl_t *dtp, FILE *fp, caddr_t addr, dtrace_actkind_t act)
 			dt_proc_release(dtp, P);
 		}
 	}
+#else
+	RT_NOREF1(act);
 #endif
 
 	do {
@@ -1140,6 +1149,7 @@ dt_print_umod(dtrace_hdl_t *dtp, FILE *fp, const char *format, caddr_t addr)
 		dt_proc_release(dtp, P);
 	}
 #else  /* VBOX */
+	RT_NOREF_PV(pid);
 	snprintf(c, sizeof (c), "0x%llx", (u_longlong_t)pc);
 	err = dt_printf(dtp, fp, format, c);
 #endif /* VBOX */
@@ -1716,14 +1726,17 @@ again:
 					continue;
 
 				case DT_ACT_FTRUNCATE:
+				{
+					int res;
 					if (fp == NULL)
 						continue;
 
 					(void) fflush(fp);
-					(void) ftruncate(fileno(fp), 0);
+					res = ftruncate(fileno(fp), 0);
+					NOREF(res);
 					(void) fseeko(fp, 0, SEEK_SET);
 					continue;
-
+				}
 				case DT_ACT_NORMALIZE:
 					if (i == epd->dtepd_nrecs - 1)
 						return (dt_set_errno(dtp,
@@ -1851,7 +1864,7 @@ again:
 				int (*func)(dtrace_hdl_t *, FILE *, void *,
 				    const dtrace_probedata_t *,
 				    const dtrace_recdesc_t *, uint_t,
-				    const void *buf, size_t);
+				    const void *buf, size_t) VBDTMSC(NULL);
 
 				if ((fmtdata = dt_format_lookup(dtp,
 				    rec->dtrd_format)) == NULL)
@@ -2109,7 +2122,7 @@ dt_consume_begin(dtrace_hdl_t *dtp, FILE *fp, dtrace_bufdesc_t *buf,
 	static int max_ncpus;
 	dtrace_optval_t size;
 
-	dtp->dt_beganon = -1;
+	dtp->dt_beganon = (processorid_t)-1;
 
 	if (dt_ioctl(dtp, DTRACEIOC_BUFSNAP, buf) == -1) {
 		/*
@@ -2174,7 +2187,7 @@ dt_consume_begin(dtrace_hdl_t *dtp, FILE *fp, dtrace_bufdesc_t *buf,
 	for (i = 0; i < max_ncpus; i++) {
 		nbuf.dtbd_cpu = i;
 
-		if (i == cpu)
+		if ((unsigned)i == cpu)
 			continue;
 
 		if (dt_ioctl(dtp, DTRACEIOC_BUFSNAP, &nbuf) == -1) {
@@ -2285,7 +2298,7 @@ dtrace_consume(dtrace_hdl_t *dtp, FILE *fp,
 		 * END probe was processed only _after_ we have processed
 		 * everything else.
 		 */
-		if (dtp->dt_stopped && (i == dtp->dt_endedon))
+		if (dtp->dt_stopped && ((unsigned)i == dtp->dt_endedon))
 			continue;
 
 		if (dt_ioctl(dtp, DTRACEIOC_BUFSNAP, buf) == -1) {

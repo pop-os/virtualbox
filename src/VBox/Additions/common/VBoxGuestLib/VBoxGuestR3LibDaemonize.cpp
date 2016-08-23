@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -199,7 +199,10 @@ VBGLR3DECL(int) VbglR3Daemonize(bool fNoChDir, bool fNoClose, bool fRespawn, uns
     }
 
     if (!fNoChDir)
-        chdir("/");
+    {
+        int rcShutUpGcc = chdir("/");
+        RT_NOREF_PV(rcShutUpGcc);
+    }
 
     /*
      * Change the umask - this is non-standard daemon() behavior.

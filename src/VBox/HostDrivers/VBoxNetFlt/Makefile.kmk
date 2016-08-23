@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2015 Oracle Corporation
+# Copyright (C) 2008-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -364,7 +364,7 @@ $(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.cat: \
  	win/nobj/VBoxNetFltNobj.def \
  	win/nobj/VBoxNetFltNobj.rc
  VBoxNetFltNobj_LIBS       = \
- 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_ATLMFC_LIB)/atls$(VBOX_VCC_CRT_TYPE).lib
+ 	$(VBOX_LIB_RUNTIME_STATIC)
  #VBoxNetFltNobj_INTERMEDIATES =
  VBoxNetFltNobj_DEPS       = \
  	$(VBoxNetFltNobj_0_OUTDIR)/VBoxNetFltNobjT_i.c \
@@ -511,8 +511,6 @@ ifeq ($(KBUILD_TARGET),linux)
  VBoxNetFlt-src_SOURCES = \
 	$(subst $(DQUOTE),,$(VBOX_VBOXNETFLT_SOURCES)) \
 	$(VBoxNetFlt-src_0_OUTDIR)/Makefile
- VBoxNetFlt-src_EXEC_SOURCES = \
-	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
  VBoxNetFlt-src_CLEAN   = \
 	$(VBoxNetFlt-src_0_OUTDIR)/Makefile \
 	$(PATH_TARGET)/VBoxNetFlt-src-1.dep \

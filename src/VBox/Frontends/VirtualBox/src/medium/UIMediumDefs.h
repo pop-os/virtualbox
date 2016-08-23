@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,11 +18,15 @@
 #ifndef ___UIMediumDefs_h___
 #define ___UIMediumDefs_h___
 
+/* Qt includes: */
+#include <QString>
+
 /* COM includes: */
 #include "COMEnums.h"
 
 /* Other VBox includes: */
 #include <VBox/com/defs.h>
+
 
 /** UIMediumDefs namespace. */
 namespace UIMediumDefs

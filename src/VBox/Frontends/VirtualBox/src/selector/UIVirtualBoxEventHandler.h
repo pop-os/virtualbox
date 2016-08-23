@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,11 +18,18 @@
 #ifndef ___UIVirtualBoxEventHandler_h___
 #define ___UIVirtualBoxEventHandler_h___
 
+/* Qt includes: */
+#include <QObject>
+
 /* COM includes: */
 #include "COMEnums.h"
-#include "CEventListener.h"
 
-/** Active event handler singleton for the CVirtualBoxClient and CVirtualBox event-sources. */
+/* Forward declarations: */
+class UIVirtualBoxEventHandlerProxy;
+
+
+/** Singleton QObject extension
+  * providing GUI with the CVirtualBoxClient and CVirtualBox event-sources. */
 class UIVirtualBoxEventHandler : public QObject
 {
     Q_OBJECT;
@@ -56,19 +63,30 @@ public:
     /** Destroys singleton instance created by the factory. */
     static void destroy();
 
+protected:
+
+    /** Constructs VirtualBox event handler. */
+    UIVirtualBoxEventHandler();
+
+    /** @name Prepare cascade.
+      * @{ */
+        /** Prepares all. */
+        void prepare();
+        /** Prepares connections. */
+        void prepareConnections();
+    /** @} */
+
 private:
 
-    /** Constructor. */
-    UIVirtualBoxEventHandler();
-    /** Destructor. */
-    ~UIVirtualBoxEventHandler();
+    /** Holds the singleton static VirtualBox event handler instance. */
+    static UIVirtualBoxEventHandler *m_spInstance;
 
-    /** Holds the static singleton instance. */
-    static UIVirtualBoxEventHandler *m_pInstance;
-    /** Holds the COM event-listener instance. */
-    CEventListener m_mainEventListener;
+    /** Holds the VirtualBox event proxy instance. */
+    UIVirtualBoxEventHandlerProxy *m_pProxy;
 };
 
+/** Defines the globally known name for the VirtualBox event handler instance. */
 #define gVBoxEvents UIVirtualBoxEventHandler::instance()
 
 #endif /* !___UIVirtualBoxEventHandler_h___ */
+

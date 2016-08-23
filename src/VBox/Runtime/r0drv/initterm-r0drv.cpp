@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,6 +42,7 @@
 #endif
 
 #include "internal/initterm.h"
+#include "internal/mem.h"
 #include "internal/thread.h"
 
 
@@ -65,7 +66,7 @@ RTR0DECL(int) RTR0Init(unsigned fReserved)
 {
     int rc;
     uint32_t cNewUsers;
-    Assert(fReserved == 0);
+    Assert(fReserved == 0); RT_NOREF_PV(fReserved);
 #ifndef RT_OS_SOLARIS       /* On Solaris our thread preemption information is only obtained in rtR0InitNative().*/
     RT_ASSERT_PREEMPTIBLE();
 #endif
@@ -87,6 +88,9 @@ RTR0DECL(int) RTR0Init(unsigned fReserved)
     rc = rtR0InitNative();
     if (RT_SUCCESS(rc))
     {
+#ifdef RTR0MEM_WITH_EF_APIS
+        rtR0MemEfInit();
+#endif
         rc = rtThreadInit();
         if (RT_SUCCESS(rc))
         {
@@ -105,6 +109,9 @@ RTR0DECL(int) RTR0Init(unsigned fReserved)
 #endif
             rtThreadTerm();
         }
+#ifdef RTR0MEM_WITH_EF_APIS
+        rtR0MemEfTerm();
+#endif
         rtR0TermNative();
     }
     return rc;
@@ -118,6 +125,9 @@ static void rtR0Term(void)
 #ifndef IN_GUEST /* play safe for now */
     rtR0PowerNotificationTerm();
     rtR0MpNotificationTerm();
+#endif
+#ifdef RTR0MEM_WITH_EF_APIS
+    rtR0MemEfTerm();
 #endif
     rtR0TermNative();
 }

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2012-2015 Oracle Corporation
+# Copyright (C) 2012-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,9 @@ ValidationKitTestsStorage_INST = $(INST_VALIDATIONKIT)tests/storage/
 ValidationKitTestsStorage_EXEC_SOURCES := \
 	$(PATH_SUB_CURRENT)/tdStorageBenchmark1.py \
 	$(PATH_SUB_CURRENT)/tdStorageSnapshotMerging1.py \
-	$(PATH_SUB_CURRENT)/tdStorageStress1.py
+	$(PATH_SUB_CURRENT)/tdStorageStress1.py \
+	$(PATH_SUB_CURRENT)/remoteexecutor.py \
+	$(PATH_SUB_CURRENT)/storagecfg.py
 
 VBOX_VALIDATIONKIT_PYTHON_SOURCES += $(ValidationKitTestsStorage_EXEC_SOURCES)
 

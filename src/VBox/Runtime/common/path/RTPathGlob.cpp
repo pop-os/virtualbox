@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,7 @@
 #include <iprt/uni.h>
 
 #if defined(RT_OS_WINDOWS)
-# include <Windows.h>
+# include <iprt/win/windows.h>
 # include "../../r3/win/internal-r3-win.h"
 
 #elif defined(RT_OS_OS2)
@@ -458,6 +458,8 @@ RTPATHMATCHVAR_MULTIPLE_ENVVARS(WinAllCommonProgramFiles, a_apszWinCommonProgram
 static DECLCALLBACK(int) rtPathVarQuery_Path(uint32_t iItem, char *pszBuf, size_t cbBuf, size_t *pcchValue,
                                              PRTPATHMATCHCACHE pCache)
 {
+    RT_NOREF_PV(pCache);
+
     /*
      * Query the PATH value.
      */
@@ -547,6 +549,8 @@ static DECLCALLBACK(int) rtPathVarQuery_Path(uint32_t iItem, char *pszBuf, size_
 static DECLCALLBACK(int) rtPathVarQuery_DosSystemDrive(uint32_t iItem, char *pszBuf, size_t cbBuf, size_t *pcchValue,
                                                        PRTPATHMATCHCACHE pCache)
 {
+    RT_NOREF_PV(pCache);
+
     if (iItem == 0)
     {
         AssertReturn(cbBuf >= 3, VERR_BUFFER_OVERFLOW);
@@ -599,6 +603,8 @@ static DECLCALLBACK(int) rtPathVarQuery_DosSystemDrive(uint32_t iItem, char *psz
 static DECLCALLBACK(int) rtPathVarQuery_WinSystemRoot(uint32_t iItem, char *pszBuf, size_t cbBuf, size_t *pcchValue,
                                                       PRTPATHMATCHCACHE pCache)
 {
+    RT_NOREF_PV(pCache);
+
     if (iItem == 0)
     {
         Assert(pszBuf); Assert(cbBuf);
@@ -618,28 +624,26 @@ static DECLCALLBACK(int) rtPathVarQuery_WinSystemRoot(uint32_t iItem, char *pszB
 #undef RTPATHMATCHVAR_DOUBLE_ENVVAR
 
 /**
- *
- *
- * @author bird (9/29/2015)
+ * Variables.
  */
 static RTPATHMATCHVAR const g_aVariables[] =
 {
-    { RT_STR_TUPLE("Arch"),                     false,  rtPathVarQuery_Arch, rtPathVarMatch_Arch },
-    { RT_STR_TUPLE("Bits"),                     false,  rtPathVarQuery_Bits, rtPathVarMatch_Bits },
-    { RT_STR_TUPLE("Path"),                     true,   rtPathVarQuery_Path, NULL },
+    { RT_STR_TUPLE("Arch"),                     false,  rtPathVarQuery_Arch,                        rtPathVarMatch_Arch },
+    { RT_STR_TUPLE("Bits"),                     false,  rtPathVarQuery_Bits,                        rtPathVarMatch_Bits },
+    { RT_STR_TUPLE("Path"),                     true,   rtPathVarQuery_Path,                        NULL },
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
-    { RT_STR_TUPLE("SystemDrive"),              true,   rtPathVarQuery_DosSystemDrive, NULL },
+    { RT_STR_TUPLE("SystemDrive"),              true,   rtPathVarQuery_DosSystemDrive,              NULL },
 #endif
 #ifdef RT_OS_WINDOWS
-    { RT_STR_TUPLE("SystemRoot"),               true,   rtPathVarQuery_WinSystemRoot, NULL },
-    { RT_STR_TUPLE("AppData"),                  true,   rtPathVarQuery_WinAppData, NULL },
-    { RT_STR_TUPLE("ProgramData"),              true,   rtPathVarQuery_WinProgramData, NULL },
-    { RT_STR_TUPLE("ProgramFiles"),             true,   rtPathVarQuery_WinProgramFiles, NULL },
-    { RT_STR_TUPLE("OtherProgramFiles"),        true,   rtPathVarQuery_WinOtherProgramFiles, NULL },
-    { RT_STR_TUPLE("AllProgramFiles"),          true,   rtPathVarQuery_WinAllProgramFiles, NULL },
-    { RT_STR_TUPLE("CommonProgramFiles"),       true,   rtPathVarQuery_WinCommonProgramFiles, NULL },
-    { RT_STR_TUPLE("OtherCommonProgramFiles"),  true,   rtPathVarQuery_WinOtherCommonProgramFiles, NULL },
-    { RT_STR_TUPLE("AllCommonProgramFiles"),    true,   rtPathVarQuery_WinAllCommonProgramFiles, NULL },
+    { RT_STR_TUPLE("SystemRoot"),               true,   rtPathVarQuery_WinSystemRoot,               NULL },
+    { RT_STR_TUPLE("AppData"),                  true,   rtPathVarQuery_WinAppData,                  rtPathVarMatch_WinAppData },
+    { RT_STR_TUPLE("ProgramData"),              true,   rtPathVarQuery_WinProgramData,              rtPathVarMatch_WinProgramData },
+    { RT_STR_TUPLE("ProgramFiles"),             true,   rtPathVarQuery_WinProgramFiles,             rtPathVarMatch_WinProgramFiles },
+    { RT_STR_TUPLE("OtherProgramFiles"),        true,   rtPathVarQuery_WinOtherProgramFiles,        rtPathVarMatch_WinOtherProgramFiles },
+    { RT_STR_TUPLE("AllProgramFiles"),          true,   rtPathVarQuery_WinAllProgramFiles,          rtPathVarMatch_WinAllProgramFiles },
+    { RT_STR_TUPLE("CommonProgramFiles"),       true,   rtPathVarQuery_WinCommonProgramFiles,       rtPathVarMatch_WinCommonProgramFiles },
+    { RT_STR_TUPLE("OtherCommonProgramFiles"),  true,   rtPathVarQuery_WinOtherCommonProgramFiles,  rtPathVarMatch_WinOtherCommonProgramFiles },
+    { RT_STR_TUPLE("AllCommonProgramFiles"),    true,   rtPathVarQuery_WinAllCommonProgramFiles,    rtPathVarMatch_WinAllCommonProgramFiles },
 #endif
 };
 
@@ -1651,7 +1655,7 @@ DECLINLINE(bool) rtPathGlobExecIsMatchFinalWithFileMode(PRTPATHGLOB pGlob, RTFMO
 {
     if (!(pGlob->fFlags & (RTPATHGLOB_F_NO_DIRS | RTPATHGLOB_F_ONLY_DIRS)))
         return true;
-    return RT_BOOL(pGlob->fFlags & RTPATHGLOB_F_ONLY_DIRS) == RTFS_IS_DIRECTORY(pGlob->u.ObjInfo.Attr.fMode);
+    return RT_BOOL(pGlob->fFlags & RTPATHGLOB_F_ONLY_DIRS) == RTFS_IS_DIRECTORY(fMode);
 }
 
 
@@ -1671,6 +1675,10 @@ DECL_NO_INLINE(static, int) rtPathGlobExecRecursiveStarStar(PRTPATHGLOB pGlob, s
                                                             size_t offStarStarPath)
 {
     /** @todo implement multi subdir matching. */
+    RT_NOREF_PV(pGlob);
+    RT_NOREF_PV(offPath);
+    RT_NOREF_PV(iStarStarComp);
+    RT_NOREF_PV(offStarStarPath);
     return VERR_PATH_MATCH_FEATURE_NOT_IMPLEMENTED;
 }
 

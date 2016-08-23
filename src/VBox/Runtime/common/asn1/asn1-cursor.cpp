@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,12 +57,6 @@
 #endif
 
 
-/*********************************************************************************************************************************
-*   Global Variables                                                                                                             *
-*********************************************************************************************************************************/
-static char const g_achDigits[11] = "0123456789";
-
-
 
 RTDECL(PRTASN1CURSOR) RTAsn1CursorInitPrimary(PRTASN1CURSORPRIMARY pPrimaryCursor, void const *pvFirst, uint32_t cb,
                                               PRTERRINFO pErrInfo, PCRTASN1ALLOCATORVTABLE pAllocator, uint32_t fFlags,
@@ -70,7 +64,7 @@ RTDECL(PRTASN1CURSOR) RTAsn1CursorInitPrimary(PRTASN1CURSORPRIMARY pPrimaryCurso
 {
     pPrimaryCursor->Cursor.pbCur            = (uint8_t const *)pvFirst;
     pPrimaryCursor->Cursor.cbLeft           = cb;
-    pPrimaryCursor->Cursor.fFlags           = fFlags;
+    pPrimaryCursor->Cursor.fFlags           = (uint8_t)fFlags; Assert(fFlags <= UINT8_MAX);
     pPrimaryCursor->Cursor.cDepth           = 0;
     pPrimaryCursor->Cursor.abReserved[0]    = 0;
     pPrimaryCursor->Cursor.abReserved[1]    = 0;
@@ -414,10 +408,13 @@ RTDECL(int) RTAsn1CursorGetSetCursor(PRTASN1CURSOR pCursor, uint32_t fFlags,
 
 
 RTDECL(int) RTAsn1CursorGetContextTagNCursor(PRTASN1CURSOR pCursor, uint32_t fFlags, uint32_t uExpectedTag,
-                                             PRTASN1CONTEXTTAG pCtxTag, PRTASN1CURSOR pCtxTagCursor, const char *pszErrorTag)
+                                             PCRTASN1COREVTABLE pVtable, PRTASN1CONTEXTTAG pCtxTag, PRTASN1CURSOR pCtxTagCursor,
+                                             const char *pszErrorTag)
 {
-    return rtAsn1CursorGetXxxxCursor(pCursor, fFlags, uExpectedTag, ASN1_TAGCLASS_CONTEXT | ASN1_TAGFLAG_CONSTRUCTED,
-                                     &pCtxTag->Asn1Core, pCtxTagCursor, pszErrorTag, "ctx tag");
+    int rc = rtAsn1CursorGetXxxxCursor(pCursor, fFlags, uExpectedTag, ASN1_TAGCLASS_CONTEXT | ASN1_TAGFLAG_CONSTRUCTED,
+                                       &pCtxTag->Asn1Core, pCtxTagCursor, pszErrorTag, "ctx tag");
+    pCtxTag->Asn1Core.pOps = pVtable;
+    return rc;
 }
 
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -121,7 +121,7 @@ uint8_t floppy_wait_for_interrupt_or_timeout(void)
 
 #endif /* !VBOX_WITH_FLOPPY_IRQ_POLLING */
 
-void floppy_reset_controller(void)
+void floppy_reset_controller(uint16_t drive)
 {
     uint8_t     val8;
 
@@ -134,6 +134,12 @@ void floppy_reset_controller(void)
     do {
         val8 = inb(0x3f4);
     } while ( (val8 & 0xc0) != 0x80 );
+
+    // Mark media in drive as unknown
+    val8 = read_byte(0x0040, 0x0090 + drive);
+    val8 &= ~0x10;
+    write_byte(0x0040, 0x90 + drive, val8);
+
 }
 
 void floppy_prepare_controller(uint16_t drive)
@@ -338,7 +344,7 @@ bx_bool floppy_media_sense(uint16_t drive)
     //    110 reserved
     //    111 all other formats/drives
 
-    // @todo: break out drive type determination
+    /// @todo break out drive type determination
     drive_type = inb_cmos(0x10);
     if (drive == 0)
         drive_type >>= 4;
@@ -424,7 +430,7 @@ bx_bool floppy_drive_exists(uint16_t drive)
     uint8_t     drive_type;
 
     // check CMOS to see if drive exists
-    // @todo: break out drive type determination
+    /// @todo break out drive type determination
     drive_type = inb_cmos(0x10);
     if (drive == 0)
         drive_type >>= 4;
@@ -433,7 +439,7 @@ bx_bool floppy_drive_exists(uint16_t drive)
     return drive_type != 0;
 }
 
-//@todo: put in a header
+/// @todo put in a header
 #define AX      r.gr.u.r16.ax
 #define BX      r.gr.u.r16.bx
 #define CX      r.gr.u.r16.cx
@@ -470,7 +476,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             SET_CF();
             return;
         }
-        // @todo: break out drive type determination
+        /// @todo break out drive type determination
         drive_type = inb_cmos(0x10);
         if (drive == 0)
             drive_type >>= 4;
@@ -522,6 +528,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
 
         // see if drive exists
         if (floppy_drive_exists(drive) == 0) {
+            BX_DEBUG_INT13_FL("failed (not ready)\n");
             SET_AH(0x80); // not responding
             set_diskette_ret_status(0x80);
             SET_AL(0); // no sectors read
@@ -532,6 +539,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
         // see if media in drive, and type is known
         if (floppy_media_known(drive) == 0) {
             if (floppy_media_sense(drive) == 0) {
+                BX_DEBUG_INT13_FL("media not found\n");
                 SET_AH(0x0C); // Media type not found
                 set_diskette_ret_status(0x0C);
                 SET_AL(0); // no sectors read
@@ -550,7 +558,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             // es:bx = pointer to where to place information from diskette
             // port 04: DMA-1 base and current address, channel 2
             // port 05: DMA-1 base and current count, channel 2
-            // @todo: merge/factor out pointer normalization
+            /// @todo merge/factor out pointer normalization
             page = (ES >> 12);              // upper 4 bits
             base_es = (ES << 4);            // lower 16bits contributed by ES
             base_address = base_es + BX;    // lower 16 bits of address
@@ -583,7 +591,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             outb(0x0005, base_count);
             outb(0x0005, base_count>>8);
             BX_DEBUG_INT13_FL("xfer buf %x bytes at %x:%x\n",
-                              base_count, page, base_address);
+                              base_count + 1, page, base_address);
 
             // port 0b: DMA-1 Mode Register
             mode_register = 0x46; // single mode, increment, autoinit disable,
@@ -613,6 +621,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             outb(0x03f5, sector + num_sectors - 1); // last sector to read on track
             outb(0x03f5, 0); // Gap length
             outb(0x03f5, 0xff); // Gap length
+            BX_DEBUG_INT13_FL("read initiated\n");
 
 #ifdef VBOX_WITH_FLOPPY_IRQ_POLLING
             // turn on interrupts
@@ -622,7 +631,8 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             do {
                 val8 = read_byte(0x0040, 0x0040);
                 if (val8 == 0) {
-                    floppy_reset_controller();
+                    BX_DEBUG_INT13_FL("failed (not ready)\n");
+                    floppy_reset_controller(drive);
                     SET_AH(0x80); // drive not ready (timeout)
                     set_diskette_ret_status(0x80);
                     SET_AL(0); // no sectors read
@@ -644,7 +654,8 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
 #else
             val8 = floppy_wait_for_interrupt_or_timeout();
             if (val8 == 0) { /* Note! Interrupts enabled in this branch. */
-                floppy_reset_controller();
+                BX_DEBUG_INT13_FL("failed (not ready)\n");
+                floppy_reset_controller(drive);
                 SET_AH(0x80); // drive not ready (timeout)
                 set_diskette_ret_status(0x80);
                 SET_AL(0); // no sectors read
@@ -665,6 +676,8 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             }
 
             if ( (return_status[0] & 0xc0) != 0 ) {
+                BX_DEBUG_INT13_FL("failed (FDC failure)\n");
+                floppy_reset_controller(drive);
                 SET_AH(0x20);
                 set_diskette_ret_status(0x20);
                 SET_AL(0); // no sectors read
@@ -675,6 +688,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
 #ifdef DMA_WORKAROUND
             rep_movsw(ES :> BX, ES :> BX, num_sectors * 512 / 2);
 #endif
+            BX_DEBUG_INT13_FL("success!\n");
             // ??? should track be new val from return_status[3] ?
             set_diskette_current_cyl(drive, track);
             // AL = number of sectors read (same value as passed)
@@ -691,7 +705,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             // es:bx = pointer to where to place information from diskette
             // port 04: DMA-1 base and current address, channel 2
             // port 05: DMA-1 base and current count, channel 2
-            // @todo: merge/factor out pointer normalization
+            /// @todo merge/factor out pointer normalization
             page = (ES >> 12);              // upper 4 bits
             base_es = (ES << 4);            // lower 16bits contributed by ES
             base_address = base_es + BX;    // lower 16 bits of address
@@ -759,7 +773,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             do {
                 val8 = read_byte(0x0040, 0x0040);
                 if (val8 == 0) {
-                    floppy_reset_controller();
+                    floppy_reset_controller(drive);
                     SET_AH(0x80); // drive not ready (timeout)
                     set_diskette_ret_status(0x80);
                     SET_AL(0); // no sectors written
@@ -780,7 +794,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
 #else
             val8 = floppy_wait_for_interrupt_or_timeout();
             if (val8 == 0) { /* Note! Interrupts enabled in this branch. */
-                floppy_reset_controller();
+                floppy_reset_controller(drive);
                 SET_AH(0x80); // drive not ready (timeout)
                 set_diskette_ret_status(0x80);
                 SET_AL(0); // no sectors written
@@ -867,7 +881,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
         }
 
         // set up DMA controller for transfer
-        // @todo: merge/factor out pointer normalization
+        /// @todo merge/factor out pointer normalization
         page = (ES >> 12);              // upper 4 bits
         base_es = (ES << 4);            // lower 16bits contributed by ES
         base_address = base_es + BX;    // lower 16 bits of address
@@ -926,7 +940,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
         do {
             val8 = read_byte(0x0040, 0x0040);
             if (val8 == 0) {
-                floppy_reset_controller();
+                floppy_reset_controller(drive);
                 SET_AH(0x80); // drive not ready (timeout)
                 set_diskette_ret_status(0x80);
                 SET_CF(); // error occurred
@@ -946,7 +960,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
 #else
         val8 = floppy_wait_for_interrupt_or_timeout();
         if (val8 == 0) { /* Note! Interrupts enabled in this branch. */
-            floppy_reset_controller();
+            floppy_reset_controller(drive);
             SET_AH(0x80); // drive not ready (timeout)
             set_diskette_ret_status(0x80);
             SET_CF(); // error occurred
@@ -1001,7 +1015,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             return;
         }
 
-        // @todo: break out drive type determination
+        /// @todo break out drive type determination
         drive_type = inb_cmos(0x10);
         num_floppies = 0;
         if (drive_type & 0xf0)
@@ -1061,7 +1075,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
         }
 
         /* set es & di to point to 11 byte diskette param table in ROM */
-        ES = 0xF000;    // @todo: any way to make this relocatable?
+        ES = 0xF000;    /// @todo any way to make this relocatable?
         DI = get_floppy_dpt(drive_type);
         CLEAR_CF(); // success
         /* disk status not changed upon success */
@@ -1076,7 +1090,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             SET_CF();
             return;
         }
-        // @todo: break out drive type determination
+        /// @todo break out drive type determination
         drive_type = inb_cmos(0x10);
         if (drive == 0)
             drive_type >>= 4;
@@ -1220,7 +1234,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
             }
         }
 
-        // @todo: break out drive type determination
+        /// @todo break out drive type determination
         drive_type = inb_cmos(0x10);
         if (drive == 0)
             drive_type >>= 4;
@@ -1290,7 +1304,7 @@ void BIOSCALL int13_diskette_function(disk_regs_t r)
         write_byte(0x0040, base_address, media_state);
 
         // set es & di to point to 11 byte diskette param table in ROM
-        ES = 0xF000;    // @todo: any way to make this relocatable?
+        ES = 0xF000;    /// @todo any way to make this relocatable?
         DI = get_floppy_dpt(drive_type);
 
         // return success!

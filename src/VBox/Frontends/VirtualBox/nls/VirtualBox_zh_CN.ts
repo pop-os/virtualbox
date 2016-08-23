@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0" language="zh_CN">
+<TS version="2.1" language="zh_CN">
 <context>
     <name>@@@</name>
     <message>
@@ -81,7 +81,7 @@
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>现有的内核模块与当前版本的VirtualBox不匹配。因此导致安装失败。可尝试执行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;以修复该问题。并确认你没有混合OSE和PUEL版本的VirtualBox.</translation>
+        <translation type="vanished">现有的内核模块与当前版本的VirtualBox不匹配。因此导致安装失败。可尝试执行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;以修复该问题。并确认你没有混合OSE和PUEL版本的VirtualBox.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
@@ -89,11 +89,19 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/sbin/rcvboxdrv setup”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装内核模块。如果你所用的发行版bs有DKMS软件包，你应该首先安装之。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
+        <translation type="vanished">VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/sbin/rcvboxdrv setup”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装内核模块。如果你所用的发行版bs有DKMS软件包，你应该首先安装之。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation>VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/sbin/rcvboxdrv setup”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装内核模块。</translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>现有的内核模块与当前版本的VirtualBox不匹配。因此导致安装失败。可尝试执行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;以修复该问题。并确认你没有混合OSE和PUEL版本的VirtualBox.</translation>
     </message>
 </context>
 <context>
-    <name>QIArrowSplitter</name>
+    <name>QIArrowButtonPress</name>
     <message>
         <source>&amp;Back</source>
         <translation>返回(&amp;B)</translation>
@@ -101,6 +109,26 @@
     <message>
         <source>&amp;Next</source>
         <translation>下一步(&amp;N)</translation>
+    </message>
+</context>
+<context>
+    <name>QIArrowSplitter</name>
+    <message>
+        <source>&amp;Back</source>
+        <translation type="vanished">返回(&amp;B)</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation type="vanished">下一步(&amp;N)</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation>明细(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Details (%1 of %2)</source>
+        <translatorcomment>todo</translatorcomment>
+        <translation>明细 (%1/%2)(&amp;D)</translation>
     </message>
 </context>
 <context>
@@ -156,11 +184,11 @@
     </message>
     <message>
         <source>&amp;Details</source>
-        <translation>明细(&amp;D)</translation>
+        <translation type="vanished">明细(&amp;D)</translation>
     </message>
     <message>
         <source>&amp;Details (%1 of %2)</source>
-        <translation>明细 (%2/%1)(&amp;D)</translation>
+        <translation type="vanished">明细 (%2/%1)(&amp;D)</translation>
     </message>
     <message>
         <source>Copy all errors to the clipboard</source>
@@ -1113,7 +1141,7 @@
     <message>
         <source>&amp;Insert %1</source>
         <comment>that means send the %1 key sequence to the virtual machine</comment>
-        <translation>载入 %1 (&amp;I)</translation>
+        <translation>传入 %1 (&amp;I)</translation>
     </message>
     <message>
         <source>&amp;Hard Disks</source>
@@ -1337,6 +1365,43 @@
         <source>Power off selected virtual machines</source>
         <translation>关闭所选的虚拟电脑的电源</translation>
     </message>
+    <message>
+        <source>&amp;VirtualBox Bug Tracker...</source>
+        <translation>VirtualBox 缺陷跟踪(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product bug tracker</source>
+        <translation>打开浏览器并转到 VirtualBox 缺陷跟踪网站</translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Forums...</source>
+        <translation>VirtualBox 论坛(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product forums</source>
+        <translation>打开浏览器并转到 VirtualBox 在线论坛</translation>
+    </message>
+    <message>
+        <source>&amp;Oracle Web Site...</source>
+        <translation>Oracle 网站(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the Oracle web site</source>
+        <translation>打开浏览器并转到 Oracle 网站</translation>
+    </message>
+    <message>
+        <source>&amp;Detach GUI</source>
+        <translation>分离式界面(&amp;D)</translation>
+    </message>
+    <message>
+        <source>Detach the GUI from headless VM</source>
+        <translation>将界面与虚拟机分离</translation>
+    </message>
+    <message>
+        <source>Disable Dock Icon Overlay</source>
+        <translatorcomment>todo</translatorcomment>
+        <translation>禁用停靠图标</translation>
+    </message>
 </context>
 <context>
     <name>UIActionPoolRuntime</name>
@@ -1532,6 +1597,121 @@
     <message>
         <source>Reading Appliance ...</source>
         <translation>正在读取虚拟电脑 ...</translation>
+    </message>
+</context>
+<context>
+    <name>UIApplianceUnverifiedCertificateViewer</name>
+    <message>
+        <source>Unverifiable Certificate! Continue?</source>
+        <translation>未经验证的证书！ 是否继续访问？</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The appliance is signed by an unverified self signed certificate issued by &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
+        <translation>&lt;b&gt;此虚拟电脑由未经确认的自签署证书 &apos;%1&apos; 签发。 建议你仅导入可信任的资源。&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The appliance is signed by an unverified certificate issued to &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
+        <translation>&lt;b&gt;此虚拟电脑由未经确认的证书 &apos;%1&apos; 签发。 建议你仅导入可信任的资源。&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>Issuer:               %1</source>
+        <translatorcomment>todo</translatorcomment>
+        <translation type="vanished">签发者:               %1</translation>
+    </message>
+    <message>
+        <source>Subject:              %1</source>
+        <translation type="vanished">主题:              %1</translation>
+    </message>
+    <message>
+        <source>Not Valid Before:     %1</source>
+        <translation type="vanished">在此之前无效:     %1</translation>
+    </message>
+    <message>
+        <source>Not Valid After:      %1</source>
+        <translation type="vanished">在此之后无效:      %1</translation>
+    </message>
+    <message>
+        <source>Serial Number:        %1</source>
+        <translation type="vanished">序列号:        %1</translation>
+    </message>
+    <message>
+        <source>Self-Signed:          %1</source>
+        <translation type="vanished">自行签署:          %1</translation>
+    </message>
+    <message>
+        <source>True</source>
+        <translation>是</translation>
+    </message>
+    <message>
+        <source>False</source>
+        <translation>否</translation>
+    </message>
+    <message>
+        <source>Authority (CA):       %1</source>
+        <translatorcomment>todo</translatorcomment>
+        <translation type="vanished">授权机构 (CA):       %1</translation>
+    </message>
+    <message>
+        <source>Public Algorithm:     %1 (%2)</source>
+        <translation type="vanished">公钥算法:     %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Signature Algorithm:  %1 (%2)</source>
+        <translation type="vanished">签名算法:  %1 (%2)</translation>
+    </message>
+    <message>
+        <source>X.509 Version Number: %1</source>
+        <translation type="vanished">X.509 版本: %1</translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Issuer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subject</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid Before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2246,6 +2426,13 @@
     </message>
 </context>
 <context>
+    <name>UIEmptyFilePathSelector</name>
+    <message>
+        <source>Choose...</source>
+        <translation>选择...</translation>
+    </message>
+</context>
+<context>
     <name>UIEncryptionDataModel</name>
     <message>
         <source>Status</source>
@@ -2412,6 +2599,61 @@
     <message>
         <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
         <translation type="obsolete">您可以在此更改所选虚拟电脑的其它设置。通过双击该项目即可修改大部分的显示属性。</translation>
+    </message>
+</context>
+<context>
+    <name>UIFilePathSelector</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>复制(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Other...</source>
+        <translation>其它...</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>默认</translation>
+    </message>
+    <message>
+        <source>Displays a window to select a different folder.</source>
+        <translation>打开对话框选择另一文件夹.</translation>
+    </message>
+    <message>
+        <source>Resets the folder path to the default value.</source>
+        <translation>重置为默认文件夹.</translation>
+    </message>
+    <message>
+        <source>Displays a window to select a different file.</source>
+        <translation>打开对话框选择另一文件.</translation>
+    </message>
+    <message>
+        <source>Resets the file path to the default value.</source>
+        <translation>重置为默认文件.</translation>
+    </message>
+    <message>
+        <source>&lt;reset to default&gt;</source>
+        <translation>&lt;恢复为默认值&gt;</translation>
+    </message>
+    <message>
+        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
+        <translation>当保存变化后再打开本对话框时，将显示新的默认路径.</translation>
+    </message>
+    <message>
+        <source>&lt;not selected&gt;</source>
+        <translation>&lt;未指定&gt;</translation>
+    </message>
+    <message>
+        <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
+        <translation>请在下拉列表中点击 &lt;b&gt;其它...&lt;/b&gt;  来指定一个目标路径.</translation>
+    </message>
+    <message>
+        <source>Holds the folder path.</source>
+        <translation>文件夹路径。</translation>
+    </message>
+    <message>
+        <source>Holds the file path.</source>
+        <translation>文件路径。</translation>
     </message>
 </context>
 <context>
@@ -3776,6 +4018,11 @@
         <source>Edits selected host-only network.</source>
         <translation>编辑仅主机(Host-Only)网络。</translation>
     </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <translatorcomment>todo</translatorcomment>
+        <translation>主机网卡 &lt;b&gt;%1&lt;/b&gt; 目前没有有效的 IPv6 掩码前缀长度。</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetworkDetails</name>
@@ -4600,6 +4847,439 @@
     <message>
         <source>Indicates whether the host keyboard is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is captured&lt;/nobr&gt;</source>
         <translation>提示主机键盘是否被虚拟电脑捕获：&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;键盘未捕获&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;键盘已被捕获&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataAudio</name>
+    <message>
+        <source>Audio</source>
+        <translation type="vanished">声音</translation>
+    </message>
+    <message>
+        <source>Host Driver</source>
+        <comment>details report (audio)</comment>
+        <translation>主机音频驱动</translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <comment>details report (audio)</comment>
+        <translation>控制芯片</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataDisplay</name>
+    <message>
+        <source>Display</source>
+        <comment>details report</comment>
+        <translation type="vanished">显示</translation>
+    </message>
+    <message>
+        <source>Video Memory</source>
+        <comment>details report</comment>
+        <translation>显存大小</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation>屏幕</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation>已启用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation>已禁用</translation>
+    </message>
+    <message>
+        <source>3D Acceleration</source>
+        <comment>details report</comment>
+        <translation>3D 加速</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>已启用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>已禁用</translation>
+    </message>
+    <message>
+        <source>2D Video Acceleration</source>
+        <comment>details report</comment>
+        <translation>2D视频加速</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>远程桌面服务器端口</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>远程桌面服务器</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>已禁用</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataGeneral</name>
+    <message>
+        <source>General</source>
+        <comment>details report</comment>
+        <translation type="vanished">常规</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>details report</comment>
+        <translation>名称</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>details report</comment>
+        <translation>系统类型</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataNetwork</name>
+    <message>
+        <source>Network</source>
+        <translation type="vanished">网络</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation>桥接网络, %1</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>内部网络，“%1”</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>仅主机(Host-Only)网络, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>通用，“%1”</translation>
+    </message>
+    <message>
+        <source>NAT network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>NAT 网络, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details report (network)</comment>
+        <translation>网卡 %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataNetworkStatistics</name>
+    <message>
+        <source>Data Transmitted</source>
+        <translation>数据传输</translation>
+    </message>
+    <message>
+        <source>Data Received</source>
+        <translation>数据接收</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <comment>details report</comment>
+        <translation type="vanished">网络统计</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataParallelPorts</name>
+    <message>
+        <source>Parallel Ports</source>
+        <comment>details report</comment>
+        <translation type="vanished">并口</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (parallel ports)</comment>
+        <translation>端口 %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (parallel ports)</comment>
+        <translation>已禁用</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataRuntimeAttributes</name>
+    <message>
+        <source>Runtime Attributes</source>
+        <comment>details report</comment>
+        <translation type="vanished">运行属性</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest additions</comment>
+        <translation>未检测到</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest os type</comment>
+        <translation>未检测到</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDE server port)</comment>
+        <translation>不可用</translation>
+    </message>
+    <message>
+        <source>Screen Resolution</source>
+        <translation>显示设置</translation>
+    </message>
+    <message>
+        <source>VM Uptime</source>
+        <translation>运行时间</translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation>剪贴板模式</translation>
+    </message>
+    <message>
+        <source>Drag and Drop Mode</source>
+        <translation>拖放模式</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation>嵌套分页</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <comment>details report</comment>
+        <translation>不受限执行</translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation>半虚拟化接口</translation>
+    </message>
+    <message>
+        <source>Guest Additions</source>
+        <translation>增强功能</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <comment>details report</comment>
+        <translation>虚拟电脑操作系统类型</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>远程桌面服务器端口</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSerialPorts</name>
+    <message>
+        <source>Serial Ports</source>
+        <translation type="vanished">串口</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (serial ports)</comment>
+        <translation>端口 %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSharedFolders</name>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report</comment>
+        <translation type="vanished">共享文件夹</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report (shared folders)</comment>
+        <translation>共享文件夹</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataStorage</name>
+    <message>
+        <source>Storage</source>
+        <translation type="vanished">存储</translation>
+    </message>
+    <message>
+        <source>(Optical Drive)</source>
+        <translation>(光驱)</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataStorageStatistics</name>
+    <message>
+        <source>DMA Transfers</source>
+        <translation>DMA 传输</translation>
+    </message>
+    <message>
+        <source>PIO Transfers</source>
+        <translation>PIO 传输</translation>
+    </message>
+    <message>
+        <source>Data Read</source>
+        <translation>读数据</translation>
+    </message>
+    <message>
+        <source>Data Written</source>
+        <translation>写数据</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <comment>details report</comment>
+        <translation type="vanished">存储统计</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSystem</name>
+    <message>
+        <source>System</source>
+        <comment>details report</comment>
+        <translation type="vanished">系统</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (ACPI)</comment>
+        <translation>已启用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (ACPI)</comment>
+        <translation>已禁用</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (I/O APIC)</comment>
+        <translation>已启用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (I/O APIC)</comment>
+        <translation>已禁用</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (PAE/NX)</comment>
+        <translation>已启用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (PAE/NX)</comment>
+        <translation>已禁用</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>details report</comment>
+        <translation>内存大小</translation>
+    </message>
+    <message>
+        <source>Processor(s)</source>
+        <comment>details report</comment>
+        <translation>处理器</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation>运行峰值</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details report</comment>
+        <translation>启动顺序</translation>
+    </message>
+    <message>
+        <source>ACPI</source>
+        <comment>details report</comment>
+        <translation>ACPI</translation>
+    </message>
+    <message>
+        <source>I/O APIC</source>
+        <comment>details report</comment>
+        <translation>I/O APIC</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details report</comment>
+        <translation>PAE/NX</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (VT-x/AMD-V)</comment>
+        <translation>已启用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VT-x/AMD-V)</comment>
+        <translation>已禁用</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation>已启用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation>已禁用</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation>嵌套分页</translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation>半虚拟化接口</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataUSB</name>
+    <message>
+        <source>USB</source>
+        <comment>details report</comment>
+        <translation type="vanished">USB设备</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (USB)</comment>
+        <translation>已禁用</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details report (USB)</comment>
+        <translation>设备筛选</translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details report (USB)</comment>
+        <translation>%1 (%2 活动)</translation>
     </message>
 </context>
 <context>
@@ -6411,6 +7091,10 @@
         <comment>This is used for hard disks, optical media and floppies</comment>
         <translation>选择虚拟盘...</translation>
     </message>
+    <message>
+        <source>Add NVMe Controller</source>
+        <translation>添加NVMe控制器</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
@@ -7098,6 +7782,30 @@
     <message>
         <source>Choose mode:</source>
         <translation>选择介质类型:</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly or indirectly, preserved when taking snapshots.</source>
+        <translation>这种介质是直接或间接分配的，生成快照时保存状态。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached indirectly, changes are wiped out the next time the virtual machine is started.</source>
+        <translation>这种介质为间接分配， 其所做修改在虚拟机下次启动时清除。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, ignored when taking snapshots.</source>
+        <translation>该介质是直接分配的，生成快照时忽略。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, allowed to be used concurrently by several machines.</source>
+        <translation>该介质是直接分配的，允许多个虚拟机同步访问。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, and can be used by several machines.</source>
+        <translation>该介质是直接分配的，允许多个虚拟机访问。</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached indirectly, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications.</source>
+        <translation>该介质是间接分配的， 多个虚拟机可共用一个基础介质，每个虚拟机各自存储一个差分介质。</translation>
     </message>
 </context>
 <context>
@@ -8682,6 +9390,10 @@
         <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
         <translation>当前端口转发规则无效。虚拟机地址不能留空。</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;Failed to acquire the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;获取 VirtualBox COM 对象失败.&lt;/p&gt;&lt;p&gt;应用程序将被中断.&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetUserManual</name>
@@ -8776,6 +9488,10 @@
     <message>
         <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
         <translation>显示你要安装到虚拟电脑的操作系统类型.</translation>
+    </message>
+    <message>
+        <source>Holds the location of the virtual machine.</source>
+        <translation>虚拟机的存放位置。</translation>
     </message>
 </context>
 <context>
@@ -8886,7 +9602,7 @@
     </message>
     <message>
         <source>Url not found on the server</source>
-        <translation type="unfinished"></translation>
+        <translation>未发现网址</translation>
     </message>
 </context>
 <context>
@@ -9839,6 +10555,21 @@
     </message>
 </context>
 <context>
+    <name>UIVMInformationDialog</name>
+    <message>
+        <source>%1 - Session Information</source>
+        <translation>%1 - 的运行状态</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation>配置详情(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation>运行状态(&amp;R)</translation>
+    </message>
+</context>
+<context>
     <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
@@ -9920,6 +10651,18 @@
     <message>
         <source>Close</source>
         <translation>关闭</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>筛选器</translation>
+    </message>
+    <message>
+        <source>Enter filtering string here</source>
+        <translation>输入搜索字符串</translation>
+    </message>
+    <message>
+        <source>Fil&amp;ter</source>
+        <translation>筛选(&amp;T)</translation>
     </message>
 </context>
 <context>
@@ -10526,6 +11269,34 @@
         <source>Please choose a virtual appliance file to import</source>
         <translation>选择一个虚拟电脑文件导入</translation>
     </message>
+    <message>
+        <source>Appliance is not signed</source>
+        <translation>虚拟电脑未签名</translation>
+    </message>
+    <message>
+        <source>Appliance signed by %1 (trusted)</source>
+        <translation>虚拟电脑由 %1 签署(可信)</translation>
+    </message>
+    <message>
+        <source>Appliance signed by %1 (expired!)</source>
+        <translation>虚拟电脑由 %1 签署(已过期！)</translation>
+    </message>
+    <message>
+        <source>Unverified signature by %1!</source>
+        <translation>未验证的签名 %1!</translation>
+    </message>
+    <message>
+        <source>Self signed by %1 (trusted)</source>
+        <translation>由 %1 自行签署(可信)</translation>
+    </message>
+    <message>
+        <source>Self signed by %1 (expired!)</source>
+        <translation>由 %1 自行签署(已过期！)</translation>
+    </message>
+    <message>
+        <source>Unverified self signed signature by %1!</source>
+        <translation>未验证的自签署签名 %1!</translation>
+    </message>
 </context>
 <context>
     <name>UIWizardNewVD</name>
@@ -10770,6 +11541,14 @@
         <source>Choose a virtual hard disk file...</source>
         <translation>选择一个虚拟硬盘...</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;&lt;nobr&gt;Holds the name or full path to the virtual machine folder you are about to create.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;nobr&gt;拟创建的虚拟机的存储文件夹的名称或路径。&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;nobr&gt;You are about to create the virtual machine in the following folder:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;nobr&gt;拟创建的虚拟机位于:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>VBoxAboutDlg</name>
@@ -10794,14 +11573,14 @@
     </message>
     <message>
         <source>Choose...</source>
-        <translation>选择...</translation>
+        <translation type="vanished">选择...</translation>
     </message>
 </context>
 <context>
     <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
-        <translation>&lt;恢复为默认值&gt;</translation>
+        <translation type="vanished">&lt;恢复为默认值&gt;</translation>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
@@ -10809,19 +11588,19 @@
     </message>
     <message>
         <source>&lt;not selected&gt;</source>
-        <translation>&lt;未指定&gt;</translation>
+        <translation type="vanished">&lt;未指定&gt;</translation>
     </message>
     <message>
         <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
-        <translation>请在下拉列表中点击 &lt;b&gt;其它...&lt;/b&gt;  来指定一个目标路径.</translation>
+        <translation type="vanished">请在下拉列表中点击 &lt;b&gt;其它...&lt;/b&gt;  来指定一个目标路径.</translation>
     </message>
     <message>
         <source>Other...</source>
-        <translation>其它...</translation>
+        <translation type="vanished">其它...</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>默认</translation>
+        <translation type="vanished">默认</translation>
     </message>
     <message>
         <source>Opens a window to select a different folder.</source>
@@ -10829,7 +11608,7 @@
     </message>
     <message>
         <source>Resets the folder path to the default value.</source>
-        <translation>重置为默认文件夹.</translation>
+        <translation type="vanished">重置为默认文件夹.</translation>
     </message>
     <message>
         <source>Opens a window to select a different file.</source>
@@ -10837,11 +11616,11 @@
     </message>
     <message>
         <source>Resets the file path to the default value.</source>
-        <translation>重置为默认文件.</translation>
+        <translation type="vanished">重置为默认文件.</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>复制(&amp;C)</translation>
+        <translation type="vanished">复制(&amp;C)</translation>
     </message>
     <message>
         <source>Please type the folder path here.</source>
@@ -10853,23 +11632,23 @@
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <translation>当保存变化后再打开本对话框时，将显示新的默认路径.</translation>
+        <translation type="vanished">当保存变化后再打开本对话框时，将显示新的默认路径.</translation>
     </message>
     <message>
         <source>Displays a window to select a different folder.</source>
-        <translation>打开对话框选择另一文件夹.</translation>
+        <translation type="vanished">打开对话框选择另一文件夹.</translation>
     </message>
     <message>
         <source>Displays a window to select a different file.</source>
-        <translation>打开对话框选择另一文件.</translation>
+        <translation type="vanished">打开对话框选择另一文件.</translation>
     </message>
     <message>
         <source>Holds the folder path.</source>
-        <translation>文件夹路径。</translation>
+        <translation type="vanished">文件夹路径。</translation>
     </message>
     <message>
         <source>Holds the file path.</source>
-        <translation>文件路径。</translation>
+        <translation type="vanished">文件路径。</translation>
     </message>
 </context>
 <context>
@@ -11540,7 +12319,7 @@
     <message>
         <source>Host-only Adapter</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>仅主机(Host-Only)适配器</translation>
+        <translation>仅主机(Host-Only)网络</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
@@ -12559,6 +13338,111 @@
     <message>
         <source>Please choose a location for new virtual hard disk file</source>
         <translation>请选择虚拟硬盘文件保存的位置</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageBus</comment>
+        <translation>USB设备</translation>
+    </message>
+    <message>
+        <source>PCIe</source>
+        <comment>StorageBus</comment>
+        <translation>PCIe</translation>
+    </message>
+    <message>
+        <source>NVMe</source>
+        <comment>StorageControllerType</comment>
+        <translation>NVMe</translation>
+    </message>
+    <message>
+        <source>NVMe Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>NVMe 端口 %1</translation>
+    </message>
+    <message>
+        <source>RuntimeAttributes</source>
+        <comment>DetailsElementType</comment>
+        <translation type="vanished">运行属性</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">常规</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">预览</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">系统</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">显示</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">存储</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">声音</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">网络</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">串口</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">并口</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">共享文件夹</translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">用户界面</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">描述</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

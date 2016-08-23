@@ -1,10 +1,10 @@
 /** @file
   Capsule Runtime Driver produces two UEFI capsule runtime services.
   (UpdateCapsule, QueryCapsuleCapabilities)
-  It installs the Capsule Architectural Protocol defined in PI1.0a to signify 
+  It installs the Capsule Architectural Protocol defined in PI1.0a to signify
   the capsule runtime services are ready.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -19,6 +19,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 #include <Protocol/Capsule.h>
 #include <Guid/CapsuleVendor.h>
+#include <Guid/FmpCapsule.h>
 
 #include <Library/DebugLib.h>
 #include <Library/PcdLib.h>
@@ -29,7 +30,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Library/UefiRuntimeLib.h>
 #include <Library/BaseLib.h>
 #include <Library/PrintLib.h>
-
+#include <Library/BaseMemoryLib.h>
 //
 // Handle for the installation of Capsule Architecture Protocol.
 //
@@ -39,6 +40,9 @@ EFI_HANDLE  mNewHandle = NULL;
 // The times of calling UpdateCapsule ()
 //
 UINTN       mTimes      = 0;
+
+UINT32      mMaxSizePopulateCapsule     = 0;
+UINT32      mMaxSizeNonPopulateCapsule  = 0;
 
 /**
   Create the variable to save the base address of page table and stack
@@ -73,6 +77,11 @@ SaveLongModeContext (
   @retval EFI_INVALID_PARAMETER CapsuleCount is Zero.
   @retval EFI_INVALID_PARAMETER For across reset capsule image, ScatterGatherList is NULL.
   @retval EFI_UNSUPPORTED       CapsuleImage is not recognized by the firmware.
+  @retval EFI_OUT_OF_RESOURCES  When ExitBootServices() has been previously called this error indicates the capsule
+                                is compatible with this platform but is not capable of being submitted or processed
+                                in runtime. The caller may resubmit the capsule prior to ExitBootServices().
+  @retval EFI_OUT_OF_RESOURCES  When ExitBootServices() has not been previously called then this error indicates
+                                the capsule is compatible with this platform but there are insufficient resources to process.
 
 **/
 EFI_STATUS
@@ -89,8 +98,8 @@ UpdateCapsule (
   BOOLEAN                   NeedReset;
   BOOLEAN                   InitiateReset;
   CHAR16                    CapsuleVarName[30];
-  CHAR16                    *TempVarName;  
-  
+  CHAR16                    *TempVarName;
+
   //
   // Capsule Count can't be less than one.
   //
@@ -119,12 +128,23 @@ UpdateCapsule (
     if ((CapsuleHeader->Flags & (CAPSULE_FLAGS_PERSIST_ACROSS_RESET | CAPSULE_FLAGS_INITIATE_RESET)) == CAPSULE_FLAGS_INITIATE_RESET) {
       return EFI_INVALID_PARAMETER;
     }
+
     //
-    // Check Capsule image without populate flag by firmware support capsule function  
+    // Check FMP capsule flag
     //
-    if (((CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) == 0) && 
-        (SupportCapsuleImage (CapsuleHeader) != EFI_SUCCESS)) {
-      return EFI_UNSUPPORTED;
+    if (CompareGuid(&CapsuleHeader->CapsuleGuid, &gEfiFmpCapsuleGuid)
+     && (CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) != 0 ) {
+       return EFI_INVALID_PARAMETER;
+    }
+
+    //
+    // Check Capsule image without populate flag by firmware support capsule function
+    //
+    if ((CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) == 0) {
+      Status = SupportCapsuleImage (CapsuleHeader);
+      if (EFI_ERROR(Status)) {
+        return Status;
+      }
     }
   }
 
@@ -139,8 +159,8 @@ UpdateCapsule (
     // Platform specific update for the non-reset capsule image.
     //
     if ((CapsuleHeader->Flags & CAPSULE_FLAGS_PERSIST_ACROSS_RESET) == 0) {
-      if (EfiAtRuntime ()) { 
-        Status = EFI_UNSUPPORTED;
+      if (EfiAtRuntime ()) {
+        Status = EFI_OUT_OF_RESOURCES;
       } else {
         Status = ProcessCapsuleImage(CapsuleHeader);
       }
@@ -154,7 +174,7 @@ UpdateCapsule (
       }
     }
   }
-  
+
   //
   // After launching all capsules who has no reset flag, if no more capsules claims
   // for a system reset just return.
@@ -165,7 +185,7 @@ UpdateCapsule (
 
   //
   // ScatterGatherList is only referenced if the capsules are defined to persist across
-  // system reset. 
+  // system reset.
   //
   if (ScatterGatherList == (EFI_PHYSICAL_ADDRESS) (UINTN) NULL) {
     return EFI_INVALID_PARAMETER;
@@ -190,7 +210,7 @@ UpdateCapsule (
 
   //
   // ScatterGatherList is only referenced if the capsules are defined to persist across
-  // system reset. Set its value into NV storage to let pre-boot driver to pick it up 
+  // system reset. Set its value into NV storage to let pre-boot driver to pick it up
   // after coming through a system reset.
   //
   Status = EfiSetVariable (
@@ -208,7 +228,7 @@ UpdateCapsule (
      if(InitiateReset) {
        //
        // Firmware that encounters a capsule which has the CAPSULE_FLAGS_INITIATE_RESET Flag set in its header
-       // will initiate a reset of the platform which is compatible with the passed-in capsule request and will 
+       // will initiate a reset of the platform which is compatible with the passed-in capsule request and will
        // not return back to the caller.
        //
        EfiResetSystem (EfiResetWarm, EFI_SUCCESS, 0, NULL);
@@ -245,6 +265,7 @@ QueryCapsuleCapabilities (
   OUT EFI_RESET_TYPE       *ResetType
   )
 {
+  EFI_STATUS                Status;
   UINTN                     ArrayNumber;
   EFI_CAPSULE_HEADER        *CapsuleHeader;
   BOOLEAN                   NeedReset;
@@ -255,7 +276,7 @@ QueryCapsuleCapabilities (
   if (CapsuleCount < 1) {
     return EFI_INVALID_PARAMETER;
   }
-  
+
   //
   // Check whether input parameter is valid
   //
@@ -282,17 +303,28 @@ QueryCapsuleCapabilities (
     if ((CapsuleHeader->Flags & (CAPSULE_FLAGS_PERSIST_ACROSS_RESET | CAPSULE_FLAGS_INITIATE_RESET)) == CAPSULE_FLAGS_INITIATE_RESET) {
       return EFI_INVALID_PARAMETER;
     }
+
+    //
+    // Check FMP capsule flag
+    //
+    if (CompareGuid(&CapsuleHeader->CapsuleGuid, &gEfiFmpCapsuleGuid)
+     && (CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) != 0 ) {
+       return EFI_INVALID_PARAMETER;
+    }
+
     //
     // Check Capsule image without populate flag is supported by firmware
     //
-    if (((CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) == 0) && 
-        (SupportCapsuleImage (CapsuleHeader) != EFI_SUCCESS)) {
-      return EFI_UNSUPPORTED;
+    if ((CapsuleHeader->Flags & CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE) == 0) {
+      Status = SupportCapsuleImage (CapsuleHeader);
+      if (EFI_ERROR(Status)) {
+        return Status;
+      }
     }
   }
 
   //
-  // Find out whether there is any capsule defined to persist across system reset. 
+  // Find out whether there is any capsule defined to persist across system reset.
   //
   for (ArrayNumber = 0; ArrayNumber < CapsuleCount ; ArrayNumber++) {
     CapsuleHeader = CapsuleHeaderArray[ArrayNumber];
@@ -301,7 +333,7 @@ QueryCapsuleCapabilities (
       break;
     }
   }
-  
+
   if (NeedReset) {
     //
     //Check if the platform supports update capsule across a system reset
@@ -310,13 +342,13 @@ QueryCapsuleCapabilities (
       return EFI_UNSUPPORTED;
     }
     *ResetType = EfiResetWarm;
-    *MaxiumCapsuleSize = FixedPcdGet32(PcdMaxSizePopulateCapsule);
+    *MaxiumCapsuleSize = (UINT64) mMaxSizePopulateCapsule;
   } else {
     //
     // For non-reset capsule image.
     //
     *ResetType = EfiResetCold;
-    *MaxiumCapsuleSize = FixedPcdGet32(PcdMaxSizeNonPopulateCapsule);
+    *MaxiumCapsuleSize = (UINT64) mMaxSizeNonPopulateCapsule;
   }
 
   return EFI_SUCCESS;
@@ -327,10 +359,10 @@ QueryCapsuleCapabilities (
 
   This code installs UEFI capsule runtime service.
 
-  @param  ImageHandle    The firmware allocated handle for the EFI image.  
+  @param  ImageHandle    The firmware allocated handle for the EFI image.
   @param  SystemTable    A pointer to the EFI System Table.
 
-  @retval EFI_SUCCESS    UEFI Capsule Runtime Services are installed successfully. 
+  @retval EFI_SUCCESS    UEFI Capsule Runtime Services are installed successfully.
 
 **/
 EFI_STATUS
@@ -341,16 +373,19 @@ CapsuleServiceInitialize (
   )
 {
   EFI_STATUS  Status;
-  
+
+  mMaxSizePopulateCapsule = PcdGet32(PcdMaxSizePopulateCapsule);
+  mMaxSizeNonPopulateCapsule = PcdGet32(PcdMaxSizeNonPopulateCapsule);
+
   //
-  // When PEI phase is IA32, DXE phase is X64, it is possible that capsule data are 
+  // When PEI phase is IA32, DXE phase is X64, it is possible that capsule data are
   // put above 4GB, so capsule PEI will transfer to long mode to get capsule data.
   // The page table and stack is used to transfer processor mode from IA32 to long mode.
   // Create the base address of page table and stack, and save them into variable.
   // This is not needed when capsule with reset type is not supported.
   //
   SaveLongModeContext ();
-    
+
   //
   // Install capsule runtime services into UEFI runtime service tables.
   //

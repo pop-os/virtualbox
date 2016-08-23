@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1013,6 +1013,8 @@ void FwCommonPlantSmbiosAndDmiHdrs(PPDMDEVINS pDevIns, uint16_t cbDmiTables, uin
  */
 void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, uint16_t cCpus)
 {
+    RT_NOREF1(cbMax);
+
     /* configuration table */
     PMPSCFGTBLHEADER pCfgTab      = (MPSCFGTBLHEADER*)pTable;
     memcpy(pCfgTab->au8Signature, "PCMP", 4);
@@ -1070,13 +1072,14 @@ void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, 
     pBusEntry->u8EntryType         = 1; /* bus entry */
     pBusEntry->u8BusId             = iBusIdPci0; /* this ID can be referenced by the interrupt entries */
     memcpy(pBusEntry->au8BusTypeStr, "PCI   ", 6);
+    pBusEntry++;
     pCfgTab->u16EntryCount++;
 
 
     /* I/O-APIC.
      * MP spec: "The configuration table contains one or more entries for I/O APICs.
      *           ... At least one I/O APIC must be enabled." */
-    PMPSIOAPICENTRY pIOAPICEntry   = (PMPSIOAPICENTRY)(pBusEntry+1);
+    PMPSIOAPICENTRY pIOAPICEntry   = (PMPSIOAPICENTRY)(pBusEntry);
     uint16_t iApicId = 0;
     pIOAPICEntry->u8EntryType      = 2; /* I/O-APIC entry */
     pIOAPICEntry->u8Id             = iApicId; /* this ID is referenced by the interrupt entries */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,10 +36,10 @@ protected:
 
 private:
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /** General event-filter. */
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /* Friend class: */
     friend class UIKeyboardHandler;

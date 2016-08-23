@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -143,6 +143,7 @@ public:
         , mRc(VINF_SUCCESS)
         , mErrorText()
     {
+        RT_NOREF(fStartPaused); /** @todo figure out why fStartPaused isn't used */
     }
 };
 
@@ -308,6 +309,7 @@ HRESULT Console::i_teleporterSrcSubmitCommand(TeleporterStateSrc *pState, const 
  */
 static DECLCALLBACK(int) teleporterTcpOpWrite(void *pvUser, uint64_t offStream, const void *pvBuf, size_t cbToWrite)
 {
+    RT_NOREF(offStream);
     TeleporterState *pState = (TeleporterState *)pvUser;
 
     AssertReturn(cbToWrite > 0, VINF_SUCCESS);
@@ -374,6 +376,7 @@ static int teleporterTcpReadSelect(TeleporterState *pState)
  */
 static DECLCALLBACK(int) teleporterTcpOpRead(void *pvUser, uint64_t offStream, void *pvBuf, size_t cbToRead, size_t *pcbRead)
 {
+    RT_NOREF(offStream);
     TeleporterState *pState = (TeleporterState *)pvUser;
     AssertReturn(!pState->mfIsSource, VERR_INVALID_HANDLE);
 
@@ -470,6 +473,7 @@ static DECLCALLBACK(int) teleporterTcpOpRead(void *pvUser, uint64_t offStream, v
  */
 static DECLCALLBACK(int) teleporterTcpOpSeek(void *pvUser, int64_t offSeek, unsigned uMethod, uint64_t *poffActual)
 {
+    RT_NOREF(pvUser, offSeek, uMethod, poffActual);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -489,6 +493,7 @@ static DECLCALLBACK(uint64_t) teleporterTcpOpTell(void *pvUser)
  */
 static DECLCALLBACK(int) teleporterTcpOpSize(void *pvUser, uint64_t *pcb)
 {
+    RT_NOREF(pvUser, pcb);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -612,6 +617,7 @@ static DECLCALLBACK(int) teleporterProgressCallback(PUVM pUVM, unsigned uPercent
  */
 static DECLCALLBACK(void) teleporterDstTimeout(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick)
 {
+    RT_NOREF(hTimerLR, iTick);
     /* This is harmless for any open connections. */
     RTTcpServerShutdown((PRTTCPSERVER)pvUser);
 }
@@ -753,12 +759,13 @@ HRESULT Console::i_teleporterSrc(TeleporterStateSrc *pState)
  * Static thread method wrapper.
  *
  * @returns VINF_SUCCESS (ignored).
- * @param   hThread             The thread.
+ * @param   hThreadSelf         The thread.
  * @param   pvUser              Pointer to a TeleporterStateSrc instance.
  */
 /*static*/ DECLCALLBACK(int)
-Console::i_teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser)
+Console::i_teleporterSrcThreadWrapper(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF(hThreadSelf);
     TeleporterStateSrc *pState = (TeleporterStateSrc *)pvUser;
 
     /*
@@ -862,6 +869,8 @@ Console::i_teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser)
                 case VMSTATE_POWERING_OFF_LS:
                 case VMSTATE_RESETTING:
                 case VMSTATE_RESETTING_LS:
+                case VMSTATE_SOFT_RESETTING:
+                case VMSTATE_SOFT_RESETTING_LS:
                     Assert(!pState->mfSuspendedByUs);
                     Assert(!pState->mfUnlockedMedia);
                     pState->mptrConsole->i_setMachineState(MachineState_Running);
@@ -1062,8 +1071,8 @@ HRESULT Console::i_teleporterTrg(PUVM pUVM, IMachine *pMachine, Utf8Str *pErrorM
     /*
      * Create the TCP server.
      */
-    int vrc;
-    PRTTCPSERVER hServer;
+    int vrc = VINF_SUCCESS; /* Shut up MSC */
+    PRTTCPSERVER hServer = NULL; /* ditto */
     if (uPort)
         vrc = RTTcpServerCreateEx(pszAddress, uPort, &hServer);
     else

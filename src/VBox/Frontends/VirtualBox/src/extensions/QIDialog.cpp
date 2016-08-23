@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,13 +30,9 @@ QIDialog::QIDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags flags /* = 0 */)
     : QDialog(pParent, flags)
     , m_fPolished(false)
 {
-    /* No need to count that window as important for application,
+    /* Do not count that window as important for application,
      * it will NOT be taken into account when other top-level windows will be closed: */
     setAttribute(Qt::WA_QuitOnClose, false);
-}
-
-QIDialog::~QIDialog()
-{
 }
 
 void QIDialog::setVisible(bool fVisible)
@@ -50,10 +46,10 @@ void QIDialog::setVisible(bool fVisible)
         m_pEventLoop->exit();
 }
 
-int QIDialog::exec(bool fShow /* = true */, bool fApplicationModal /* = false */)
+int QIDialog::execute(bool fShow /* = true */, bool fApplicationModal /* = false */)
 {
     /* Check for the recursive run: */
-    AssertMsgReturn(!m_pEventLoop, ("QIDialog::exec() is called recursively!\n"), QDialog::Rejected);
+    AssertMsgReturn(!m_pEventLoop, ("QIDialog::execute() is called recursively!\n"), QDialog::Rejected);
 
     /* Reset the result-code: */
     setResult(QDialog::Rejected);
@@ -120,14 +116,14 @@ void QIDialog::showEvent(QShowEvent *pEvent)
     m_fPolished = true;
 }
 
-void QIDialog::polishEvent(QShowEvent*)
+void QIDialog::polishEvent(QShowEvent *)
 {
     /* Make sure layout is polished: */
     adjustSize();
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* And dialog have fixed size: */
     setFixedSize(size());
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /* Explicit centering according to our parent: */
     VBoxGlobal::centerWidget(this, parentWidget(), false);

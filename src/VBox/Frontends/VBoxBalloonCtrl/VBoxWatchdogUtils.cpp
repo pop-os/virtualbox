@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -157,7 +157,7 @@ int payloadAlloc(PVBOXWATCHDOG_MACHINE pMachine, const char *pszModule,
     AssertPtrReturn(pszModule, VERR_INVALID_POINTER);
     AssertReturn(cbSize, VERR_INVALID_PARAMETER);
 
-    void *pvData = RTMemAlloc(cbSize);
+    void *pvData = RTMemAllocZ(cbSize);
     AssertPtrReturn(pvData, VERR_NO_MEMORY);
 
     mapPayloadIter it = pMachine->payload.find(pszModule);
@@ -251,18 +251,15 @@ int cfgGetValueStr(const ComPtr<IVirtualBox> &rptrVBox, const ComPtr<IMachine> &
     return VINF_SUCCESS;
 }
 
-int cfgGetValueULong(const ComPtr<IVirtualBox> &rptrVBox, const ComPtr<IMachine> &rptrMachine,
-                     const char *pszGlobal, const char *pszVM, unsigned long *pulValue, unsigned long ulDefault)
+int cfgGetValueU32(const ComPtr<IVirtualBox> &rptrVBox, const ComPtr<IMachine> &rptrMachine,
+                   const char *pszGlobal, const char *pszVM, uint32_t *puValue, uint32_t uDefault)
 {
     Utf8Str strValue;
     int rc = cfgGetValueStr(rptrVBox, rptrMachine, pszGlobal, pszVM, strValue, "" /* Default */);
     if (RT_SUCCESS(rc))
-    {
-        *pulValue = strValue.toUInt32();
-    }
+        *puValue = strValue.toUInt32();
     else
-        *pulValue = ulDefault;
-
+        *puValue = uDefault;
     return rc;
 }
 

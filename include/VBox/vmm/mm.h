@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,6 +74,7 @@ typedef enum MMTAG
     MM_TAG_DBGF_STACK,
     MM_TAG_DBGF_SYMBOL,
     MM_TAG_DBGF_SYMBOL_DUP,
+    MM_TAG_DBGF_TYPE,
 
     MM_TAG_EM,
 

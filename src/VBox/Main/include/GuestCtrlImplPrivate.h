@@ -280,7 +280,7 @@ public:
         /* The remainder must be zero padded. */
         if (RT_SUCCESS(rc))
         {
-            if (ASMMemIsAll8(pszzBlock, cbBlock, 0))
+            if (ASMMemIsZero(pszzBlock, cbBlock))
                 return VINF_SUCCESS;
             return VERR_TOO_MUCH_DATA;
         }
@@ -822,20 +822,20 @@ public:
     void Dump(const char *pszFile);
 #endif
 
-    uint32_t GetOffset() { return m_cbOffset; }
+    size_t GetOffset() { return m_offBuffer; }
 
-    size_t GetSize() { return m_cbSize; }
+    size_t GetSize() { return m_cbUsed; }
 
     int ParseBlock(GuestProcessStreamBlock &streamBlock);
 
 protected:
 
     /** Currently allocated size of internal stream buffer. */
-    uint32_t m_cbAllocated;
-    /** Currently used size of allocated internal stream buffer. */
-    size_t m_cbSize;
-    /** Current offset within the internal stream buffer. */
-    uint32_t m_cbOffset;
+    size_t m_cbAllocated;
+    /** Currently used size at m_offBuffer. */
+    size_t m_cbUsed;
+    /** Current byte offset within the internal stream buffer. */
+    size_t m_offBuffer;
     /** Internal stream buffer. */
     BYTE *m_pbBuffer;
 };
@@ -941,6 +941,7 @@ public:
         {
             RTMemFree(pvData);
             cbData = 0;
+            pvData = NULL;
         }
         uType = 0;
     }
@@ -1142,7 +1143,7 @@ protected:
 
     int bindToSession(Console *pConsole, GuestSession *pSession, uint32_t uObjectID);
     int registerWaitEvent(const GuestEventTypes &lstEvents, GuestWaitEvent **ppEvent);
-    int sendCommand(uint32_t uFunction, uint32_t uParms, PVBOXHGCMSVCPARM paParms);
+    int sendCommand(uint32_t uFunction, uint32_t cParms, PVBOXHGCMSVCPARM paParms);
 
 protected:
 

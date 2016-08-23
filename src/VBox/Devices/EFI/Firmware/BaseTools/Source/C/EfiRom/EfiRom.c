@@ -1,22 +1,14 @@
 /** @file
+Utility program to create an EFI option ROM image from binary and EFI PE32 files.
 
-Copyright (c) 1999 - 2011, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials are licensed and made available 
-under the terms and conditions of the BSD License which accompanies this 
+Copyright (c) 1999 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials are licensed and made available
+under the terms and conditions of the BSD License which accompanies this
 distribution.  The full text of the license may be found at
 http://opensource.org/licenses/bsd-license.php
 
 THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-Module Name:
-
-  EfiRom.c
-  
-Abstract:
-
-  Utility program to create an EFI option ROM image from binary and 
-  EFI PE32 files.
 
 **/
 
@@ -34,8 +26,8 @@ main (
 /*++
 
 Routine Description:
-  
-  Given an EFI image filename, create a ROM-able image by creating an option 
+
+  Given an EFI image filename, create a ROM-able image by creating an option
   ROM header and PCI data structure, filling them in, and then writing the
   option ROM header + PCI data structure + EFI image out to the output file.
 
@@ -79,11 +71,11 @@ Returns:
   } else if (mOptions.Debug) {
     SetPrintLevel(DebugLevel);
   }
-  
+
   if (mOptions.Verbose) {
     VerboseMsg("%s tool start.\n", UTILITY_NAME);
   }
-  
+
   //
   // If dumping an image, then do that and quit
   //
@@ -135,7 +127,7 @@ Returns:
   //
   // Now open our output file
   //
-  if ((FptrOut = fopen (mOptions.OutFileName, "wb")) == NULL) {
+  if ((FptrOut = fopen (LongFilePath (mOptions.OutFileName), "wb")) == NULL) {
     Error (NULL, 0, 0001, "Error opening file", "Error opening file %s", mOptions.OutFileName);
     goto BailOut;
   }
@@ -199,7 +191,7 @@ BailOut:
     VerboseMsg("%s tool done with return code is 0x%x.\n", UTILITY_NAME, GetUtilityStatus ());
   }
 
-  return GetUtilityStatus (); 
+  return GetUtilityStatus ();
 }
 
 static
@@ -212,7 +204,7 @@ ProcessBinFile (
 /*++
 
 Routine Description:
-  
+
   Process a binary input file.
 
 Arguments:
@@ -237,7 +229,8 @@ Returns:
   PCI_3_0_DATA_STRUCTURE    *PciDs30;
   UINT32                    Index;
   UINT8                     ByteCheckSum;
- 
+  UINT16                    CodeType;
+
   PciDs23 = NULL;
   PciDs30 = NULL;
   Status = STATUS_SUCCESS;
@@ -245,7 +238,7 @@ Returns:
   //
   // Try to open the input file
   //
-  if ((InFptr = fopen (InFile->FileName, "rb")) == NULL) {
+  if ((InFptr = fopen (LongFilePath (InFile->FileName), "rb")) == NULL) {
     Error (NULL, 0, 0001, "Error opening file", InFile->FileName);
     return STATUS_ERROR;
   }
@@ -337,8 +330,10 @@ Returns:
   //
   if (mOptions.Pci23 == 1) {
     PciDs23->ImageLength = (UINT16) (TotalSize / 512);
+    CodeType = PciDs23->CodeType;
   } else {
     PciDs30->ImageLength = (UINT16) (TotalSize / 512);
+    CodeType = PciDs30->CodeType;
 	}
 
   //
@@ -359,14 +354,16 @@ Returns:
 		}
   }
 
-  ByteCheckSum = 0;
-  for (Index = 0; Index < FileSize - 1; Index++) {
-    ByteCheckSum = (UINT8) (ByteCheckSum + Buffer[Index]);
-  }
+  if (CodeType != PCI_CODE_TYPE_EFI_IMAGE) {
+    ByteCheckSum = 0;
+    for (Index = 0; Index < FileSize - 1; Index++) {
+      ByteCheckSum = (UINT8) (ByteCheckSum + Buffer[Index]);
+    }
 
-  Buffer[FileSize - 1] = (UINT8) ((~ByteCheckSum) + 1);
-  if (mOptions.Verbose) {
-    VerboseMsg("  Checksum = %02x\n\n", Buffer[FileSize - 1]);
+    Buffer[FileSize - 1] = (UINT8) ((~ByteCheckSum) + 1);
+    if (mOptions.Verbose) {
+      VerboseMsg("  Checksum = %02x\n\n", Buffer[FileSize - 1]);
+    }
   }
 
   //
@@ -417,7 +414,7 @@ ProcessEfiFile (
 /*++
 
 Routine Description:
-  
+
   Process a PE32 EFI file.
 
 Arguments:
@@ -449,11 +446,13 @@ Returns:
   UINT16                        MachineType;
   UINT16                        SubSystem;
   UINT32                        HeaderPadBytes;
+  UINT32                        PadBytesBeforeImage;
+  UINT32                        PadBytesAfterImage;
 
   //
   // Try to open the input file
   //
-  if ((InFptr = fopen (InFile->FileName, "rb")) == NULL) {
+  if ((InFptr = fopen (LongFilePath (InFile->FileName), "rb")) == NULL) {
     Error (NULL, 0, 0001, "Open file error", "Error opening file: %s", InFile->FileName);
     return STATUS_ERROR;
   }
@@ -485,7 +484,7 @@ Returns:
   } else {
     HeaderPadBytes = 0;
   }
-  
+
   //
   // For Pci3.0 to use the different data structure.
   //
@@ -559,10 +558,22 @@ Returns:
     TotalSize = (TotalSize + 0x200) &~0x1ff;
   }
   //
+  // Workaround:
+  //   If compressed, put the pad bytes after the image,
+  //   else put the pad bytes before the image.
+  //
+  if ((InFile->FileFlags & FILE_FLAG_COMPRESS) != 0) {
+    PadBytesBeforeImage = 0;
+    PadBytesAfterImage = TotalSize - (FileSize + HeaderSize);
+  } else {
+    PadBytesBeforeImage = TotalSize - (FileSize + HeaderSize);
+    PadBytesAfterImage = 0;
+  }
+  //
   // Check size
   //
   if (TotalSize > MAX_OPTION_ROM_SIZE) {
-    Error (NULL, 0, 2000, "Invalid", "Option ROM image %s size exceeds limit of 0x%X bytes.", InFile->FileName, MAX_OPTION_ROM_SIZE);	
+    Error (NULL, 0, 2000, "Invalid", "Option ROM image %s size exceeds limit of 0x%X bytes.", InFile->FileName, MAX_OPTION_ROM_SIZE);
     Status = STATUS_ERROR;
     goto BailOut;
   }
@@ -581,7 +592,7 @@ Returns:
   RomHdr.EfiSignature         = EFI_PCI_EXPANSION_ROM_HEADER_EFISIGNATURE;
   RomHdr.EfiSubsystem         = SubSystem;
   RomHdr.EfiMachineType       = MachineType;
-  RomHdr.EfiImageHeaderOffset = (UINT16) HeaderSize;
+  RomHdr.EfiImageHeaderOffset = (UINT16) (HeaderSize + PadBytesBeforeImage);
   RomHdr.PcirOffset           = (UINT16) (sizeof (RomHdr) + HeaderPadBytes);
   //
   // Set image as compressed or not
@@ -678,19 +689,26 @@ Returns:
       Error (NULL, 0, 0002, "Failed to write PCI ROM header to output file!", NULL);
       Status = STATUS_ERROR;
       goto BailOut;
-    } 
+    }
   } else {
     if (fwrite (&PciDs30, sizeof (PciDs30), 1, OutFptr) != 1) {
       Error (NULL, 0, 0002, "Failed to write PCI ROM header to output file!", NULL);
       Status = STATUS_ERROR;
       goto BailOut;
-    } 
+    }
   }
-  //
-  // Keep track of how many bytes left to write
-  //
-  TotalSize -= HeaderSize;
 
+  //
+  // Pad head to make it a multiple of 512 bytes
+  //
+  while (PadBytesBeforeImage > 0) {
+    if (putc (~0, OutFptr) == EOF) {
+      Error (NULL, 0, 2000, "Failed to write trailing pad bytes output file!", NULL);
+      Status = STATUS_ERROR;
+      goto BailOut;
+    }
+    PadBytesBeforeImage--;
+  }
   //
   // Now dump the input file's contents to the output file
   //
@@ -700,18 +718,17 @@ Returns:
     goto BailOut;
   }
 
-  TotalSize -= FileSize;
   //
   // Pad the rest of the image to make it a multiple of 512 bytes
   //
-  while (TotalSize > 0) {
+  while (PadBytesAfterImage > 0) {
     if (putc (~0, OutFptr) == EOF) {
       Error (NULL, 0, 2000, "Failed to write trailing pad bytes output file!", NULL);
       Status = STATUS_ERROR;
       goto BailOut;
     }
 
-    TotalSize--;
+    PadBytesAfterImage--;
   }
 
 BailOut:
@@ -748,7 +765,7 @@ CheckPE32File (
 /*++
 
 Routine Description:
-  
+
   Given a file pointer to a supposed PE32 image file, verify that it is indeed a
   PE32 image file, and then return the machine type in the supplied pointer.
 
@@ -840,7 +857,7 @@ ParseCommandLine (
 /*++
 
 Routine Description:
-  
+
   Given the Argc/Argv program arguments, and a pointer to an options structure,
   parse the command-line options and check their validity.
 
@@ -895,12 +912,12 @@ Returns:
     Usage ();
     return STATUS_ERROR;
   }
-  
+
   if ((stricmp(Argv[0], "-h") == 0) || (stricmp(Argv[0], "--help") == 0)) {
     Usage();
     return STATUS_ERROR;
   }
-  
+
   if ((stricmp(Argv[0], "--version") == 0)) {
     Version();
     return STATUS_ERROR;
@@ -1096,7 +1113,7 @@ Returns:
         Error (NULL, 0, 4001, "Resource", "memory cannot be allocated!", NULL);
         return STATUS_ERROR;
       }
-      
+
       //
       // set flag and class code for this image.
       //
@@ -1113,7 +1130,7 @@ Returns:
       } else {
         if (PrevFileList == NULL) {
           PrevFileList = FileList;
-        } else {          
+        } else {
           PrevFileList->Next = FileList;
         }
       }
@@ -1143,7 +1160,7 @@ Returns:
       Error (NULL, 0, 2000, "Missing Vendor ID in command line", NULL);
       return STATUS_ERROR;
     }
-  
+
     if (!Options->DevIdValid) {
       Error (NULL, 0, 2000, "Missing Device ID in command line", NULL);
       return STATUS_ERROR;
@@ -1161,7 +1178,7 @@ Version (
 /*++
 
 Routine Description:
-  
+
   Print version information for this utility.
 
 Arguments:
@@ -1175,7 +1192,7 @@ Returns:
 {
  fprintf (stdout, "%s Version %d.%d %s \n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
 }
-   
+
 static
 void
 Usage (
@@ -1184,7 +1201,7 @@ Usage (
 /*++
 
 Routine Description:
-  
+
   Print usage information for this utility.
 
 Arguments:
@@ -1201,11 +1218,11 @@ Returns:
   // Summary usage
   //
   fprintf (stdout, "Usage: %s -f VendorId -i DeviceId [options] [file name<s>] \n\n", UTILITY_NAME);
-  
+
   //
   // Copyright declaration
-  // 
-  fprintf (stdout, "Copyright (c) 2007 - 2011, Intel Corporation. All rights reserved.\n\n");
+  //
+  fprintf (stdout, "Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.\n\n");
 
   //
   // Details Option
@@ -1240,7 +1257,7 @@ Returns:
   fprintf (stdout, "  -q, --quiet\n\
             Disable all messages except FATAL ERRORS.\n");
   fprintf (stdout, "  --debug [#,0-9]\n\
-            Enable debug messages at level #.\n");  
+            Enable debug messages at level #.\n");
 }
 
 static
@@ -1275,7 +1292,7 @@ Returns:
   //
   // Open the input file
   //
-  if ((InFptr = fopen (InFile->FileName, "rb")) == NULL) {
+  if ((InFptr = fopen (LongFilePath (InFile->FileName), "rb")) == NULL) {
     Error (NULL, 0, 0001, "Error opening file", InFile->FileName);
     return ;
   }
@@ -1368,7 +1385,7 @@ Returns:
     fprintf (stdout, "    Device ID               0x%04X\n", PciDs30.DeviceId);
     fprintf (stdout, "    Length                  0x%04X\n", PciDs30.Length);
     fprintf (stdout, "    Revision                0x%04X\n", PciDs30.Revision);
-    fprintf (stdout, "    DeviceListOffset        0x%02X\n", PciDs30.DeviceListOffset);    
+    fprintf (stdout, "    DeviceListOffset        0x%02X\n", PciDs30.DeviceListOffset);
     fprintf (
       stdout,
       "    Class Code              0x%06X\n",
@@ -1378,8 +1395,8 @@ Returns:
     fprintf (stdout, "    Code revision:          0x%04X\n", PciDs30.CodeRevision);
     fprintf (stdout, "    MaxRuntimeImageLength   0x%02X\n", PciDs30.MaxRuntimeImageLength);
     fprintf (stdout, "    ConfigUtilityCodeHeaderOffset 0x%02X\n", PciDs30.ConfigUtilityCodeHeaderOffset);
-    fprintf (stdout, "    DMTFCLPEntryPointOffset 0x%02X\n", PciDs30.DMTFCLPEntryPointOffset);   
-    fprintf (stdout, "    Indicator               0x%02X", PciDs30.Indicator);    
+    fprintf (stdout, "    DMTFCLPEntryPointOffset 0x%02X\n", PciDs30.DMTFCLPEntryPointOffset);
+    fprintf (stdout, "    Indicator               0x%02X", PciDs30.Indicator);
     }
     //
     // Print the indicator, used to flag the last image
@@ -1395,7 +1412,7 @@ Returns:
     if (mOptions.Pci23 == 1) {
       fprintf (stdout, "    Code type              0x%02X", PciDs23.CodeType);
     } else {
-      fprintf (stdout, "    Code type               0x%02X", PciDs30.CodeType); 
+      fprintf (stdout, "    Code type               0x%02X", PciDs30.CodeType);
     }
     if (PciDs23.CodeType == PCI_CODE_TYPE_EFI_IMAGE || PciDs30.CodeType == PCI_CODE_TYPE_EFI_IMAGE) {
       fprintf (stdout, "   (EFI image)\n");

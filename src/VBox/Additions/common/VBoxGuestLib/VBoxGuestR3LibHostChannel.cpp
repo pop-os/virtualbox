@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -260,6 +260,7 @@ VBGLR3DECL(int) VbglR3HostChannelEventCancel(uint32_t u32ChannelHandle,
                                              uint32_t u32HGCMClientId)
 {
     VBoxHostChannelEventCancel parms;
+    RT_NOREF1(u32ChannelHandle);
 
     parms.hdr.result = VERR_WRONG_ORDER;
     parms.hdr.u32ClientID = u32HGCMClientId;

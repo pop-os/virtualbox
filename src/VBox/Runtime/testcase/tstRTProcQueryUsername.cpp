@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,6 +72,8 @@ static void tstRTProcQueryUsername(void)
 
 int main(int argc, char **argv)
 {
+    RT_NOREF_PV(argc); RT_NOREF_PV(argv);
+
     /*
      * Initialize IPRT and create the test.
      */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,17 +18,19 @@
 #ifndef ___UIDockIconPreview_h___
 #define ___UIDockIconPreview_h___
 
-#ifdef QT_MAC_USE_COCOA
-
+/* GUI includes: */
 #include "UICocoaDockIconPreview.h"
-class UIDockIconPreview: public UICocoaDockIconPreview
+
+
+/** UICocoaDockIconPreview extension to be used for VM. */
+class UIDockIconPreview : public UICocoaDockIconPreview
 {
 public:
-    UIDockIconPreview(UISession *pSession, const QPixmap& overlayImage)
-      : UICocoaDockIconPreview(pSession, overlayImage) {}
-};
 
-#endif /* QT_MAC_USE_COCOA */
+    /** Constructor taking passed @a pSession and @a overlayImage. */
+    UIDockIconPreview(UISession *pSession, const QPixmap& overlayImage)
+        : UICocoaDockIconPreview(pSession, overlayImage) {}
+};
 
 #endif /* !___UIDockIconPreview_h___ */
 

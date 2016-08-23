@@ -382,7 +382,7 @@ NextIsInclude(input_callback_state *callback_state, char **startp,
         /* make sure we have accurate line info */
         IDL_file_get(&scratch, (int *)&data->lineno);
         fprintf(stderr,
-                "%s:%d: didn't find end of quoted include name \"%s\n",
+                "%s:%u: didn't find end of quoted include name \"%s\n",
                 scratch, data->lineno, filename);
         return -1;
     }
@@ -732,7 +732,7 @@ xpidl_process_idl(char *filename, IncludePathEntry *include_path,
 
     if (strcmp(outname, "-")) {
         const char *fopen_mode;
-        const char *out_basename;
+        char *out_basename;
 
         /* explicit_output_filename can't be true without a filename */
         if (explicit_output_filename) {
@@ -752,6 +752,8 @@ xpidl_process_idl(char *filename, IncludePathEntry *include_path,
             out_basename = outname;
 #endif
             real_outname = g_strdup_printf("%s.%s", out_basename, mode->suffix);
+            if (out_basename != outname)
+                g_free(out_basename);
         }
 
         /* Use binary write for typelib mode */

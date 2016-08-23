@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@
 # include "UIWizardImportAppPageExpert.h"
 # include "UIWizardImportApp.h"
 # include "VBoxGlobal.h"
-# include "VBoxFilePathSelectorWidget.h"
+# include "UIEmptyFilePathSelector.h"
 # include "UIApplianceImportEditorWidget.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -45,11 +45,11 @@ UIWizardImportAppPageExpert::UIWizardImportAppPageExpert(const QString &strFileN
         {
             QVBoxLayout *pApplianceCntLayout = new QVBoxLayout(m_pApplianceCnt);
             {
-                m_pFileSelector = new VBoxEmptyFileSelector(m_pApplianceCnt);
+                m_pFileSelector = new UIEmptyFilePathSelector(m_pApplianceCnt);
                 {
                     m_pFileSelector->setHomeDir(vboxGlobal().documentsPath());
-                    m_pFileSelector->setMode(VBoxFilePathSelectorWidget::Mode_File_Open);
-                    m_pFileSelector->setButtonPosition(VBoxEmptyFileSelector::RightPosition);
+                    m_pFileSelector->setMode(UIEmptyFilePathSelector::Mode_File_Open);
+                    m_pFileSelector->setButtonPosition(UIEmptyFilePathSelector::RightPosition);
                     m_pFileSelector->setEditable(true);
                 }
                 pApplianceCntLayout->addWidget(m_pFileSelector);

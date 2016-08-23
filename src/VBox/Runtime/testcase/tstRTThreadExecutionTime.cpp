@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,8 @@ static volatile uint64_t g_kernel, g_user;
 
 static DECLCALLBACK(int) testThread(RTTHREAD hSelf, void *pvUser)
 {
+    RT_NOREF_PV(hSelf); RT_NOREF_PV(pvUser);
+
     uint64_t u64Now = RTTimeMilliTS();
     uint64_t kernel, kernelStart, user, userStart;
     RTThreadGetExecutionTimeMilli(&kernelStart, &userStart);

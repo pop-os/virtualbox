@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,17 +67,19 @@
     (   (a_rcStrict) == VINF_SUCCESS \
      || (a_rcStrict) == VINF_PGM_HANDLER_DO_DEFAULT)
 #elif defined(IN_RING0) || defined(IN_RC)
-# define PGM_HANDLER_PHYS_IS_VALID_STATUS(a_rcStrict, a_fWrite) \
+#define PGM_HANDLER_PHYS_IS_VALID_STATUS(a_rcStrict, a_fWrite) \
     (   (a_rcStrict) == VINF_SUCCESS \
      || (a_rcStrict) == VINF_PGM_HANDLER_DO_DEFAULT \
      \
      || (a_rcStrict) == ((a_fWrite) ? VINF_IOM_R3_MMIO_WRITE : VINF_IOM_R3_MMIO_READ) \
      || (a_rcStrict) == VINF_IOM_R3_MMIO_READ_WRITE \
+     || ((a_rcStrict) == VINF_IOM_R3_MMIO_COMMIT_WRITE && (a_fWrite)) \
      \
      || ((a_fWrite) ? (a_rcStrict) == VINF_EM_RAW_EMULATE_IO_BLOCK : false) \
      \
      || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR  \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_EVENT \
      || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
      || (a_rcStrict) == VINF_EM_OFF \
      || (a_rcStrict) == VINF_EM_SUSPEND \
@@ -123,6 +125,7 @@
      \
      || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_EVENT \
      || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
     )
 #else
@@ -2020,7 +2023,7 @@ VMMDECL(void) PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock)
 {
 #if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
     Assert(pLock->pvPage != NULL);
-    Assert(pLock->pVCpu == VMMGetCpu(pVM));
+    Assert(pLock->pVCpu == VMMGetCpu(pVM)); RT_NOREF_PV(pVM);
     PGM_DYNMAP_UNUSED_HINT(pLock->pVCpu, pLock->pvPage);
     pLock->pVCpu  = NULL;
     pLock->pvPage = NULL;
@@ -2126,7 +2129,7 @@ int pgmPhysGCPhys2R3Ptr(PVM pVM, RTGCPHYS GCPhys, PRTR3PTR pR3Ptr)
 
     Log(("pgmPhysGCPhys2R3Ptr(,%RGp,): dont use this API!\n", GCPhys)); /** @todo eliminate this API! */
 #if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
-    NOREF(pVM); NOREF(pR3Ptr);
+    NOREF(pVM); NOREF(pR3Ptr); RT_NOREF_PV(GCPhys);
     AssertFailedReturn(VERR_NOT_IMPLEMENTED);
 #else
     pgmLock(pVM);
@@ -2842,7 +2845,7 @@ static VBOXSTRICTRC pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
          */
         VBOXSTRICTRC rcStrict2 = VINF_PGM_HANDLER_DO_DEFAULT;
         uint32_t cbRange = (uint32_t)cbWrite;
-        if (offPhys && offVirt)
+        if (offPhys != 0 && offVirt != 0)
         {
             if (cbRange > offPhys)
                 cbRange = offPhys;
@@ -3062,6 +3065,7 @@ static VBOXSTRICTRC pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
  *
  * @retval  VINF_IOM_R3_MMIO_WRITE in RC and R0.
  * @retval  VINF_IOM_R3_MMIO_READ_WRITE in RC and R0.
+ * @retval  VINF_IOM_R3_MMIO_COMMIT_WRITE in RC and R0.
  *
  * @retval  VINF_EM_RAW_EMULATE_IO_BLOCK in R0 only.
  *
@@ -4372,6 +4376,145 @@ VMM_INT_DECL(PGMPAGETYPE) PGMPhysGetPageType(PVM pVM, RTGCPHYS GCPhys)
 }
 
 
+/**
+ * Converts a GC physical address to a HC ring-3 pointer, with some
+ * additional checks.
+ *
+ * @returns VBox status code (no informational statuses).
+ *
+ * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context virtual CPU structure of the
+ *                          calling EMT.
+ * @param   GCPhys          The GC physical address to convert.  This API mask
+ *                          the A20 line when necessary.
+ * @param   puTlbPhysRev    Where to read the physical TLB revision.  Needs to
+ *                          be done while holding the PGM lock.
+ * @param   ppb             Where to store the pointer corresponding to GCPhys
+ *                          on success.
+ * @param   pfTlb           The TLB flags and revision.  We only add stuff.
+ *
+ * @remarks This is more or a less a copy of PGMR3PhysTlbGCPhys2Ptr and
+ *          PGMPhysIemGCPhys2Ptr.
+ *
+ * @thread  EMT(pVCpu).
+ */
+VMM_INT_DECL(int) PGMPhysIemGCPhys2PtrNoLock(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint64_t const volatile *puTlbPhysRev,
+#if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
+                                             R3PTRTYPE(uint8_t *) *ppb,
+#else
+                                             R3R0PTRTYPE(uint8_t *) *ppb,
+#endif
+                                             uint64_t *pfTlb)
+{
+    PGM_A20_APPLY_TO_VAR(pVCpu, GCPhys);
+    Assert(!(GCPhys & X86_PAGE_OFFSET_MASK));
+
+    pgmLock(pVM);
+
+    PPGMRAMRANGE pRam;
+    PPGMPAGE pPage;
+    int rc = pgmPhysGetPageAndRangeEx(pVM, GCPhys, &pPage, &pRam);
+    if (RT_SUCCESS(rc))
+    {
+        if (!PGM_PAGE_IS_BALLOONED(pPage))
+        {
+            if (!PGM_PAGE_IS_SPECIAL_ALIAS_MMIO(pPage))
+            {
+                if (!PGM_PAGE_HAS_ANY_HANDLERS(pPage))
+                {
+                    /*
+                     * No access handler.
+                     */
+                    switch (PGM_PAGE_GET_STATE(pPage))
+                    {
+                        case PGM_PAGE_STATE_ALLOCATED:
+                            *pfTlb |= *puTlbPhysRev;
+                            break;
+                        case PGM_PAGE_STATE_BALLOONED:
+                            AssertFailed();
+                        case PGM_PAGE_STATE_ZERO:
+                        case PGM_PAGE_STATE_SHARED:
+                        case PGM_PAGE_STATE_WRITE_MONITORED:
+                            *pfTlb |= *puTlbPhysRev | PGMIEMGCPHYS2PTR_F_NO_WRITE;
+                            break;
+                    }
+#if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
+                    *pfTlb |= PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3;
+                    *ppb = NULL;
+#else
+                    PPGMPAGER3MAPTLBE pTlbe;
+                    rc = pgmPhysPageQueryTlbeWithPage(pVM, pPage, GCPhys, &pTlbe);
+                    AssertLogRelRCReturn(rc, rc);
+                    *ppb = (uint8_t *)pTlbe->pv;
+#endif
+                }
+                else if (PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
+                {
+                    /*
+                     * MMIO or similar all access handler: Catch all access.
+                     */
+                    *pfTlb |= *puTlbPhysRev
+                           | PGMIEMGCPHYS2PTR_F_NO_WRITE | PGMIEMGCPHYS2PTR_F_NO_READ | PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3;
+                    *ppb   = NULL;
+                }
+                else
+                {
+                    /*
+                     * Write access handler: Catch write accesses if active.
+                     */
+                    if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
+                        *pfTlb |= *puTlbPhysRev | PGMIEMGCPHYS2PTR_F_NO_WRITE;
+                    else
+                        switch (PGM_PAGE_GET_STATE(pPage))
+                        {
+                            case PGM_PAGE_STATE_ALLOCATED:
+                                *pfTlb |= *puTlbPhysRev;
+                                break;
+                            case PGM_PAGE_STATE_BALLOONED:
+                                AssertFailed();
+                            case PGM_PAGE_STATE_ZERO:
+                            case PGM_PAGE_STATE_SHARED:
+                            case PGM_PAGE_STATE_WRITE_MONITORED:
+                                *pfTlb |= *puTlbPhysRev | PGMIEMGCPHYS2PTR_F_NO_WRITE;
+                                break;
+                        }
+#if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
+                    *pfTlb |= PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3;
+                    *ppb = NULL;
+#else
+                    PPGMPAGER3MAPTLBE pTlbe;
+                    rc = pgmPhysPageQueryTlbeWithPage(pVM, pPage, GCPhys, &pTlbe);
+                    AssertLogRelRCReturn(rc, rc);
+                    *ppb = (uint8_t *)pTlbe->pv;
+#endif
+                }
+            }
+            else
+            {
+                /* Alias MMIO: For now, we catch all access.  */
+                *pfTlb |= *puTlbPhysRev
+                       |  PGMIEMGCPHYS2PTR_F_NO_WRITE | PGMIEMGCPHYS2PTR_F_NO_READ | PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3;
+                *ppb    = NULL;
+            }
+        }
+        else
+        {
+            /* Ballooned: Shouldn't get here, but we read zero page via PGMPhysRead and writes goes to /dev/null. */
+            *pfTlb |= *puTlbPhysRev | PGMIEMGCPHYS2PTR_F_NO_WRITE | PGMIEMGCPHYS2PTR_F_NO_READ | PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3;
+            *ppb    = NULL;
+        }
+        Log6(("PGMPhysIemGCPhys2PtrNoLock: GCPhys=%RGp *ppb=%p *pfTlb=%#RX64 pPage=%R[pgmpage]\n", GCPhys, *ppb, *pfTlb, pPage));
+    }
+    else
+    {
+        *pfTlb |= *puTlbPhysRev | PGMIEMGCPHYS2PTR_F_NO_WRITE | PGMIEMGCPHYS2PTR_F_NO_READ | PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3;
+        *ppb    = NULL;
+        Log6(("PGMPhysIemGCPhys2PtrNoLock: GCPhys=%RGp *ppb=%p *pfTlb=%#RX64 (rc=%Rrc)\n", GCPhys, *ppb, *pfTlb, rc));
+    }
+
+    pgmUnlock(pVM);
+    return VINF_SUCCESS;
+}
 
 
 /**

@@ -161,7 +161,7 @@ twowords(void *p)
 {
     uint8_t *c = p;
 
-#if BYTE_ORDER == LITTLE_ENDIAN
+#ifdef RT_LITTLE_ENDIAN /*BYTE_ORDER == LITTLE_ENDIAN*/
     uint16_t s1 = ((uint16_t)c[1] << 8) + (uint16_t)c[0];
     uint16_t s2 = ((uint16_t)c[3] << 8) + (uint16_t)c[2];
 #else
@@ -750,7 +750,7 @@ UdpAliasIn(struct libalias *la, struct ip *pip)
         struct in_addr original_address;
         u_short alias_port;
         int accumulate;
-        int r = 0, error;
+        int error;
         struct alias_data ad;
         ad.lnk = lnk;
         ad.oaddr = &original_address;
@@ -768,6 +768,9 @@ UdpAliasIn(struct libalias *la, struct ip *pip)
 
         /* Walk out chain. */
         error = find_handler(IN, UDP, la, pip, &ad);
+        /* If we cannot figure out the packet, ignore it. */
+        if (error < 0)
+            return (PKT_ALIAS_IGNORED);
 
 /* If UDP checksum is not zero, then adjust since destination port */
 /* is being unaliased and destination address is being altered.    */
@@ -783,13 +786,7 @@ UdpAliasIn(struct libalias *la, struct ip *pip)
             &original_address, &pip->ip_dst, 2);
         pip->ip_dst = original_address;
 
-        /*
-         * If we cannot figure out the packet, ignore it.
-         */
-        if (r < 0)
-            return (PKT_ALIAS_IGNORED);
-        else
-            return (PKT_ALIAS_OK);
+        return (PKT_ALIAS_OK);
     }
     return (PKT_ALIAS_IGNORED);
 }
@@ -979,7 +976,7 @@ TcpAliasOut(struct libalias *la, struct ip *pip, int maxpacketsize, int create)
 {
     int proxy_type, error;
     u_short dest_port;
-    u_short proxy_server_port;
+    u_short proxy_server_port = 0; /* Shut up MSC. */
     struct in_addr dest_address;
     struct in_addr proxy_server_address;
     struct tcphdr *tc;
@@ -1581,7 +1578,7 @@ getout:
 int
 LibAliasRefreshModules(void)
 {
-    /* @todo (r - vasily) here should be module loading */
+    /** @todo (r - vasily) here should be module loading */
 #ifndef VBOX
     char buf[256], conf[] = "/etc/libalias.conf";
     FILE *fd;

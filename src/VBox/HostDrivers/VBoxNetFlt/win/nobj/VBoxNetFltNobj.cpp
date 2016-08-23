@@ -4,7 +4,7 @@
  * Used to filter Bridged Networking Driver bindings
  */
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,7 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 #include "VBoxNetFltNobj.h"
-#include <Ntddndis.h>
+#include <iprt/win/ntddndis.h>
 #include <assert.h>
 #include <stdio.h>
 
@@ -93,6 +93,7 @@ STDMETHODIMP VBoxNetFltNobj::ApplyRegistryChanges()
 
 STDMETHODIMP VBoxNetFltNobj::ApplyPnpChanges(IN INetCfgPnpReconfigCallback *pCallback)
 {
+    RT_NOREF1(pCallback);
     return S_OK;
 }
 
@@ -270,7 +271,7 @@ static HRESULT vboxNetFltWinNotifyCheckMsLoop(IN INetCfgComponent *pComponent, O
                 }
                 else
                 {
-                    /* TODO: we should check the default medium in HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002bE10318}\<driver_id>\Ndi\Params\Medium, REG_SZ "Default" value */
+                    /** @todo we should check the default medium in HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002bE10318}\<driver_id>\Ndi\Params\Medium, REG_SZ "Default" value */
                     NonStandardAssertBreakpoint();
                     *pbShouldBind = true;
                 }
@@ -535,13 +536,14 @@ STDMETHODIMP VBoxNetFltNobj::NotifyBindingPath(IN DWORD dwChangeFlag, IN INetCfg
 
 STDMETHODIMP VBoxNetFltNobj::QueryBindingPath(IN DWORD dwChangeFlag, IN INetCfgBindingPath *pNetCfgBP)
 {
+    RT_NOREF1(dwChangeFlag);
     if (vboxNetFltWinNotifyShouldBind(pNetCfgBP))
         return S_OK;
     return NETCFG_S_DISABLE_QUERY;
 }
 
 
-CComModule _Module;
+static ATL::CComModule _Module;
 
 BEGIN_OBJECT_MAP(ObjectMap)
     OBJECT_ENTRY(CLSID_VBoxNetFltNobj, VBoxNetFltNobj)
@@ -574,10 +576,20 @@ STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID* ppv)
 
 STDAPI DllRegisterServer()
 {
+// this is a "just in case" conditional, which is not defined
+#ifdef VBOX_FORCE_REGISTER_SERVER
     return _Module.RegisterServer(TRUE);
+#else
+    return S_OK;
+#endif
 }
 
 STDAPI DllUnregisterServer()
 {
+// this is a "just in case" conditional, which is not defined
+#ifdef VBOX_FORCE_REGISTER_SERVER
     return _Module.UnregisterServer(TRUE);
+#else
+    return S_OK;
+#endif
 }

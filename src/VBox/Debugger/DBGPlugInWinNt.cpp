@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_DBGF ///@todo add new log group.
+#define LOG_GROUP LOG_GROUP_DBGF /// @todo add new log group.
 #include "DBGPlugIns.h"
 #include <VBox/vmm/dbgf.h>
 #include <VBox/err.h>
@@ -28,9 +28,8 @@
 #include <iprt/mem.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-
-#include "../Runtime/include/internal/ldrMZ.h"  /* ugly */
-#include "../Runtime/include/internal/ldrPE.h"  /* ugly */
+#include <iprt/formats/pecoff.h>
+#include <iprt/formats/mz.h>
 
 
 /*********************************************************************************************************************************
@@ -723,6 +722,7 @@ static void dbgDiggerWinNtProcessImage(PDBGDIGGERWINNT pThis, PUVM pUVM, const c
  */
 static DECLCALLBACK(void *) dbgDiggerWinNtQueryInterface(PUVM pUVM, void *pvData, DBGFOSINTERFACE enmIf)
 {
+    RT_NOREF3(pUVM, pvData, enmIf);
     return NULL;
 }
 
@@ -732,6 +732,7 @@ static DECLCALLBACK(void *) dbgDiggerWinNtQueryInterface(PUVM pUVM, void *pvData
  */
 static DECLCALLBACK(int)  dbgDiggerWinNtQueryVersion(PUVM pUVM, void *pvData, char *pszVersion, size_t cchVersion)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGERWINNT pThis = (PDBGDIGGERWINNT)pvData;
     Assert(pThis->fValid);
     const char *pszNtProductType;
@@ -753,6 +754,7 @@ static DECLCALLBACK(int)  dbgDiggerWinNtQueryVersion(PUVM pUVM, void *pvData, ch
  */
 static DECLCALLBACK(void)  dbgDiggerWinNtTerm(PUVM pUVM, void *pvData)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGERWINNT pThis = (PDBGDIGGERWINNT)pvData;
     Assert(pThis->fValid);
 
@@ -1146,7 +1148,7 @@ static DECLCALLBACK(bool)  dbgDiggerWinNtProbe(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(void)  dbgDiggerWinNtDestruct(PUVM pUVM, void *pvData)
 {
-
+    RT_NOREF2(pUVM, pvData);
 }
 
 
@@ -1155,6 +1157,7 @@ static DECLCALLBACK(void)  dbgDiggerWinNtDestruct(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(int)  dbgDiggerWinNtConstruct(PUVM pUVM, void *pvData)
 {
+    RT_NOREF1(pUVM);
     PDBGDIGGERWINNT pThis = (PDBGDIGGERWINNT)pvData;
     pThis->fValid = false;
     pThis->f32Bit = false;

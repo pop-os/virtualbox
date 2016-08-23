@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,6 +94,13 @@ typedef struct _DISPLAYFBINFO
         ULONG height;
     } pendingViewportInfo;
 #endif /* VBOX_WITH_CROGL */
+
+#ifdef VBOX_WITH_VPX
+    struct
+    {
+        ComPtr<IDisplaySourceBitmap> pSourceBitmap;
+    } videoCapture;
+#endif
 } DISPLAYFBINFO;
 
 /* The legacy VBVA (VideoAccel) data.
@@ -171,6 +178,9 @@ public:
                                           uint32_t x, uint32_t y, uint32_t uPixelFormat, uint32_t uBitsPerPixel,
                                           uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
                                           uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
+    /** @todo r=bird: u64TimeStamp - using the 'u64' prefix add nothing.
+     *        However, using one of the prefixes indicating the timestamp unit
+     *        would be very valuable!  */
     bool i_handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64TimeStamp);
     void i_handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64TimeStamp);
     void i_handleVRecCompletion();
@@ -180,7 +190,7 @@ public:
 
     int  i_saveVisibleRegion(uint32_t cRect, PRTRECT pRect);
     int  i_handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
-    int  i_handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect);
+    int  i_handleQueryVisibleRegion(uint32_t *pcRects, PRTRECT paRects);
 
     void i_VideoAccelVRDP(bool fEnable);
 
@@ -194,6 +204,9 @@ public:
     int  i_VideoCaptureStart();
     void i_VideoCaptureStop();
     int  i_VideoCaptureEnableScreens(ComSafeArrayIn(BOOL, aScreens));
+#ifdef VBOX_WITH_VPX
+    void videoCaptureScreenChanged(unsigned uScreenId);
+#endif
 
     void i_notifyPowerDown(void);
 
@@ -216,6 +229,7 @@ public:
 
 private:
     // Wrapped IDisplay properties
+    virtual HRESULT getGuestScreenLayout(std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenLayout);
 
     // Wrapped IDisplay methods
     virtual HRESULT getScreenResolution(ULONG aScreenId,
@@ -271,6 +285,8 @@ private:
                                             ULONG aScaleFactorWMultiplied,
                                             ULONG aScaleFactorHMultiplied);
     virtual HRESULT notifyHiDPIOutputPolicyChange(BOOL fUnscaledHiDPI);
+    virtual HRESULT setScreenLayout(ScreenLayoutMode_T aScreenLayoutMode,
+                                    const std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenInfo);
 
     // Wrapped IEventListener properties
 
@@ -445,6 +461,10 @@ private:
 
     /* Serializes access to mVideoAccelLegacy and mfVideoAccelVRDP, etc between VRDP and Display. */
     RTCRITSECT mVideoAccelLock;
+#ifdef VBOX_WITH_VPX
+    /* Serializes access to video capture source bitmaps. */
+    RTCRITSECT mVideoCaptureLock;
+#endif
 
 public:
 
@@ -486,6 +506,9 @@ private:
     VIDEORECCONTEXT *mpVideoRecCtx;
     bool maVideoRecEnabled[SchemaDefs::MaxGuestMonitors];
 #endif
+
+private:
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(Display); /* Shuts up MSC warning C4625. */
 };
 
 /* The legacy VBVA helpers. */
@@ -504,10 +527,6 @@ void videoAccelLeaveVMMDev(VIDEOACCEL *pVideoAccel);
 
 
 /* helper function, code in DisplayResampleImage.cpp */
-void gdImageCopyResampled(uint8_t *dst, uint8_t *src,
-                            int dstX, int dstY, int srcX, int srcY,
-                            int dstW, int dstH, int srcW, int srcH);
-
 void BitmapScale32(uint8_t *dst, int dstW, int dstH,
                    const uint8_t *src, int iDeltaLine, int srcW, int srcH);
 

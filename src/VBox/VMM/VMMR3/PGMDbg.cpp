@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -331,7 +331,7 @@ VMMR3_INT_DECL(int) PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, si
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
 
-    /* @todo SMP support! */
+    /** @todo SMP support! */
     PVMCPU pVCpu = &pVM->aCpus[0];
 
 /** @todo deal with HMA */
@@ -387,7 +387,7 @@ VMMR3_INT_DECL(int) PGMR3DbgWriteGCPtr(PVM pVM, RTGCPTR GCPtrDst, void const *pv
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
 
-    /* @todo SMP support! */
+    /** @todo SMP support! */
     PVMCPU pVCpu = &pVM->aCpus[0];
 
 /** @todo deal with HMA */
@@ -676,7 +676,7 @@ VMMR3_INT_DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRa
         cbRange -= Adj;
     }
 
-    const bool      fAllZero   = ASMMemIsAll8(pabNeedle, cbNeedle, 0) == NULL;
+    const bool      fAllZero   = ASMMemIsZero(pabNeedle, cbNeedle);
     const uint32_t  cIncPages  = GCPhysAlign <= PAGE_SIZE
                                ? 1
                                : GCPhysAlign >> PAGE_SHIFT;
@@ -849,7 +849,7 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
     /*
      * Search the memory - ignore MMIO, zero and not-present pages.
      */
-    const bool      fAllZero  = ASMMemIsAll8(pabNeedle, cbNeedle, 0) == NULL;
+    const bool      fAllZero  = ASMMemIsZero(pabNeedle, cbNeedle);
     RTGCPTR         GCPtrMask = PGMMODE_IS_LONG_MODE(enmMode) ? UINT64_MAX : UINT32_MAX;
     uint8_t         abPrev[MAX_NEEDLE_SIZE];
     size_t          cbPrev    = 0;

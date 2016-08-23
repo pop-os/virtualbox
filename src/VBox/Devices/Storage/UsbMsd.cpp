@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP   LOG_GROUP_USB_MSD
 #include <VBox/vmm/pdmusb.h>
+#include <VBox/vmm/pdmstorageifs.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/scsi.h>
@@ -778,6 +779,7 @@ DECLINLINE(bool) usbMsdQueueRemove(PUSBMSDURBQUEUE pQueue, PVUSBURB pUrb)
 }
 
 
+#ifdef VBOX_STRICT
 /**
  * Checks if the queue is empty or not.
  *
@@ -788,6 +790,7 @@ DECLINLINE(bool) usbMsdQueueIsEmpty(PCUSBMSDURBQUEUE pQueue)
 {
     return pQueue->pHead == NULL;
 }
+#endif /* VBOX_STRICT */
 
 
 /**
@@ -938,6 +941,7 @@ static int usbMsdReqEnsureBuffer(PUSBMSDREQ pReq, uint32_t cbBuf)
  */
 static int usbMsdCompleteStall(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb, const char *pszWhy)
 {
+    RT_NOREF(pszWhy);
     Log(("usbMsdCompleteStall/#%u: pUrb=%p:%s: %s\n", pThis->pUsbIns->iInstance, pUrb, pUrb->pszDesc, pszWhy));
 
     pUrb->enmStatus = VUSBSTATUS_STALL;
@@ -1077,6 +1081,7 @@ static int usbMsdResetWorker(PUSBMSD pThis, PVUSBURB pUrb, bool fSetConfig)
 static DECLCALLBACK(int) usbMsdLun0ScsiRequestCompleted(PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest,
                                                         int rcCompletion, bool fRedo, int rcReq)
 {
+    RT_NOREF(fRedo, rcReq);
     PUSBMSD     pThis = RT_FROM_MEMBER(pInterface, USBMSD, Lun0.IScsiPort);
     PUSBMSDREQ  pReq  = RT_FROM_MEMBER(pSCSIRequest, USBMSDREQ, ScsiReq);
 
@@ -1225,11 +1230,15 @@ static void usbMsdSuspendOrPowerOff(PPDMUSBINS pUsbIns)
  */
 static DECLCALLBACK(int) usbMsdSavePrep(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
+#ifdef VBOX_STRICT
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
-
     Assert(usbMsdAllAsyncIOIsFinished(pUsbIns));
     Assert(usbMsdQueueIsEmpty(&pThis->ToHostQueue));
     Assert(usbMsdQueueIsEmpty(&pThis->DoneQueue));
+#else
+    RT_NOREF(pUsbIns);
+#endif
     return VINF_SUCCESS;
 }
 
@@ -1238,11 +1247,15 @@ static DECLCALLBACK(int) usbMsdSavePrep(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) usbMsdLoadPrep(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pSSM);
+#ifdef VBOX_STRICT
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
-
     Assert(usbMsdAllAsyncIOIsFinished(pUsbIns));
     Assert(usbMsdQueueIsEmpty(&pThis->ToHostQueue));
     Assert(usbMsdQueueIsEmpty(&pThis->DoneQueue));
+#else
+    RT_NOREF(pUsbIns);
+#endif
     return VINF_SUCCESS;
 }
 
@@ -1251,6 +1264,7 @@ static DECLCALLBACK(int) usbMsdLoadPrep(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) usbMsdLiveExec(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF(uPass);
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
 
     /* config. */
@@ -1325,72 +1339,61 @@ static DECLCALLBACK(int) usbMsdLoadExec(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uin
     if (uPass == SSM_PASS_FINAL)
     {
         /* Restore data. */
-        bool fReqAlloc = false;
-
         Assert(!pThis->pReq);
 
         SSMR3GetU8(pSSM, &pThis->bConfigurationValue);
         SSMR3GetBool(pSSM, &pThis->aEps[0].fHalted);
         SSMR3GetBool(pSSM, &pThis->aEps[1].fHalted);
         SSMR3GetBool(pSSM, &pThis->aEps[2].fHalted);
-        SSMR3GetBool(pSSM, &fReqAlloc);
-
+        bool fReqAlloc = false;
+        rc = SSMR3GetBool(pSSM, &fReqAlloc);
+        AssertRCReturn(rc, rc);
         if (fReqAlloc)
         {
             PUSBMSDREQ pReq = usbMsdReqAlloc(pUsbIns);
+            AssertReturn(pReq, VERR_NO_MEMORY);
+            pThis->pReq = pReq;
 
-            if (pReq)
+            SSMR3GetU32(pSSM, (uint32_t *)&pReq->enmState);
+            uint32_t cbBuf = 0;
+            rc = SSMR3GetU32(pSSM, &cbBuf);
+            AssertRCReturn(rc, rc);
+            if (cbBuf)
             {
-                uint32_t cbBuf = 0;
-
-                pThis->pReq = pReq;
-
-                SSMR3GetU32(pSSM, (uint32_t *)&pReq->enmState);
-                SSMR3GetU32(pSSM, &cbBuf);
-                if (cbBuf)
+                if (usbMsdReqEnsureBuffer(pReq, cbBuf))
                 {
-                    if (usbMsdReqEnsureBuffer(pReq, cbBuf))
-                    {
-                        AssertPtr(pReq->pbBuf);
-                        Assert(cbBuf == pReq->cbBuf);
-                        SSMR3GetMem(pSSM, pReq->pbBuf, pReq->cbBuf);
-                    }
-                    else
-                        rc = VERR_NO_MEMORY;
+                    AssertPtr(pReq->pbBuf);
+                    Assert(cbBuf == pReq->cbBuf);
+                    SSMR3GetMem(pSSM, pReq->pbBuf, pReq->cbBuf);
                 }
-
-                if (RT_SUCCESS(rc))
-                {
-                    SSMR3GetU32(pSSM, &pReq->offBuf);
-                    SSMR3GetMem(pSSM, &pReq->Cbw, sizeof(pReq->Cbw));
-                    SSMR3GetU32(pSSM, &pReq->ScsiReq.uLogicalUnit);
-                    SSMR3GetU32(pSSM, (uint32_t *)&pReq->ScsiReq.uDataDirection);
-                    SSMR3GetU32(pSSM, &pReq->ScsiReq.cbCDB);
-                    SSMR3GetU32(pSSM, &pReq->ScsiReq.cbScatterGather);
-                    SSMR3GetMem(pSSM, &pReq->ScsiReqSense[0], sizeof(pReq->ScsiReqSense));
-                    SSMR3GetS32(pSSM, &pReq->iScsiReqStatus);
-
-                    /* Setup the rest of the SCSI request. */
-                    pReq->ScsiReq.cbCDB             = pReq->Cbw.bCBWCBLength;
-                    pReq->ScsiReq.pbCDB             = &pReq->Cbw.CBWCB[0];
-                    pReq->ScsiReqSeg.pvSeg          = pReq->pbBuf;
-                    pReq->ScsiReqSeg.cbSeg          = pReq->ScsiReq.cbScatterGather;
-                    pReq->ScsiReq.cScatterGatherEntries = 1;
-                    pReq->ScsiReq.paScatterGatherHead = &pReq->ScsiReqSeg;
-                    pReq->ScsiReq.cbSenseBuffer     = sizeof(pReq->ScsiReqSense);
-                    pReq->ScsiReq.pbSenseBuffer     = &pReq->ScsiReqSense[0];
-                    pReq->ScsiReq.pvUser            = NULL;
-                }
+                else
+                    return VERR_NO_MEMORY;
             }
-            else
-                rc = VERR_NO_MEMORY;
+
+            SSMR3GetU32(pSSM, &pReq->offBuf);
+            SSMR3GetMem(pSSM, &pReq->Cbw, sizeof(pReq->Cbw));
+            SSMR3GetU32(pSSM, &pReq->ScsiReq.uLogicalUnit);
+            SSMR3GetU32(pSSM, (uint32_t *)&pReq->ScsiReq.uDataDirection);
+            SSMR3GetU32(pSSM, &pReq->ScsiReq.cbCDB);
+            SSMR3GetU32(pSSM, &pReq->ScsiReq.cbScatterGather);
+            SSMR3GetMem(pSSM, &pReq->ScsiReqSense[0], sizeof(pReq->ScsiReqSense));
+            rc = SSMR3GetS32(pSSM, &pReq->iScsiReqStatus);
+            AssertRCReturn(rc, rc);
+
+            /* Setup the rest of the SCSI request. */
+            pReq->ScsiReq.cbCDB             = pReq->Cbw.bCBWCBLength;
+            pReq->ScsiReq.pbCDB             = &pReq->Cbw.CBWCB[0];
+            pReq->ScsiReqSeg.pvSeg          = pReq->pbBuf;
+            pReq->ScsiReqSeg.cbSeg          = pReq->ScsiReq.cbScatterGather;
+            pReq->ScsiReq.cScatterGatherEntries = 1;
+            pReq->ScsiReq.paScatterGatherHead = &pReq->ScsiReqSeg;
+            pReq->ScsiReq.cbSenseBuffer     = sizeof(pReq->ScsiReqSense);
+            pReq->ScsiReq.pbSenseBuffer     = &pReq->ScsiReqSense[0];
+            pReq->ScsiReq.pvUser            = NULL;
         }
 
-        if (RT_SUCCESS(rc))
-            rc = SSMR3GetU32(pSSM, &u32);
-
-        if (RT_FAILURE(rc))
-            return rc;
+        rc = SSMR3GetU32(pSSM, &u32);
+        AssertRCReturn(rc, rc);
         AssertMsgReturn(u32 == UINT32_MAX, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
     }
 
@@ -1475,6 +1478,7 @@ static DECLCALLBACK(int) usbMsdUrbCancel(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
  */
 static int usbMsdScsiIllegalRequest(PUSBMSD pThis, PUSBMSDREQ pReq, uint8_t bAsc, uint8_t bAscq, const char *pszWhy)
 {
+    RT_NOREF(bAsc, bAscq, pszWhy);
     Log(("usbMsdScsiIllegalRequest: bAsc=%#x bAscq=%#x %s\n", bAsc, bAscq, pszWhy));
 
     RT_ZERO(pReq->ScsiReqSense);
@@ -1552,6 +1556,7 @@ static int usbMsdHandleScsiReqestSense(PUSBMSD pThis, PUSBMSDREQ pReq, PCUSBCBW 
  */
 static int usbMsdSubmitScsiCommand(PUSBMSD pThis, PUSBMSDREQ pReq, const char *pszCaller)
 {
+    RT_NOREF(pszCaller);
     Log(("%s: Entering EXECUTING (dCBWTag=%#x).\n", pszCaller, pReq->Cbw.dCBWTag));
     Assert(pReq == pThis->pReq);
     pReq->enmState = USBMSDREQSTATE_EXECUTING;
@@ -1577,6 +1582,7 @@ static int usbMsdSubmitScsiCommand(PUSBMSD pThis, PUSBMSDREQ pReq, const char *p
  */
 static bool usbMsdIsValidCommand(PUSBMSD pThis, PCUSBCBW pCbw, PVUSBURB pUrb)
 {
+    RT_NOREF(pThis, pUrb);
     switch (pCbw->CBWCB[0])
     {
         case SCSI_REQUEST_SENSE:
@@ -2055,6 +2061,7 @@ static DECLCALLBACK(int) usbMsdUsbClearHaltedEndpoint(PPDMUSBINS pUsbIns, unsign
  */
 static DECLCALLBACK(int) usbMsdUsbSetInterface(PPDMUSBINS pUsbIns, uint8_t bInterfaceNumber, uint8_t bAlternateSetting)
 {
+    RT_NOREF(pUsbIns, bInterfaceNumber, bAlternateSetting);
     LogFlow(("usbMsdUsbSetInterface/#%u: bInterfaceNumber=%u bAlternateSetting=%u\n", pUsbIns->iInstance, bInterfaceNumber, bAlternateSetting));
     Assert(bAlternateSetting == 0);
     return VINF_SUCCESS;
@@ -2067,6 +2074,7 @@ static DECLCALLBACK(int) usbMsdUsbSetInterface(PPDMUSBINS pUsbIns, uint8_t bInte
 static DECLCALLBACK(int) usbMsdUsbSetConfiguration(PPDMUSBINS pUsbIns, uint8_t bConfigurationValue,
                                                    const void *pvOldCfgDesc, const void *pvOldIfState, const void *pvNewCfgDesc)
 {
+    RT_NOREF(pvOldCfgDesc, pvOldIfState,  pvNewCfgDesc);
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
     LogFlow(("usbMsdUsbSetConfiguration/#%u: bConfigurationValue=%u\n", pUsbIns->iInstance, bConfigurationValue));
     Assert(bConfigurationValue == 1);
@@ -2105,6 +2113,7 @@ static DECLCALLBACK(PCPDMUSBDESCCACHE) usbMsdUsbGetDescriptorCache(PPDMUSBINS pU
  */
 static DECLCALLBACK(int) usbMsdUsbReset(PPDMUSBINS pUsbIns, bool fResetOnLinux)
 {
+    RT_NOREF(fResetOnLinux);
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
     LogFlow(("usbMsdUsbReset/#%u:\n", pUsbIns->iInstance));
     RTCritSectEnter(&pThis->CritSect);
@@ -2141,8 +2150,8 @@ static DECLCALLBACK(void) usbMsdVMPowerOff(PPDMUSBINS pUsbIns)
  */
 static DECLCALLBACK(int) usbMsdDriverAttach(PPDMUSBINS pUsbIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
-    int rc;
 
     LogFlow(("usbMsdDetach/#%u:\n", pUsbIns->iInstance));
 
@@ -2158,7 +2167,7 @@ static DECLCALLBACK(int) usbMsdDriverAttach(PPDMUSBINS pUsbIns, unsigned iLUN, u
      * Try attach the block device and get the interfaces,
      * required as well as optional.
      */
-    rc = PDMUsbHlpDriverAttach(pUsbIns, iLUN, &pThis->Lun0.IBase, &pThis->Lun0.pIBase, NULL);
+    int rc = PDMUsbHlpDriverAttach(pUsbIns, iLUN, &pThis->Lun0.IBase, &pThis->Lun0.pIBase, NULL);
     if (RT_SUCCESS(rc))
     {
         /* Get SCSI connector interface. */
@@ -2196,6 +2205,7 @@ static DECLCALLBACK(int) usbMsdDriverAttach(PPDMUSBINS pUsbIns, unsigned iLUN, u
  */
 static DECLCALLBACK(void) usbMsdDriverDetach(PPDMUSBINS pUsbIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(iLUN, fFlags);
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
 
     LogFlow(("usbMsdDetach/#%u:\n", pUsbIns->iInstance));
@@ -2253,6 +2263,7 @@ static DECLCALLBACK(void) usbMsdVMReset(PPDMUSBINS pUsbIns)
  */
 static DECLCALLBACK(void) usbMsdDestruct(PPDMUSBINS pUsbIns)
 {
+    PDMUSB_CHECK_VERSIONS_RETURN_VOID(pUsbIns);
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
     LogFlow(("usbMsdDestruct/#%u:\n", pUsbIns->iInstance));
 
@@ -2288,6 +2299,8 @@ static DECLCALLBACK(void) usbMsdDestruct(PPDMUSBINS pUsbIns)
  */
 static DECLCALLBACK(int) usbMsdConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFGMNODE pCfg, PCFGMNODE pCfgGlobal)
 {
+    RT_NOREF(pCfgGlobal);
+    PDMUSB_CHECK_VERSIONS_RETURN(pUsbIns);
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
     Log(("usbMsdConstruct/#%u:\n", iInstance));
 

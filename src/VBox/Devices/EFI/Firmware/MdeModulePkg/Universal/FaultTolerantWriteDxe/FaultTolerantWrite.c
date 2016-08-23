@@ -1,16 +1,16 @@
 /** @file
 
-  These are the common Fault Tolerant Write (FTW) functions that are shared 
+  These are the common Fault Tolerant Write (FTW) functions that are shared
   by DXE FTW driver and SMM FTW driver.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials                          
-are licensed and made available under the terms and conditions of the BSD License         
-which accompanies this distribution.  The full text of the license may be found at        
-http://opensource.org/licenses/bsd-license.php                                            
-                                                                                          
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.  
+Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -23,7 +23,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
   Query the largest block that may be updated in a fault tolerant manner.
 
 
-  @param This            The pointer to this protocol instance. 
+  @param This            The pointer to this protocol instance.
   @param BlockSize       A pointer to a caller allocated UINTN that is updated to
                          indicate the size of the largest block that can be updated.
 
@@ -59,7 +59,7 @@ FtwGetMaxBlockSize (
 
   All writes must be completed or aborted before another fault tolerant write can occur.
 
-  @param This            The pointer to this protocol instance. 
+  @param This            The pointer to this protocol instance.
   @param CallerId        The GUID identifying the write.
   @param PrivateDataSize The size of the caller's private data
                          that must be recorded for each write.
@@ -95,7 +95,7 @@ FtwAllocate (
   //
   // Check if there is enough space for the coming allocation
   //
-  if (WRITE_TOTAL_SIZE (NumberOfWrites, PrivateDataSize) > FtwDevice->FtwWorkSpaceHeader->WriteQueueSize) {
+  if (FTW_WRITE_TOTAL_SIZE (NumberOfWrites, PrivateDataSize) > FtwDevice->FtwWorkSpaceHeader->WriteQueueSize) {
     DEBUG ((EFI_D_ERROR, "Ftw: Allocate() request exceed Workspace, Caller: %g\n", CallerId));
     return EFI_BUFFER_TOO_SMALL;
   }
@@ -115,7 +115,7 @@ FtwAllocate (
   // If workspace is not enough, then reclaim workspace
   //
   Offset = (UINT8 *) FtwHeader - (UINT8 *) FtwDevice->FtwWorkSpace;
-  if (Offset + WRITE_TOTAL_SIZE (NumberOfWrites, PrivateDataSize) > FtwDevice->FtwWorkSpaceSize) {
+  if (Offset + FTW_WRITE_TOTAL_SIZE (NumberOfWrites, PrivateDataSize) > FtwDevice->FtwWorkSpaceSize) {
     Status = FtwReclaimWorkSpace (FtwDevice, TRUE);
     if (EFI_ERROR (Status)) {
       return EFI_ABORTED;
@@ -159,7 +159,7 @@ FtwAllocate (
   }
 
   DEBUG (
-    (EFI_D_ERROR,
+    (EFI_D_INFO,
     "Ftw: Allocate() success, Caller:%g, # %d\n",
     CallerId,
     NumberOfWrites)
@@ -174,7 +174,7 @@ FtwAllocate (
   Since the content has already backuped in spare block, the write is
   guaranteed to be completed with fault tolerant manner.
 
-  @param This            The pointer to this protocol instance. 
+  @param This            The pointer to this protocol instance.
   @param Fvb             The FVB protocol that provides services for
                          reading, writing, and erasing the target block.
 
@@ -193,8 +193,11 @@ FtwWriteRecord (
   EFI_FAULT_TOLERANT_WRITE_HEADER *Header;
   EFI_FAULT_TOLERANT_WRITE_RECORD *Record;
   UINTN                           Offset;
+  EFI_LBA                         WorkSpaceLbaOffset;
 
   FtwDevice = FTW_CONTEXT_FROM_THIS (This);
+
+  WorkSpaceLbaOffset = FtwDevice->FtwWorkSpaceLba - FtwDevice->FtwWorkBlockLba;
 
   //
   // Spare Complete but Destination not complete,
@@ -215,7 +218,7 @@ FtwWriteRecord (
     Offset = (UINT8 *) Record - FtwDevice->FtwWorkSpace;
     Status = FtwUpdateFvState (
               FtwDevice->FtwBackupFvb,
-              FtwDevice->FtwWorkSpaceLba,
+              FtwDevice->FtwSpareLba + WorkSpaceLbaOffset,
               FtwDevice->FtwWorkSpaceBase + Offset,
               SPARE_COMPLETED
               );
@@ -282,7 +285,7 @@ FtwWriteRecord (
   manner, ensuring at all times that either the original contents or
   the modified contents are available.
 
-  @param This            The pointer to this protocol instance. 
+  @param This            The pointer to this protocol instance.
   @param Lba             The logical block address of the target block.
   @param Offset          The offset within the target block to place the data.
   @param Length          The number of bytes to write to the target block.
@@ -292,11 +295,11 @@ FtwWriteRecord (
                          reading, writing, and erasing the target block.
   @param Buffer          The data to write.
 
-  @retval EFI_SUCCESS          The function completed successfully 
-  @retval EFI_ABORTED          The function could not complete successfully. 
-  @retval EFI_BAD_BUFFER_SIZE  The input data can't fit within the spare block. 
+  @retval EFI_SUCCESS          The function completed successfully
+  @retval EFI_ABORTED          The function could not complete successfully.
+  @retval EFI_BAD_BUFFER_SIZE  The input data can't fit within the spare block.
                                Offset + *NumBytes > SpareAreaLength.
-  @retval EFI_ACCESS_DENIED    No writes have been allocated. 
+  @retval EFI_ACCESS_DENIED    No writes have been allocated.
   @retval EFI_OUT_OF_RESOURCES Cannot allocate enough memory resource.
   @retval EFI_NOT_FOUND        Cannot find FVB protocol by handle.
 
@@ -337,7 +340,7 @@ FtwWrite (
 
   Header  = FtwDevice->FtwLastWriteHeader;
   Record  = FtwDevice->FtwLastWriteRecord;
-  
+
   if (IsErasedFlashBuffer ((UINT8 *) Header, sizeof (EFI_FAULT_TOLERANT_WRITE_HEADER))) {
     if (PrivateData == NULL) {
       //
@@ -362,7 +365,7 @@ FtwWrite (
   //
   // If Record is out of the range of Header, return access denied.
   //
-  if (((UINTN)((UINT8 *) Record - (UINT8 *) Header)) > WRITE_TOTAL_SIZE (Header->NumberOfWrites - 1, Header->PrivateDataSize)) {
+  if (((UINTN)((UINT8 *) Record - (UINT8 *) Header)) > FTW_WRITE_TOTAL_SIZE (Header->NumberOfWrites - 1, Header->PrivateDataSize)) {
     return EFI_ACCESS_DENIED;
   }
 
@@ -412,13 +415,13 @@ FtwWrite (
   Record->Lba     = Lba;
   Record->Offset  = Offset;
   Record->Length  = Length;
-  Record->FvBaseAddress = FvbPhysicalAddress;
+  Record->RelativeOffset = (INT64) (FvbPhysicalAddress + (UINTN) Lba * FtwDevice->BlockSize) - (INT64) FtwDevice->SpareAreaAddress;
   if (PrivateData != NULL) {
-    CopyMem ((Record + 1), PrivateData, Header->PrivateDataSize);
+    CopyMem ((Record + 1), PrivateData, (UINTN) Header->PrivateDataSize);
   }
 
   MyOffset  = (UINT8 *) Record - FtwDevice->FtwWorkSpace;
-  MyLength  = RECORD_SIZE (Header->PrivateDataSize);
+  MyLength  = FTW_RECORD_SIZE (Header->PrivateDataSize);
 
   Status = FtwDevice->FtwFvBlock->Write (
                                     FtwDevice->FtwFvBlock,
@@ -570,7 +573,7 @@ FtwWrite (
   FreePool (SpareBuffer);
 
   DEBUG (
-    (EFI_D_ERROR,
+    (EFI_D_INFO,
     "Ftw: Write() success, (Lba:Offset)=(%lx:0x%x), Length: 0x%x\n",
     Lba,
     Offset,
@@ -584,7 +587,7 @@ FtwWrite (
   Restarts a previously interrupted write. The caller must provide the
   block protocol needed to complete the interrupted write.
 
-  @param This            The pointer to this protocol instance. 
+  @param This            The pointer to this protocol instance.
   @param FvBlockHandle   The handle of FVB protocol that provides services for
                          reading, writing, and erasing the target block.
 
@@ -666,7 +669,7 @@ FtwRestart (
 /**
   Aborts all previous allocated writes.
 
-  @param This                  The pointer to this protocol instance. 
+  @param This                  The pointer to this protocol instance.
 
   @retval EFI_SUCCESS          The function completed successfully
   @retval EFI_ABORTED          The function could not complete successfully.
@@ -688,6 +691,10 @@ FtwAbort (
   Status    = WorkSpaceRefresh (FtwDevice);
   if (EFI_ERROR (Status)) {
     return EFI_ABORTED;
+  }
+
+  if (FtwDevice->FtwLastWriteHeader->HeaderAllocated != FTW_VALID_STATE) {
+    return EFI_NOT_FOUND;
   }
 
   if (FtwDevice->FtwLastWriteHeader->Complete == FTW_VALID_STATE) {
@@ -719,7 +726,7 @@ FtwAbort (
   manner, ensuring at all times that either the original contents or
   the modified contents are available.
 
-  @param This            The pointer to this protocol instance. 
+  @param This            The pointer to this protocol instance.
   @param CallerId        The GUID identifying the last write.
   @param Lba             The logical block address of the last write.
   @param Offset          The offset within the block of the last write.
@@ -806,16 +813,16 @@ FtwGetLastWrite (
   //
   CopyMem (CallerId, &Header->CallerId, sizeof (EFI_GUID));
   *Lba      = Record->Lba;
-  *Offset   = Record->Offset;
-  *Length   = Record->Length;
+  *Offset   = (UINTN) Record->Offset;
+  *Length   = (UINTN) Record->Length;
   *Complete = (BOOLEAN) (Record->DestinationComplete == FTW_VALID_STATE);
 
   if (*PrivateDataSize < Header->PrivateDataSize) {
-    *PrivateDataSize  = Header->PrivateDataSize;
+    *PrivateDataSize  = (UINTN) Header->PrivateDataSize;
     PrivateData       = NULL;
     Status            = EFI_BUFFER_TOO_SMALL;
   } else {
-    *PrivateDataSize = Header->PrivateDataSize;
+    *PrivateDataSize = (UINTN) Header->PrivateDataSize;
     CopyMem (PrivateData, Record + 1, *PrivateDataSize);
     Status = EFI_SUCCESS;
   }

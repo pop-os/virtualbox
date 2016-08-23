@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -572,6 +572,10 @@ typedef struct ISCSIIMAGE
     bool                fHostIP;
     /** Flag whether to dump malformed packets in the release log. */
     bool                fDumpMalformedPackets;
+    /** Flag whtether the target is readonly. */
+    bool                fTargetReadOnly;
+    /** Flag whether to retry the connection before processing new requests. */
+    bool                fTryReconnect;
 
     /** Head of request queue */
     PISCSICMD           pScsiReqQueue;
@@ -607,6 +611,11 @@ typedef struct ISCSIIMAGE
     unsigned            cCmdsWaiting;
     /** Table of commands waiting for a response from the target. */
     PISCSICMD           aCmdsWaiting[ISCSI_CMD_WAITING_ENTRIES];
+    /** Number of logins since last successful I/O.
+     * Used to catch the case where logging succeeds but
+     * processing read/write/flushes cause a disconnect.
+     */
+    volatile uint32_t   cLoginsSinceIo;
 
     /** Release log counter. */
     unsigned            cLogRelErrors;
@@ -1032,7 +1041,6 @@ static int iscsiTransportRead(PISCSIIMAGE pImage, PISCSIRES paResponse, unsigned
 static int iscsiTransportWrite(PISCSIIMAGE pImage, PISCSIREQ paRequest, unsigned int cnRequest)
 {
     int rc = VINF_SUCCESS;
-    uint32_t pad = 0;
     unsigned int i;
 
     LogFlowFunc(("cnRequest=%d (%s:%d)\n", cnRequest, pImage->pszHostname, pImage->uPort));
@@ -1209,7 +1217,7 @@ static int iscsiTransportOpen(PISCSIIMAGE pImage)
  */
 static DECLCALLBACK(int) iscsiAttach(void *pvUser)
 {
-    int rc;
+    int rc = VINF_SUCCESS;      /* (MSC is used uninitialized) */
     uint32_t itt;
     uint32_t csg, nsg, substate;
     uint64_t isid_tsih;
@@ -1218,7 +1226,7 @@ static DECLCALLBACK(int) iscsiAttach(void *pvUser)
     bool transit;
     uint8_t pbChallenge[1024];  /* RFC3720 specifies this as maximum. */
     size_t cbChallenge = 0;     /* shut up gcc */
-    uint8_t bChapIdx;
+    uint8_t bChapIdx = 0;       /* (MSC is used uninitialized) */
     uint8_t aResponse[RTMD5HASHSIZE];
     uint32_t cnISCSIReq = 0;
     ISCSIREQ aISCSIReq[4];
@@ -1256,6 +1264,13 @@ static DECLCALLBACK(int) iscsiAttach(void *pvUser)
     LogFlowFunc(("entering\n"));
 
     Assert(pImage->state == ISCSISTATE_FREE);
+
+    /*
+     * If there were too many logins without any successful I/O just fail
+     * and assume the target is not working properly.
+     */
+    if (ASMAtomicReadU32(&pImage->cLoginsSinceIo) == 3)
+        return VERR_BROKEN_PIPE;
 
     RTSemMutexRequest(pImage->Mutex, RT_INDEFINITE_WAIT);
 
@@ -1497,6 +1512,7 @@ restart:
                                 rc = VERR_PARSE_ERROR;
                                 break;
                             case 0x0001:    /* security negotiation, step 1: receive final CHAP variant and challenge. */
+                            {
                                 rc = iscsiUpdateParameters(pImage, bBuf, aISCSIRes[1].cbSeg);
                                 if (RT_FAILURE(rc))
                                     break;
@@ -1523,7 +1539,9 @@ restart:
                                     break;
                                 }
                                 rc = RTStrToUInt8Ex(pcszChapIdxTarget, &pszNext, 0, &bChapIdx);
-                                if ((rc > VINF_SUCCESS) || *pszNext != '\0')
+/** @todo r=bird: Unsafe use of pszNext on failure.  The code should probably
+ *        use RTStrToUInt8Full and check for rc != VINF_SUCCESS. */
+                                if (rc > VINF_SUCCESS || *pszNext != '\0')
                                 {
                                     rc = VERR_PARSE_ERROR;
                                     break;
@@ -1541,6 +1559,7 @@ restart:
                                 substate++;
                                 transit = true;
                                 break;
+                            }
                             case 0x0002:    /* security negotiation, step 2: check authentication success. */
                                 rc = iscsiUpdateParameters(pImage, bBuf, aISCSIRes[1].cbSeg);
                                 if (RT_FAILURE(rc))
@@ -1707,6 +1726,9 @@ out:
     }
     else
         pImage->state = ISCSISTATE_NORMAL;
+
+    if (RT_SUCCESS(rc))
+        ASMAtomicIncU32(&pImage->cLoginsSinceIo);
 
     RTSemMutexRelease(pImage->Mutex);
 
@@ -2035,6 +2057,8 @@ out_release:
     RTSemMutexRelease(pImage->Mutex);
 
 out:
+    if (RT_SUCCESS(rc))
+        ASMAtomicWriteU32(&pImage->cLoginsSinceIo, 0);
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
@@ -2602,6 +2626,7 @@ static int iscsiRecvPDUProcess(PISCSIIMAGE pImage, PISCSIRES paRes, uint32_t cnR
  */
 static int iscsiValidatePDU(PISCSIRES paRes, uint32_t cnRes)
 {
+    RT_NOREF1(cnRes);
     const uint32_t *pcrgResBHS;
     uint32_t hw0;
     Assert(cnRes >= 1);
@@ -2884,7 +2909,7 @@ static int iscsiRecvPDUUpdateRequest(PISCSIIMAGE pImage, PISCSIRES paRes, uint32
             {
                 /* Copy data from the received PDU into the T2I segments. */
                 size_t cbCopied = RTSgBufCopyFromBuf(&pScsiReq->SgBufT2I, pvData, cbData);
-                Assert(cbCopied == cbData);
+                Assert(cbCopied == cbData); NOREF(cbCopied);
 
                 if (final && (RT_N2H_U32(paResBHS[0]) & ISCSI_STATUS_BIT) != 0)
                 {
@@ -3278,22 +3303,17 @@ static void iscsiCmdComplete(PISCSIIMAGE pImage, PISCSICMD pIScsiCmd, int rcCmd)
 }
 
 /**
- * Reattaches the to the target after an error aborting
- * pending commands and resending them.
+ * Clears all RX/TX PDU states and returns the command for the current
+ * pending TX PDU if existing.
  *
- * @param    pImage    iSCSI connection state.
+ * @returns Pointer to the iSCSI command for the current PDU transmitted or NULL
+ *          if none is waiting.
+ * @param   pImage    iSCSI connection state.
  */
-static void iscsiReattach(PISCSIIMAGE pImage)
+static PISCSICMD iscsiPDURxTxClear(PISCSIIMAGE pImage)
 {
-    int rc = VINF_SUCCESS;
     PISCSICMD pIScsiCmdHead = NULL;
-    PISCSICMD pIScsiCmd = NULL;
-    PISCSICMD pIScsiCmdCur = NULL;
     PISCSIPDUTX pIScsiPDUTx = NULL;
-
-    /* Close connection. */
-    iscsiTransportClose(pImage);
-    pImage->state = ISCSISTATE_FREE;
 
     /* Reset PDU we are receiving. */
     iscsiRecvPDUReset(pImage);
@@ -3307,8 +3327,7 @@ static void iscsiReattach(PISCSIIMAGE pImage)
         pIScsiPDUTx = pImage->pIScsiPDUTxHead;
         pImage->pIScsiPDUTxHead = pIScsiPDUTx->pNext;
 
-        pIScsiCmd = pIScsiPDUTx->pIScsiCmd;
-
+        PISCSICMD pIScsiCmd = pIScsiPDUTx->pIScsiCmd;
         if (pIScsiCmd)
         {
             /* Place on command list. */
@@ -3327,8 +3346,7 @@ static void iscsiReattach(PISCSIIMAGE pImage)
         pIScsiPDUTx = pImage->pIScsiPDUTxCur;
 
         pImage->pIScsiPDUTxCur = NULL;
-        pIScsiCmd = pIScsiPDUTx->pIScsiCmd;
-
+        PISCSICMD pIScsiCmd = pIScsiPDUTx->pIScsiCmd;
         if (pIScsiCmd)
         {
             pIScsiCmd->pNext = pIScsiCmdHead;
@@ -3337,12 +3355,29 @@ static void iscsiReattach(PISCSIIMAGE pImage)
         RTMemFree(pIScsiPDUTx);
     }
 
+    return pIScsiCmdHead;
+}
+
+/**
+ * Rests the iSCSI connection state and returns a list of iSCSI commands pending
+ * when this was called.
+ *
+ * @returns Pointer to the head of the pending iSCSI command list.
+ * @param   pImage    iSCSI connection state.
+ */
+static PISCSICMD iscsiReset(PISCSIIMAGE pImage)
+{
+    PISCSICMD pIScsiCmdHead = NULL;
+    PISCSICMD pIScsiCmdCur = NULL;
+
+    /* Clear all in flight PDUs. */
+    pIScsiCmdHead = iscsiPDURxTxClear(pImage);
+
     /*
      * Get all commands which are waiting for a response
      * They need to be resend too after a successful reconnect.
      */
-    pIScsiCmd = iscsiCmdRemoveAll(pImage);
-
+    PISCSICMD pIScsiCmd = iscsiCmdRemoveAll(pImage);
     if (pIScsiCmd)
     {
         pIScsiCmdCur = pIScsiCmd;
@@ -3357,8 +3392,26 @@ static void iscsiReattach(PISCSIIMAGE pImage)
         pIScsiCmdHead = pIScsiCmd;
     }
 
+    return pIScsiCmdHead;
+}
+
+/**
+ * Reattaches the to the target after an error aborting
+ * pending commands and resending them.
+ *
+ * @param    pImage    iSCSI connection state.
+ */
+static void iscsiReattach(PISCSIIMAGE pImage)
+{
+    /* Close connection. */
+    iscsiTransportClose(pImage);
+    pImage->state = ISCSISTATE_FREE;
+
+    /* Reset the state and get the currently pending commands. */
+    PISCSICMD pIScsiCmdHead = iscsiReset(pImage);
+
     /* Try to attach. */
-    rc = iscsiAttach(pImage);
+    int rc = iscsiAttach(pImage);
     if (RT_SUCCESS(rc))
     {
         /* Phew, we have a connection again.
@@ -3366,16 +3419,35 @@ static void iscsiReattach(PISCSIIMAGE pImage)
          */
         while (pIScsiCmdHead)
         {
-            pIScsiCmd = pIScsiCmdHead;
+            PISCSICMD pIScsiCmd = pIScsiCmdHead;
             pIScsiCmdHead = pIScsiCmdHead->pNext;
 
             pIScsiCmd->pNext = NULL;
 
             rc = iscsiPDUTxPrepare(pImage, pIScsiCmd);
-            AssertRC(rc);
+            if (RT_FAILURE(rc))
+                break;
+        }
+
+        if (RT_FAILURE(rc))
+        {
+            /* Another error, just give up and report an error. */
+            PISCSICMD pIScsiCmd = iscsiReset(pImage);
+
+            /* Concatenate both lists together so we can abort all requests below. */
+            if (pIScsiCmd)
+            {
+                PISCSICMD pIScsiCmdCur = pIScsiCmd;
+                while (pIScsiCmdCur->pNext)
+                    pIScsiCmdCur = pIScsiCmdCur->pNext;
+
+                pIScsiCmdCur->pNext = pIScsiCmdHead;
+                pIScsiCmdHead = pIScsiCmd;
+            }
         }
     }
-    else
+
+    if (RT_FAILURE(rc))
     {
         /*
          * Still no luck, complete commands with error so the caller
@@ -3383,7 +3455,7 @@ static void iscsiReattach(PISCSIIMAGE pImage)
          */
         while (pIScsiCmdHead)
         {
-            pIScsiCmd = pIScsiCmdHead;
+            PISCSICMD pIScsiCmd = pIScsiCmdHead;
             pIScsiCmdHead = pIScsiCmdHead->pNext;
 
             iscsiCmdComplete(pImage, pIScsiCmd, VERR_BROKEN_PIPE);
@@ -3394,8 +3466,9 @@ static void iscsiReattach(PISCSIIMAGE pImage)
 /**
  * Internal. Main iSCSI I/O worker.
  */
-static DECLCALLBACK(int) iscsiIoThreadWorker(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) iscsiIoThreadWorker(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF1(hThreadSelf);
     PISCSIIMAGE pImage = (PISCSIIMAGE)pvUser;
 
     /* Initialize the initial event mask. */
@@ -3435,11 +3508,19 @@ static DECLCALLBACK(int) iscsiIoThreadWorker(RTTHREAD ThreadSelf, void *pvUser)
                 {
                     case ISCSICMDTYPE_REQ:
                     {
+                        if (   !iscsiIsClientConnected(pImage)
+                            && pImage->fTryReconnect)
+                        {
+                            pImage->fTryReconnect = false;
+                            iscsiReattach(pImage);
+                        }
+
                         /* If there is no connection complete the command with an error. */
                         if (RT_LIKELY(iscsiIsClientConnected(pImage)))
                         {
                             rc = iscsiPDUTxPrepare(pImage, pIScsiCmd);
-                            AssertRC(rc);
+                            if (RT_FAILURE(rc))
+                                iscsiReattach(pImage);
                         }
                         else
                             iscsiCmdComplete(pImage, pIScsiCmd, VERR_NET_CONNECTION_REFUSED);
@@ -3545,6 +3626,7 @@ static int iscsiCommandAsync(PISCSIIMAGE pImage, PSCSIREQ pScsiReq,
 
 static DECLCALLBACK(void) iscsiCommandCompleteSync(PISCSIIMAGE pImage, int rcReq, void *pvUser)
 {
+    RT_NOREF1(pImage);
     PISCSICMDSYNC pIScsiCmdSync = (PISCSICMDSYNC)pvUser;
 
     pIScsiCmdSync->rcCmd = rcReq;
@@ -3607,6 +3689,7 @@ static int iscsiCommandSync(PISCSIIMAGE pImage, PSCSIREQ pScsiReq, bool fRetry, 
     {
         if (fRetry)
         {
+            rc = VINF_SUCCESS; /* (MSC incorrectly thinks it can be uninitialized) */
             for (unsigned i = 0; i < 10; i++)
             {
                 rc = iscsiCommand(pImage, pScsiReq);
@@ -3687,6 +3770,9 @@ static DECLCALLBACK(void) iscsiCommandAsyncComplete(PISCSIIMAGE pImage, int rcRe
     size_t cbTransfered = 0;
     PSCSIREQ pScsiReq = (PSCSIREQ)pvUser;
 
+    if (RT_SUCCESS(rcReq))
+        ASMAtomicWriteU32(&pImage->cLoginsSinceIo, 0);
+
     if (   RT_SUCCESS(rcReq)
         && pScsiReq->cbSense > 0)
     {
@@ -3731,7 +3817,7 @@ static DECLCALLBACK(void) iscsiCommandAsyncComplete(PISCSIIMAGE pImage, int rcRe
 static int iscsiFreeImage(PISCSIIMAGE pImage, bool fDelete)
 {
     int rc = VINF_SUCCESS;
-    Assert(!fDelete); /* This MUST be false, the flag isn't supported. */
+    Assert(!fDelete); NOREF(fDelete); /* This MUST be false, the flag isn't supported. */
 
     /* Freeing a never allocated image (e.g. because the open failed) is
      * not signalled as an error. After all nothing bad happens. */
@@ -3882,6 +3968,7 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     pImage->ISID            = 0x800000000000ULL | 0x001234560000ULL;
     pImage->cISCSIRetries   = 10;
     pImage->state           = ISCSISTATE_FREE;
+    pImage->cLoginsSinceIo  = 0;
     pImage->pvRecvPDUBuf    = RTMemAlloc(ISCSI_RECV_PDU_BUFFER_SIZE);
     pImage->cbRecvPDUBuf    = ISCSI_RECV_PDU_BUFFER_SIZE;
     if (pImage->pvRecvPDUBuf == NULL)
@@ -4274,7 +4361,8 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     rc = iscsiCommandSync(pImage, &sr, true /* fRetry */, VERR_INVALID_STATE);
     if (RT_SUCCESS(rc))
     {
-        if (!(uOpenFlags & VD_OPEN_FLAGS_READONLY) && data4[2] & 0x80)
+        pImage->fTargetReadOnly = !!(data4[2] & 0x80);
+        if (!(uOpenFlags & VD_OPEN_FLAGS_READONLY) && pImage->fTargetReadOnly)
         {
             rc = VERR_VD_IMAGE_READ_ONLY;
             goto out;
@@ -4563,8 +4651,9 @@ out:
 
 /** @copydoc VBOXHDDBACKEND::pfnCheckIfValid */
 static DECLCALLBACK(int) iscsiCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                             PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+                                           PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
 {
+    RT_NOREF4(pszFilename, pVDIfsDisk, pVDIfsImage, penmType);
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
 
     /* iSCSI images can't be checked for validity this way, as the filename
@@ -4649,6 +4738,8 @@ static DECLCALLBACK(int) iscsiCreate(const char *pszFilename, uint64_t cbSize,
                                      PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
                                      void **ppBackendData)
 {
+    RT_NOREF8(pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags);
+    RT_NOREF7(uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData);
     LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
                  pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
     int rc = VERR_NOT_SUPPORTED;
@@ -4801,6 +4892,7 @@ static DECLCALLBACK(int) iscsiWrite(void *pBackendData, uint64_t uOffset, size_t
                                     PVDIOCTX pIoCtx, size_t *pcbWriteProcess, size_t *pcbPreRead,
                                     size_t *pcbPostRead, unsigned fWrite)
 {
+    RT_NOREF3(pcbPreRead, pcbPostRead, fWrite);
     LogFlowFunc(("pBackendData=%p uOffset=%llu pIoCtx=%#p cbToWrite=%u pcbWriteProcess=%p pcbPreRead=%p pcbPostRead=%p fWrite=%u\n",
                  pBackendData, uOffset, pIoCtx, cbToWrite, pcbWriteProcess, pcbPreRead, pcbPostRead, fWrite));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
@@ -5040,6 +5132,7 @@ static DECLCALLBACK(uint64_t) iscsiGetFileSize(void *pBackendData)
 /** @copydoc VBOXHDDBACKEND::pfnGetPCHSGeometry */
 static DECLCALLBACK(int) iscsiGetPCHSGeometry(void *pBackendData, PVDGEOMETRY pPCHSGeometry)
 {
+    RT_NOREF1(pPCHSGeometry);
     LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p\n", pBackendData, pPCHSGeometry));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5058,6 +5151,7 @@ static DECLCALLBACK(int) iscsiGetPCHSGeometry(void *pBackendData, PVDGEOMETRY pP
 /** @copydoc VBOXHDDBACKEND::pfnSetPCHSGeometry */
 static DECLCALLBACK(int) iscsiSetPCHSGeometry(void *pBackendData, PCVDGEOMETRY pPCHSGeometry)
 {
+    RT_NOREF1(pPCHSGeometry);
     LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p PCHS=%u/%u/%u\n", pBackendData, pPCHSGeometry, pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5084,6 +5178,7 @@ out:
 /** @copydoc VBOXHDDBACKEND::pfnGetLCHSGeometry */
 static DECLCALLBACK(int) iscsiGetLCHSGeometry(void *pBackendData, PVDGEOMETRY pLCHSGeometry)
 {
+    RT_NOREF1(pLCHSGeometry);
     LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p\n", pBackendData, pLCHSGeometry));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5102,6 +5197,7 @@ static DECLCALLBACK(int) iscsiGetLCHSGeometry(void *pBackendData, PVDGEOMETRY pL
 /** @copydoc VBOXHDDBACKEND::pfnSetLCHSGeometry */
 static DECLCALLBACK(int) iscsiSetLCHSGeometry(void *pBackendData, PCVDGEOMETRY pLCHSGeometry)
 {
+    RT_NOREF1(pLCHSGeometry);
     LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p LCHS=%u/%u/%u\n", pBackendData, pLCHSGeometry, pLCHSGeometry->cCylinders, pLCHSGeometry->cHeads, pLCHSGeometry->cSectors));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5162,36 +5258,31 @@ static DECLCALLBACK(unsigned) iscsiGetOpenFlags(void *pBackendData)
 /** @copydoc VBOXHDDBACKEND::pfnSetOpenFlags */
 static DECLCALLBACK(int) iscsiSetOpenFlags(void *pBackendData, unsigned uOpenFlags)
 {
-    LogFlowFunc(("pBackendData=%#p\n uOpenFlags=%#x", pBackendData, uOpenFlags));
+    LogFlowFunc(("pBackendData=%#p uOpenFlags=%#x\n", pBackendData, uOpenFlags));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
     /* Image must be opened and the new flags must be valid. */
-    if (!pImage || (uOpenFlags & ~(  VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO
-                                   | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE
-                                   | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)))
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
+    AssertReturn(pImage && !(uOpenFlags & ~(  VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO
+                                            | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE
+                                            | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)),
+                 VERR_INVALID_PARAMETER);
 
-    /* Implement this operation via reopening the image if we actually need
-     * to do something. A read/write -> readonly transition doesn't need a
-     * reopen. In the other direction we don't have the necessary information
-     * as the "disk is readonly" flag is thrown away. Can be optimized too,
-     * but it's not worth the effort at the moment. */
+    /*
+     * A read/write -> readonly transition is always possible,
+     * for the reverse direction check that the target didn't present itself
+     * as readonly during the first attach.
+     */
     if (   !(uOpenFlags & VD_OPEN_FLAGS_READONLY)
-        && (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-    {
-        iscsiFreeImage(pImage, false);
-        rc = iscsiOpenImage(pImage, uOpenFlags);
-    }
+        && (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        && pImage->fTargetReadOnly)
+        rc = VERR_VD_IMAGE_READ_ONLY;
     else
     {
         pImage->uOpenFlags = uOpenFlags;
-        rc = VINF_SUCCESS;
+        pImage->fTryReconnect = true;
     }
-out:
+
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
@@ -5200,6 +5291,7 @@ out:
 static DECLCALLBACK(int) iscsiGetComment(void *pBackendData, char *pszComment,
                                          size_t cbComment)
 {
+    RT_NOREF2(pszComment, cbComment);
     LogFlowFunc(("pBackendData=%#p pszComment=%#p cbComment=%zu\n", pBackendData, pszComment, cbComment));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5218,6 +5310,7 @@ static DECLCALLBACK(int) iscsiGetComment(void *pBackendData, char *pszComment,
 /** @copydoc VBOXHDDBACKEND::pfnSetComment */
 static DECLCALLBACK(int) iscsiSetComment(void *pBackendData, const char *pszComment)
 {
+    RT_NOREF1(pszComment);
     LogFlowFunc(("pBackendData=%#p pszComment=\"%s\"\n", pBackendData, pszComment));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5241,6 +5334,7 @@ static DECLCALLBACK(int) iscsiSetComment(void *pBackendData, const char *pszComm
 /** @copydoc VBOXHDDBACKEND::pfnGetUuid */
 static DECLCALLBACK(int) iscsiGetUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5259,6 +5353,7 @@ static DECLCALLBACK(int) iscsiGetUuid(void *pBackendData, PRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnSetUuid */
 static DECLCALLBACK(int) iscsiSetUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5283,6 +5378,7 @@ static DECLCALLBACK(int) iscsiSetUuid(void *pBackendData, PCRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnGetModificationUuid */
 static DECLCALLBACK(int) iscsiGetModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5301,6 +5397,7 @@ static DECLCALLBACK(int) iscsiGetModificationUuid(void *pBackendData, PRTUUID pU
 /** @copydoc VBOXHDDBACKEND::pfnSetModificationUuid */
 static DECLCALLBACK(int) iscsiSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5325,6 +5422,7 @@ static DECLCALLBACK(int) iscsiSetModificationUuid(void *pBackendData, PCRTUUID p
 /** @copydoc VBOXHDDBACKEND::pfnGetParentUuid */
 static DECLCALLBACK(int) iscsiGetParentUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5343,6 +5441,7 @@ static DECLCALLBACK(int) iscsiGetParentUuid(void *pBackendData, PRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnSetParentUuid */
 static DECLCALLBACK(int) iscsiSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5367,6 +5466,7 @@ static DECLCALLBACK(int) iscsiSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 /** @copydoc VBOXHDDBACKEND::pfnGetParentModificationUuid */
 static DECLCALLBACK(int) iscsiGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;
@@ -5385,6 +5485,7 @@ static DECLCALLBACK(int) iscsiGetParentModificationUuid(void *pBackendData, PRTU
 /** @copydoc VBOXHDDBACKEND::pfnSetParentModificationUuid */
 static DECLCALLBACK(int) iscsiSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
+    RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
     int rc;

@@ -134,7 +134,7 @@
         } \
     } while (0)
 
-#if IN_RING3
+#ifdef IN_RING3
 /**
  * Acquires the TM lock and PIT lock, ignores failures.
  */
@@ -585,8 +585,7 @@ static void pit_irq_timer_update(PPITCHANNEL pChan, uint64_t current_time, uint6
 {
     int64_t expire_time;
     int irq_level;
-    PTMTIMER pTimer = pChan->CTX_SUFF(pPit)->channels[0].CTX_SUFF(pTimer);
-    Assert(TMTimerIsLockOwner(pTimer));
+    Assert(TMTimerIsLockOwner(pChan->CTX_SUFF(pPit)->channels[0].CTX_SUFF(pTimer)));
 
     if (!pChan->CTX_SUFF(pTimer))
         return;
@@ -821,7 +820,6 @@ PDMBOTHCBDECL(int) pitIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
          * Port 40-42h - Channel Data Ports.
          */
         PPITCHANNEL pChan = &pThis->channels[Port];
-        uint8_t const write_state = pChan->write_state;
         DEVPIT_LOCK_BOTH_RETURN(pThis, VINF_IOM_R3_IOPORT_WRITE);
         switch (pChan->write_state)
         {
@@ -853,7 +851,7 @@ PDMBOTHCBDECL(int) pitIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
  */
 PDMBOTHCBDECL(int) pitIOPortSpeakerRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
-    NOREF(pvUser);
+    RT_NOREF2(pvUser, Port);
     if (cb == 1)
     {
         PPITSTATE pThis = PDMINS_2_DATA(pDevIns, PPITSTATE);
@@ -865,7 +863,7 @@ PDMBOTHCBDECL(int) pitIOPortSpeakerRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
         /* bit 6,7 Parity error stuff. */
         /* bit 5 - mirrors timer 2 output condition. */
         const int fOut = pit_get_out(pThis, 2, u64Now);
-        /* bit 4 - toggled with each (DRAM?) refresh request, every 15.085 µpChan.
+        /* bit 4 - toggled with each (DRAM?) refresh request, every 15.085 u-op Chan.
                    ASSUMES ns timer freq, see assertion above. */
 #ifndef FAKE_REFRESH_CLOCK
         const int fRefresh = (u64Now / 15085) & 1;
@@ -899,7 +897,7 @@ PDMBOTHCBDECL(int) pitIOPortSpeakerRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
  */
 PDMBOTHCBDECL(int) pitIOPortSpeakerWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
-    NOREF(pvUser);
+    RT_NOREF2(pvUser, Port);
     if (cb == 1)
     {
         PPITSTATE pThis = PDMINS_2_DATA(pDevIns, PPITSTATE);
@@ -921,6 +919,7 @@ PDMBOTHCBDECL(int) pitIOPortSpeakerWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
                 switch (pThis->enmSpeakerEmu)
                 {
                     case PIT_SPEAKER_EMU_CONSOLE:
+                    {
                         int res;
                         res = ioctl(pThis->hHostSpeaker, KIOCSOUND, pChan->count);
                         if (res == -1)
@@ -929,16 +928,23 @@ PDMBOTHCBDECL(int) pitIOPortSpeakerWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
                             pThis->enmSpeakerEmu = PIT_SPEAKER_EMU_NONE;
                         }
                         break;
+                    }
                     case PIT_SPEAKER_EMU_EVDEV:
+                    {
                         struct input_event e;
                         e.type = EV_SND;
                         e.code = SND_TONE;
                         e.value = PIT_FREQ / pChan->count;
-                        write(pThis->hHostSpeaker, &e, sizeof(struct input_event));
+                        int res = write(pThis->hHostSpeaker, &e, sizeof(struct input_event));
+                        NOREF(res);
                         break;
+                    }
                     case PIT_SPEAKER_EMU_TTY:
-                        write(pThis->hHostSpeaker, "\a", 1);
+                    {
+                        int res = write(pThis->hHostSpeaker, "\a", 1);
+                        NOREF(res);
                         break;
+                    }
                     case PIT_SPEAKER_EMU_NONE:
                         break;
                     default:
@@ -962,12 +968,15 @@ PDMBOTHCBDECL(int) pitIOPortSpeakerWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
                         ioctl(pThis->hHostSpeaker, KIOCSOUND, 0);
                         break;
                     case PIT_SPEAKER_EMU_EVDEV:
+                    {
                         struct input_event e;
                         e.type = EV_SND;
                         e.code = SND_TONE;
                         e.value = 0;
-                        write(pThis->hHostSpeaker, &e, sizeof(struct input_event));
+                        int res = write(pThis->hHostSpeaker, &e, sizeof(struct input_event));
+                        NOREF(res);
                         break;
+                    }
                     case PIT_SPEAKER_EMU_TTY:
                         break;
                     case PIT_SPEAKER_EMU_NONE:
@@ -994,6 +1003,7 @@ PDMBOTHCBDECL(int) pitIOPortSpeakerWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
  */
 static DECLCALLBACK(int) pitLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
+    RT_NOREF1(uPass);
     PPITSTATE pThis = PDMINS_2_DATA(pDevIns, PPITSTATE);
     SSMR3PutIOPort(pSSM, pThis->IOPortBaseCfg);
     SSMR3PutU8(    pSSM, pThis->channels[0].irq);
@@ -1143,6 +1153,7 @@ static DECLCALLBACK(int) pitLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
  */
 static DECLCALLBACK(void) pitTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF1(pDevIns);
     PPITCHANNEL pChan = (PPITCHANNEL)pvUser;
     STAM_PROFILE_ADV_START(&pChan->CTX_SUFF(pPit)->StatPITHandler, a);
 
@@ -1163,6 +1174,7 @@ static DECLCALLBACK(void) pitTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pv
  */
 static DECLCALLBACK(void) pitInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    RT_NOREF1(pszArgs);
     PPITSTATE   pThis = PDMINS_2_DATA(pDevIns, PPITSTATE);
     unsigned    i;
     for (i = 0; i < RT_ELEMENTS(pThis->channels); i++)
@@ -1235,6 +1247,7 @@ static DECLCALLBACK(void *) pitQueryInterface(PPDMIBASE pInterface, const char *
  */
 static DECLCALLBACK(void) pitRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
+    RT_NOREF1(offDelta);
     PPITSTATE pThis = PDMINS_2_DATA(pDevIns, PPITSTATE);
     LogFlow(("pitRelocate: \n"));
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,6 +71,9 @@
 #include <IndustryStandard/Pci.h>
 
 #include "VBoxPkg.h"
+#include "DevEFI.h"
+#include "iprt/asm.h"
+
 //
 // Cirrus Logic 5430 PCI Configuration Header values
 //
@@ -445,5 +448,7 @@ EFI_STATUS
 VBoxVgaVideoModeSetup (
   VBOX_VGA_PRIVATE_DATA  *Private
   );
+
+UINT32 VBoxVgaGetVmVariable(UINT32 Variable, CHAR8* Buffer, UINT32 Size);
 
 #endif

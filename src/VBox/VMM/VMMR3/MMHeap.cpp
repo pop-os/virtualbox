@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -109,7 +109,7 @@ void mmR3HeapDestroy(PMMHEAP pHeap)
     }
 
     /*
-     * Free the stat nodes.                                                                     e
+     * Free the stat nodes.
      */
     /** @todo free all nodes in a AVL tree. */
     RTMemFree(pHeap);
@@ -344,6 +344,8 @@ void *mmR3HeapAlloc(PMMHEAP pHeap, MMTAG enmTag, size_t cbSize, bool fZero)
         STAMR3RegisterFU(pUVM, &pStat->cbAllocated,    STAMTYPE_U64, STAMVISIBILITY_ALWAYS,  STAMUNIT_BYTES, "Total number of bytes allocated.",        "/MM/R3Heap/%s/cbAllocated", pszTag);
         STAMR3RegisterFU(pUVM, &pStat->cbFreed,        STAMTYPE_U64, STAMVISIBILITY_ALWAYS,  STAMUNIT_BYTES, "Total number of bytes freed.",            "/MM/R3Heap/%s/cbFreed", pszTag);
     }
+#else
+    RT_NOREF_PV(enmTag);
 #endif
 
     /*

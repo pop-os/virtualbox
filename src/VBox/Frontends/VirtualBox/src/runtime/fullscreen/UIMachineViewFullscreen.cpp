@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,11 @@
 # include <QApplication>
 # include <QMainWindow>
 # include <QTimer>
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include <QMenuBar>
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
 # include "UISession.h"
 # include "UIActionPoolRuntime.h"
 # include "UIMachineLogicFullscreen.h"
@@ -36,12 +35,16 @@
 # include "UIMachineViewFullscreen.h"
 # include "UIFrameBuffer.h"
 # include "UIExtraDataManager.h"
+# include "UIDesktopWidgetWatchdog.h"
+
+/* Other VBox includes: */
+# include "VBox/log.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 # include <limits.h>
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
 
 UIMachineViewFullscreen::UIMachineViewFullscreen(  UIMachineWindow *pMachineWindow
@@ -58,12 +61,6 @@ UIMachineViewFullscreen::UIMachineViewFullscreen(  UIMachineWindow *pMachineWind
                     )
     , m_bIsGuestAutoresizeEnabled(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize)->isChecked())
 {
-}
-
-UIMachineViewFullscreen::~UIMachineViewFullscreen()
-{
-    /* Cleanup frame buffer: */
-    cleanupFrameBuffer();
 }
 
 void UIMachineViewFullscreen::sltAdditionsStateChanged()
@@ -136,7 +133,7 @@ void UIMachineViewFullscreen::setGuestAutoresizeEnabled(bool fEnabled)
     {
         m_bIsGuestAutoresizeEnabled = fEnabled;
 
-        if (uisession()->isGuestSupportsGraphics())
+        if (m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
             sltPerformGuestResize();
     }
 }
@@ -217,7 +214,7 @@ QRect UIMachineViewFullscreen::workingArea() const
     /* Get corresponding screen: */
     int iScreen = static_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(screenId());
     /* Return available geometry for that screen: */
-    return vboxGlobal().screenGeometry(iScreen);
+    return gpDesktop->screenGeometry(iScreen);
 }
 
 QSize UIMachineViewFullscreen::calculateMaxGuestSize() const

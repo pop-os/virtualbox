@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,15 +29,17 @@
 # include "UIMachineLogic.h"
 # include "UIMachineWindow.h"
 # include "UIMachineViewScale.h"
-# include "UIExtraDataManager.h"
 # include "UIFrameBuffer.h"
+# include "UIExtraDataManager.h"
+# include "UIDesktopWidgetWatchdog.h"
 
 /* COM includes: */
 # include "CConsole.h"
 # include "CDisplay.h"
 
 /* Other VBox includes: */
-#include <VBox/VBoxOGL.h>
+# include "VBox/log.h"
+# include <VBox/VBoxOGL.h>
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -55,14 +57,6 @@ UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
 #endif
                     )
 {
-    /* Resend the last resize hint: */
-    resendSizeHint();
-}
-
-UIMachineViewScale::~UIMachineViewScale()
-{
-    /* Cleanup frame buffer: */
-    cleanupFrameBuffer();
 }
 
 void UIMachineViewScale::sltPerformGuestScale()
@@ -175,7 +169,7 @@ QSize UIMachineViewScale::sizeHint() const
 
 QRect UIMachineViewScale::workingArea() const
 {
-    return vboxGlobal().availableGeometry(this);
+    return gpDesktop->availableGeometry(this);
 }
 
 QSize UIMachineViewScale::calculateMaxGuestSize() const

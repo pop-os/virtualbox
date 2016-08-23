@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,7 @@
 
 #ifdef RT_OS_WINDOWS
 # ifndef CTL_CODE
-#  include <Windows.h>
+#  include <iprt/win/windows.h>
 # endif
   /* Automatic buffering, size not encoded. */
 # define SUP_CTL_CODE_SIZE(Function, Size)      CTL_CODE(FILE_DEVICE_UNKNOWN, (Function) | SUP_IOCTL_FLAG, METHOD_BUFFERED, FILE_WRITE_ACCESS)
@@ -214,7 +214,7 @@ typedef SUPREQHDR *PSUPREQHDR;
  * @todo Pending work on next major version change:
  *          - nothing.
  */
-#define SUPDRV_IOC_VERSION                              0x00240000
+#define SUPDRV_IOC_VERSION                              0x00260000
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE

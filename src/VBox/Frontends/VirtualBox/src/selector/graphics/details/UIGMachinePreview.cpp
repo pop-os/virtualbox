@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -392,6 +392,18 @@ void UIGMachinePreview::paint(QPainter *pPainter, const QStyleOptionGraphicsItem
         /* Move image to viewport center: */
         QRect imageRect(QPoint(0, 0), m_pPreviewImg->size());
         imageRect.moveCenter(m_vRect.center());
+
+#ifdef VBOX_WS_MAC
+# if QT_VERSION >= 0x050000
+        /* Set composition-mode to opaque: */
+        pPainter->setCompositionMode(QPainter::CompositionMode_Source);
+        /* Replace translucent background with black one: */
+        pPainter->fillRect(imageRect, QColor(Qt::black));
+        /* Return default composition-mode back: */
+        pPainter->setCompositionMode(QPainter::CompositionMode_SourceAtop);
+# endif /* QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_MAC */
+
         /* Draw preview image: */
         pPainter->drawImage(imageRect.topLeft(), *m_pPreviewImg);
     }

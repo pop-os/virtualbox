@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -197,9 +197,9 @@ void UIPopupPaneTextPane::updateSizeHint()
 /* static */
 QFont UIPopupPaneTextPane::tuneFont(QFont font)
 {
-#if defined(Q_WS_MAC)
+#if defined(VBOX_WS_MAC)
     font.setPointSize(font.pointSize() - 2);
-#elif defined(Q_WS_X11)
+#elif defined(VBOX_WS_X11)
     font.setPointSize(font.pointSize() - 1);
 #endif
     return font;

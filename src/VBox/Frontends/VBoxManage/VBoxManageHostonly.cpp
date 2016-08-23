@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,7 +67,7 @@ static RTEXITCODE handleCreate(HandlerArg *a)
 
     CHECK_ERROR2I_RET(host, CreateHostOnlyNetworkInterface(hif.asOutParam(), progress.asOutParam()), RTEXITCODE_FAILURE);
 
-    HRESULT hrc = showProgress(progress);
+    /*HRESULT hrc =*/ showProgress(progress);
     CHECK_PROGRESS_ERROR_RET(progress, ("Failed to create the host-only adapter"), RTEXITCODE_FAILURE);
 
     Bstr bstrName;
@@ -118,7 +118,7 @@ static RTEXITCODE  handleRemove(HandlerArg *a)
     ComPtr<IProgress> progress;
     CHECK_ERROR2I_RET(host, RemoveHostOnlyNetworkInterface(guid.raw(), progress.asOutParam()), RTEXITCODE_FAILURE);
 
-    HRESULT hrc = showProgress(progress);
+    /*HRESULT hrc =*/ showProgress(progress);
     CHECK_PROGRESS_ERROR_RET(progress, ("Failed to remove the host-only adapter"), RTEXITCODE_FAILURE);
 
     return RTEXITCODE_SUCCESS;

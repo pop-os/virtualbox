@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,13 +52,15 @@ UIWizardNewVM::UIWizardNewVM(QWidget *pParent, const QString &strGroup /* = QStr
     , m_iSASCount(0)
     , m_iUSBCount(0)
 {
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /* Assign watermark: */
     assignWatermark(":/vmw_new_welcome.png");
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
     /* Assign background image: */
     assignBackground(":/vmw_new_welcome_bg.png");
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
+    /* Register classes: */
+    qRegisterMetaType<CGuestOSType>();
 }
 
 void UIWizardNewVM::prepare()
@@ -103,7 +105,9 @@ bool UIWizardNewVM::createVM()
         QVector<QString> groups;
         if (!m_strGroup.isEmpty())
             groups << m_strGroup;
-        m_machine = vbox.CreateMachine(QString(), field("name").toString(), groups, strTypeId, QString::null);
+        m_machine = vbox.CreateMachine(field("machineFilePath").toString(),
+                                       field("machineBaseName").toString(),
+                                       groups, strTypeId, QString());
         if (!vbox.isOk())
         {
             msgCenter().cannotCreateMachine(vbox, this);
@@ -138,7 +142,19 @@ bool UIWizardNewVM::createVM()
     /* Enable the OHCI and EHCI controller by default for new VMs. (new in 2.2): */
     CUSBDeviceFilters usbDeviceFilters = m_machine.GetUSBDeviceFilters();
     bool fOhciEnabled = false;
-    if (!usbDeviceFilters.isNull() && type.GetRecommendedUSB() && m_machine.GetUSBProxyAvailable())
+    if (!usbDeviceFilters.isNull() && type.GetRecommendedUSB3() && m_machine.GetUSBProxyAvailable())
+    {
+        /* USB 3.0 is only available if the proper ExtPack is installed. */
+        CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
+        if (manager.IsExtPackUsable(GUI_ExtPackName))
+        {
+            m_machine.AddUSBController("XHCI", KUSBControllerType_XHCI);
+            /* xHci includes OHCI */
+            fOhciEnabled = true;
+        }
+    }
+    if (   !fOhciEnabled
+        && !usbDeviceFilters.isNull() && type.GetRecommendedUSB() && m_machine.GetUSBProxyAvailable())
     {
         m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
         fOhciEnabled = true;
@@ -259,7 +275,7 @@ bool UIWizardNewVM::createVM()
             if (!strId.isNull())
             {
                 UIMedium vmedium = vboxGlobal().medium(strId);
-                CMedium medium = vmedium.medium();              // @todo r=dj can this be cached somewhere?
+                CMedium medium = vmedium.medium();              /// @todo r=dj can this be cached somewhere?
                 machine.AttachDevice(strHDName, 0, 0, KDeviceType_HardDisk, medium);
                 if (!machine.isOk())
                     msgCenter().cannotAttachDevice(machine, UIMediumType_HardDisk, field("virtualDiskLocation").toString(),
@@ -294,11 +310,11 @@ bool UIWizardNewVM::createVM()
         if (!success)
         {
             /* Unregister on failure */
-            QVector<CMedium> aMedia = m_machine.Unregister(KCleanupMode_UnregisterOnly);   //  @todo replace with DetachAllReturnHardDisksOnly once a progress dialog is in place below
+            QVector<CMedium> aMedia = m_machine.Unregister(KCleanupMode_UnregisterOnly);   /// @todo replace with DetachAllReturnHardDisksOnly once a progress dialog is in place below
             if (vbox.isOk())
             {
                 CProgress progress = m_machine.DeleteConfig(aMedia);
-                progress.WaitForCompletion(-1);         // @todo do this nicely with a progress dialog, this can delete lots of files
+                progress.WaitForCompletion(-1);         /// @todo do this nicely with a progress dialog, this can delete lots of files
             }
             return false;
         }

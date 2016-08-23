@@ -47,6 +47,8 @@
 
 #include <iprt/circbuf.h>
 #include <iprt/critsect.h>
+#include <iprt/file.h>
+#include <iprt/path.h>
 
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdm.h>
@@ -70,6 +72,22 @@ typedef struct audio_option
     int overriden;
 } audio_option;
 
+#ifdef VBOX_WITH_STATISTICS
+/**
+ * Structure for keeping stream statistics for the
+ * statistic manager (STAM).
+ */
+typedef struct DRVAUDIOSTATS
+{
+    STAMCOUNTER TotalStreamsActive;
+    STAMCOUNTER TotalStreamsCreated;
+    STAMCOUNTER TotalSamplesPlayed;
+    STAMCOUNTER TotalSamplesCaptured;
+    STAMCOUNTER TotalBytesRead;
+    STAMCOUNTER TotalBytesWritten;
+} DRVAUDIOSTATS, *PDRVAUDIOSTATS;
+#endif
+
 /**
  * Audio driver instance data.
  *
@@ -89,16 +107,16 @@ typedef struct DRVAUDIO
     PPDMDRVINS              pDrvIns;
     /** Pointer to audio driver below us. */
     PPDMIHOSTAUDIO          pHostDrvAudio;
-    /** List of host input streams. */
-    RTLISTANCHOR            lstHstStrmIn;
-    /** List of host output streams. */
-    RTLISTANCHOR            lstHstStrmOut;
+    /** List of host input/output audio streams. */
+    RTLISTANCHOR            lstHstStreams;
+    /** List of guest input/output audio streams. */
+    RTLISTANCHOR            lstGstStreams;
     /** Max. number of free input streams.
      *  UINT32_MAX for unlimited streams. */
-    uint32_t                cFreeInputStreams;
+    uint32_t                cStreamsFreeIn;
     /** Max. number of free output streams.
      *  UINT32_MAX for unlimited streams. */
-    uint32_t                cFreeOutputStreams;
+    uint32_t                cStreamsFreeOut;
     /** Audio configuration settings retrieved from the backend. */
     PDMAUDIOBACKENDCFG      BackendCfg;
 #ifdef VBOX_WITH_AUDIO_CALLBACKS
@@ -106,99 +124,41 @@ typedef struct DRVAUDIO
     RTLISTANCHOR            lstCBIn;
     RTLISTANCHOR            lstCBOut;
 #endif
+#ifdef VBOX_WITH_STATISTICS
+    /** Statistics for the statistics manager (STAM). */
+    DRVAUDIOSTATS           Stats;
+#endif
 } DRVAUDIO, *PDRVAUDIO;
 
 /** Makes a PDRVAUDIO out of a PPDMIAUDIOCONNECTOR. */
 #define PDMIAUDIOCONNECTOR_2_DRVAUDIO(pInterface) \
     ( (PDRVAUDIO)((uintptr_t)pInterface - RT_OFFSETOF(DRVAUDIO, IAudioConnector)) )
 
-//const char *drvAudioHlpFormatToString(PDMAUDIOFMT fmt);
-const char *drvAudioRecSourceToString(PDMAUDIORECSOURCE enmRecSource);
-PDMAUDIOFMT drvAudioHlpStringToFormat(const char *pszFormat);
 
-bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS info, PPDMAUDIOSTREAMCFG pCfg);
-void drvAudioStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg);
+bool DrvAudioHlpAudFmtIsSigned(PDMAUDIOFMT enmFmt);
+uint8_t DrvAudioHlpAudFmtToBits(PDMAUDIOFMT enmFmt);
+const char *DrvAudioHlpAudFmtToStr(PDMAUDIOFMT enmFmt);
+void DrvAudioHlpClearBuf(PPDMAUDIOPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf, uint32_t cSamples);
+uint32_t DrvAudioHlpCalcBitrate(uint8_t cBits, uint32_t uHz, uint8_t cChannels);
+uint32_t DrvAudioHlpCalcBitrate(PPDMAUDIOSTREAMCFG pCfg);
+bool DrvAudioHlpPCMPropsAreEqual(PPDMAUDIOPCMPROPS pPCMProps1, PPDMAUDIOPCMPROPS pPCMProps2);
+bool DrvAudioHlpPCMPropsAreEqual(PPDMAUDIOPCMPROPS pPCMProps, PPDMAUDIOSTREAMCFG pCfg);
+int DrvAudioHlpPCMPropsToStreamCfg(PPDMAUDIOPCMPROPS pPCMProps, PPDMAUDIOSTREAMCFG pCfg);
+const char *DrvAudioHlpRecSrcToStr(PDMAUDIORECSOURCE enmRecSource);
+void DrvAudioHlpStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg);
+bool DrvAudioHlpStreamCfgIsValid(PPDMAUDIOSTREAMCFG pCfg);
+int DrvAudioHlpStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOPCMPROPS pProps);
+PDMAUDIOFMT DrvAudioHlpStrToAudFmt(const char *pszFmt);
 
-/* AUDIO IN function declarations. */
-void drvAudioHlpPcmSwFreeResourcesIn(PPDMAUDIOGSTSTRMIN pGstStrmIn);
-void drvAudioGstInFreeRes(PPDMAUDIOGSTSTRMIN pGstStrmIn);
-void drvAudioGstInRemove(PPDMAUDIOGSTSTRMIN pGstStrmIn);
-uint32_t drvAudioHstInFindMinCaptured(PPDMAUDIOHSTSTRMIN pHstStrmIn);
-void drvAudioHstInFreeRes(PPDMAUDIOHSTSTRMIN pHstStrmIn);
-uint32_t drvAudioHstInGetFree(PPDMAUDIOHSTSTRMIN pHstStrmIn);
-uint32_t drvAudioHstInGetLive(PPDMAUDIOHSTSTRMIN pHstStrmIn);
-void drvAudioGstInRemove(PPDMAUDIOGSTSTRMIN pGstStrmIn);
-int  drvAudioGstInInit(PPDMAUDIOGSTSTRMIN pGstStrmIn, PPDMAUDIOHSTSTRMIN pHstStrmIn, const char *pszName, PPDMAUDIOSTREAMCFG pCfg);
+int DrvAudioHlpSanitizeFileName(char *pszPath, size_t cbPath);
+int DrvAudioHlpGetFileName(char *pszFile, size_t cchFile, const char *pszPath, const char *pszName, PDMAUDIOFILETYPE enmType);
 
-PPDMAUDIOHSTSTRMIN drvAudioFindNextHstIn(PDRVAUDIO pDrvAudio, PPDMAUDIOHSTSTRMIN pHstStrmIn);
-PPDMAUDIOHSTSTRMIN drvAudioFindNextEnabledHstIn(PDRVAUDIO pDrvAudio, PPDMAUDIOHSTSTRMIN pHstStrmIn);
-PPDMAUDIOHSTSTRMIN drvAudioFindNextEqHstIn(PDRVAUDIO pDrvAudio, PPDMAUDIOHSTSTRMIN pHstStrmIn, PPDMAUDIOSTREAMCFG pCfg);
+int DrvAudioHlpWAVFileOpen(PPDMAUDIOFILE pFile, const char *pszFile, uint32_t fOpen, PPDMAUDIOPCMPROPS pProps, PDMAUDIOFILEFLAGS fFlags);
+int DrvAudioHlpWAVFileClose(PPDMAUDIOFILE pFile);
+size_t DrvAudioHlpWAVFileGetDataSize(PPDMAUDIOFILE pFile);
+int DrvAudioHlpWAVFileWrite(PPDMAUDIOFILE pFile, const void *pvBuf, size_t cbBuf, uint32_t fFlags);
 
-/* AUDIO OUT function declarations. */
-int  drvAudioGstOutAlloc(PPDMAUDIOGSTSTRMOUT pGstStrmOut);
-void drvAudioGstOutFreeRes(PPDMAUDIOGSTSTRMOUT pGstStrmOut);
-void drvAudioHstOutFreeRes(PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-int  drvAudioDestroyGstOut(PDRVAUDIO pDrvAudio, PPDMAUDIOGSTSTRMOUT pGstStrmOut);
-void drvAudioDestroyHstOut(PDRVAUDIO pDrvAudio, PDMAUDIOHSTSTRMOUT pHstStrmOut);
-int  drvAudioGstOutInit(PPDMAUDIOGSTSTRMOUT pGstStrmOut, PPDMAUDIOHSTSTRMOUT pHstStrmOut, const char *pszName, PPDMAUDIOSTREAMCFG pCfg);
+#define AUDIO_MAKE_FOURCC(c0, c1, c2, c3) RT_H2LE_U32_C(RT_MAKE_U32_FROM_U8(c0, c1, c2, c3))
 
-PPDMAUDIOHSTSTRMOUT drvAudioFindAnyHstOut(PDRVAUDIO pDrvAudio, PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-PPDMAUDIOHSTSTRMOUT drvAudioHstFindAnyEnabledOut(PDRVAUDIO pDrvAudio, PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-PPDMAUDIOHSTSTRMOUT drvAudioFindSpecificOut(PDRVAUDIO pDrvAudio, PPDMAUDIOHSTSTRMOUT pHstStrmOut, PPDMAUDIOSTREAMCFG pCfg);
-int drvAudioAllocHstOut(PDRVAUDIO pDrvAudio, const char *pszName, PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOHSTSTRMOUT *ppHstStrmOut);
-int drvAudioHlpPcmHwAddOut(PDRVAUDIO pDrvAudio, PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOHSTSTRMOUT *ppHstStrmOut);
-int drvAudioHlpPcmCreateVoicePairOut(PDRVAUDIO pDrvAudio, const char *pszName, PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOGSTSTRMOUT *ppGstStrmOut);
-
-/* Common functions between DrvAudio and backends (host audio drivers). */
-void DrvAudioClearBuf(PPDMPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf, uint32_t cSamples);
-int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps);
-
-typedef struct fixed_settings
-{
-    int enabled;
-    int cStreams;
-    int greedy;
-    PDMAUDIOSTREAMCFG settings;
-} fixed_settings;
-
-static struct {
-    struct fixed_settings fixed_out;
-    struct fixed_settings fixed_in;
-    union {
-        int hz;
-        int64_t ticks;
-    } period;
-    int plive;
-} conf = {
-
-    /* Fixed output settings. */
-    {                           /* DAC fixed settings */
-        1,                      /* enabled */
-        1,                      /* cStreams */
-        1,                      /* greedy */
-        {
-            44100,              /* freq */
-            2,                  /* nchannels */
-            AUD_FMT_S16,        /* fmt */
-            PDMAUDIOHOSTENDIANNESS
-        }
-    },
-
-    /* Fixed input settings. */
-    {                           /* ADC fixed settings */
-        1,                      /* enabled */
-        2,                      /* cStreams */
-        1,                      /* greedy */
-        {
-            44100,              /* freq */
-            2,                  /* nchannels */
-            AUD_FMT_S16,        /* fmt */
-            PDMAUDIOHOSTENDIANNESS
-        }
-    },
-
-    { 200 },                    /* frequency (in Hz) */
-    0,                          /* plive */ /** @todo Disable pending live? */
-};
 #endif /* DRV_AUDIO_H */
 

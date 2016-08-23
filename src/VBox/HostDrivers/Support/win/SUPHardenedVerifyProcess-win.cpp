@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -216,6 +216,7 @@ static const char *g_apszSupNtVpAllowedVmExes[] =
     "VBoxSDL.exe",
     "VBoxNetDHCP.exe",
     "VBoxNetNAT.exe",
+    "VBoxVMMPreload.exe",
 
     "tstMicro.exe",
     "tstPDMAsyncCompletion.exe",
@@ -357,6 +358,7 @@ static NTSTATUS supHardNtVpReadMem(HANDLE hProcess, uintptr_t uPtr, void *pvBuf,
 {
 #ifdef IN_RING0
     /* ASSUMES hProcess is the current process. */
+    RT_NOREF1(hProcess);
     /** @todo use MmCopyVirtualMemory where available! */
     int rc = RTR0MemUserCopyFrom(pvBuf, uPtr, cbRead);
     if (RT_SUCCESS(rc))
@@ -409,6 +411,9 @@ static int supHardNtVpFileMemCompareSection(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAGE
                                             int32_t iSh, PSUPHNTVPSKIPAREA paSkipAreas, uint32_t cSkipAreas,
                                             uint32_t fCorrectProtection)
 {
+#ifndef IN_RING3
+    RT_NOREF1(fCorrectProtection);
+#endif
     AssertCompileAdjacentMembers(SUPHNTVPSTATE, abMemory, abFile); /* Use both the memory and file buffers here. Parfait might hate me for this... */
     uint32_t  const cbMemory = sizeof(pThis->abMemory) + sizeof(pThis->abFile);
     uint8_t * const pbMemory = &pThis->abMemory[0];
@@ -562,7 +567,7 @@ static int supHardNtVpCheckSectionProtection(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAG
 }
 
 
-static DECLINLINE(bool) supHardNtVpIsModuleNameMatch(PSUPHNTVPIMAGE pImage, const char *pszModule)
+DECLINLINE(bool) supHardNtVpIsModuleNameMatch(PSUPHNTVPIMAGE pImage, const char *pszModule)
 {
     if (pImage->fDll)
     {
@@ -634,6 +639,7 @@ static PSUPHNTVPIMAGE supHardNtVpFindModule(PSUPHNTVPSTATE pThis, const char *ps
 static DECLCALLBACK(int) supHardNtVpGetImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol,
                                               PRTLDRADDR pValue, void *pvUser)
 {
+    RT_NOREF1(hLdrMod);
     /*SUP_DPRINTF(("supHardNtVpGetImport: %s / %#x / %s.\n", pszModule, uSymbol, pszSymbol));*/
     PSUPHNTVPSTATE pThis = (PSUPHNTVPSTATE)pvUser;
 
@@ -717,11 +723,10 @@ static DECLCALLBACK(int) supHardNtVpGetImport(RTLDRMOD hLdrMod, const char *pszM
  *                              two scratch buffers).
  * @param   pImage              The image data collected during the address
  *                              space scan.
- * @param   hProcess            Handle to the process.
- * @param   pErrInfo            Pointer to error info structure. Optional.
  */
-static int supHardNtVpVerifyImageMemoryCompare(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAGE pImage, HANDLE hProcess, PRTERRINFO pErrInfo)
+static int supHardNtVpVerifyImageMemoryCompare(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAGE pImage)
 {
+
     /*
      * Read and find the file headers.
      */
@@ -1036,9 +1041,8 @@ static int supHardNtVpVerifyImageMemoryCompare(PSUPHNTVPSTATE pThis, PSUPHNTVPIM
  *                              two scratch buffers).
  * @param   pImage              The image data collected during the address
  *                              space scan.
- * @param   hProcess            Handle to the process.
  */
-static int supHardNtVpVerifyImage(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAGE pImage, HANDLE hProcess)
+static int supHardNtVpVerifyImage(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAGE pImage)
 {
     /*
      * Validate the file signature first, then do the memory compare.
@@ -1049,7 +1053,7 @@ static int supHardNtVpVerifyImage(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAGE pImage, H
     {
         rc = supHardNtLdrCacheEntryVerify(pImage->pCacheEntry, pImage->Name.UniStr.Buffer, pThis->pErrInfo);
         if (RT_SUCCESS(rc))
-            rc = supHardNtVpVerifyImageMemoryCompare(pThis, pImage, hProcess, pThis->pErrInfo);
+            rc = supHardNtVpVerifyImageMemoryCompare(pThis, pImage);
     }
     else
         rc = supHardNtVpSetInfo2(pThis, VERR_OPEN_FAILED, "pCacheEntry/hLdrMod is NIL! Impossible!");
@@ -1067,6 +1071,8 @@ static int supHardNtVpVerifyImage(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAGE pImage, H
  */
 DECLHIDDEN(int) supHardNtVpThread(HANDLE hProcess, HANDLE hThread, PRTERRINFO pErrInfo)
 {
+    RT_NOREF1(hProcess);
+
     /*
      * Use the ThreadAmILastThread request to check that there is only one
      * thread in the process.
@@ -1113,6 +1119,8 @@ DECLHIDDEN(int) supHardNtVpDebugger(HANDLE hProcess, PRTERRINFO pErrInfo)
     if (uPtr != 0)
         return supHardNtVpSetInfo1(pErrInfo, VERR_SUP_VP_DEBUGGED,
                                    "Debugger attached (%#zx)", uPtr);
+#else
+    RT_NOREF2(hProcess, pErrInfo);
 #endif /* !VBOX_WITHOUT_DEBUGGER_CHECKS */
     return VINF_SUCCESS;
 }
@@ -1199,7 +1207,6 @@ static int supHardNtVpNewImage(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAGE pImage, PMEM
      */
     RTUTF16   wc;
     unsigned  cwcDirName   = pLongName->Length / sizeof(WCHAR);
-    PCRTUTF16 pwcDirName   = &pLongName->Buffer[cwcDirName];
     PCRTUTF16 pwszFilename = &pLongName->Buffer[cwcDirName];
     while (   cwcDirName > 0
            && (wc = pwszFilename[-1]) != '\\'
@@ -1424,7 +1431,7 @@ static bool supHardNtVpFreeOrReplacePrivateExecMemory(PSUPHNTVPSTATE pThis, HAND
     NTSTATUS rcNt;
 
     /*
-     * Try figure if the entire allocation size. Free/Alloc may fail otherwise.
+     * Try figure the entire allocation size. Free/Alloc may fail otherwise.
      */
     PVOID   pvFree = pMemInfo->AllocationBase;
     SIZE_T  cbFree = pMemInfo->RegionSize + ((uintptr_t)pMemInfo->BaseAddress - (uintptr_t)pMemInfo->AllocationBase);
@@ -1443,6 +1450,9 @@ static bool supHardNtVpFreeOrReplacePrivateExecMemory(PSUPHNTVPSTATE pThis, HAND
             break;
         if (pMemInfo->AllocationBase != MemInfo2.AllocationBase)
             break;
+        if (MemInfo2.RegionSize == 0)
+            break;
+        cbFree += MemInfo2.RegionSize;
     }
     SUP_DPRINTF(("supHardNtVpFreeOrReplacePrivateExecMemory: %s exec mem at %p (LB %#zx, %p LB %#zx)\n",
                  pThis->fFlags & SUPHARDNTVP_F_EXEC_ALLOC_REPLACE_WITH_RW ? "Replacing" : "Freeing",
@@ -2203,10 +2213,11 @@ static int supHardNtVpOpenImages(PSUPHNTVPSTATE pThis)
  *
  * @returns VBox status code.
  * @param   pThis               The process scanning state structure. Details
- *                              about images are added to this.
- * @param   hProcess            The process to verify.
+ *                              about images are added to this.  The hProcess
+ *                              member holds the handle to the process that is
+ *                              to be verified.
  */
-static int supHardNtVpCheckExe(PSUPHNTVPSTATE pThis, HANDLE hProcess)
+static int supHardNtVpCheckExe(PSUPHNTVPSTATE pThis)
 {
     /*
      * Make sure there is exactly one executable image.
@@ -2240,7 +2251,7 @@ static int supHardNtVpCheckExe(PSUPHNTVPSTATE pThis, HANDLE hProcess)
         return supHardNtVpSetInfo2(pThis, VERR_SUP_VP_NO_MEMORY,
                                   "Error allocating %zu bytes for process name.", cbUniStr);
     ULONG    cbIgn = 0;
-    NTSTATUS rcNt = NtQueryInformationProcess(hProcess, ProcessImageFileName, pUniStr, cbUniStr - sizeof(WCHAR), &cbIgn);
+    NTSTATUS rcNt = NtQueryInformationProcess(pThis->hProcess, ProcessImageFileName, pUniStr, cbUniStr - sizeof(WCHAR), &cbIgn);
     if (NT_SUCCESS(rcNt))
     {
         if (supHardNtVpAreUniStringsEqual(pUniStr, &pImage->Name.UniStr))
@@ -2264,7 +2275,7 @@ static int supHardNtVpCheckExe(PSUPHNTVPSTATE pThis, HANDLE hProcess)
      * Validate the signing of the executable image.
      * This will load the fDllCharecteristics and fImageCharecteristics members we use below.
      */
-    rc = supHardNtVpVerifyImage(pThis, pImage, hProcess);
+    rc = supHardNtVpVerifyImage(pThis, pImage);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -2274,15 +2285,16 @@ static int supHardNtVpCheckExe(PSUPHNTVPSTATE pThis, HANDLE hProcess)
      * older windows versions.  The cut-off seems to be Vista.
      */
     SECTION_IMAGE_INFORMATION ImageInfo;
-    rcNt = NtQueryInformationProcess(hProcess, ProcessImageInformation, &ImageInfo, sizeof(ImageInfo), NULL);
+    rcNt = NtQueryInformationProcess(pThis->hProcess, ProcessImageInformation, &ImageInfo, sizeof(ImageInfo), NULL);
     if (!NT_SUCCESS(rcNt))
     {
         if (   rcNt == STATUS_INVALID_PARAMETER
             && g_uNtVerCombined < SUP_NT_VER_VISTA
-            && hProcess != NtCurrentProcess() )
+            && pThis->hProcess != NtCurrentProcess() )
             return VINF_SUCCESS;
         return supHardNtVpSetInfo2(pThis, VERR_SUP_VP_NT_QI_PROCESS_IMG_INFO_ERROR,
-                                   "NtQueryInformationProcess/ProcessImageInformation failed: %#x hProcess=%#x", rcNt, hProcess);
+                                   "NtQueryInformationProcess/ProcessImageInformation failed: %#x hProcess=%#x",
+                                   rcNt, pThis->hProcess);
     }
     if ( !(ImageInfo.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_FORCE_INTEGRITY))
         return supHardNtVpSetInfo2(pThis, VERR_SUP_VP_EXE_MISSING_FORCE_INTEGRITY,
@@ -2316,10 +2328,11 @@ static int supHardNtVpCheckExe(PSUPHNTVPSTATE pThis, HANDLE hProcess)
  *
  * @returns VBox status code.
  * @param   pThis               The process scanning state structure. Details
- *                              about images are added to this.
- * @param   hProcess            The process to verify.
+ *                              about images are added to this.  The hProcess
+ *                              member holds the handle to the process that is
+ *                              to be verified.
  */
-static int supHardNtVpCheckDlls(PSUPHNTVPSTATE pThis, HANDLE hProcess)
+static int supHardNtVpCheckDlls(PSUPHNTVPSTATE pThis)
 {
     /*
      * Check for duplicate entries (paranoia).
@@ -2364,7 +2377,7 @@ static int supHardNtVpCheckDlls(PSUPHNTVPSTATE pThis, HANDLE hProcess)
     i = pThis->cImages;
     while (i-- > 0)
     {
-        int rc = supHardNtVpVerifyImage(pThis, &pThis->aImages[i], hProcess);
+        int rc = supHardNtVpVerifyImage(pThis, &pThis->aImages[i]);
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -2432,9 +2445,9 @@ DECLHIDDEN(int) supHardenedWinVerifyProcess(HANDLE hProcess, HANDLE hThread, SUP
             if (RT_SUCCESS(rc))
                 rc = supHardNtVpOpenImages(pThis);
             if (RT_SUCCESS(rc))
-                rc = supHardNtVpCheckExe(pThis, hProcess);
+                rc = supHardNtVpCheckExe(pThis);
             if (RT_SUCCESS(rc))
-                rc = supHardNtVpCheckDlls(pThis, hProcess);
+                rc = supHardNtVpCheckDlls(pThis);
 
             if (pcFixes)
                 *pcFixes = pThis->cFixes;

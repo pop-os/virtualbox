@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015 Oracle Corporation
+ * Copyright (C) 2015-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -251,7 +251,7 @@ VMMR3_INT_DECL(int)             gimR3KvmTerm(PVM pVM);
 VMMR3_INT_DECL(void)            gimR3KvmRelocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3_INT_DECL(void)            gimR3KvmReset(PVM pVM);
 VMMR3_INT_DECL(int)             gimR3KvmSave(PVM pVM, PSSMHANDLE pSSM);
-VMMR3_INT_DECL(int)             gimR3KvmLoad(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion);
+VMMR3_INT_DECL(int)             gimR3KvmLoad(PVM pVM, PSSMHANDLE pSSM);
 
 VMMR3_INT_DECL(int)             gimR3KvmDisableSystemTime(PVM pVM);
 VMMR3_INT_DECL(int)             gimR3KvmEnableSystemTime(PVM pVM, PVMCPU pVCpu);
@@ -260,11 +260,12 @@ VMMR3_INT_DECL(int)             gimR3KvmEnableWallClock(PVM pVM, RTGCPHYS GCPhys
 
 VMM_INT_DECL(bool)              gimKvmIsParavirtTscEnabled(PVM pVM);
 VMM_INT_DECL(bool)              gimKvmAreHypercallsEnabled(PVMCPU pVCpu);
-VMM_INT_DECL(int)               gimKvmHypercall(PVMCPU pVCpu, PCPUMCTX pCtx);
+VMM_INT_DECL(VBOXSTRICTRC)      gimKvmHypercall(PVMCPU pVCpu, PCPUMCTX pCtx);
 VMM_INT_DECL(VBOXSTRICTRC)      gimKvmReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue);
 VMM_INT_DECL(VBOXSTRICTRC)      gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uRawValue);
 VMM_INT_DECL(bool)              gimKvmShouldTrapXcptUD(PVMCPU pVCpu);
-VMM_INT_DECL(int)               gimKvmXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis);
+VMM_INT_DECL(VBOXSTRICTRC)      gimKvmXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)      gimKvmExecHypercallInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis);
 
 
 RT_C_DECLS_END

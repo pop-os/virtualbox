@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,7 +106,7 @@ static DECLCALLBACK(void) selmR3InfoLdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
-#ifdef LOG_ENABLED
+#if defined(VBOX_WITH_RAW_MODE) && defined(LOG_ENABLED)
 /** Segment register names. */
 static char const g_aszSRegNms[X86_SREG_COUNT][4] = { "ES", "CS", "SS", "DS", "FS", "GS" };
 #endif
@@ -364,7 +364,9 @@ VMMR3DECL(int) SELMR3InitFinalize(PVM pVM)
                            X86_PTE_RW | X86_PTE_P | X86_PTE_A | X86_PTE_D);
         AssertRC(rc);
     }
-#endif /* VBOX_WITH_RAW_MODE */
+#else  /* !VBOX_WITH_RAW_MODE */
+    RT_NOREF(pVM);
+#endif /* !VBOX_WITH_RAW_MODE */
     return VINF_SUCCESS;
 }
 
@@ -631,11 +633,10 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
      * Uninstall guest GDT/LDT/TSS write access handlers.
      */
     PVMCPU pVCpu = VMMGetCpu(pVM); NOREF(pVCpu);
-    int rc = VINF_SUCCESS;
     if (pVM->selm.s.GuestGdtr.pGdt != RTRCPTR_MAX && pVM->selm.s.fGDTRangeRegistered)
     {
 #ifdef SELM_TRACK_GUEST_GDT_CHANGES
-        rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GuestGdtr.pGdt, false /*fHypervisor*/);
+        int rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GuestGdtr.pGdt, false /*fHypervisor*/);
         AssertRC(rc);
 #endif
         pVM->selm.s.GuestGdtr.pGdt = RTRCPTR_MAX;
@@ -645,7 +646,7 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
     if (pVM->selm.s.GCPtrGuestLdt != RTRCPTR_MAX)
     {
 #ifdef SELM_TRACK_GUEST_LDT_CHANGES
-        rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestLdt, false /*fHypervisor*/);
+        int rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestLdt, false /*fHypervisor*/);
         AssertRC(rc);
 #endif
         pVM->selm.s.GCPtrGuestLdt = RTRCPTR_MAX;
@@ -653,7 +654,7 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
     if (pVM->selm.s.GCPtrGuestTss != RTRCPTR_MAX)
     {
 #ifdef SELM_TRACK_GUEST_TSS_CHANGES
-        rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestTss, false /*fHypervisor*/);
+        int rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestTss, false /*fHypervisor*/);
         AssertRC(rc);
 #endif
         pVM->selm.s.GCPtrGuestTss = RTRCPTR_MAX;
@@ -817,7 +818,10 @@ static DECLCALLBACK(int) selmR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
     }
-#endif /*VBOX_WITH_RAW_MODE*/
+
+#else  /* !VBOX_WITH_RAW_MODE */
+    RT_NOREF(pVM, pSSM);
+#endif /* !VBOX_WITH_RAW_MODE */
     return VINF_SUCCESS;
 }
 
@@ -832,6 +836,7 @@ static DECLCALLBACK(int) selmR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
  */
 static int selmR3UpdateShadowGdt(PVM pVM, PVMCPU pVCpu)
 {
+    LogFlow(("selmR3UpdateShadowGdt\n"));
     Assert(!HMIsEnabled(pVM));
 
     /*
@@ -1091,6 +1096,7 @@ static int selmR3UpdateShadowGdt(PVM pVM, PVMCPU pVCpu)
  */
 static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
 {
+    LogFlow(("selmR3UpdateShadowLdt\n"));
     int rc = VINF_SUCCESS;
     Assert(!HMIsEnabled(pVM));
 
@@ -1249,6 +1255,7 @@ static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
      * Set Hyper LDTR and notify TRPM.
      */
     CPUMSetHyperLDTR(pVCpu, SelLdt);
+    LogFlow(("selmR3UpdateShadowLdt: Hyper LDTR %#x\n", SelLdt));
 
     /*
      * Loop synchronising the LDT page by page.
@@ -1491,6 +1498,7 @@ VMMR3DECL(VBOXSTRICTRC) SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu)
  */
 VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
 {
+    LogFlow(("SELMR3SyncTSS\n"));
     int rc;
     AssertReturnStmt(!HMIsEnabled(pVM), VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_SELM_SYNC_TSS), VINF_SUCCESS);
 
@@ -2035,6 +2043,8 @@ VMMR3DECL(bool) SELMR3CheckShadowTR(PVM pVM)
         AssertFailed();
         return false;
     }
+#  else
+    RT_NOREF_PV(pVM);
 #  endif
     return true;
 }
@@ -2495,12 +2505,18 @@ static void selmR3FormatDescriptor(X86DESC Desc, RTSEL Sel, char *pszOutput, siz
  * @param   Sel     Selector number.
  * @param   pszMsg  Message to prepend the log entry with.
  */
-VMMR3DECL(void) SELMR3DumpDescriptor(X86DESC  Desc, RTSEL Sel, const char *pszMsg)
+VMMR3DECL(void) SELMR3DumpDescriptor(X86DESC Desc, RTSEL Sel, const char *pszMsg)
 {
-    char szOutput[128];
-    selmR3FormatDescriptor(Desc, Sel, &szOutput[0], sizeof(szOutput));
-    Log(("%s: %s\n", pszMsg, szOutput));
-    NOREF(szOutput[0]);
+#ifdef LOG_ENABLED
+    if (LogIsEnabled())
+    {
+        char szOutput[128];
+        selmR3FormatDescriptor(Desc, Sel, &szOutput[0], sizeof(szOutput));
+        Log(("%s: %s\n", pszMsg, szOutput));
+    }
+#else
+    RT_NOREF3(Desc, Sel, pszMsg);
+#endif
 }
 
 

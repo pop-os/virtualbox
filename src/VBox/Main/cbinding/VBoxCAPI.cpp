@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,10 @@
 #include "VBox/com/com.h"
 #include "VBox/com/NativeEventQueue.h"
 
+
+#ifndef RT_OS_DARWIN /* Probably not used for xpcom, so clang gets upset: error: using directive refers to implicitly-defined namespace 'std' [-Werror]*/
 using namespace std;
+#endif
 
 /* The following 2 object references should be eliminated once the legacy
  * way to initialize the COM/XPCOM C bindings is removed. */
@@ -68,18 +71,21 @@ VBoxUtf16ToUtf8(CBSTR pwszString, char **ppszString)
 static int
 VBoxUtf8ToUtf16(const char *pszString, BSTR *ppwszString)
 {
+    *ppwszString = NULL;
     if (!pszString)
-    {
-        *ppwszString = NULL;
         return VINF_SUCCESS;
-    }
 #ifdef VBOX_WITH_XPCOM
     return RTStrToUtf16(pszString, ppwszString);
 #else /* !VBOX_WITH_XPCOM */
     PRTUTF16 pwsz;
     int vrc = RTStrToUtf16(pszString, &pwsz);
-    *ppwszString = ::SysAllocString(pwsz);
-    RTUtf16Free(pwsz);
+    if (RT_SUCCESS(vrc))
+    {
+        *ppwszString = ::SysAllocString(pwsz);
+        if (!*ppwszString)
+            vrc = VERR_NO_STR_MEMORY;
+        RTUtf16Free(pwsz);
+    }
     return vrc;
 #endif /* !VBOX_WITH_XPCOM */
 }
@@ -101,9 +107,9 @@ VBoxUtf16Free(BSTR pwszString)
 {
 #ifdef VBOX_WITH_XPCOM
     RTUtf16Free(pwszString);
-#else /* !VBOX_WITH_XPCOM */
+#else
     ::SysFreeString(pwszString);
-#endif /* !VBOX_WITH_XPCOM */
+#endif
 }
 
 static void
@@ -119,9 +125,9 @@ VBoxComUnallocString(BSTR pwsz)
     {
 #ifdef VBOX_WITH_XPCOM
         nsMemory::Free(pwsz);
-#else /* !VBOX_WITH_XPCOM */
+#else
         ::SysFreeString(pwsz);
-#endif /* !VBOX_WITH_XPCOM */
+#endif
     }
 }
 
@@ -253,7 +259,7 @@ VBoxSafeArrayCopyInParamHelper(SAFEARRAY *psa, const void *pv, ULONG cb)
     memcpy(pData, pv, cb);
 #ifndef VBOX_WITH_XPCOM
     SafeArrayUnaccessData(psa);
-#endif /* !VBOX_WITH_XPCOM */
+#endif
     return S_OK;
 }
 
@@ -316,7 +322,7 @@ VBoxSafeArrayCopyOutParamHelper(void **ppv, ULONG *pcb, VARTYPE vt, SAFEARRAY *p
         *pcb = (ULONG)cbTotal;
 #ifndef VBOX_WITH_XPCOM
     SafeArrayUnaccessData(psa);
-#endif /* !VBOX_WITH_XPCOM */
+#endif
     return S_OK;
 }
 
@@ -418,7 +424,19 @@ VBoxComInitialize(const char *pszVirtualBoxIID, IVirtualBox **ppVirtualBox,
                                               virtualBoxIID,
                                               (void **)&g_VirtualBox);
 #else /* !VBOX_WITH_XPCOM */
-    rc = CoCreateInstance(CLSID_VirtualBox, NULL, CLSCTX_LOCAL_SERVER, virtualBoxIID, (void **)&g_VirtualBox);
+    IVirtualBoxClient *pVirtualBoxClient;
+    rc = CoCreateInstance(CLSID_VirtualBoxClient, NULL, CLSCTX_INPROC_SERVER, IID_IVirtualBoxClient, (void **)&pVirtualBoxClient);
+    if (SUCCEEDED(rc))
+    {
+        IVirtualBox *pVirtualBox;
+        rc = pVirtualBoxClient->get_VirtualBox(&pVirtualBox);
+        if (SUCCEEDED(rc))
+        {
+            rc = pVirtualBox->QueryInterface(virtualBoxIID, (void **)&g_VirtualBox);
+            pVirtualBox->Release();
+        }
+        pVirtualBoxClient->Release();
+    }
 #endif /* !VBOX_WITH_XPCOM */
     if (FAILED(rc))
     {

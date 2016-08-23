@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,12 +54,12 @@ static int VBoxNetAdpInstall(void)
             INetCfg *pnc;
             LPWSTR lpszLockedBy = NULL;
             hr = VBoxNetCfgWinQueryINetCfg(&pnc, TRUE, VBOX_NETADP_APP_NAME, 10000, &lpszLockedBy);
-            if(hr == S_OK)
+            if (hr == S_OK)
             {
 
                 hr = VBoxNetCfgWinNetAdpInstall(pnc, MpInf);
 
-                if(hr == S_OK)
+                if (hr == S_OK)
                 {
                     wprintf(L"installed successfully\n");
                 }

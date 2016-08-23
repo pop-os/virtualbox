@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,11 +32,11 @@ public:
     QITabWidget(QWidget *pParent = 0)
         :QTabWidget(pParent)
     {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /* I don't know why, but for some languages there is ElideRight the
            default on Mac OS X. Fix this. */
         setElideMode(Qt::ElideNone);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     }
 };
 

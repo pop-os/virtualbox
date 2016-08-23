@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -452,6 +452,8 @@ VMMR3_INT_DECL(int) PGMR3HandlerVirtualTypeRegister(PVM pVM, PGMVIRTHANDLERKIND 
  *
  * @returns VBox status code.
  * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context virtual CPU structure of the
+ *                          calling EMT.
  * @param   hType           The handler type.
  * @param   GCPtr           Start address.
  * @param   GCPtrLast       Last address (inclusive).

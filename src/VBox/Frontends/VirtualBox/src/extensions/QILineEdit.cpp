@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,21 +19,39 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* Qt includes: */
+# include <QtGlobal>                    /* for QT_VERSION */
+# if QT_VERSION < 0x050000
+#  ifdef VBOX_WS_WIN
+#   include <QLibrary>
+#  endif
+# endif
+
+/* GUI includes: */
 # include "QILineEdit.h"
 
-/* Qt includes */
-# ifdef Q_WS_WIN32
-#  include <QLibrary>
+/* Other VBox includes: */
+# if QT_VERSION < 0x050000
+#  ifdef VBOX_WS_WIN
+#   include "iprt/ldr.h"
+#  endif
+# endif
 
-#  include <Windows.h>
-#  include "iprt/ldr.h"
+/* External includes: */
+# if QT_VERSION < 0x050000
+#  ifdef VBOX_WS_WIN
+#   include <iprt/win/windows.h>
+#  endif
 # endif
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* Qt includes: */
 #include <QStyleOptionFrame>
-#ifdef Q_WS_WIN32
-# include <QWindowsVistaStyle>
+#if QT_VERSION < 0x050000
+# ifdef VBOX_WS_WIN
+#  include <QWindowsVistaStyle>
+# endif
 #endif
 
 
@@ -62,7 +80,8 @@ QSize QILineEdit::featTextWidth (const QString &aText) const
               fontMetrics().xHeight()     + 2*1);
     QSize sa = style()->sizeFromContents (QStyle::CT_LineEdit, &sof, sc, this);
 
-#if defined (Q_WS_WIN32)
+#if QT_VERSION < 0x050000
+# ifdef VBOX_WS_WIN
     /* Vista l&f style has a bug where the last parameter of sizeFromContents
      * function ('widget' what corresponds to 'this' in our class) is ignored.
      * Due to it QLineEdit processed as QComboBox and size calculation includes
@@ -79,7 +98,8 @@ QSize QILineEdit::featTextWidth (const QString &aText) const
         if (s_pfnIsAppThemed && s_pfnIsAppThemed())
             sa -= QSize(23, 0);
     }
-#endif
+# endif /* VBOX_WS_WIN */
+#endif /* QT_VERSION < 0x050000 */
 
     return sa;
 }

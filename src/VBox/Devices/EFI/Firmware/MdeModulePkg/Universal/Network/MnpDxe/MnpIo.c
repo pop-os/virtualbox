@@ -1,7 +1,7 @@
 /** @file
   Implementation of Managed Network Protocol I/O functions.
 
-Copyright (c) 2005 - 2010, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2005 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
 of the BSD License which accompanies this distribution.  The full
@@ -128,12 +128,19 @@ MnpBuildTxPacket (
   MNP_DEVICE_DATA         *MnpDerviceData;
 
   MnpDerviceData = MnpServiceData->MnpDeviceData;
+
+  //
+  // Reserve space for vlan tag.
+  //
+  *PktBuf = MnpDerviceData->TxBuf + NET_VLAN_TAG_LEN;
+
   if ((TxData->DestinationAddress == NULL) && (TxData->FragmentCount == 1)) {
-    //
-    // Media header is in FragmentTable and there is only one fragment,
-    // use fragment buffer directly.
-    //
-    *PktBuf = TxData->FragmentTable[0].FragmentBuffer;
+    CopyMem (
+        *PktBuf,
+        TxData->FragmentTable[0].FragmentBuffer,
+        TxData->FragmentTable[0].FragmentLength
+        );
+
     *PktLen = TxData->FragmentTable[0].FragmentLength;
   } else {
     //
@@ -142,8 +149,7 @@ MnpBuildTxPacket (
     // media header space if necessary.
     //
     SnpMode = MnpDerviceData->Snp->Mode;
-    DstPos  = MnpDerviceData->TxBuf;
-
+    DstPos  = *PktBuf;
     *PktLen = 0;
     if (TxData->DestinationAddress != NULL) {
       //
@@ -167,9 +173,8 @@ MnpBuildTxPacket (
     }
 
     //
-    // Set the buffer pointer and the buffer length.
+    // Set the buffer length.
     //
-    *PktBuf = MnpDerviceData->TxBuf;
     *PktLen += TxData->DataLength + TxData->HeaderLength;
   }
 }
@@ -235,10 +240,15 @@ MnpSyncSendPacket (
     goto SIGNAL_TOKEN;
   }
 
-  //
-  // Insert VLAN tag
-  //
-  MnpInsertVlanTag (MnpServiceData, TxData, &ProtocolType, &Packet, &Length);
+
+  if (MnpServiceData->VlanId != 0) {
+    //
+    // Insert VLAN tag
+    //
+    MnpInsertVlanTag (MnpServiceData, TxData, &ProtocolType, &Packet, &Length);
+  } else {
+    ProtocolType = TxData->ProtocolType;
+  }
 
   for (;;) {
     //

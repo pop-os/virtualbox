@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 107701 $)
+# Linux Additions kernel module init script ($Revision: 109440 $)
 #
 
 #
@@ -28,17 +28,16 @@
 # Description:    VirtualBox Linux Additions kernel modules
 ### END INIT INFO
 
+## @todo This file duplicates a lot of script with vboxdrv.sh.  When making
+# changes please try to reduce differences between the two wherever possible.
+
 PATH=$PATH:/bin:/sbin:/usr/sbin
 PACKAGE=VBoxGuestAdditions
 LOG="/var/log/vboxadd-install.log"
 MODPROBE=/sbin/modprobe
 OLDMODULES="vboxguest vboxadd vboxsf vboxvfs vboxvideo"
-
-# These are getting hard-coded in more and more places...
-test -z "${KERN_DIR}" && KERN_DIR="/lib/modules/`uname -r`/build"
-test -z "${MODULE_DIR}" && MODULE_DIR="/lib/modules/`uname -r`/misc"
-KERN_DIR_SUFFIX="${KERN_DIR#/lib/modules/}"
-KERN_VER="${KERN_DIR_SUFFIX%/*}"
+SCRIPTNAME=vboxadd.sh
+QUICKSETUP=
 
 if $MODPROBE -c 2>/dev/null | grep -q '^allow_unsupported_modules  *0'; then
   MODPROBE="$MODPROBE --allow-unsupported-modules"
@@ -65,85 +64,26 @@ for i in $lib_candidates; do
   fi
 done
 
-if [ -f /etc/redhat-release ]; then
-    system=redhat
-elif [ -f /etc/SuSE-release ]; then
-    system=suse
-elif [ -f /etc/gentoo-release ]; then
-    system=gentoo
-else
-    system=other
+# Preamble for Gentoo
+if [ "`which $0`" = "/sbin/rc" ]; then
+    shift
 fi
 
-if [ "$system" = "redhat" ]; then
-    . /etc/init.d/functions
-    fail_msg() {
-        echo_failure
-        echo
-    }
-    succ_msg() {
-        echo_success
-        echo
-    }
-    begin() {
-        echo -n "$1"
-    }
-fi
+begin()
+{
+    test -n "${2}" && echo "${SCRIPTNAME}: ${1}."
+    logger -t "${SCRIPTNAME}" "${1}."
+}
 
-if [ "$system" = "suse" ]; then
-    . /etc/rc.status
-    fail_msg() {
-        rc_failed 1
-        rc_status -v
-    }
-    succ_msg() {
-        rc_reset
-        rc_status -v
-    }
-    begin() {
-        echo -n "$1"
-    }
-fi
-
-if [ "$system" = "gentoo" ]; then
-    if [ -f /sbin/functions.sh ]; then
-        . /sbin/functions.sh
-    elif [ -f /etc/init.d/functions.sh ]; then
-        . /etc/init.d/functions.sh
-    fi
-    fail_msg() {
-        eend 1
-    }
-    succ_msg() {
-        eend $?
-    }
-    begin() {
-        ebegin $1
-    }
-    if [ "`which $0`" = "/sbin/rc" ]; then
-        shift
-    fi
-fi
-
-if [ "$system" = "other" ]; then
-    fail_msg() {
-        echo " ...fail!"
-    }
-    succ_msg() {
-        echo " ...done."
-    }
-    begin() {
-        echo -n $1
-    }
-fi
+succ_msg()
+{
+    logger -t "${SCRIPTNAME}" "${1}."
+}
 
 show_error()
 {
-    if [ "$system" = "gentoo" ]; then
-        eerror $1
-    fi
-    fail_msg
-    echo "($1)"
+    echo "${SCRIPTNAME}: failed: ${1}." >&2
+    logger -t "${SCRIPTNAME}" "${1}."
 }
 
 fail()
@@ -157,38 +97,6 @@ userdev=/dev/vboxuser
 config=/var/lib/VBoxGuestAdditions/config
 owner=vboxadd
 group=1
-
-test_for_gcc_and_make()
-{
-    which make > /dev/null 2>&1 || printf "\nThe make utility was not found. If the following module compilation fails then\nthis could be the reason and you should try installing it.\n"
-    which gcc > /dev/null 2>&1 || printf "\nThe gcc utility was not found. If the following module compilation fails then\nthis could be the reason and you should try installing it.\n"
-}
-
-test_sane_kernel_dir()
-{
-    KERN_VER=`uname -r`
-    KERN_DIR="/lib/modules/$KERN_VER/build"
-    if [ -d "$KERN_DIR" ]; then
-        KERN_REL=`make -sC $KERN_DIR --no-print-directory kernelrelease 2>/dev/null || true`
-        if [ -z "$KERN_REL" -o "x$KERN_REL" = "x$KERN_VER" ]; then
-            return 0
-        fi
-    fi
-    printf "\nThe headers for the current running kernel were not found. If the following\nmodule compilation fails then this could be the reason.\n"
-    if [ "$system" = "redhat" ]; then
-        if echo "$KERN_VER" | grep -q "uek"; then
-            printf "The missing package can be probably installed with\nyum install kernel-uek-devel-$KERN_VER\n"
-        else
-            printf "The missing package can be probably installed with\nyum install kernel-devel-$KERN_VER\n"
-        fi
-    elif [ "$system" = "suse" ]; then
-        KERN_VER_SUSE=`echo "$KERN_VER" | sed 's/.*-\([^-]*\)/\1/g'`
-        KERN_VER_BASE=`echo "$KERN_VER" | sed 's/\(.*\)-[^-]*/\1/g'`
-        printf "The missing package can be probably installed with\nzypper install kernel-$KERN_VER_SUSE-devel-$KERN_VER_BASE\n"
-    elif [ "$system" = "debian" ]; then
-        printf "The missing package can be probably installed with\napt-get install linux-headers-$KERN_VER\n"
-    fi
-}
 
 running_vboxguest()
 {
@@ -260,7 +168,9 @@ do_vboxguest_non_udev()
 
 start()
 {
-    begin "Starting the VirtualBox Guest Additions ";
+    begin "Starting the VirtualBox Guest Additions" console;
+    # If we got this far assume that the slow set-up has been done.
+    QUICKSETUP=yes
     if test -r $config; then
       . $config
     else
@@ -281,7 +191,11 @@ start()
         }
 
         $MODPROBE vboxguest >/dev/null 2>&1 || {
-            fail "modprobe vboxguest failed"
+            setup
+            $MODPROBE vboxguest >/dev/null 2>&1 || {
+                /sbin/rcvboxadd-x11 cleanup
+                fail "modprobe vboxguest failed"
+            }
         }
         case "$no_udev" in 1)
             sleep .5;;
@@ -294,9 +208,8 @@ start()
     running_vboxsf || {
         $MODPROBE vboxsf > /dev/null 2>&1 || {
             if dmesg | grep "VbglR0SfConnect failed" > /dev/null 2>&1; then
-                fail_msg
-                echo "Unable to start shared folders support.  Make sure that your VirtualBox build"
-                echo "supports this feature."
+                show_error "Unable to start shared folders support.  Make sure that your VirtualBox build"
+                show_error "supports this feature."
             else
                 show_error "modprobe vboxsf failed"
             fi
@@ -307,28 +220,23 @@ start()
     /sbin/rcvboxadd-x11 setup
     # Install the guest OpenGL drivers.  For now we don't support
     # multi-architecture installations
+    rm -f /etc/ld.so.conf.d/00vboxvideo.conf
     if /usr/bin/VBoxClient --check3d 2>/dev/null; then
-        rm -f /var/lib/VBoxGuestAdditions/lib/system/tmp.so
-        mkdir -m 0755 -p /var/lib/VBoxGuestAdditions/lib/system
-        ldconfig -p | while read -r line; do
-            case "${line}" in "libGL.so.1 ${ldconfig_arch} => "*)
-                ln -s "${line#libGL.so.1 ${ldconfig_arch} => }" /var/lib/VBoxGuestAdditions/lib/system/tmp.so
-                mv /var/lib/VBoxGuestAdditions/lib/system/tmp.so /var/lib/VBoxGuestAdditions/lib/system/libGL.so.1
-                break
-            esac
-        done
-        ldconfig -p | while read -r line; do
-            case "${line}" in "libEGL.so.1 ${ldconfig_arch} => "*)
-                ln -s "${line#libEGL.so.1 ${ldconfig_arch} => }" /var/lib/VBoxGuestAdditions/lib/system/tmp.so
-                mv /var/lib/VBoxGuestAdditions/lib/system/tmp.so /var/lib/VBoxGuestAdditions/lib/system/libEGL.so.1
-                break
-            esac
-        done
+        mkdir -p /var/lib/VBoxGuestAdditions/lib
         ln -sf "${INSTALL_DIR}/lib/VBoxOGL.so" /var/lib/VBoxGuestAdditions/lib/libGL.so.1
         ln -sf "${INSTALL_DIR}/lib/VBoxEGL.so" /var/lib/VBoxGuestAdditions/lib/libEGL.so.1
+        # SELinux for the OpenGL libraries, so that gdm can load them during the
+        # acceleration support check.  This prevents an "Oh no, something has gone
+        # wrong!" error when starting EL7 guests.
+        if test -e /etc/selinux/config; then
+            if command -v semanage > /dev/null; then
+                semanage fcontext -a -t lib_t "/var/lib/VBoxGuestAdditions/lib/libGL.so.1"
+                semanage fcontext -a -t lib_t "/var/lib/VBoxGuestAdditions/lib/libEGL.so.1"
+            fi
+            chcon -h  -t lib_t "/var/lib/VBoxGuestAdditions/lib/libGL.so.1"
+            chcon -h  -t lib_t  "/var/lib/VBoxGuestAdditions/lib/libEGL.so.1"
+        fi
         echo "/var/lib/VBoxGuestAdditions/lib" > /etc/ld.so.conf.d/00vboxvideo.conf
-    else
-        rm -f /etc/ld.so.conf.d/00vboxvideo.conf
     fi
     ldconfig
 
@@ -343,7 +251,7 @@ start()
 
 stop()
 {
-    begin "Stopping VirtualBox Additions ";
+    begin "Stopping VirtualBox Additions" console;
     if test -r /etc/ld.so.conf.d/00vboxvideo.conf; then
         rm /etc/ld.so.conf.d/00vboxvideo.conf
         ldconfig
@@ -351,14 +259,11 @@ stop()
     if ! umount -a -t vboxsf 2>/dev/null; then
         fail "Cannot unmount vboxsf folders"
     fi
-    if running_vboxsf; then
-        rmmod vboxsf 2>/dev/null || fail "Cannot unload module vboxsf"
-    fi
-    if running_vboxguest; then
-        rmmod vboxguest 2>/dev/null || fail "Cannot unload module vboxguest"
-        rm -f $userdev || fail "Cannot unlink $userdev"
-        rm -f $dev || fail "Cannot unlink $dev"
-    fi
+    modprobe -q -r -a vboxvideo vboxsf vboxguest
+    egrep -q 'vboxguest|vboxsf|vboxvideo' /proc/modules &&
+        echo "You may need to restart your guest system to finish removing the guest drivers."
+    rm -f $userdev || fail "Cannot unlink $userdev"
+    rm -f $dev || fail "Cannot unlink $dev"
     succ_msg
     return 0
 }
@@ -369,38 +274,20 @@ restart()
     return 0
 }
 
-## Update the initramfs.  Debian and Ubuntu put the graphics driver in, and
-# need the touch(1) command below.  Everyone else that I checked just need
-# the right module alias file from depmod(1) and only use the initramfs to
-# load the root filesystem, not the boot splash.  update-initramfs works
-# for the first two and dracut for every one else I checked.  We are only
-# interested in distributions recent enough to use the KMS vboxvideo driver.
-## @param $1  kernel version to update for.
-update_module_dependencies()
-{
-    depmod "${1}"
-    test -d "/lib/modules/${1}/initrd" &&
-        touch "/lib/modules/${1}/initrd/vboxvideo"
-    test -n "${QUICKSETUP}" && return
-    if type dracut >/dev/null 2>&1; then
-        dracut -f "/boot/initramfs-${1}.img"
-    elif type update-initramfs >/dev/null 2>&1; then
-        update-initramfs -u -k "${1}"
-    fi
-}
-
 # Remove any existing VirtualBox guest kernel modules from the disk, but not
 # from the kernel as they may still be in use
 cleanup_modules()
 {
-    if [ -n "$(which dkms 2>/dev/null)" ]; then
-        begin "Removing existing VirtualBox DKMS kernel modules"
-        $DODKMS uninstall $OLDMODULES > $LOG
-        succ_msg
-    fi
-    begin "Removing existing VirtualBox non-DKMS kernel modules"
-    for i in $OLDMODULES; do
-        find /lib/modules -name $i\* | xargs rm 2>/dev/null
+    begin "Removing existing VirtualBox kernel modules"
+    for i in ${OLDMODULES}; do
+        # We no longer support DKMS, remove any leftovers.
+        rm -rf "/var/lib/dkms/${i}"*
+        # And remove old modules.
+        rm -f /lib/modules/*/misc/"${i}"*
+    done
+    # Remove leftover module folders.
+    for i in /lib/modules/*/misc; do
+        test -d "${i}" && rmdir -p "${i}" 2>/dev/null
     done
     succ_msg
 }
@@ -409,20 +296,11 @@ cleanup_modules()
 setup_modules()
 {
     # don't stop the old modules here -- they might be in use
-    cleanup_modules
+    test -z "${QUICKSETUP}" && cleanup_modules
+    # This does not work for 2.4 series kernels.  How sad.
+    test -n "${QUICKSETUP}" && test -f "${MODULE_DIR}/vboxguest.ko" && return 0
     begin "Building the VirtualBox Guest Additions kernel modules"
 
-    # Short cut out if a dkms build succeeds
-    if [ -n "$(which dkms 2>/dev/null)" ] &&
-       $DODKMS install vboxguest $INSTALL_VER >> $LOG 2>&1; then
-        succ_msg
-        return 0
-    fi
-
-    test_for_gcc_and_make
-    test_sane_kernel_dir
-
-    echo
     begin "Building the main Guest Additions module"
     if ! $BUILDINTMP \
         --save-module-symvers /tmp/vboxguest-Module.symvers \
@@ -449,7 +327,7 @@ setup_modules()
         show_error "Look at $LOG to find out what went wrong"
     fi
     succ_msg
-    update_module_dependencies "${KERN_VER}"
+    depmod
     return 0
 }
 
@@ -501,27 +379,39 @@ extra_setup()
     # And an rc file to re-build the kernel modules and re-set-up the X server.
     ln -sf "$lib_path/$PACKAGE/vboxadd" /sbin/rcvboxadd
     ln -sf "$lib_path/$PACKAGE/vboxadd-x11" /sbin/rcvboxadd-x11
-    # At least Fedora 11 and Fedora 12 require the correct security context when
-    # executing this command from service scripts. Shouldn't hurt for other
-    # distributions.
-    chcon -u system_u -t mount_exec_t "$lib_path/$PACKAGE/mount.vboxsf" > /dev/null 2>&1
-    # And at least Fedora 15 needs this for the acceleration support check to
-    # work
-    redhat_release=`cat /etc/redhat-release 2> /dev/null`
-    case "$redhat_release" in Fedora\ release\ 15* )
-        for i in "$lib_path"/*.so
-        do
-            restorecon "$i" >/dev/null
-        done
-        ;;
-    esac
-
+    # And a post-installation script for rebuilding modules when a new kernel
+    # is installed.
+    mkdir -p /etc/kernel/postinst.d /etc/kernel/prerm.d
+    cat << EOF > /etc/kernel/postinst.d/vboxadd
+#!/bin/sh
+test -d "/lib/modules/\${1}/build" || exit 0
+KERN_DIR="/lib/modules/\${1}/build" MODULE_DIR="/lib/modules/\${1}/misc" \
+/sbin/rcvboxadd quicksetup
+exit 0
+EOF
+    cat << EOF > /etc/kernel/prerm.d/vboxadd
+#!/bin/sh
+for i in ${OLDMODULES}; do rm -f /lib/modules/"\${1}"/misc/"\${i}".ko; done
+rmdir -p /lib/modules/"\$1"/misc 2>/dev/null
+exit 0
+EOF
+    chmod 0755 /etc/kernel/postinst.d/vboxadd /etc/kernel/prerm.d/vboxadd
+    # SELinux security context for the mount helper.
+    if test -e /etc/selinux/config; then
+        # This is correct.  semanage maps this to the real path, and it aborts
+        # with an error, telling you what you should have typed, if you specify
+        # the real path.  The "chcon" is there as a back-up for old guests.
+        command -v semanage > /dev/null &&
+            semanage fcontext -a -t mount_exec_t "/usr/lib/$PACKAGE/mount.vboxsf"
+        chcon -t mount_exec_t "$lib_path/$PACKAGE/mount.vboxsf"
+    fi
     succ_msg
 }
 
 # setup_script
 setup()
 {
+    begin "Building Guest Additions kernel modules" console
     if test -r $config; then
       . $config
     else
@@ -535,20 +425,22 @@ setup()
     rm -f $LOG
     MODULE_SRC="$INSTALL_DIR/src/vboxguest-$INSTALL_VER"
     BUILDINTMP="$MODULE_SRC/build_in_tmp"
-    DODKMS="$MODULE_SRC/do_dkms"
     chcon -t bin_t "$BUILDINTMP" > /dev/null 2>&1
-    chcon -t bin_t "$DODKMS"     > /dev/null 2>&1
 
-    setup_modules
-    mod_succ="$?"
+    if setup_modules; then
+        mod_succ=0
+    else
+        mod_succ=1
+        show_error "Please check that you have gcc, make, the header files for your Linux kernel and possibly perl installed."
+    fi
+    test -n "${QUICKSETUP}" && return "${mod_succ}"
     extra_setup
     if [ "$mod_succ" -eq "0" ]; then
         if running_vboxguest || running_vboxadd; then
-            printf "You should restart your guest to make sure the new modules are actually used\n\n"
-        else
-            start
+            begin "You should restart your guest to make sure the new modules are actually used" console
         fi
     fi
+    return "${mod_succ}"
 }
 
 # cleanup_script
@@ -558,18 +450,13 @@ cleanup()
       . $config
       test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
         fail "Configuration file $config not complete"
-      DODKMS="$INSTALL_DIR/src/vboxguest-$INSTALL_VER/do_dkms"
-    elif test -x ./do_dkms; then  # Executing as part of the installer...
-      DODKMS=./do_dkms
     else
       fail "Configuration file $config not found"
     fi
 
     # Delete old versions of VBox modules.
     cleanup_modules
-    for i in /lib/modules/*; do
-        update_module_dependencies "${i#/lib/modules}"
-    done
+    depmod
 
     # Remove old module sources
     for i in $OLDMODULES; do
@@ -583,8 +470,9 @@ cleanup()
     rm /sbin/mount.vboxsf 2>/dev/null
     rm /sbin/rcvboxadd 2>/dev/null
     rm /sbin/rcvboxadd-x11 2>/dev/null
+    rm -f /etc/kernel/postinst.d/vboxadd /etc/kernel/prerm.d/vboxadd
+    rmdir -p /etc/kernel/postinst.d /etc/kernel/prerm.d 2>/dev/null
     rm /etc/udev/rules.d/60-vboxadd.rules 2>/dev/null
-    rm -f /lib/modules/*/initrd/vboxvideo
 }
 
 dmnstatus()
@@ -607,6 +495,10 @@ restart)
     restart
     ;;
 setup)
+    setup && start
+    ;;
+quicksetup)
+    QUICKSETUP=yes
     setup
     ;;
 cleanup)
@@ -616,7 +508,7 @@ status)
     dmnstatus
     ;;
 *)
-    echo "Usage: $0 {start|stop|restart|status|setup}"
+    echo "Usage: $0 {start|stop|restart|status|setup|quicksetup|cleanup}"
     exit 1
 esac
 

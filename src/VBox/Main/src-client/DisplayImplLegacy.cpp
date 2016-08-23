@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,8 @@ void videoAccelDestroy(VIDEOACCEL *pVideoAccel)
 
 static unsigned mapCoordsToScreen(DISPLAYFBINFO *pInfos, unsigned cInfos, int *px, int *py, int *pw, int *ph)
 {
+    RT_NOREF(pw, ph);
+
     DISPLAYFBINFO *pInfo = pInfos;
     unsigned uScreenId;
     Log9(("mapCoordsToScreen: %d,%d %dx%d\n", *px, *py, *pw, *ph));
@@ -160,7 +162,7 @@ static void vbvaRgnDirtyRect(VBVADIRTYREGION *prgn, unsigned uScreenId, VBVACMDH
 
     if (pFBInfo->fDefaultFormat)
     {
-        //@todo pfnUpdateDisplayRect must take the vram offset parameter for the framebuffer
+        /// @todo pfnUpdateDisplayRect must take the vram offset parameter for the framebuffer
         prgn->pPort->pfnUpdateDisplayRect(prgn->pPort, phdr->x, phdr->y, phdr->w, phdr->h);
         prgn->pDisplay->i_handleDisplayUpdate(uScreenId, phdr->x, phdr->y, phdr->w, phdr->h);
     }
@@ -178,7 +180,7 @@ static void vbvaRgnUpdateFramebuffer(VBVADIRTYREGION *prgn, unsigned uScreenId)
 
     if (!pFBInfo->fDefaultFormat && w != 0 && h != 0)
     {
-        //@todo pfnUpdateDisplayRect must take the vram offset parameter for the framebuffer
+        /// @todo pfnUpdateDisplayRect must take the vram offset parameter for the framebuffer
         prgn->pPort->pfnUpdateDisplayRect(prgn->pPort, pDirtyRect->xLeft, pDirtyRect->yTop, w, h);
         prgn->pDisplay->i_handleDisplayUpdate(uScreenId, pDirtyRect->xLeft, pDirtyRect->yTop, w, h);
     }
@@ -356,6 +358,7 @@ int Display::i_videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory, PPDMIDISP
 
 static bool i_vbvaVerifyRingBuffer(VBVAMEMORY *pVbvaMemory)
 {
+    RT_NOREF(pVbvaMemory);
     return true;
 }
 
@@ -584,6 +587,7 @@ static bool i_vbvaFetchCmd(VIDEOACCEL *pVideoAccel, VBVACMDHDR **ppHdr, uint32_t
 
 static void i_vbvaReleaseCmd(VIDEOACCEL *pVideoAccel, VBVACMDHDR *pHdr, int32_t cbCmd)
 {
+    RT_NOREF(cbCmd);
     uint8_t *au8RingBuffer = pVideoAccel->pVbvaMemory->au8RingBuffer;
 
     if (   (uint8_t *)pHdr >= au8RingBuffer
@@ -677,7 +681,7 @@ int Display::i_videoAccelFlush(PPDMIDISPLAYPORT pUpPort)
     for (;;)
     {
         VBVACMDHDR *phdr = NULL;
-        uint32_t cbCmd = ~0;
+        uint32_t cbCmd = UINT32_MAX;
 
         /* Fetch the command data. */
         if (!i_vbvaFetchCmd(pVideoAccel, &phdr, &cbCmd))
@@ -716,8 +720,6 @@ int Display::i_videoAccelFlush(PPDMIDISPLAYPORT pUpPort)
             phdr->y = (int16_t)y;
             phdr->w = (uint16_t)w;
             phdr->h = (uint16_t)h;
-
-            DISPLAYFBINFO *pFBInfo = &maFramebuffers[uScreenId];
 
             /* Handle the command.
              *
@@ -782,6 +784,7 @@ int Display::i_videoAccelRefreshProcess(PPDMIDISPLAYPORT pUpPort)
 
 void Display::processAdapterData(void *pvVRAM, uint32_t u32VRAMSize)
 {
+    RT_NOREF(u32VRAMSize);
     if (pvVRAM == NULL)
     {
         unsigned i;
@@ -800,7 +803,7 @@ void Display::processAdapterData(void *pvVRAM, uint32_t u32VRAMSize)
          uint8_t *pu8 = (uint8_t *)pvVRAM;
          pu8 += u32VRAMSize - VBOX_VIDEO_ADAPTER_INFORMATION_SIZE;
 
-         // @todo
+         /// @todo
          uint8_t *pu8End = pu8 + VBOX_VIDEO_ADAPTER_INFORMATION_SIZE;
 
          VBOXVIDEOINFOHDR *pHdr;
@@ -860,7 +863,7 @@ void Display::processAdapterData(void *pvVRAM, uint32_t u32VRAMSize)
 
                      case VBOX_VIDEO_QCI32_OFFSCREEN_HEAP_SIZE:
                      {
-                         /* @todo make configurable. */
+                         /** @todo make configurable. */
                          pConf32->u32Value = _1M;
                      } break;
 
@@ -904,7 +907,7 @@ void Display::processDisplayData(void *pvVRAM, unsigned uScreenId)
     uint8_t *pu8 = (uint8_t *)pvVRAM;
     pu8 += pFBInfo->u32Offset + pFBInfo->u32MaxFramebufferSize;
 
-    // @todo
+    /// @todo
     uint8_t *pu8End = pu8 + pFBInfo->u32InformationSize;
 
     VBOXVIDEOINFOHDR *pHdr;

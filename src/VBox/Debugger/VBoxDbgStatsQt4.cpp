@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1861,7 +1861,8 @@ VBoxDbgStatsModel::updateDone(bool a_fSuccess)
     if (m_fUpdateInsertRemove)
     {
         /* emit layoutChanged(); - hrmpf, doesn't work reliably... */
-        reset();
+        beginResetModel();
+        endResetModel();
     }
     else
     {
@@ -2011,7 +2012,8 @@ VBoxDbgStatsModel::setRootNode(PDBGGUISTATSNODE a_pRoot)
     PDBGGUISTATSNODE pOldTree = m_pRoot;
     m_pRoot = a_pRoot;
     destroyTree(pOldTree);
-    reset();
+    beginResetModel();
+    endResetModel();
 }
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,7 +41,7 @@ UIGlobalSettingsGeneral::UIGlobalSettingsGeneral()
     /* Setup widgets: */
     m_pSelectorMachineFolder->setHomeDir(vboxGlobal().homeFolder());
     m_pSelectorVRDPLibName->setHomeDir(vboxGlobal().homeFolder());
-    m_pSelectorVRDPLibName->setMode(VBoxFilePathSelectorWidget::Mode_File_Open);
+    m_pSelectorVRDPLibName->setMode(UIFilePathSelector::Mode_File_Open);
 
     /* Apply language settings: */
     retranslateUi();

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,6 +88,30 @@ RT_C_DECLS_END
 #  define _INTPTR_T_DECLARED
 #  include <sys/types.h>
 
+# elif defined(RT_OS_NETBSD) && defined(_KERNEL)
+
+#  include <sys/types.h>
+
+   /*
+    * Kludge for NetBSD-6.x where the definition of bool in
+    * <sys/types.h> does not check for C++.
+    */
+#  if defined(__cplusplus) && defined(bool)
+#   undef bool
+#   undef true
+#   undef false
+#  endif
+
+   /*
+    * Kludge for NetBSD-6.x where <sys/types.h> does not define
+    * ptrdiff_t for the kernel code.  Note that we don't worry about
+    * redefinition in <stddef.h> since that header doesn't exist for
+    * _KERNEL code.
+    */
+#  ifdef _BSD_PTRDIFF_T_
+    typedef _BSD_PTRDIFF_T_ ptrdiff_t;
+#  endif
+
 # elif defined(RT_OS_LINUX) && defined(__KERNEL__)
     /*
      * Kludge for the linux kernel:
@@ -136,7 +160,7 @@ RT_C_DECLS_END
 #  undef NULL
 #  undef uintptr_t
 #  ifdef __GNUC__
-#   if (__GNUC__ * 100 + __GNUC_MINOR__) <= 400
+#   if !RT_GNUC_PREREQ(4, 1)
      /*
       * <linux/compiler-gcc{3,4}.h> does
       *   #define __inline__  __inline__ __attribute__((always_inline))
@@ -206,6 +230,27 @@ typedef uint8_t bool;
 #  elif defined(RT_OS_FREEBSD)
 #   ifndef __bool_true_false_are_defined
 typedef _Bool bool;
+#   endif
+#  elif defined(RT_OS_NETBSD)
+#   if !defined(_KERNEL)
+     /*
+      * For the kernel code <stdbool.h> is not available, but bool is
+      * provided by <sys/types.h> included above.
+      */
+#    include <stdbool.h>
+
+     /*
+      * ... but the story doesn't end here.  The C standard says that
+      * <stdbool.h> defines preprocessor macro "bool" that expands to
+      * "_Bool", but adds that a program may undefine/redefine it
+      * (this is 7.16 in C99 and 7.18 in C11).  We have to play this
+      * game here because X11 code uses "bool" as a struct member name
+      * - so undefine "bool" and provide it as a typedef instead.  We
+      * still keep #include <stdbool.h> so that any code that might
+      * include it later doesn't mess things up.
+      */
+#    undef bool
+     typedef _Bool bool;
 #   endif
 #  else
 #   if (defined(RT_OS_DARWIN) || defined(RT_OS_HAIKU)) && (defined(_STDBOOL_H) || defined(__STDBOOL_H))
@@ -763,7 +808,7 @@ typedef const struct RTTIMESPEC *PCRTTIMESPEC;
  */
 
 /** Signed integer which can contain both GC and HC pointers. */
-#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32)
+#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32) || (HC_ARCH_BITS == 16 || GC_ARCH_BITS == 16)
 typedef int32_t         RTINTPTR;
 #elif (HC_ARCH_BITS == 64 || GC_ARCH_BITS == 64)
 typedef int64_t         RTINTPTR;
@@ -775,7 +820,7 @@ typedef RTINTPTR       *PRTINTPTR;
 /** Pointer const to signed integer which can contain both GC and HC pointers. */
 typedef const RTINTPTR *PCRTINTPTR;
 /** The maximum value the RTINTPTR type can hold. */
-#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32)
+#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32) || (HC_ARCH_BITS == 16 || GC_ARCH_BITS == 16)
 # define RTINTPTR_MAX   INT32_MAX
 #elif (HC_ARCH_BITS == 64 || GC_ARCH_BITS == 64)
 # define RTINTPTR_MAX   INT64_MAX
@@ -783,7 +828,7 @@ typedef const RTINTPTR *PCRTINTPTR;
 #  error Unsupported HC_ARCH_BITS and/or GC_ARCH_BITS values.
 #endif
 /** The minimum value the RTINTPTR type can hold. */
-#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32)
+#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32) || (HC_ARCH_BITS == 16 || GC_ARCH_BITS == 16)
 # define RTINTPTR_MIN   INT32_MIN
 #elif (HC_ARCH_BITS == 64 || GC_ARCH_BITS == 64)
 # define RTINTPTR_MIN   INT64_MIN
@@ -792,7 +837,7 @@ typedef const RTINTPTR *PCRTINTPTR;
 #endif
 
 /** Unsigned integer which can contain both GC and HC pointers. */
-#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32)
+#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32) || (HC_ARCH_BITS == 16 || GC_ARCH_BITS == 16)
 typedef uint32_t        RTUINTPTR;
 #elif (HC_ARCH_BITS == 64 || GC_ARCH_BITS == 64)
 typedef uint64_t        RTUINTPTR;
@@ -804,7 +849,7 @@ typedef RTUINTPTR      *PRTUINTPTR;
 /** Pointer const to unsigned integer which can contain both GC and HC pointers. */
 typedef const RTUINTPTR *PCRTUINTPTR;
 /** The maximum value the RTUINTPTR type can hold. */
-#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32)
+#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32) || (HC_ARCH_BITS == 16 || GC_ARCH_BITS == 16)
 # define RTUINTPTR_MAX  UINT32_MAX
 #elif (HC_ARCH_BITS == 64 || GC_ARCH_BITS == 64)
 # define RTUINTPTR_MAX  UINT64_MAX
@@ -977,6 +1022,8 @@ typedef const RTHCUINT     *PCRTHCUINT;
 typedef int32_t             RTHCINTPTR;
 #elif HC_ARCH_BITS == 64
 typedef int64_t             RTHCINTPTR;
+#elif HC_ARCH_BITS == 16
+typedef int16_t             RTHCINTPTR;
 #else
 # error Unsupported HC_ARCH_BITS value.
 #endif
@@ -987,14 +1034,18 @@ typedef const RTHCINTPTR   *PCRTHCINTPTR;
 /** Max RTHCINTPTR value. */
 #if HC_ARCH_BITS == 32
 # define RTHCINTPTR_MAX     INT32_MAX
-#else
+#elif HC_ARCH_BITS == 64
 # define RTHCINTPTR_MAX     INT64_MAX
+#else
+# define RTHCINTPTR_MAX     INT16_MAX
 #endif
 /** Min RTHCINTPTR value. */
 #if HC_ARCH_BITS == 32
 # define RTHCINTPTR_MIN     INT32_MIN
-#else
+#elif HC_ARCH_BITS == 64
 # define RTHCINTPTR_MIN     INT64_MIN
+#else
+# define RTHCINTPTR_MIN     INT16_MIN
 #endif
 
 /** Signed integer which can contain a HC ring-3 pointer. */
@@ -1002,6 +1053,8 @@ typedef const RTHCINTPTR   *PCRTHCINTPTR;
 typedef int32_t             RTR3INTPTR;
 #elif R3_ARCH_BITS == 64
 typedef int64_t             RTR3INTPTR;
+#elif R3_ARCH_BITS == 16
+typedef int16_t             RTR3INTPTR;
 #else
 #  error Unsupported R3_ARCH_BITS value.
 #endif
@@ -1012,14 +1065,18 @@ typedef const RTR3INTPTR   *PCRTR3INTPTR;
 /** Max RTR3INTPTR value. */
 #if R3_ARCH_BITS == 32
 # define RTR3INTPTR_MAX     INT32_MAX
-#else
+#elif R3_ARCH_BITS == 64
 # define RTR3INTPTR_MAX     INT64_MAX
+#else
+# define RTR3INTPTR_MAX     INT16_MAX
 #endif
 /** Min RTR3INTPTR value. */
 #if R3_ARCH_BITS == 32
 # define RTR3INTPTR_MIN     INT32_MIN
-#else
+#elif R3_ARCH_BITS == 64
 # define RTR3INTPTR_MIN     INT64_MIN
+#else
+# define RTR3INTPTR_MIN     INT16_MIN
 #endif
 
 /** Signed integer which can contain a HC ring-0 pointer. */
@@ -1027,6 +1084,8 @@ typedef const RTR3INTPTR   *PCRTR3INTPTR;
 typedef int32_t             RTR0INTPTR;
 #elif R0_ARCH_BITS == 64
 typedef int64_t             RTR0INTPTR;
+#elif R0_ARCH_BITS == 16
+typedef int16_t             RTR0INTPTR;
 #else
 # error Unsupported R0_ARCH_BITS value.
 #endif
@@ -1037,14 +1096,18 @@ typedef const RTR0INTPTR   *PCRTR0INTPTR;
 /** Max RTR0INTPTR value. */
 #if R0_ARCH_BITS == 32
 # define RTR0INTPTR_MAX     INT32_MAX
-#else
+#elif R0_ARCH_BITS == 64
 # define RTR0INTPTR_MAX     INT64_MAX
+#else
+# define RTR0INTPTR_MAX     INT16_MAX
 #endif
 /** Min RTHCINTPTR value. */
 #if R0_ARCH_BITS == 32
 # define RTR0INTPTR_MIN     INT32_MIN
-#else
+#elif R0_ARCH_BITS == 64
 # define RTR0INTPTR_MIN     INT64_MIN
+#else
+# define RTR0INTPTR_MIN     INT16_MIN
 #endif
 
 
@@ -1053,6 +1116,8 @@ typedef const RTR0INTPTR   *PCRTR0INTPTR;
 typedef uint32_t            RTHCUINTPTR;
 #elif HC_ARCH_BITS == 64
 typedef uint64_t            RTHCUINTPTR;
+#elif HC_ARCH_BITS == 16
+typedef uint16_t            RTHCUINTPTR;
 #else
 # error Unsupported HC_ARCH_BITS value.
 #endif
@@ -1063,8 +1128,10 @@ typedef const RTHCUINTPTR  *PCRTHCUINTPTR;
 /** Max RTHCUINTTPR value. */
 #if HC_ARCH_BITS == 32
 # define RTHCUINTPTR_MAX    UINT32_MAX
-#else
+#elif HC_ARCH_BITS == 64
 # define RTHCUINTPTR_MAX    UINT64_MAX
+#else
+# define RTHCUINTPTR_MAX    UINT16_MAX
 #endif
 
 /** Unsigned integer which can contain a HC ring-3 pointer. */
@@ -1072,6 +1139,8 @@ typedef const RTHCUINTPTR  *PCRTHCUINTPTR;
 typedef uint32_t            RTR3UINTPTR;
 #elif R3_ARCH_BITS == 64
 typedef uint64_t            RTR3UINTPTR;
+#elif R3_ARCH_BITS == 16
+typedef uint16_t            RTR3UINTPTR;
 #else
 # error Unsupported R3_ARCH_BITS value.
 #endif
@@ -1082,8 +1151,10 @@ typedef const RTR3UINTPTR  *PCRTR3UINTPTR;
 /** Max RTHCUINTTPR value. */
 #if R3_ARCH_BITS == 32
 # define RTR3UINTPTR_MAX    UINT32_MAX
-#else
+#elif R3_ARCH_BITS == 64
 # define RTR3UINTPTR_MAX    UINT64_MAX
+#else
+# define RTR3UINTPTR_MAX    UINT16_MAX
 #endif
 
 /** Unsigned integer which can contain a HC ring-0 pointer. */
@@ -1091,6 +1162,8 @@ typedef const RTR3UINTPTR  *PCRTR3UINTPTR;
 typedef uint32_t            RTR0UINTPTR;
 #elif R0_ARCH_BITS == 64
 typedef uint64_t            RTR0UINTPTR;
+#elif R0_ARCH_BITS == 16
+typedef uint16_t            RTR0UINTPTR;
 #else
 # error Unsupported R0_ARCH_BITS value.
 #endif
@@ -1099,10 +1172,12 @@ typedef RTR0UINTPTR        *PRTR0UINTPTR;
 /** Pointer to unsigned integer which can contain a HC ring-0 pointer. */
 typedef const RTR0UINTPTR  *PCRTR0UINTPTR;
 /** Max RTR0UINTTPR value. */
-#if HC_ARCH_BITS == 32
+#if R0_ARCH_BITS == 32
 # define RTR0UINTPTR_MAX    UINT32_MAX
-#else
+#elif R0_ARCH_BITS == 64
 # define RTR0UINTPTR_MAX    UINT64_MAX
+#else
+# define RTR0UINTPTR_MAX    UINT16_MAX
 #endif
 
 
@@ -1188,6 +1263,8 @@ typedef const RTR0PTR      *PCRTR0PTR;
 typedef uint32_t            RTHCUINTREG;
 #elif HC_ARCH_BITS == 64
 typedef uint64_t            RTHCUINTREG;
+#elif HC_ARCH_BITS == 16
+typedef uint16_t            RTHCUINTREG;
 #else
 # error "Unsupported HC_ARCH_BITS!"
 #endif
@@ -1201,6 +1278,8 @@ typedef const RTHCUINTREG  *PCRTHCUINTREG;
 typedef uint32_t            RTR3UINTREG;
 #elif R3_ARCH_BITS == 64
 typedef uint64_t            RTR3UINTREG;
+#elif R3_ARCH_BITS == 16
+typedef uint16_t            RTR3UINTREG;
 #else
 # error "Unsupported R3_ARCH_BITS!"
 #endif
@@ -1214,6 +1293,8 @@ typedef const RTR3UINTREG  *PCRTR3UINTREG;
 typedef uint32_t            RTR0UINTREG;
 #elif R0_ARCH_BITS == 64
 typedef uint64_t            RTR0UINTREG;
+#elif R0_ARCH_BITS == 16
+typedef uint16_t            RTR0UINTREG;
 #else
 # error "Unsupported R3_ARCH_BITS!"
 #endif
@@ -1507,6 +1588,8 @@ typedef const RTCCPHYS *PCRTCCPHYS;
 typedef uint32_t                RTCCUINTREG;
 #elif ARCH_BITS == 64
 typedef uint64_t                RTCCUINTREG;
+#elif ARCH_BITS == 16
+typedef uint16_t                RTCCUINTREG;
 #else
 # error "Unsupported ARCH_BITS!"
 #endif
@@ -1520,12 +1603,131 @@ typedef RTCCUINTREG const      *PCRTCCUINTREG;
 typedef int32_t                 RTCCINTREG;
 #elif ARCH_BITS == 64
 typedef int64_t                 RTCCINTREG;
+#elif ARCH_BITS == 16
+typedef int16_t                 RTCCINTREG;
 #endif
 /** Pointer to a signed integer register in the current context. */
 typedef RTCCINTREG             *PRTCCINTREG;
 /** Pointer to a const signed integer register in the current context. */
 typedef RTCCINTREG const       *PCRTCCINTREG;
 
+/** Unsigned integer register in the current context.
+ * @remarks This is for dealing with EAX in 16-bit mode. */
+#if ARCH_BITS == 16 && defined(RT_ARCH_X86)
+typedef uint32_t                RTCCUINTXREG;
+#else
+typedef RTCCUINTREG             RTCCUINTXREG;
+#endif
+/** Pointer to an unsigned integer register in the current context. */
+typedef RTCCUINTREG            *PRTCCUINTXREG;
+/** Pointer to a const unsigned integer register in the current context. */
+typedef RTCCUINTREG const      *PCRTCCUINTXREG;
+
+/** Signed integer extended register in the current context.
+ * @remarks This is for dealing with EAX in 16-bit mode. */
+#if ARCH_BITS == 16 && defined(RT_ARCH_X86)
+typedef int32_t                 RTCCINTXREG;
+#else
+typedef RTCCINTREG              RTCCINTXREG;
+#endif
+/** Pointer to a signed integer extended register in the current context. */
+typedef RTCCINTXREG            *PRTCCINTXREG;
+/** Pointer to a const signed integer extended register in the current
+ * context. */
+typedef RTCCINTXREG const      *PCRTCCINTXREG;
+
+/** @def RTCCUINTREG_C
+ * Defines a constant of RTCCUINTREG type.
+ * @param a_Value   Constant value  */
+/** @def RTCCUINTREG_MAX
+ * Max value that RTCCUINTREG can hold. */
+/** @def RTCCUINTREG_FMT
+ * Generic IPRT format specifier for RTCCUINTREG. */
+/** @def RTCCUINTREG_XFMT
+ * Generic IPRT format specifier for RTCCUINTREG, hexadecimal. */
+/** @def RTCCINTREG_C
+ * Defines a constant of RTCCINTREG type.
+ * @param a_Value   Constant value  */
+/** @def RTCCINTREG_MAX
+ * Max value that RTCCINTREG can hold. */
+/** @def RTCCINTREG_MIN
+ * Min value that RTCCINTREG can hold. */
+/** @def RTCCINTREG_XFMT
+ * Generic IPRT format specifier for RTCCINTREG, hexadecimal. */
+#if ARCH_BITS == 32
+# define RTCCUINTREG_C(a_Value)     UINT32_C(a_Value)
+# define RTCCUINTREG_MAX            UINT32_MAX
+# define RTCCUINTREG_FMT            "RU32"
+# define RTCCUINTREG_XFMT           "RX32"
+# define RTCCINTREG_C(a_Value)      INT32_C(a_Value)
+# define RTCCINTREG_MAX             INT32_MAX
+# define RTCCINTREG_MIN             INT32_MIN
+# define RTCCINTREG_FMT             "RI32"
+# define RTCCINTREG_XFMT            "RX32"
+#elif ARCH_BITS == 64
+# define RTCCUINTREG_C(a_Value)     UINT64_C(a_Value)
+# define RTCCUINTREG_MAX            UINT64_MAX
+# define RTCCUINTREG_FMT            "RU64"
+# define RTCCUINTREG_XFMT           "RX64"
+# define RTCCINTREG_C(a_Value)      INT64_C(a_Value)
+# define RTCCINTREG_MAX             INT64_MAX
+# define RTCCINTREG_MIN             INT64_MIN
+# define RTCCINTREG_FMT             "RI64"
+# define RTCCINTREG_XFMT            "RX64"
+#elif ARCH_BITS == 16
+# define RTCCUINTREG_C(a_Value)     UINT16_C(a_Value)
+# define RTCCUINTREG_MAX            UINT16_MAX
+# define RTCCUINTREG_FMT            "RU16"
+# define RTCCUINTREG_XFMT           "RX16"
+# define RTCCINTREG_C(a_Value)      INT16_C(a_Value)
+# define RTCCINTREG_MAX             INT16_MAX
+# define RTCCINTREG_MIN             INT16_MIN
+# define RTCCINTREG_FMT             "RI16"
+# define RTCCINTREG_XFMT            "RX16"
+#else
+# error "Unsupported ARCH_BITS!"
+#endif
+/** @def RTCCUINTXREG_C
+ * Defines a constant of RTCCUINTXREG type.
+ * @param a_Value   Constant value  */
+/** @def RTCCUINTXREG_MAX
+ * Max value that RTCCUINTXREG can hold. */
+/** @def RTCCUINTXREG_FMT
+ * Generic IPRT format specifier for RTCCUINTXREG. */
+/** @def RTCCUINTXREG_XFMT
+ * Generic IPRT format specifier for RTCCUINTXREG, hexadecimal. */
+/** @def RTCCINTXREG_C
+ * Defines a constant of RTCCINTXREG type.
+ * @param a_Value   Constant value  */
+/** @def RTCCINTXREG_MAX
+ * Max value that RTCCINTXREG can hold. */
+/** @def RTCCINTXREG_MIN
+ * Min value that RTCCINTXREG can hold. */
+/** @def RTCCINTXREG_FMT
+ * Generic IPRT format specifier for RTCCINTXREG. */
+/** @def RTCCINTXREG_XFMT
+ * Generic IPRT format specifier for RTCCINTXREG, hexadecimal. */
+#if ARCH_BITS == 16 && defined(RT_ARCH_X86)
+# define RTCCUINTXREG_C(a_Value)    UINT32_C(a_Value)
+# define RTCCUINTXREG_MAX           UINT32_MAX
+# define RTCCUINTXREG_FMT           "RU32"
+# define RTCCUINTXREG_XFMT          "RX32"
+# define RTCCINTXREG_C(a_Value)     INT32_C(a_Value)
+# define RTCCINTXREG_MAX            INT32_MAX
+# define RTCCINTXREG_MIN            INT32_MIN
+# define RTCCINTXREG_FMT            "RI32"
+# define RTCCINTXREG_XFMT           "RX32"
+#else
+# define RTCCUINTXREG_C(a_Value)    RTCCUINTREG_C(a_Value)
+# define RTCCUINTXREG_MAX           RTCCUINTREG_MAX
+# define RTCCUINTXREG_FMT           RTCCUINTREG_FMT
+# define RTCCUINTXREG_XFMT          RTCCUINTREG_XFMT
+# define RTCCINTXREG_C(a_Value)     RTCCINTREG_C(a_Value)
+# define RTCCINTXREG_MAX            RTCCINTREG_MAX
+# define RTCCINTXREG_MIN            RTCCINTREG_MIN
+# define RTCCINTXREG_FMT            RTCCINTREG_FMT
+# define RTCCINTXREG_XFMT           RTCCINTREG_XFMT
+#endif
 /** @} */
 
 

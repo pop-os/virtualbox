@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -191,7 +191,7 @@ public:
         do {
             uint32_t hash = calculateHash(pszSource, pszDisamb);
             lowerIter = m_hashSet.lower_bound(HashOffset(hash, 0));
-            upperIter = m_hashSet.upper_bound(HashOffset(hash, ~0));
+            upperIter = m_hashSet.upper_bound(HashOffset(hash, UINT32_MAX));
 
             for (iter = lowerIter; iter != upperIter; ++iter)
             {

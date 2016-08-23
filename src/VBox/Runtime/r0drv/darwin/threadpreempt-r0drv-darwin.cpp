@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -103,6 +103,7 @@ void rtThreadPreemptDarwinTerm(void)
 
 RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
 {
+    RT_NOREF(hThread);
     Assert(hThread == NIL_RTTHREAD);
     return preemption_enabled();
 }
@@ -110,6 +111,7 @@ RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
 
 RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 {
+    RT_NOREF(hThread);
     if (!g_pfnR0DarwinAstPending)
         return false;
     uint32_t volatile *pfAstPending = g_pfnR0DarwinAstPending(); AssertPtr(pfAstPending);

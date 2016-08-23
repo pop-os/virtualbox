@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -163,6 +163,7 @@ RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
 RTDECL(uint32_t) RTMpGetCurFrequency(RTCPUID idCpu)
 {
     /** @todo darwin R0 MP (rainy day) */
+    RT_NOREF(idCpu);
     return 0;
 }
 
@@ -170,6 +171,7 @@ RTDECL(uint32_t) RTMpGetCurFrequency(RTCPUID idCpu)
 RTDECL(uint32_t) RTMpGetMaxFrequency(RTCPUID idCpu)
 {
     /** @todo darwin R0 MP (rainy day) */
+    RT_NOREF(idCpu);
     return 0;
 }
 

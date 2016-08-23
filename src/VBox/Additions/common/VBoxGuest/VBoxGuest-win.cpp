@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -101,6 +101,7 @@ VGDRVNTVER g_enmVGDrvNtVer = VGDRVNTVER_INVALID;
  */
 ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
 {
+    RT_NOREF1(pRegPath);
     NTSTATUS rc = STATUS_SUCCESS;
 
     LogFunc(("Driver built: %s %s\n", __DATE__, __TIME__));
@@ -207,7 +208,7 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
         pDrvObj->MajorFunction[IRP_MJ_READ]                    = vgdrvNtNotSupportedStub;
         pDrvObj->MajorFunction[IRP_MJ_WRITE]                   = vgdrvNtNotSupportedStub;
 #ifdef TARGET_NT4
-        rc = vgdrvNt4CreateDevice(pDrvObj, NULL /* pDevObj */, pRegPath);
+        rc = vgdrvNt4CreateDevice(pDrvObj, pRegPath);
 #else
         pDrvObj->MajorFunction[IRP_MJ_PNP]                     = vgdrvNtPnP;
         pDrvObj->MajorFunction[IRP_MJ_POWER]                   = vgdrvNtPower;
@@ -466,8 +467,8 @@ NTSTATUS vgdrvNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_ST
 
         IoInitializeDpcRequest(pDevExt->pDeviceObject, vgdrvNtDpcHandler);
 #ifdef TARGET_NT4
-        ULONG uInterruptVector;
-        KIRQL irqLevel;
+        ULONG uInterruptVector = UINT32_MAX;
+        KIRQL irqLevel = UINT8_MAX;
         /* Get an interrupt vector. */
         /* Only proceed if the device provides an interrupt. */
         if (   pDevExt->interruptLevel
@@ -620,13 +621,14 @@ static void vgdrvNtUnload(PDRIVER_OBJECT pDrvObj)
      */
     UNICODE_STRING DosName;
     RtlInitUnicodeString(&DosName, VBOXGUEST_DEVICE_NAME_DOS);
-    NTSTATUS rc = IoDeleteSymbolicLink(&DosName);
+    IoDeleteSymbolicLink(&DosName);
 
     IoDeleteDevice(pDrvObj->DeviceObject);
 #else  /* !TARGET_NT4 */
     /* On a PnP driver this routine will be called after
      * IRP_MN_REMOVE_DEVICE (where we already did the cleanup),
      * so don't do anything here (yet). */
+    RT_NOREF1(pDrvObj);
 #endif /* !TARGET_NT4 */
 
     LogFlowFunc(("Returning\n"));
@@ -912,7 +914,6 @@ static NTSTATUS vgdrvNtSystemControl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 static NTSTATUS vgdrvNtShutdown(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
     PVBOXGUESTDEVEXTWIN pDevExt = (PVBOXGUESTDEVEXTWIN)pDevObj->DeviceExtension;
-
     LogFlowFuncEnter();
 
     VMMDevPowerStateRequest *pReq = pDevExt->pPowerStateRequest;
@@ -926,6 +927,10 @@ static NTSTATUS vgdrvNtShutdown(PDEVICE_OBJECT pDevObj, PIRP pIrp)
             LogFunc(("Error performing request to VMMDev, rc=%Rrc\n", rc));
     }
 
+    /* just in case, since we shouldn't normally get here. */
+    pIrp->IoStatus.Information = 0;
+    pIrp->IoStatus.Status = STATUS_SUCCESS;
+    IoCompleteRequest(pIrp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
 
@@ -939,6 +944,7 @@ static NTSTATUS vgdrvNtShutdown(PDEVICE_OBJECT pDevObj, PIRP pIrp)
  */
 static NTSTATUS vgdrvNtNotSupportedStub(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
+    RT_NOREF1(pDevObj);
     LogFlowFuncEnter();
 
     pIrp->IoStatus.Information = 0;
@@ -959,6 +965,7 @@ static NTSTATUS vgdrvNtNotSupportedStub(PDEVICE_OBJECT pDevObj, PIRP pIrp)
  */
 static void vgdrvNtDpcHandler(PKDPC pDPC, PDEVICE_OBJECT pDevObj, PIRP pIrp, PVOID pContext)
 {
+    RT_NOREF3(pDPC, pIrp, pContext);
     PVBOXGUESTDEVEXTWIN pDevExt = (PVBOXGUESTDEVEXTWIN)pDevObj->DeviceExtension;
     Log3Func(("pDevExt=0x%p\n", pDevExt));
 
@@ -991,6 +998,7 @@ static void vgdrvNtDpcHandler(PKDPC pDPC, PDEVICE_OBJECT pDevObj, PIRP pIrp, PVO
  */
 static BOOLEAN vgdrvNtIsrHandler(PKINTERRUPT pInterrupt, PVOID pServiceContext)
 {
+    RT_NOREF1(pInterrupt);
     PVBOXGUESTDEVEXTWIN pDevExt = (PVBOXGUESTDEVEXTWIN)pServiceContext;
     if (pDevExt == NULL)
         return FALSE;

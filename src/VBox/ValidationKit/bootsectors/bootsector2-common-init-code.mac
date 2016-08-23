@@ -40,7 +40,7 @@
 ;
 
 ;
-; Copyright (C) 2007-2015 Oracle Corporation
+; Copyright (C) 2007-2016 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -60,6 +60,9 @@
 ; terms and conditions of either the GPL or the CDDL or both.
 ;
 
+
+; map files should include symbols and everything.
+[map all]
 
 ;*******************************************************************************
 ;*      Header Files                                                           *
@@ -1692,6 +1695,8 @@ ENDPROC Bs2ExitMode_lm64
 %ifdef BS2_INC_CMN_P16
  %define BS2_INC_BS2EXITMODE_P16
 %elifdef BS2_INC_CMN_LM
+ %define BS2_INC_BS2EXITMODE_P16
+%elifdef BS2_INC_CMN_P32
  %define BS2_INC_BS2EXITMODE_P16
 %endif
 

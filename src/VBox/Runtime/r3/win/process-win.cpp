@@ -308,6 +308,7 @@ static DECLCALLBACK(int) rtProcWinResolveOnce(void *pvUser)
 {
     int      rc;
     RTLDRMOD hMod;
+    RT_NOREF_PV(pvUser);
 
     /*
      * kernel32.dll APIs introduced after NT4.
@@ -499,7 +500,7 @@ static bool rtProcWinFindTokenByProcessAndPsApi(const char * const *papszNames, 
     bool   fFound          = false;
     int    rc              = VINF_SUCCESS;
     DWORD  cbPidsAllocated = 4096;
-    DWORD  cbPidsReturned;
+    DWORD  cbPidsReturned  = 0; /* (MSC maybe used uninitialized) */
     DWORD *paPids;
     for (;;)
     {
@@ -2078,7 +2079,7 @@ static int rtProcWinCreateEnvBlockAndFindExe(uint32_t fFlags, RTENV hEnv, const 
      * In most cases, we just need to convert the incoming enviornment to a
      * UTF-16 environment block.
      */
-    RTENV hEnvToUse;
+    RTENV hEnvToUse = NIL_RTENV; /* (MSC maybe used uninitialized) */
     if (   !(fFlags & (RTPROC_FLAGS_PROFILE | RTPROC_FLAGS_ENV_CHANGE_RECORD))
         || (hEnv == RTENV_DEFAULT && !(fFlags & RTPROC_FLAGS_PROFILE))
         || (hEnv != RTENV_DEFAULT && !(fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD)) )
@@ -2252,7 +2253,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
     /*
      * Create the command line and convert the executable name.
      */
-    PRTUTF16 pwszCmdLine;
+    PRTUTF16 pwszCmdLine = NULL; /* Shut up, MSC! */
     if (RT_SUCCESS(rc))
         rc = RTGetOptArgvToUtf16String(&pwszCmdLine, papszArgs,
                                        !(fFlags & RTPROC_FLAGS_UNQUOTED_ARGS)
@@ -2497,7 +2498,7 @@ RTR3DECL(uint64_t) RTProcGetAffinityMask(void)
     DWORD_PTR dwSystemAffinityMask;
 
     BOOL fRc = GetProcessAffinityMask(GetCurrentProcess(), &dwProcessAffinityMask, &dwSystemAffinityMask);
-    Assert(fRc);
+    Assert(fRc); NOREF(fRc);
 
     return dwProcessAffinityMask;
 }

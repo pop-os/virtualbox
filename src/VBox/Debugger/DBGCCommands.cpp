@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,6 @@
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/vm.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -591,6 +590,7 @@ static void dbgcPrintHelpFunction(PDBGCCMDHLP pCmdHlp, PCDBGCFUNC pFunc, bool fE
 static void dbgcCmdHelpCommandsWorker(PDBGC pDbgc, PDBGCCMDHLP pCmdHlp, PCDBGCCMD paCmds, uint32_t cCmds, bool fExternal,
                                       const char *pszDescFmt, ...)
 {
+    RT_NOREF1(pDbgc);
     if (pszDescFmt)
     {
         va_list va;
@@ -629,6 +629,7 @@ static void dbgcCmdHelpCommands(PDBGC pDbgc, PDBGCCMDHLP pCmdHlp, uint32_t *pcHi
 static void dbgcCmdHelpFunctionsWorker(PDBGC pDbgc, PDBGCCMDHLP pCmdHlp, PCDBGCFUNC paFuncs, size_t cFuncs, bool fExternal,
                                        const char *pszDescFmt, ...)
 {
+    RT_NOREF1(pDbgc);
     if (pszDescFmt)
     {
         va_list va;
@@ -668,6 +669,7 @@ static void dbgcCmdHelpFunctions(PDBGC pDbgc, PDBGCCMDHLP pCmdHlp, uint32_t *pcH
 
 static void dbgcCmdHelpOperators(PDBGC pDbgc, PDBGCCMDHLP pCmdHlp, uint32_t *pcHits)
 {
+    RT_NOREF1(pDbgc);
     DBGCCmdHlpPrintf(pCmdHlp, !*pcHits ? "Operators:\n" : "\nOperators:\n");
     *pcHits += 1;
 
@@ -706,6 +708,7 @@ static void dbgcCmdHelpAll(PDBGC pDbgc, PDBGCCMDHLP pCmdHlp, uint32_t *pcHits)
 
 static void dbgcCmdHelpSummary(PDBGC pDbgc, PDBGCCMDHLP pCmdHlp, uint32_t *pcHits)
 {
+    RT_NOREF1(pDbgc);
     *pcHits += 1;
     DBGCCmdHlpPrintf(pCmdHlp,
                      "\n"
@@ -903,79 +906,16 @@ static DECLCALLBACK(int) dbgcCmdEcho(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM p
  */
 static DECLCALLBACK(int) dbgcCmdRunScript(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
+    RT_NOREF2(pUVM, pCmd);
+
     /* check that the parser did what it's supposed to do. */
     if (    cArgs != 1
         ||  paArgs[0].enmType != DBGCVAR_TYPE_STRING)
         return DBGCCmdHlpPrintf(pCmdHlp, "parser error\n");
 
-    /** @todo Load the script here, but someone else should do the actual
-     *        evaluation and execution of it.  */
-
-    /*
-     * Try open the script.
-     */
+    /* Pass it on to a common function. */
     const char *pszFilename = paArgs[0].u.pszString;
-    FILE *pFile = fopen(pszFilename, "r");
-    if (!pFile)
-        return DBGCCmdHlpPrintf(pCmdHlp, "Failed to open '%s'.\n", pszFilename);
-
-    /*
-     * Execute it line by line.
-     */
-    int rc = 0;
-    unsigned iLine = 0;
-    char szLine[8192];
-    while (fgets(szLine, sizeof(szLine), pFile))
-    {
-        /* check that the line isn't too long. */
-        char *pszEnd = strchr(szLine, '\0');
-        if (pszEnd == &szLine[sizeof(szLine) - 1])
-        {
-            rc = DBGCCmdHlpPrintf(pCmdHlp, "runscript error: Line #%u is too long\n", iLine);
-            break;
-        }
-        iLine++;
-
-        /* strip leading blanks and check for comment / blank line. */
-        char *psz = RTStrStripL(szLine);
-        if (    *psz == '\0'
-            ||  *psz == '\n'
-            ||  *psz == '#')
-            continue;
-
-        /* strip trailing blanks and check for empty line (\r case). */
-        while (     pszEnd > psz
-               &&   RT_C_IS_SPACE(pszEnd[-1])) /* RT_C_IS_SPACE includes \n and \r normally. */
-            *--pszEnd = '\0';
-
-        /** @todo check for Control-C / Cancel at this point... */
-
-        /*
-         * Execute the command.
-         *
-         * This is a bit wasteful with scratch space btw., can fix it later.
-         * The whole return code crap should be fixed too, so that it's possible
-         * to know whether a command succeeded (RT_SUCCESS()) or failed, and
-         * more importantly why it failed.
-         */
-        rc = pCmdHlp->pfnExec(pCmdHlp, "%s", psz);
-        if (RT_FAILURE(rc))
-        {
-            if (rc == VERR_BUFFER_OVERFLOW)
-                rc = DBGCCmdHlpPrintf(pCmdHlp, "runscript error: Line #%u is too long (exec overflowed)\n", iLine);
-            break;
-        }
-        if (rc == VWRN_DBGC_CMD_PENDING)
-        {
-            rc = DBGCCmdHlpPrintf(pCmdHlp, "runscript error: VWRN_DBGC_CMD_PENDING on line #%u, script terminated\n", iLine);
-            break;
-        }
-    }
-
-    fclose(pFile);
-
-    NOREF(pCmd); NOREF(pUVM);
-    return rc;
+    return dbgcEvalScript(DBGC_CMDHLP2DBGC(pCmdHlp), pszFilename, false /*fAnnounce*/);
 }
 
 
@@ -1217,6 +1157,8 @@ static DECLCALLBACK(int) dbgcCmdLogFlags(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PU
  */
 static DECLCALLBACK(int) dbgcCmdLogFlush(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
+    RT_NOREF3(pCmdHlp, pUVM, paArgs);
+
     RTLogFlush(NULL);
     PRTLOGGER pLogRel = RTLogRelGetDefaultInstance();
     if (pLogRel)
@@ -1750,6 +1692,7 @@ static DECLCALLBACK(int) dbgcCmdShowVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PU
  */
 static DECLCALLBACK(int) dbgcCmdLoadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
+    RT_NOREF1(pUVM);
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
     /*
@@ -1782,6 +1725,7 @@ static DECLCALLBACK(int) dbgcCmdLoadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
  */
 static DECLCALLBACK(int) dbgcCmdUnloadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
+    RT_NOREF1(pUVM);
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
     /*
@@ -1839,21 +1783,6 @@ static DECLCALLBACK(int) dbgcCmdWriteCore(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
     if (RT_FAILURE(rc))
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "DBGFR3WriteCore failed. rc=%Rrc\n", rc);
 
-    return VINF_SUCCESS;
-}
-
-
-
-/**
- * @callback_method_impl{FNDBGCFUNC, The randu32() function implementation.}
- */
-static DECLCALLBACK(int) dbgcFuncRandU32(PCDBGCFUNC pFunc, PDBGCCMDHLP pCmdHlp, PVM pUVM, PCDBGCVAR paArgs, uint32_t cArgs,
-                                         PDBGCVAR pResult)
-{
-    AssertReturn(cArgs == 0, VERR_DBGC_PARSE_BUG);
-    uint32_t u32 = RTRandU32();
-    DBGCVAR_INIT_NUMBER(pResult, u32);
-    NOREF(pFunc); NOREF(pCmdHlp); NOREF(pUVM); NOREF(paArgs);
     return VINF_SUCCESS;
 }
 

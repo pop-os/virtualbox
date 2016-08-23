@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -381,7 +381,7 @@ int UIGDetailsSet::minimumWidthHint() const
             case DetailsElementType_Serial:
 #ifdef VBOX_WITH_PARALLEL_PORTS
             case DetailsElementType_Parallel:
-#endif /* VBOX_WITH_PARALLEL_PORTS */
+#endif
             case DetailsElementType_USB:
             case DetailsElementType_SF:
             case DetailsElementType_UI:
@@ -400,6 +400,7 @@ int UIGDetailsSet::minimumWidthHint() const
                 iMinimumWidthHint = qMax(iMinimumWidthHint, iFirstColumnWidth + iSpacing + pItem->minimumWidthHint());
                 break;
             }
+            case DetailsElementType_Invalid: AssertFailed(); break; /* Shut up, MSC! */
         }
     }
 
@@ -441,7 +442,7 @@ int UIGDetailsSet::minimumHeightHint() const
             case DetailsElementType_Serial:
 #ifdef VBOX_WITH_PARALLEL_PORTS
             case DetailsElementType_Parallel:
-#endif /* VBOX_WITH_PARALLEL_PORTS */
+#endif
             case DetailsElementType_USB:
             case DetailsElementType_SF:
             case DetailsElementType_UI:
@@ -455,6 +456,7 @@ int UIGDetailsSet::minimumHeightHint() const
                 iMinimumHeightHint = qMax(iMinimumHeightHint, pItem->minimumHeightHint() + iSpacing);
                 break;
             }
+            case DetailsElementType_Invalid: AssertFailed(); break; /* Shut up, MSC! */
         }
     }
 
@@ -496,7 +498,7 @@ void UIGDetailsSet::updateLayout()
             case DetailsElementType_Serial:
 #ifdef VBOX_WITH_PARALLEL_PORTS
             case DetailsElementType_Parallel:
-#endif /* VBOX_WITH_PARALLEL_PORTS */
+#endif
             case DetailsElementType_USB:
             case DetailsElementType_SF:
             case DetailsElementType_UI:
@@ -546,6 +548,7 @@ void UIGDetailsSet::updateLayout()
                 iVerticalIndent = qMax(iVerticalIndent, iHeight + iSpacing);
                 break;
             }
+            case DetailsElementType_Invalid: AssertFailed(); break; /* Shut up, MSC! */
         }
     }
 }
@@ -585,11 +588,12 @@ UIGDetailsElement* UIGDetailsSet::createElement(DetailsElementType elementType, 
         case DetailsElementType_Serial:      return new UIGDetailsElementSerial(this, fOpen);
 #ifdef VBOX_WITH_PARALLEL_PORTS
         case DetailsElementType_Parallel:    return new UIGDetailsElementParallel(this, fOpen);
-#endif /* VBOX_WITH_PARALLEL_PORTS */
+#endif
         case DetailsElementType_USB:         return new UIGDetailsElementUSB(this, fOpen);
         case DetailsElementType_SF:          return new UIGDetailsElementSF(this, fOpen);
         case DetailsElementType_UI:          return new UIGDetailsElementUI(this, fOpen);
         case DetailsElementType_Description: return new UIGDetailsElementDescription(this, fOpen);
+        case DetailsElementType_Invalid:     AssertFailed(); break; /* Shut up, MSC! */
     }
     return 0;
 }

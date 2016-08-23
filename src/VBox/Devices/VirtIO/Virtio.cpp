@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -271,6 +271,7 @@ void vpciReset(PVPCISTATE pState)
  */
 int vpciRaiseInterrupt(VPCISTATE *pState, int rcBusy, uint8_t u8IntCause)
 {
+    RT_NOREF_PV(rcBusy);
     // int rc = vpciCsEnter(pState, rcBusy);
     // if (RT_UNLIKELY(rc != VINF_SUCCESS))
     //     return rc;
@@ -326,6 +327,7 @@ int vpciIOPortIn(PPDMDEVINS         pDevIns,
     VPCISTATE  *pState = PDMINS_2_DATA(pDevIns, VPCISTATE *);
     int         rc     = VINF_SUCCESS;
     STAM_PROFILE_ADV_START(&pState->CTXSUFF(StatIORead), a);
+    RT_NOREF_PV(pvUser);
 
     /*
      * We probably do not need to enter critical section when reading registers
@@ -424,6 +426,7 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
     int         rc     = VINF_SUCCESS;
     bool        fHasBecomeReady;
     STAM_PROFILE_ADV_START(&pState->CTXSUFF(StatIOWrite), a);
+    RT_NOREF_PV(pvUser);
 
     Port -= pState->IOPortBase;
     Log3(("%s virtioIOPortOut: At %RTiop out          %0*x\n", INSTANCE(pState), Port, cb*2, u32));
@@ -619,6 +622,7 @@ DECLINLINE(void) vpciCfgSetU16(PCIDEVICE& refPciDev, uint32_t uOffset, uint16_t 
     *(uint16_t*)&refPciDev.config[uOffset] = u16Value;
 }
 
+#if 0 /* unused */
 /**
  * Sets 32-bit register in PCI configuration space.
  * @param   refPciDev   The PCI device.
@@ -631,6 +635,7 @@ DECLINLINE(void) vpciCfgSetU32(PCIDEVICE& refPciDev, uint32_t uOffset, uint32_t 
     Assert(uOffset+sizeof(u32Value) <= sizeof(refPciDev.config));
     *(uint32_t*)&refPciDev.config[uOffset] = u32Value;
 }
+#endif /* unused */
 
 
 #ifdef DEBUG
@@ -768,19 +773,19 @@ int vpciLoadExec(PVPCISTATE pState, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t
  * Set PCI configuration space registers.
  *
  * @param   pci          Reference to PCI device structure.
- * @param   uSubsystemId PCI Subsystem Id
+ * @param   uDeviceId    VirtiO Device Id
  * @param   uClass       Class of PCI device (network, etc)
  * @thread  EMT
  */
 static DECLCALLBACK(void) vpciConfigure(PCIDEVICE& pci,
-                                        uint16_t uSubsystemId,
+                                        uint16_t uDeviceId,
                                         uint16_t uClass)
 {
     /* Configure PCI Device, assume 32-bit mode ******************************/
     PCIDevSetVendorId(&pci, DEVICE_PCI_VENDOR_ID);
-    PCIDevSetDeviceId(&pci, DEVICE_PCI_DEVICE_ID);
+    PCIDevSetDeviceId(&pci, DEVICE_PCI_BASE_ID + uDeviceId);
     vpciCfgSetU16(pci, VBOX_PCI_SUBSYSTEM_VENDOR_ID, DEVICE_PCI_SUBSYSTEM_VENDOR_ID);
-    vpciCfgSetU16(pci, VBOX_PCI_SUBSYSTEM_ID, uSubsystemId);
+    vpciCfgSetU16(pci, VBOX_PCI_SUBSYSTEM_ID, DEVICE_PCI_SUBSYSTEM_BASE_ID + uDeviceId);
 
     /* ABI version, must be equal 0 as of 2.6.30 kernel. */
     vpciCfgSetU8( pci, VBOX_PCI_REVISION_ID,          0x00);
@@ -796,22 +801,24 @@ static DECLCALLBACK(void) vpciConfigure(PCIDEVICE& pci,
 #endif
 }
 
+#ifdef VBOX_WITH_STATISTICS
 /* WARNING! This function must never be used in multithreaded context! */
 static const char *vpciCounter(const char *pszDevFmt,
                                const char *pszCounter)
 {
-    static char g_szCounterName[80];
+    static char s_szCounterName[80];
 
-    RTStrPrintf(g_szCounterName, sizeof(g_szCounterName),
+    RTStrPrintf(s_szCounterName, sizeof(s_szCounterName),
                 "/Devices/%s/%s", pszDevFmt, pszCounter);
 
-    return g_szCounterName;
+    return s_szCounterName;
 }
+#endif
 
-// TODO: header
+/// @todo header
 int vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
                   int iInstance, const char *pcszNameFmt,
-                  uint16_t uSubsystemId, uint16_t uClass,
+                  uint16_t uDeviceId, uint16_t uClass,
                   uint32_t nQueues)
 {
     /* Init handles and log related stuff. */
@@ -831,7 +838,7 @@ int vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
         return rc;
 
     /* Set PCI config registers */
-    vpciConfigure(pState->pciDevice, uSubsystemId, uClass);
+    vpciConfigure(pState->pciDevice, uDeviceId, uClass);
     /* Register PCI device */
     rc = PDMDevHlpPCIRegister(pDevIns, &pState->pciDevice);
     if (RT_FAILURE(rc))
@@ -913,8 +920,9 @@ int vpciDestruct(VPCISTATE* pState)
  */
 void vpciRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
-    VPCISTATE* pState = PDMINS_2_DATA(pDevIns, VPCISTATE*);
-    pState->pDevInsRC     = PDMDEVINS_2_RCPTR(pDevIns);
+    RT_NOREF(offDelta);
+    VPCISTATE *pState = PDMINS_2_DATA(pDevIns, VPCISTATE*);
+    pState->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
     // TBD
 }
 

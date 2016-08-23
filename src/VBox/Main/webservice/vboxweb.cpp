@@ -5,7 +5,7 @@
  *      (plus static gSOAP server code) to implement the actual webservice
  *      server, to which clients can connect.
  *
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -398,15 +398,17 @@ public:
     /**
      * Static function that can be passed to RTThreadCreate and that calls
      * process() on the SoapThread instance passed as the thread parameter.
-     * @param pThread
-     * @param pvThread
+     *
+     * @param   hThreadSelf
+     * @param   pvThread
      * @return
      */
-    static DECLCALLBACK(int) fntWrapper(RTTHREAD pThread, void *pvThread)
+    static DECLCALLBACK(int) fntWrapper(RTTHREAD hThreadSelf, void *pvThread)
     {
+        RT_NOREF(hThreadSelf);
         SoapThread *pst = (SoapThread*)pvThread;
         pst->process();
-        return 0;
+        return VINF_SUCCESS;
     }
 
     size_t          m_u;            // thread number
@@ -891,7 +893,7 @@ static void doQueuesLoop()
                   g_pcszBindToHost ? g_pcszBindToHost : "localhost",    // safe default host
                   g_uBindToPort,    // port
                   g_uBacklog);      // backlog = max queue size for requests
-    if (m < 0)
+    if (m == SOAP_INVALID_SOCKET)
         WebLogSoapError(&soap);
     else
     {
@@ -901,16 +903,41 @@ static void doQueuesLoop()
         const char *pszSsl = "";
 #endif /*!WITH_OPENSSL */
         LogRel(("Socket connection successful: host = %s, port = %u, %smaster socket = %d\n",
-               (g_pcszBindToHost) ? g_pcszBindToHost : "default (localhost)",
-               g_uBindToPort, pszSsl, m));
+                (g_pcszBindToHost) ? g_pcszBindToHost : "default (localhost)",
+                g_uBindToPort, pszSsl, m));
 
         // initialize thread queue, mutex and eventsem
         g_pSoapQ = new SoapQ(&soap);
 
-        for (uint64_t i = 1; g_fKeepRunning; i++)
+        uint64_t cAccepted = 1;
+        while (g_fKeepRunning)
         {
+            struct timeval timeout;
+            fd_set fds;
+            int rv;
+            for (;;)
+            {
+                timeout.tv_sec = 60;
+                timeout.tv_usec = 0;
+                FD_ZERO(&fds);
+                FD_SET(soap.master, &fds);
+                rv = select((int)soap.master + 1, &fds, &fds, &fds, &timeout);
+                if (rv > 0)
+                    break; // work is waiting
+                else if (rv == 0)
+                    continue; // timeout, not necessary to bother gsoap
+                else // r < 0, errno
+                {
+                    if (soap_socket_errno(soap.master) == SOAP_EINTR)
+                        rv = 0; // re-check if we should terminate
+                    break;
+                }
+            }
+            if (rv == 0)
+                continue;
+
             // call gSOAP to handle incoming SOAP connection
-            soap.accept_timeout = 10;
+            soap.accept_timeout = -1; // 1usec timeout, actual waiting is above
             s = soap_accept(&soap);
             if (!soap_valid_socket(s))
             {
@@ -922,7 +949,8 @@ static void doQueuesLoop()
             // add the socket to the queue and tell worker threads to
             // pick up the job
             size_t cItemsOnQ = g_pSoapQ->add(s);
-            LogRel(("Request %llu on socket %d queued for processing (%d items on Q)\n", i, s, cItemsOnQ));
+            LogRel(("Request %llu on socket %d queued for processing (%d items on Q)\n", cAccepted, s, cItemsOnQ));
+            cAccepted++;
         }
 
         delete g_pSoapQ;
@@ -947,8 +975,10 @@ static void doQueuesLoop()
  * the loop that takes SOAP calls from HTTP and serves them by handing sockets to the
  * SOAP queue worker threads.
  */
-static DECLCALLBACK(int) fntQPumper(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) fntQPumper(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF(hThreadSelf, pvUser);
+
     // store a log prefix for this thread
     util::AutoWriteLock thrLock(g_pThreadsLockHandle COMMA_LOCKVAL_SRC_POS);
     g_mapThreads[RTThreadSelf()] = "[ P ]";
@@ -958,13 +988,10 @@ static DECLCALLBACK(int) fntQPumper(RTTHREAD ThreadSelf, void *pvUser)
 
     thrLock.acquire();
     g_mapThreads.erase(RTThreadSelf());
-    return 0;
+    return VINF_SUCCESS;
 }
 
 #ifdef RT_OS_WINDOWS
-// Required for ATL
-static CComModule _Module;
-
 /**
  * "Signal" handler for cleanly terminating the event loop.
  */
@@ -980,35 +1007,28 @@ static BOOL WINAPI websrvSignalHandler(DWORD dwCtrlType)
         case CTRL_C_EVENT:
         case CTRL_LOGOFF_EVENT:
         case CTRL_SHUTDOWN_EVENT:
+        {
             ASMAtomicWriteBool(&g_fKeepRunning, false);
+            com::NativeEventQueue *pQ = com::NativeEventQueue::getMainEventQueue();
+            pQ->interruptEventQueueProcessing();
             fEventHandled = TRUE;
             break;
+        }
         default:
             break;
     }
     return fEventHandled;
 }
 #else
-class ForceQuitEvent : public com::NativeEvent
-{
-    void *handler()
-    {
-        LogFlowFunc(("\n"));
-
-        ASMAtomicWriteBool(&g_fKeepRunning, false);
-
-        return NULL;
-    }
-};
-
 /**
  * Signal handler for cleanly terminating the event loop.
  */
 static void websrvSignalHandler(int iSignal)
 {
     NOREF(iSignal);
+    ASMAtomicWriteBool(&g_fKeepRunning, false);
     com::NativeEventQueue *pQ = com::NativeEventQueue::getMainEventQueue();
-    pQ->postEvent(new ForceQuitEvent());
+    pQ->interruptEventQueueProcessing();
 }
 #endif
 
@@ -1029,6 +1049,9 @@ int main(int argc, char *argv[])
     int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
+#ifdef RT_OS_WINDOWS
+    ATL::CComModule _Module; /* Required internally by ATL (constructor records instance in global variable). */
+#endif
 
     // store a log prefix for this thread
     g_mapThreads[RTThreadSelf()] = "[M  ]";
@@ -1327,6 +1350,7 @@ int main(int argc, char *argv[])
     }
 #else
     signal(SIGINT,   websrvSignalHandler);
+    signal(SIGTERM,  websrvSignalHandler);
 # ifdef SIGBREAK
     signal(SIGBREAK, websrvSignalHandler);
 # endif
@@ -1352,14 +1376,23 @@ int main(int argc, char *argv[])
     }
 #else
     signal(SIGINT,   SIG_DFL);
+    signal(SIGTERM,  SIG_DFL);
 # ifdef SIGBREAK
     signal(SIGBREAK, SIG_DFL);
 # endif
 #endif
 
+#ifndef RT_OS_WINDOWS
+    RTThreadPoke(threadQPumper);
+#endif
     RTThreadWait(threadQPumper, 30000, NULL);
     if (threadWatchdog != NIL_RTTHREAD)
+    {
+#ifndef RT_OS_WINDOWS
+        RTThreadPoke(threadWatchdog);
+#endif
         RTThreadWait(threadWatchdog, g_iWatchdogCheckInterval * 1000 + 10000, NULL);
+    }
 
     /* VirtualBoxClient events unregistration. */
     if (vboxClientListener)
@@ -1407,8 +1440,10 @@ int main(int argc, char *argv[])
  * for whether they have been no requests in a configurable timeout period. In
  * that case, the websession is automatically logged off.
  */
-static DECLCALLBACK(int) fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) fntWatchdog(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF(hThreadSelf, pvUser);
+
     // store a log prefix for this thread
     util::AutoWriteLock thrLock(g_pThreadsLockHandle COMMA_LOCKVAL_SRC_POS);
     g_mapThreads[RTThreadSelf()] = "[W  ]";
@@ -1560,7 +1595,7 @@ void RaiseSoapInvalidObjectFault(struct soap *soap,
 std::string ConvertComString(const com::Bstr &bstr)
 {
     com::Utf8Str ustr(bstr);
-    return ustr.c_str();        // @todo r=dj since the length is known, we can probably use a better std::string allocator
+    return ustr.c_str();        /// @todo r=dj since the length is known, we can probably use a better std::string allocator
 }
 
 /**
@@ -1572,7 +1607,7 @@ std::string ConvertComString(const com::Bstr &bstr)
 std::string ConvertComString(const com::Guid &uuid)
 {
     com::Utf8Str ustr(uuid.toString());
-    return ustr.c_str();        // @todo r=dj since the length is known, we can probably use a better std::string allocator
+    return ustr.c_str();        /// @todo r=dj since the length is known, we can probably use a better std::string allocator
 }
 
 /** Code to handle string <-> byte arrays base64 conversion. */
@@ -2231,6 +2266,7 @@ int __vbox__IManagedObjectRef_USCOREgetInterfaceName(
     _vbox__IManagedObjectRef_USCOREgetInterfaceName *req,
     _vbox__IManagedObjectRef_USCOREgetInterfaceNameResponse *resp)
 {
+    RT_NOREF(soap);
     HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
@@ -2266,6 +2302,7 @@ int __vbox__IManagedObjectRef_USCORErelease(
     _vbox__IManagedObjectRef_USCORErelease *req,
     _vbox__IManagedObjectRef_USCOREreleaseResponse *resp)
 {
+    RT_NOREF(resp);
     HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
@@ -2331,6 +2368,7 @@ int __vbox__IWebsessionManager_USCORElogon(
         _vbox__IWebsessionManager_USCORElogon *req,
         _vbox__IWebsessionManager_USCORElogonResponse *resp)
 {
+    RT_NOREF(soap);
     HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
@@ -2420,16 +2458,16 @@ int __vbox__IWebsessionManager_USCORElogoff(
         _vbox__IWebsessionManager_USCORElogoff *req,
         _vbox__IWebsessionManager_USCORElogoffResponse *resp)
 {
+    RT_NOREF(resp);
     HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
-    do
     {
         // findWebsessionFromRef and the websession destructor require the lock
         util::AutoWriteLock lock(g_pWebsessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
-        WebServiceSession* pWebsession;
-        if ((pWebsession = WebServiceSession::findWebsessionFromRef(req->refIVirtualBox)))
+        WebServiceSession *pWebsession = WebServiceSession::findWebsessionFromRef(req->refIVirtualBox);
+        if (pWebsession)
         {
             WEBDEBUG(("websession logoff, deleting websession %#llx\n", pWebsession->getID()));
             delete pWebsession;
@@ -2437,7 +2475,7 @@ int __vbox__IWebsessionManager_USCORElogoff(
 
             WEBDEBUG(("websession destroyed, %d websessions left open\n", g_mapWebsessions.size()));
         }
-    } while (0);
+    }
 
     WEBDEBUG(("-- leaving %s, rc: %#lx\n", __FUNCTION__, rc));
     if (FAILED(rc))

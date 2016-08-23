@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -78,6 +78,8 @@ static PCVBOXEXTPACKHLP g_pHlp;
  */
 static DECLCALLBACK(int)  vboxBusMouseExtPack_VMConfigureVMM(PCVBOXEXTPACKREG pThis, IConsole *pConsole, PVM pVM)
 {
+    RT_NOREF(pThis, pConsole);
+
     /*
      * Find the bus mouse module and tell PDM to load it.
      * ASSUME /PDM/Devices exists.
@@ -136,6 +138,7 @@ static DECLCALLBACK(int)  vboxBusMouseExtPack_VMConfigureVMM(PCVBOXEXTPACKREG pT
 static const VBOXEXTPACKREG g_vboxBusMouseExtPackReg =
 {
     VBOXEXTPACKREG_VERSION,
+    /* .uVBoxFullVersion =  */  VBOX_FULL_VERSION,
     /* .pfnInstalled =      */  NULL,
     /* .pfnUninstall =      */  NULL,
     /* .pfnVirtualBoxReady =*/  NULL,
@@ -146,6 +149,13 @@ static const VBOXEXTPACKREG g_vboxBusMouseExtPackReg =
     /* .pfnVMPowerOn =      */  NULL,
     /* .pfnVMPowerOff =     */  NULL,
     /* .pfnQueryObject =    */  NULL,
+    /* .pfnReserved1 =      */  NULL,
+    /* .pfnReserved2 =      */  NULL,
+    /* .pfnReserved3 =      */  NULL,
+    /* .pfnReserved4 =      */  NULL,
+    /* .pfnReserved5 =      */  NULL,
+    /* .pfnReserved6 =      */  NULL,
+    /* .u32Reserved7 =      */  0,
     VBOXEXTPACKREG_VERSION
 };
 

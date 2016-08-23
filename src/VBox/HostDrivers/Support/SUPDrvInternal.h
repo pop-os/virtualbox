@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,32 +47,8 @@
 /* do nothing */
 
 #elif defined(RT_OS_WINDOWS)
-    RT_C_DECLS_BEGIN
-#   if (_MSC_VER >= 1400) && !defined(VBOX_WITH_PATCHED_DDK)
-#       define _InterlockedExchange           _InterlockedExchange_StupidDDKVsCompilerCrap
-#       define _InterlockedExchangeAdd        _InterlockedExchangeAdd_StupidDDKVsCompilerCrap
-#       define _InterlockedCompareExchange    _InterlockedCompareExchange_StupidDDKVsCompilerCrap
-#       define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
-#       define _interlockedbittestandset      _interlockedbittestandset_StupidDDKVsCompilerCrap
-#       define _interlockedbittestandreset    _interlockedbittestandreset_StupidDDKVsCompilerCrap
-#       define _interlockedbittestandset64    _interlockedbittestandset64_StupidDDKVsCompilerCrap
-#       define _interlockedbittestandreset64  _interlockedbittestandreset64_StupidDDKVsCompilerCrap
-#       pragma warning(disable : 4163)
-#       include <iprt/nt/nt.h>
-#       pragma warning(default : 4163)
-#       undef  _InterlockedExchange
-#       undef  _InterlockedExchangeAdd
-#       undef  _InterlockedCompareExchange
-#       undef  _InterlockedAddLargeStatistic
-#       undef  _interlockedbittestandset
-#       undef  _interlockedbittestandreset
-#       undef  _interlockedbittestandset64
-#       undef  _interlockedbittestandreset64
-#   else
-#       include <iprt/nt/nt.h>
-#   endif
+#   include <iprt/nt/nt.h>
 #   include <memory.h>
-    RT_C_DECLS_END
 
 #elif defined(RT_OS_LINUX)
 #   include <linux/version.h>
@@ -390,6 +366,10 @@ typedef struct SUPDRVLDRIMAGE
     int                             idSolMod;
     /** Pointer to the module control structure. */
     struct modctl                  *pSolModCtl;
+#endif
+#ifdef RT_OS_LINUX
+    /** Hack for seeing the module in perf, dtrace and other stack crawlers. */
+    struct module                  *pLnxModHack;
 #endif
     /** Whether it's loaded by the native loader or not. */
     bool                            fNative;
@@ -847,12 +827,16 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 /**
  * Notification call indicating that a image is being opened for the first time.
  *
- * Can be used to log the load address of the image.
+ * Called for both native and non-native images (after supdrvOSLdrOpen).  Can be
+ * used to log the load address of the image or inform the kernel about the
+ * alien image.
  *
  * @param   pDevExt             The device globals.
  * @param   pImage              The image handle.
+ * @param   pszFilename         The file name - UTF-8, may containing UNIX
+ *                              slashes on non-UNIX systems.
  */
-void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename);
 
 /**
  * Validates an entry point address.
@@ -883,12 +867,23 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 
 
 /**
- * Unload the image.
+ * Unload the image (only called if supdrvOSLdrOpen returned success).
  *
  * @param   pDevExt             The device globals.
  * @param   pImage              The image data (mostly still valid).
  */
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
+
+/**
+ * Notification call indicating that a image is being unloaded.
+ *
+ * Called for both native and non-native images.  In the former case, it's
+ * called after supdrvOSLdrUnload.
+ *
+ * @param   pDevExt             The device globals.
+ * @param   pImage              The image handle.
+ */
+void VBOXCALL   supdrvOSLdrNotifyUnloaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
 
 
 #ifdef SUPDRV_WITH_MSR_PROBER

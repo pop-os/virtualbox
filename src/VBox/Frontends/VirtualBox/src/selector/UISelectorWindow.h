@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,10 +19,10 @@
 #define ___UISelectorWindow_h___
 
 /* Qt includes: */
-#include <QMainWindow>
 #include <QUrl>
 
 /* GUI includes: */
+#include "QIMainWindow.h"
 #include "QIWithRetranslateUI.h"
 
 /* Forward declarations: */
@@ -39,9 +39,9 @@ class QISplitter;
 class QMenu;
 class QStackedWidget;
 
-/** Singleton QMainWindow extension
+/** Singleton QIMainWindow extension
   * used as VirtualBox Manager (selector-window) instance. */
-class UISelectorWindow : public QIWithRetranslateUI<QMainWindow>
+class UISelectorWindow : public QIWithRetranslateUI<QIMainWindow>
 {
     Q_OBJECT;
 
@@ -64,7 +64,15 @@ protected:
     /** Destructs selector-window. */
     ~UISelectorWindow();
 
+    /** Returns whether the window should be maximized when geometry being restored. */
+    virtual bool shouldBeMaximized() const /* override */;
+
 private slots:
+
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    /** Handles host-screen available-area change. */
+    void sltHandleHostScreenAvailableAreaChange();
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
     /** Handles selector-window context-menu call for passed @a position. */
     void sltShowSelectorWindowContextMenu(const QPoint &position);
@@ -87,6 +95,11 @@ private slots:
     /** Handles signal about group saving progress change. */
     void sltHandleGroupSavingProgressChange();
 
+#ifdef VBOX_WS_MAC
+    /** Handles signal about some @a pAction hovered. */
+    void sltActionHovered(UIAction *pAction);
+#endif /* VBOX_WS_MAC */
+
     /** @name CVirtualBox event handling stuff.
       * @{ */
         /** Handles CVirtualBox event about state change for machine with @a strID. */
@@ -104,10 +117,10 @@ private slots:
         void sltOpenImportApplianceWizard(const QString &strFileName = QString());
         /** Handles call to open Export Appliance wizard. */
         void sltOpenExportApplianceWizard();
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
         /** Handles call to open Extra-data Manager window. */
         void sltOpenExtraDataManagerWindow();
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
         /** Handles call to open Preferences dialog. */
         void sltOpenPreferencesDialog();
         /** Handles call to exit application. */
@@ -142,6 +155,8 @@ private slots:
         void sltPerformPauseOrResumeMachine(bool fPause);
         /** Handles call to reset machine. */
         void sltPerformResetMachine();
+        /** Handles call to detach machine UI. */
+        void sltPerformDetachMachineUI();
         /** Handles call to save machine state. */
         void sltPerformSaveMachineState();
         /** Handles call to ask machine for shutdown. */
@@ -178,10 +193,10 @@ private:
         virtual void showEvent(QShowEvent *pEvent);
         /** Handles first Qt show @a pEvent. */
         virtual void polishEvent(QShowEvent *pEvent);
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /** Mac OS X: Preprocesses any Qt @a pEvent for passed @a pObject. */
         virtual bool eventFilter(QObject *pObject, QEvent *pEvent);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     /** @} */
 
     /** @name Prepare/Cleanup cascade.
@@ -270,10 +285,10 @@ private:
     /** Holds the central splitter instance. */
     QISplitter *m_pSplitter;
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /** Holds the main bar instance. */
     UIMainBar *m_pBar;
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     /** Holds the main toolbar instance. */
     UIToolBar *m_pToolBar;
 
@@ -296,9 +311,6 @@ private:
     QList<UIAction*> m_machineActions;
     /** Holds the Machine menu parent action. */
     QAction *m_pMachineMenuAction;
-
-    /** Holds the dialog geometry. */
-    QRect m_geometry;
 };
 
 #define gpSelectorWindow UISelectorWindow::instance()

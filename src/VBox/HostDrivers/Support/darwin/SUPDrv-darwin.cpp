@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -127,6 +127,12 @@ public:
     virtual void stop(IOService *pProvider);
     virtual IOService *probe(IOService *pProvider, SInt32 *pi32Score);
     virtual bool terminate(IOOptionBits fOptions);
+
+    RTR0MEMEF_NEW_AND_DELETE_OPERATORS_IOKIT();
+
+private:
+    /** Guard against the parent class growing and us using outdated headers. */
+    uint8_t m_abSafetyPadding[256];
 };
 
 OSDefineMetaClassAndStructors(org_virtualbox_SupDrv, IOService);
@@ -142,6 +148,9 @@ class org_virtualbox_SupDrvClient : public IOUserClient
     OSDeclareDefaultStructors(org_virtualbox_SupDrvClient);
 
 private:
+    /** Guard against the parent class growing and us using outdated headers. */
+    uint8_t m_abSafetyPadding[256];
+
     PSUPDRVSESSION          m_pSession;     /**< The session. */
     task_t                  m_Task;         /**< The client task. */
     org_virtualbox_SupDrv  *m_pProvider;    /**< The service provider. */
@@ -155,6 +164,8 @@ public:
     virtual bool terminate(IOOptionBits fOptions = 0);
     virtual bool finalize(IOOptionBits fOptions);
     virtual void stop(IOService *pProvider);
+
+    RTR0MEMEF_NEW_AND_DELETE_OPERATORS_IOKIT();
 };
 
 OSDefineMetaClassAndStructors(org_virtualbox_SupDrvClient, IOUserClient);
@@ -200,8 +211,8 @@ static struct cdevsw    g_DevCW =
     /*.d_select= */eno_select,
     /*.d_mmap  = */eno_mmap,
     /*.d_strategy = */eno_strat,
-    /*.d_getc  = */eno_getc,
-    /*.d_putc  = */eno_putc,
+    /*.d_getc  = */(void *)(uintptr_t)&enodev, //eno_getc,
+    /*.d_putc  = */(void *)(uintptr_t)&enodev, //eno_putc,
     /*.d_type  = */0
 };
 
@@ -245,6 +256,7 @@ static int             (*g_pfnWrMsr64Carefully)(uint32_t uMsr, uint64_t uValue) 
  */
 static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pvData)
 {
+    RT_NOREF(pKModInfo, pvData);
     int rc;
 #ifdef DEBUG
     printf("VBoxDrvDarwinStart\n");
@@ -382,7 +394,7 @@ static int vboxdrvDarwinResolveSymbols(void)
             /*
              * MSR prober stuff - optional!
              */
-            int rc2 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "rdmsr_carefully", (void **)&g_pfnRdMsrCarefully);
+            rc2 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "rdmsr_carefully", (void **)&g_pfnRdMsrCarefully);
             if (RT_FAILURE(rc2))
                 g_pfnRdMsrCarefully = NULL;
             rc2 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "rdmsr64_carefully", (void **)&g_pfnRdMsr64Carefully);
@@ -413,6 +425,7 @@ static int vboxdrvDarwinResolveSymbols(void)
  */
 static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvData)
 {
+    RT_NOREF(pKModInfo, pvData);
     int rc;
     LogFlow(("VBoxDrvDarwinStop\n"));
 
@@ -464,6 +477,7 @@ static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvD
  */
 static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *pProcess)
 {
+    RT_NOREF(fFlags, fDevType);
 #ifdef DEBUG_DARWIN_GIP
     char szName[128];
     szName[0] = '\0';
@@ -549,6 +563,7 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
  */
 static int VBoxDrvDarwinClose(dev_t Dev, int fFlags, int fDevType, struct proc *pProcess)
 {
+    RT_NOREF(Dev, fFlags, fDevType, pProcess);
     Log(("VBoxDrvDarwinClose: pid=%d\n", (int)RTProcSelf()));
     Assert(proc_pid(pProcess) == (int)RTProcSelf());
 
@@ -572,6 +587,7 @@ static int VBoxDrvDarwinClose(dev_t Dev, int fFlags, int fDevType, struct proc *
  */
 static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags, struct proc *pProcess)
 {
+    RT_NOREF(fFlags);
     const bool          fUnrestricted = minor(Dev) == 0;
     const RTPROCESS     Process = proc_pid(pProcess);
     const unsigned      iHash = SESSION_HASH(Process);
@@ -680,6 +696,7 @@ static int VBoxDrvDarwinIOCtlSMAP(dev_t Dev, u_long iCmd, caddr_t pData, int fFl
  */
 static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t pData, struct proc *pProcess)
 {
+    RT_NOREF(pProcess);
     LogFlow(("VBoxDrvDarwinIOCtlSlow: pSession=%p iCmd=%p pData=%p pProcess=%p\n", pSession, iCmd, pData, pProcess));
 
 
@@ -729,7 +746,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
         if (RT_UNLIKELY((Hdr.fFlags & SUPREQHDR_FLAGS_MAGIC_MASK) != SUPREQHDR_FLAGS_MAGIC))
         {
             OSDBGPRINT(("VBoxDrvDarwinIOCtlSlow: bad magic fFlags=%#x; iCmd=%#lx\n", Hdr.fFlags, iCmd));
-            IPRT_DARWIN_SAVE_EFL_AC();
+            IPRT_DARWIN_RESTORE_EFL_AC();
             return EINVAL;
         }
         cbReq = RT_MAX(Hdr.cbIn, Hdr.cbOut);
@@ -738,7 +755,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
                         ||  cbReq > _1M*16))
         {
             OSDBGPRINT(("VBoxDrvDarwinIOCtlSlow: max(%#x,%#x); iCmd=%#lx\n", Hdr.cbIn, Hdr.cbOut, iCmd));
-            IPRT_DARWIN_SAVE_EFL_AC();
+            IPRT_DARWIN_RESTORE_EFL_AC();
             return EINVAL;
         }
 
@@ -947,6 +964,7 @@ IOReturn VBoxDrvDarwinSleepHandler(void * /* pvTarget */, void *pvRefCon, UInt32
  */
 static DECLCALLBACK(void) vboxdrvDarwinVmxEnableFix(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
+    RT_NOREF(idCpu, pvUser1, pvUser2);
     RTCCUINTREG uCr4 = ASMGetCR4();
     if (!(uCr4 & X86_CR4_VMXE))
     {
@@ -988,7 +1006,7 @@ int VBOXCALL supdrvOSEnableVTx(bool fEnable)
                 if (version_major == 14 /* 14 = 10.10 = yosemite */)
                 {
                     uint32_t fCaps;
-                    int rc = supdrvQueryVTCapsInternal(&fCaps);
+                    rc = supdrvQueryVTCapsInternal(&fCaps);
                     if (RT_SUCCESS(rc))
                     {
                         if (fCaps & SUPVTCAPS_VT_X)
@@ -1124,32 +1142,6 @@ bool VBOXCALL supdrvOSAreTscDeltasInSync(void)
     return false;
 }
 
-void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
-{
-#if 1
-    NOREF(pDevExt); NOREF(pImage);
-#else
-    /*
-     * Try store the image load address in NVRAM so we can retrived it on panic.
-     * Note! This only works if you're root! - Acutally, it doesn't work at all at the moment. FIXME!
-     */
-    IORegistryEntry *pEntry = IORegistryEntry::fromPath("/options", gIODTPlane);
-    if (pEntry)
-    {
-        char szVar[80];
-        RTStrPrintf(szVar, sizeof(szVar), "vboximage"/*-%s*/, pImage->szName);
-        char szValue[48];
-        RTStrPrintf(szValue, sizeof(szValue), "%#llx,%#llx", (uint64_t)(uintptr_t)pImage->pvImage,
-                    (uint64_t)(uintptr_t)pImage->pvImage + pImage->cbImageBits - 1);
-        bool fRc = pEntry->setProperty(szVar, szValue); NOREF(fRc);
-        pEntry->release();
-        SUPR0Printf("fRc=%d '%s'='%s'\n", fRc, szVar, szValue);
-    }
-    /*else
-        SUPR0Printf("failed to find /options in gIODTPlane\n");*/
-#endif
-}
-
 
 int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
 {
@@ -1173,6 +1165,45 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 
 
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyLoaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+{
+#if 1
+    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
+#else
+    /*
+     * Try store the image load address in NVRAM so we can retrived it on panic.
+     * Note! This only works if you're root! - Acutally, it doesn't work at all at the moment. FIXME!
+     */
+    IORegistryEntry *pEntry = IORegistryEntry::fromPath("/options", gIODTPlane);
+    if (pEntry)
+    {
+        char szVar[80];
+        RTStrPrintf(szVar, sizeof(szVar), "vboximage"/*-%s*/, pImage->szName);
+        char szValue[48];
+        RTStrPrintf(szValue, sizeof(szValue), "%#llx,%#llx", (uint64_t)(uintptr_t)pImage->pvImage,
+                    (uint64_t)(uintptr_t)pImage->pvImage + pImage->cbImageBits - 1);
+        bool fRc = pEntry->setProperty(szVar, szValue); NOREF(fRc);
+        pEntry->release();
+        SUPR0Printf("fRc=%d '%s'='%s'\n", fRc, szVar, szValue);
+    }
+    /*else
+        SUPR0Printf("failed to find /options in gIODTPlane\n");*/
+#endif
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyUnloaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     NOREF(pDevExt); NOREF(pImage);
 }
@@ -1289,6 +1320,7 @@ int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uV
  */
 static DECLCALLBACK(void) supdrvDarwinMsrProberModifyOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
+    RT_NOREF(idCpu, pvUser2);
     PSUPMSRPROBER               pReq    = (PSUPMSRPROBER)pvUser1;
     register uint32_t           uMsr    = pReq->u.In.uMsr;
     bool const                  fFaster = pReq->u.In.enmOp == SUPMSRPROBEROP_MODIFY_FASTER;

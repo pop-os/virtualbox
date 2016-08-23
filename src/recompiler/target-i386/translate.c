@@ -741,7 +741,7 @@ static inline void gen_op_st_T1_A0(int idx)
 static void gen_check_external_event(void)
 {
 # if 1
-    /** @todo: once TCG codegen improves, we may want to use version
+    /** @todo once TCG codegen improves, we may want to use version
         from else version */
     gen_helper_check_external_event();
 # else
@@ -759,7 +759,7 @@ static void gen_check_external_event(void)
                     | CPU_INTERRUPT_EXTERNAL_TIMER
                     | CPU_INTERRUPT_EXTERNAL_DMA
                     | CPU_INTERRUPT_EXTERNAL_HARD);
-    /** @todo: predict branch as taken */
+    /** @todo predict branch as taken */
     tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, skip_label);
     tcg_temp_free(t0);
 
@@ -7449,8 +7449,6 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_op_st_T0_A0(OT_WORD + s->mem_index);
             gen_add_A0_im(s, 2);
             tcg_gen_ld_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, gdt.base));
-            if (!s->dflag)
-                gen_op_andl_T0_im(0xffffff);
             gen_op_st_T0_A0(CODE64(s) + OT_LONG + s->mem_index);
             break;
         case 1:
@@ -7495,8 +7493,6 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_op_st_T0_A0(OT_WORD + s->mem_index);
                 gen_add_A0_im(s, 2);
                 tcg_gen_ld_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, idt.base));
-                if (!s->dflag)
-                    gen_op_andl_T0_im(0xffffff);
                 gen_op_st_T0_A0(CODE64(s) + OT_LONG + s->mem_index);
             }
             break;

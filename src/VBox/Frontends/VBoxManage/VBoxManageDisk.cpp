@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,6 +48,7 @@ using namespace com;
 
 static DECLCALLBACK(void) handleVDError(void *pvUser, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va)
 {
+    RT_NOREF(pvUser);
     RTMsgErrorV(pszFormat, va);
     RTMsgError("Error code %Rrc at %s(%u) in function %s", rc, RT_SRC_POS_ARGS);
 }
@@ -477,7 +478,8 @@ static const RTGETOPTDEF g_aModifyMediumOptions[] =
     { "-compact",       'c', RTGETOPT_REQ_NOTHING },    // deprecated
     { "compact",        'c', RTGETOPT_REQ_NOTHING },    // deprecated
     { "--resize",       'r', RTGETOPT_REQ_UINT64 },
-    { "--resizebyte",   'R', RTGETOPT_REQ_UINT64 }
+    { "--resizebyte",   'R', RTGETOPT_REQ_UINT64 },
+    { "--move",         'm', RTGETOPT_REQ_STRING }
 };
 
 RTEXITCODE handleModifyMedium(HandlerArg *a)
@@ -491,7 +493,7 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
         CMD_FLOPPY
     } cmd = CMD_NONE;
     ComPtr<IMedium> pMedium;
-    MediumType_T enmMediumType;
+    MediumType_T enmMediumType = MediumType_Normal; /* Shut up MSC */
     bool AutoReset = false;
     SafeArray<BSTR> mediumPropNames;
     SafeArray<BSTR> mediumPropValues;
@@ -500,8 +502,10 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
     bool fModifyProperties = false;
     bool fModifyCompact = false;
     bool fModifyResize = false;
+    bool fModifyLocation = false;
     uint64_t cbResize = 0;
     const char *pszFilenameOrUuid = NULL;
+    const char *pszNewLocation = NULL;
 
     int c;
     RTGETOPTUNION ValueUnion;
@@ -591,6 +595,12 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
                 fModifyResize = true;
                 break;
 
+            case 'm':   // --move
+                /* Get a new location  */
+                pszNewLocation = RTStrDup(ValueUnion.psz);
+                fModifyLocation = true;
+                break;
+
             case VINF_GETOPT_NOT_OPTION:
                 if (!pszFilenameOrUuid)
                     pszFilenameOrUuid = ValueUnion.psz;
@@ -621,7 +631,7 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
     if (!pszFilenameOrUuid)
         return errorSyntax(USAGE_MODIFYMEDIUM, "Medium name or UUID required");
 
-    if (!fModifyMediumType && !fModifyAutoReset && !fModifyProperties && !fModifyCompact && !fModifyResize)
+    if (!fModifyMediumType && !fModifyAutoReset && !fModifyProperties && !fModifyCompact && !fModifyResize && !fModifyLocation)
         return errorSyntax(USAGE_MODIFYMEDIUM, "No operation specified");
 
     /* Always open the medium if necessary, there is no other way. */
@@ -702,6 +712,28 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
             else
                 RTMsgError("Failed to resize medium!");
         }
+    }
+
+    if (fModifyLocation)
+    {
+        do
+        {
+            ComPtr<IProgress> pProgress;
+            Utf8Str strLocation(pszNewLocation);
+            CHECK_ERROR(pMedium, SetLocation(Bstr(pszNewLocation).raw(), pProgress.asOutParam()));
+
+            if (SUCCEEDED(rc) && !pProgress.isNull())
+            {
+                rc = showProgress(pProgress);
+                CHECK_PROGRESS_ERROR(pProgress, ("Failed to move medium"));
+            }
+
+            Bstr uuid;
+            CHECK_ERROR_BREAK(pMedium, COMGETTER(Id)(uuid.asOutParam()));
+
+            RTPrintf("Move medium with UUID %s finished \n", Utf8Str(uuid).c_str());
+        }
+        while (0);
     }
 
     return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
@@ -1342,7 +1374,6 @@ static const RTGETOPTDEF g_aShowMediumInfoOptions[] =
 
 RTEXITCODE handleShowMediumInfo(HandlerArg *a)
 {
-    HRESULT rc;
     enum {
         CMD_NONE,
         CMD_DISK,
@@ -1409,6 +1440,8 @@ RTEXITCODE handleShowMediumInfo(HandlerArg *a)
     /* check for required options */
     if (!pszFilenameOrUuid)
         return errorSyntax(USAGE_SHOWMEDIUMINFO, "Medium name or UUID required");
+
+    HRESULT rc = S_OK; /* Prevents warning. */
 
     ComPtr<IMedium> pMedium;
     if (cmd == CMD_DISK)
@@ -1643,7 +1676,6 @@ RTEXITCODE handleMediumProperty(HandlerArg *a)
         }
         else if (!RTStrICmp(pszAction, "delete"))
         {
-            const char *pszValue = a->argv[3];
             CHECK_ERROR(pMedium, SetProperty(Bstr(pszProperty).raw(), Bstr().raw()));
             /** @todo */
         }

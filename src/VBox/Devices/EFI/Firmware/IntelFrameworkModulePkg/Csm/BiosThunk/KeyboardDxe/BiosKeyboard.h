@@ -1,6 +1,6 @@
 /** @file
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -195,7 +195,6 @@ extern EFI_COMPONENT_NAME2_PROTOCOL gBiosKeyboardComponentName2;
 
 typedef struct _BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY {
   UINTN                                      Signature;
-  EFI_HANDLE                                 NotifyHandle;
   EFI_KEY_DATA                               KeyData;
   EFI_KEY_NOTIFY_FUNCTION                    KeyNotificationFn;
   LIST_ENTRY                                 NotifyEntry;
@@ -219,7 +218,7 @@ typedef struct {
   UINT16                                      StatusRegisterAddress;
   UINT16                                      CommandRegisterAddress;
   BOOLEAN                                     ExtendedKeyboard;
-  
+
   //
   // Buffer storing EFI_KEY_DATA
   //
@@ -230,7 +229,7 @@ typedef struct {
   //
   LIST_ENTRY                                  NotifyList;
   EFI_EVENT                                   TimerEvent;
-  
+
 } BIOS_KEYBOARD_DEV;
 
 #define BIOS_KEYBOARD_DEV_FROM_THIS(a)  CR (a, BIOS_KEYBOARD_DEV, SimpleTextIn, BIOS_KEYBOARD_DEV_SIGNATURE)
@@ -496,7 +495,7 @@ BiosKeyboardWaitForKey (
   Check key buffer to get the key stroke status.
 
   @param  This         Pointer of the protocol EFI_SIMPLE_TEXT_IN_PROTOCOL.
-  
+
   @retval EFI_SUCCESS  A key is being pressed now.
   @retval Other        No key is now pressed.
 
@@ -513,7 +512,7 @@ BiosKeyboardCheckForKey (
   @param  KeyChar      Unicode of key.
   @param  ScanCode     Scan code of key.
 
-  @return The value of EFI Scancode for the key.    
+  @return The value of EFI Scancode for the key.
   @retval SCAN_NULL   No corresponding value in the EFI convert table is found for the key.
 
 **/
@@ -526,7 +525,7 @@ ConvertToEFIScanCode (
 /**
   Check whether there is Ps/2 Keyboard device in system by 0xF4 Keyboard Command
   If Keyboard receives 0xF4, it will respond with 'ACK'. If it doesn't respond, the device
-  should not be in system. 
+  should not be in system.
 
   @param  BiosKeyboardPrivate  Keyboard Private Data Struture
 
@@ -541,9 +540,9 @@ CheckKeyboardConnect (
 
 /**
   Timer event handler: read a series of key stroke from 8042
-  and put them into memory key buffer. 
+  and put them into memory key buffer.
   It is registered as running under TPL_NOTIFY
-  
+
   @param  Event   The timer event
   @param  Context A BIOS_KEYBOARD_DEV pointer
 
@@ -557,12 +556,12 @@ BiosKeyboardTimerHandler (
 
 /**
   Reset the input device and optionaly run diagnostics
- 
+
   @param  This                  Protocol instance pointer.
   @param  ExtendedVerification  Driver may perform diagnostics on reset.
 
   @retval EFI_SUCCESS           The device was reset.
-  @retval EFI_DEVICE_ERROR      The device is not functioning properly and could 
+  @retval EFI_DEVICE_ERROR      The device is not functioning properly and could
                                 not be reset.
 
 **/
@@ -574,19 +573,19 @@ BiosKeyboardResetEx (
   );
 
 /**
-  Reads the next keystroke from the input device. The WaitForKey Event can 
+  Reads the next keystroke from the input device. The WaitForKey Event can
   be used to test for existance of a keystroke via WaitForEvent () call.
 
   @param  This         Protocol instance pointer.
-  @param  KeyData      A pointer to a buffer that is filled in with the keystroke 
+  @param  KeyData      A pointer to a buffer that is filled in with the keystroke
                        state data for the key that was pressed.
-  
+
   @retval  EFI_SUCCESS           The keystroke information was returned.
   @retval  EFI_NOT_READY         There was no keystroke data availiable.
-  @retval  EFI_DEVICE_ERROR      The keystroke information was not returned due to 
+  @retval  EFI_DEVICE_ERROR      The keystroke information was not returned due to
                                  hardware errors.
-  @retval  EFI_INVALID_PARAMETER KeyData is NULL.                        
-    
+  @retval  EFI_INVALID_PARAMETER KeyData is NULL.
+
 **/
 EFI_STATUS
 EFIAPI
@@ -599,16 +598,16 @@ BiosKeyboardReadKeyStrokeEx (
   Set certain state for the input device.
 
   @param  This              Protocol instance pointer.
-  @param  KeyToggleState    A pointer to the EFI_KEY_TOGGLE_STATE to set the 
+  @param  KeyToggleState    A pointer to the EFI_KEY_TOGGLE_STATE to set the
                             state for the input device.
 
   @retval EFI_SUCCESS           The device state was set successfully.
-  @retval EFI_DEVICE_ERROR      The device is not functioning correctly and could 
+  @retval EFI_DEVICE_ERROR      The device is not functioning correctly and could
                                 not have the setting adjusted.
   @retval EFI_UNSUPPORTED       The device does not have the ability to set its state.
-  @retval EFI_INVALID_PARAMETER KeyToggleState is NULL.                       
+  @retval EFI_INVALID_PARAMETER KeyToggleState is NULL.
 
-**/   
+**/
 EFI_STATUS
 EFIAPI
 BiosKeyboardSetState (
@@ -620,42 +619,42 @@ BiosKeyboardSetState (
   Register a notification function for a particular keystroke for the input device.
 
   @param  This                    Protocol instance pointer.
-  @param  KeyData                 A pointer to a buffer that is filled in with the keystroke 
+  @param  KeyData                 A pointer to a buffer that is filled in with the keystroke
                                   information data for the key that was pressed.
-  @param  KeyNotificationFunction Points to the function to be called when the key 
-                                  sequence is typed specified by KeyData.                        
-  @param  NotifyHandle            Points to the unique handle assigned to the registered notification.                          
+  @param  KeyNotificationFunction Points to the function to be called when the key
+                                  sequence is typed specified by KeyData.
+  @param  NotifyHandle            Points to the unique handle assigned to the registered notification.
 
-  
+
   @retval EFI_SUCCESS             The notification function was registered successfully.
   @retval EFI_OUT_OF_RESOURCES    Unable to allocate resources for necesssary data structures.
   @retval EFI_INVALID_PARAMETER   KeyData or NotifyHandle is NULL.
-                                                  
-**/   
+
+**/
 EFI_STATUS
 EFIAPI
 BiosKeyboardRegisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN EFI_KEY_DATA                       *KeyData,
   IN EFI_KEY_NOTIFY_FUNCTION            KeyNotificationFunction,
-  OUT EFI_HANDLE                        *NotifyHandle
+  OUT VOID                              **NotifyHandle
   );
 
 /**
   Remove a registered notification function from a particular keystroke.
 
-  @param  This                 Protocol instance pointer.    
+  @param  This                 Protocol instance pointer.
   @param  NotificationHandle   The handle of the notification function being unregistered.
-  
+
   @retval EFI_SUCCESS             The notification function was unregistered successfully.
   @retval EFI_INVALID_PARAMETER   The NotificationHandle is invalid.
-                              
-**/   
+
+**/
 EFI_STATUS
 EFIAPI
 BiosKeyboardUnregisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
-  IN EFI_HANDLE                         NotificationHandle
+  IN VOID                               *NotificationHandle
   );
 
 /**
@@ -706,19 +705,19 @@ KeyboardWrite (
 EFI_STATUS
 BiosKeyboardFreeNotifyList (
   IN OUT LIST_ENTRY           *ListHead
-  );  
+  );
 
 /**
   Check if key is registered.
 
-  @param  RegsiteredData    A pointer to a buffer that is filled in with the keystroke 
+  @param  RegsiteredData    A pointer to a buffer that is filled in with the keystroke
                             state data for the key that was registered.
-  @param  InputData         A pointer to a buffer that is filled in with the keystroke 
+  @param  InputData         A pointer to a buffer that is filled in with the keystroke
                             state data for the key that was pressed.
 
   @retval TRUE              Key be pressed matches a registered key.
-  @retval FLASE             Match failed. 
-  
+  @retval FLASE             Match failed.
+
 **/
 BOOLEAN
 IsKeyRegistered (
@@ -731,7 +730,7 @@ IsKeyRegistered (
 
   @param  Event    The event that be siganlled when any key has been stroked.
   @param  Context  Pointer of the protocol EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL.
-  
+
 **/
 VOID
 EFIAPI

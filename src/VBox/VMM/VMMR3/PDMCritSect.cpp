@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,6 +53,7 @@ static int pdmR3CritSectRwDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTRWINT pCritS
  */
 int pdmR3CritSectBothInitStats(PVM pVM)
 {
+    RT_NOREF_PV(pVM);
     STAM_REG(pVM, &pVM->pdm.s.StatQueuedCritSectLeaves, STAMTYPE_COUNTER, "/PDM/QueuedCritSectLeaves", STAMUNIT_OCCURENCES,
              "Number of times a critical section leave request needed to be queued for ring-3 execution.");
     return VINF_SUCCESS;
@@ -153,6 +154,7 @@ static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey,
         char *pszName = RTStrAPrintf2V(pszNameFmt, va); /** @todo plug the "leak"... */
         if (pszName)
         {
+            RT_SRC_POS_NOREF();
 #ifndef PDMCRITSECT_STRICT
             pCritSect->Core.pValidatorRec = NULL;
 #else
@@ -245,6 +247,7 @@ static int pdmR3CritSectRwInitOne(PVM pVM, PPDMCRITSECTRWINT pCritSect, void *pv
             {
                 pCritSect->Core.pValidatorRead  = NULL;
                 pCritSect->Core.pValidatorWrite = NULL;
+                RT_SRC_POS_NOREF();
 #ifdef PDMCRITSECTRW_STRICT
 # ifdef RT_LOCK_STRICT_ORDER
                 RTLOCKVALCLASS hClass = RTLockValidatorClassForSrcPos(RT_SRC_POS_ARGS, "%s", pszName);
@@ -498,7 +501,7 @@ static int pdmR3CritSectDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTINT pCritSect,
      * Assert free waiters and so on (c&p from RTCritSectDelete).
      */
     Assert(pCritSect->Core.u32Magic == RTCRITSECT_MAGIC);
-    Assert(pCritSect->Core.cNestings == 0);
+    //Assert(pCritSect->Core.cNestings == 0); - we no longer reset this when leaving.
     Assert(pCritSect->Core.cLockers == -1);
     Assert(pCritSect->Core.NativeThreadOwner == NIL_RTNATIVETHREAD);
     Assert(RTCritSectIsOwner(&pUVM->pdm.s.ListCritSect));

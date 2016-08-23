@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,9 +56,9 @@ void VBoxOSTypeSelectorButton::setOSTypeId (const QString& aOSTypeId)
     mOSTypeId = aOSTypeId;
     CGuestOSType type = vboxGlobal().vmGuestOSType (aOSTypeId);
     /* Looks ugly on the Mac */
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     setIcon (vboxGlobal().vmGuestOSTypeIcon (type.GetId()));
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     setText (type.GetDescription());
 }
 

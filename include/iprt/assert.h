@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -283,6 +283,11 @@ RT_C_DECLS_END
 #if defined(__GNUC__) && defined(__GXX_EXPERIMENTAL_CXX0X__)
 # define RTASSERT_HAVE_STATIC_ASSERT
 #endif
+#if RT_CLANG_PREREQ(6, 0)
+# if __has_feature(cxx_static_assert) || __has_feature(c_static_assert)
+#  define RTASSERT_HAVE_STATIC_ASSERT
+# endif
+#endif
 #ifdef DOXYGEN_RUNNING
 # define RTASSERT_HAVE_STATIC_ASSERT
 #endif
@@ -296,7 +301,7 @@ RT_C_DECLS_END
  * @param   expr    Expression which should be true.
  */
 #ifdef __GNUC__
-# define AssertCompileNS(expr)  extern int RTASSERTVAR[1] __attribute__((unused)), RTASSERTVAR[(expr) ? 1 : 0] __attribute__((unused))
+# define AssertCompileNS(expr)  extern int RTASSERTVAR[1] __attribute__((__unused__)), RTASSERTVAR[(expr) ? 1 : 0] __attribute__((__unused__))
 #elif defined(__IBMC__) || defined(__IBMCPP__)
 # define AssertCompileNS(expr)  extern int RTASSERTVAR[(expr) ? 1 : 0]
 #else
@@ -1002,7 +1007,7 @@ RT_C_DECLS_END
 #endif
 
 /** @def AssertFailed
- * An assertion failed hit breakpoint.
+ * An assertion failed, hit breakpoint.
  */
 #ifdef RT_STRICT
 # define AssertFailed()  \
@@ -1012,6 +1017,20 @@ RT_C_DECLS_END
     } while (0)
 #else
 # define AssertFailed()         do { } while (0)
+#endif
+
+/** @def AssertFailedStmt
+ * An assertion failed, hit breakpoint and execute statement.
+ */
+#ifdef RT_STRICT
+# define AssertFailedStmt(stmt) \
+    do { \
+        RTAssertMsg1Weak((const char *)0, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+        RTAssertPanic(); \
+        stmt; \
+    } while (0)
+#else
+# define AssertFailedStmt(stmt)     do { stmt; } while (0)
 #endif
 
 /** @def AssertFailedReturn
@@ -2110,6 +2129,17 @@ RT_C_DECLS_END
  */
 #define AssertRC(rc)                AssertMsgRC(rc, ("%Rra\n", (rc)))
 
+/** @def AssertRCStmt
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only) and execute
+ * @a stmt if it isn't.
+ *
+ * @param   rc      iprt status code.
+ * @param   stmt    Statement to execute before returning in case of a failed
+ *                  assertion.
+ * @remark  rc is referenced multiple times. In release mode is NOREF()'ed.
+ */
+#define AssertRCStmt(rc, stmt)   AssertMsgRCStmt(rc, ("%Rra\n", (rc)), stmt)
+
 /** @def AssertRCReturn
  * Asserts a iprt status code successful, bitch (RT_STRICT mode only) and return if it isn't.
  *
@@ -2178,10 +2208,22 @@ RT_C_DECLS_END
 #define AssertMsgRC(rc, msg) \
     do { AssertMsg(RT_SUCCESS_NP(rc), msg); NOREF(rc); } while (0)
 
-/** @def AssertMsgRCReturn
- * Asserts a iprt status code successful and if it's not return the specified status code.
+/** @def AssertMsgRCStmt
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only) and
+ * execute @a stmt if it isn't.
  *
- * If RT_STRICT is defined the message will be printed and a breakpoint hit before it returns
+ * @param   rc      iprt status code.
+ * @param   msg     printf argument list (in parenthesis).
+ * @param   stmt    Statement to execute before returning in case of a failed
+ *                  assertion.
+ * @remark  rc is referenced multiple times. In release mode is NOREF()'ed.
+ */
+#define AssertMsgRCStmt(rc, msg, stmt) \
+    do { AssertMsgStmt(RT_SUCCESS_NP(rc), msg, stmt); NOREF(rc); } while (0)
+
+/** @def AssertMsgRCReturn
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only) and return
+ * @a rcRet if it isn't.
  *
  * @param   rc      iprt status code.
  * @param   msg     printf argument list (in parenthesis).
@@ -2192,10 +2234,8 @@ RT_C_DECLS_END
     do { AssertMsgReturn(RT_SUCCESS_NP(rc), msg, rcRet); NOREF(rc); } while (0)
 
 /** @def AssertMsgRCReturnStmt
- * Asserts a iprt status code successful and if it's not execute @a stmt and
- * return the specified status code (@a rcRet).
- *
- * If RT_STRICT is defined the message will be printed and a breakpoint hit before it returns
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only), execute
+ * @a stmt and return @a rcRet if it isn't.
  *
  * @param   rc      iprt status code.
  * @param   msg     printf argument list (in parenthesis).
@@ -2208,9 +2248,8 @@ RT_C_DECLS_END
     do { AssertMsgReturnStmt(RT_SUCCESS_NP(rc), msg, stmt, rcRet); NOREF(rc); } while (0)
 
 /** @def AssertMsgRCReturnVoid
- * Asserts a iprt status code successful and if it's not return.
- *
- * If RT_STRICT is defined the message will be printed and a breakpoint hit before it returns
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only) and return
+ * void if it isn't.
  *
  * @param   rc      iprt status code.
  * @param   msg     printf argument list (in parenthesis).
@@ -2220,9 +2259,8 @@ RT_C_DECLS_END
     do { AssertMsgReturnVoid(RT_SUCCESS_NP(rc), msg); NOREF(rc); } while (0)
 
 /** @def AssertMsgRCReturnVoidStmt
- * Asserts a iprt status code successful and execute statement/break if it's not.
- *
- * If RT_STRICT is defined the message will be printed and a breakpoint hit before it returns
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only), execute
+ * @a stmt and return void if it isn't.
  *
  * @param   rc      iprt status code.
  * @param   msg     printf argument list (in parenthesis).
@@ -2233,9 +2271,8 @@ RT_C_DECLS_END
     do { AssertMsgReturnVoidStmt(RT_SUCCESS_NP(rc), msg, stmt); NOREF(rc); } while (0)
 
 /** @def AssertMsgRCBreak
- * Asserts a iprt status code successful and if it's not break.
- *
- * If RT_STRICT is defined the message will be printed and a breakpoint hit before it breaks
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only) and break
+ * if it isn't.
  *
  * @param   rc      iprt status code.
  * @param   msg     printf argument list (in parenthesis).
@@ -2245,9 +2282,8 @@ RT_C_DECLS_END
     if (1) { AssertMsgBreak(RT_SUCCESS(rc), msg); NOREF(rc); } else do {} while (0)
 
 /** @def AssertMsgRCBreakStmt
- * Asserts a iprt status code successful and execute statement/break if it's not.
- *
- * If RT_STRICT is defined the message will be printed and a breakpoint hit before it returns
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only), execute
+ * @a stmt and break if it isn't.
  *
  * @param   rc      iprt status code.
  * @param   msg     printf argument list (in parenthesis).
@@ -2776,6 +2812,30 @@ RT_C_DECLS_END
         for (var = (first); var < (end); var++) \
             AssertMsg(expr, ("%s = %#RX64 (%RI64)", #var, (uint64_t)var, (int64_t)var)); \
     } while (0)
+
+#ifdef RT_OS_WINDOWS
+
+/** @def AssertNtStatus
+ * Asserts that the NT_SUCCESS() returns true for the given NTSTATUS value.
+ *
+ * @param   a_rcNt  The NTSTATUS to check.  Will be evaluated twice and
+ *                  subjected to NOREF().
+ * @sa      AssertRC()
+ */
+# define AssertNtStatus(a_rcNt) \
+    do { AssertMsg(NT_SUCCESS(a_rcNt), ("%#x\n", (a_rcNt))); NOREF(a_rcNt); } while (0)
+
+/** @def AssertNtStatusSuccess
+ * Asserts that the given NTSTATUS value equals STATUS_SUCCESS.
+ *
+ * @param   a_rcNt  The NTSTATUS to check.  Will be evaluated twice and
+ *                  subjected to NOREF().
+ * @sa      AssertRCSuccess()
+ */
+# define AssertNtStatusSuccess(a_rcNt) \
+    do { AssertMsg((a_rcNt) == STATUS_SUCCESS, ("%#x\n", (a_rcNt))); NOREF(a_rcNt); } while (0)
+
+#endif /* RT_OS_WINDOWS */
 
 /** @} */
 

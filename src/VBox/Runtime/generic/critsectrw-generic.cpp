@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,39 @@
 #include "internal/magics.h"
 #include "internal/strict.h"
 
+/* Two issues here, (1) the tracepoint generator uses IPRT, and (2) only one .d
+   file per module. */
+#ifdef IPRT_WITH_DTRACE
+# include IPRT_DTRACE_INCLUDE
+# ifdef IPRT_DTRACE_PREFIX
+#  define IPRT_CRITSECTRW_EXCL_ENTERED          RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_EXCL_ENTERED)
+#  define IPRT_CRITSECTRW_EXCL_ENTERED_ENABLED  RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_EXCL_ENTERED_ENABLED)
+#  define IPRT_CRITSECTRW_EXCL_LEAVING          RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_EXCL_LEAVING)
+#  define IPRT_CRITSECTRW_EXCL_LEAVING_ENABLED  RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_EXCL_LEAVING_ENABLED)
+#  define IPRT_CRITSECTRW_EXCL_BUSY             RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_EXCL_BUSY)
+#  define IPRT_CRITSECTRW_EXCL_WAITING          RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_EXCL_WAITING)
+#  define IPRT_CRITSECTRW_EXCL_ENTERED_SHARED   RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_EXCL_ENTERED_SHARED)
+#  define IPRT_CRITSECTRW_EXCL_LEAVING_SHARED   RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_EXCL_LEAVING_SHARED)
+#  define IPRT_CRITSECTRW_SHARED_ENTERED        RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_SHARED_ENTERED)
+#  define IPRT_CRITSECTRW_SHARED_LEAVING        RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_SHARED_LEAVING)
+#  define IPRT_CRITSECTRW_SHARED_BUSY           RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_SHARED_BUSY)
+#  define IPRT_CRITSECTRW_SHARED_WAITING        RT_CONCAT(IPRT_DTRACE_PREFIX,IPRT_CRITSECTRW_SHARED_WAITING)
+# endif
+#else
+# define IPRT_CRITSECTRW_EXCL_ENTERED(a_pvCritSect, a_pszName, a_cNestings, a_cWaitingReaders, a_cWriters) do {} while (0)
+# define IPRT_CRITSECTRW_EXCL_ENTERED_ENABLED() (false)
+# define IPRT_CRITSECTRW_EXCL_LEAVING(a_pvCritSect, a_pszName, a_cNestings, a_cWaitingReaders, a_cWriters) do {} while (0)
+# define IPRT_CRITSECTRW_EXCL_LEAVING_ENABLED() (false)
+# define IPRT_CRITSECTRW_EXCL_BUSY(   a_pvCritSect, a_pszName, a_fWriteMode, a_cWaitingReaders, a_cReaders, cWriters, a_pvNativeOwnerThread) do {} while (0)
+# define IPRT_CRITSECTRW_EXCL_WAITING(a_pvCritSect, a_pszName, a_fWriteMode, a_cWaitingReaders, a_cReaders, cWriters, a_pvNativeOwnerThread) do {} while (0)
+# define IPRT_CRITSECTRW_EXCL_ENTERED_SHARED(a_pvCritSect, a_pszName, a_cNestings, a_cWaitingReaders, a_cWriters) do {} while (0)
+# define IPRT_CRITSECTRW_EXCL_LEAVING_SHARED(a_pvCritSect, a_pszName, a_cNestings, a_cWaitingReaders, a_cWriters) do {} while (0)
+# define IPRT_CRITSECTRW_SHARED_ENTERED(a_pvCritSect, a_pszName, a_cReaders, a_cWaitingWriters)     do {} while (0)
+# define IPRT_CRITSECTRW_SHARED_LEAVING(a_pvCritSect, a_pszName, a_cReaders, a_cWaitingWriters)     do {} while (0)
+# define IPRT_CRITSECTRW_SHARED_BUSY(   a_pvCritSect, a_pszName, a_pvNativeOwnerThread, a_cWaitingReaders, a_cWriters) do {} while (0)
+# define IPRT_CRITSECTRW_SHARED_WAITING(a_pvCritSect, a_pszName, a_pvNativeOwnerThread, a_cWaitingReaders, a_cWriters) do {} while (0)
+#endif
+
 
 
 RTDECL(int) RTCritSectRwInit(PRTCRITSECTRW pThis)
@@ -60,6 +93,8 @@ RTDECL(int) RTCritSectRwInitEx(PRTCRITSECTRW pThis, uint32_t fFlags,
     AssertReturn(!(fFlags & ~( RTCRITSECT_FLAGS_NO_NESTING | RTCRITSECT_FLAGS_NO_LOCK_VAL | RTCRITSECT_FLAGS_BOOTSTRAP_HACK
                               | RTCRITSECT_FLAGS_NOP )),
                  VERR_INVALID_PARAMETER);
+    RT_NOREF_PV(hClass); RT_NOREF_PV(uSubClass); RT_NOREF_PV(pszNameFmt);
+
 
     /*
      * Initialize the structure, allocate the lock validator stuff and sems.
@@ -172,6 +207,7 @@ static int rtCritSectRwEnterShared(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPo
 #else
     Assert(!(pThis->fFlags & RTCRITSECT_FLAGS_RING0));
 #endif
+    RT_NOREF_PV(pSrcPos);
 
 #ifdef RTCRITSECTRW_STRICT
     RTTHREAD hThreadSelf = RTThreadSelfAutoAdopt();
@@ -241,13 +277,24 @@ static int rtCritSectRwEnterShared(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPo
                     return rc9;
 #endif
                 Assert(pThis->cWriterReads < UINT32_MAX / 2);
-                ASMAtomicIncU32(&pThis->cWriterReads);
+                uint32_t const cReads = ASMAtomicIncU32(&pThis->cWriterReads); NOREF(cReads);
+                IPRT_CRITSECTRW_EXCL_ENTERED_SHARED(pThis, NULL,
+                                                    cReads + pThis->cWriteRecursions,
+                                                    (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                                    (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
+
                 return VINF_SUCCESS; /* don't break! */
             }
 
             /* If we're only trying, return already. */
             if (fTryOnly)
+            {
+                IPRT_CRITSECTRW_SHARED_BUSY(pThis, NULL,
+                                            (void *)pThis->hNativeWriter,
+                                            (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                            (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
                 return VERR_SEM_BUSY;
+            }
 
             /* Add ourselves to the queue and wait for the direction to change. */
             uint64_t c = (u64State & RTCSRW_CNT_RD_MASK) >> RTCSRW_CNT_RD_SHIFT;
@@ -264,6 +311,10 @@ static int rtCritSectRwEnterShared(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPo
 
             if (ASMAtomicCmpXchgU64(&pThis->u64State, u64State, u64OldState))
             {
+                IPRT_CRITSECTRW_SHARED_WAITING(pThis, NULL,
+                                               (void *)pThis->hNativeWriter,
+                                               (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                               (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
                 for (uint32_t iLoop = 0; ; iLoop++)
                 {
                     int rc;
@@ -351,8 +402,10 @@ static int rtCritSectRwEnterShared(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPo
 
     /* got it! */
     Assert((ASMAtomicReadU64(&pThis->u64State) & RTCSRW_DIR_MASK) == (RTCSRW_DIR_READ << RTCSRW_DIR_SHIFT));
+    IPRT_CRITSECTRW_SHARED_ENTERED(pThis, NULL,
+                                   (uint32_t)((u64State & RTCSRW_CNT_RD_MASK) >> RTCSRW_CNT_RD_SHIFT),
+                                   (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
     return VINF_SUCCESS;
-
 }
 
 
@@ -422,6 +475,10 @@ RTDECL(int) RTCritSectRwLeaveShared(PRTCRITSECTRW pThis)
         if (RT_FAILURE(rc9))
             return rc9;
 #endif
+        IPRT_CRITSECTRW_SHARED_LEAVING(pThis, NULL,
+                                       (uint32_t)((u64State & RTCSRW_CNT_RD_MASK) >> RTCSRW_CNT_RD_SHIFT) - 1,
+                                       (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
+
         for (;;)
         {
             uint64_t c = (u64State & RTCSRW_CNT_RD_MASK) >> RTCSRW_CNT_RD_SHIFT;
@@ -467,7 +524,11 @@ RTDECL(int) RTCritSectRwLeaveShared(PRTCRITSECTRW pThis)
         if (RT_FAILURE(rc))
             return rc;
 #endif
-        ASMAtomicDecU32(&pThis->cWriterReads);
+        uint32_t cReads = ASMAtomicDecU32(&pThis->cWriterReads); NOREF(cReads);
+        IPRT_CRITSECTRW_EXCL_LEAVING_SHARED(pThis, NULL,
+                                            cReads + pThis->cWriteRecursions,
+                                            (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                            (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
     }
 
     return VINF_SUCCESS;
@@ -487,6 +548,7 @@ static int rtCritSectRwEnterExcl(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPos,
 #else
     Assert(!(pThis->fFlags & RTCRITSECT_FLAGS_RING0));
 #endif
+    RT_NOREF_PV(pSrcPos);
 
 #ifdef RTCRITSECTRW_STRICT
     RTTHREAD hThreadSelf = NIL_RTTHREAD;
@@ -514,14 +576,24 @@ static int rtCritSectRwEnterExcl(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPos,
             return rc9;
 #endif
         Assert(pThis->cWriteRecursions < UINT32_MAX / 2);
-        ASMAtomicIncU32(&pThis->cWriteRecursions);
+        uint32_t cNestings = ASMAtomicIncU32(&pThis->cWriteRecursions); NOREF(cNestings);
+
+#ifdef IPRT_WITH_DTRACE
+        if (IPRT_CRITSECTRW_EXCL_ENTERED_ENABLED())
+        {
+            uint64_t u64State = ASMAtomicReadU64(&pThis->u64State);
+            IPRT_CRITSECTRW_EXCL_ENTERED(pThis, NULL, cNestings + pThis->cWriterReads,
+                                         (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                         (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
+        }
+#endif
         return VINF_SUCCESS;
     }
 
     /*
      * Get cracking.
      */
-    uint64_t u64State    = ASMAtomicReadU64(&pThis->u64State);
+    uint64_t u64State = ASMAtomicReadU64(&pThis->u64State);
     uint64_t u64OldState = u64State;
 
     for (;;)
@@ -595,12 +667,24 @@ static int rtCritSectRwEnterExcl(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPos,
                 if (ASMAtomicCmpXchgU64(&pThis->u64State, u64State, u64OldState))
                     break;
             }
+            IPRT_CRITSECTRW_EXCL_BUSY(pThis, NULL,
+                                      (u64State & RTCSRW_DIR_MASK) == (RTCSRW_DIR_WRITE << RTCSRW_DIR_SHIFT) /*fWrite*/,
+                                      (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                      (uint32_t)((u64State & RTCSRW_CNT_RD_MASK) >> RTCSRW_CNT_RD_SHIFT),
+                                      (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT),
+                                      (void *)pThis->hNativeWriter);
             return VERR_SEM_BUSY;
         }
 
         /*
          * Wait for our turn.
          */
+        IPRT_CRITSECTRW_EXCL_WAITING(pThis, NULL,
+                                     (u64State & RTCSRW_DIR_MASK) == (RTCSRW_DIR_WRITE << RTCSRW_DIR_SHIFT) /*fWrite*/,
+                                     (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                     (uint32_t)((u64State & RTCSRW_CNT_RD_MASK) >> RTCSRW_CNT_RD_SHIFT),
+                                     (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT),
+                                     (void *)pThis->hNativeWriter);
         for (uint32_t iLoop = 0; ; iLoop++)
         {
             int rc;
@@ -658,6 +742,9 @@ static int rtCritSectRwEnterExcl(PRTCRITSECTRW pThis, PCRTLOCKVALSRCPOS pSrcPos,
 #ifdef RTCRITSECTRW_STRICT
     RTLockValidatorRecExclSetOwner(pThis->pValidatorWrite, hThreadSelf, pSrcPos, true);
 #endif
+    IPRT_CRITSECTRW_EXCL_ENTERED(pThis, NULL, 1,
+                                 (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                 (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
 
     return VINF_SUCCESS;
 }
@@ -738,9 +825,13 @@ RTDECL(int) RTCritSectRwLeaveExcl(PRTCRITSECTRW pThis)
         ASMAtomicWriteU32(&pThis->cWriteRecursions, 0);
         ASMAtomicWriteHandle(&pThis->hNativeWriter, NIL_RTNATIVETHREAD);
 
+        uint64_t u64State = ASMAtomicReadU64(&pThis->u64State);
+        IPRT_CRITSECTRW_EXCL_LEAVING(pThis, NULL, 0,
+                                     (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                     (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
+
         for (;;)
         {
-            uint64_t u64State    = ASMAtomicReadU64(&pThis->u64State);
             uint64_t u64OldState = u64State;
 
             uint64_t c = (u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT;
@@ -781,6 +872,7 @@ RTDECL(int) RTCritSectRwLeaveExcl(PRTCRITSECTRW pThis)
             ASMNopPause();
             if (pThis->u32Magic != RTCRITSECTRW_MAGIC)
                 return VERR_SEM_DESTROYED;
+            u64State = ASMAtomicReadU64(&pThis->u64State);
         }
     }
     else
@@ -791,7 +883,16 @@ RTDECL(int) RTCritSectRwLeaveExcl(PRTCRITSECTRW pThis)
         if (RT_FAILURE(rc9))
             return rc9;
 #endif
-        ASMAtomicDecU32(&pThis->cWriteRecursions);
+        uint32_t cNestings = ASMAtomicDecU32(&pThis->cWriteRecursions); NOREF(cNestings);
+#ifdef IPRT_WITH_DTRACE
+        if (IPRT_CRITSECTRW_EXCL_LEAVING_ENABLED())
+        {
+            uint64_t u64State = ASMAtomicReadU64(&pThis->u64State);
+            IPRT_CRITSECTRW_EXCL_LEAVING(pThis, NULL, cNestings + pThis->cWriterReads,
+                                         (uint32_t)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT),
+                                         (uint32_t)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_WR_SHIFT));
+        }
+#endif
     }
 
     return VINF_SUCCESS;
@@ -825,6 +926,8 @@ RT_EXPORT_SYMBOL(RTCritSectRwIsWriteOwner);
 
 RTDECL(bool) RTCritSectRwIsReadOwner(PRTCRITSECTRW pThis, bool fWannaHear)
 {
+    RT_NOREF_PV(fWannaHear);
+
     /*
      * Validate handle.
      */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -374,6 +374,7 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                 } u;
 
                 AssertMsg(!chArgSize, ("Not argument size '%c' for RT types! '%.10s'\n", chArgSize, pszFormatOrg));
+                RT_NOREF_PV(chArgSize);
 
                 /*
                  * Lookup the type - binary search.
@@ -708,6 +709,8 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                     {
                         const char *pszStart;
                         const char *psz = pszStart = va_arg(*pArgs, const char *);
+                        int cAngle = 0;
+
                         if (!VALID_PTR(psz))
                             return pfnOutput(pvArgOutput, RT_STR_TUPLE("<null>"));
 
@@ -718,11 +721,21 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                                 psz++;
                                 while ((ch = *psz) != '\0' && (RT_C_IS_BLANK(ch) || ch == '('))
                                     psz++;
-                                if (ch)
+                                if (ch && cAngle == 0)
                                     pszStart = psz;
                             }
                             else if (ch == '(')
                                 break;
+                            else if (ch == '<')
+                            {
+                                cAngle++;
+                                psz++;
+                            }
+                            else if (ch == '>')
+                            {
+                                cAngle--;
+                                psz++;
+                            }
                             else
                                 psz++;
                         }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -200,7 +200,7 @@ static DECLCALLBACK(int) rtDvmVfsFile_Write(void *pvThis, RTFOFF off, PCRTSGBUF 
 static DECLCALLBACK(int) rtDvmVfsFile_Flush(void *pvThis)
 {
     NOREF(pvThis);
-    return VINF_SUCCESS; /* @todo: Implement missing DVM API. */
+    return VINF_SUCCESS; /** @todo Implement missing DVM API. */
 }
 
 

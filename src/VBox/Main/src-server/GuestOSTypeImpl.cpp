@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -397,6 +397,14 @@ HRESULT GuestOSType::getRecommendedUSB(BOOL *aRecommendedUSB)
     return S_OK;
 }
 
+HRESULT GuestOSType::getRecommendedUSB3(BOOL *aRecommendedUSB3)
+{
+    /* Value is constant during life time, no need to lock */
+    *aRecommendedUSB3 = !!(mOSHint & VBOXOSHINT_USB3);
+
+    return S_OK;
+}
+
 HRESULT GuestOSType::getRecommendedTFReset(BOOL *aRecommendedTFReset)
 {
     /* recommended triple fault behavior is constant during life time, no need to lock */
@@ -404,4 +412,14 @@ HRESULT GuestOSType::getRecommendedTFReset(BOOL *aRecommendedTFReset)
 
     return S_OK;
 }
+
+HRESULT GuestOSType::getRecommendedX2APIC(BOOL *aRecommendedX2APIC)
+{
+    /* mRecommendedX2APIC is constant during life time, no need to lock */
+    *aRecommendedX2APIC = !!(mOSHint & VBOXOSHINT_X2APIC);
+
+    return S_OK;
+}
+
+
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

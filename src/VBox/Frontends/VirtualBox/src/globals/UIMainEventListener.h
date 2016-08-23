@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,6 +18,10 @@
 #ifndef ___UIMainEventListener_h___
 #define ___UIMainEventListener_h___
 
+/* Qt includes: */
+#include <QObject>
+#include <QList>
+
 /* COM includes: */
 #include "COMEnums.h"
 #include "CVirtualBoxErrorInfo.h"
@@ -27,6 +31,12 @@
 
 /* Other VBox includes: */
 #include <VBox/com/listeners.h>
+
+/* Forward declarations: */
+class UIMainEventListeningThread;
+class CEventListener;
+class CEventSource;
+
 
 /* Note: On a first look this may seems a little bit complicated.
  * There are two reasons to use a separate class here which handles the events
@@ -107,11 +117,11 @@ signals:
     /** Notifies about VM window can be shown, allowing to prevent it by @a fVeto with @a strReason. */
     void sigCanShowWindow(bool &fVeto, QString &strReason); /* use Qt::DirectConnection */
     /** Notifies about VM window with specified @a winId should be shown. */
-    void sigShowWindow(LONG64 &winId); /* use Qt::DirectConnection */
+    void sigShowWindow(qint64 &winId); /* use Qt::DirectConnection */
 
 public:
 
-    /** Constructor. */
+    /** Constructs main event listener. */
     UIMainEventListener();
 
     /** Initialization routine. */
@@ -119,11 +129,20 @@ public:
     /** Deinitialization routine. */
     void uninit() {}
 
+    /** Registers event @a source for passive event @a listener. */
+    void registerSource(const CEventSource &source, const CEventListener &listener);
+    /** Unregisters event sources. */
+    void unregisterSources();
+
     /** Main event handler routine. */
     STDMETHOD(HandleEvent)(VBoxEventType_T enmType, IEvent *pEvent);
+
+    /** Holds the list of threads handling passive event listening. */
+    QList<UIMainEventListeningThread*> m_threads;
 };
 
 /* Wrap the IListener interface around our implementation class. */
 typedef ListenerImpl<UIMainEventListener, QObject*> UIMainEventListenerImpl;
 
 #endif /* !___UIMainEventListener_h___ */
+

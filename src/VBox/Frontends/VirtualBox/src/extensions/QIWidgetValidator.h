@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,9 @@
 #include <QMap>
 
 /* External includes: */
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 #include <limits.h>
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
 /* Forward declarations: */
 class UISettingsPage;

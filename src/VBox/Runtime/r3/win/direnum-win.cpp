@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_DIR
-#include <Windows.h>
+#include <iprt/win/windows.h>
 
 #include <iprt/dir.h>
 #include <iprt/path.h>
@@ -310,7 +310,7 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
         PCRTUTF16 pwszSrc = (PCRTUTF16)pDir->Data.cAlternateFileName;
         PRTUTF16  pwszDst = pDirEntry->wszShortName;
         uint32_t  off = 0;
-        while (pwszSrc[off] && off < RT_ELEMENTS(pDirEntry->wszShortName) - 1U)
+        while (off < RT_ELEMENTS(pDirEntry->wszShortName) - 1U && pwszSrc[off])
         {
             pwszDst[off] = pwszSrc[off];
             off++;

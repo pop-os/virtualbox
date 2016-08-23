@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,7 @@
 /** @interface_method_impl{RTASN1ALLOCATORVTABLE, pfnFree} */
 static DECLCALLBACK(void) rtAsn1EFenceAllocator_Free(PCRTASN1ALLOCATORVTABLE pThis, PRTASN1ALLOCATION pAllocation, void *pv)
 {
+    RT_NOREF_PV(pThis);
     RTMemEfFreeNP(pv);
     pAllocation->cbAllocated = 0;
 }
@@ -55,6 +56,7 @@ static DECLCALLBACK(int)  rtAsn1EFenceAllocator_Alloc(PCRTASN1ALLOCATORVTABLE pT
         pAllocation->cbAllocated = (uint32_t)cb;
         return VINF_SUCCESS;
     }
+    RT_NOREF_PV(pThis);
     return VERR_NO_MEMORY;
 }
 
@@ -72,6 +74,7 @@ static DECLCALLBACK(int)  rtAsn1EFenceAllocator_Realloc(PCRTASN1ALLOCATORVTABLE 
         pAllocation->cbAllocated = (uint32_t)cbNew;
         return VINF_SUCCESS;
     }
+    RT_NOREF_PV(pThis);
     return VERR_NO_MEMORY;
 }
 

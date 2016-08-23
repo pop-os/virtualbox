@@ -1,14 +1,14 @@
 /** @file
   Support for PCI 3.0 standard.
 
-  Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
-  This program and the accompanying materials                          
-  are licensed and made available under the terms and conditions of the BSD License         
-  which accompanies this distribution.  The full text of the license may be found at        
-  http://opensource.org/licenses/bsd-license.php                                            
+  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+  This program and the accompanying materials
+  are licensed and made available under the terms and conditions of the BSD License
+  which accompanies this distribution.  The full text of the license may be found at
+  http://opensource.org/licenses/bsd-license.php
 
-  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -19,13 +19,23 @@
 #include <IndustryStandard/Pci23.h>
 
 ///
-/// Definitions of PCI class bytes and manipulation macros.
+/// PCI_CLASS_MASS_STORAGE, Base Class 01h.
 ///
+///@{
 #define PCI_CLASS_MASS_STORAGE_SATADPA   0x06
 #define   PCI_IF_MASS_STORAGE_SATA         0x00
 #define   PCI_IF_MASS_STORAGE_AHCI         0x01
+///@}
 
-/**  
+///
+/// PCI_CLASS_WIRELESS, Base Class 0Dh.
+///
+///@{
+#define PCI_SUBCLASS_ETHERNET_80211A    0x20
+#define PCI_SUBCLASS_ETHERNET_80211B    0x21
+///@}
+
+/**
   Macro that checks whether device is a SATA controller.
 
   @param  _p      Specified device.

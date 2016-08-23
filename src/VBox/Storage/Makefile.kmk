@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -35,10 +35,15 @@ if !defined(VBOX_ONLY_EXTPACKS)
 
  StorageLib_TEMPLATE = VBOXR3
  StorageLib_DEFS     = IN_VBOXDDU
+ ifeq ($(USER),bird)
+  StorageLib_DEFS.debug += RTMEM_WRAP_TO_EF_APIS
+ endif
+
  StorageLib_SOURCES  = \
 	VD.cpp \
 	VDVfs.cpp \
 	VDIfVfs.cpp \
+	VDIfVfs2.cpp \
 	VDI.cpp \
 	VMDK.cpp \
 	VHD.cpp \

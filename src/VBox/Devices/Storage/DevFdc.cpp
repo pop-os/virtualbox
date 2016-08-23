@@ -1,10 +1,10 @@
 /* $Id: DevFdc.cpp $ */
 /** @file
- * VBox storage devices: Floppy disk controller
+ * VBox storage devices - Floppy disk controller
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,6 +47,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_FDC
 #include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pdmstorageifs.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
@@ -69,19 +70,11 @@
         do { printf("FLOPPY: " fmt , ##args); } while (0)
     #endif
 #else /* !VBOX */
-    # ifdef LOG_ENABLED
-        static void FLOPPY_DPRINTF (const char *fmt, ...)
-        {
-            if (LogIsEnabled ()) {
-                va_list args;
-                va_start (args, fmt);
-                RTLogLogger (NULL, NULL, "floppy: %N", fmt, &args); /* %N - nested va_list * type formatting call. */
-                va_end (args);
-            }
-        }
-    # else
-      DECLINLINE(void) FLOPPY_DPRINTF(const char *pszFmt, ...) {}
-    # endif
+# ifdef LOG_ENABLED
+#  define FLOPPY_DPRINTF(...) Log(("floppy: " __VA_ARGS__))
+# else
+#  define FLOPPY_DPRINTF(...) do { } while (0)
+# endif
 #endif /* !VBOX */
 
 #ifndef VBOX
@@ -140,7 +133,7 @@ typedef enum fdrive_rate_t {
  * The status for one drive.
  *
  * @implements  PDMIBASE
- * @implements  PDMIBLOCKPORT
+ * @implements  PDMIMEDIAPORT
  * @implements  PDMIMOUNTNOTIFY
  */
 typedef struct fdrive_t {
@@ -150,16 +143,14 @@ typedef struct fdrive_t {
     /** Pointer to the attached driver's base interface. */
     R3PTRTYPE(PPDMIBASE)            pDrvBase;
     /** Pointer to the attached driver's block interface. */
-    R3PTRTYPE(PPDMIBLOCK)           pDrvBlock;
-    /** Pointer to the attached driver's block bios interface. */
-    R3PTRTYPE(PPDMIBLOCKBIOS)       pDrvBlockBios;
+    R3PTRTYPE(PPDMIMEDIA)           pDrvMedia;
     /** Pointer to the attached driver's mount interface.
      * This is NULL if the driver isn't a removable unit. */
     R3PTRTYPE(PPDMIMOUNT)           pDrvMount;
     /** The base interface. */
     PDMIBASE                        IBase;
     /** The block port interface. */
-    PDMIBLOCKPORT                   IPort;
+    PDMIMEDIAPORT                   IPort;
     /** The mount notify interface. */
     PDMIMOUNTNOTIFY                 IMountNotify;
     /** The LUN #. */
@@ -195,26 +186,26 @@ static void fd_init(fdrive_t *drv, bool fInit)
 #else  /* VBOX */
     if (fInit) {
         /* Fixate the drive type at init time if possible. */
-        if (drv->pDrvBlock) {
-            PDMBLOCKTYPE enmType = drv->pDrvBlock->pfnGetType(drv->pDrvBlock);
+        if (drv->pDrvMedia) {
+            PDMMEDIATYPE enmType = drv->pDrvMedia->pfnGetType(drv->pDrvMedia);
             switch (enmType) {
-                case PDMBLOCKTYPE_FLOPPY_360:
-                case PDMBLOCKTYPE_FLOPPY_1_20:
+                case PDMMEDIATYPE_FLOPPY_360:
+                case PDMMEDIATYPE_FLOPPY_1_20:
                     drv->drive = FDRIVE_DRV_120;
                     break;
-                case PDMBLOCKTYPE_FLOPPY_720:
-                case PDMBLOCKTYPE_FLOPPY_1_44:
+                case PDMMEDIATYPE_FLOPPY_720:
+                case PDMMEDIATYPE_FLOPPY_1_44:
                     drv->drive = FDRIVE_DRV_144;
                     break;
                 default:
                     AssertFailed();
-                case PDMBLOCKTYPE_FLOPPY_2_88:
+                case PDMMEDIATYPE_FLOPPY_2_88:
                     drv->drive = FDRIVE_DRV_288;
                     break;
-                case PDMBLOCKTYPE_FLOPPY_FAKE_15_6:
+                case PDMMEDIATYPE_FLOPPY_FAKE_15_6:
                     drv->drive = FDRIVE_DRV_FAKE_15_6;
                     break;
-                case PDMBLOCKTYPE_FLOPPY_FAKE_63_5:
+                case PDMMEDIATYPE_FLOPPY_FAKE_63_5:
                     drv->drive = FDRIVE_DRV_FAKE_63_5;
                     break;
             }
@@ -286,6 +277,8 @@ static int fd_seek(fdrive_t *drv, uint8_t head, uint8_t track, uint8_t sect,
                          head, track, sect, 1, drv->max_track, drv->last_sect);
             return 4;
         }
+#else
+        RT_NOREF(enable_seek);
 #endif
         drv->head = head;
         if (drv->track != track)
@@ -438,10 +431,10 @@ static void fd_revalidate(fdrive_t *drv)
         ro = bdrv_is_read_only(drv->bs);
         bdrv_get_geometry_hint(drv->bs, &nb_heads, &max_track, &last_sect);
 #else /* VBOX */
-    if (   drv->pDrvBlock
+    if (   drv->pDrvMedia
         && drv->pDrvMount
         && drv->pDrvMount->pfnIsMounted (drv->pDrvMount)) {
-        ro = drv->pDrvBlock->pfnIsReadOnly (drv->pDrvBlock);
+        ro = drv->pDrvMedia->pfnIsReadOnly (drv->pDrvMedia);
         nb_heads = max_track = last_sect = 0;
 #endif /* VBOX */
         if (nb_heads != 0 && max_track != 0 && last_sect != 0) {
@@ -452,7 +445,7 @@ static void fd_revalidate(fdrive_t *drv)
             bdrv_get_geometry(drv->bs, &nb_sectors);
 #else /* VBOX */
             {
-                uint64_t size2 = drv->pDrvBlock->pfnGetSize (drv->pDrvBlock);
+                uint64_t size2 = drv->pDrvMedia->pfnGetSize (drv->pDrvMedia);
                 nb_sectors = size2 / FD_SECTOR_LEN;
             }
 #endif /* VBOX */
@@ -883,7 +876,7 @@ static void fdctrl_reset(fdctrl_t *fdctrl, int do_irq)
     fdctrl->sra = 0;
     fdctrl->srb = 0xc0;
 #ifdef VBOX
-    if (!fdctrl->drives[1].pDrvBlock)
+    if (!fdctrl->drives[1].pDrvMedia)
 #else
     if (!fdctrl->drives[1].bs)
 #endif
@@ -1160,6 +1153,7 @@ static void fdctrl_set_fifo(fdctrl_t *fdctrl, int fifo_len, int do_irq)
 /* Set an error: unimplemented/unknown command */
 static void fdctrl_unimplemented(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     FLOPPY_ERROR("unimplemented command 0x%02x\n", fdctrl->fifo[0]);
     fdctrl->fifo[0] = FD_SR0_INVCMD;
     fdctrl_set_fifo(fdctrl, 1, 0);
@@ -1276,7 +1270,7 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
         return;
     case 5:
         /* No disk in drive */
-        ///@todo: This is wrong! Command should not complete.
+        /// @todo This is wrong! Command should not complete.
         fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | 0x08, /*FD_SR1_MA |*/ FD_SR1_ND, 0x00);
         fdctrl->fifo[3] = kt;
         fdctrl->fifo[4] = kh;
@@ -1483,6 +1477,7 @@ static void fdctrl_start_format(fdctrl_t *fdctrl)
 /* Prepare a transfer of deleted data */
 static void fdctrl_start_transfer_del(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     FLOPPY_ERROR("fdctrl_start_transfer_del() unimplemented\n");
 
     /* We don't handle deleted data,
@@ -1500,7 +1495,7 @@ static int blk_write(fdrive_t *drv, int64_t sector_num, const uint8_t *buf, int 
 
     drv->Led.Asserted.s.fWriting = drv->Led.Actual.s.fWriting = 1;
 
-    rc = drv->pDrvBlock->pfnWrite(drv->pDrvBlock, sector_num * FD_SECTOR_LEN,
+    rc = drv->pDrvMedia->pfnWrite(drv->pDrvMedia, sector_num * FD_SECTOR_LEN,
                                   buf, nb_sectors * FD_SECTOR_LEN);
 
     drv->Led.Actual.s.fWriting = 0;
@@ -1516,7 +1511,7 @@ static int blk_read(fdrive_t *drv, int64_t sector_num, uint8_t *buf, int nb_sect
 
     drv->Led.Asserted.s.fReading = drv->Led.Actual.s.fReading = 1;
 
-    rc = drv->pDrvBlock->pfnRead(drv->pDrvBlock, sector_num * FD_SECTOR_LEN,
+    rc = drv->pDrvMedia->pfnRead(drv->pDrvMedia, sector_num * FD_SECTOR_LEN,
                                  buf, nb_sectors * FD_SECTOR_LEN);
 
     drv->Led.Actual.s.fReading = 0;
@@ -1541,6 +1536,7 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
                                     int dma_pos, int dma_len)
 #endif
 {
+    RT_NOREF(pDevIns, dma_pos);
     fdctrl_t *fdctrl;
     fdrive_t *cur_drv;
 #ifdef VBOX
@@ -1566,7 +1562,7 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
 #ifndef VBOX
     if (cur_drv->bs == NULL)
 #else  /* !VBOX */
-    if (cur_drv->pDrvBlock == NULL)
+    if (cur_drv->pDrvMedia == NULL)
 #endif
     {
         if (fdctrl->data_dir == FD_DIR_WRITE)
@@ -1708,7 +1704,7 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
                 uint32_t read;
                 int rc2 = PDMDevHlpDMAReadMemory (fdctrl->pDevIns, nchan, tmpbuf,
                                                   fdctrl->data_pos, len, &read);
-                AssertMsg (RT_SUCCESS (rc2), ("DMAReadMemory -> %Rrc2\n", rc2));
+                AssertMsg(RT_SUCCESS(rc2), ("DMAReadMemory -> %Rrc2\n", rc2)); NOREF(rc2);
 #else
                 DMA_read_memory (nchan, tmpbuf, fdctrl->data_pos, len);
 #endif
@@ -1860,7 +1856,7 @@ static void fdctrl_format_sector(fdctrl_t *fdctrl)
     }
     memset(fdctrl->fifo, 0, FD_SECTOR_LEN);
 #ifdef VBOX
-    if (cur_drv->pDrvBlock) {
+    if (cur_drv->pDrvMedia) {
         rc = blk_write(cur_drv, fd_sector(cur_drv), fdctrl->fifo, 1);
         if (RT_FAILURE (rc)) {
             FLOPPY_ERROR("formatting sector %d\n", fd_sector(cur_drv));
@@ -1894,6 +1890,7 @@ static void fdctrl_format_sector(fdctrl_t *fdctrl)
 
 static void fdctrl_handle_lock(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->lock = (fdctrl->fifo[0] & 0x80) ? 1 : 0;
     fdctrl->fifo[0] = fdctrl->lock << 4;
     fdctrl_set_fifo(fdctrl, 1, 0);
@@ -1901,6 +1898,7 @@ static void fdctrl_handle_lock(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_dumpreg(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     /* Drives position */
@@ -1926,6 +1924,7 @@ static void fdctrl_handle_dumpreg(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_version(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     /* Controller's version */
     fdctrl->fifo[0] = fdctrl->version;
     fdctrl_set_fifo(fdctrl, 1, 0);
@@ -1933,12 +1932,14 @@ static void fdctrl_handle_version(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_partid(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->fifo[0] = 0x01; /* Stepping 1 */
     fdctrl_set_fifo(fdctrl, 1, 0);
 }
 
 static void fdctrl_handle_restore(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     /* Drives position */
@@ -1962,6 +1963,7 @@ static void fdctrl_handle_restore(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_save(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     fdctrl->fifo[0] = 0;
@@ -1992,6 +1994,7 @@ static void fdctrl_handle_save(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_readid(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     FLOPPY_DPRINTF("CMD:%02x SEL:%02x\n", fdctrl->fifo[0], fdctrl->fifo[1]);
@@ -2008,6 +2011,7 @@ static void fdctrl_handle_readid(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_format_track(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
     uint8_t ns, dp;
 
@@ -2040,6 +2044,7 @@ static void fdctrl_handle_format_track(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_specify(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->timer0 = (fdctrl->fifo[1] >> 4) & 0xF;
     fdctrl->timer1 = fdctrl->fifo[2] >> 1;
     if (fdctrl->fifo[2] & 1)
@@ -2052,6 +2057,7 @@ static void fdctrl_handle_specify(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_sense_drive_status(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
 
     SET_CUR_DRV(fdctrl, fdctrl->fifo[1] & FD_DOR_SELMASK);
@@ -2068,6 +2074,7 @@ static void fdctrl_handle_sense_drive_status(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_recalibrate(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
     uint8_t  st0;
 
@@ -2085,6 +2092,7 @@ static void fdctrl_handle_recalibrate(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_sense_interrupt_status(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     FLOPPY_DPRINTF("CMD:%02x\n", fdctrl->fifo[0]);
@@ -2111,6 +2119,7 @@ static void fdctrl_handle_sense_interrupt_status(fdctrl_t *fdctrl, int direction
 
 static void fdctrl_handle_seek(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
 
     FLOPPY_DPRINTF("CMD:%02x SEL:%02x NCN:%02x\n", fdctrl->fifo[0],
@@ -2141,6 +2150,7 @@ static void fdctrl_handle_seek(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_perpendicular_mode(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
 
     if (fdctrl->fifo[1] & 0x80)
@@ -2151,6 +2161,7 @@ static void fdctrl_handle_perpendicular_mode(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_configure(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->config = fdctrl->fifo[2];
     fdctrl->precomp_trk =  fdctrl->fifo[3];
     /* No result back */
@@ -2159,6 +2170,7 @@ static void fdctrl_handle_configure(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_powerdown_mode(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdctrl->pwrd = fdctrl->fifo[1];
     fdctrl->fifo[0] = fdctrl->fifo[1];
     fdctrl_set_fifo(fdctrl, 1, 0);
@@ -2166,13 +2178,15 @@ static void fdctrl_handle_powerdown_mode(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_option(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     /* No result back */
     fdctrl_reset_fifo(fdctrl);
 }
 
 static void fdctrl_handle_drive_specification_command(fdctrl_t *fdctrl, int direction)
 {
-    fdrive_t *cur_drv = get_cur_drv(fdctrl);
+    RT_NOREF(direction);
+    /* fdrive_t *cur_drv = get_cur_drv(fdctrl); - unused */
 
     /* This command takes a variable number of parameters. It can be terminated
      * at any time if the high bit of a parameter is set. Once there are 6 bytes
@@ -2197,6 +2211,7 @@ static void fdctrl_handle_drive_specification_command(fdctrl_t *fdctrl, int dire
 
 static void fdctrl_handle_relative_seek_out(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
 
     SET_CUR_DRV(fdctrl, fdctrl->fifo[1] & FD_DOR_SELMASK);
@@ -2213,6 +2228,7 @@ static void fdctrl_handle_relative_seek_out(fdctrl_t *fdctrl, int direction)
 
 static void fdctrl_handle_relative_seek_in(fdctrl_t *fdctrl, int direction)
 {
+    RT_NOREF(direction);
     fdrive_t *cur_drv;
 
     SET_CUR_DRV(fdctrl, fdctrl->fifo[1] & FD_DOR_SELMASK);
@@ -2351,7 +2367,7 @@ static void fdctrl_result_timer(void *opaque)
 #ifdef VBOX
     if (!cur_drv->max_track) {
         FLOPPY_DPRINTF("read id when no disk in drive\n");
-        ///@todo: This is wrong! Command should not complete.
+        /// @todo This is wrong! Command should not complete.
         fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
     } else if ((fdctrl->dsr & FD_DSR_DRATEMASK) != cur_drv->media_rate) {
         FLOPPY_DPRINTF("read id rate mismatch (fdc=%d, media=%d)\n",
@@ -2378,6 +2394,7 @@ static void fdctrl_result_timer(void *opaque)
  */
 static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
+    RT_NOREF(pDevIns, pTimer);
     fdctrl_t *fdctrl = (fdctrl_t *)pvUser;
     fdctrl_result_timer(fdctrl);
 }
@@ -2390,6 +2407,7 @@ static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, 
  */
 static DECLCALLBACK(int) fdcIoPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
         fdctrl_write (pvUser, Port & 7, u32);
     else
@@ -2403,6 +2421,7 @@ static DECLCALLBACK(int) fdcIoPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
  */
 static DECLCALLBACK(int) fdcIoPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pDevIns);
     if (cb == 1)
     {
         *pu32 = fdctrl_read (pvUser, Port & 7);
@@ -2643,7 +2662,7 @@ static DECLCALLBACK(void *) fdQueryInterface (PPDMIBASE pInterface, const char *
     fdrive_t *pDrv = RT_FROM_MEMBER(pInterface, fdrive_t, IBase);
 
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrv->IBase);
-    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKPORT, &pDrv->IPort);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIAPORT, &pDrv->IPort);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNTNOTIFY, &pDrv->IMountNotify);
     return NULL;
 }
@@ -2705,20 +2724,13 @@ static int fdConfig(fdrive_t *drv, PPDMDEVINS pDevIns, bool fInit)
      */
     rc = PDMDevHlpDriverAttach (pDevIns, drv->iLUN, &drv->IBase, &drv->pDrvBase, s_apszDesc[drv->iLUN]);
     if (RT_SUCCESS (rc)) {
-        drv->pDrvBlock = PDMIBASE_QUERY_INTERFACE(drv->pDrvBase, PDMIBLOCK);
-        if (drv->pDrvBlock) {
-            drv->pDrvBlockBios = PDMIBASE_QUERY_INTERFACE(drv->pDrvBase, PDMIBLOCKBIOS);
-            if (drv->pDrvBlockBios) {
-                drv->pDrvMount = PDMIBASE_QUERY_INTERFACE(drv->pDrvBase, PDMIMOUNT);
-                if (drv->pDrvMount) {
-                    fd_init(drv, fInit);
-                } else {
-                    AssertMsgFailed (("Configuration error: LUN#%d without mountable interface!\n", drv->iLUN));
-                    rc = VERR_PDM_MISSING_INTERFACE;
-                }
-
+        drv->pDrvMedia = PDMIBASE_QUERY_INTERFACE(drv->pDrvBase, PDMIMEDIA);
+        if (drv->pDrvMedia) {
+            drv->pDrvMount = PDMIBASE_QUERY_INTERFACE(drv->pDrvBase, PDMIMOUNT);
+            if (drv->pDrvMount) {
+                fd_init(drv, fInit);
             } else {
-                AssertMsgFailed (("Configuration error: LUN#%d hasn't a block BIOS interface!\n", drv->iLUN));
+                AssertMsgFailed (("Configuration error: LUN#%d without mountable interface!\n", drv->iLUN));
                 rc = VERR_PDM_MISSING_INTERFACE;
             }
 
@@ -2745,8 +2757,7 @@ static int fdConfig(fdrive_t *drv, PPDMDEVINS pDevIns, bool fInit)
 
     if (RT_FAILURE (rc)) {
         drv->pDrvBase = NULL;
-        drv->pDrvBlock = NULL;
-        drv->pDrvBlockBios = NULL;
+        drv->pDrvMedia = NULL;
         drv->pDrvMount = NULL;
     }
     LogFlow (("fdConfig: returns %Rrc\n", rc));
@@ -2786,8 +2797,7 @@ static DECLCALLBACK(int)  fdcAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
 
     /* the usual paranoia */
     AssertRelease (!drv->pDrvBase);
-    AssertRelease (!drv->pDrvBlock);
-    AssertRelease (!drv->pDrvBlockBios);
+    AssertRelease (!drv->pDrvMedia);
     AssertRelease (!drv->pDrvMount);
 
     rc = fdConfig (drv, pDevIns, false /*fInit*/);
@@ -2809,6 +2819,7 @@ static DECLCALLBACK(int)  fdcAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
  */
 static DECLCALLBACK(void) fdcDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
     fdctrl_t *pThis = PDMINS_2_DATA(pDevIns, fdctrl_t *);
     LogFlow (("ideDetach: iLUN=%u\n", iLUN));
 
@@ -2819,8 +2830,7 @@ static DECLCALLBACK(void) fdcDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
         {
             fdrive_t *drv = &pThis->drives[iLUN];
             drv->pDrvBase = NULL;
-            drv->pDrvBlock = NULL;
-            drv->pDrvBlockBios = NULL;
+            drv->pDrvMedia = NULL;
             drv->pDrvMount = NULL;
             break;
         }
@@ -2857,6 +2867,7 @@ static DECLCALLBACK(void) fdcReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) fdcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+    RT_NOREF(iInstance);
     fdctrl_t      *pThis = PDMINS_2_DATA(pDevIns, fdctrl_t *);
     int            rc;
     unsigned       i, j;

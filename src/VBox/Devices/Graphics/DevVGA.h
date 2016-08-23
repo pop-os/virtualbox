@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -587,20 +587,29 @@ typedef struct VGAState {
     uint64_t                    cbVgaBios;
     /** The name of the VGA BIOS ROM file. */
     R3PTRTYPE(char *)           pszVgaBiosFile;
+# if HC_ARCH_BITS == 32
+    uint32_t                    Padding9;
+# endif
 
 # ifdef VBOX_WITH_HGSMI
     /** Base port in the assigned PCI I/O space. */
     RTIOPORT                    IOPortBase;
 #  ifdef VBOX_WITH_WDDM
-    uint8_t                     Padding9[2];
+    uint8_t                     Padding10[2];
     /** Specifies guest driver caps, i.e. whether it can handle IRQs from the
      * adapter, the way it can handle async HGSMI command completion, etc. */
     uint32_t                    fGuestCaps;
     uint32_t                    fScanLineCfg;
     uint32_t                    fHostCursorCapabilities;
 #  else
-    uint8_t                     Padding10[14];
+    uint8_t                     Padding11[14];
 #  endif
+
+    /** The critical section serializes the HGSMI IRQ setting/clearing. */
+    PDMCRITSECT                 CritSectIRQ;
+    /** VBVARaiseIRQ flags which were set when the guest was still processing previous IRQ. */
+    uint32_t                    fu32PendingGuestFlags;
+    uint32_t                    Padding12;
 # endif /* VBOX_WITH_HGSMI */
 
     PDMLED Led3D;
@@ -687,8 +696,7 @@ void     VBVAOnResume(PVGASTATE pThis);
 bool VBVAIsPaused(PVGASTATE pVGAState);
 bool VBVAIsEnabled(PVGASTATE pVGAState);
 
-void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags);
-void VBVARaiseIrqNoWait(PVGASTATE pVGAState, uint32_t fFlags);
+void VBVARaiseIrq(PVGASTATE pVGAState, uint32_t fFlags);
 
 int VBVAInfoView(PVGASTATE pVGAState, const VBVAINFOVIEW *pView);
 int VBVAInfoScreen(PVGASTATE pVGAState, const VBVAINFOSCREEN *pScreen);
@@ -697,17 +705,17 @@ int VBVAGetInfoViewAndScreen(PVGASTATE pVGAState, uint32_t u32ViewIndex, VBVAINF
 /* @return host-guest flags that were set on reset
  * this allows the caller to make further cleaning when needed,
  * e.g. reset the IRQ */
-uint32_t HGSMIReset (PHGSMIINSTANCE pIns);
+uint32_t HGSMIReset(PHGSMIINSTANCE pIns);
 
 # ifdef VBOX_WITH_VIDEOHWACCEL
 DECLCALLBACK(int) vbvaVHWACommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd);
-int vbvaVHWAConstruct (PVGASTATE pVGAState);
-int vbvaVHWAReset (PVGASTATE pVGAState);
+int vbvaVHWAConstruct(PVGASTATE pVGAState);
+int vbvaVHWAReset(PVGASTATE pVGAState);
 
 void vbvaTimerCb(PVGASTATE pVGAState);
 
-int vboxVBVASaveStatePrep (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
-int vboxVBVASaveStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+int vboxVBVASaveStatePrep(PPDMDEVINS pDevIns);
+int vboxVBVASaveStateDone(PPDMDEVINS pDevIns);
 # endif
 
 #ifdef VBOX_WITH_HGSMI
@@ -727,9 +735,9 @@ DECLCALLBACK(int) vboxCmdVBVACmdHostCtlSync(PPDMIDISPLAYVBVACALLBACKS pInterface
                                             struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
 # endif
 
-int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
-int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version);
-int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+int vboxVBVASaveStateExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+int vboxVBVALoadStateExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version);
+int vboxVBVALoadStateDone(PPDMDEVINS pDevIns);
 
 DECLCALLBACK(int) vgaUpdateDisplayAll(PVGASTATE pThis, bool fFailOnResize);
 DECLCALLBACK(int) vbvaPortSendModeHint(PPDMIDISPLAYPORT pInterface, uint32_t cx,
@@ -748,8 +756,8 @@ int vboxVDMADestruct(PVBOXVDMAHOST pVdma);
 int vboxVDMAReset(PVBOXVDMAHOST pVdma);
 void vboxVDMAControl(PVBOXVDMAHOST pVdma, PVBOXVDMA_CTL pCmd, uint32_t cbCmd);
 void vboxVDMACommand(PVBOXVDMAHOST pVdma, PVBOXVDMACBUF_DR pCmd, uint32_t cbCmd);
-int vboxVDMASaveStateExecPrep(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM);
-int vboxVDMASaveStateExecDone(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM);
+int vboxVDMASaveStateExecPrep(struct VBOXVDMAHOST *pVdma);
+int vboxVDMASaveStateExecDone(struct VBOXVDMAHOST *pVdma);
 int vboxVDMASaveStateExecPerform(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM);
 int vboxVDMASaveLoadExecPerform(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM, uint32_t u32Version);
 int vboxVDMASaveLoadDone(struct VBOXVDMAHOST *pVdma);

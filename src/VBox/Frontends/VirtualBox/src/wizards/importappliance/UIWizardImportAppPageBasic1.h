@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 #include "UIWizardPage.h"
 
 /* Forward declarations: */
-class VBoxEmptyFileSelector;
+class UIEmptyFilePathSelector;
 class QIRichTextLabel;
 
 /* 1st page of the Import Appliance wizard (base part): */
@@ -34,7 +34,7 @@ protected:
     UIWizardImportAppPage1();
 
     /* Widgets: */
-    VBoxEmptyFileSelector *m_pFileSelector;
+    UIEmptyFilePathSelector *m_pFileSelector;
 };
 
 /* 1st page of the Import Appliance wizard (basic extension): */

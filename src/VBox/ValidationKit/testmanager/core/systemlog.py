@@ -7,7 +7,7 @@ Test Manager - SystemLog.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2015 Oracle Corporation
+Copyright (C) 2012-2016 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 109040 $"
 
 
 # Standard python imports.
@@ -45,7 +45,7 @@ class SystemLogData(ModelDataBase):  # pylint: disable=R0902
     # @{
     ksEvent_CmdNacked           = 'CmdNack ';
     ksEvent_TestBoxUnknown      = 'TBoxUnkn';
-    ksEvent_TestSetAbandond     = 'TSetAbdd';
+    ksEvent_TestSetAbandoned    = 'TSetAbdd';
     ksEvent_UserAccountUnknown  = 'TAccUnkn';
     ksEvent_XmlResultMalformed  = 'XmlRMalf';
     ksEvent_SchedQueueRecreate  = 'SchQRecr';
@@ -56,7 +56,7 @@ class SystemLogData(ModelDataBase):  # pylint: disable=R0902
     [ \
         ksEvent_CmdNacked,
         ksEvent_TestBoxUnknown,
-        ksEvent_TestSetAbandond,
+        ksEvent_TestSetAbandoned,
         ksEvent_UserAccountUnknown,
         ksEvent_XmlResultMalformed,
         ksEvent_SchedQueueRecreate,

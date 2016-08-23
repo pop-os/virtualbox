@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2012-2015 Oracle Corporation
+# Copyright (C) 2012-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -36,8 +36,10 @@ testboxscript_TEMPLATE = VBoxValidationKitR3
 testboxscript_INST = $(INST_TESTBOXSCRIPT)testboxscript/
 testboxscript_EXEC_SOURCES = \
 	testboxscript.py \
-	testboxscript_real.py \
+	$(testboxscript_0_OUTDIR)/testboxscript_real.py \
 	setup.sh
+$(call VBOX_EDIT_VERSION_RULE_FN,testboxscript,testboxscript_real.py)
+
 testboxscript_SOURCES = \
 	testboxcommand.py \
 	testboxcommons.py \
@@ -59,7 +61,8 @@ testboxscript_SOURCES.solaris = \
 
 testboxscript_SOURCES.win = \
 	win/autoexec-testbox.cmd=>win/autoexec-testbox.cmd \
-	win/readme.txt=>win/readme.txt
+	win/readme.txt=>win/readme.txt \
+	$(if $(VBOX_OSE),,win/fix_stale_refs.py=>win/fix_stale_refs.py)
 
 
 #

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -186,17 +186,17 @@ class UIHelpButton: public QIWithRetranslateUI<QPushButton>
 
 public:
     UIHelpButton(QWidget *pParent = 0);
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     ~UIHelpButton();
     QSize sizeHint() const;
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     void initFrom(QPushButton *pOther);
 
 protected:
     void retranslateUi();
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     void paintEvent(QPaintEvent *pEvent);
 
     bool hitButton(const QPoint &pos) const;
@@ -214,7 +214,7 @@ private:
     QPixmap *m_pPressedPixmap;
     QImage *m_pMask;
     QRect m_BRect;
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 };
 
 /********************************************************************************

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -164,9 +164,9 @@ private:
     QPointer<QWidget> m_pWhatsThisCandidate;
 
     QMap<int, int> m_pages;
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     QList<QSize> m_sizeList;
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 };
 
 #endif // __UISettingsDialog_h__

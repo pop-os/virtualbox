@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,6 +13,17 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/** @page pg_rem REM - Recompiled Execution Manager.
+ *
+ * The recompiled exeuction manager (REM) serves the final fallback for guest
+ * execution, after HM / raw-mode and IEM have given up.
+ *
+ * The REM is qemu with a whole bunch of VBox specific customization for
+ * interfacing with PATM, CSAM, PGM and other components.
+ *
+ * @sa @ref grp_rem
  */
 
 
@@ -39,6 +50,9 @@
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/dbg.h>
+#ifdef VBOX_WITH_NEW_APIC
+# include <VBox/vmm/apic.h>
+#endif
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/csam.h>
@@ -98,6 +112,7 @@ ram_addr_t get_phys_page_offset(target_ulong addr);
 *********************************************************************************************************************************/
 static DECLCALLBACK(int) remR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+static DECLCALLBACK(int) remR3LoadDone(PVM pVM, PSSMHANDLE pSSM);
 static void     remR3StateUpdate(PVM pVM, PVMCPU pVCpu);
 static int      remR3InitPhysRamSizeAndDirtyMap(PVM pVM, bool fGuarded);
 
@@ -338,7 +353,7 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     cpu_single_env = &pVM->rem.s.Env;
 
     /* Nothing is pending by default */
-    pVM->rem.s.u32PendingInterrupt = REM_NO_PENDING_IRQ;
+    pVM->rem.s.uStateLoadPendingInterrupt = REM_NO_PENDING_IRQ;
 
     /*
      * Register ram types.
@@ -358,7 +373,7 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     rc = SSMR3RegisterInternal(pVM, "rem", 1, REM_SAVED_STATE_VERSION, sizeof(uint32_t) * 10,
                                NULL, NULL, NULL,
                                NULL, remR3Save, NULL,
-                               NULL, remR3Load, NULL);
+                               NULL, remR3Load, remR3LoadDone);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -623,7 +638,7 @@ static DECLCALLBACK(int) remR3Save(PVM pVM, PSSMHANDLE pSSM)
 
     /* Remember if we've entered raw mode (vital for ring 1 checks in e.g. iret emulation). */
     SSMR3PutU32(pSSM, !!(pRem->Env.state & CPU_RAW_RING0));
-    SSMR3PutU32(pSSM, pVM->rem.s.u32PendingInterrupt);
+    SSMR3PutU32(pSSM, REM_NO_PENDING_IRQ);
 
     return SSMR3PutU32(pSSM, ~0);       /* terminator */
 }
@@ -718,9 +733,12 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
             SSMR3GetGCPtr(pSSM, &pRem->aGCPtrInvalidatedPages[i]);
     }
 
-    rc = SSMR3GetUInt(pSSM, &pVM->rem.s.u32PendingInterrupt);
-    if (RT_FAILURE(rc))
-        return rc;
+    rc = SSMR3GetUInt(pSSM, &pVM->rem.s.uStateLoadPendingInterrupt);
+    AssertRCReturn(rc, rc);
+    AssertLogRelMsgReturn(   pVM->rem.s.uStateLoadPendingInterrupt == REM_NO_PENDING_IRQ
+                          || pVM->rem.s.uStateLoadPendingInterrupt < 256,
+                          ("uStateLoadPendingInterrupt=%#x\n", pVM->rem.s.uStateLoadPendingInterrupt),
+                          VERR_SSM_UNEXPECTED_DATA);
 
     /* check the terminator. */
     rc = SSMR3GetU32(pSSM, &u32Sep);
@@ -756,6 +774,21 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
 }
 
 
+/**
+ * @callback_method_impl{FNSSMINTLOADDONE,
+ *    For pushing misdesigned pending-interrupt mess to TRPM where it belongs. }
+ */
+static DECLCALLBACK(int) remR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
+{
+    if (pVM->rem.s.uStateLoadPendingInterrupt != REM_NO_PENDING_IRQ)
+    {
+        int rc = TRPMAssertTrap(&pVM->aCpus[0], pVM->rem.s.uStateLoadPendingInterrupt, TRPM_HARDWARE_INT);
+        AssertLogRelMsgReturn(rc, ("uStateLoadPendingInterrupt=%#x rc=%Rrc\n", pVM->rem.s.uStateLoadPendingInterrupt, rc), rc);
+        pVM->rem.s.uStateLoadPendingInterrupt = REM_NO_PENDING_IRQ;
+    }
+    return VINF_SUCCESS;
+}
+
 
 #undef LOG_GROUP
 #define LOG_GROUP LOG_GROUP_REM_RUN
@@ -785,7 +818,7 @@ REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
      * pending interrupts and suchlike.
      */
     interrupt_request = pVM->rem.s.Env.interrupt_request;
-    Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER  | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER)));
+    Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER)));
     pVM->rem.s.Env.interrupt_request = 0;
     cpu_single_step(&pVM->rem.s.Env, 1);
 
@@ -820,7 +853,7 @@ REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
                 break;
             case EXCP_EXECUTE_RAW:
             case EXCP_EXECUTE_HM:
-                /** @todo: is it correct? No! */
+                /** @todo is it correct? No! */
                 rc = VINF_SUCCESS;
                 break;
             default:
@@ -925,7 +958,10 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
     if (RT_SUCCESS(rc))
     {
         int interrupt_request = pVM->rem.s.Env.interrupt_request;
-        Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER)));
+        Assert(!(  interrupt_request
+                 & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER | CPU_INTERRUPT_EXTERNAL_HARD
+                     | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER
+                     | CPU_INTERRUPT_EXTERNAL_DMA)));
 #ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
         cpu_single_step(&pVM->rem.s.Env, 0);
 #endif
@@ -1102,8 +1138,7 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
 #else
         pVM->rem.s.Env.interrupt_request = CPU_INTERRUPT_SINGLE_INSTR;
 #endif
-        if (   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
-            || pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ)
+        if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
             pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
         RTLogPrintf("remR3RunLoggingStep: interrupt_request=%#x halted=%d exception_index=%#x\n",
                     pVM->rem.s.Env.interrupt_request,
@@ -2437,10 +2472,8 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
         pVM->rem.s.Env.exception_index = u8TrapNo;
         if (enmType != TRPM_SOFTWARE_INT)
         {
-            pVM->rem.s.Env.exception_is_int     = 0;
-#ifdef IEM_VERIFICATION_MODE /* Ugly hack, needs proper fixing. */
-            pVM->rem.s.Env.exception_is_int     = enmType == TRPM_HARDWARE_INT ? 0x42 : 0;
-#endif
+            pVM->rem.s.Env.exception_is_int     = enmType == TRPM_HARDWARE_INT
+                                                ? EXCEPTION_IS_INT_VALUE_HARDWARE_IRQ : 0; /* HACK ALERT! */
             pVM->rem.s.Env.exception_next_eip   = pVM->rem.s.Env.eip;
         }
         else
@@ -2501,8 +2534,11 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
      * (See @remark for why we don't check for other FFs.)
      */
     pVM->rem.s.Env.interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER);
-    if (    pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ
-        ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
+#ifdef VBOX_WITH_NEW_APIC
+    if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
+        APICUpdatePendingInterrupts(pVCpu);
+#endif
+    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
         pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
 
     /*
@@ -2760,7 +2796,9 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         int rc;
 
         Log(("REMR3StateBack: Pending trap %x %d\n", pVM->rem.s.Env.exception_index, pVM->rem.s.Env.exception_is_int));
-        TRPMEVENT enmType = pVM->rem.s.Env.exception_is_int ? TRPM_SOFTWARE_INT : TRPM_TRAP;
+        TRPMEVENT enmType = pVM->rem.s.Env.exception_is_int == 0                                    ? TRPM_TRAP
+                          : pVM->rem.s.Env.exception_is_int == EXCEPTION_IS_INT_VALUE_HARDWARE_IRQ  ? TRPM_HARDWARE_INT
+                          :                                                                           TRPM_SOFTWARE_INT;
         rc = TRPMAssertTrap(pVCpu, pVM->rem.s.Env.exception_index, enmType);
         AssertRC(rc);
         if (enmType == TRPM_TRAP)
@@ -4058,7 +4096,7 @@ bool remR3DisasInstr(CPUX86State *env, int f32BitCode, char *pszPrefix)
      * Log registers if requested.
      */
     if (fLog2)
-        DBGFR3_INFO_LOG(pVM, "cpumguest", pszPrefix);
+        DBGFR3_INFO_LOG(pVM, env->pVCpu, "cpumguest", pszPrefix);
 
     /*
      * Disassemble to log.
@@ -4221,34 +4259,6 @@ const char *lookup_symbol(target_ulong orig_addr)
 
 
 /* -+- FF notifications -+- */
-
-
-/**
- * Notification about a pending interrupt.
- *
- * @param   pVM             VM Handle.
- * @param   pVCpu           VMCPU Handle.
- * @param   u8Interrupt     Interrupt
- * @thread  The emulation thread.
- */
-REMR3DECL(void) REMR3NotifyPendingInterrupt(PVM pVM, PVMCPU pVCpu, uint8_t u8Interrupt)
-{
-    Assert(pVM->rem.s.u32PendingInterrupt == REM_NO_PENDING_IRQ);
-    pVM->rem.s.u32PendingInterrupt = u8Interrupt;
-}
-
-/**
- * Notification about a pending interrupt.
- *
- * @returns Pending interrupt or REM_NO_PENDING_IRQ
- * @param   pVM             VM Handle.
- * @param   pVCpu           VMCPU Handle.
- * @thread  The emulation thread.
- */
-REMR3DECL(uint32_t) REMR3QueryPendingInterrupt(PVM pVM, PVMCPU pVCpu)
-{
-    return pVM->rem.s.u32PendingInterrupt;
-}
 
 /**
  * Notification about the interrupt FF being set.
@@ -4490,24 +4500,17 @@ int cpu_get_pic_interrupt(CPUX86State *env)
     uint8_t u8Interrupt;
     int     rc;
 
+#ifdef VBOX_WITH_NEW_APIC
+    if (VMCPU_FF_TEST_AND_CLEAR(env->pVCpu, VMCPU_FF_UPDATE_APIC))
+        APICUpdatePendingInterrupts(env->pVCpu);
+#endif
+
     /* When we fail to forward interrupts directly in raw mode, we fall back to the recompiler.
      * In that case we can't call PDMGetInterrupt anymore, because it has already cleared the interrupt
      * with the (a)pic.
      */
     /* Note! We assume we will go directly to the recompiler to handle the pending interrupt! */
-    /** @todo r=bird: In the long run we should just do the interrupt handling in EM/CPUM/TRPM/somewhere and
-     * if we cannot execute the interrupt handler in raw-mode just reschedule to REM. Once that is done we
-     * remove this kludge. */
-    if (env->pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ)
-    {
-        rc = VINF_SUCCESS;
-        Assert(env->pVM->rem.s.u32PendingInterrupt <= 255);
-        u8Interrupt = env->pVM->rem.s.u32PendingInterrupt;
-        env->pVM->rem.s.u32PendingInterrupt = REM_NO_PENDING_IRQ;
-    }
-    else
-        rc = PDMGetInterrupt(env->pVCpu, &u8Interrupt);
-
+    rc = PDMGetInterrupt(env->pVCpu, &u8Interrupt);
     LogFlow(("cpu_get_pic_interrupt: u8Interrupt=%d rc=%Rrc pc=%04x:%08llx ~flags=%08llx\n",
              u8Interrupt, rc, env->segs[R_CS].selector, (uint64_t)env->eip, (uint64_t)env->eflags));
     if (RT_SUCCESS(rc))

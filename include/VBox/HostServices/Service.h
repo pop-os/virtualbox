@@ -357,6 +357,7 @@ public:
                 rc = VERR_VERSION_MISMATCH;
             else
             {
+                RT_GCC_NO_WARN_DEPRECATED_BEGIN
                 std::auto_ptr<AbstractService> apService;
                 /* No exceptions may propagate outside. */
                 try
@@ -369,7 +370,7 @@ public:
                 {
                     rc = VERR_UNRESOLVED_ERROR;
                 }
-
+                RT_GCC_NO_WARN_DEPRECATED_END
                 if (RT_SUCCESS(rc))
                 {
                     /*
@@ -410,12 +411,13 @@ protected:
         RT_ZERO(m_SvcCtx);
         m_SvcCtx.pHelpers = pHelpers;
     }
-    virtual int  init(VBOXHGCMSVCFNTABLE *ptable) { return VINF_SUCCESS; }
+    virtual int  init(VBOXHGCMSVCFNTABLE *ptable) { RT_NOREF1(ptable); return VINF_SUCCESS; }
     virtual int  uninit() { return VINF_SUCCESS; }
     virtual int  clientConnect(uint32_t u32ClientID, void *pvClient) = 0;
     virtual int  clientDisconnect(uint32_t u32ClientID, void *pvClient) = 0;
     virtual void guestCall(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient, uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[]) = 0;
-    virtual int  hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[]) { return VINF_SUCCESS; }
+    virtual int  hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+    { RT_NOREF3(eFunction, cParms, paParms); return VINF_SUCCESS; }
 
     /** Type definition for use in callback functions. */
     typedef AbstractService SELF;
@@ -520,6 +522,8 @@ protected:
         pSelf->m_SvcCtx.pvHostData      = pvExtension;
         return VINF_SUCCESS;
     }
+
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AbstractService);
 };
 
 }

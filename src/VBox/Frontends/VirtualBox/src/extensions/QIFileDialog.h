@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,8 +31,8 @@ public:
 
     static QString getExistingDirectory (const QString &aDir, QWidget *aParent,
                                          const QString &aCaption = QString::null,
-                                         bool aDirOnly = TRUE,
-                                         bool resolveSymlinks = TRUE);
+                                         bool aDirOnly = true,
+                                         bool resolveSymlinks = true);
 
     static QString getSaveFileName (const QString &aStartWith, const QString &aFilters, QWidget *aParent,
                                     const QString &aCaption, QString *aSelectedFilter = 0,

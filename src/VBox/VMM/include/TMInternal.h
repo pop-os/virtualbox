@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -771,11 +771,6 @@ DECLCALLBACK(DECLEXPORT(void))      tmVirtualNanoTSBad(PRTTIMENANOTSDATA pData, 
 DECLCALLBACK(DECLEXPORT(uint64_t))  tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA pData);
 DECLCALLBACK(DECLEXPORT(uint64_t))  tmVirtualNanoTSBadCpuIndex(PRTTIMENANOTSDATA pData, uint16_t idApic,
                                                                uint16_t iCpuSet, uint16_t iGipCpu);
-
-#ifdef IN_RING3
-static const char *     tmR3GetTSCModeNameEx(TMTSCMODE enmMode);
-#endif
-
 
 /**
  * Try take the timer lock, wait in ring-3 return VERR_SEM_BUSY in R0/RC.

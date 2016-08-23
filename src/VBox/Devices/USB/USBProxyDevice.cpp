@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,15 @@
 /** A dummy name used early during the construction phase to avoid log crashes. */
 static char g_szDummyName[] = "proxy xxxx:yyyy";
 
-
+/**
+ * Array of supported proxy backends.
+ */
+static PCUSBPROXYBACK g_aUsbProxies[] =
+{
+    &g_USBProxyDeviceHost,
+    &g_USBProxyDeviceVRDP,
+    &g_USBProxyDeviceUsbIp
+};
 
 /* Synchronously obtain a standard USB descriptor for a device, used in order
  * to grab configuration descriptors when we first add the device
@@ -59,20 +67,20 @@ static void *GetStdDescSync(PUSBPROXYDEV pProxyDev, uint8_t iDescType, uint8_t i
         int rc = VINF_SUCCESS;
         VUSBURB Urb;
         AssertCompile(RT_SIZEOFMEMB(VUSBURB, abData) >= _4K);
-        Urb.u32Magic = VUSBURB_MAGIC;
-        Urb.enmState = VUSBURBSTATE_IN_FLIGHT;
-        Urb.pszDesc = (char*)"URB sync";
-        memset(&Urb.VUsb, 0, sizeof(Urb.VUsb));
-        memset(&Urb.Hci, 0, sizeof(Urb.Hci));
+        Urb.u32Magic      = VUSBURB_MAGIC;
+        Urb.enmState      = VUSBURBSTATE_IN_FLIGHT;
+        Urb.pszDesc       = (char*)"URB sync";
+        Urb.pHci          = NULL;
+        Urb.paTds         = NULL;
         Urb.Dev.pvPrivate = NULL;
-        Urb.Dev.pNext = NULL;
-        Urb.pUsbIns = pProxyDev->pUsbIns;
-        Urb.DstAddress = 0;
-        Urb.EndPt = 0;
-        Urb.enmType = VUSBXFERTYPE_MSG;
-        Urb.enmDir = VUSBDIRECTION_IN;
-        Urb.fShortNotOk = false;
-        Urb.enmStatus = VUSBSTATUS_INVALID;
+        Urb.Dev.pNext     = NULL;
+        Urb.DstAddress    = 0;
+        Urb.EndPt         = 0;
+        Urb.enmType       = VUSBXFERTYPE_MSG;
+        Urb.enmDir        = VUSBDIRECTION_IN;
+        Urb.fShortNotOk   = false;
+        Urb.enmStatus     = VUSBSTATUS_INVALID;
+        Urb.pVUsb         = NULL;
         cbHint = RT_MIN(cbHint, sizeof(Urb.abData) - sizeof(VUSBSETUP));
         Urb.cbData = cbHint + sizeof(VUSBSETUP);
 
@@ -103,7 +111,7 @@ static void *GetStdDescSync(PUSBPROXYDEV pProxyDev, uint8_t iDescType, uint8_t i
         {
             rc = pProxyDev->pOps->pfnUrbCancel(pProxyDev, &Urb);
             AssertRC(rc);
-            /** @todo: This breaks the comment above... */
+            /** @todo This breaks the comment above... */
             pUrbReaped = pProxyDev->pOps->pfnUrbReap(pProxyDev, RT_INDEFINITE_WAIT);
         }
         if (pUrbReaped != &Urb)
@@ -154,14 +162,15 @@ static void *GetStdDescSync(PUSBPROXYDEV pProxyDev, uint8_t iDescType, uint8_t i
             goto err;
         }
 
-        if ((cbDesc > (Urb.cbData - sizeof(VUSBSETUP))))
+        if (cbDesc > Urb.cbData - sizeof(VUSBSETUP))
         {
             Log(("GetStdDescSync: Descriptor length too short, cbDesc=%u, Urb.cbData=%u\n", cbDesc, Urb.cbData));
             goto err;
         }
 
-        if ((cbInitialHint != cbHint) &&
-        	((cbDesc != cbHint) || (Urb.cbData < cbInitialHint)))
+        if (   cbInitialHint != cbHint
+            && (   cbDesc != cbHint
+                || Urb.cbData < cbInitialHint) )
         {
             Log(("GetStdDescSync: Descriptor length incorrect, cbDesc=%u, Urb.cbData=%u, cbHint=%u\n", cbDesc, Urb.cbData, cbHint));
             goto err;
@@ -347,7 +356,6 @@ static int copy_interface(PVUSBINTERFACE pIf, uint8_t ifnum,
     PVUSBDESCINTERFACEEX cur_if = NULL;
     uint32_t altmap[4] = {0,};
     uint8_t *tmp, *end = buf + len;
-    uint8_t *orig_desc = buf;
     uint8_t alt;
     int state;
     size_t num_ep = 0;
@@ -558,7 +566,7 @@ static void usbProxyDevEditOutMaskedIfs(PUSBPROXYDEV pProxyDev)
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbReset
+ * @interface_method_impl{PDMUSBREG,pfnUsbReset}
  *
  * USB Device Proxy: Call OS specific code to reset the device.
  */
@@ -577,7 +585,7 @@ static DECLCALLBACK(int) usbProxyDevReset(PPDMUSBINS pUsbIns, bool fResetOnLinux
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbGetDescriptorCache
+ * @interface_method_impl{PDMUSBREG,pfnUsbGetDescriptorCache}
  */
 static DECLCALLBACK(PCPDMUSBDESCCACHE) usbProxyDevGetDescriptorCache(PPDMUSBINS pUsbIns)
 {
@@ -587,7 +595,7 @@ static DECLCALLBACK(PCPDMUSBDESCCACHE) usbProxyDevGetDescriptorCache(PPDMUSBINS 
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbSetConfiguration
+ * @interface_method_impl{PDMUSBREG,pfnUsbSetConfiguration}
  *
  * USB Device Proxy: Release claimed interfaces, tell the OS+device about the config change, claim the new interfaces.
  */
@@ -660,7 +668,7 @@ static DECLCALLBACK(int) usbProxyDevSetConfiguration(PPDMUSBINS pUsbIns, uint8_t
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbSetInterface
+ * @interface_method_impl{PDMUSBREG,pfnUsbSetInterface}
  *
  * USB Device Proxy: Call OS specific code to select alternate interface settings.
  */
@@ -675,7 +683,7 @@ static DECLCALLBACK(int) usbProxyDevSetInterface(PPDMUSBINS pUsbIns, uint8_t bIn
 
 
 /**
- * @copydoc PDMUSBREG::pfnUsbClearHaltedEndpoint
+ * @interface_method_impl{PDMUSBREG,pfnUsbClearHaltedEndpoint}
  *
  * USB Device Proxy: Call OS specific code to clear the endpoint.
  */
@@ -690,7 +698,7 @@ static DECLCALLBACK(int) usbProxyDevClearHaltedEndpoint(PPDMUSBINS pUsbIns, unsi
 
 
 /**
- * @copydoc PDMUSBREG::pfnUrbQueue
+ * @interface_method_impl{PDMUSBREG,pfnUrbQueue}
  *
  * USB Device Proxy: Call OS specific code.
  */
@@ -708,7 +716,7 @@ static DECLCALLBACK(int) usbProxyDevUrbQueue(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
 
 
 /**
- * @copydoc PDMUSBREG::pfnUrbCancel
+ * @interface_method_impl{PDMUSBREG,pfnUrbCancel}
  *
  * USB Device Proxy: Call OS specific code.
  */
@@ -720,7 +728,7 @@ static DECLCALLBACK(int) usbProxyDevUrbCancel(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
 
 
 /**
- * @copydoc PDMUSBREG::pfnUrbReap
+ * @interface_method_impl{PDMUSBREG,pfnUrbReap}
  *
  * USB Device Proxy: Call OS specific code.
  */
@@ -737,7 +745,7 @@ static DECLCALLBACK(PVUSBURB) usbProxyDevUrbReap(PPDMUSBINS pUsbIns, RTMSINTERVA
 
 
 /**
- * @copydoc PDMUSBREG::pfnWakeup
+ * @interface_method_impl{PDMUSBREG,pfnWakeup}
  *
  * USB Device Proxy: Call OS specific code.
  */
@@ -749,9 +757,10 @@ static DECLCALLBACK(int) usbProxyDevWakeup(PPDMUSBINS pUsbIns)
 }
 
 
-/** @copydoc PDMUSBREG::pfnDestruct */
+/** @interface_method_impl{PDMUSBREG,pfnDestruct} */
 static DECLCALLBACK(void) usbProxyDestruct(PPDMUSBINS pUsbIns)
 {
+    PDMUSB_CHECK_VERSIONS_RETURN_VOID(pUsbIns);
     PUSBPROXYDEV pThis = PDMINS_2_DATA(pUsbIns, PUSBPROXYDEV);
     Log(("usbProxyDestruct: destroying pProxyDev=%s\n", pUsbIns->pszName));
 
@@ -846,9 +855,11 @@ static int usbProxyQueryNum(PUSBFILTER pFilter, USBFILTERIDX enmFieldIdx, PCFGMN
 }
 
 
-/** @copydoc PDMUSBREG::pfnConstruct */
+/** @interface_method_impl{PDMUSBREG,pfnConstruct} */
 static DECLCALLBACK(int) usbProxyConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFGMNODE pCfg, PCFGMNODE pCfgGlobal)
 {
+    PDMUSB_CHECK_VERSIONS_RETURN(pUsbIns);
+    RT_NOREF(iInstance);
     PUSBPROXYDEV pThis = PDMINS_2_DATA(pUsbIns, PUSBPROXYDEV);
     LogFlow(("usbProxyConstruct: pUsbIns=%p iInstance=%d\n", pUsbIns, iInstance));
 
@@ -869,8 +880,8 @@ static DECLCALLBACK(int) usbProxyConstruct(PPDMUSBINS pUsbIns, int iInstance, PC
     int rc = CFGMR3QueryString(pCfg, "Address", szAddress, sizeof(szAddress));
     AssertRCReturn(rc, rc);
 
-    bool fRemote;
-    rc = CFGMR3QueryBool(pCfg, "Remote", &fRemote);
+    char szBackend[64];
+    rc = CFGMR3QueryString(pCfg, "Backend", szBackend, sizeof(szBackend));
     AssertRCReturn(rc, rc);
 
     void *pvBackend;
@@ -880,10 +891,18 @@ static DECLCALLBACK(int) usbProxyConstruct(PPDMUSBINS pUsbIns, int iInstance, PC
     /*
      * Select backend and open the device.
      */
-    if (!fRemote)
-        pThis->pOps = &g_USBProxyDeviceHost;
-    else
-        pThis->pOps = &g_USBProxyDeviceVRDP;
+    rc = VERR_NOT_FOUND;
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aUsbProxies); i++)
+    {
+        if (!RTStrICmp(szBackend, g_aUsbProxies[i]->pszName))
+        {
+            pThis->pOps = g_aUsbProxies[i];
+            rc = VINF_SUCCESS;
+            break;
+        }
+    }
+    if (RT_FAILURE(rc))
+        return PDMUSB_SET_ERROR(pUsbIns, rc, N_("USBProxy: Failed to find backend"));
 
     pThis->pvInstanceDataR3 = RTMemAllocZ(pThis->pOps->cbBackend);
     if (!pThis->pvInstanceDataR3)
@@ -891,7 +910,10 @@ static DECLCALLBACK(int) usbProxyConstruct(PPDMUSBINS pUsbIns, int iInstance, PC
 
     rc = pThis->pOps->pfnOpen(pThis, szAddress, pvBackend);
     if (RT_FAILURE(rc))
+    {
+        LogRel(("usbProxyConstruct: Failed to open '%s', rc=%Rrc\n", szAddress, rc));
         return rc;
+    }
     pThis->fOpened = true;
 
     /*

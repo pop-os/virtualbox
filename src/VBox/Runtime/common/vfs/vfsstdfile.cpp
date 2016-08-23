@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -501,7 +501,10 @@ RTDECL(int) RTVfsIoStrmOpenNormal(const char *pszFilename, uint64_t fOpen, PRTVF
     RTVFSFILE hVfsFile;
     int rc = RTVfsFileOpenNormal(pszFilename, fOpen, &hVfsFile);
     if (RT_SUCCESS(rc))
+    {
         *phVfsIos = RTVfsFileToIoStream(hVfsFile);
+        RTVfsFileRelease(hVfsFile);
+    }
     return rc;
 }
 

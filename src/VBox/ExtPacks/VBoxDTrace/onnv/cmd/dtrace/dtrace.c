@@ -155,9 +155,15 @@ static int g_pslive;
 static char *g_pname;
 static int g_quiet;
 static int g_flowindent;
+#ifdef VBOX /* Added volatile to signal handler variables. */
+static int volatile g_intr;
+static int volatile g_impatient;
+static int volatile g_newline;
+#else
 static int g_intr;
 static int g_impatient;
 static int g_newline;
+#endif
 static int g_total;
 static int g_cflags;
 static int g_oflags;
@@ -349,6 +355,7 @@ oprintf(const char *fmt, ...)
 	}
 }
 
+#ifndef VBOX
 static char **
 make_argv(char *s)
 {
@@ -369,6 +376,7 @@ make_argv(char *s)
 	argv[argc] = NULL;
 	return (argv);
 }
+#endif /* !VBOX */
 
 static void
 dof_prune(const char *fname)
@@ -393,7 +401,7 @@ dof_prune(const char *fname)
 	if ((buf = malloc((sz = sbuf.st_size) + 1)) == NULL)
 		fatal("failed to allocate memory for %s", fname);
 
-	if (read(fd, buf, sz) != sz)
+	if ((size_t/*vbox*/)read(fd, buf, sz) != sz)
 		fatal("failed to read %s", fname);
 
 	buf[sz] = '\0';
@@ -423,7 +431,7 @@ dof_prune(const char *fname)
 		 * We have a match.  First write out our data up until now.
 		 */
 		if (i != mark) {
-			if (write(fd, &buf[mark], i - mark) != i - mark)
+			if ((size_t/*vbox*/)write(fd, &buf[mark], i - mark) != i - mark)
 				fatal("failed to write to %s", fname);
 		}
 
@@ -443,7 +451,7 @@ dof_prune(const char *fname)
 	}
 
 	if (mark < sz) {
-		if (write(fd, &buf[mark], sz - mark) != sz - mark)
+		if ((size_t/*vbox*/)write(fd, &buf[mark], sz - mark) != sz - mark)
 			fatal("failed to write to %s", fname);
 	}
 
@@ -469,7 +477,7 @@ etcsystem_prune(void)
 	if ((buf = malloc((sz = sbuf.st_size) + 1)) == NULL)
 		fatal("failed to allocate memory for %s", fname);
 
-	if (read(fd, buf, sz) != sz)
+	if ((size_t/*vbox*/)read(fd, buf, sz) != sz)
 		fatal("failed to read %s", fname);
 
 	buf[sz] = '\0';
@@ -611,6 +619,7 @@ info_stmt(dtrace_hdl_t *dtp, dtrace_prog_t *pgp,
 	dtrace_ecbdesc_t *edp = stp->dtsd_ecbdesc;
 	dtrace_probedesc_t *pdp = &edp->dted_probe;
 	dtrace_probeinfo_t p;
+	RT_NOREF1(pgp);
 
 	if (edp == *last)
 		return (0);
@@ -737,6 +746,7 @@ static int
 list_probe(dtrace_hdl_t *dtp, const dtrace_probedesc_t *pdp, void *arg)
 {
 	dtrace_probeinfo_t p;
+	RT_NOREF1(arg);
 
 	oprintf("%5d %10s %17s %33s %s\n", pdp->dtpd_id,
 	    pdp->dtpd_provider, pdp->dtpd_mod, pdp->dtpd_func, pdp->dtpd_name);
@@ -753,6 +763,7 @@ list_stmt(dtrace_hdl_t *dtp, dtrace_prog_t *pgp,
     dtrace_stmtdesc_t *stp, dtrace_ecbdesc_t **last)
 {
 	dtrace_ecbdesc_t *edp = stp->dtsd_ecbdesc;
+	RT_NOREF1(pgp);
 
 	if (edp == *last)
 		return (0);
@@ -862,13 +873,16 @@ prochandler(struct ps_prochandle *P, const char *msg, void *arg)
 		g_pslive--;
 		break;
 	}
-#endif /* !VBOX */
+#else
+	RT_NOREF3(P, msg, arg);
+#endif /* VBOX */
 }
 
 /*ARGSUSED*/
 static int
 errhandler(const dtrace_errdata_t *data, void *arg)
 {
+	RT_NOREF1(arg);
 	error(data->dteda_msg);
 	return (DTRACE_HANDLE_OK);
 }
@@ -877,6 +891,7 @@ errhandler(const dtrace_errdata_t *data, void *arg)
 static int
 drophandler(const dtrace_dropdata_t *data, void *arg)
 {
+	RT_NOREF1(arg);
 	error(data->dtdda_msg);
 	return (DTRACE_HANDLE_OK);
 }
@@ -885,6 +900,7 @@ drophandler(const dtrace_dropdata_t *data, void *arg)
 static int
 setopthandler(const dtrace_setoptdata_t *data, void *arg)
 {
+	RT_NOREF1(arg);
 	if (strcmp(data->dtsda_option, "quiet") == 0)
 		g_quiet = data->dtsda_newval != DTRACEOPT_UNSET;
 
@@ -948,6 +964,7 @@ bufhandler(const dtrace_bufdata_t *bufdata, void *arg)
 	    { "???",		UINT32_MAX },
 	    { NULL }
 	};
+	RT_NOREF1(arg);
 
 	if (bufdata->dtbda_probe != NULL) {
 		pd = bufdata->dtbda_probe->dtpda_pdesc;
@@ -1047,6 +1064,7 @@ chewrec(const dtrace_probedata_t *data, const dtrace_recdesc_t *rec, void *arg)
 {
 	dtrace_actkind_t act;
 	uintptr_t addr;
+	RT_NOREF1(arg);
 
 	if (rec == NULL) {
 		/*
@@ -1077,6 +1095,7 @@ chew(const dtrace_probedata_t *data, void *arg)
 	dtrace_probedesc_t *pd = data->dtpda_pdesc;
 	processorid_t cpu = data->dtpda_cpu;
 	static int heading;
+	RT_NOREF1(arg);
 
 	if (g_impatient) {
 		g_newline = 0;
@@ -1233,6 +1252,12 @@ intr(int signo)
 
 	if (g_intr++)
 		g_impatient = 1;
+#ifdef _MSC_VER
+	/* Reinstall signal handler. Seems MSVCRT is System V style. */
+	signal(signo, intr);
+#else
+	RT_NOREF(signo);
+#endif
 }
 
 #ifdef VBOX
@@ -1270,7 +1295,7 @@ main(int argc, char *argv[])
 	dtrace_init();
 
 	g_ofp = stdout;
-	g_pname = RTProcShortName();
+	g_pname = (char *)RTProcShortName();
 #endif
 
 	if (argc == 1)
@@ -1300,7 +1325,7 @@ main(int argc, char *argv[])
 	RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, 0);
 	while ((c = RTGetOpt(&GetState, &ValueUnion))) {
 		{
-			const char *optarg = ValueUnion.psz;
+			/* const char *optarg = ValueUnion.psz; - unused */
 #endif
 			switch (c) {
 #ifndef VBOX
@@ -1693,15 +1718,15 @@ main(int argc, char *argv[])
 	 * grabbing or creating victim processes.  The behavior of these calls
 	 * may been affected by any library options set by the second pass.
 	 */
-#ifndef VBOX
+# ifndef VBOX
 	for (optind = 1; optind < argc; optind++) {
 		while ((c = getopt(argc, argv, DTRACE_OPTSTR)) != EOF) {
-#else
+# else
 	RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, 0);
 	while ((c = RTGetOpt(&GetState, &ValueUnion))) {
 		{
 			char *optarg = (char *)ValueUnion.psz;
-#endif
+# endif
 			switch (c) {
 			case 'c':
 				if ((v = make_argv(optarg)) == NULL)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@
 # include <QPropertyAnimation>
 # include <QScrollBar>
 # include <QTimer>
+# include <QDrag>
 
 /* GUI includes: */
 # include "UIGChooser.h"
@@ -52,11 +53,12 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* Qt includes: */
 #include <QParallelAnimationGroup>
-
 
 /* Type defs: */
 typedef QSet<QString> UIStringSet;
+
 
 UIGChooserModel::UIGChooserModel(UIGChooser *pParent)
     : QObject(pParent)
@@ -1141,11 +1143,6 @@ void UIGChooserModel::sltCurrentDragObjectDestroyed()
     root()->resetDragToken();
 }
 
-void UIGChooserModel::sltActionHovered(QAction *pAction)
-{
-    emit sigShowStatusMessage(pAction->statusTip());
-}
-
 void UIGChooserModel::sltEraseLookupTimer()
 {
     m_pLookupTimer->stop();
@@ -1243,9 +1240,6 @@ void UIGChooserModel::prepareContextMenu()
     m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_CreateShortcut));
     m_pContextMenuMachine->addSeparator();
     m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent));
-
-    connect(m_pContextMenuGroup, SIGNAL(hovered(QAction*)), this, SLOT(sltActionHovered(QAction*)));
-    connect(m_pContextMenuMachine, SIGNAL(hovered(QAction*)), this, SLOT(sltActionHovered(QAction*)));
 
     connect(actionPool()->action(UIActionIndexST_M_Group_S_New), SIGNAL(triggered()),
             this, SLOT(sltCreateNewMachine()));
@@ -1392,6 +1386,7 @@ bool UIGChooserModel::eventFilter(QObject *pWatched, QEvent *pEvent)
         /* Drag&drop scroll-event (drag-leave) handler: */
         case QEvent::GraphicsSceneDragLeave:
             return processDragLeaveEvent(static_cast<QGraphicsSceneDragDropEvent*>(pEvent));
+        default: break; /* Shut up MSC */
     }
 
     /* Call to base-class: */
@@ -1666,8 +1661,6 @@ void UIGChooserModel::popupContextMenu(UIGraphicsSelectorContextMenuType type, Q
             break;
         }
     }
-    /* Clear status-bar: */
-    emit sigClearStatusMessage();
 }
 
 bool UIGChooserModel::processDragMoveEvent(QGraphicsSceneDragDropEvent *pEvent)
@@ -1728,27 +1721,27 @@ void UIGChooserModel::addMachineIntoTheTree(const CMachine &machine, bool fMakeI
     AssertReturnVoid(!machine.isNull());
 
     /* Which VM we are loading: */
-    LogRelFlow(("UIGChooserModel: Loading VM with ID={%s}...\n", machine.GetId().toAscii().constData()));
+    LogRelFlow(("UIGChooserModel: Loading VM with ID={%s}...\n", machine.GetId().toUtf8().constData()));
     /* Is that machine accessible? */
     if (machine.GetAccessible())
     {
         /* VM is accessible: */
         QString strName = machine.GetName();
-        LogRelFlow(("UIGChooserModel:  VM {%s} is accessible.\n", strName.toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} is accessible.\n", strName.toUtf8().constData()));
         /* Which groups passed machine attached to? */
         QVector<QString> groups = machine.GetGroups();
         QStringList groupList = groups.toList();
         QString strGroups = groupList.join(", ");
-        LogRelFlow(("UIGChooserModel:  VM {%s} has groups: {%s}.\n", strName.toAscii().constData(),
-                                                                     strGroups.toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} has groups: {%s}.\n", strName.toUtf8().constData(),
+                                                                     strGroups.toUtf8().constData()));
         foreach (QString strGroup, groups)
         {
             /* Remove last '/' if any: */
             if (strGroup.right(1) == "/")
                 strGroup.truncate(strGroup.size() - 1);
             /* Create machine-item with found group-item as parent: */
-            LogRelFlow(("UIGChooserModel:   Creating item for VM {%s} in group {%s}.\n", strName.toAscii().constData(),
-                                                                                         strGroup.toAscii().constData()));
+            LogRelFlow(("UIGChooserModel:   Creating item for VM {%s} in group {%s}.\n", strName.toUtf8().constData(),
+                                                                                         strGroup.toUtf8().constData()));
             createMachineItem(machine, getGroupItem(strGroup, mainRoot(), fMakeItVisible));
         }
         /* Update group definitions: */
@@ -1758,7 +1751,7 @@ void UIGChooserModel::addMachineIntoTheTree(const CMachine &machine, bool fMakeI
     else
     {
         /* VM is accessible: */
-        LogRelFlow(("UIGChooserModel:  VM {%s} is inaccessible.\n", machine.GetId().toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} is inaccessible.\n", machine.GetId().toUtf8().constData()));
         /* Create machine-item with main-root group-item as parent: */
         createMachineItem(machine, mainRoot());
     }

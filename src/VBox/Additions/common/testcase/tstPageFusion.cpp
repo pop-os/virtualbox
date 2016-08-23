@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,7 @@
 *********************************************************************************************************************************/
 
 #ifdef RT_OS_WINDOWS
-#include <Windows.h>
+#include <iprt/win/windows.h>
 #include <process.h> /* Needed for file version information. */
 #include <tlhelp32.h>
 #include <psapi.h>
@@ -207,7 +207,7 @@ void VBoxServicePageSharingInspectModules(DWORD dwProcessId)
     bRet = Module32First(hSnapshot, &ModuleInfo);
     do
     {
-        /** todo when changing this make sure VBoxService.exe is excluded! */
+        /** @todo when changing this make sure VBoxService.exe is excluded! */
         char *pszDot = strrchr(ModuleInfo.szModule, '.');
         if (    pszDot
             &&  (pszDot[1] == 'e' || pszDot[1] == 'E'))
@@ -314,7 +314,7 @@ skipkernelmodules:
 #else
 void VBoxServicePageSharingInspectGuest()
 {
-    /* @todo other platforms */
+    /** @todo other platforms */
 }
 #endif
 
@@ -331,7 +331,7 @@ static DECLCALLBACK(int) VBoxServicePageSharingInit(void)
         ZwQuerySystemInformation = (PFNZWQUERYSYSTEMINFORMATION)GetProcAddress(hNtdll, "ZwQuerySystemInformation");
 #endif
 
-    /* @todo report system name and version */
+    /** @todo report system name and version */
     /* Never fail here. */
     return VINF_SUCCESS;
 }

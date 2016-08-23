@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -423,8 +423,13 @@ void UIEncryptionDataTable::prepare()
     verticalHeader()->hide();
     verticalHeader()->setDefaultSectionSize((int)(verticalHeader()->minimumSectionSize() * 1.33));
     horizontalHeader()->setStretchLastSection(false);
+#if QT_VERSION >= 0x050000
+    horizontalHeader()->setSectionResizeMode(UIEncryptionDataTableSection_Id, QHeaderView::Interactive);
+    horizontalHeader()->setSectionResizeMode(UIEncryptionDataTableSection_Password, QHeaderView::Stretch);
+#else /* QT_VERSION < 0x050000 */
     horizontalHeader()->setResizeMode(UIEncryptionDataTableSection_Id, QHeaderView::Interactive);
     horizontalHeader()->setResizeMode(UIEncryptionDataTableSection_Password, QHeaderView::Stretch);
+#endif /* QT_VERSION < 0x050000 */
 }
 
 UIAddDiskEncryptionPasswordDialog::UIAddDiskEncryptionPasswordDialog(QWidget *pParent,

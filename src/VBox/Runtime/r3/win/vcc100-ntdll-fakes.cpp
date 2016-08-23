@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,7 @@
 # error "This code is X86 only"
 #endif
 
-#include <Windows.h>
+#include <iprt/win/windows.h>
 
 
 
@@ -71,5 +71,4 @@ extern "C" int vcc100_ntdll_fakes_cpp(void)
 {
     return 42;
 }
-
 

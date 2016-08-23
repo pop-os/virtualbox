@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -168,8 +168,7 @@
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 static bool                 tmR3HasFixedTSC(PVM pVM);
-static const char *         tmR3GetTSCModeName(PVM pVM);
-static uint64_t             tmR3CalibrateTSC(PVM pVM);
+static uint64_t             tmR3CalibrateTSC(void);
 static DECLCALLBACK(int)    tmR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int)    tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static DECLCALLBACK(void)   tmR3TimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
@@ -183,6 +182,8 @@ static DECLCALLBACK(void)   tmR3TimerInfo(PVM pVM, PCDBGFINFOHLP pHlp, const cha
 static DECLCALLBACK(void)   tmR3TimerInfoActive(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void)   tmR3InfoClocks(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(VBOXSTRICTRC) tmR3CpuTickParavirtDisable(PVM pVM, PVMCPU pVCpu, void *pvData);
+static const char *         tmR3GetTSCModeName(PVM pVM);
+static const char *         tmR3GetTSCModeNameEx(TMTSCMODE enmMode);
 
 
 /**
@@ -317,14 +318,14 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
      */
     if (CFGMR3Exists(pCfgHandle, "TSCVirtualized"))
         return VMSetError(pVM, VERR_CFGM_CONFIG_UNKNOWN_VALUE, RT_SRC_POS,
-                          N_("Configuration error: TM setting \"TSCVirtualized\" is no longer supported. Use the \"Mode\" setting instead."));
+                          N_("Configuration error: TM setting \"TSCVirtualized\" is no longer supported. Use the \"TSCMode\" setting instead."));
     if (CFGMR3Exists(pCfgHandle, "UseRealTSC"))
         return VMSetError(pVM, VERR_CFGM_CONFIG_UNKNOWN_VALUE, RT_SRC_POS,
-                          N_("Configuration error: TM setting \"UseRealTSC\" is no longer supported. Use the \"Mode\" setting instead."));
+                          N_("Configuration error: TM setting \"UseRealTSC\" is no longer supported. Use the \"TSCMode\" setting instead."));
 
     if (CFGMR3Exists(pCfgHandle, "MaybeUseOffsettedHostTSC"))
         return VMSetError(pVM, VERR_CFGM_CONFIG_UNKNOWN_VALUE, RT_SRC_POS,
-                          N_("Configuration error: TM setting \"MaybeUseOffsettedHostTSC\" is no longer supported. Use the \"Mode\" setting instead."));
+                          N_("Configuration error: TM setting \"MaybeUseOffsettedHostTSC\" is no longer supported. Use the \"TSCMode\" setting instead."));
 
     /*
      * Validate the rest of the TM settings.
@@ -414,7 +415,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     rc = CFGMR3QueryU64(pCfgHandle, "TSCTicksPerSecond", &pVM->tm.s.cTSCTicksPerSecond);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
-        pVM->tm.s.cTSCTicksPerSecond = tmR3CalibrateTSC(pVM);
+        pVM->tm.s.cTSCTicksPerSecond = tmR3CalibrateTSC();
         if (   pVM->tm.s.enmTSCMode != TMTSCMODE_REAL_TSC_OFFSET
             && pVM->tm.s.cTSCTicksPerSecond >= _4G)
         {
@@ -924,7 +925,7 @@ static bool tmR3HasFixedTSC(PVM pVM)
  *
  * @returns Number of ticks per second.
  */
-static uint64_t tmR3CalibrateTSC(PVM pVM)
+static uint64_t tmR3CalibrateTSC(void)
 {
     uint64_t u64Hz;
 
@@ -2912,6 +2913,75 @@ static DECLCALLBACK(int) tmR3SetWarpDrive(PUVM pUVM, uint32_t u32Percent)
 
 
 /**
+ * Gets the current TMCLOCK_VIRTUAL time without checking
+ * timers or anything.
+ *
+ * @returns The timestamp.
+ * @param   pUVM        The user mode VM structure.
+ *
+ * @remarks See TMVirtualGetNoCheck.
+ */
+VMMR3DECL(uint64_t) TMR3TimeVirtGet(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, UINT64_MAX);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, UINT64_MAX);
+    return TMVirtualGetNoCheck(pVM);
+}
+
+/**
+ * Gets the current TMCLOCK_VIRTUAL time in milliseconds without checking
+ * timers or anything.
+ *
+ * @returns The timestamp in milliseconds.
+ * @param   pUVM        The user mode VM structure.
+ *
+ * @remarks See TMVirtualGetNoCheck.
+ */
+VMMR3DECL(uint64_t) TMR3TimeVirtGetMilli(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, UINT64_MAX);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, UINT64_MAX);
+    return TMVirtualToMilli(pVM, TMVirtualGetNoCheck(pVM));
+}
+
+/**
+ * Gets the current TMCLOCK_VIRTUAL time in microseconds without checking
+ * timers or anything.
+ *
+ * @returns The timestamp in microseconds.
+ * @param   pUVM        The user mode VM structure.
+ *
+ * @remarks See TMVirtualGetNoCheck.
+ */
+VMMR3DECL(uint64_t) TMR3TimeVirtGetMicro(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, UINT64_MAX);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, UINT64_MAX);
+    return TMVirtualToMicro(pVM, TMVirtualGetNoCheck(pVM));
+}
+
+/**
+ * Gets the current TMCLOCK_VIRTUAL time in nanoseconds without checking
+ * timers or anything.
+ *
+ * @returns The timestamp in nanoseconds.
+ * @param   pUVM        The user mode VM structure.
+ *
+ * @remarks See TMVirtualGetNoCheck.
+ */
+VMMR3DECL(uint64_t) TMR3TimeVirtGetNano(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, UINT64_MAX);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, UINT64_MAX);
+    return TMVirtualToNano(pVM, TMVirtualGetNoCheck(pVM));
+}
+
+
+/**
  * Gets the current warp drive percent.
  *
  * @returns The warp drive percent.
@@ -3183,6 +3253,7 @@ static DECLCALLBACK(VBOXSTRICTRC) tmR3CpuTickParavirtDisable(PVM pVM, PVMCPU pVC
     AssertPtr(pVM); Assert(pVM->tm.s.fTSCModeSwitchAllowed); NOREF(pVCpuEmt);
     Assert(   pVM->tm.s.enmTSCMode == TMTSCMODE_REAL_TSC_OFFSET
            && pVM->tm.s.enmTSCMode != pVM->tm.s.enmOriginalTSCMode);
+    RT_NOREF1(pvData);
 
     /*
      * See tmR3CpuTickParavirtEnable for an explanation of the conversion math.

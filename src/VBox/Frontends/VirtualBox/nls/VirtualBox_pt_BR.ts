@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0" language="pt_BR">
+<TS version="2.1" language="pt_BR">
 <context>
     <name>@@@</name>
     <message>
@@ -141,7 +141,7 @@
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>Os módulos de kernel para o VirtualBox que estão carregados não servem para esta versão do VirtualBox. Aparentemente, a instalação do VirtualBox não foi completada corretamente. Execute &lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;para resolver este problema. Certifique-se de que não esteja misturando componentes da versão OSE com a versão PUEL do VirtualBox.</translation>
+        <translation type="vanished">Os módulos de kernel para o VirtualBox que estão carregados não servem para esta versão do VirtualBox. Aparentemente, a instalação do VirtualBox não foi completada corretamente. Execute &lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;para resolver este problema. Certifique-se de que não esteja misturando componentes da versão OSE com a versão PUEL do VirtualBox.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
@@ -149,11 +149,19 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>O driver de kernel do VirtualBox (vboxdrv) não está carregado ou existe um problema de permissão no dispositivo /dev/vboxdrv. Reinstale o módulo de kernel executando o comando&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;como  root. Se a sua distribuição dispuser do serviço DKMS, instale-o antes. O serviço DKMS detecta mudanças no kernel do Linux e recompila o módulo de kernel  &apos;vboxdrv&apos; se necessário.</translation>
+        <translation type="vanished">O driver de kernel do VirtualBox (vboxdrv) não está carregado ou existe um problema de permissão no dispositivo /dev/vboxdrv. Reinstale o módulo de kernel executando o comando&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;como  root. Se a sua distribuição dispuser do serviço DKMS, instale-o antes. O serviço DKMS detecta mudanças no kernel do Linux e recompila o módulo de kernel  &apos;vboxdrv&apos; se necessário.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation>O módulo de kernel Linux do VirtualBox (vboxdrv) não está carregado ou existe um problema de permissões no arquivo /dev/vboxdrv. Reinstale o módulo de kernel executando o comando &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;como root.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>Os módulos de kernel do VirtualBox não coincidem com esta versão do VirtualBox. Aparentemente a instalação do VirtualBox não obteve êxito. Executar&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;pode corrigir isto. Certifique-se de que não esteja misturando a versão OSE e a versão PUEL do VirtualBox.</translation>
     </message>
 </context>
 <context>
-    <name>QIArrowSplitter</name>
+    <name>QIArrowButtonPress</name>
     <message>
         <source>&amp;Back</source>
         <translation>Voltar (&amp;B)</translation>
@@ -161,6 +169,25 @@
     <message>
         <source>&amp;Next</source>
         <translation>Próximo(&amp;N)</translation>
+    </message>
+</context>
+<context>
+    <name>QIArrowSplitter</name>
+    <message>
+        <source>&amp;Back</source>
+        <translation type="vanished">Voltar (&amp;B)</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation type="vanished">Próximo(&amp;N)</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation>&amp;Detalhes</translation>
+    </message>
+    <message>
+        <source>&amp;Details (%1 of %2)</source>
+        <translation>&amp;Detalhes (%1 de %2)</translation>
     </message>
 </context>
 <context>
@@ -230,11 +257,11 @@
     </message>
     <message>
         <source>&amp;Details</source>
-        <translation>&amp;Detalhes</translation>
+        <translation type="vanished">&amp;Detalhes</translation>
     </message>
     <message>
         <source>&amp;Details (%1 of %2)</source>
-        <translation>&amp;Detalhes (%1 de %2)</translation>
+        <translation type="vanished">&amp;Detalhes (%1 de %2)</translation>
     </message>
     <message>
         <source>Copy all errors to the clipboard</source>
@@ -1593,6 +1620,42 @@
         <source>Power off selected virtual machines</source>
         <translation>Desliga as máquinas virtuais selecionadas</translation>
     </message>
+    <message>
+        <source>&amp;VirtualBox Bug Tracker...</source>
+        <translation>Acompanhamento de Bugs do &amp;VirtualBox...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product bug tracker</source>
+        <translation>Abrir o navegador e visitar a página de gerenciamento dos bugs do produto VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Forums...</source>
+        <translation>Forums do &amp;VirtualBox...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product forums</source>
+        <translation>Abrir o navegador e visitiar os fóruns do produto VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Oracle Web Site...</source>
+        <translation>Site da &amp;Oracle...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the Oracle web site</source>
+        <translation>Abrir o navegador e visitar a página da Oracle</translation>
+    </message>
+    <message>
+        <source>&amp;Detach GUI</source>
+        <translation>&amp;Destacar a GUI</translation>
+    </message>
+    <message>
+        <source>Detach the GUI from headless VM</source>
+        <translation>Destacar a GUI de uma VM headless</translation>
+    </message>
+    <message>
+        <source>Disable Dock Icon Overlay</source>
+        <translation>Desabilitar Barra de Ícones do Dock</translation>
+    </message>
 </context>
 <context>
     <name>UIActionPoolRuntime</name>
@@ -1804,6 +1867,79 @@
     <message>
         <source>Reading Appliance ...</source>
         <translation>Lendo Appliance...</translation>
+    </message>
+</context>
+<context>
+    <name>UIApplianceUnverifiedCertificateViewer</name>
+    <message>
+        <source>Unverifiable Certificate! Continue?</source>
+        <translation>Certificado não pode ser verificado! Continuar?</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The appliance is signed by an unverified self signed certificate issued by &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
+        <translation>&lt;b&gt;O appliance está assinado por um certificado auto-assinado não verificado, emitido por &apos;%1&apos;. Recomendamos que você continue com a importação apenas se confiar nesta entidade.&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The appliance is signed by an unverified certificate issued to &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
+        <translation>&lt;b&gt;O appliance está assinado por um certificado emitido para &apos;%1&apos;. Recomendamos que você continue com a importação apenas se confiar nesta entidade.&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>True</source>
+        <translation>Emissor:               %1</translation>
+    </message>
+    <message>
+        <source>False</source>
+        <translation>Entidade:              %1</translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
+        <comment>key: value</comment>
+        <translation>Não Válido Antes De:     %1</translation>
+    </message>
+    <message>
+        <source>Issuer</source>
+        <translation>Não Válido Depois De:     %1</translation>
+    </message>
+    <message>
+        <source>Subject</source>
+        <translation>Número de Série:        %1</translation>
+    </message>
+    <message>
+        <source>Not Valid Before</source>
+        <translation>Auto-Assinado:          %1</translation>
+    </message>
+    <message>
+        <source>Not Valid After</source>
+        <translation>Verdadeiro</translation>
+    </message>
+    <message>
+        <source>Serial Number</source>
+        <translation>Falso</translation>
+    </message>
+    <message>
+        <source>Self-Signed</source>
+        <translation>Autoridade (CA):       %1</translation>
+    </message>
+    <message>
+        <source>Authority (CA)</source>
+        <translation>Algoritmo Público:     %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Public Algorithm</source>
+        <translation>Algoritmo de Assinatura:  %1 (%2)</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <comment>value (clarification)</comment>
+        <translation>Número de Versão X.509: %1</translation>
+    </message>
+    <message>
+        <source>Signature Algorithm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X.509 Version Number</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2619,6 +2755,13 @@
     </message>
 </context>
 <context>
+    <name>UIEmptyFilePathSelector</name>
+    <message>
+        <source>Choose...</source>
+        <translation>Escolher...</translation>
+    </message>
+</context>
+<context>
     <name>UIEncryptionDataModel</name>
     <message>
         <source>Status</source>
@@ -2985,6 +3128,61 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
         <translation type="obsolete">Aqui você pode alterar parâmetros de configuração adicionais para as máquinas virtuais selecionadas. Você pode alterar a maioria das propriedades exibidas clicando duas vezes em cada item.</translation>
+    </message>
+</context>
+<context>
+    <name>UIFilePathSelector</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>&amp;Copiar</translation>
+    </message>
+    <message>
+        <source>Other...</source>
+        <translation>Outro...</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Padrão</translation>
+    </message>
+    <message>
+        <source>Displays a window to select a different folder.</source>
+        <translation>Abre uma janela para selecionar uma pasta diferente.</translation>
+    </message>
+    <message>
+        <source>Resets the folder path to the default value.</source>
+        <translation>Redefine o caminho da pasta para o valor padrão.</translation>
+    </message>
+    <message>
+        <source>Displays a window to select a different file.</source>
+        <translation>Abre uma janela para selecionar um arquivo diferente.</translation>
+    </message>
+    <message>
+        <source>Resets the file path to the default value.</source>
+        <translation>Redefine o caminho da pasta para o valor padrão.</translation>
+    </message>
+    <message>
+        <source>&lt;reset to default&gt;</source>
+        <translation>&lt;redefinir para o padrão&gt;</translation>
+    </message>
+    <message>
+        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
+        <translation>O valor padrão real do caminho será exibido após aceitar as mudanças e abrir este diálogo novamente.</translation>
+    </message>
+    <message>
+        <source>&lt;not selected&gt;</source>
+        <translation>&lt;não selecionado&gt;</translation>
+    </message>
+    <message>
+        <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
+        <translation>Por favor utilize o item &lt;b&gt;Outro...&lt;/b&gt; da lista de opções para selecionar o caminho desejado.</translation>
+    </message>
+    <message>
+        <source>Holds the folder path.</source>
+        <translation>Contém o caminho da pasta.</translation>
+    </message>
+    <message>
+        <source>Holds the file path.</source>
+        <translation>Contém o caminho do arquivo.</translation>
     </message>
 </context>
 <context>
@@ -4683,6 +4881,10 @@ p, li { white-space: pre-wrap; }
         <source>Edits selected host-only network.</source>
         <translation>Edita a rede exclusiva de hospedeiro selecionada.</translation>
     </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <translation>A interface do hospedeiro &lt;b&gt;%1&lt;/b&gt; não possui uma máscara IPv6 de tamanho válido.</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetworkDetails</name>
@@ -5052,27 +5254,27 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Quando selecionado, o VirtualBox irá tentar auto-detectar as configurações de proxy para atividades como baixar os Adicionais para Convidado da rede ou verificação de atualizações.</translation>
     </message>
     <message>
         <source>&amp;Auto-detect Host Proxy Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Auto-detectar Configurações de Proxy do Hospedeiro</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Quando selecionado, o VirtualBox irá utilizar conexões diretas para atividades como baixar os Adicionais para Convidado da rede ou verificação de atualizações.</translation>
     </message>
     <message>
         <source>&amp;Direct Connection to the Internet</source>
-        <translation type="unfinished"></translation>
+        <translation>Conexão &amp;Direta à Internet</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Quando selecionado, o VirtualBox irá utilizar as configurações de proxy fornecidas para atividades como baixar os Adicionais para Convidado da rede ou verificação de atualizações.</translation>
     </message>
     <message>
         <source>&amp;Manual Proxy Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Configuração Manual de Proxy</translation>
     </message>
 </context>
 <context>
@@ -5686,6 +5888,439 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIInformationDataAudio</name>
+    <message>
+        <source>Audio</source>
+        <translation type="vanished">Áudio</translation>
+    </message>
+    <message>
+        <source>Host Driver</source>
+        <comment>details report (audio)</comment>
+        <translation>Driver do Hospedeiro </translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <comment>details report (audio)</comment>
+        <translation>Controladora</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataDisplay</name>
+    <message>
+        <source>Display</source>
+        <comment>details report</comment>
+        <translation type="vanished">Tela</translation>
+    </message>
+    <message>
+        <source>Video Memory</source>
+        <comment>details report</comment>
+        <translation>Memória de Vídeo</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation>Telas</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation>Habilitada</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation>Desabilitada</translation>
+    </message>
+    <message>
+        <source>3D Acceleration</source>
+        <comment>details report</comment>
+        <translation>Aceleração 3D</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>Habilitada</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>Desabilitada</translation>
+    </message>
+    <message>
+        <source>2D Video Acceleration</source>
+        <comment>details report</comment>
+        <translation>Aceleração de Vídeo 2D</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>Porta para Servidor de Desktop Remoto</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>Servidor de Desktop Remoto</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation>Desabilitado</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataGeneral</name>
+    <message>
+        <source>General</source>
+        <comment>details report</comment>
+        <translation type="vanished">Geral</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>details report</comment>
+        <translation>Nome</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>details report</comment>
+        <translation>Tipo de Sistema Operacional</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataNetwork</name>
+    <message>
+        <source>Network</source>
+        <translation type="vanished">Rede</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation>Placa em modo Bridge, %1</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Rede interna, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Placa de rede exclusiva de hospedeiro (host-only), &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Genérico, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>NAT network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Rede NAT, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details report (network)</comment>
+        <translation>Adaptador %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataNetworkStatistics</name>
+    <message>
+        <source>Data Transmitted</source>
+        <translation>Dados Transmitidos</translation>
+    </message>
+    <message>
+        <source>Data Received</source>
+        <translation>Dados Recebidos</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <comment>details report</comment>
+        <translation type="vanished">Estatísticas de Rede</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataParallelPorts</name>
+    <message>
+        <source>Parallel Ports</source>
+        <comment>details report</comment>
+        <translation type="vanished">Portas Paralelas</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (parallel ports)</comment>
+        <translation>Porta %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (parallel ports)</comment>
+        <translation>Desabilitadas</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataRuntimeAttributes</name>
+    <message>
+        <source>Runtime Attributes</source>
+        <comment>details report</comment>
+        <translation type="vanished">Atributos de Tempo de Execução</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest additions</comment>
+        <translation>Não Detectado</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest os type</comment>
+        <translation>Não Detectado</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDE server port)</comment>
+        <translation>Não Disponível</translation>
+    </message>
+    <message>
+        <source>Screen Resolution</source>
+        <translation>Resolução da Tela</translation>
+    </message>
+    <message>
+        <source>VM Uptime</source>
+        <translation>Uptime da VM</translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation>Modo de Área de Transferência</translation>
+    </message>
+    <message>
+        <source>Drag and Drop Mode</source>
+        <translation>Modo Arrastar e Soltar</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation>Paginação Aninhada</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <comment>details report</comment>
+        <translation>Execução Sem Limites</translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation>Interface de paravirtualização</translation>
+    </message>
+    <message>
+        <source>Guest Additions</source>
+        <translation>Adicionais Para Convidado</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <comment>details report</comment>
+        <translation>Tipo de Sistema Operacional Convidado</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation></translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSerialPorts</name>
+    <message>
+        <source>Serial Ports</source>
+        <translation type="vanished">Portas Seriais</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (serial ports)</comment>
+        <translation>Porta %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSharedFolders</name>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report</comment>
+        <translation type="vanished">Pastas Compartilhadas</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report (shared folders)</comment>
+        <translation>Pastas Compartilhadas</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataStorage</name>
+    <message>
+        <source>Storage</source>
+        <translation type="vanished">Armazenamento</translation>
+    </message>
+    <message>
+        <source>(Optical Drive)</source>
+        <translation>(Drive Óptico)</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataStorageStatistics</name>
+    <message>
+        <source>DMA Transfers</source>
+        <translation>Transferências de DMA</translation>
+    </message>
+    <message>
+        <source>PIO Transfers</source>
+        <translation>Transferências de PIO</translation>
+    </message>
+    <message>
+        <source>Data Read</source>
+        <translation>Dados Lidos</translation>
+    </message>
+    <message>
+        <source>Data Written</source>
+        <translation>Dados Gravados</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <comment>details report</comment>
+        <translation type="vanished">Estatísticas de Armazenamento</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataSystem</name>
+    <message>
+        <source>System</source>
+        <comment>details report</comment>
+        <translation type="vanished">Sistema</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (ACPI)</comment>
+        <translation>Habilitado</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (ACPI)</comment>
+        <translation>Desabilitado</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (I/O APIC)</comment>
+        <translation>Habilitado</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (I/O APIC)</comment>
+        <translation>Desabilitado</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (PAE/NX)</comment>
+        <translation>Habilitado</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (PAE/NX)</comment>
+        <translation>Desabilitado</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>details report</comment>
+        <translation>Memória Principal</translation>
+    </message>
+    <message>
+        <source>Processor(s)</source>
+        <comment>details report</comment>
+        <translation>Processador(es)</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation>Restrição de execução</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details report</comment>
+        <translation>Ordem de Boot</translation>
+    </message>
+    <message>
+        <source>ACPI</source>
+        <comment>details report</comment>
+        <translation>ACPI</translation>
+    </message>
+    <message>
+        <source>I/O APIC</source>
+        <comment>details report</comment>
+        <translation>I/O APIC</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details report</comment>
+        <translation>PAE/NX</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (VT-x/AMD-V)</comment>
+        <translation>Habilitado</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VT-x/AMD-V)</comment>
+        <translation>Desabilitado</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation>Habilitada</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation>Desabilitada</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation>Paginação Aninhada</translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation>Interface de paravirtualização</translation>
+    </message>
+</context>
+<context>
+    <name>UIInformationDataUSB</name>
+    <message>
+        <source>USB</source>
+        <comment>details report</comment>
+        <translation type="vanished">USB</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (USB)</comment>
+        <translation>Desabilitado</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details report (USB)</comment>
+        <translation>Filtros de Dispositivo</translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details report (USB)</comment>
+        <translation>%1 (%2 ativos)</translation>
+    </message>
+</context>
+<context>
     <name>UILineTextEdit</name>
     <message>
         <source>&amp;Edit</source>
@@ -6094,7 +6729,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Scale Factor:</source>
-        <translation>Fator de E&amp;scalonamento</translation>
+        <translation>Fator de E&amp;scalonamento:</translation>
     </message>
     <message>
         <source>Controls the guest screen scale factor.</source>
@@ -8046,6 +8681,10 @@ p, li { white-space: pre-wrap; }
         <comment>This is used for hard disks, optical media and floppies</comment>
         <translation>Selecionar imagem de disco...</translation>
     </message>
+    <message>
+        <source>Add NVMe Controller</source>
+        <translation>Adicionar Controladora NVMe</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
@@ -8757,6 +9396,30 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Choose mode:</source>
         <translation>Escolha o tipo da mídia:</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly or indirectly, preserved when taking snapshots.</source>
+        <translation>Este tipo de mídia é conectada direta ou indiretamente, e é preservada quando são feitos snapshots.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached indirectly, changes are wiped out the next time the virtual machine is started.</source>
+        <translation>Este tipo de mídia é conectado indiretamente, e as mudanças são perdidas na próxima vez que a máquina virtual for iniciada.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, ignored when taking snapshots.</source>
+        <translation>Este tipo de mídia é conectada diretamente, e é ignorada quando são feitos snapshots.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, allowed to be used concurrently by several machines.</source>
+        <translation>Este tipo de mídia é conectada diretamente, e pode ser utilizada concorrentemente por várias máquinas.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached directly, and can be used by several machines.</source>
+        <translation>Este tipo de mídia é conectada diretamente, e pode ser utilizada por várias máquinas.</translation>
+    </message>
+    <message>
+        <source>This type of medium is attached indirectly, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications.</source>
+        <translation>Este tipo de mídia é conectado indiretamente, de tal forma que uma mídia-base possa ser utilizada por várias VMs e cada uma delas possui uma mídia diferencial para armazenar suas modificações.</translation>
     </message>
 </context>
 <context>
@@ -10782,6 +11445,10 @@ p, li { white-space: pre-wrap; }
         <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
         <translation>As regras atuais de redirecionamento de portas não são válidas. Nenhum dos endereços de convidados podem estar vazios.</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;Failed to acquire the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Falha ao carregar o objeto COM do VirtualBox.&lt;/p&gt;&lt;p&gt;A aplicação será finalizada.&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -10894,6 +11561,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
         <translation>Exibe o tipo de sistema operacional que você planeja instalar nesta máquina virtual (chamado de sistema operacional convidado).</translation>
+    </message>
+    <message>
+        <source>Holds the location of the virtual machine.</source>
+        <translation>Contém a localização da máquina virtual.</translation>
     </message>
 </context>
 <context>
@@ -11039,7 +11710,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Url not found on the server</source>
-        <translation type="unfinished"></translation>
+        <translation>URL não encontrada no servidor</translation>
     </message>
 </context>
 <context>
@@ -12805,6 +13476,21 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
+    <name>UIVMInformationDialog</name>
+    <message>
+        <source>%1 - Session Information</source>
+        <translation>%1 - Informações sobre a Sessão</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation>&amp;Detalhes de Configuração</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation>Informações de &amp;Runtime</translation>
+    </message>
+</context>
+<context>
     <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
@@ -12950,6 +13636,18 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <message>
         <source>String not found</source>
         <translation>Frase não encontrada</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtro</translation>
+    </message>
+    <message>
+        <source>Enter filtering string here</source>
+        <translation>Entre com os termos para filtragem aqui</translation>
+    </message>
+    <message>
+        <source>Fil&amp;ter</source>
+        <translation>Fil&amp;tro</translation>
     </message>
 </context>
 <context>
@@ -13551,6 +14249,34 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
         <source>Please choose a virtual appliance file to import</source>
         <translation>Escolha um arquivo para importar o appliance virtual</translation>
     </message>
+    <message>
+        <source>Appliance is not signed</source>
+        <translation>O appliance não está assinado</translation>
+    </message>
+    <message>
+        <source>Appliance signed by %1 (trusted)</source>
+        <translation>Appliance assinado por %1 (confiável)</translation>
+    </message>
+    <message>
+        <source>Appliance signed by %1 (expired!)</source>
+        <translation>Appliance assinado por %1 (expirado!)</translation>
+    </message>
+    <message>
+        <source>Unverified signature by %1!</source>
+        <translation>Assinatura não verificada por %1!</translation>
+    </message>
+    <message>
+        <source>Self signed by %1 (trusted)</source>
+        <translation>Auto-assinado por %1 (confiável)</translation>
+    </message>
+    <message>
+        <source>Self signed by %1 (expired!)</source>
+        <translation>Auto-assinado por %1 (expirado!)</translation>
+    </message>
+    <message>
+        <source>Unverified self signed signature by %1!</source>
+        <translation>Assinatura não verificada auto-assinada por %1!</translation>
+    </message>
 </context>
 <context>
     <name>UIWizardNewVD</name>
@@ -13792,6 +14518,14 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <message>
         <source>Choose a virtual hard disk file...</source>
         <translation>Selecione um arquivo de disco rígido virtual...</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;nobr&gt;Holds the name or full path to the virtual machine folder you are about to create.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;nobr&gt;Contém o nome ou caminho completo da pasta para a máquina virtual que você está prestes a criar&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;nobr&gt;You are about to create the virtual machine in the following folder:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;nobr&gt;Você está prestes a criar uma máquina virtual na seguinte pasta:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -15025,14 +15759,14 @@ Versão %1</translation>
     </message>
     <message>
         <source>Choose...</source>
-        <translation>Escolher...</translation>
+        <translation type="vanished">Escolher...</translation>
     </message>
 </context>
 <context>
     <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
-        <translation>&lt;redefinir para o padrão&gt;</translation>
+        <translation type="vanished">&lt;redefinir para o padrão&gt;</translation>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
@@ -15040,19 +15774,19 @@ Versão %1</translation>
     </message>
     <message>
         <source>&lt;not selected&gt;</source>
-        <translation>&lt;não selecionado&gt;</translation>
+        <translation type="vanished">&lt;não selecionado&gt;</translation>
     </message>
     <message>
         <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
-        <translation>Por favor utilize o item &lt;b&gt;Outro...&lt;/b&gt; da lista de opções para selecionar o caminho desejado.</translation>
+        <translation type="vanished">Por favor utilize o item &lt;b&gt;Outro...&lt;/b&gt; da lista de opções para selecionar o caminho desejado.</translation>
     </message>
     <message>
         <source>Other...</source>
-        <translation>Outro...</translation>
+        <translation type="vanished">Outro...</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Padrão</translation>
+        <translation type="vanished">Padrão</translation>
     </message>
     <message>
         <source>Opens a window to select a different folder.</source>
@@ -15060,7 +15794,7 @@ Versão %1</translation>
     </message>
     <message>
         <source>Resets the folder path to the default value.</source>
-        <translation>Redefine o caminho da pasta para o valor padrão.</translation>
+        <translation type="vanished">Redefine o caminho da pasta para o valor padrão.</translation>
     </message>
     <message>
         <source>Opens a window to select a different file.</source>
@@ -15068,11 +15802,11 @@ Versão %1</translation>
     </message>
     <message>
         <source>Resets the file path to the default value.</source>
-        <translation>Redefine o caminho da pasta para o valor padrão.</translation>
+        <translation type="vanished">Redefine o caminho da pasta para o valor padrão.</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Copiar</translation>
+        <translation type="vanished">&amp;Copiar</translation>
     </message>
     <message>
         <source>Please type the folder path here.</source>
@@ -15084,23 +15818,23 @@ Versão %1</translation>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <translation>O valor padrão real do caminho será exibido após aceitar as mudanças e abrir este diálogo novamente.</translation>
+        <translation type="vanished">O valor padrão real do caminho será exibido após aceitar as mudanças e abrir este diálogo novamente.</translation>
     </message>
     <message>
         <source>Displays a window to select a different folder.</source>
-        <translation>Abre uma janela para selecionar uma pasta diferente.</translation>
+        <translation type="vanished">Abre uma janela para selecionar uma pasta diferente.</translation>
     </message>
     <message>
         <source>Displays a window to select a different file.</source>
-        <translation>Abre uma janela para selecionar um arquivo diferente.</translation>
+        <translation type="vanished">Abre uma janela para selecionar um arquivo diferente.</translation>
     </message>
     <message>
         <source>Holds the folder path.</source>
-        <translation>Contém o caminho da pasta.</translation>
+        <translation type="vanished">Contém o caminho da pasta.</translation>
     </message>
     <message>
         <source>Holds the file path.</source>
-        <translation>Contém o caminho do arquivo.</translation>
+        <translation type="vanished">Contém o caminho do arquivo.</translation>
     </message>
 </context>
 <context>
@@ -17177,6 +17911,111 @@ Versão %1</translation>
     <message>
         <source>Please choose a location for new virtual hard disk file</source>
         <translation>Escolha a localização para o arquivo contendo o novo disco rígido virtual</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageBus</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>PCIe</source>
+        <comment>StorageBus</comment>
+        <translation>PCIe</translation>
+    </message>
+    <message>
+        <source>NVMe</source>
+        <comment>StorageControllerType</comment>
+        <translation>NVMe</translation>
+    </message>
+    <message>
+        <source>NVMe Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>Porta NVMe %1</translation>
+    </message>
+    <message>
+        <source>RuntimeAttributes</source>
+        <comment>DetailsElementType</comment>
+        <translation type="vanished">Atributos de Tempo de Execução</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Geral</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Pré-Visualização</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Sistema</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Armazenamento</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Áudio</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Rede</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Portas Seriais</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Portas Paralelas</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Pastas Compartilhadas</translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Interface do Usuário</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Descrição</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

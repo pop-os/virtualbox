@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,7 +79,7 @@ struct rcp_state
     uint32_t rcps_flags;
 
     char rcps_domain_buffer[RCPS_BUFFER_SIZE];
-    char rcps_searchlist_buffer[20 /*RCPS_BUFFER_SIZE*/];
+    char rcps_searchlist_buffer[RCPS_BUFFER_SIZE];
     char rcps_nameserver_str_buffer[RCPS_MAX_NAMESERVERS * RCPS_IPVX_SIZE];
 };
 

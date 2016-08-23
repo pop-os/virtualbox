@@ -7,7 +7,7 @@
 ;
 
 ;
-; Copyright (C) 2007-2015 Oracle Corporation
+; Copyright (C) 2007-2016 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -533,6 +533,10 @@ BEGINPROC bs2Trap_XX_32bit
 
         mov     eax, ss                 ; load flat DS. Using SS here because of conforming IDTE.CS tests.
         mov     ds, ax
+
+        pushfd                          ; Clear the AC flag.
+        and     dword [esp], ~X86_EFL_AC
+        popfd
 
         ;
         ; Benchmark mode? Then resume the action right away!

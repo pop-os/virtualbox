@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,6 +81,7 @@ static PCVBOXEXTPACKHLP g_pHlp;
 static const VBOXEXTPACKREG g_vboxVNCExtPackReg =
 {
     VBOXEXTPACKREG_VERSION,
+    /* .uVBoxFullVersion =  */  VBOX_FULL_VERSION,
     /* .pfnInstalled =      */  NULL,
     /* .pfnUninstall =      */  NULL,
     /* .pfnVirtualBoxReady =*/  NULL,
@@ -91,6 +92,13 @@ static const VBOXEXTPACKREG g_vboxVNCExtPackReg =
     /* .pfnVMPowerOn =      */  NULL,
     /* .pfnVMPowerOff =     */  NULL,
     /* .pfnQueryObject =    */  NULL,
+    /* .pfnReserved1 =      */  NULL,
+    /* .pfnReserved2 =      */  NULL,
+    /* .pfnReserved3 =      */  NULL,
+    /* .pfnReserved4 =      */  NULL,
+    /* .pfnReserved5 =      */  NULL,
+    /* .pfnReserved6 =      */  NULL,
+    /* .u32Reserved7 =      */  0,
     VBOXEXTPACKREG_VERSION
 };
 

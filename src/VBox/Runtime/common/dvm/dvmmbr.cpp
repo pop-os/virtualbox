@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,16 +215,11 @@ static DECLCALLBACK(int) rtDvmFmtMbrQueryRangeUse(RTDVMFMT hVolMgrFmt,
                                                   uint64_t off, uint64_t cbRange,
                                                   bool *pfUsed)
 {
-    PRTDVMFMTINTERNAL pThis = hVolMgrFmt;
-
+    NOREF(hVolMgrFmt);
     NOREF(cbRange);
 
     /* MBR uses the first sector only. */
-    if (off < 512)
-        *pfUsed = true;
-    else
-        *pfUsed = false;
-
+    *pfUsed = off < 512;
     return VINF_SUCCESS;
 }
 
@@ -238,7 +233,7 @@ static DECLCALLBACK(uint32_t) rtDvmFmtMbrGetValidVolumes(RTDVMFMT hVolMgrFmt)
 static DECLCALLBACK(uint32_t) rtDvmFmtMbrGetMaxVolumes(RTDVMFMT hVolMgrFmt)
 {
     NOREF(hVolMgrFmt);
-    return 4; /** @todo: Add support for EBR? */
+    return 4; /** @todo Add support for EBR? */
 }
 
 /**

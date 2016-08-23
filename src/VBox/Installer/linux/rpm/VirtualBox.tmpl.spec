@@ -16,6 +16,7 @@
 
 %define %SPEC% 1
 %define %OSE% 1
+%define VBOXDOCDIR %{_defaultdocdir}/%NAME%-%VER%
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
 
 Summary:   Oracle VM VirtualBox
@@ -35,6 +36,9 @@ Requires:  %INITSCRIPTS% %LIBASOUND% net-tools
 %endif
 
 %MACROSPYTHON%
+
+# our Qt5 libs are built on EL5 with ld 2.17 which does not provide --link-id=
+%undefine _missing_build_ids_terminate_build
 
 
 %description
@@ -68,45 +72,18 @@ install -m 755 -d $RPM_BUILD_ROOT/usr/src
 install -m 755 -d $RPM_BUILD_ROOT/usr/share/applications
 install -m 755 -d $RPM_BUILD_ROOT/usr/share/pixmaps
 install -m 755 -d $RPM_BUILD_ROOT/usr/share/icons/hicolor
-install -m 755 -d $RPM_BUILD_ROOT%{_defaultdocdir}/virtualbox
+install -m 755 -d $RPM_BUILD_ROOT%{VBOXDOCDIR}
 install -m 755 -d $RPM_BUILD_ROOT/usr/lib/virtualbox
-install -m 755 -d $RPM_BUILD_ROOT/usr/lib/virtualbox/ExtensionPacks
 install -m 755 -d $RPM_BUILD_ROOT/usr/share/virtualbox
 install -m 755 -d $RPM_BUILD_ROOT/usr/share/mime/packages
-mv VBoxEFI32.fd $RPM_BUILD_ROOT/usr/lib/virtualbox || true
-mv VBoxEFI64.fd $RPM_BUILD_ROOT/usr/lib/virtualbox || true
-mv *.rc $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv *.r0 $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv *.rel $RPM_BUILD_ROOT/usr/lib/virtualbox || true
-install -m 755 -d $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
-%if %{?rpm_suse:1}%{!?rpm_suse:0}
-rm *.debug
-%else
-mv *.debug $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
-%endif
-mv VBoxNetDHCP $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv VBoxNetNAT $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv VBoxNetAdpCtl $RPM_BUILD_ROOT/usr/lib/virtualbox
-if [ -f VBoxVolInfo ]; then
-  mv VBoxVolInfo $RPM_BUILD_ROOT/usr/lib/virtualbox
-fi
-mv VBoxXPCOMIPCD $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv components $RPM_BUILD_ROOT/usr/lib/virtualbox/components
-mv *.so $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv *.so.4 $RPM_BUILD_ROOT/usr/lib/virtualbox || true
-ln -s ../VBoxVMM.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMM.so
-mv VBoxTestOGL $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv vboxshell.py $RPM_BUILD_ROOT/usr/lib/virtualbox
 (export VBOX_INSTALL_PATH=/usr/lib/virtualbox && \
   cd ./sdk/installer && \
   %{__python} ./vboxapisetup.py install --prefix %{_prefix} --root $RPM_BUILD_ROOT)
 rm -rf sdk/installer
-mv sdk $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv nls $RPM_BUILD_ROOT/usr/share/virtualbox
 cp -a src $RPM_BUILD_ROOT/usr/share/virtualbox
 mv VBox.sh $RPM_BUILD_ROOT/usr/bin/VBox
 mv VBoxSysInfo.sh $RPM_BUILD_ROOT/usr/share/virtualbox
-mv VBoxCreateUSBNode.sh $RPM_BUILD_ROOT/usr/share/virtualbox
 cp icons/128x128/virtualbox.png $RPM_BUILD_ROOT/usr/share/pixmaps/virtualbox.png
 cd icons
   for i in *; do
@@ -121,22 +98,6 @@ cd icons
 cd -
 rmdir icons
 mv virtualbox.xml $RPM_BUILD_ROOT/usr/share/mime/packages
-for i in VBoxManage VBoxSVC VirtualBox VBoxHeadless VBoxDTrace VBoxExtPackHelperApp VBoxBalloonCtrl VBoxAutostart vbox-img; do
-  mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
-if %WEBSVC%; then
-  for i in vboxwebsrv webtest; do
-    mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
-fi
-test -f VBoxSDL && mv VBoxSDL $RPM_BUILD_ROOT/usr/lib/virtualbox
-for i in VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
-  chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done
-if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo ]; then
-  chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo
-fi
-test -f VBoxSDL && chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxSDL
-if [ -d ExtensionPacks/VNC ]; then
-  mv ExtensionPacks/VNC $RPM_BUILD_ROOT/usr/lib/virtualbox/ExtensionPacks
-fi
 mv VBoxTunctl $RPM_BUILD_ROOT/usr/bin
 %if %{?is_ose:0}%{!?is_ose:1}
 for d in /lib/modules/*; do
@@ -164,25 +125,15 @@ for d in /lib/modules/*; do
       %INSTMOD%
   fi
 done
+rm -r src
 %endif
 %if %{?is_ose:0}%{!?is_ose:1}
-  mv kchmviewer $RPM_BUILD_ROOT/usr/lib/virtualbox
   for i in rdesktop-vrdp.tar.gz rdesktop-vrdp-keymaps; do
     mv $i $RPM_BUILD_ROOT/usr/share/virtualbox; done
   mv rdesktop-vrdp $RPM_BUILD_ROOT/usr/bin
 %endif
 for i in additions/VBoxGuestAdditions.iso; do
   mv $i $RPM_BUILD_ROOT/usr/share/virtualbox; done
-if [ -d accessible ]; then
-  mv accessible $RPM_BUILD_ROOT/usr/lib/virtualbox
-fi
-mv vboxdrv.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv vboxballoonctrl-service.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv vboxautostart-service.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv vboxweb-service.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv postinst-common.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv prerm-common.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
-mv routines.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VirtualBox
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/virtualbox
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxManage
@@ -194,6 +145,8 @@ ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxHeadless
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxheadless
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxDTrace
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxdtrace
+ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxBugReport
+ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxbugreport
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxBalloonCtrl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxballoonctrl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxAutostart
@@ -203,6 +156,36 @@ ln -s /usr/lib/virtualbox/vbox-img $RPM_BUILD_ROOT/usr/bin/vbox-img
 ln -s /usr/share/virtualbox/src/vboxhost $RPM_BUILD_ROOT/usr/src/vboxhost-%VER%
 mv virtualbox.desktop $RPM_BUILD_ROOT/usr/share/applications/virtualbox.desktop
 mv VBox.png $RPM_BUILD_ROOT/usr/share/pixmaps/VBox.png
+%{!?is_ose: mv LICENSE $RPM_BUILD_ROOT%{VBOXDOCDIR}}
+mv UserManual*.pdf $RPM_BUILD_ROOT%{VBOXDOCDIR}
+%{!?is_ose: mv VirtualBox*.chm $RPM_BUILD_ROOT%{VBOXDOCDIR}}
+install -m 755 -d $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
+%if %{?rpm_suse:1}%{!?rpm_suse:0}
+rm *.debug
+%else
+mv *.debug $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
+%endif
+mv * $RPM_BUILD_ROOT/usr/lib/virtualbox
+if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/libQt5CoreVBox.so.5 ]; then
+  $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath --keepgoing --replace /usr/lib/virtualbox \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/*.so.5 \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/platforms/*.so || true
+  echo "[Paths]" > $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
+  echo "Plugins = /usr/lib/virtualbox/plugins" >> $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
+  rm $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath
+fi
+if [ -d $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy ]; then
+  mv $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy/* $RPM_BUILD_ROOT/usr/lib/virtualbox
+  rmdir $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy
+fi
+ln -s ../VBoxVMM.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMM.so
+for i in VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
+  chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done
+if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo ]; then
+  chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo
+fi
+test -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxSDL && \
+  chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxSDL
 
 
 %pre
@@ -241,18 +224,8 @@ if [ -n "$VBOXSVC_PID" ]; then
   fi
 fi
 
-# XXX remove old modules from previous versions (disable with INSTALL_NO_VBOXDRV=1 in /etc/default/virtualbox)
-if [ "$INSTALL_NO_VBOXDRV" != "1" ]; then
-  find /lib/modules -name "vboxdrv\.*" 2>/dev/null|xargs rm -f 2> /dev/null || true
-  find /lib/modules -name "vboxnetflt\.*" 2>/dev/null|xargs rm -f 2> /dev/null || true
-  find /lib/modules -name "vboxnetadp\.*" 2>/dev/null|xargs rm -f 2> /dev/null || true
-  find /lib/modules -name "vboxpci\.*" 2>/dev/null|xargs rm -f 2> /dev/null || true
-fi
-
 
 %post
-#include installer-common.sh
-
 LOG="/var/log/vbox-install.log"
 
 # defaults
@@ -269,11 +242,6 @@ if [ -f /etc/vbox/vbox.cfg ]; then
 fi
 rm -f /etc/vbox/module_not_compiled
 
-# XXX SELinux: allow text relocation entries
-%if %{?rpm_redhat:1}%{!?rpm_redhat:0}
-set_selinux_permissions /usr/lib/virtualbox /usr/share/virtualbox
-%endif
-
 # create users groups (disable with INSTALL_NO_GROUP=1 in /etc/default/virtualbox)
 if [ "$INSTALL_NO_GROUP" != "1" ]; then
   echo
@@ -282,9 +250,6 @@ if [ "$INSTALL_NO_GROUP" != "1" ]; then
   groupadd -r -f vboxusers 2> /dev/null
 fi
 
-# install udev rule (disable with INSTALL_NO_UDEV=1 in /etc/default/virtualbox)
-# and /dev/vboxdrv and /dev/vboxusb/*/* device nodes
-install_device_node_setup root 0600 /usr/share/virtualbox "${usb_group}"
 %if %{?rpm_mdv:1}%{!?rpm_mdv:0}
 /sbin/ldconfig
 %update_menus
@@ -295,40 +260,13 @@ touch --no-create /usr/share/icons/hicolor
 gtk-update-icon-cache -q /usr/share/icons/hicolor 2> /dev/null || :
 
 # Disable module compilation with INSTALL_NO_VBOXDRV=1 in /etc/default/virtualbox
-BUILD_MODULES=0
-REGISTER_MODULES=1
-if [ ! -f /lib/modules/`uname -r`/misc/vboxdrv.ko ]; then
-  REGISTER_MODULES=0
-  if [ "$INSTALL_NO_VBOXDRV" != "1" ]; then
-    # compile problem
-    cat << EOF
-No precompiled module for this kernel found -- trying to build one. Messages
-emitted during module compilation will be logged to $LOG.
-
-EOF
-    BUILD_MODULES=1
-  fi
-fi
-# if INSTALL_NO_VBOXDRV is set to 1, remove all shipped modules
-if [ "$INSTALL_NO_VBOXDRV" = "1" ]; then
-  rm -f /lib/modules/*/misc/vboxdrv.ko
-  rm -f /lib/modules/*/misc/vboxnetflt.ko
-  rm -f /lib/modules/*/misc/vboxnetadp.ko
-  rm -f /lib/modules/*/misc/vboxpci.ko
-fi
-if [ $BUILD_MODULES -eq 1 ]; then
-  /usr/lib/virtualbox/vboxdrv.sh setup || true
+if test "${INSTALL_NO_VBOXDRV}" = 1; then
+  POSTINST_START=--nostart
 else
-  if lsmod | grep -q "vboxdrv[^_-]"; then
-    /usr/lib/virtualbox/vboxdrv.sh stop || true
-  fi
+  POSTINST_START=
 fi
 # Install and start the new service scripts.
-PRERM_DKMS=
-test "${REGISTER_MODULES}" = 1 && PRERM_DKMS="--dkms %VER%"
-POSTINST_START=
-test "${INSTALL_NO_VBOXDRV}" = 1 && POSTINST_START=--nostart
-/usr/lib/virtualbox/prerm-common.sh ${PRERM_DKMS} || true
+/usr/lib/virtualbox/prerm-common.sh || true
 /usr/lib/virtualbox/postinst-common.sh ${POSTINST_START} > /dev/null || true
 
 
@@ -338,7 +276,7 @@ test "${INSTALL_NO_VBOXDRV}" = 1 && POSTINST_START=--nostart
 # $1==0: remove the last version of the package
 # $1>=1: upgrade
 if [ "$1" = 0 ]; then
-  /usr/lib/virtualbox/prerm-common.sh --dkms %VER% || exit 1
+  /usr/lib/virtualbox/prerm-common.sh || exit 1
   rm -f /etc/udev/rules.d/60-vboxdrv.rules
   rm -f /etc/vbox/license_agreed
   rm -f /etc/vbox/module_not_compiled
@@ -363,9 +301,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc %{!?is_ose: LICENSE}
-%doc UserManual*.pdf
-%doc %{!?is_ose: VirtualBox*.chm}
+%doc %{VBOXDOCDIR}/*
 %{?rpm_suse: %{py_sitedir}/*}
 %{!?rpm_suse: %{python_sitelib}/*}
 /etc/vbox

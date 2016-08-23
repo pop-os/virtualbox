@@ -3,6 +3,393 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.4 (2016-08-16)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: show actual VM uptime in the session information window</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: re-enabled speakers for Mac OS X guests (5.1.0 regression;
+          bug #15611)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed crashes under certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed a hang under certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed a hanging guest under certain conditions (bug #15747)</para>
+      </listitem>
+
+      <listitem>
+        <para>PIIX4: implemented dummy SMBus controller to prevent annoying
+          Linux kernel warnings about uninitialized SMBus base address
+          (bug #9517)</para>
+      </listitem>
+
+      <listitem>
+        <para>NVMe: several fixes to improve stability, fixed a crash while
+          saving a VM state</para>
+      </listitem>
+
+      <listitem>
+        <para>VMDK: Fixed an issue creating fixed size images with certain
+          sizes and the Split2G option enabled (bug #15748)</para>
+      </listitem>
+
+      <listitem>
+        <para>VHDX: fixed cloning images with VBoxManage clonehd
+          (bug #14288)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: Fixed broken bandwidth limitation when the limit is very
+          low (bug #14982)</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: fixed sending debug messages in the EFI firmware if a serial
+          port is enabled (bug #12161)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: when importing appliances, make sure that the version of the
+          embedded VirtualBox specific settings is processed, to get the
+          default settings handling right</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Don't try to set the medium type if there is no change
+          (bug #13850)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux installer: fixed some scripting issues (bugs #15701
+          and #15702)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux installer: fixed a path issue on certain Linux
+          distributions (bug #15717)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed corrupted mouse pointers with some Linux
+          and Solaris guests (bug #15665)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: made the video driver work on 32-bit guests
+           with large video memory sizes (bug #15621)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: made the video driver work on kernel 4.7 and
+           later (bug #15769)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: converted a failure message to an informational
+           one when drivers could not be stopped during upgrade (bug
+           #15692)</para>
+       </listitem>
+
+      <listitem>
+        <para>Linux Additions: made the video driver work around an X server
+           bug which cause screen refresh to stop (bug #15511)</para>
+      </listitem>
+
+       <listitem>
+        <para>Windows Additions: auto-resizing fixes for Windows 10 guests
+          (bug #15257)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed VBoxTray problems with Windows 2000
+          (bug #15661)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+    <title>Version 5.1.2 (2016-07-21)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed screenshot if the VM is started in separate mode</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed issue with double-click/opening registered file types
+          (.vbox and .vbox-extpack) on Mac OS X (bug #15648)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a bug which made it impossible close some error/warning
+          messages using the close button</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: weakened the control over the VM window behavior allowing to resize
+          it across multiple screens and to use in Snap Assist techniques</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: jump to the second tab of the session information window
+          (5.1.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fix for Alt-Tab</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed creating fixed size VHD images (bug #15601)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a hang during power off if the VM was suspended
+          before and a NVMe controller is configured</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed a crash under certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: make AC'97 volume control work again (5.1.0 regression;
+          bug #15598)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed rare VM hangs when using AC'97 emulation</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: SB16 fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: fixed access to devices attached to SATA port 2 and
+          higher (bug #15607)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVA: fix for checking certain signatures</para>
+      </listitem>
+
+      <listitem>
+        <para>OVA: fixed MAC address generation for appliances created by
+          VirtualBox (5.1.0 regression; bug #15623)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed audio settings handling for older config files
+          (bug #15626)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed truncation of USB product/vendor IDs on Linux
+          hosts (5.1.0 regression; bug #15644)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed VRDP with authentication (bug #15653)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: don't crash if there is no graphics controller configured
+          (bug #15628)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed EL5 builds (bug #15634)</para>
+      </listitem>
+
+      <listitem>
+        <para>non-Windows hosts: fixed a crash during shutdown under rare
+          circumstances (bug #15568)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed SELinux issue which prevented certain
+          Linux guests to work in 3D mode (bug #15574)</para>
+      </listitem>
+
+      <listitem>
+        <para>User Manual: updates</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+    <title>Version 5.1.0 (2016-07-12)</title>
+
+    <para>This is a major update. The following major new features
+      were added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: new APIC and I/O APIC implementations that result in significantly improved
+          performance in certain situations (for example with networking, bug #15295)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: added support for Hyper-V paravirtualized debugging of Windows guests</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: emulate even more MMIO and shadow pagetable exits without going back to
+          user mode</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: overall migration to Qt5 (bug #11775)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: passive API event listener improving the VM GUI performance and
+          response time</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: added HDA (High Definition Audio) support for newer Linux guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: added on-demand timers which should improve the overall performance
+          and reduce the CPU consumption</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: more fine-grained volume control for the AC'97 emulation, which now also
+          takes the master volume control into account</para>
+      </listitem>
+
+      <listitem>
+        <para>better support for Python 3</para>
+      </listitem>
+
+    </itemizedlist>
+
+    <para>In addition, the following items were fixed and/or added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: activate the x2APIC by default for Linux guests</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: many more fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: the <emphasis>Detach UI</emphasis> action is now a part of the
+          VM Machine menu</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: reworked session information window</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: the new VM wizard now allows to choose the VM location for the VM
+          which is being created</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed location of touch events in unscaled HiDPI mode
+          (bugs #14366, #14367)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: various bugfixes and internal cleanup</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: use <emphasis>fallocate()</emphasis> or similar if present to speed
+          up creating fixed-sized disk images (bug #5967)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: implemented NVMHCI-compatible storage controller</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: various bugfixes and infrastructure improvements</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: implemented interrupt throttling for performance improvements</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: many improvements, for example allow to boot from USB</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: improved handling of signed manifests</para>
+      </listitem>
+
+      <listitem>
+        <para>API: Windows XP guests and Windows 2003 server guests now default to
+          the E1000 T Server network card</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed several memory leaks when handling .dmg images</para>
+      </listitem>
+
+      <listitem>
+        <para>Installers: ship VBoxBugReport</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: reworked COM proxy (e.g. bug #8298)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux installers: no longer rely on DKMS for module rebuilding</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix a problem when updating the initramfs after
+          the guest modules are compiled (bug #15579)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: try to fix a problem where the OpenGL libraries
+          where loaded by the X server when we only support X clients
+          (bug #15574)</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.24 (2016-06-28)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -808,7 +1195,7 @@
       </listitem>
 
       <listitem>
-        <para>Audio: properly reset AC97 audio streams, otherwise there is
+        <para>Audio: properly reset AC'97 audio streams, otherwise there is
           silence until a non-48 kHz stream is played</para>
       </listitem>
 
@@ -1303,7 +1690,6 @@
     </itemizedlist>
 
   </sect1>
-
   <sect1>
     <title>Version 5.0.2 (2015-08-13)</title>
 
@@ -1726,7 +2112,7 @@
       </listitem>
 
       <listitem>
-        <para>Serial ports: new TCP/IP backend (see <xref linkend="serialports"/>)</para>
+        <para>Serial: new TCP/IP backend (see <xref linkend="serialports"/>)</para>
       </listitem>
 
       <listitem>
@@ -1778,7 +2164,7 @@
       </listitem>
 
       <listitem>
-        <para>Audio: provide Linux guests a different AC97 audio codec type so Linux
+        <para>Audio: provide Linux guests a different AC'97 audio codec type so Linux
           ALSA does not mis-detect the link speed (default for new VMs)</para>
       </listitem>
 
@@ -4123,7 +4509,7 @@
 
       <listitem>
         <para>VBoxManage: list more information about hard disk/DVD/floppy
-          media, and support the <emphasis>--long</emphasis>
+          media, and support the <computeroutput>--long</computeroutput>
           option to show really all available details</para>
       </listitem>
 
@@ -4135,35 +4521,35 @@
       <listitem>
         <para>VBoxManage: added support for listing active guest sessions, guest
           processes and/or guest files via
-          <emphasis>guestcontrol list &lt;all|sessions|processes|files&gt;</emphasis>
+          <computeroutput>guestcontrol list &lt;all|sessions|processes|files&gt;</computeroutput>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for closing active guest sessions via
-          <emphasis>guestcontrol session close --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt;|--all</emphasis>
+          <computeroutput>guestcontrol session close --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt;|--all</computeroutput>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for terminating active guest processes via
-          <emphasis>guestcontrol process kill|close|terminate --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</emphasis>
+          <computeroutput>guestcontrol process kill|close|terminate --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</computeroutput>
           or
-          <emphasis>guestcontrol [p[s]]kill --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</emphasis>
+          <computeroutput>guestcontrol [p[s]]kill --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</computeroutput>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for watching guest sessions via
-          <emphasis>guestcontrol watch</emphasis>
+          <computeroutput>guestcontrol watch</computeroutput>
         </para>
       </listitem>
 
       <listitem>
-        <para>VBoxManage: added <emphasis>modifyvm --triplefaultreset</emphasis>
+        <para>VBoxManage: added <computeroutput>modifyvm --triplefaultreset</computeroutput>
           to make the VM reset on triple fault instead of triggering a Guru Meditation
           (see <xref linkend="vboxmanage-modifyvm"/>)</para>
       </listitem>

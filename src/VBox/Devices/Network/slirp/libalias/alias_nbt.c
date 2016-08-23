@@ -218,7 +218,7 @@ nbt_alias_handler(PNATState pData, int type)
     handlers[2].fingerprint = &fingerprint2;
     handlers[2].protohandler = &protohandler2out;
 
-    handlers[3].pri = EOH;
+    handlers[3].pri = (u_int)EOH;
 #endif /* VBOX */
 
     switch (type) {
@@ -777,7 +777,7 @@ AliasHandleResourceNBSTAT(
     /* Check out of length */
     bcount = ntohs(q->rdlen);
 
-    if (q == NULL || (char *)((u_char *) n + bcount) > pmax)
+    if ((char *)((u_char *) n + bcount) > pmax)
         return (NULL);
     else
         return ((u_char *) n + bcount);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -193,7 +193,7 @@ int main()
         rc = RTFileOpen(&hFile, "tstFileAio#1.tst",
                                 RTFILE_O_READWRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE | RTFILE_O_ASYNC_IO);
         RTTESTI_CHECK(   rc == VINF_SUCCESS
-                      || (rc == VERR_ACCESS_DENIED && fAsyncMayFail));
+                      || ((rc == VERR_ACCESS_DENIED || rc == VERR_INVALID_PARAMETER) && fAsyncMayFail));
         if (RT_SUCCESS(rc))
         {
             uint8_t *pbTestBuf = (uint8_t *)RTTestGuardedAllocTail(g_hTest, TSTFILEAIO_BUFFER_SIZE);
@@ -226,6 +226,8 @@ int main()
             /* Cleanup */
             RTFileDelete("tstFileAio#1.tst");
         }
+        else
+            RTTestSkipped(g_hTest, "rc=%Rrc", rc);
     }
 
     /*

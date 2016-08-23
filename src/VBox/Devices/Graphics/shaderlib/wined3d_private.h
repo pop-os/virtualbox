@@ -46,7 +46,12 @@
 #include "wingdi.h"
 #include "winuser.h"
 #else
-#include <windows.h>
+# ifdef _MSC_VER
+#  include <iprt/win/windows.h>
+# else
+#  include <windows.h>
+#  undef cdecl /* see windef.h */
+# endif
 #endif
 #include "wine/debug.h"
 #include "wine/unicode.h"
@@ -79,7 +84,6 @@
 # define VBoxTlsRefGetImpl(_tls) (TlsGetValue((DWORD)(_tls)))
 # define VBoxTlsRefSetImpl(_tls, _val) (TlsSetValue((DWORD)(_tls), (_val)))
 # define VBoxTlsRefAssertImpl Assert
-# undef cdecl /* see windef.h */
 # include <VBox/VBoxVideo3D.h>
 #endif
 
@@ -1332,7 +1336,7 @@ void context_set_draw_buffer(struct wined3d_context *context, GLenum buffer) DEC
 void context_set_tls_idx(DWORD idx) DECLSPEC_HIDDEN;
 void context_surface_update(struct wined3d_context *context, IWineD3DSurfaceImpl *surface) DECLSPEC_HIDDEN;
 #if defined(VBOX_WINE_WITH_SINGLE_CONTEXT) || defined(VBOX_WINE_WITH_SINGLE_SWAPCHAIN_CONTEXT)
-void context_clear_on_thread_detach();
+void context_clear_on_thread_detach(void);
 #endif
 /* Macros for doing basic GPU detection based on opengl capabilities */
 #define WINE_D3D6_CAPABLE(gl_info) (gl_info->supported[ARB_MULTITEXTURE])

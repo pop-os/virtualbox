@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,9 +35,9 @@ enum UIActionIndexST
     UIActionIndexST_M_File_S_ShowMediumManager,
     UIActionIndexST_M_File_S_ImportAppliance,
     UIActionIndexST_M_File_S_ExportAppliance,
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     UIActionIndexST_M_File_S_ShowExtraDataManager,
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
     UIActionIndexST_M_File_S_Close,
 
     /* 'Group' menu actions: */
@@ -53,6 +53,7 @@ enum UIActionIndexST
     UIActionIndexST_M_Group_T_Pause,
     UIActionIndexST_M_Group_S_Reset,
     UIActionIndexST_M_Group_M_Close,
+    UIActionIndexST_M_Group_M_Close_S_Detach,
     UIActionIndexST_M_Group_M_Close_S_SaveState,
     UIActionIndexST_M_Group_M_Close_S_Shutdown,
     UIActionIndexST_M_Group_M_Close_S_PowerOff,
@@ -78,6 +79,7 @@ enum UIActionIndexST
     UIActionIndexST_M_Machine_T_Pause,
     UIActionIndexST_M_Machine_S_Reset,
     UIActionIndexST_M_Machine_M_Close,
+    UIActionIndexST_M_Machine_M_Close_S_Detach,
     UIActionIndexST_M_Machine_M_Close_S_SaveState,
     UIActionIndexST_M_Machine_M_Close_S_Shutdown,
     UIActionIndexST_M_Machine_M_Close_S_PowerOff,

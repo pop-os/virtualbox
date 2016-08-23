@@ -26,7 +26,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
   This empty function ensures that EVT_NOTIFY_SIGNAL_ALL is error
   checked correctly since it is now mapped into CreateEventEx() in UEFI 2.0.
- 
+
   @param  Event                 Event whose notification function is being invoked.
   @param  Context               The pointer to the notification function's context,
                                 which is implementation-dependent.
@@ -34,7 +34,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 **/
 VOID
 EFIAPI
-InternalEmptyFuntion (
+InternalEmptyFunction (
   IN EFI_EVENT                Event,
   IN VOID                     *Context
   )
@@ -67,7 +67,7 @@ EfiCreateEventLegacyBoot (
 {
   return EfiCreateEventLegacyBootEx (
            TPL_CALLBACK,
-           InternalEmptyFuntion,
+           InternalEmptyFunction,
            NULL,
            LegacyBootEvent
            );
@@ -75,8 +75,8 @@ EfiCreateEventLegacyBoot (
 
 /**
   Create an EFI event in the Legacy Boot Event Group and allows
-  the caller to specify a notification function.  
-  
+  the caller to specify a notification function.
+
   This function abstracts the creation of the Legacy Boot Event.
   The Framework moved from a proprietary to UEFI 2.0 based mechanism.
   This library abstracts the caller from how this event is created to prevent
@@ -101,7 +101,8 @@ EfiCreateEventLegacyBootEx (
   OUT EFI_EVENT         *LegacyBootEvent
   )
 {
-  EFI_STATUS    Status;
+  EFI_STATUS        Status;
+  EFI_EVENT_NOTIFY  WorkerNotifyFunction;
 
   ASSERT (LegacyBootEvent != NULL);
 
@@ -114,10 +115,19 @@ EfiCreateEventLegacyBootEx (
     //
     // For UEFI 2.0 and the future use an Event Group
     //
+    if (NotifyFunction == NULL) {
+      //
+      // CreateEventEx will check NotifyFunction is NULL or not and return error.
+      // Use dummy routine for the case NotifyFunction is NULL.
+      //
+      WorkerNotifyFunction = InternalEmptyFunction;
+    } else {
+      WorkerNotifyFunction = NotifyFunction;
+    }
     Status = gBS->CreateEventEx (
                     EVT_NOTIFY_SIGNAL,
                     NotifyTpl,
-                    NotifyFunction,
+                    WorkerNotifyFunction,
                     NotifyContext,
                     &gEfiEventLegacyBootGuid,
                     LegacyBootEvent
@@ -131,10 +141,10 @@ EfiCreateEventLegacyBootEx (
   Create an EFI event in the Ready To Boot Event Group.
 
   Prior to UEFI 2.0 this was done via a non-standard UEFI extension, and this library
-  abstracts the implementation mechanism of this event from the caller.   
-  This function abstracts the creation of the Ready to Boot Event.  The Framework 
-  moved from a proprietary to UEFI 2.0-based mechanism.  This library abstracts 
-  the caller from how this event is created to prevent the code form having to 
+  abstracts the implementation mechanism of this event from the caller.
+  This function abstracts the creation of the Ready to Boot Event.  The Framework
+  moved from a proprietary to UEFI 2.0-based mechanism.  This library abstracts
+  the caller from how this event is created to prevent the code form having to
   change with the version of the specification supported.
   If ReadyToBootEvent is NULL, then ASSERT().
 
@@ -152,7 +162,7 @@ EfiCreateEventReadyToBoot (
 {
   return EfiCreateEventReadyToBootEx (
            TPL_CALLBACK,
-           InternalEmptyFuntion,
+           InternalEmptyFunction,
            NULL,
            ReadyToBootEvent
            );
@@ -160,8 +170,8 @@ EfiCreateEventReadyToBoot (
 
 /**
   Create an EFI event in the Ready To Boot Event Group and allows
-  the caller to specify a notification function.  
-  
+  the caller to specify a notification function.
+
   This function abstracts the creation of the Ready to Boot Event.
   The Framework moved from a proprietary to UEFI 2.0 based mechanism.
   This library abstracts the caller from how this event is created to prevent
@@ -186,7 +196,8 @@ EfiCreateEventReadyToBootEx (
   OUT EFI_EVENT         *ReadyToBootEvent
   )
 {
-  EFI_STATUS    Status;
+  EFI_STATUS        Status;
+  EFI_EVENT_NOTIFY  WorkerNotifyFunction;
 
   ASSERT (ReadyToBootEvent != NULL);
 
@@ -199,10 +210,19 @@ EfiCreateEventReadyToBootEx (
     //
     // For UEFI 2.0 and the future use an Event Group
     //
+    if (NotifyFunction == NULL) {
+      //
+      // CreateEventEx will check NotifyFunction is NULL or not and return error.
+      // Use dummy routine for the case NotifyFunction is NULL.
+      //
+      WorkerNotifyFunction = InternalEmptyFunction;
+    } else {
+      WorkerNotifyFunction = NotifyFunction;
+    }
     Status = gBS->CreateEventEx (
                     EVT_NOTIFY_SIGNAL,
                     NotifyTpl,
-                    NotifyFunction,
+                    WorkerNotifyFunction,
                     NotifyContext,
                     &gEfiEventReadyToBootGuid,
                     ReadyToBootEvent
@@ -215,7 +235,7 @@ EfiCreateEventReadyToBootEx (
 
 /**
   Create, Signal, and Close the Ready to Boot event using EfiSignalEventReadyToBoot().
-  
+
   This function abstracts the signaling of the Ready to Boot Event. The Framework moved
   from a proprietary to UEFI 2.0 based mechanism. This library abstracts the caller
   from how this event is created to prevent to code form having to change with the
@@ -265,14 +285,14 @@ EfiSignalEventLegacyBoot (
 
 
 /**
-  Check to see if the Firmware Volume (FV) Media Device Path is valid 
-  
-  The Framework FwVol Device Path changed to conform to the UEFI 2.0 specification.  
+  Check to see if the Firmware Volume (FV) Media Device Path is valid
+
+  The Framework FwVol Device Path changed to conform to the UEFI 2.0 specification.
   This library function abstracts validating a device path node.
-  Check the MEDIA_FW_VOL_FILEPATH_DEVICE_PATH data structure to see if it's valid.  
-  If it is valid, then return the GUID file name from the device path node.  Otherwise, 
-  return NULL.  This device path changed in the DXE CIS version 0.92 in a non back ward 
-  compatible way to not conflict with the UEFI 2.0 specification.  This function abstracts 
+  Check the MEDIA_FW_VOL_FILEPATH_DEVICE_PATH data structure to see if it's valid.
+  If it is valid, then return the GUID file name from the device path node.  Otherwise,
+  return NULL.  This device path changed in the DXE CIS version 0.92 in a non back ward
+  compatible way to not conflict with the UEFI 2.0 specification.  This function abstracts
   the differences from the caller.
   If FvDevicePathNode is NULL, then ASSERT().
 
@@ -301,16 +321,16 @@ EfiGetNameGuidFromFwVolDevicePathNode (
 
 /**
   Initialize a Firmware Volume (FV) Media Device Path node.
-  
-  The Framework FwVol Device Path changed to conform to the UEFI 2.0 specification.  
-  This library function abstracts initializing a device path node.  
-  Initialize the MEDIA_FW_VOL_FILEPATH_DEVICE_PATH data structure.  This device 
-  path changed in the DXE CIS version 0.92 in a non back ward compatible way to 
-  not conflict with the UEFI 2.0 specification.  This function abstracts the 
+
+  The Framework FwVol Device Path changed to conform to the UEFI 2.0 specification.
+  This library function abstracts initializing a device path node.
+  Initialize the MEDIA_FW_VOL_FILEPATH_DEVICE_PATH data structure.  This device
+  path changed in the DXE CIS version 0.92 in a non back ward compatible way to
+  not conflict with the UEFI 2.0 specification.  This function abstracts the
   differences from the caller.
   If FvDevicePathNode is NULL, then ASSERT().
   If NameGuid is NULL, then ASSERT().
-  
+
   @param  FvDevicePathNode  The pointer to a FV device path node to initialize
   @param  NameGuid          FV file name to use in FvDevicePathNode
 

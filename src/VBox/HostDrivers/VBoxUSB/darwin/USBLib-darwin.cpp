@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,7 @@ static uint32_t volatile    g_cUsers = 0;
 /** The IOMasterPort. */
 static mach_port_t          g_MasterPort = 0;
 /** The current service connection. */
-static io_connect_t         g_Connection = NULL;
+static io_connect_t         g_Connection = 0;
 
 
 
@@ -131,7 +131,7 @@ USBLIB_DECL(int) USBLibTerm(void)
         LogRel(("USBLib: Warning: IOServiceClose(%p) returned %#x\n", g_Connection, kr));
         AssertMsgFailed(("%#x\n", kr));
     }
-    g_Connection = NULL;
+    g_Connection = 0;
 
     return VINF_SUCCESS;
 }

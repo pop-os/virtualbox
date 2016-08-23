@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,10 @@
 # include <iprt/cdefs.h>
 
 # ifdef RT_OS_WINDOWS
-#  include <WinSock2.h>
-#  include <ws2tcpip.h>
+#  include <iprt/win/winsock2.h>
+#  include <iprt/win/ws2tcpip.h>
 #  include <mswsock.h>
-#  include <Windows.h>
+#  include <iprt/win/windows.h>
 #  include <iprt/err.h>
 #  include <iprt/net.h>
 #  include <iprt/log.h>

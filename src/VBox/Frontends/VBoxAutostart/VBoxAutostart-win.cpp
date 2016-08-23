@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,8 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <Windows.h>
+#include <iprt/win/windows.h>
+#include <tchar.h>
 
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
@@ -87,12 +88,7 @@ DECLHIDDEN(HRESULT) showProgress(ComPtr<IProgress> progress)
     using namespace com;
 
     BOOL fCompleted = FALSE;
-    ULONG ulCurrentPercent = 0;
-    ULONG ulLastPercent = 0;
-
-    ULONG ulLastOperationPercent = (ULONG)-1;
-
-    ULONG ulLastOperation = (ULONG)-1;
+    ULONG uCurrentPercent = 0;
     Bstr bstrOperationDescription;
 
     NativeEventQueue::getMainEventQueue()->processEventQueue(0);
@@ -112,7 +108,7 @@ DECLHIDDEN(HRESULT) showProgress(ComPtr<IProgress> progress)
     hrc = progress->COMGETTER(Completed(&fCompleted));
     while (SUCCEEDED(hrc))
     {
-        progress->COMGETTER(Percent(&ulCurrentPercent));
+        progress->COMGETTER(Percent(&uCurrentPercent));
 
         if (fCompleted)
             break;
@@ -181,7 +177,7 @@ DECLHIDDEN(void) autostartSvcOsLogStr(const char *pszMsg, AUTOSTARTLOGTYPE enmLo
                             0,                       /* dwDataSize */
                             apsz,                    /* lpStrings */
                             NULL);                   /* lpRawData */
-    AssertMsg(fRc, ("%d\n", GetLastError()));
+    AssertMsg(fRc, ("%u\n", GetLastError())); NOREF(fRc);
     DeregisterEventSource(hEventLog);
 }
 
@@ -231,7 +227,7 @@ static SC_HANDLE autostartSvcWinOpenSCManager(const char *pszAction, DWORD dwAcc
  * @param   ...                 Errors codes that should not cause a message to be displayed.
  */
 static SC_HANDLE autostartSvcWinOpenService(const char *pszAction, DWORD dwSCMAccess, DWORD dwSVCAccess,
-                                      unsigned cIgnoredErrors, ...)
+                                            unsigned cIgnoredErrors, ...)
 {
     SC_HANDLE hSCM = autostartSvcWinOpenSCManager(pszAction, dwSCMAccess);
     if (!hSCM)
@@ -250,7 +246,7 @@ static SC_HANDLE autostartSvcWinOpenService(const char *pszAction, DWORD dwSCMAc
         va_list va;
         va_start(va, cIgnoredErrors);
         while (!fIgnored && cIgnoredErrors-- > 0)
-            fIgnored = va_arg(va, long) == err;
+            fIgnored = (DWORD)va_arg(va, int) == err;
         va_end(va);
         if (!fIgnored)
         {
@@ -276,6 +272,7 @@ static SC_HANDLE autostartSvcWinOpenService(const char *pszAction, DWORD dwSCMAc
 
 static RTEXITCODE autostartSvcWinInterrogate(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"interrogate\" action is not implemented.\n");
     return RTEXITCODE_FAILURE;
 }
@@ -283,6 +280,7 @@ static RTEXITCODE autostartSvcWinInterrogate(int argc, char **argv)
 
 static RTEXITCODE autostartSvcWinStop(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"stop\" action is not implemented.\n");
     return RTEXITCODE_FAILURE;
 }
@@ -290,6 +288,7 @@ static RTEXITCODE autostartSvcWinStop(int argc, char **argv)
 
 static RTEXITCODE autostartSvcWinContinue(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"continue\" action is not implemented.\n");
     return RTEXITCODE_FAILURE;
 }
@@ -297,6 +296,7 @@ static RTEXITCODE autostartSvcWinContinue(int argc, char **argv)
 
 static RTEXITCODE autostartSvcWinPause(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"pause\" action is not implemented.\n");
     return RTEXITCODE_FAILURE;
 }
@@ -304,6 +304,7 @@ static RTEXITCODE autostartSvcWinPause(int argc, char **argv)
 
 static RTEXITCODE autostartSvcWinStart(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"start\" action is not implemented.\n");
     return RTEXITCODE_SUCCESS;
 }
@@ -311,6 +312,7 @@ static RTEXITCODE autostartSvcWinStart(int argc, char **argv)
 
 static RTEXITCODE autostartSvcWinQueryDescription(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"qdescription\" action is not implemented.\n");
     return RTEXITCODE_FAILURE;
 }
@@ -318,6 +320,7 @@ static RTEXITCODE autostartSvcWinQueryDescription(int argc, char **argv)
 
 static RTEXITCODE autostartSvcWinQueryConfig(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"qconfig\" action is not implemented.\n");
     return RTEXITCODE_FAILURE;
 }
@@ -325,12 +328,14 @@ static RTEXITCODE autostartSvcWinQueryConfig(int argc, char **argv)
 
 static RTEXITCODE autostartSvcWinDisable(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"disable\" action is not implemented.\n");
     return RTEXITCODE_FAILURE;
 }
 
 static RTEXITCODE autostartSvcWinEnable(int argc, char **argv)
 {
+    RT_NOREF(argc, argv);
     RTPrintf("VBoxAutostartSvc: The \"enable\" action is not implemented.\n");
     return RTEXITCODE_FAILURE;
 }
@@ -621,17 +626,18 @@ static DWORD WINAPI autostartSvcWinServiceCtrlHandlerEx(DWORD dwControl, DWORD d
     NOREF(dwEventType);
     NOREF(pvEventData);
     NOREF(pvContext);
-    return NO_ERROR;
+    /* not reached */
 }
 
-static int autostartWorker(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) autostartWorkerThread(RTTHREAD hThreadSelf, void *pvUser)
 {
-                        int rc = autostartSetup();
+    RT_NOREF(hThreadSelf, pvUser);
+    int rc = autostartSetup();
 
-                        /** @todo: Implement config options. */
-                        rc = autostartStartMain(NULL);
-                        if (RT_FAILURE(rc))
-                            autostartSvcLogError("Starting VMs failed, rc=%Rrc", rc);
+    /** @todo Implement config options. */
+    rc = autostartStartMain(NULL);
+    if (RT_FAILURE(rc))
+        autostartSvcLogError("Starting VMs failed, rc=%Rrc", rc);
 
     return rc;
 }
@@ -647,6 +653,7 @@ static int autostartWorker(RTTHREAD ThreadSelf, void *pvUser)
  */
 static VOID WINAPI autostartSvcWinServiceMain(DWORD cArgs, LPTSTR *papszArgs)
 {
+    RT_NOREF(papszArgs);
     LogFlowFuncEnter();
 
     /*
@@ -675,7 +682,7 @@ static VOID WINAPI autostartSvcWinServiceMain(DWORD cArgs, LPTSTR *papszArgs)
                     {
                         LogFlow(("autostartSvcWinServiceMain: calling RTSemEventMultiWait\n"));
                         RTTHREAD hWorker;
-                        RTThreadCreate(&hWorker, autostartWorker, NULL, 0, RTTHREADTYPE_DEFAULT, 0, "WorkerThread");
+                        RTThreadCreate(&hWorker, autostartWorkerThread, NULL, 0, RTTHREADTYPE_DEFAULT, 0, "WorkerThread");
 
                         LogFlow(("autostartSvcWinServiceMain: woke up\n"));
                         err = NO_ERROR;
@@ -683,7 +690,7 @@ static VOID WINAPI autostartSvcWinServiceMain(DWORD cArgs, LPTSTR *papszArgs)
                         if (RT_SUCCESS(rc))
                         {
                             LogFlow(("autostartSvcWinServiceMain: woke up\n"));
-                            /** @todo: Autostop part. */
+                            /** @todo Autostop part. */
                             err = NO_ERROR;
                         }
                         else

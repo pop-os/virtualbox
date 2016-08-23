@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,9 @@
 #else
 # include <sys/types.h>
 # include <limits.h>        /* Workaround for syslimit.h bug in gcc 4.8.3 on gentoo. */
-# ifndef RT_OS_SOLARIS
+# ifdef RT_OS_DARWIN
+#  include <sys/syslimits.h> /* PATH_MAX */
+# elif !defined(RT_OS_SOLARIS)
 #  include <syslimits.h>    /* PATH_MAX */
 # endif
 # include <libgen.h>        /* basename */

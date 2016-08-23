@@ -1,12 +1,10 @@
 /* $Id: VFSExplorerImpl.h $ */
-
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,7 +69,7 @@ private:
     ////
     //////////////////////////////////////////////////////////////////////////////////
     //
-    struct TaskVFSExplorer;  /* Worker thread helper */
+    class TaskVFSExplorer;  /* Worker thread helper */
     struct Data;
     Data *m;
 
@@ -80,10 +78,8 @@ private:
 
     HRESULT i_updateFS(TaskVFSExplorer *aTask);
     HRESULT i_deleteFS(TaskVFSExplorer *aTask);
-    HRESULT i_updateS3(TaskVFSExplorer *aTask);
-    HRESULT i_deleteS3(TaskVFSExplorer *aTask);
 
 };
 
-#endif /* ____H_VFSEXPLORERIMPL */
+#endif /* !____H_VFSEXPLORERIMPL */
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -193,11 +193,11 @@ void bios_printf(uint16_t action, const char *s, ...)
                 }
                 else if (c == 'l' && s[1] == 'l') {
                     uint64_t llval;
-                    uint16_t *cp16;
+                    uint16_t __far *cp16;
 
                     s += 2;
                     c = *s;
-                    cp16 = (uint16_t *)&llval;
+                    cp16 = (uint16_t __far *)&llval;
                     cp16[0] = arg;
                     cp16[1] = va_arg( args, uint16_t );
                     cp16[2] = va_arg( args, uint16_t );
@@ -280,4 +280,3 @@ void bios_printf(uint16_t action, const char *s, ...)
 }
 
 // End of printf support
-

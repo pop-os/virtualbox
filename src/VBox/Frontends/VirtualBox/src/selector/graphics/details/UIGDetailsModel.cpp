@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,7 +80,7 @@ QGraphicsView* UIGDetailsModel::paintDevice() const
 
 QGraphicsItem* UIGDetailsModel::itemAt(const QPointF &position) const
 {
-    return scene()->itemAt(position);
+    return scene()->itemAt(position, QTransform());
 }
 
 void UIGDetailsModel::updateLayout()

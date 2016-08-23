@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -145,13 +145,15 @@ static DECLCALLBACK(int) vbclClipboardDispatcher(RTTHREAD ThreadSelf, void *pvUs
  *
  * Forwards cliproard content between host and guest.
  *
- * @param   ThreadSelf  Unused parameter.
+ * @param   hThreadSelf  Unused parameter.
  * @param   pvUser      Unused parameter.
  *
  * @return  IPRT status code.
  */
-static DECLCALLBACK(int) vbclGuestPasteboardPoll(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) vbclGuestPasteboardPoll(RTTHREAD hThreadSelf, void *pvUser)
 {
+    RT_NOREF(hThreadSelf, pvUser);
+
     /*
      * Block all signals for this thread. Only the main thread will handle signals.
      */

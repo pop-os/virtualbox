@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,45 +28,9 @@
 #include <VBox/settings.h>
 #include <VBox/com/array.h>
 
-typedef std::map<Utf8Str, settings::NATRule> NATRuleMap;
-
-struct NATEngineData
-{
-    NATEngineData() : mMtu(0),
-             mSockRcv(0),
-             mSockSnd(0),
-             mTcpRcv(0),
-             mTcpSnd(0),
-             mDNSPassDomain(TRUE),
-             mDNSProxy(FALSE),
-             mDNSUseHostResolver(FALSE),
-             mAliasMode(0)
-    {}
-
-    com::Utf8Str mNetwork;
-    com::Utf8Str mBindIP;
-    uint32_t mMtu;
-    uint32_t mSockRcv;
-    uint32_t mSockSnd;
-    uint32_t mTcpRcv;
-    uint32_t mTcpSnd;
-    /* TFTP service */
-    Utf8Str mTFTPPrefix;
-    Utf8Str mTFTPBootFile;
-    Utf8Str mTFTPNextServer;
-    /* DNS service */
-    BOOL mDNSPassDomain;
-    BOOL mDNSProxy;
-    BOOL mDNSUseHostResolver;
-    /* Alias service */
-    ULONG mAliasMode;
-    /* Port forwarding rules */
-    NATRuleMap mNATRules;
-};
-
 struct NATEngine::Data
 {
-    Backupable<NATEngineData> m;
+    Backupable<settings::NAT> m;
 };
 
 
@@ -95,8 +59,8 @@ HRESULT NATEngine::init(Machine *aParent, INetworkAdapter *aAdapter)
     autoInitSpan.setSucceeded();
     mData = new Data();
     mData->m.allocate();
-    mData->m->mNetwork.setNull();
-    mData->m->mBindIP.setNull();
+    mData->m->strNetwork.setNull();
+    mData->m->strBindIP.setNull();
     unconst(mParent) = aParent;
     unconst(mAdapter) = aAdapter;
     return S_OK;
@@ -139,7 +103,8 @@ HRESULT NATEngine::initCopy(Machine *aParent, INetworkAdapter *aAdapter, NATEngi
     unconst(mAdapter) = aAdapter;
     unconst(mParent) = aParent;
     autoInitSpan.setSucceeded();
-    return BaseFinalConstruct();
+
+    return S_OK;
 }
 
 
@@ -218,15 +183,15 @@ HRESULT NATEngine::getNetworkSettings(ULONG *aMtu, ULONG *aSockSnd, ULONG *aSock
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     if (aMtu)
-        *aMtu = mData->m->mMtu;
+        *aMtu = mData->m->u32Mtu;
     if (aSockSnd)
-        *aSockSnd = mData->m->mSockSnd;
+        *aSockSnd = mData->m->u32SockSnd;
     if (aSockRcv)
-        *aSockRcv = mData->m->mSockRcv;
+        *aSockRcv = mData->m->u32SockRcv;
     if (aTcpWndSnd)
-        *aTcpWndSnd = mData->m->mTcpSnd;
+        *aTcpWndSnd = mData->m->u32TcpSnd;
     if (aTcpWndRcv)
-        *aTcpWndRcv = mData->m->mTcpRcv;
+        *aTcpWndRcv = mData->m->u32TcpRcv;
 
     return S_OK;
 }
@@ -241,15 +206,15 @@ HRESULT NATEngine::setNetworkSettings(ULONG aMtu, ULONG aSockSnd, ULONG aSockRcv
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     if (aMtu)
-        mData->m->mMtu = aMtu;
+        mData->m->u32Mtu = aMtu;
     if (aSockSnd)
-        mData->m->mSockSnd = aSockSnd;
+        mData->m->u32SockSnd = aSockSnd;
     if (aSockRcv)
-        mData->m->mSockRcv = aSockSnd;
+        mData->m->u32SockRcv = aSockSnd;
     if (aTcpWndSnd)
-        mData->m->mTcpSnd = aTcpWndSnd;
+        mData->m->u32TcpSnd = aTcpWndSnd;
     if (aTcpWndRcv)
-        mData->m->mTcpRcv = aTcpWndRcv;
+        mData->m->u32TcpRcv = aTcpWndRcv;
 
     return S_OK;
 }
@@ -259,10 +224,10 @@ HRESULT NATEngine::getRedirects(std::vector<com::Utf8Str> &aRedirects)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aRedirects.resize(mData->m->mNATRules.size());
+    aRedirects.resize(mData->m->mapRules.size());
     size_t i = 0;
-    NATRuleMap::const_iterator it;
-    for (it = mData->m->mNATRules.begin(); it != mData->m->mNATRules.end(); ++it, ++i)
+    settings::NATRulesMap::const_iterator it;
+    for (it = mData->m->mapRules.begin(); it != mData->m->mapRules.end(); ++it, ++i)
     {
         settings::NATRule r = it->second;
         aRedirects[i] = Utf8StrFmt("%s,%d,%s,%d,%s,%d",
@@ -297,8 +262,8 @@ HRESULT NATEngine::addRedirect(const com::Utf8Str &aName, NATProtocol_T aProto, 
     if (name.isEmpty())
         name = Utf8StrFmt("%s_%d_%d", proto, aHostPort, aGuestPort);
 
-    NATRuleMap::iterator it;
-    for (it = mData->m->mNATRules.begin(); it != mData->m->mNATRules.end(); ++it)
+    settings::NATRulesMap::iterator it;
+    for (it = mData->m->mapRules.begin(); it != mData->m->mapRules.end(); ++it)
     {
         r = it->second;
         if (it->first == name)
@@ -318,7 +283,7 @@ HRESULT NATEngine::addRedirect(const com::Utf8Str &aName, NATProtocol_T aProto, 
     r.u16HostPort = aHostPort;
     r.strGuestIP = aGuestIP;
     r.u16GuestPort = aGuestPort;
-    mData->m->mNATRules.insert(std::make_pair(name, r));
+    mData->m->mapRules.insert(std::make_pair(name, r));
     mParent->i_setModified(Machine::IsModified_NetworkAdapters);
 
     ULONG ulSlot;
@@ -333,29 +298,24 @@ HRESULT NATEngine::addRedirect(const com::Utf8Str &aName, NATProtocol_T aProto, 
 HRESULT NATEngine::removeRedirect(const com::Utf8Str &aName)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    NATRuleMap::iterator it = mData->m->mNATRules.find(aName);
-    if (it == mData->m->mNATRules.end())
+    settings::NATRulesMap::iterator it = mData->m->mapRules.find(aName);
+    if (it == mData->m->mapRules.end())
         return E_INVALIDARG;
     mData->m.backup();
     /*
      * NB: "it" may now point to the backup!  In that case it's ok to
-     * get data from the backup copy of mNATRules via it, but we can't
-     * erase(it) from potentially new mNATRules.
+     * get data from the backup copy of s.mapRules via it, but we can't
+     * erase(it) from potentially new s.mapRules.
      */
     settings::NATRule r = it->second;
-    Utf8Str strHostIP = r.strHostIP;
-    Utf8Str strGuestIP = r.strGuestIP;
-    NATProtocol_T proto = r.proto;
-    uint16_t u16HostPort = r.u16HostPort;
-    uint16_t u16GuestPort = r.u16GuestPort;
     ULONG ulSlot;
     mAdapter->COMGETTER(Slot)(&ulSlot);
 
-    mData->m->mNATRules.erase(aName); /* NB: erase by key, "it" may not be valid */
+    mData->m->mapRules.erase(aName); /* NB: erase by key, "it" may not be valid */
     mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     alock.release();
-    mParent->i_onNATRedirectRuleChange(ulSlot, TRUE, Bstr(aName).raw(), proto, Bstr(strHostIP).raw(),
-                                       u16HostPort, Bstr(strGuestIP).raw(), u16GuestPort);
+    mParent->i_onNATRedirectRuleChange(ulSlot, TRUE, Bstr(aName).raw(), r.proto, Bstr(r.strHostIP).raw(),
+                                       r.u16HostPort, Bstr(r.strGuestIP).raw(), r.u16GuestPort);
     return S_OK;
 }
 
@@ -365,33 +325,8 @@ HRESULT NATEngine::i_loadSettings(const settings::NAT &data)
     AssertComRCReturnRC(autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = S_OK;
-    mData->m->mNetwork = data.strNetwork;
-    mData->m->mBindIP = data.strBindIP;
-    mData->m->mMtu = data.u32Mtu;
-    mData->m->mSockSnd = data.u32SockSnd;
-    mData->m->mTcpRcv = data.u32TcpRcv;
-    mData->m->mTcpSnd = data.u32TcpSnd;
-    /* TFTP */
-    mData->m->mTFTPPrefix = data.strTFTPPrefix;
-    mData->m->mTFTPBootFile = data.strTFTPBootFile;
-    mData->m->mTFTPNextServer = data.strTFTPNextServer;
-    /* DNS */
-    mData->m->mDNSPassDomain = data.fDNSPassDomain;
-    mData->m->mDNSProxy = data.fDNSProxy;
-    mData->m->mDNSUseHostResolver = data.fDNSUseHostResolver;
-    /* Alias */
-    mData->m->mAliasMode  = (data.fAliasUseSamePorts ? NATAliasMode_AliasUseSamePorts : 0);
-    mData->m->mAliasMode |= (data.fAliasLog          ? NATAliasMode_AliasLog          : 0);
-    mData->m->mAliasMode |= (data.fAliasProxyOnly    ? NATAliasMode_AliasProxyOnly    : 0);
-    /* port forwarding */
-    mData->m->mNATRules.clear();
-    for (settings::NATRuleList::const_iterator it = data.llRules.begin();
-        it != data.llRules.end(); ++it)
-    {
-        mData->m->mNATRules.insert(std::make_pair(it->strName, *it));
-    }
-    return rc;
+    mData->m.assignCopy(&data);
+    return S_OK;
 }
 
 
@@ -402,39 +337,17 @@ HRESULT NATEngine::i_saveSettings(settings::NAT &data)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     HRESULT rc = S_OK;
-    data.strNetwork = mData->m->mNetwork;
-    data.strBindIP = mData->m->mBindIP;
-    data.u32Mtu = mData->m->mMtu;
-    data.u32SockRcv = mData->m->mSockRcv;
-    data.u32SockSnd = mData->m->mSockSnd;
-    data.u32TcpRcv = mData->m->mTcpRcv;
-    data.u32TcpSnd = mData->m->mTcpSnd;
-    /* TFTP */
-    data.strTFTPPrefix = mData->m->mTFTPPrefix;
-    data.strTFTPBootFile = mData->m->mTFTPBootFile;
-    data.strTFTPNextServer = mData->m->mTFTPNextServer;
-    /* DNS */
-    data.fDNSPassDomain = !!mData->m->mDNSPassDomain;
-    data.fDNSProxy = !!mData->m->mDNSProxy;
-    data.fDNSUseHostResolver = !!mData->m->mDNSUseHostResolver;
-    /* Alias */
-    data.fAliasLog = !!(mData->m->mAliasMode & NATAliasMode_AliasLog);
-    data.fAliasProxyOnly = !!(mData->m->mAliasMode & NATAliasMode_AliasProxyOnly);
-    data.fAliasUseSamePorts = !!(mData->m->mAliasMode & NATAliasMode_AliasUseSamePorts);
-
-    for (NATRuleMap::iterator it = mData->m->mNATRules.begin();
-        it != mData->m->mNATRules.end(); ++it)
-        data.llRules.push_back(it->second);
+    data = *mData->m.data();
     return rc;
 }
 
 HRESULT NATEngine::setNetwork(const com::Utf8Str &aNetwork)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (Bstr(mData->m->mNetwork) != aNetwork)
+    if (mData->m->strNetwork != aNetwork)
     {
         mData->m.backup();
-        mData->m->mNetwork = aNetwork;
+        mData->m->strNetwork = aNetwork;
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -444,10 +357,10 @@ HRESULT NATEngine::setNetwork(const com::Utf8Str &aNetwork)
 HRESULT NATEngine::getNetwork(com::Utf8Str &aNetwork)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (!mData->m->mNetwork.isEmpty())
+    if (!mData->m->strNetwork.isEmpty())
     {
-        aNetwork = mData->m->mNetwork;
-        Log(("Getter (this:%p) Network: %s\n", this, mData->m->mNetwork.c_str()));
+        aNetwork = mData->m->strNetwork;
+        Log(("Getter (this:%p) Network: %s\n", this, mData->m->strNetwork.c_str()));
     }
     return S_OK;
 }
@@ -455,10 +368,10 @@ HRESULT NATEngine::getNetwork(com::Utf8Str &aNetwork)
 HRESULT NATEngine::setHostIP(const com::Utf8Str &aHostIP)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (Bstr(mData->m->mBindIP) != aHostIP)
+    if (mData->m->strBindIP != aHostIP)
     {
         mData->m.backup();
-        mData->m->mBindIP = aHostIP;
+        mData->m->strBindIP = aHostIP;
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -468,18 +381,18 @@ HRESULT NATEngine::getHostIP(com::Utf8Str &aBindIP)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (!mData->m->mBindIP.isEmpty())
-        aBindIP = mData->m->mBindIP;
+    if (!mData->m->strBindIP.isEmpty())
+        aBindIP = mData->m->strBindIP;
     return S_OK;
 }
 
 HRESULT NATEngine::setTFTPPrefix(const com::Utf8Str &aTFTPPrefix)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (Bstr(mData->m->mTFTPPrefix) != aTFTPPrefix)
+    if (mData->m->strTFTPPrefix != aTFTPPrefix)
     {
         mData->m.backup();
-        mData->m->mTFTPPrefix = aTFTPPrefix;
+        mData->m->strTFTPPrefix = aTFTPPrefix;
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -490,10 +403,10 @@ HRESULT NATEngine::getTFTPPrefix(com::Utf8Str &aTFTPPrefix)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (!mData->m->mTFTPPrefix.isEmpty())
+    if (!mData->m->strTFTPPrefix.isEmpty())
     {
-        aTFTPPrefix = mData->m->mTFTPPrefix;
-        Log(("Getter (this:%p) TFTPPrefix: %s\n", this, mData->m->mTFTPPrefix.c_str()));
+        aTFTPPrefix = mData->m->strTFTPPrefix;
+        Log(("Getter (this:%p) TFTPPrefix: %s\n", this, mData->m->strTFTPPrefix.c_str()));
     }
     return S_OK;
 }
@@ -501,10 +414,10 @@ HRESULT NATEngine::getTFTPPrefix(com::Utf8Str &aTFTPPrefix)
 HRESULT NATEngine::setTFTPBootFile(const com::Utf8Str &aTFTPBootFile)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (Bstr(mData->m->mTFTPBootFile) != aTFTPBootFile)
+    if (mData->m->strTFTPBootFile != aTFTPBootFile)
     {
         mData->m.backup();
-        mData->m->mTFTPBootFile = aTFTPBootFile;
+        mData->m->strTFTPBootFile = aTFTPBootFile;
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -514,10 +427,10 @@ HRESULT NATEngine::setTFTPBootFile(const com::Utf8Str &aTFTPBootFile)
 HRESULT NATEngine::getTFTPBootFile(com::Utf8Str &aTFTPBootFile)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (!mData->m->mTFTPBootFile.isEmpty())
+    if (!mData->m->strTFTPBootFile.isEmpty())
     {
-        aTFTPBootFile = mData->m->mTFTPBootFile;
-        Log(("Getter (this:%p) BootFile: %s\n", this, mData->m->mTFTPBootFile.c_str()));
+        aTFTPBootFile = mData->m->strTFTPBootFile;
+        Log(("Getter (this:%p) BootFile: %s\n", this, mData->m->strTFTPBootFile.c_str()));
     }
     return S_OK;
 }
@@ -526,10 +439,10 @@ HRESULT NATEngine::getTFTPBootFile(com::Utf8Str &aTFTPBootFile)
 HRESULT NATEngine::setTFTPNextServer(const com::Utf8Str &aTFTPNextServer)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (Bstr(mData->m->mTFTPNextServer) != aTFTPNextServer)
+    if (mData->m->strTFTPNextServer != aTFTPNextServer)
     {
         mData->m.backup();
-        mData->m->mTFTPNextServer = aTFTPNextServer;
+        mData->m->strTFTPNextServer = aTFTPNextServer;
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -538,10 +451,10 @@ HRESULT NATEngine::setTFTPNextServer(const com::Utf8Str &aTFTPNextServer)
 HRESULT NATEngine::getTFTPNextServer(com::Utf8Str &aTFTPNextServer)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (!mData->m->mTFTPNextServer.isEmpty())
+    if (!mData->m->strTFTPNextServer.isEmpty())
     {
-        aTFTPNextServer =  mData->m->mTFTPNextServer;
-        Log(("Getter (this:%p) NextServer: %s\n", this, mData->m->mTFTPNextServer.c_str()));
+        aTFTPNextServer =  mData->m->strTFTPNextServer;
+        Log(("Getter (this:%p) NextServer: %s\n", this, mData->m->strTFTPNextServer.c_str()));
     }
     return S_OK;
 }
@@ -551,10 +464,10 @@ HRESULT NATEngine::setDNSPassDomain(BOOL aDNSPassDomain)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->m->mDNSPassDomain != aDNSPassDomain)
+    if (mData->m->fDNSPassDomain != RT_BOOL(aDNSPassDomain))
     {
         mData->m.backup();
-        mData->m->mDNSPassDomain = aDNSPassDomain;
+        mData->m->fDNSPassDomain = RT_BOOL(aDNSPassDomain);
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -563,7 +476,7 @@ HRESULT NATEngine::setDNSPassDomain(BOOL aDNSPassDomain)
 HRESULT NATEngine::getDNSPassDomain(BOOL *aDNSPassDomain)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    *aDNSPassDomain = mData->m->mDNSPassDomain;
+    *aDNSPassDomain = mData->m->fDNSPassDomain;
     return S_OK;
 }
 
@@ -572,10 +485,10 @@ HRESULT NATEngine::setDNSProxy(BOOL aDNSProxy)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->m->mDNSProxy != aDNSProxy)
+    if (mData->m->fDNSProxy != RT_BOOL(aDNSProxy))
     {
         mData->m.backup();
-        mData->m->mDNSProxy = aDNSProxy;
+        mData->m->fDNSProxy = RT_BOOL(aDNSProxy);
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -584,7 +497,7 @@ HRESULT NATEngine::setDNSProxy(BOOL aDNSProxy)
 HRESULT NATEngine::getDNSProxy(BOOL *aDNSProxy)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    *aDNSProxy = mData->m->mDNSProxy;
+    *aDNSProxy = mData->m->fDNSProxy;
     return S_OK;
 }
 
@@ -592,17 +505,17 @@ HRESULT NATEngine::getDNSProxy(BOOL *aDNSProxy)
 HRESULT NATEngine::getDNSUseHostResolver(BOOL *aDNSUseHostResolver)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    *aDNSUseHostResolver = mData->m->mDNSUseHostResolver;
+    *aDNSUseHostResolver = mData->m->fDNSUseHostResolver;
     return S_OK;
 }
 
 
 HRESULT NATEngine::setDNSUseHostResolver(BOOL aDNSUseHostResolver)
 {
-    if (mData->m->mDNSUseHostResolver != aDNSUseHostResolver)
+    if (mData->m->fDNSUseHostResolver != RT_BOOL(aDNSUseHostResolver))
     {
         mData->m.backup();
-        mData->m->mDNSUseHostResolver = aDNSUseHostResolver;
+        mData->m->fDNSUseHostResolver = RT_BOOL(aDNSUseHostResolver);
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -611,11 +524,15 @@ HRESULT NATEngine::setDNSUseHostResolver(BOOL aDNSUseHostResolver)
 HRESULT NATEngine::setAliasMode(ULONG aAliasMode)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (mData->m->mAliasMode != aAliasMode)
+    ULONG uAliasMode = (mData->m->fAliasUseSamePorts ? NATAliasMode_AliasUseSamePorts : 0);
+    uAliasMode |= (mData->m->fAliasLog ? NATAliasMode_AliasLog : 0);
+    uAliasMode |= (mData->m->fAliasProxyOnly ? NATAliasMode_AliasProxyOnly : 0);
+    if (uAliasMode != aAliasMode)
     {
         mData->m.backup();
-        mData->m->mAliasMode = aAliasMode;
+        mData->m->fAliasUseSamePorts = RT_BOOL(aAliasMode & NATAliasMode_AliasUseSamePorts);
+        mData->m->fAliasLog = RT_BOOL(aAliasMode & NATAliasMode_AliasLog);
+        mData->m->fAliasProxyOnly = RT_BOOL(aAliasMode & NATAliasMode_AliasProxyOnly);
         mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     }
     return S_OK;
@@ -624,7 +541,10 @@ HRESULT NATEngine::setAliasMode(ULONG aAliasMode)
 HRESULT NATEngine::getAliasMode(ULONG *aAliasMode)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    *aAliasMode = mData->m->mAliasMode;
+    ULONG uAliasMode = (mData->m->fAliasUseSamePorts ? NATAliasMode_AliasUseSamePorts : 0);
+    uAliasMode |= (mData->m->fAliasLog ? NATAliasMode_AliasLog : 0);
+    uAliasMode |= (mData->m->fAliasProxyOnly ? NATAliasMode_AliasProxyOnly : 0);
+    *aAliasMode = uAliasMode;
     return S_OK;
 }
 

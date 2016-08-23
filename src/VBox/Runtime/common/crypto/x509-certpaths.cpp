@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP RTLOGGROUP_CRYPTO
 #include "internal/iprt.h"
 #include <iprt/crypto/x509.h>
 
@@ -37,6 +38,7 @@
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/list.h>
+#include <iprt/log.h>
 #include <iprt/time.h>
 #include <iprt/crypto/pkcs7.h> /* PCRTCRPKCS7SETOFCERTS */
 #include <iprt/crypto/store.h>
@@ -461,7 +463,8 @@ RTDECL(int) RTCrX509CertPathsSetValidTime(RTCRX509CERTPATHS hCertPaths, PCRTTIME
     PRTCRX509CERTPATHSINT pThis = hCertPaths;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTCRX509CERTPATHSINT_MAGIC, VERR_INVALID_HANDLE);
-    AssertReturn(pThis->pRoot == NULL, VERR_WRONG_ORDER);
+
+    /* Allow this after building paths, as it's only used during verification. */
 
     if (pTime)
     {
@@ -480,7 +483,8 @@ RTDECL(int) RTCrX509CertPathsSetValidTimeSpec(RTCRX509CERTPATHS hCertPaths, PCRT
     PRTCRX509CERTPATHSINT pThis = hCertPaths;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTCRX509CERTPATHSINT_MAGIC, VERR_INVALID_HANDLE);
-    AssertReturn(pThis->pRoot == NULL, VERR_WRONG_ORDER);
+
+    /* Allow this after building paths, as it's only used during verification. */
 
     if (pTimeSpec)
     {
@@ -745,6 +749,8 @@ static PRTCRX509CERTPATHNODE rtCrX509CertPathsGetNextRightUp(PRTCRX509CERTPATHSI
         /* Up. */
         pNode = pParent;
     }
+
+    RT_NOREF_PV(pThis);
 }
 
 
@@ -919,6 +925,11 @@ RTDECL(int) RTCrX509CertPathsBuild(RTCRX509CERTPATHS hCertPaths, PRTERRINFO pErr
                 else
                     pCur = rtCrX509CertPathsAddLeaf(pThis, pCur);
             }
+            if (pCur)
+                Log2(("RTCrX509CertPathsBuild: pCur=%p fLeaf=%d pParent=%p pNext=%p pPrev=%p\n",
+                      pCur, pCur->fLeaf, pCur->pParent,
+                      pCur->pParent ? RTListGetNext(&pCur->pParent->ChildListOrLeafEntry, pCur, RTCRX509CERTPATHNODE, SiblingEntry) : NULL,
+                      pCur->pParent ? RTListGetPrev(&pCur->pParent->ChildListOrLeafEntry, pCur, RTCRX509CERTPATHNODE, SiblingEntry) : NULL));
         } while (pCur);
 
         pThis->pErrInfo = NULL;
@@ -1127,6 +1138,7 @@ static const char *rtCrX509CertPathsNodeGetSourceName(PRTCRX509CERTPATHNODE pNod
 static void rtCrX509CertPathsDumpOneWorker(PRTCRX509CERTPATHSINT pThis, uint32_t iPath, PRTCRX509CERTPATHNODE pCurLeaf,
                                            uint32_t uVerbosity, PFNRTDUMPPRINTFV pfnPrintfV, void *pvUser)
 {
+    RT_NOREF_PV(pThis);
     rtDumpPrintf(pfnPrintfV, pvUser, "Path #%u: %s, %u deep, rcVerify=%Rrc\n",
                  iPath, RTCRX509CERTPATHNODE_SRC_IS_TRUSTED(pCurLeaf->uSrc) ? "trusted" : "untrusted", pCurLeaf->uDepth,
                  pCurLeaf->rcVerify);
@@ -1998,7 +2010,8 @@ static bool rtCrX509CpvCheckBasicCertInfo(PRTCRX509CERTPATHSINT pThis, PRTCRX509
      * 6.1.3.a.2 - Verify that the certificate is valid at the specified time.
      */
     AssertCompile(sizeof(pThis->szTmp) >= 36 * 3);
-    if (!RTCrX509Validity_IsValidAtTimeSpec(&pNode->pCert->TbsCertificate.Validity, &pThis->ValidTime))
+    if (   (pThis->fFlags & RTCRX509CERTPATHSINT_F_VALID_TIME)
+        && !RTCrX509Validity_IsValidAtTimeSpec(&pNode->pCert->TbsCertificate.Validity, &pThis->ValidTime))
         return rtCrX509CpvFailed(pThis, VERR_CR_X509_CPV_NOT_VALID_AT_TIME,
                                  "Certificate is not valid (ValidTime=%s Validity=[%s...%s])",
                                  RTTimeSpecToString(&pThis->ValidTime, &pThis->szTmp[0], 36),
@@ -2642,7 +2655,6 @@ RTDECL(int) RTCrX509CertPathsValidateAll(RTCRX509CERTPATHS hCertPaths, uint32_t 
 
     int      rcLastFailure = VINF_SUCCESS;
     uint32_t cValidPaths   = 0;
-    uint32_t iPath         = 0;
     PRTCRX509CERTPATHNODE pCurLeaf;
     RTListForEach(&pThis->LeafList, pCurLeaf, RTCRX509CERTPATHNODE, ChildListOrLeafEntry)
     {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define RTMEM_NO_WRAP_TO_EF_APIS /* circular dependency otherwise. */
 #include "the-darwin-kernel.h"
 #include "internal/iprt.h"
 #include <iprt/memobj.h>
@@ -209,6 +210,7 @@ static vm_map_offset_t rtR0MemObjDarwinGetMapMin(vm_map_t pMap)
 #endif /* unused */
 
 #ifdef RT_STRICT
+# if 0 /* unused */
 
 /**
  * Read from a physical page.
@@ -349,6 +351,7 @@ static uint64_t rtR0MemObjDarwinGetPTE(void *pvPage)
     return 0;
 }
 
+# endif /* unused */
 #endif /* RT_STRICT */
 
 DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
@@ -563,10 +566,10 @@ static int rtR0MemObjNativeAllocWorker(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
                         rc = rtR0MemObjNativeProtect(&pMemDarwin->Core, 0, cb, RTMEM_PROT_READ | RTMEM_PROT_WRITE | RTMEM_PROT_EXEC);
 # ifdef RT_STRICT
                         /* check that the memory is actually mapped. */
-                        RTTHREADPREEMPTSTATE State = RTTHREADPREEMPTSTATE_INITIALIZER;
-                        RTThreadPreemptDisable(&State);
+                        RTTHREADPREEMPTSTATE State2 = RTTHREADPREEMPTSTATE_INITIALIZER;
+                        RTThreadPreemptDisable(&State2);
                         rtR0MemObjDarwinTouchPages(pv, cb);
-                        RTThreadPreemptRestore(&State);
+                        RTThreadPreemptRestore(&State2);
 # endif
 
                         /* Bug 6226: Ignore KERN_PROTECTION_FAILURE on Leopard and older. */
@@ -707,6 +710,7 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t c
      * object which we populate with pages but without mapping it into any address space.
      * Estimate is 2-3 days.
      */
+    RT_NOREF(ppMem, cb, PhysHighest);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -865,12 +869,14 @@ DECLHIDDEN(int) rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv,
 
 DECLHIDDEN(int) rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment)
 {
+    RT_NOREF(ppMem, pvFixed, cb, uAlignment);
     return VERR_NOT_SUPPORTED;
 }
 
 
 DECLHIDDEN(int) rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment, RTR0PROCESS R0Process)
 {
+    RT_NOREF(ppMem, R3PtrFixed, cb, uAlignment, R0Process);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -878,6 +884,7 @@ DECLHIDDEN(int) rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR 
 DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, void *pvFixed, size_t uAlignment,
                                           unsigned fProt, size_t offSub, size_t cbSub)
 {
+    RT_NOREF(fProt);
     AssertReturn(pvFixed == (void *)-1, VERR_NOT_SUPPORTED);
 
     /*
@@ -986,8 +993,11 @@ DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process)
+DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment,
+                                        unsigned fProt, RTR0PROCESS R0Process)
 {
+    RT_NOREF(fProt);
+
     /*
      * Check for unsupported things.
      */

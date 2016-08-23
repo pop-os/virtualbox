@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 static CPUMCPUIDLEAF const g_aCpuIdLeaves_Intel_Pentium_M_processor_2_00GHz[] =
 {
     { 0x00000000, 0x00000000, 0x00000000, 0x00000002, 0x756e6547, 0x6c65746e, 0x49656e69, 0 },
-    { 0x00000001, 0x00000000, 0x00000000, 0x000006d6, 0x00000816, 0x00000180, 0xafe9f9bf, 0 | CPUMCPUIDLEAF_F_CONTAINS_APIC_ID },
+    { 0x00000001, 0x00000000, 0x00000000, 0x000006d6, 0x00000816, 0x00000180, 0xafe9f9bf, 0 | CPUMCPUIDLEAF_F_CONTAINS_APIC_ID | CPUMCPUIDLEAF_F_CONTAINS_APIC },
     { 0x00000002, 0x00000000, 0x00000000, 0x02b3b001, 0x000000f0, 0x00000000, 0x2c04307d, 0 },
     { 0x80000000, 0x00000000, 0x00000000, 0x80000004, 0x00000000, 0x00000000, 0x00000000, 0 },
     { 0x80000001, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0 },

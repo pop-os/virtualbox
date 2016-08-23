@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,11 +20,12 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
+#include <VBox/vmm/gim.h>
 #include "GIMInternal.h"
 #include "GIMHvInternal.h"
+#include <VBox/vmm/vm.h>
 
 #include <VBox/err.h>
-#include <VBox/vmm/vm.h>
 
 
 /**
