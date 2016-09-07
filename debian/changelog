@@ -1,10 +1,6 @@
-virtualbox (5.1.4-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (5.1.4-dfsg-2) unstable; urgency=medium
 
-  * New upstream release, patch refresh (Closes: #835968)
   * Switch to Python3 (LP: #1528016, Closes: #830878)
-
-  [ Gianfranco Costamagna, Peter Meiser ]
-  * Major rewrite of the guest-additions GL library handling
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 26 Aug 2016 09:51:07 +0200
 
