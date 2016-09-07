@@ -1,4 +1,4 @@
-virtualbox (5.1.4-dfsg-2) unstable; urgency=medium
+virtualbox (5.1.4-dfsg-2) unstable; urgency=low
 
   * Switch to Python3 (LP: #1528016, Closes: #830878)
 
