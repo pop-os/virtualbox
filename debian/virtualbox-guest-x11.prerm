@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+ARCH=`dpkg --print-architecture`
+
+case "$1" in
+	remove)
+            update-alternatives --remove x86_64-linux-gnu_gl_conf /usr/lib/virtualbox/additions/00vboxvideo.conf
+            update-alternatives --remove x86_64-linux-gnu_egl_conf /usr/lib/virtualbox/additions/00vboxvideo.conf
+            update-alternatives --remove i386-linux-gnu_gl_conf /usr/lib/virtualbox/additions/00vboxvideo.conf
+            update-alternatives --remove i386-linux-gnu_egl_conf /usr/lib/virtualbox/additions/00vboxvideo.conf
+	    ldconfig
+	;;
+
+esac
+##DEBHELPER##

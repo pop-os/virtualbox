@@ -1,0 +1,4 @@
+/usr/lib/VBoxOGL.so /usr/lib/virtualbox/additions/libGL.so.1
+/usr/lib/VBoxOGL.so /usr/lib/virtualbox/additions/libGL.so
+/usr/lib/VBoxEGL.so /usr/lib/virtualbox/additions/libEGL.so.1
+/usr/lib/VBoxEGL.so /usr/lib/virtualbox/additions/libEGL.so
