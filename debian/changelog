@@ -1,3 +1,12 @@
+virtualbox (5.1.4-dfsg-4) UNRELEASED; urgency=medium
+
+  * New upstream release, patch refresh (Closes: #835968)
+
+  [ Gianfranco Costamagna, Peter Meiser ]
+  * Major rewrite of the guest-additions GL library handling
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 08 Sep 2016 11:45:12 +0200
+
 virtualbox (5.1.4-dfsg-3) unstable; urgency=low
 
   * Revert to Python2, building with Python3 seems still not supported
