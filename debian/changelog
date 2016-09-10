@@ -1,3 +1,10 @@
+virtualbox (5.1.4-dfsg-4) unstable; urgency=low
+
+  * Try to add VBox missing binaries (LP: #1621890).
+  * Merge the VBox.sh with the upstream one
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 09 Sep 2016 16:38:26 +0200
+
 virtualbox (5.1.4-dfsg-3) unstable; urgency=low
 
   * Revert to Python2, building with Python3 seems still not supported
