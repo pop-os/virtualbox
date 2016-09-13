@@ -2900,8 +2900,6 @@ static int e1kRegReadICR(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint3
     rc = e1kRegReadDefault(pThis, offset, index, &value);
     if (RT_SUCCESS(rc))
     {
-        /* Do not return masked bits. */
-        value &= IMS;
         if (value)
         {
             /*
@@ -6086,7 +6084,7 @@ static void e1kDumpState(PE1KSTATE pThis)
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int) e1kMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) e1kMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
     RT_NOREF(iRegion);
     PE1KSTATE pThis = PDMINS_2_DATA(pPciDev->pDevIns, E1KSTATE*);

@@ -243,6 +243,7 @@ soread(PNATState pData, struct socket *so)
     u_int len = sb->sb_datalen - sb->sb_cc;
     struct iovec iov[2];
     int mss = so->so_tcpcb->t_maxseg;
+    int sockerr;
 
     STAM_PROFILE_START(&pData->StatIOread, a);
     STAM_COUNTER_RESET(&pData->StatIORead_in_1);
@@ -320,30 +321,39 @@ soread(PNATState pData, struct socket *so)
 #else
     nn = recv(so->s, iov[0].iov_base, iov[0].iov_len, (so->so_tcpcb->t_force? MSG_OOB:0));
 #endif
+    if (nn < 0)
+        sockerr = errno; /* save it, as it may be clobbered by logging */
+    else
+        sockerr = 0;
+
     Log2(("%s: read(1) nn = %d bytes\n", RT_GCC_EXTENSION __PRETTY_FUNCTION__, nn));
     Log2(("%s: so = %R[natsock] so->so_snd = %R[sbuf]\n", RT_GCC_EXTENSION __PRETTY_FUNCTION__, so, sb));
     if (nn <= 0)
     {
-        /*
-         * Special case for WSAEnumNetworkEvents: If we receive 0 bytes that
-         * _could_ mean that the connection is closed. But we will receive an
-         * FD_CLOSE event later if the connection was _really_ closed. With
-         * www.youtube.com I see this very often. Closing the socket too early
-         * would be dangerous.
-         */
-        int status;
-        unsigned long pending = 0;
-        status = ioctlsocket(so->s, FIONREAD, &pending);
-        if (status < 0)
-            Log(("NAT:%s: error in WSAIoctl: %d\n", RT_GCC_EXTENSION __PRETTY_FUNCTION__, errno));
-        if (nn == 0 && (pending != 0))
+        if (nn == 0) /* XXX: should this be inside #if defined(RT_OS_WINDOWS)? */
         {
-            SOCKET_UNLOCK(so);
-            STAM_PROFILE_STOP(&pData->StatIOread, a);
-            return 0;
+            /*
+             * Special case for WSAEnumNetworkEvents: If we receive 0 bytes that
+             * _could_ mean that the connection is closed. But we will receive an
+             * FD_CLOSE event later if the connection was _really_ closed. With
+             * www.youtube.com I see this very often. Closing the socket too early
+             * would be dangerous.
+             */
+            int status;
+            unsigned long pending = 0;
+            status = ioctlsocket(so->s, FIONREAD, &pending);
+            if (status < 0)
+                Log(("NAT:%s: error in WSAIoctl: %d\n", RT_GCC_EXTENSION __PRETTY_FUNCTION__, errno));
+            if (pending != 0)
+            {
+                SOCKET_UNLOCK(so);
+                STAM_PROFILE_STOP(&pData->StatIOread, a);
+                return 0;
+            }
         }
+
         if (   nn < 0
-            && soIgnorableErrorCode(errno))
+            && soIgnorableErrorCode(sockerr))
         {
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
@@ -351,18 +361,18 @@ soread(PNATState pData, struct socket *so)
         }
         else
         {
-            int fUninitiolizedTemplate = 0;
-            fUninitiolizedTemplate = RT_BOOL((   sototcpcb(so)
+            int fUninitializedTemplate = 0;
+            fUninitializedTemplate = RT_BOOL((   sototcpcb(so)
                                               && (  sototcpcb(so)->t_template.ti_src.s_addr == INADDR_ANY
                                                  || sototcpcb(so)->t_template.ti_dst.s_addr == INADDR_ANY)));
             /* nn == 0 means peer has performed an orderly shutdown */
             Log2(("%s: disconnected, nn = %d, errno = %d (%s)\n",
-                  RT_GCC_EXTENSION __PRETTY_FUNCTION__, nn, errno, strerror(errno)));
+                  RT_GCC_EXTENSION __PRETTY_FUNCTION__, nn, sockerr, strerror(sockerr)));
             sofcantrcvmore(so);
-            if (!fUninitiolizedTemplate)
+            if (!fUninitializedTemplate)
                 tcp_sockclosed(pData, sototcpcb(so));
             else
-                tcp_drop(pData, sototcpcb(so), errno);
+                tcp_drop(pData, sototcpcb(so), sockerr);
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
             return -1;

@@ -1,4 +1,4 @@
-/* $Id: kLdrDyldMod.c 33 2009-07-01 21:22:37Z bird $ */
+/* $Id: kLdrDyldMod.c 81 2016-08-18 22:10:38Z bird $ */
 /** @file
  * kLdr - The Dynamic Loader, Dyld module methods.
  */
@@ -255,7 +255,7 @@ void kldrDyldModDestroy(PKLDRDYLDMOD pMod)
      */
     if (pMod->fAllocatedTLS)
     {
-        kLdrModFreeTLS(pMod->pMod);
+        kLdrModFreeTLS(pMod->pMod, KLDRMOD_INT_MAP);
         pMod->fAllocatedTLS = 0;
     }
     if (pMod->fMapped)
@@ -819,7 +819,7 @@ int kldrDyldModMap(PKLDRDYLDMOD pMod)
     rc = kLdrModMap(pMod->pMod);
     if (!rc)
     {
-        rc = kLdrModAllocTLS(pMod->pMod);
+        rc = kLdrModAllocTLS(pMod->pMod, KLDRMOD_INT_MAP);
         if (!rc)
         {
             /** @todo TLS */
@@ -860,7 +860,7 @@ int kldrDyldModUnmap(PKLDRDYLDMOD pMod)
     /* do the job. */
     if (pMod->fAllocatedTLS)
     {
-        kLdrModFreeTLS(pMod->pMod);
+        kLdrModFreeTLS(pMod->pMod, KLDRMOD_INT_MAP);
         pMod->fAllocatedTLS = 0;
     }
     rc = kLdrModUnmap(pMod->pMod);
@@ -910,7 +910,7 @@ int kldrDyldModReload(PKLDRDYLDMOD pMod)
     /* Free TLS before reloading. */
     if (pMod->fAllocatedTLS)
     {
-        kLdrModFreeTLS(pMod->pMod);
+        kLdrModFreeTLS(pMod->pMod, KLDRMOD_INT_MAP);
         pMod->fAllocatedTLS = 0;
     }
 
@@ -918,7 +918,7 @@ int kldrDyldModReload(PKLDRDYLDMOD pMod)
     rc = kLdrModReload(pMod->pMod);
     if (!rc)
     {
-        rc = kLdrModAllocTLS(pMod->pMod);
+        rc = kLdrModAllocTLS(pMod->pMod, KLDRMOD_INT_MAP);
         if (!rc)
         {
             pMod->fAllocatedTLS = 1;
@@ -1059,7 +1059,7 @@ int kldrDyldModCallInit(PKLDRDYLDMOD pMod)
     KLDRDYLDMOD_ASSERT(!pMod->fInitList);
 
     pMod->enmState = KLDRSTATE_INITIALIZING;
-    rc = kLdrModCallInit(pMod->pMod, (KUPTR)pMod->hMod);
+    rc = kLdrModCallInit(pMod->pMod, KLDRMOD_INT_MAP, (KUPTR)pMod->hMod);
     if (!rc)
     {
         pMod->enmState = KLDRSTATE_GOOD;
@@ -1091,7 +1091,7 @@ void kldrDyldModCallTerm(PKLDRDYLDMOD pMod)
     KLDRDYLDMOD_ASSERT(pMod->enmState == KLDRSTATE_PENDING_TERMINATION);
 
     pMod->enmState = KLDRSTATE_TERMINATING;
-    kLdrModCallTerm(pMod->pMod, (KUPTR)pMod->hMod);
+    kLdrModCallTerm(pMod->pMod, KLDRMOD_INT_MAP, (KUPTR)pMod->hMod);
     pMod->enmState = KLDRSTATE_PENDING_GC;
     /* unlinking on destruction. */
 }
@@ -1107,7 +1107,7 @@ int kldrDyldModAttachThread(PKLDRDYLDMOD pMod)
 {
     KLDRDYLDMOD_ASSERT(pMod->enmState == KLDRSTATE_GOOD);
 
-    return kLdrModCallThread(pMod->pMod, (KUPTR)pMod->hMod, 1 /* attach */);
+    return kLdrModCallThread(pMod->pMod, KLDRMOD_INT_MAP, (KUPTR)pMod->hMod, 1 /* attach */);
 }
 
 
@@ -1121,7 +1121,7 @@ void kldrDyldModDetachThread(PKLDRDYLDMOD pMod)
 {
     KLDRDYLDMOD_ASSERT(pMod->enmState == KLDRSTATE_GOOD);
 
-    kLdrModCallThread(pMod->pMod, (KUPTR)pMod->hMod, 0 /* detach */);
+    kLdrModCallThread(pMod->pMod, KLDRMOD_INT_MAP, (KUPTR)pMod->hMod, 0 /* detach */);
 }
 
 

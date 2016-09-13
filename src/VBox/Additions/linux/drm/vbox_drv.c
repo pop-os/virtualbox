@@ -65,7 +65,7 @@ module_param_named(modeset, vbox_modeset, int, 0400);
 
 static struct drm_driver driver;
 
-static DEFINE_PCI_DEVICE_TABLE(pciidlist) =
+static const struct pci_device_id pciidlist[] =
 {
     {0x80ee, 0xbeef, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0},
     {0, 0, 0},
@@ -244,9 +244,14 @@ static int vbox_master_set(struct drm_device *dev,
     return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 static void vbox_master_drop(struct drm_device *dev,
                              struct drm_file *file_priv,
                              bool from_release)
+#else
+static void vbox_master_drop(struct drm_device *dev,
+                             struct drm_file *file_priv)
+#endif
 {
     struct vbox_private *vbox = dev->dev_private;
     vbox->initial_mode_queried = false;
@@ -254,6 +259,10 @@ static void vbox_master_drop(struct drm_device *dev,
     /* Disable VBVA when someone releases master in case the next person tries
      * to do VESA. */
     /** @todo work out if anyone is likely to and whether it will even work. */
+    /* Update: we also disable it because if the new master does not do dirty
+     * rectangle reporting (e.g. old versions of Plymouth) then at least the
+     * first screen will still be updated.  We enable it as soon as we
+     * receive a dirty rectangle report. */
     vbox_disable_accel(vbox);
     mutex_unlock(&vbox->hw_mutex);
 }

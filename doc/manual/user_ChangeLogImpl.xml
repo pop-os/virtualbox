@@ -3,6 +3,152 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.6 (2016-09-12)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: fixed issue with opening '.vbox' files and it's aliases</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: keyboard grabbing fixes (bugs #15771 and #15745)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fix for passing through Ctrl + mouse-click (Mac OS X hosts only;
+          bug #15714)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed automatic deletion of extension pack files (bugs #11352
+          and #14742)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed showing unknown device instead of the manufacturer or
+          product description under certain circumstances (5.1.0 regression;
+          bug #15764)</para>
+      </listitem>
+
+      <listitem>
+        <para>XHCI: another fix for a hanging guest under certain conditions
+          as result of the fix for bug #15747, this time for Windows 7 guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: fixed high CPU usage with certain USB to serial converters
+          on Linux hosts (bug #7796)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed attaching stream optimized VMDK images (bug #14764)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: reject image variants which are unsupported by the
+          backend (bug #7227)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed loading saved states created with VirtualBox 5.0.10
+          and older when using a SCSI controller (bug #15865)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed broken NVMe emulation if the host I/O cache setting
+          is enabled</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed using multiple NVMe controllers if ICH9 is used</para>
+      </listitem>
+
+      <listitem>
+        <para>NVMe: fixed a crash during reset which could happen under certain
+          circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed microphone input (5.1.2 regression; bugs #14386 and
+          #15802)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed crashes under certain conditions (5.1.0
+          regression; bug #15887 and others)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed recording with the ALSA backend (5.1 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed stream access mode with OSS backend (5.1 regression, 
+          thanks to Jung-uk Kim)</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: do also return masked bits when reading the ICR register,
+          this fixes booting from iPXE (5.1.2 regression; bug #15846)</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: fixed 4bpp scanline calculation (bug #15787)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: relax the check for the version attribute in OVF/OVA
+          appliances (bug #15856)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed crashes when terminating the VM selector
+          or other VBox COM clients (bug #15726 and others)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Installer: fixed path to the documentation in .rpm
+          packages (5.1.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Installer: fixed the vboxdrv.sh script to prevent an
+          SELinux complaint (bug #15816)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: don't use 32-bit legacy capabilities</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 4.8 fix for the kernel display driver
+          (bugs #15890 and #15896)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: don't load the kernel modules provided by the
+          Linux distribution but load the kernel modules from the official Guest
+          Additions package instead (bug #15324)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix dynamic resizing problems in recent
+           Linux guests (bug #15875)</para>
+      </listitem>
+
+      <listitem>
+        <para>User Manual: fixed error in the VBoxManage chapter for the
+          <emphasis>getextradata enumerate</emphasis> example (bug #15862)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.4 (2016-08-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

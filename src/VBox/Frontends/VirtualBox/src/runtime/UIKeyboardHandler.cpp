@@ -15,6 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/*
+ * Things worth testing when changing this code:
+ * - That automatic keyboard capture works.
+ * - That the keyboard is captured when the mouse is.
+ * - That the host key releases the keyboard when
+ *   the keyboard is captured but the mouse not, and both when both are.
+ * - That the host key captures both keyboard and mouse.
+ * - That the keyboard is captured when the mouse capture notification is
+ *   displayed.
+ * - That keyboard capture works on X11 hosts when windows are dragged with
+ *   various window managers.
+ * - That multiple machine windows do not fight for the focus on X11 hosts
+ *   (noticeable through strange modifier key and capitals behaviour).
+ */
+
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -23,7 +38,10 @@
 # include <QKeyEvent>
 # ifdef VBOX_WS_X11
 #  include <QX11Info>
-# endif /* VBOX_WS_X11 */
+# endif
+# if QT_VERSION >= 0x050000
+#   include <QTimer>
+# endif
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -57,11 +75,6 @@
 # endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Qt includes: */
-#if QT_VERSION >= 0x050000
-# include <QAbstractNativeEventFilter>
-#endif /* QT_VERSION >= 0x050000 */
 
 /* GUI includes: */
 #ifdef VBOX_WS_MAC
@@ -99,34 +112,6 @@ const int XKeyRelease = KeyRelease;
 /* Enums representing different keyboard-states: */
 enum { KeyExtended = 0x01, KeyPressed = 0x02, KeyPause = 0x04, KeyPrint = 0x08 };
 enum { IsKeyPressed = 0x01, IsExtKeyPressed = 0x02, IsKbdCaptured = 0x80 };
-
-
-#if QT_VERSION >= 0x050000
-/** QAbstractNativeEventFilter extension
-  * allowing to pre-process native platform events. */
-class KeyboardHandlerEventFilter : public QAbstractNativeEventFilter
-{
-public:
-
-    /** Constructor which takes the passed @a pParent to redirect events to. */
-    KeyboardHandlerEventFilter(UIKeyboardHandler *pParent)
-        : m_pParent(pParent)
-    {}
-
-    /** Handles all native events. */
-    bool nativeEventFilter(const QByteArray &eventType, void *pMessage, long *pResult)
-    {
-        /* Redirect event to parent: */
-        Q_UNUSED(pResult);
-        return m_pParent->nativeEventPreprocessor(eventType, pMessage);
-    }
-
-private:
-
-    /** Holds the passed parent reference. */
-    UIKeyboardHandler *m_pParent;
-};
-#endif /* QT_VERSION >= 0x050000 */
 
 
 #ifdef VBOX_WS_WIN
@@ -266,62 +251,68 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
 {
     /* Do NOT capture the keyboard if it is already captured: */
     if (m_fIsKeyboardCaptured)
-        return;
-
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
-    /* Due to X11 async nature we may have lost the focus already by the time we get the focus
-     * notification, so we do a sanity check that we still have it. If we don't have the focus
-     * and grab the keyboard now that will cause focus change which we want to avoid. This change
-     * potentially leads to a loop where two windows are continually responding to outdated focus events. */
-    const xcb_get_input_focus_cookie_t xcbFocusCookie = xcb_get_input_focus(QX11Info::connection());
-    xcb_get_input_focus_reply_t *pFocusReply = xcb_get_input_focus_reply(QX11Info::connection(), xcbFocusCookie, NULL);
-    WId actualWinId = 0;
-    if (pFocusReply)
     {
-        actualWinId = pFocusReply->focus;
-        free(pFocusReply);
-    }
-    else
-        LogRel(("GUI: UIKeyboardHandler::captureKeyboard: XCB error on acquiring focus information detected!\n"));
-    if (m_windows.value(uScreenId)->winId() != actualWinId)
-        return;
-
-    /* Delay capturing the keyboard if the mouse button is held down and the mouse is not
-     * captured to work around window managers which transfer the focus when the user
-     * clicks in the title bar and then try to grab the keyboard and sulk if they fail.
-     * If the click is inside of our views we will do the capture when it is released. */
-    const xcb_query_pointer_cookie_t xcbPointerCookie = xcb_query_pointer(QX11Info::connection(), QX11Info::appRootWindow());
-    xcb_query_pointer_reply_t *pPointerReply = xcb_query_pointer_reply(QX11Info::connection(), xcbPointerCookie, NULL);
-    if (!uisession()->isMouseCaptured() && pPointerReply && (pPointerReply->mask & XCB_KEY_BUT_MASK_BUTTON_1))
-    {
-        free(pPointerReply);
+        /* Make sure the right screen had captured the keyboard: */
+        Assert((int)uScreenId == m_iKeyboardCaptureViewIndex);
         return;
     }
-    free(pPointerReply);
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
-    /* If such view exists: */
+    /* If the view exists: */
     if (m_views.contains(uScreenId))
+    {
+        /* Remember which screen wishes to capture the keyboard: */
+        m_iKeyboardCaptureViewIndex = uScreenId;
+
+#if QT_VERSION < 0x050000
+        /* Finalise keyboard capture: */
+        finaliseCaptureKeyboard();
+#else
+        /* On X11, we do not grab the keyboard as soon as it is captured, but delay it
+         * for 300 milliseconds after the formal capture. We do this for several reasons:
+         * - First, when several windows are created they all try to capture the keyboard when
+         *   they get the focus. Due to the asynchronous nature of X11 the first window may only
+         *   gets notified after the last is created, and there is a dance if they respond to
+         *   the notifications by grabbing the keyboard and trigger new focus changes in the process.
+         * - Second, grabbing the keyboard immediately on focus change upsets some window managers,
+         *   they give us the focus then try to grab the keyboard themselves, and sulk if they fail
+         *   by refusing to e.g. drag a window using its title bar.
+         *
+         * IMPORTANT! We do the same under all other hosts as well mainly to have the
+         *            common behavior everywhere while X11 is forced to behave that way. */
+        QTimer::singleShot(300, this, SLOT(sltFinaliseCaptureKeyboard()));
+#endif
+    }
+}
+
+bool UIKeyboardHandler::finaliseCaptureKeyboard()
+{
+    /* Do NOT capture the keyboard if it is already captured: */
+    if (m_fIsKeyboardCaptured)
+        return true;
+
+    /* Make sure capture was really requested: */
+    if (m_iKeyboardCaptureViewIndex == -1)
+        return true;
+
+    /* If the view exists: */
+    if (m_views.contains(m_iKeyboardCaptureViewIndex))
     {
 #if defined(VBOX_WS_MAC)
 
-        /* On Mac, keyboard grabbing is ineffective,
-         * a low-level keyboard-hook is used instead.
+        /* On Mac, keyboard grabbing is ineffective, a low-level keyboard-hook is used instead.
          * It is being installed on focus-in event and uninstalled on focus-out.
          * S.a. UIKeyboardHandler::eventFilter for more information. */
 
-        /* On Mac, we also
-         * use the Qt method to grab the keyboard,
-         * disable global hot keys and
-         * enable watching modifiers (for right/left separation). */
+        /* Besides that, we are not just using the Qt stuff to grab the keyboard,
+         * we also disable global hot keys and enable watching
+         * modifiers (for right/left separation). */
         /// @todo Is that really needed?
         ::DarwinDisableGlobalHotKeys(true);
-        m_views[uScreenId]->grabKeyboard();
+        m_views[m_iKeyboardCaptureViewIndex]->grabKeyboard();
 
 #elif defined(VBOX_WS_WIN)
 
-        /* On Win, keyboard grabbing is ineffective,
-         * a low-level keyboard-hook is used instead.
+        /* On Win, keyboard grabbing is ineffective, a low-level keyboard-hook is used instead.
          * It is being installed on focus-in event and uninstalled on focus-out.
          * S.a. UIKeyboardHandler::eventFilter for more information. */
 
@@ -329,17 +320,18 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
 # if QT_VERSION < 0x050000
 
         /* On X11, we are using passive XGrabKey for normal (windowed) mode
-         * instead of XGrabKeyboard (called by QWidget::grabKeyboard())
-         * because XGrabKeyboard causes a problem under metacity - a window cannot be moved
+         * instead of XGrabKeyboard (called by QWidget::grabKeyboard()) because
+         * XGrabKeyboard causes a problem under metacity - a window cannot be moved
          * using the mouse if it is currently actively grabbing the keyboard;
          * For static modes we are using usual (active) keyboard grabbing. */
+
         switch (machineLogic()->visualStateType())
         {
             /* If window is moveable we are making passive keyboard grab: */
             case UIVisualStateType_Normal:
             case UIVisualStateType_Scale:
             {
-                XGrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[uScreenId]->winId(), False, GrabModeAsync, GrabModeAsync);
+                XGrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->winId(), False, GrabModeAsync, GrabModeAsync);
                 break;
             }
             /* If window is NOT moveable we are making active keyboard grab: */
@@ -355,7 +347,7 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
                 /* Only do our keyboard grab if there are no other focus events
                  * for this window on the queue.  This can prevent problems
                  * including two windows fighting to grab the keyboard. */
-                hWindow = m_windows[uScreenId]->winId();
+                hWindow = m_windows[m_iKeyboardCaptureViewIndex]->winId();
                 if (!checkForX11FocusEvents(hWindow))
                     while (cTriesLeft && XGrabKeyboard(QX11Info::display(),
                            hWindow, False, GrabModeAsync, GrabModeAsync,
@@ -372,84 +364,81 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
 
         /* On X11, we are using XCB stuff to grab the keyboard.
          * This stuff is a part of the active keyboard grabbing functionality.
-         * Active keyboard grabbing causes a problems on certain old window managers - a window cannot
-         * be moved using the mouse. So we additionally grabbing the mouse as well to detect that user
-         * is trying to click outside of internal window geometry. */
+         * Active keyboard grabbing causes a problems on many window managers - a window cannot
+         * be moved using the mouse. So we additionally grabbing the mouse as well to detect that
+         * user is trying to click outside of internal window geometry. */
 
-        /* Grab the mouse button (if mouse is not captured),
-         * We do not check for failure as we do not currently implement a back-up plan. */
-        if (!uisession()->isMouseCaptured())
-            xcb_grab_button_checked(QX11Info::connection(), 0, QX11Info::appRootWindow(),
-                                    XCB_EVENT_MASK_BUTTON_PRESS, XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC,
-                                    XCB_NONE, XCB_NONE, XCB_BUTTON_INDEX_1, XCB_MOD_MASK_ANY);
+         /* Grab the mouse button if the cursor is outside of our views.
+          * We do not check for failure as we do not currently implement a back-up plan. */
+         if (!isItListenedView(QApplication::widgetAt(QCursor::pos())))
+             xcb_grab_button_checked(QX11Info::connection(), 0, QX11Info::appRootWindow(),
+                                     XCB_EVENT_MASK_BUTTON_PRESS, XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC,
+                                     XCB_NONE, XCB_NONE, XCB_BUTTON_INDEX_1, XCB_MOD_MASK_ANY);
         /* And grab the keyboard, using XCB directly, as Qt does not report failure. */
-        xcb_grab_keyboard_cookie_t xcbGrabCookie = xcb_grab_keyboard(QX11Info::connection(), false, m_views[uScreenId]->winId(),
+        xcb_grab_keyboard_cookie_t xcbGrabCookie = xcb_grab_keyboard(QX11Info::connection(), false, m_views[m_iKeyboardCaptureViewIndex]->winId(),
                                                                      XCB_TIME_CURRENT_TIME, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
         xcb_grab_keyboard_reply_t *pGrabReply = xcb_grab_keyboard_reply(QX11Info::connection(), xcbGrabCookie, NULL);
         if (pGrabReply == NULL || pGrabReply->status != XCB_GRAB_STATUS_SUCCESS)
         {
+            /* Release the mouse button grab.
+             * We do not check for failure as we do not currently implement a back-up plan. */
+            xcb_ungrab_button_checked(QX11Info::connection(), XCB_BUTTON_INDEX_1,
+                                      QX11Info::appRootWindow(), XCB_MOD_MASK_ANY);
             /* Try again later: */
-            m_idxDelayedKeyboardCaptureView = uScreenId;
             free(pGrabReply);
-            return;
+            return false;
         }
         free(pGrabReply);
-
-        /* Successfully captured, stop delayed capture attempts: */
-        m_idxDelayedKeyboardCaptureView = -1;
 
 # endif /* QT_VERSION >= 0x050000 */
 #else
 
         /* On other platforms we are just praying Qt method to work: */
-        m_views[uScreenId]->grabKeyboard();
+        m_views[m_iKeyboardCaptureViewIndex]->grabKeyboard();
 
 #endif
-
-        /* Remember which screen had captured keyboard: */
-        m_iKeyboardCaptureViewIndex = uScreenId;
 
         /* Store new keyboard-captured state value: */
         m_fIsKeyboardCaptured = true;
 
         /* Notify all the listeners: */
         emit sigStateChange(state());
+
+        return true;
     }
+
+    return false;
 }
 
 void UIKeyboardHandler::releaseKeyboard()
 {
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
-    /* If we haven't captured the keyboard by now it is too late: */
-    m_idxDelayedKeyboardCaptureView = -1;
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
-
     /* Do NOT release the keyboard if it is already released: */
     if (!m_fIsKeyboardCaptured)
+    {
+        /* If a delayed capture is scheduled then cancel it: */
+        m_iKeyboardCaptureViewIndex = -1;
         return;
+    }
 
-    /* If such view exists: */
+    /* If the view exists: */
     if (m_views.contains(m_iKeyboardCaptureViewIndex))
     {
 #if defined(VBOX_WS_MAC)
 
-        /* On Mac, keyboard grabbing is ineffective,
-         * a low-level keyboard-hook is used instead.
+        /* On Mac, keyboard grabbing is ineffective, a low-level keyboard-hook is used instead.
          * It is being installed on focus-in event and uninstalled on focus-out.
          * S.a. UIKeyboardHandler::eventFilter for more information. */
 
-        /* On Mac, we also
-         * use the Qt method to release the keyboard,
-         * enable global hot keys and
-         * disable watching modifiers (for right/left separation). */
+        /* Besides that, we are not just using the Qt stuff to ungrab the keyboard,
+         * we also enable global hot keys and disable watching
+         * modifiers (for right/left separation). */
         /// @todo Is that really needed?
         ::DarwinDisableGlobalHotKeys(false);
         m_views[m_iKeyboardCaptureViewIndex]->releaseKeyboard();
 
 #elif defined(VBOX_WS_WIN)
 
-        /* On Win, keyboard grabbing is ineffective,
-         * a low-level keyboard-hook is used instead.
+        /* On Win, keyboard grabbing is ineffective, a low-level keyboard-hook is used instead.
          * It is being installed on focus-in event and uninstalled on focus-out.
          * S.a. UIKeyboardHandler::eventFilter for more information. */
 
@@ -457,10 +446,11 @@ void UIKeyboardHandler::releaseKeyboard()
 # if QT_VERSION < 0x050000
 
         /* On X11, we are using passive XGrabKey for normal (windowed) mode
-         * instead of XGrabKeyboard (called by QWidget::grabKeyboard())
-         * because XGrabKeyboard causes a problem under metacity - a window cannot be moved
+         * instead of XGrabKeyboard (called by QWidget::grabKeyboard()) because
+         * XGrabKeyboard causes a problem under metacity - a window cannot be moved
          * using the mouse if it is currently actively grabbing the keyboard;
          * For static modes we are using usual (active) keyboard grabbing. */
+
         switch (machineLogic()->visualStateType())
         {
             /* If window is moveable we are making passive keyboard ungrab: */
@@ -486,15 +476,16 @@ void UIKeyboardHandler::releaseKeyboard()
 
         /* On X11, we are using XCB stuff to grab the keyboard.
          * This stuff is a part of the active keyboard grabbing functionality.
-         * Active keyboard grabbing causes a problems on certain old window managers - a window cannot
-         * be moved using the mouse. So we finally releasing additionally grabbed mouse as well to
-         * allow further user interactions. */
+         * Active keyboard grabbing causes a problems on many window managers - a window cannot
+         * be moved using the mouse. So we finally releasing additionally grabbed mouse as well
+         * to allow further user interactions. */
 
         /* Ungrab using XCB: */
         xcb_ungrab_keyboard(QX11Info::connection(), XCB_TIME_CURRENT_TIME);
-        /* And release the mouse button,
+        /* Release the mouse button grab.
          * We do not check for failure as we do not currently implement a back-up plan. */
-        xcb_ungrab_button_checked(QX11Info::connection(), XCB_BUTTON_INDEX_1, QX11Info::appRootWindow(), XCB_MOD_MASK_ANY);
+        xcb_ungrab_button_checked(QX11Info::connection(), XCB_BUTTON_INDEX_1,
+                                  QX11Info::appRootWindow(), XCB_MOD_MASK_ANY);
 
 # endif /* QT_VERSION >= 0x050000 */
 #else
@@ -504,7 +495,7 @@ void UIKeyboardHandler::releaseKeyboard()
 
 #endif
 
-        /* Forget which screen had captured keyboard: */
+        /* Forget which screen had captured the keyboard: */
         m_iKeyboardCaptureViewIndex = -1;
 
         /* Store new keyboard-captured state value: */
@@ -625,7 +616,7 @@ bool UIKeyboardHandler::macEventFilter(const void *pvCocoaEvent, EventRef event,
 
     /* Depending on event kind: */
     const UInt32 uEventKind = ::GetEventKind(event);
-    switch(uEventKind)
+    switch (uEventKind)
     {
         /* Watch for simple key-events: */
         case kEventRawKeyDown:
@@ -1059,14 +1050,12 @@ bool UIKeyboardHandler::x11EventFilter(XEvent *pEvent, ulong uScreenId)
 # endif /* VBOX_WS_X11 */
 #else /* QT_VERSION >= 0x050000 */
 
-bool UIKeyboardHandler::nativeEventPreprocessor(const QByteArray &eventType, void *pMessage)
+bool UIKeyboardHandler::nativeEventFilter(void *pMessage, ulong uScreenId)
 {
-    /* Redirect event to machine-view: */
-    return m_views.contains(m_iKeyboardHookViewIndex) ? m_views.value(m_iKeyboardHookViewIndex)->nativeEventPreprocessor(eventType, pMessage) : false;
-}
+    /* Make sure view with passed index exists: */
+    if (!m_views.contains(uScreenId))
+        return false;
 
-bool UIKeyboardHandler::nativeEventPostprocessor(void *pMessage, ulong uScreenId)
-{
     /* Check if some system event should be filtered out.
      * Returning @c true means filtering-out,
      * Returning @c false means passing event to Qt. */
@@ -1079,7 +1068,7 @@ bool UIKeyboardHandler::nativeEventPostprocessor(void *pMessage, ulong uScreenId
 
     /* Depending on event kind: */
     const UInt32 uEventKind = ::GetEventKind(event);
-    switch(uEventKind)
+    switch (uEventKind)
     {
         /* Watch for simple key-events: */
         case kEventRawKeyDown:
@@ -1376,11 +1365,6 @@ bool UIKeyboardHandler::nativeEventPostprocessor(void *pMessage, ulong uScreenId
         case XCB_KEY_PRESS:
         case XCB_KEY_RELEASE:
         {
-            /* If we were asked to grab the keyboard previously but had to delay it
-             * then try again on every key press and release event until we manage: */
-            if (m_idxDelayedKeyboardCaptureView != -1)
-                captureKeyboard(m_idxDelayedKeyboardCaptureView);
-
             /* Cast to XCB key-event: */
             xcb_key_press_event_t *pKeyEvent = static_cast<xcb_key_press_event_t*>(pMessage);
 
@@ -1454,43 +1438,6 @@ bool UIKeyboardHandler::nativeEventPostprocessor(void *pMessage, ulong uScreenId
 
             break;
         }
-        /* Watch for mouse-events: */
-        case XCB_BUTTON_PRESS:
-        {
-            /* Do nothing if mouse is actively grabbed: */
-            if (uisession()->isMouseCaptured())
-                break;
-
-            /* If we see a mouse press outside of our views while the mouse is not
-             * captured, release the keyboard before letting the event owner see it.
-             * This is because some owners cannot deal with failures to grab the
-             * keyboard themselves (e.g. window managers dragging windows).
-             * Only works if we have passively grabbed the mouse button. */
-
-            /* Cast to XCB key-event: */
-            xcb_button_press_event_t *pButtonEvent = static_cast<xcb_button_press_event_t*>(pMessage);
-
-            /* Detect the widget which should receive the event actually: */
-            const QWidget *pWidget = qApp->widgetAt(pButtonEvent->root_x, pButtonEvent->root_y);
-            if (pWidget)
-            {
-                /* Redirect the event to corresponding widget: */
-                const QPoint pos = pWidget->mapFromGlobal(QPoint(pButtonEvent->root_x, pButtonEvent->root_y));
-                pButtonEvent->event = pWidget->effectiveWinId();
-                pButtonEvent->event_x = pos.x();
-                pButtonEvent->event_y = pos.y();
-                xcb_ungrab_pointer_checked(QX11Info::connection(), pButtonEvent->time);
-                break;
-            }
-            /* Else if the event happened outside of our view areas then release the keyboard,
-             * but set the delayed capture index so that it will be captured again if we still
-             * have the focus after the event is handled: */
-            releaseKeyboard();
-            m_idxDelayedKeyboardCaptureView = uScreenId;
-            /* And re-send the event so that the window which it was meant for actually gets it: */
-            xcb_allow_events_checked(QX11Info::connection(), XCB_ALLOW_REPLAY_POINTER, pButtonEvent->time);
-            break;
-        }
         default:
             break;
     }
@@ -1561,14 +1508,23 @@ void UIKeyboardHandler::sltMachineStateChanged()
         popupCenter().forgetAboutPausedVMInput(machineLogic()->activeMachineWindow());
 }
 
+#if QT_VERSION >= 0x050000
+void UIKeyboardHandler::sltFinaliseCaptureKeyboard()
+{
+    /* Try to finalise keyboard capture: */
+    if (!finaliseCaptureKeyboard())
+    {
+        /* Try again in another 300 milliseconds in case of failure: */
+        QTimer::singleShot(300, this, SLOT(sltFinaliseCaptureKeyboard()));
+    }
+}
+#endif
+
 /* Keyboard-handler constructor: */
 UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     : QObject(pMachineLogic)
     , m_pMachineLogic(pMachineLogic)
     , m_iKeyboardCaptureViewIndex(-1)
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
-    , m_idxDelayedKeyboardCaptureView(-1)
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
     , m_globalSettings(vboxGlobal().settings())
     , m_fIsKeyboardCaptured(false)
     , m_bIsHostComboPressed(false)
@@ -1585,9 +1541,6 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     , m_keyboardHook(NULL)
     , m_pAltGrMonitor(0)
 #endif /* VBOX_WS_WIN */
-#if QT_VERSION >= 0x050000
-    , m_pPrivateEventFilter(0)
-#endif /* QT_VERSION >= 0x050000 */
     , m_cMonitors(1)
 {
     /* Prepare: */
@@ -1666,17 +1619,6 @@ void UIKeyboardHandler::cleanupCommon()
     }
 
 #endif /* VBOX_WS_WIN */
-
-#if QT_VERSION >= 0x050000
-    /* If private event-filter is installed: */
-    if (m_pPrivateEventFilter)
-    {
-        /* Uninstall existing private event-filter: */
-        qApp->removeNativeEventFilter(m_pPrivateEventFilter);
-        delete m_pPrivateEventFilter;
-        m_pPrivateEventFilter = 0;
-    }
-#endif /* QT_VERSION >= 0x050000 */
 
     /* Update keyboard hook view index: */
     m_iKeyboardHookViewIndex = -1;
@@ -1765,27 +1707,6 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 
 #endif /* VBOX_WS_WIN */
 
-#if QT_VERSION >= 0x050000
-# if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
-                /* If private event-filter is NOT installed;
-                 * Or installed but NOT for that view: */
-                if (!m_pPrivateEventFilter || (int)uScreenId != m_iKeyboardHookViewIndex)
-                {
-                    /* If private event-filter is installed: */
-                    if (m_pPrivateEventFilter)
-                    {
-                        /* Uninstall existing private event-filter: */
-                        qApp->removeNativeEventFilter(m_pPrivateEventFilter);
-                        delete m_pPrivateEventFilter;
-                        m_pPrivateEventFilter = 0;
-                    }
-                    /* Install new private event-filter: */
-                    m_pPrivateEventFilter = new KeyboardHandlerEventFilter(this);
-                    qApp->installNativeEventFilter(m_pPrivateEventFilter);
-                }
-# endif /* VBOX_WS_WIN || VBOX_WS_X11 */
-#endif /* QT_VERSION >= 0x050000 */
-
                 /* Update keyboard hook view index: */
                 m_iKeyboardHookViewIndex = uScreenId;
 
@@ -1798,11 +1719,7 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 #else /* !VBOX_WS_WIN */
                     if (!isAutoCaptureDisabled() && autoCaptureSetGlobally())
 #endif /* !VBOX_WS_WIN */
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
-                        m_idxDelayedKeyboardCaptureView = uScreenId;
-#else /* !VBOX_WS_X11 || QT_VERSION < 0x050000 */
                         captureKeyboard(uScreenId);
-#endif /* !VBOX_WS_X11 || QT_VERSION < 0x050000 */
                     /* Reset the single-time disable capture flag: */
                     if (isAutoCaptureDisabled())
                         setAutoCaptureDisabled(false);
@@ -1835,19 +1752,6 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 
 #endif /* VBOX_WS_WIN */
 
-#if QT_VERSION >= 0x050000
-# if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
-                /* If private event-filter is installed: */
-                if (m_pPrivateEventFilter)
-                {
-                    /* Uninstall existing private event-filter: */
-                    qApp->removeNativeEventFilter(m_pPrivateEventFilter);
-                    delete m_pPrivateEventFilter;
-                    m_pPrivateEventFilter = 0;
-                }
-# endif /* VBOX_WS_WIN || VBOX_WS_X11 */
-#endif /* QT_VERSION >= 0x050000 */
-
                 /* Update keyboard hook view index: */
                 m_iKeyboardHookViewIndex = -1;
 
@@ -1859,6 +1763,28 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 
                 break;
             }
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+            case QEvent::Enter:
+            {
+                /* Release the mouse button grab.
+                 * We do not check for failure as we do not currently implement a back-up plan. */
+                xcb_ungrab_button_checked(QX11Info::connection(), XCB_BUTTON_INDEX_1,
+                                          QX11Info::appRootWindow(), XCB_MOD_MASK_ANY);
+
+                break;
+            }
+            case QEvent::Leave:
+            {
+                /* Grab the mouse button if the keyboard is captured.
+                 * We do not check for failure as we do not currently implement a back-up plan. */
+                if (m_fIsKeyboardCaptured)
+                    xcb_grab_button_checked(QX11Info::connection(), 0, QX11Info::appRootWindow(),
+                                            XCB_EVENT_MASK_BUTTON_PRESS, XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC,
+                                            XCB_NONE, XCB_NONE, XCB_BUTTON_INDEX_1, XCB_MOD_MASK_ANY);
+
+                break;
+            }
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
             case QEvent::KeyPress:
             case QEvent::KeyRelease:
             {
@@ -1944,8 +1870,7 @@ bool UIKeyboardHandler::macKeyboardEvent(const void *pvCocoaEvent, EventRef even
     return m_views[m_iKeyboardHookViewIndex]->macEvent(pvCocoaEvent, event);
 #else /* QT_VERSION >= 0x050000 */
     Q_UNUSED(event);
-    QByteArray eventType("mac_generic_NSEvent");
-    return m_views[m_iKeyboardHookViewIndex]->nativeEventPreprocessor(eventType, unconst(pvCocoaEvent));
+    return nativeEventFilter(unconst(pvCocoaEvent), m_iKeyboardHookViewIndex);
 #endif /* QT_VERSION >= 0x050000 */
 }
 
@@ -2010,8 +1935,7 @@ bool UIKeyboardHandler::winKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &event)
     long dummyResult;
     return m_views[m_iKeyboardHookViewIndex]->winEvent(&message, &dummyResult);
 #else /* QT_VERSION >= 0x050000 */
-    QByteArray eventType("windows_generic_MSG");
-    return m_views[m_iKeyboardHookViewIndex]->nativeEventPreprocessor(eventType, &message);
+    return nativeEventFilter(&message, m_iKeyboardHookViewIndex);
 #endif /* QT_VERSION >= 0x050000 */
 }
 
@@ -2167,26 +2091,33 @@ void UIKeyboardHandler::keyEventHandleHostComboRelease(ulong uScreenId)
                 }
                 if (ok)
                 {
+                    /* Determine whether the mouse can be captured: */
+                    bool fCaptureMouse =    !uisession()->isMouseSupportsAbsolute()
+                                         || !uisession()->isMouseIntegrated();
+
                     if (m_fIsKeyboardCaptured)
-                        releaseKeyboard();
-                    else
-                        captureKeyboard(uScreenId);
-                    if (!uisession()->isMouseSupportsAbsolute() || !uisession()->isMouseIntegrated())
                     {
+                        releaseKeyboard();
+                        if (fCaptureMouse)
+                            machineLogic()->mouseHandler()->releaseMouse();
+                    }
+                    else
+                    {
+                        captureKeyboard(uScreenId);
 #ifdef VBOX_WS_X11
                         /* Make sure that pending FocusOut events from the
                          * previous message box are handled, otherwise the
                          * mouse is immediately ungrabbed: */
+                        /// @todo Is that really needed?
                         qApp->processEvents();
 #endif /* VBOX_WS_X11 */
-                        if (m_fIsKeyboardCaptured)
+                        finaliseCaptureKeyboard();
+                        if (fCaptureMouse)
                         {
                             const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(vboxGlobal().managedVMUuid());
                             if (mcp == MouseCapturePolicy_Default || mcp == MouseCapturePolicy_HostComboOnly)
                                 machineLogic()->mouseHandler()->captureMouse(uScreenId);
                         }
-                        else
-                            machineLogic()->mouseHandler()->releaseMouse();
                     }
                 }
             }

@@ -1,4 +1,4 @@
-/* $Id: kLdrModPE.c 79 2016-07-27 14:25:09Z bird $ */
+/* $Id: kLdrModPE.c 89 2016-09-07 13:32:53Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Portable Executable (PE) Format.
  */
@@ -120,8 +120,8 @@ static int  kldrModPEDoImports32Bit(PKLDRMODPE pModPE, void *pvMapping, const IM
 static int  kldrModPEDoImports64Bit(PKLDRMODPE pModPE, void *pvMapping, const IMAGE_IMPORT_DESCRIPTOR *pImpDesc,
                                     PFNKLDRMODGETIMPORT pfnGetImport, void *pvUser);
 static int  kldrModPEDoImports(PKLDRMODPE pModPE, void *pvMapping, PFNKLDRMODGETIMPORT pfnGetImport, void *pvUser);
-static int  kldrModPEDoCallDLL(PKLDRMODPE pModPE, unsigned uOp, KUPTR uHandle);
-static int  kldrModPEDoCallTLS(PKLDRMODPE pModPE, unsigned uOp, KUPTR uHandle);
+static int  kldrModPEDoCallDLL(PKLDRMODPE pModPE, void *pvMapping, unsigned uOp, KUPTR uHandle);
+static int  kldrModPEDoCallTLS(PKLDRMODPE pModPE, void *pvMapping, unsigned uOp, KUPTR uHandle);
 static KI32 kldrModPEDoCall(KUPTR uEntrypoint, KUPTR uHandle, KU32 uOp, void *pvReserved);
 
 
@@ -229,11 +229,11 @@ static int kldrModPEDoCreate(PKRDR pRdr, KLDRFOFF offNewHdr, PKLDRMODPE *ppModPE
     pMod->pRdr = pRdr;
     pMod->pOps = NULL;      /* set upon success. */
     pMod->cSegments = s.FileHdr.NumberOfSections + 1;
-    pMod->cchFilename = cchFilename;
+    pMod->cchFilename = (KU32)cchFilename;
     pMod->pszFilename = (char *)&pMod->aSegments[pMod->cSegments];
     kHlpMemCopy((char *)pMod->pszFilename, kRdrName(pRdr), cchFilename + 1);
     pMod->pszName = kHlpGetFilename(pMod->pszFilename);
-    pMod->cchName = cchFilename - (pMod->pszName - pMod->pszFilename);
+    pMod->cchName = (KU32)(cchFilename - (pMod->pszName - pMod->pszFilename));
     pMod->fFlags = 0;
     switch (s.FileHdr.Machine)
     {
@@ -324,6 +324,7 @@ static int kldrModPEDoCreate(PKRDR pRdr, KLDRFOFF offNewHdr, PKLDRMODPE *ppModPE
     for (i = 0; i < pModPE->Hdrs.FileHeader.NumberOfSections; i++)
     {
         const char *pch;
+        KU32        cb2;
 
         /* unused */
         pMod->aSegments[i + 1].pvUser = NULL;
@@ -334,20 +335,24 @@ static int kldrModPEDoCreate(PKRDR pRdr, KLDRFOFF offNewHdr, PKLDRMODPE *ppModPE
 
         /* name */
         pMod->aSegments[i + 1].pchName = pch = (const char *)&pModPE->aShdrs[i].Name[0];
-        cb = IMAGE_SIZEOF_SHORT_NAME;
-        while (     cb > 0
-               &&   (pch[cb - 1] == ' ' || pch[cb - 1] == '\0'))
-            cb--;
-        pMod->aSegments[i + 1].cchName = cb;
+        cb2 = IMAGE_SIZEOF_SHORT_NAME;
+        while (   cb2 > 0
+               && (pch[cb2 - 1] == ' ' || pch[cb2 - 1] == '\0'))
+            cb2--;
+        pMod->aSegments[i + 1].cchName = cb2;
 
         /* size and addresses */
         if (!(pModPE->aShdrs[i].Characteristics & IMAGE_SCN_TYPE_NOLOAD))
         {
+            /* Kluge to deal with wlink ".reloc" sections that has a VirtualSize of 0 bytes. */
+            cb2 = pModPE->aShdrs[i].Misc.VirtualSize;
+            if (!cb2)
+                cb2 = K_ALIGN_Z(pModPE->aShdrs[i].SizeOfRawData, pModPE->Hdrs.OptionalHeader.SectionAlignment);
             pMod->aSegments[i + 1].cb          = pModPE->aShdrs[i].Misc.VirtualSize;
             pMod->aSegments[i + 1].LinkAddress = pModPE->aShdrs[i].VirtualAddress
                                                + pModPE->Hdrs.OptionalHeader.ImageBase;
             pMod->aSegments[i + 1].RVA         = pModPE->aShdrs[i].VirtualAddress;
-            pMod->aSegments[i + 1].cbMapped    = pModPE->aShdrs[i].Misc.VirtualSize;
+            pMod->aSegments[i + 1].cbMapped    = cb2;
             if (i + 2 < pMod->cSegments)
                 pMod->aSegments[i + 1].cbMapped= pModPE->aShdrs[i + 1].VirtualAddress
                                                - pModPE->aShdrs[i].VirtualAddress;
@@ -362,10 +367,10 @@ static int kldrModPEDoCreate(PKRDR pRdr, KLDRFOFF offNewHdr, PKLDRMODPE *ppModPE
 
         /* file location */
         pMod->aSegments[i + 1].offFile = pModPE->aShdrs[i].PointerToRawData;
-        pMod->aSegments[i + 1].cbFile = pModPE->aShdrs[i].SizeOfRawData;
+        pMod->aSegments[i + 1].cbFile  = pModPE->aShdrs[i].SizeOfRawData;
         if (    pMod->aSegments[i + 1].cbMapped > 0 /* if mapped */
             &&  (KLDRSIZE)pMod->aSegments[i + 1].cbFile > pMod->aSegments[i + 1].cbMapped)
-            pMod->aSegments[i + 1].cbFile = pMod->aSegments[i + 1].cbMapped;
+            pMod->aSegments[i + 1].cbFile = (KLDRFOFF)(pMod->aSegments[i + 1].cbMapped);
 
         /* protection */
         switch (  pModPE->aShdrs[i].Characteristics
@@ -854,7 +859,7 @@ static int kldrModPEDoForwarderQuery(PKLDRMODPE pModPE, const void *pvBits, cons
         pszSymbol++;
     if (!*pszSymbol)
         return KLDR_ERR_PE_BAD_FORWARDER;
-    cchImpModule = pszSymbol - pszForwarder;
+    cchImpModule = (KU32)(pszSymbol - pszForwarder);
 
     pszSymbol++;                        /* skip the dot */
     if (!*pszSymbol)
@@ -1282,15 +1287,19 @@ static int kldrModPEUnmap(PKLDRMOD pMod)
 
 
 /** @copydoc kLdrModAllocTLS */
-static int kldrModPEAllocTLS(PKLDRMOD pMod)
+static int kldrModPEAllocTLS(PKLDRMOD pMod, void *pvMapping)
 {
     PKLDRMODPE  pModPE = (PKLDRMODPE)pMod->pvData;
 
     /*
      * Mapped?
      */
-    if (!pModPE->pvMapping)
-        return KLDR_ERR_NOT_MAPPED;
+    if (pvMapping == KLDRMOD_INT_MAP)
+    {
+        pvMapping = (void *)pModPE->pvMapping;
+        if (!pvMapping)
+            return KLDR_ERR_NOT_MAPPED;
+    }
 
     /*
      * If no TLS directory then there is nothing to do.
@@ -1304,15 +1313,19 @@ static int kldrModPEAllocTLS(PKLDRMOD pMod)
 
 
 /** @copydoc kLdrModFreeTLS */
-static void kldrModPEFreeTLS(PKLDRMOD pMod)
+static void kldrModPEFreeTLS(PKLDRMOD pMod, void *pvMapping)
 {
     PKLDRMODPE  pModPE = (PKLDRMODPE)pMod->pvData;
 
     /*
      * Mapped?
      */
-    if (!pModPE->pvMapping)
-        return;
+    if (pvMapping == KLDRMOD_INT_MAP)
+    {
+        pvMapping = (void *)pModPE->pvMapping;
+        if (!pvMapping)
+            return;
+    }
 
     /*
      * If no TLS directory then there is nothing to do.
@@ -1708,7 +1721,7 @@ static int  kldrModPEDoImports64Bit(PKLDRMODPE pModPE, void *pvMapping, const IM
 
 
 /** @copydoc kLdrModCallInit */
-static int kldrModPECallInit(PKLDRMOD pMod, KUPTR uHandle)
+static int kldrModPECallInit(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle)
 {
     PKLDRMODPE pModPE = (PKLDRMODPE)pMod->pvData;
     int rc;
@@ -1716,19 +1729,23 @@ static int kldrModPECallInit(PKLDRMOD pMod, KUPTR uHandle)
     /*
      * Mapped?
      */
-    if (!pModPE->pvMapping)
-        return KLDR_ERR_NOT_MAPPED;
+    if (pvMapping == KLDRMOD_INT_MAP)
+    {
+        pvMapping = (void *)pModPE->pvMapping;
+        if (!pvMapping)
+            return KLDR_ERR_NOT_MAPPED;
+    }
 
     /*
      * Do TLS callbacks first and then call the init/term function if it's a DLL.
      */
-    rc = kldrModPEDoCallTLS(pModPE, DLL_PROCESS_ATTACH, uHandle);
+    rc = kldrModPEDoCallTLS(pModPE, pvMapping, DLL_PROCESS_ATTACH, uHandle);
     if (    !rc
         &&  (pModPE->Hdrs.FileHeader.Characteristics & IMAGE_FILE_DLL))
     {
-        rc = kldrModPEDoCallDLL(pModPE, DLL_PROCESS_ATTACH, uHandle);
+        rc = kldrModPEDoCallDLL(pModPE, pvMapping, DLL_PROCESS_ATTACH, uHandle);
         if (rc)
-            kldrModPEDoCallTLS(pModPE, DLL_PROCESS_DETACH, uHandle);
+            kldrModPEDoCallTLS(pModPE, pvMapping, DLL_PROCESS_DETACH, uHandle);
     }
 
     return rc;
@@ -1741,10 +1758,11 @@ static int kldrModPECallInit(PKLDRMOD pMod, KUPTR uHandle)
  * @returns 0 on success.
  * @returns KLDR_ERR_MODULE_INIT_FAILED  or KLDR_ERR_THREAD_ATTACH_FAILED on failure.
  * @param   pModPE          The PE module interpreter instance.
+ * @param   pvMapping       The module mapping to use (resolved).
  * @param   uOp             The operation (DLL_*).
  * @param   uHandle         The module handle to present.
  */
-static int  kldrModPEDoCallDLL(PKLDRMODPE pModPE, unsigned uOp, KUPTR uHandle)
+static int  kldrModPEDoCallDLL(PKLDRMODPE pModPE, void *pvMapping, unsigned uOp, KUPTR uHandle)
 {
     int rc;
 
@@ -1757,8 +1775,7 @@ static int  kldrModPEDoCallDLL(PKLDRMODPE pModPE, unsigned uOp, KUPTR uHandle)
     /*
      * Invoke the entrypoint and convert the boolean result to a kLdr status code.
      */
-    rc = kldrModPEDoCall((KUPTR)pModPE->pvMapping + pModPE->Hdrs.OptionalHeader.AddressOfEntryPoint,
-                         uHandle, uOp, NULL);
+    rc = kldrModPEDoCall((KUPTR)pvMapping + pModPE->Hdrs.OptionalHeader.AddressOfEntryPoint, uHandle, uOp, NULL);
     if (rc)
         rc = 0;
     else if (uOp == DLL_PROCESS_ATTACH)
@@ -1777,13 +1794,15 @@ static int  kldrModPEDoCallDLL(PKLDRMODPE pModPE, unsigned uOp, KUPTR uHandle)
  * @returns 0 on success.
  * @returns KLDR_ERR_THREAD_ATTACH_FAILED on failure.
  * @param   pModPE          The PE module interpreter instance.
+ * @param   pvMapping       The module mapping to use (resolved).
  * @param   uOp             The operation (DLL_*).
  * @param   uHandle         The module handle to present.
  */
-static int  kldrModPEDoCallTLS(PKLDRMODPE pModPE, unsigned uOp, KUPTR uHandle)
+static int  kldrModPEDoCallTLS(PKLDRMODPE pModPE, void *pvMapping, unsigned uOp, KUPTR uHandle)
 {
     /** @todo implement TLS support. */
     K_NOREF(pModPE);
+    K_NOREF(pvMapping);
     K_NOREF(uOp);
     K_NOREF(uHandle);
     return 0;
@@ -1861,48 +1880,62 @@ static KI32 kldrModPEDoCall(KUPTR uEntrypoint, KUPTR uHandle, KU32 uOp, void *pv
 
 
 /** @copydoc kLdrModCallTerm */
-static int kldrModPECallTerm(PKLDRMOD pMod, KUPTR uHandle)
+static int kldrModPECallTerm(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle)
 {
     PKLDRMODPE  pModPE = (PKLDRMODPE)pMod->pvData;
 
     /*
      * Mapped?
      */
-    if (!pModPE->pvMapping)
-        return KLDR_ERR_NOT_MAPPED;
+    if (pvMapping == KLDRMOD_INT_MAP)
+    {
+        pvMapping = (void *)pModPE->pvMapping;
+        if (!pvMapping)
+            return KLDR_ERR_NOT_MAPPED;
+    }
 
     /*
      * Do TLS callbacks first.
      */
-    kldrModPEDoCallTLS(pModPE, DLL_PROCESS_DETACH, uHandle);
+    kldrModPEDoCallTLS(pModPE, pvMapping, DLL_PROCESS_DETACH, uHandle);
     if (pModPE->Hdrs.FileHeader.Characteristics & IMAGE_FILE_DLL)
-        kldrModPEDoCallDLL(pModPE, DLL_PROCESS_DETACH, uHandle);
+        kldrModPEDoCallDLL(pModPE, pvMapping, DLL_PROCESS_DETACH, uHandle);
 
     return 0;
 }
 
 
 /** @copydoc kLdrModCallThread */
-static int kldrModPECallThread(PKLDRMOD pMod, KUPTR uHandle, unsigned fAttachingOrDetaching)
+static int kldrModPECallThread(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle, unsigned fAttachingOrDetaching)
 {
     PKLDRMODPE  pModPE = (PKLDRMODPE)pMod->pvData;
     unsigned    uOp = fAttachingOrDetaching ? DLL_THREAD_ATTACH : DLL_THREAD_DETACH;
     int         rc;
 
     /*
+     * Mapped?
+     */
+    if (pvMapping == KLDRMOD_INT_MAP)
+    {
+        pvMapping = (void *)pModPE->pvMapping;
+        if (!pvMapping)
+            return KLDR_ERR_NOT_MAPPED;
+    }
+
+    /*
      * Do TLS callbacks first and then call the init/term function if it's a DLL.
      */
-    rc = kldrModPEDoCallTLS(pModPE, uOp, uHandle);
+    rc = kldrModPEDoCallTLS(pModPE, pvMapping, uOp, uHandle);
     if (!fAttachingOrDetaching)
         rc = 0;
     if (    !rc
         &&  (pModPE->Hdrs.FileHeader.Characteristics & IMAGE_FILE_DLL))
     {
-        rc = kldrModPEDoCallDLL(pModPE, uOp, uHandle);
+        rc = kldrModPEDoCallDLL(pModPE, pvMapping, uOp, uHandle);
         if (!fAttachingOrDetaching)
             rc = 0;
         if (rc)
-            kldrModPEDoCallTLS(pModPE, uOp, uHandle);
+            kldrModPEDoCallTLS(pModPE, pvMapping, uOp, uHandle);
     }
 
     return rc;

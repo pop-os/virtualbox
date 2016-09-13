@@ -70,6 +70,11 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* Qt includes: */
+#if QT_VERSION >= 0x050000
+# include <QAbstractNativeEventFilter>
+#endif
+
 /* GUI includes: */
 #ifdef VBOX_WS_MAC
 # include "DarwinKeyboard.h"
@@ -119,6 +124,32 @@ const int XKeyRelease = KeyRelease;
 # define DNDDEBUG(x) LogFlowFunc(x)
 #else
 # define DNDDEBUG(x)
+#endif
+
+
+#if QT_VERSION >= 0x050000
+/** QAbstractNativeEventFilter extension
+  * allowing to pre-process native platform events. */
+class UINativeEventFilter : public QAbstractNativeEventFilter
+{
+public:
+
+    /** Constructs native event filter storing @a pParent to redirect events to. */
+    UINativeEventFilter(UIMachineView *pParent)
+        : m_pParent(pParent)
+    {}
+
+    /** Redirects all the native events to parent. */
+    bool nativeEventFilter(const QByteArray &eventType, void *pMessage, long * /* pResult */)
+    {
+        return m_pParent->nativeEventPreprocessor(eventType, pMessage);
+    }
+
+private:
+
+    /** Holds the passed parent reference. */
+    UIMachineView *m_pParent;
+};
 #endif
 
 
@@ -213,6 +244,9 @@ void UIMachineView::destroy(UIMachineView *pMachineView)
 {
     if (!pMachineView)
         return;
+
+    /* Cleanup filters: */
+    pMachineView->cleanupFilters();
 
     /* Cleanup frame-buffer: */
     pMachineView->cleanupFrameBuffer();
@@ -621,6 +655,9 @@ UIMachineView::UIMachineView(  UIMachineWindow *pMachineWindow
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
     , m_fIsDraggingFromGuest(false)
 #endif
+#if QT_VERSION >= 0x050000
+    , m_pNativeEventFilter(0)
+#endif
 {
 }
 
@@ -822,6 +859,20 @@ void UIMachineView::prepareConsoleConnections()
 {
     /* Machine state-change updater: */
     connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
+}
+
+void UIMachineView::cleanupFilters()
+{
+#if QT_VERSION >= 0x050000
+    /* If native event filter exists: */
+    if (m_pNativeEventFilter)
+    {
+        /* Uninstall/destroy existing native event filter: */
+        qApp->removeNativeEventFilter(m_pNativeEventFilter);
+        delete m_pNativeEventFilter;
+        m_pNativeEventFilter = 0;
+    }
+#endif
 }
 
 void UIMachineView::cleanupFrameBuffer()
@@ -1510,6 +1561,37 @@ void UIMachineView::paintEvent(QPaintEvent *pPaintEvent)
 #endif /* VBOX_WS_MAC */
 }
 
+#if QT_VERSION >= 0x050000
+void UIMachineView::focusInEvent(QFocusEvent *pEvent)
+{
+    /* Call to base-class: */
+    QAbstractScrollArea::focusInEvent(pEvent);
+
+    /* If native event filter isn't exists: */
+    if (!m_pNativeEventFilter)
+    {
+        /* Create/install new native event filter: */
+        m_pNativeEventFilter = new UINativeEventFilter(this);
+        qApp->installNativeEventFilter(m_pNativeEventFilter);
+    }
+}
+
+void UIMachineView::focusOutEvent(QFocusEvent *pEvent)
+{
+    /* If native event filter exists: */
+    if (m_pNativeEventFilter)
+    {
+        /* Uninstall/destroy existing native event filter: */
+        qApp->removeNativeEventFilter(m_pNativeEventFilter);
+        delete m_pNativeEventFilter;
+        m_pNativeEventFilter = 0;
+    }
+
+    /* Call to base-class: */
+    QAbstractScrollArea::focusOutEvent(pEvent);
+}
+#endif
+
 #ifdef VBOX_WITH_DRAG_AND_DROP
 bool UIMachineView::dragAndDropCanAccept(void) const
 {
@@ -1703,12 +1785,12 @@ bool UIMachineView::macEvent(const void *pvCocoaEvent, EventRef event)
      * Returning @c true means filtering-out,
      * Returning @c false means passing event to Qt. */
     bool fResult = false; /* Pass to Qt by default. */
-    switch(::GetEventClass(event))
+    switch (::GetEventClass(event))
     {
         /* Watch for keyboard-events: */
         case kEventClassKeyboard:
         {
-            switch(::GetEventKind(event))
+            switch (::GetEventKind(event))
             {
                 /* Watch for key-events: */
                 case kEventRawKeyDown:
@@ -1821,6 +1903,10 @@ bool UIMachineView::x11Event(XEvent *pEvent)
 
 bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *pMessage)
 {
+    /* Check if some event should be filtered out.
+     * Returning @c true means filtering-out,
+     * Returning @c false means passing event to Qt. */
+
 # if defined(VBOX_WS_MAC)
 
     /* Make sure it's generic NSEvent: */
@@ -1828,15 +1914,12 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
         return false;
     EventRef event = static_cast<EventRef>(darwinCocoaToCarbonEvent(pMessage));
 
-    /* Check if some NSEvent should be filtered out.
-     * Returning @c true means filtering-out,
-     * Returning @c false means passing event to Qt. */
-    switch(::GetEventClass(event))
+    switch (::GetEventClass(event))
     {
         /* Watch for keyboard-events: */
         case kEventClassKeyboard:
         {
-            switch(::GetEventKind(event))
+            switch (::GetEventKind(event))
             {
                 /* Watch for key-events: */
                 case kEventRawKeyDown:
@@ -1845,7 +1928,24 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
                 case kEventRawKeyModifiersChanged:
                 {
                     /* Delegate key-event handling to the keyboard-handler: */
-                    return machineLogic()->keyboardHandler()->nativeEventPostprocessor(pMessage, screenId());
+                    return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+        /* Watch for mouse-events: */
+        case kEventClassMouse:
+        {
+            switch (::GetEventKind(event))
+            {
+                /* Watch for button-events: */
+                case kEventMouseDown:
+                case kEventMouseUp:
+                {
+                    /* Delegate button-event handling to the mouse-handler: */
+                    return machineLogic()->mouseHandler()->nativeEventFilter(pMessage, screenId());
                 }
                 default:
                     break;
@@ -1863,9 +1963,6 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
         return false;
     MSG *pEvent = static_cast<MSG*>(pMessage);
 
-    /* Check if some MSG event should be filtered out.
-     * Returning @c true means filtering-out,
-     * Returning @c false means passing event to Qt. */
     switch (pEvent->message)
     {
         /* Watch for key-events: */
@@ -1874,8 +1971,9 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
         case WM_KEYUP:
         case WM_SYSKEYUP:
         {
-            /* Can't do COM inter-process calls from a SendMessage handler,
-             * see http://support.microsoft.com/kb/131056. */
+            // WORKAROUND:
+            // Can't do COM inter-process calls from a SendMessage handler,
+            // see http://support.microsoft.com/kb/131056.
             if (vboxGlobal().isSeparateProcess() && InSendMessage())
             {
                 PostMessage(pEvent->hwnd, pEvent->message, pEvent->wParam, pEvent->lParam);
@@ -1895,7 +1993,7 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
                 return false;
 
             /* Delegate key-event handling to the keyboard-handler: */
-            return machineLogic()->keyboardHandler()->nativeEventPostprocessor(pMessage, screenId());
+            return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
         }
         default:
             break;
@@ -1908,19 +2006,21 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
         return false;
     xcb_generic_event_t *pEvent = static_cast<xcb_generic_event_t*>(pMessage);
 
-    /* Check if some XCB event should be filtered out.
-     * Returning @c true means filtering-out,
-     * Returning @c false means passing event to Qt. */
     switch (pEvent->response_type & ~0x80)
     {
         /* Watch for key-events: */
         case XCB_KEY_PRESS:
         case XCB_KEY_RELEASE:
-        case XCB_BUTTON_PRESS:
         {
-            /* Delegate key-event handling to the keyboard-handler and let it
-             * filter out button presses out of the view windows: */
-            return machineLogic()->keyboardHandler()->nativeEventPostprocessor(pMessage, screenId());
+            /* Delegate key-event handling to the keyboard-handler: */
+            return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
+        }
+        /* Watch for button-events: */
+        case XCB_BUTTON_PRESS:
+        case XCB_BUTTON_RELEASE:
+        {
+            /* Delegate button-event handling to the mouse-handler: */
+            return machineLogic()->mouseHandler()->nativeEventFilter(pMessage, screenId());
         }
         default:
             break;

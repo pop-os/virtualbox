@@ -1,4 +1,4 @@
-/* $Id: kLdr.h 58 2013-10-12 20:18:21Z bird $ */
+/* $Id: kLdr.h 81 2016-08-18 22:10:38Z bird $ */
 /** @file
  * kLdr - The Dynamic Loader.
  */
@@ -636,13 +636,8 @@ int     kLdrModMostlyDone(PKLDRMOD pMod);
  * @{ */
 int     kLdrModMap(PKLDRMOD pMod);
 int     kLdrModUnmap(PKLDRMOD pMod);
-int     kLdrModAllocTLS(PKLDRMOD pMod);
-void    kLdrModFreeTLS(PKLDRMOD pMod);
 int     kLdrModReload(PKLDRMOD pMod);
 int     kLdrModFixupMapping(PKLDRMOD pMod, PFNKLDRMODGETIMPORT pfnGetImport, void *pvUser);
-int     kLdrModCallInit(PKLDRMOD pMod, KUPTR uHandle);
-int     kLdrModCallTerm(PKLDRMOD pMod, KUPTR uHandle);
-int     kLdrModCallThread(PKLDRMOD pMod, KUPTR uHandle, unsigned fAttachingOrDetaching);
 /** @} */
 
 /** @name Operations On The Externally Managed Mappings
@@ -651,6 +646,19 @@ KLDRADDR kLdrModSize(PKLDRMOD pMod);
 int     kLdrModGetBits(PKLDRMOD pMod, void *pvBits, KLDRADDR BaseAddress, PFNKLDRMODGETIMPORT pfnGetImport, void *pvUser);
 int     kLdrModRelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBaseAddress, KLDRADDR OldBaseAddress,
                             PFNKLDRMODGETIMPORT pfnGetImport, void *pvUser);
+/** @} */
+
+/** @name Operations on both internally and externally managed mappings.
+ * @{ */
+/** Special pvMapping value to pass to kLdrModAllocTLS,
+ * kLdrModFreeTLS, kLdrModCallInit, kLdrModCallTerm, and kLdrModCallThread that
+ * specifies the internal mapping (kLdrModMap). */
+#define KLDRMOD_INT_MAP    ((void *)~(KUPTR)0)
+int     kLdrModAllocTLS(PKLDRMOD pMod, void *pvMapping);
+void    kLdrModFreeTLS(PKLDRMOD pMod, void *pvMapping);
+int     kLdrModCallInit(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle);
+int     kLdrModCallTerm(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle);
+int     kLdrModCallThread(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle, unsigned fAttachingOrDetaching);
 /** @} */
 
 
@@ -725,19 +733,19 @@ typedef struct KLDRMODOPS
     /** @copydoc kLdrModUnmap */
     int (* pfnUnmap)(PKLDRMOD pMod);
     /** @copydoc kLdrModAllocTLS */
-    int (* pfnAllocTLS)(PKLDRMOD pMod);
+    int (* pfnAllocTLS)(PKLDRMOD pMod, void *pvMapping);
     /** @copydoc kLdrModFreeTLS */
-    void (*pfnFreeTLS)(PKLDRMOD pMod);
+    void (*pfnFreeTLS)(PKLDRMOD pMod, void *pvMapping);
     /** @copydoc kLdrModReload */
     int (* pfnReload)(PKLDRMOD pMod);
     /** @copydoc kLdrModFixupMapping */
     int (* pfnFixupMapping)(PKLDRMOD pMod, PFNKLDRMODGETIMPORT pfnGetImport, void *pvUser);
     /** @copydoc kLdrModCallInit */
-    int (* pfnCallInit)(PKLDRMOD pMod, KUPTR uHandle);
+    int (* pfnCallInit)(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle);
     /** @copydoc kLdrModCallTerm */
-    int (* pfnCallTerm)(PKLDRMOD pMod, KUPTR uHandle);
+    int (* pfnCallTerm)(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle);
     /** @copydoc kLdrModCallThread */
-    int (* pfnCallThread)(PKLDRMOD pMod, KUPTR uHandle, unsigned fAttachingOrDetaching);
+    int (* pfnCallThread)(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle, unsigned fAttachingOrDetaching);
     /** @copydoc kLdrModSize */
     KLDRADDR (* pfnSize)(PKLDRMOD pMod);
     /** @copydoc kLdrModGetBits */

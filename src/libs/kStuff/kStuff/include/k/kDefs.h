@@ -1,4 +1,4 @@
-/* $Id: kDefs.h 79 2016-07-27 14:25:09Z bird $ */
+/* $Id: kDefs.h 84 2016-09-04 13:54:11Z bird $ */
 /** @file
  * kTypes - Defines and Macros.
  */
@@ -380,7 +380,7 @@
 # if defined(__GNUC__)
 #  define K_INLINE              static __inline__
 # elif defined(_MSC_VER)
-#  define K_INLINE              static _Inline
+#  define K_INLINE              static __inline
 # else
 #  error "Port Me"
 # endif

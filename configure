@@ -446,7 +446,7 @@ check_gcc()
              -o \( $cc_maj -eq 4 -a $cc_min -lt 2 -a "$OS"  = "darwin" \) \
              -o \( $cc_maj -eq 4 -a $cc_min -gt 9 \) \
              -o \( $cc_maj -eq 5 -a $cc_min -gt 9 \) \
-             -o \( $cc_maj -eq 6 -a $cc_min -gt 1 \) \
+             -o \( $cc_maj -eq 6 -a $cc_min -gt 9 \) \
              -o $cc_maj -gt 6 ]; then
         log_failure "gcc version $cc_maj.$cc_min found, expected gcc 4.x, gcc 5.x or gcc 6.x"
         fail really
@@ -2849,7 +2849,9 @@ if [ $OUT_PATH_OVERRIDE -eq 1 ]; then
   echo "export PATH_OUT_BASE" >> $ENV
 fi
 
+# don't bother people with -Werror
 cnf_append "VBOX_GCC_WERR" "\$(NO_SUCH_VARIABLE)"
+
 # some things are not available in for OSE
 if [ $OSE -ge 1 ]; then
   cnf_append "VBOX_OSE" "1"
@@ -2947,7 +2949,7 @@ if [ $ONLY_ADDITIONS -eq 0 ]; then
     if [ $WITH_PULSE -eq 1 ]; then
       check_pulse
     elif [ $WITH_PULSE -eq 0 ]; then
-      cnf_append "VBOX_WITH_PULSE" ""
+      cnf_append "VBOX_WITH_AUDIO_PULSE" ""
     fi
  fi
 fi
@@ -2968,7 +2970,7 @@ if [ "$OS" = "linux" ]; then
     if [ $WITH_ALSA -eq 1 ]; then
       check_alsa
     else
-      cnf_append "VBOX_WITH_ALSA" ""
+      cnf_append "VBOX_WITH_AUDIO_ALSA" ""
     fi
     if [ $WITH_DBUS -eq 0 ]; then
       cnf_append "VBOX_WITH_DBUS" ""
