@@ -1,4 +1,4 @@
-/* $Id: kHlpStrPCopy.c 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kHlpStrPCopy.c 83 2016-08-30 18:38:12Z bird $ */
 /** @file
  * kHlpString - kHlpStrPCopy.
  */
@@ -38,7 +38,7 @@ KHLP_DECL(char *) kHlpStrPCopy(char *pszDst, const char *pszSrc)
 {
     char ch;
     do
-        *pszDst++ = ch = *pszSrc;
+        *pszDst++ = ch = *pszSrc++;
     while (ch);
     return pszDst - 1;
 }

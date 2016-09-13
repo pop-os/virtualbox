@@ -49,6 +49,7 @@
 #define PCI_INCLUDE_PRIVATE
 #include <VBox/pci.h>
 #include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/mm.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -1802,7 +1803,7 @@ static DECLCALLBACK(int) pciR3Register(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, c
 /**
  * @interface_method_impl{PDMPCIBUSREG,pfnIORegionRegisterR3}
  */
-static DECLCALLBACK(int) pciR3CommonIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iRegion, uint32_t cbRegion,
+static DECLCALLBACK(int) pciR3CommonIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iRegion, RTGCPHYS cbRegion,
                                                      PCIADDRESSSPACE enmType, PFNPCIIOREGIONMAP pfnCallback)
 {
     NOREF(pDevIns);
@@ -1818,10 +1819,10 @@ static DECLCALLBACK(int) pciR3CommonIORegionRegister(PPDMDEVINS pDevIns, PPCIDEV
     AssertMsgReturn((unsigned)iRegion < PCI_NUM_REGIONS,
                     ("Invalid iRegion=%d PCI_NUM_REGIONS=%d\n", iRegion, PCI_NUM_REGIONS),
                     VERR_INVALID_PARAMETER);
-    int iLastSet = ASMBitLastSetU32(cbRegion);
+    int iLastSet = ASMBitLastSetU64(cbRegion);
     AssertMsgReturn(    iLastSet != 0
-                    &&  RT_BIT_32(iLastSet - 1) == cbRegion,
-                    ("Invalid cbRegion=%#x iLastSet=%#x (not a power of 2 or 0)\n", cbRegion, iLastSet),
+                    &&  RT_BIT_64(iLastSet - 1) == cbRegion,
+                    ("Invalid cbRegion=%RGp iLastSet=%#x (not a power of 2 or 0)\n", cbRegion, iLastSet),
                     VERR_INVALID_PARAMETER);
 
     /*
@@ -1834,10 +1835,10 @@ static DECLCALLBACK(int) pciR3CommonIORegionRegister(PPDMDEVINS pDevIns, PPCIDEV
     pRegion->map_func    = pfnCallback;
 
     /* Set type in the config space. */
-    uint32_t u32Address = 0x10 + iRegion * 4;
-    uint32_t u32Value   =   (enmType == PCI_ADDRESS_SPACE_MEM_PREFETCH ? (1 << 3) : 0)
-                          | (enmType == PCI_ADDRESS_SPACE_IO ? 1 : 0);
-    *(uint32_t *)(pPciDev->config + u32Address) = RT_H2LE_U32(u32Value);
+    AssertCompile(PCI_ADDRESS_SPACE_MEM          == 0);
+    AssertCompile(PCI_ADDRESS_SPACE_IO           == 1);
+    AssertCompile(PCI_ADDRESS_SPACE_MEM_PREFETCH == RT_BIT_32(3));
+    PCIDevSetDWord(pPciDev, 0x10 + iRegion * 4, enmType);
 
     return VINF_SUCCESS;
 }
@@ -1867,11 +1868,14 @@ pciR3CommonSetConfigCallbacks(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, PFNPCICONF
  */
 static DECLCALLBACK(int) pciR3FakePCIBIOS(PPDMDEVINS pDevIns)
 {
-    unsigned    i;
-    uint8_t     elcr[2]  = {0, 0};
-    PPCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
-    PVM         pVM      = PDMDevHlpGetVM(pDevIns); Assert(pVM);
-    PVMCPU      pVCpu    = PDMDevHlpGetVMCPU(pDevIns); Assert(pVM);
+    unsigned        i;
+    uint8_t         elcr[2]    = {0, 0};
+    PPCIGLOBALS     pGlobals   = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
+    PVM             pVM        = PDMDevHlpGetVM(pDevIns); Assert(pVM);
+    PVMCPU          pVCpu      = PDMDevHlpGetVMCPU(pDevIns); Assert(pVM);
+    uint32_t const  cbBelow4GB = MMR3PhysGetRamSizeBelow4GB(pVM);
+    uint64_t const  cbAbove4GB = MMR3PhysGetRamSizeAbove4GB(pVM);
+    RT_NOREF(cbBelow4GB, cbAbove4GB);
 
     /*
      * Set the start addresses.

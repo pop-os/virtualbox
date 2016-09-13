@@ -26,6 +26,7 @@
 #ifndef ___VBox_com_microatl_h
 #define ___VBox_com_microatl_h
 
+#include <VBox/cdefs.h> /* VBOX_STRICT */
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
 #include <iprt/err.h>
@@ -900,12 +901,10 @@ public:
     }
     ULONG InternalRelease()
     {
-#ifdef DEBUG
+#ifdef VBOX_STRICT
         LONG c = ThreadModel::Decrement(&m_iRef);
-        if (c < -(LONG_MAX / 2))
-        {
-            AssertMsgFailed(("Release called on object which has been already released\n"));
-        }
+        AssertMsg(c >= -(LONG_MAX / 2), /* See  ~CComObjectNoLock, ~CComObject & ~CComAggObject. */
+                  ("Release called on object which has been already destroyed!\n"));
         return c;
 #else
         return ThreadModel::Decrement(&m_iRef);
@@ -1294,11 +1293,11 @@ public:
             // relying on atomic checks. Remember the inherent race!
             if (SUCCEEDED(m_hrc) && !m_pObj)
             {
-                    Lock();
-                    // Make sure that the module is in use, otherwise the
-                    // module can terminate while we're creating a new
-                    // instance, which leads to strange errors.
-                    LockServer(true);
+                Lock();
+                // Make sure that the module is in use, otherwise the
+                // module can terminate while we're creating a new
+                // instance, which leads to strange errors.
+                LockServer(true);
                 __try
                 {
                     // Repeat above test to avoid races when multiple threads

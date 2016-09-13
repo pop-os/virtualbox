@@ -152,7 +152,7 @@ DECLINLINE(PPDMAUDIOSTREAM) drvAudioGetHostStream(PPDMAUDIOSTREAM pStream)
         Assert(pHstStream->enmCtx == PDMAUDIOSTREAMCTX_HOST);
     }
     else
-        LogFlowFunc(("%s: Warning: Does not have a host stream (anymore)\n", pStream->szName));
+        LogRel(("Audio: Warning: Stream '%s' does not have a host stream (anymore)\n", pStream->szName));
 
     return pHstStream;
 }
@@ -1021,8 +1021,17 @@ static DECLCALLBACK(int) drvAudioStreamPlay(PPDMIAUDIOCONNECTOR pInterface,
 
         PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
         AssertPtr(pHstStream);
-        PPDMAUDIOSTREAM pGstStream = pHstStream->pPair;
+        PPDMAUDIOSTREAM pGstStream = pHstStream ? pHstStream->pPair : NULL;
         AssertPtr(pGstStream);
+
+        AssertReleaseMsgBreakStmt(pHstStream != NULL,
+                                  ("%s: Host stream is NULL (cRefs=%RU32, fStatus=%x, enmCtx=%ld)\n",
+                                   pStream->szName, pStream->cRefs, pStream->fStatus, pStream->enmCtx),
+                                  rc = VERR_NOT_AVAILABLE);
+        AssertReleaseMsgBreakStmt(pGstStream != NULL,
+                                  ("%s: Guest stream is NULL (cRefs=%RU32, fStatus=%x, enmCtx=%ld)\n",
+                                   pStream->szName, pStream->cRefs, pStream->fStatus, pStream->enmCtx),
+                                  rc = VERR_NOT_AVAILABLE);
 
         AssertPtr(pThis->pHostDrvAudio->pfnStreamGetStatus);
         PDMAUDIOSTRMSTS strmSts = pThis->pHostDrvAudio->pfnStreamGetStatus(pThis->pHostDrvAudio, pHstStream);
@@ -1135,8 +1144,17 @@ static DECLCALLBACK(int) drvAudioStreamCapture(PPDMIAUDIOCONNECTOR pInterface,
 
         PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
         AssertPtr(pHstStream);
-        PPDMAUDIOSTREAM pGstStream = pHstStream->pPair;
+        PPDMAUDIOSTREAM pGstStream = pHstStream ? pHstStream->pPair : NULL;
         AssertPtr(pGstStream);
+
+        AssertReleaseMsgBreakStmt(pHstStream != NULL,
+                                  ("%s: Host stream is NULL (cRefs=%RU32, fStatus=%x, enmCtx=%ld)\n",
+                                   pStream->szName, pStream->cRefs, pStream->fStatus, pStream->enmCtx),
+                                  rc = VERR_NOT_AVAILABLE);
+        AssertReleaseMsgBreakStmt(pGstStream != NULL,
+                                  ("%s: Guest stream is NULL (cRefs=%RU32, fStatus=%x, enmCtx=%ld)\n",
+                                   pStream->szName, pStream->cRefs, pStream->fStatus, pStream->enmCtx),
+                                  rc = VERR_NOT_AVAILABLE);
 
         PDMAUDIOSTRMSTS strmSts = pThis->pHostDrvAudio->pfnStreamGetStatus(pThis->pHostDrvAudio, pHstStream);
         if (!(strmSts & PDMAUDIOSTRMSTS_FLAG_INITIALIZED))
@@ -1484,7 +1502,7 @@ static DECLCALLBACK(int) drvAudioStreamRead(PPDMIAUDIOCONNECTOR pInterface, PPDM
         }
 
         PPDMAUDIOSTREAM pHstStream = drvAudioGetHostStream(pStream);
-        if (pHstStream)
+        if (!pHstStream)
         {
             rc = VERR_NOT_AVAILABLE;
             break;
@@ -1807,11 +1825,13 @@ static DECLCALLBACK(uint32_t) drvAudioStreamGetReadable(PPDMIAUDIOCONNECTOR pInt
     Log3Func(("[%s] cbReadable=%RU32 (%zu bytes)\n", pHstStream->szName, cReadable,
               AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cReadable)));
 
+    uint32_t cbReadable = AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cReadable);
+
     rc2 = RTCritSectLeave(&pThis->CritSect);
     AssertRC(rc2);
 
     /* Return bytes instead of audio samples. */
-    return AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cReadable);
+    return cbReadable;
 }
 
 /**
@@ -1847,11 +1867,13 @@ static DECLCALLBACK(uint32_t) drvAudioStreamGetWritable(PPDMIAUDIOCONNECTOR pInt
     Log3Func(("[%s] cWritable=%RU32 (%zu bytes)\n", pHstStream->szName, cWritable,
               AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cWritable)));
 
+    uint32_t cbWritable = AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cWritable);
+
     rc2 = RTCritSectLeave(&pThis->CritSect);
     AssertRC(rc2);
 
     /* Return bytes instead of audio samples. */
-    return AUDIOMIXBUF_S2B(&pGstStream->MixBuf, cWritable);
+    return cbWritable;
 }
 
 /**

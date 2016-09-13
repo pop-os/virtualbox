@@ -1,4 +1,4 @@
-/* $Id: kLdrMod.c 79 2016-07-27 14:25:09Z bird $ */
+/* $Id: kLdrMod.c 81 2016-08-18 22:10:38Z bird $ */
 /** @file
  * kLdr - The Module Interpreter.
  */
@@ -735,38 +735,6 @@ int     kLdrModUnmap(PKLDRMOD pMod)
 
 
 /**
- * Allocates Thread Local Storage for module mapped by kLdrModMap().
- *
- * Calling kLdrModAllocTLS() more than once without calling kLdrModFreeTLS()
- * between each invocation is not supported.
- *
- * @returns 0 on success, non-zero OS or kLdr status code on failure.
- * @param   pMod            The module.
- */
-int     kLdrModAllocTLS(PKLDRMOD pMod)
-{
-    KLDRMOD_VALIDATE(pMod);
-    return pMod->pOps->pfnAllocTLS(pMod);
-}
-
-
-/**
- * Frees Thread Local Storage previously allocated by kLdrModAllocTLS().
- *
- * The caller is responsible for only calling kLdrModFreeTLS() once
- * after calling kLdrModAllocTLS().
- *
- * @returns 0 on success, non-zero OS or kLdr status code on failure.
- * @param   pMod            The module.
- */
-void    kLdrModFreeTLS(PKLDRMOD pMod)
-{
-    KLDRMOD_VALIDATE_VOID(pMod);
-    pMod->pOps->pfnFreeTLS(pMod);
-}
-
-
-/**
  * Reloads all dirty pages in a module previously mapped by kLdrModMap().
  *
  * The module interpreter may omit code pages if it can safely apply code
@@ -799,56 +767,6 @@ int     kLdrModFixupMapping(PKLDRMOD pMod, PFNKLDRMODGETIMPORT pfnGetImport, voi
 {
     KLDRMOD_VALIDATE(pMod);
     return pMod->pOps->pfnFixupMapping(pMod, pfnGetImport, pvUser);
-}
-
-
-/**
- * Call the module initializiation function of a mapped module (if any).
- *
- * @returns 0 on success or no init function, non-zero on init function failure or invalid pMod.
- * @param   pMod            The module.
- * @param   uHandle         The module handle to use if any of the init functions requires the module handle.
- */
-int     kLdrModCallInit(PKLDRMOD pMod, KUPTR uHandle)
-{
-    KLDRMOD_VALIDATE(pMod);
-    return pMod->pOps->pfnCallInit(pMod, uHandle);
-}
-
-
-/**
- * Call the module termination function of a mapped module (if any).
- *
- * @returns 0 on success or no term function, non-zero on invalid pMod.
- * @param   pMod            The module.
- * @param   uHandle         The module handle to use if any of the term functions requires the module handle.
- *
- * @remark  Termination function failure will be ignored by the module interpreter.
- */
-int     kLdrModCallTerm(PKLDRMOD pMod, KUPTR uHandle)
-{
-    KLDRMOD_VALIDATE(pMod);
-    return pMod->pOps->pfnCallTerm(pMod, uHandle);
-}
-
-
-/**
- * Call the thread attach or detach function of a mapped module (if any).
- *
- * Any per-thread TLS initialization/termination will have to be done at this time too.
- *
- * @returns 0 on success or no attach/detach function, non-zero on attach failure or invalid pMod.
- * @param   pMod            The module.
- * @param   uHandle         The module handle to use if any of the thread attach/detach functions
- *                          requires the module handle.
- *
- * @remark  Detach function failure will be ignored by the module interpreter.
- */
-int     kLdrModCallThread(PKLDRMOD pMod, KUPTR uHandle, unsigned fAttachingOrDetaching)
-{
-    KLDRMOD_VALIDATE(pMod);
-    K_VALIDATE_FLAGS(fAttachingOrDetaching, 1);
-    return pMod->pOps->pfnCallThread(pMod, uHandle, fAttachingOrDetaching);
 }
 
 
@@ -903,5 +821,94 @@ int     kLdrModRelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBaseAddress
 {
     KLDRMOD_VALIDATE(pMod);
     return pMod->pOps->pfnRelocateBits(pMod, pvBits, NewBaseAddress, OldBaseAddress, pfnGetImport, pvUser);
+}
+
+
+/**
+ * Allocates Thread Local Storage for module mapped by kLdrModMap().
+ *
+ * Calling kLdrModAllocTLS() more than once without calling kLdrModFreeTLS()
+ * between each invocation is not supported.
+ *
+ * @returns 0 on success, non-zero OS or kLdr status code on failure.
+ * @param   pMod            The module.
+ * @param   pvMapping       The external mapping address or RTLDRMOD_INT_MAP.
+ */
+int     kLdrModAllocTLS(PKLDRMOD pMod, void *pvMapping)
+{
+    KLDRMOD_VALIDATE(pMod);
+    return pMod->pOps->pfnAllocTLS(pMod, pvMapping);
+}
+
+
+/**
+ * Frees Thread Local Storage previously allocated by kLdrModAllocTLS().
+ *
+ * The caller is responsible for only calling kLdrModFreeTLS() once
+ * after calling kLdrModAllocTLS().
+ *
+ * @returns 0 on success, non-zero OS or kLdr status code on failure.
+ * @param   pMod            The module.
+ * @param   pvMapping       The external mapping address or RTLDRMOD_INT_MAP.
+ */
+void    kLdrModFreeTLS(PKLDRMOD pMod, void *pvMapping)
+{
+    KLDRMOD_VALIDATE_VOID(pMod);
+    pMod->pOps->pfnFreeTLS(pMod, pvMapping);
+}
+
+
+
+
+/**
+ * Call the module initializiation function of a mapped module (if any).
+ *
+ * @returns 0 on success or no init function, non-zero on init function failure or invalid pMod.
+ * @param   pMod            The module.
+ * @param   pvMapping       The external mapping address or RTLDRMOD_INT_MAP.
+ * @param   uHandle         The module handle to use if any of the init functions requires the module handle.
+ */
+int     kLdrModCallInit(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle)
+{
+    KLDRMOD_VALIDATE(pMod);
+    return pMod->pOps->pfnCallInit(pMod, pvMapping, uHandle);
+}
+
+
+/**
+ * Call the module termination function of a mapped module (if any).
+ *
+ * @returns 0 on success or no term function, non-zero on invalid pMod.
+ * @param   pMod            The module.
+ * @param   pvMapping       The external mapping address or RTLDRMOD_INT_MAP.
+ * @param   uHandle         The module handle to use if any of the term functions requires the module handle.
+ *
+ * @remark  Termination function failure will be ignored by the module interpreter.
+ */
+int     kLdrModCallTerm(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle)
+{
+    KLDRMOD_VALIDATE(pMod);
+    return pMod->pOps->pfnCallTerm(pMod, pvMapping, uHandle);
+}
+
+
+/**
+ * Call the thread attach or detach function of a mapped module (if any).
+ *
+ * Any per-thread TLS initialization/termination will have to be done at this time too.
+ *
+ * @returns 0 on success or no attach/detach function, non-zero on attach failure or invalid pMod.
+ * @param   pMod            The module.
+ * @param   pvMapping       The external mapping address or RTLDRMOD_INT_MAP.
+ * @param   uHandle         The module handle to use if any of the thread attach/detach functions
+ *                          requires the module handle.
+ *
+ * @remark  Detach function failure will be ignored by the module interpreter.
+ */
+int     kLdrModCallThread(PKLDRMOD pMod, void *pvMapping, KUPTR uHandle, unsigned fAttachingOrDetaching)
+{
+    KLDRMOD_VALIDATE(pMod);
+    K_VALIDATE_FLAGS(fAttachingOrDetaching, 1);
+    return pMod->pOps->pfnCallThread(pMod, pvMapping, uHandle, fAttachingOrDetaching);
 }
 

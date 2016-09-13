@@ -1,4 +1,4 @@
-/* $Id: pe.h 31 2009-07-01 21:08:06Z bird $ */
+/* $Id: pe.h 82 2016-08-22 21:01:51Z bird $ */
 /** @file
  * PE structures, types and defines.
  */
@@ -374,7 +374,7 @@ typedef IMAGE_IMPORT_DESCRIPTOR *PIMAGE_IMPORT_DESCRIPTOR;
 typedef struct _IMAGE_IMPORT_BY_NAME
 {
     KU16      Hint;
-    KU8      Name[1];
+    KU8       Name[1];
 } IMAGE_IMPORT_BY_NAME;
 typedef IMAGE_IMPORT_BY_NAME *PIMAGE_IMPORT_BY_NAME;
 

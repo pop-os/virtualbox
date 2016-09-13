@@ -47,6 +47,11 @@ public:
     HRESULT init();
     void uninit();
 
+#ifdef RT_OS_WINDOWS
+    /* HACK ALERT! Implemented in dllmain.cpp. */
+    ULONG InternalRelease();
+#endif
+
 private:
     // wrapped IVirtualBoxClient properties
     virtual HRESULT getVirtualBox(ComPtr<IVirtualBox> &aVirtualBox);
@@ -65,8 +70,18 @@ private:
 
     struct Data
     {
-        Data()
+        Data() : m_ThreadWatcher(NIL_RTTHREAD), m_SemEvWatcher(NIL_RTSEMEVENT)
         {}
+
+        ~Data()
+        {
+            /* HACK ALERT! This is for DllCanUnloadNow(). */
+            if (m_pEventSource.isNotNull())
+            {
+                s_cUnnecessaryAtlModuleLocks--;
+                AssertMsg(s_cUnnecessaryAtlModuleLocks == 0, ("%d\n", s_cUnnecessaryAtlModuleLocks));
+            }
+        }
 
         ComPtr<IVirtualBox> m_pVirtualBox;
         const ComObjPtr<EventSource> m_pEventSource;
@@ -76,7 +91,13 @@ private:
     };
 
     Data mData;
+
+public:
+    /** Hack for discounting the AtlModule lock held by Data::m_pEventSource during
+     * DllCanUnloadNow().  This is incremented to 1 when init() initialized
+     * m_pEventSource and is decremented by the Data destructor (above). */
+    static LONG s_cUnnecessaryAtlModuleLocks;
 };
 
-#endif // ____H_VIRTUALBOXCLIENTIMPL
+#endif
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

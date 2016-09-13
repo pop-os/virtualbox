@@ -116,6 +116,35 @@ MachineInfo::~MachineInfo()
 typedef std::list<MachineInfo*> MachineInfoList;
 
 
+class VBRDir
+{
+public:
+    VBRDir(const char *pcszPath)
+        {
+            int rc = RTDirOpenFiltered(&m_pDir, pcszPath, RTDIRFILTER_WINNT, 0);
+            if (RT_FAILURE(rc))
+                throw RTCError(com::Utf8StrFmt("Failed to open directory '%s'\n", pcszPath));
+        };
+    ~VBRDir()
+        {
+            int rc = RTDirClose(m_pDir);
+            AssertRC(rc);
+        };
+    const char *next(void)
+        {
+            int rc = RTDirRead(m_pDir, &m_DirEntry, NULL);
+            if (RT_SUCCESS(rc))
+                return m_DirEntry.szName;
+            else if (rc == VERR_NO_MORE_FILES)
+                return NULL;
+            throw RTCError("Failed to read directory element\n");
+        };
+
+private:
+    PRTDIR m_pDir;
+    RTDIRENTRY m_DirEntry;
+};
+
 /*
  * An abstract class serving as the root of the bug report item tree.
  */
@@ -460,15 +489,28 @@ void BugReportTarGzip::complete(void)
 
 void createBugReport(BugReport* report, const char *pszHome, MachineInfoList& machines)
 {
-    report->addItem(new BugReportFile(PathJoin(pszHome, "VBoxSVC.log"), "VBoxSVC.log"));
-    report->addItem(new BugReportFile(PathJoin(pszHome, "VBoxSVC.log.1"), "VBoxSVC.log.1"));
+    /* Collect all log files from VBoxSVC */
+    VBRDir HomeDir(PathJoin(pszHome, "VBoxSVC.log*"));
+    const char *pcszSvcLogFile = HomeDir.next();
+    while (pcszSvcLogFile)
+    {
+        report->addItem(new BugReportFile(PathJoin(pszHome, pcszSvcLogFile), pcszSvcLogFile));
+        pcszSvcLogFile = HomeDir.next();
+    }
+
     report->addItem(new BugReportFile(PathJoin(pszHome, "VirtualBox.xml"), "VirtualBox.xml"));
     report->addItem(new BugReportCommand("HostUsbDevices", g_pszVBoxManage, "list", "usbhost", NULL));
     report->addItem(new BugReportCommand("HostUsbFilters", g_pszVBoxManage, "list", "usbfilters", NULL));
     for (MachineInfoList::iterator it = machines.begin(); it != machines.end(); ++it)
     {
-        report->addItem(new BugReportFile(PathJoin((*it)->getLogPath(), "VBox.log"),
-                                         PathJoin((*it)->getName(),    "VBox.log")));
+        VBRDir VmDir(PathJoin((*it)->getLogPath(), "VBox.log*"));
+        const char *pcszVmLogFile = HomeDir.next();
+        while (pcszVmLogFile)
+        {
+            report->addItem(new BugReportFile(PathJoin((*it)->getLogPath(), pcszVmLogFile),
+                                              PathJoin((*it)->getName(), pcszVmLogFile)));
+            pcszVmLogFile = HomeDir.next();
+        }
         report->addItem(new BugReportFile((*it)->getSettingsFile(),
                                          PathJoin((*it)->getName(), RTPathFilename((*it)->getSettingsFile()))));
         report->addItem(new BugReportCommand(PathJoin((*it)->getName(), "GuestProperties"),
@@ -557,15 +599,14 @@ int main(int argc, char *argv[])
 
     try
     {
-        /* Figure out full path to VBoxManage */
-        char *pszVBoxBin = RTStrDup(argv[0]);
-        if (!pszVBoxBin)
-            throw RTCError("Out of memory\n");
-        RTPathStripFilename(pszVBoxBin);
-        g_pszVBoxManage = RTPathJoinA(pszVBoxBin, VBOXMANAGE);
+        /* Figure out the full path to VBoxManage */
+        char szVBoxBin[RTPATH_MAX];
+        if (!RTProcGetExecutablePath(szVBoxBin, sizeof(szVBoxBin)))
+            throw RTCError("RTProcGetExecutablePath failed\n");
+        RTPathStripFilename(szVBoxBin);
+        g_pszVBoxManage = RTPathJoinA(szVBoxBin, VBOXMANAGE);
         if (!g_pszVBoxManage)
             throw RTCError("Out of memory\n");
-        RTStrFree(pszVBoxBin);
 
         handleComError(com::Initialize(), "Failed to initialize COM");
 
@@ -580,6 +621,8 @@ int main(int argc, char *argv[])
             hr = virtualBoxClient.createLocalObject(CLSID_VirtualBoxClient);
             if (SUCCEEDED(hr))
                 hr = virtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
+            else
+                hr = virtualBox.createLocalObject(CLSID_VirtualBox);
             if (FAILED(hr))
                 RTStrmPrintf(g_pStdErr, "WARNING: Failed to create the VirtualBox object (hr=0x%x)\n", hr);
             else

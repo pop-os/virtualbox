@@ -29,6 +29,7 @@
 #include <VBox/pci.h>
 #include <VBox/msi.h>
 #include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/mm.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -96,10 +97,6 @@ typedef struct
     /** RC pointer to the device instance. */
     PPDMDEVINSRC        pDevInsRC;
 
-#if HC_ARCH_BITS == 64
-    uint32_t            Alignment0;
-#endif
-
     /** Value latched in Configuration Address Port (0CF8h) */
     uint32_t            uConfigReg;
 
@@ -111,8 +108,11 @@ typedef struct
     uint32_t            uPciBiosIo;
     /** The next MMIO address which the PCI BIOS will use. */
     uint32_t            uPciBiosMmio;
+    /** The next 64-bit MMIO address which the PCI BIOS will use. */
+    uint64_t            uPciBiosMmio64;
     /** Actual bus number. */
     uint8_t             uBus;
+    uint8_t             Alignment0[7];
 #endif
     /** Physical address of PCI config space MMIO region. */
     uint64_t            u64PciConfigMMioAddress;
@@ -1012,7 +1012,8 @@ static DECLCALLBACK(int) ich9pcibridgeRegister(PPDMDEVINS pDevIns, PPCIDEVICE pP
     return ich9pciRegisterInternal(pBus, iDev, pPciDev, pszName);
 }
 
-static DECLCALLBACK(int) ich9pciIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iRegion, uint32_t cbRegion, PCIADDRESSSPACE enmType, PFNPCIIOREGIONMAP pfnCallback)
+static DECLCALLBACK(int) ich9pciIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iRegion, RTGCPHYS cbRegion,
+                                                 PCIADDRESSSPACE enmType, PFNPCIIOREGIONMAP pfnCallback)
 {
     NOREF(pDevIns);
 
@@ -1030,13 +1031,13 @@ static DECLCALLBACK(int) ich9pciIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE 
     AssertMsgReturn((unsigned)iRegion < PCI_NUM_REGIONS,
                     ("Invalid iRegion=%d PCI_NUM_REGIONS=%d\n", iRegion, PCI_NUM_REGIONS),
                     VERR_INVALID_PARAMETER);
-    int iLastSet = ASMBitLastSetU32(cbRegion);
+    int iLastSet = ASMBitLastSetU64(cbRegion);
     AssertMsgReturn(    iLastSet != 0
-                    &&  RT_BIT_32(iLastSet - 1) == cbRegion,
-                    ("Invalid cbRegion=%#x iLastSet=%#x (not a power of 2 or 0)\n", cbRegion, iLastSet),
+                    &&  RT_BIT_64(iLastSet - 1) == cbRegion,
+                    ("Invalid cbRegion=%RGp iLastSet=%#x (not a power of 2 or 0)\n", cbRegion, iLastSet),
                     VERR_INVALID_PARAMETER);
 
-    Log(("ich9pciIORegionRegister: %s region %d size %d type %x\n",
+    Log(("ich9pciIORegionRegister: %s region %d size %RGp type %x\n",
          pPciDev->name, iRegion, cbRegion, enmType));
 
     /* Make sure that we haven't marked this region as continuation of 64-bit region. */
@@ -1054,15 +1055,15 @@ static DECLCALLBACK(int) ich9pciIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE 
     if ((enmType & PCI_ADDRESS_SPACE_BAR64) != 0)
     {
         /* VBOX_PCI_BASE_ADDRESS_5 and VBOX_PCI_ROM_ADDRESS are excluded. */
-        AssertMsgReturn(iRegion < (PCI_NUM_REGIONS-2),
+        AssertMsgReturn(iRegion < PCI_NUM_REGIONS - 2,
                         ("Region %d cannot be 64-bit\n", iRegion),
                         VERR_INVALID_PARAMETER);
         /* Mark next region as continuation of this one. */
-        pPciDev->Int.s.aIORegions[iRegion+1].type = 0xff;
+        pPciDev->Int.s.aIORegions[iRegion + 1].type = 0xff;
     }
 
     /* Set type in the PCI config space. */
-    uint32_t u32Value   = ((uint32_t)enmType) & (PCI_ADDRESS_SPACE_IO | PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_MEM_PREFETCH);
+    uint32_t u32Value   = (uint32_t)enmType & (PCI_ADDRESS_SPACE_IO | PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_MEM_PREFETCH);
     PCIDevSetDWord(pPciDev, ich9pciGetRegionReg(iRegion), u32Value);
 
     return VINF_SUCCESS;
@@ -1626,11 +1627,11 @@ static void ich9pciSetRegionAddress(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint
 
     /* Read memory type first. */
     uint8_t uResourceType = ich9pciConfigRead(pGlobals, uBus, uDevFn, uReg, 1);
+    bool    f64Bit = (uResourceType & ((uint8_t)(PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_IO)))
+                     == PCI_ADDRESS_SPACE_BAR64;
 
-    Log(("Set region address: %02x:%02x.%d region %d address=%lld\n",
-         uBus, uDevFn >> 3, uDevFn & 7, iRegion, addr));
-
-    bool f64Bit = (uResourceType & PCI_ADDRESS_SPACE_BAR64) != 0;
+    Log(("Set region address: %02x:%02x.%d region %d address=%RX64%s\n",
+         uBus, uDevFn >> 3, uDevFn & 7, iRegion, addr, f64Bit ? " (64-bit)" : ""));
 
     /* Write address of the device. */
     ich9pciConfigWrite(pGlobals, uBus, uDevFn, uReg, (uint32_t)addr, 4);
@@ -1730,10 +1731,11 @@ static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_
             break;
         case 0x0300:
             /* VGA controller */
-            if (uVendor != 0x80ee)
-                goto default_map;
-            /* VGA: map frame buffer to default Bochs VBE address */
-            ich9pciSetRegionAddress(pGlobals, uBus, uDevFn, 0, 0xE0000000);
+
+            /* NB: Default Bochs VGA LFB address is 0xE0000000. Old guest
+             * software may break if the framebuffer isn't mapped there.
+             */
+
             /*
              * Legacy VGA I/O ports are implicitly decoded by a VGA class device. But
              * only the framebuffer (i.e., a memory region) is explicitly registered via
@@ -1741,8 +1743,9 @@ static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_
              */
             uCmd = ich9pciConfigRead(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND, 1);
             ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND,
-                               uCmd | PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS,
+                               uCmd | PCI_COMMAND_IOACCESS,
                                1);
+            goto default_map;
             break;
         case 0x0604:
             /* PCI-to-PCI bridge. */
@@ -1766,11 +1769,11 @@ static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_
                    are cleared. */
                 uint8_t u8ResourceType = ich9pciConfigRead(pGlobals, uBus, uDevFn, u32Address, 1);
 
-                bool f64bit = (u8ResourceType & PCI_ADDRESS_SPACE_BAR64) != 0;
+                bool f64Bit = (u8ResourceType & PCI_ADDRESS_SPACE_BAR64) != 0;
                 bool fIsPio = ((u8ResourceType & PCI_COMMAND_IOACCESS) == PCI_COMMAND_IOACCESS);
                 uint64_t cbRegSize64 = 0;
 
-                if (f64bit)
+                if (f64Bit)
                 {
                     ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address,   UINT32_C(0xffffffff), 4);
                     ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address+4, UINT32_C(0xffffffff), 4);
@@ -1807,43 +1810,56 @@ static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_
 
                     cbRegSize64 = cbRegSize32;
                 }
-#ifndef DEBUG_bird /* EFI triggers this for DevAHCI. */
-                Assert(cbRegSize64 == (uint32_t)cbRegSize64);
-#endif
                 Log2(("%s: Size of region %u for device %d on bus %d is %lld\n", __FUNCTION__, iRegion, uDevFn, uBus, cbRegSize64));
 
                 if (cbRegSize64)
                 {
-                    /** @todo r=klaus make this code actually handle 64-bit BARs, especially MMIO which can't possibly fit into the memory hole. */
-                    uint32_t  cbRegSize32 = (uint32_t)cbRegSize64;
+                    /* Try 32-bit base first. */
                     uint32_t* paddr = fIsPio ? &pGlobals->uPciBiosIo : &pGlobals->uPciBiosMmio;
-                    uint32_t uNew = *paddr;
-                    uNew = (uNew + cbRegSize32 - 1) & ~(cbRegSize32 - 1);
+                    uint64_t  uNew = *paddr;
+                    /* Align starting address to region size. */
+                    uNew = (uNew + cbRegSize64 - 1) & ~(cbRegSize64 - 1);
                     if (fIsPio)
                         uNew &= UINT32_C(0xffff);
                     /* Unconditionally exclude I/O-APIC/HPET/ROM. Pessimistic, but better than causing a mess. */
-                    if (!uNew || (uNew <= UINT32_C(0xffffffff) && uNew + cbRegSize32 - 1 >= UINT32_C(0xfec00000)))
+                    if (   !uNew
+                        || (uNew <= UINT32_C(0xffffffff) && uNew + cbRegSize64 - 1 >= UINT32_C(0xfec00000))
+                        || uNew >= _4G)
                     {
-                        LogRel(("PCI: no space left for BAR%u of device %u/%u/%u (vendor=%#06x device=%#06x)\n",
-                                iRegion, uBus, uDevFn >> 3, uDevFn & 7, uVendor, uDevice)); /** @todo make this a VM start failure later. */
-                        /* Undo the mapping mess caused by the size probing. */
-                        ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address, UINT32_C(0), 4);
-                        if (f64bit)
-                            ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address+4, UINT32_C(0), 4);
+                        if (f64Bit)
+                        {
+                            /* Map a 64-bit region above 4GB. */
+                            Assert(!fIsPio);
+                            uNew = pGlobals->uPciBiosMmio64;
+                            /* Align starting address to region size. */
+                            uNew = (uNew + cbRegSize64 - 1) & ~(cbRegSize64 - 1);
+                            LogFunc(("Start address of 64-bit MMIO region %u/%u is %#llx\n", iRegion, iRegion + 1, uNew));
+                            ich9pciSetRegionAddress(pGlobals, uBus, uDevFn, iRegion, uNew);
+                            fActiveMemRegion = true;
+                            pGlobals->uPciBiosMmio64 = uNew + cbRegSize64;
+                            Log2Func(("New 64-bit address is %#llx\n", pGlobals->uPciBiosMmio64));
+                        }
+                        else
+                        {
+                            LogRel(("PCI: no space left for BAR%u of device %u/%u/%u (vendor=%#06x device=%#06x)\n",
+                                    iRegion, uBus, uDevFn >> 3, uDevFn & 7, uVendor, uDevice)); /** @todo make this a VM start failure later. */
+                            /* Undo the mapping mess caused by the size probing. */
+                            ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address, UINT32_C(0), 4);
+                        }
                     }
                     else
                     {
-                        Log(("%s: Start address of %s region %u is %#x\n", __FUNCTION__, (fIsPio ? "I/O" : "MMIO"), iRegion, uNew));
+                        LogFunc(("Start address of %s region %u is %#x\n", (fIsPio ? "I/O" : "MMIO"), iRegion, uNew));
                         ich9pciSetRegionAddress(pGlobals, uBus, uDevFn, iRegion, uNew);
                         if (fIsPio)
                             fActiveIORegion = true;
                         else
                             fActiveMemRegion = true;
-                        *paddr = uNew + cbRegSize32;
-                        Log2(("%s: New address is %#x\n", __FUNCTION__, *paddr));
+                        *paddr = uNew + cbRegSize64;
+                        Log2Func(("New 32-bit address is %#x\n", *paddr));
                     }
 
-                    if (f64bit)
+                    if (f64Bit)
                         iRegion++; /* skip next region */
                 }
             }
@@ -1945,14 +1961,26 @@ static void ich9pciInitBridgeTopology(PICH9PCIGLOBALS pGlobals, PICH9PCIBUS pBus
 
 static DECLCALLBACK(int) ich9pciFakePCIBIOS(PPDMDEVINS pDevIns)
 {
-    PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
+    PICH9PCIGLOBALS pGlobals   = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
+    PVM             pVM        = PDMDevHlpGetVM(pDevIns);
+    uint32_t const  cbBelow4GB = MMR3PhysGetRamSizeBelow4GB(pVM);
+    uint64_t const  cbAbove4GB = MMR3PhysGetRamSizeAbove4GB(pVM);
 
     /*
      * Set the start addresses.
      */
-    pGlobals->uPciBiosIo  = 0xd000;
-    pGlobals->uPciBiosMmio = UINT32_C(0xf0000000);
+    pGlobals->uPciBiosIo     = 0xd000;
+    pGlobals->uPciBiosMmio   = cbBelow4GB;
+    pGlobals->uPciBiosMmio64 = cbAbove4GB + _4G;
     pGlobals->uBus = 0;
+
+    /* NB: Assume that if MMIO range is enabled, it is at the bottom of the memory hole. */
+    if (pGlobals->u64PciConfigMMioAddress)
+    {
+        AssertRelease(pGlobals->u64PciConfigMMioAddress >= cbBelow4GB);
+        pGlobals->uPciBiosMmio = pGlobals->u64PciConfigMMioAddress + pGlobals->u64PciConfigMMioLength;
+    }
+    Log(("cbBelow4GB: %lX, uPciBiosMmio: %lX, cbAbove4GB: %llX\n", cbBelow4GB, pGlobals->uPciBiosMmio, cbAbove4GB));
 
     /*
      * Assign bridge topology, for further routing to work.
@@ -2443,10 +2471,16 @@ static void ich9pciBusInfo(PICH9PCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bo
                     }
 
                     printIndent(pHlp, iIndent + 2);
-                    pHlp->pfnPrintf(pHlp, "%s region #%d: %x..%x\n",
-                                    pszDesc, iRegion, u32Addr, u32Addr+iRegionSize);
+                    pHlp->pfnPrintf(pHlp, "%s region #%d: ",pszDesc, iRegion);
                     if (f64Bit)
+                    {
+                        uint32_t u32High = ich9pciGetDWord(pPciDev, ich9pciGetRegionReg(iRegion+1));
+                        uint64_t u64Addr = RT_MAKE_U64(u32Addr, u32High);
+                        pHlp->pfnPrintf(pHlp, "%RX64..%RX64\n", u64Addr, u64Addr+iRegionSize);
                         iRegion++;
+                    }
+                    else
+                        pHlp->pfnPrintf(pHlp, "%x..%x\n", u32Addr, u32Addr+iRegionSize);
                 }
             }
 

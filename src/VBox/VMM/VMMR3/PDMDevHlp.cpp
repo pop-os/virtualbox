@@ -273,14 +273,14 @@ static DECLCALLBACK(int) pdmR3DevHlp_IOPortDeregister(PPDMDEVINS pDevIns, RTIOPO
 
 
 /** @interface_method_impl{PDMDEVHLPR3,pfnMMIORegister} */
-static DECLCALLBACK(int) pdmR3DevHlp_MMIORegister(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t cbRange, RTHCPTR pvUser,
+static DECLCALLBACK(int) pdmR3DevHlp_MMIORegister(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS cbRange, RTHCPTR pvUser,
                                                   PFNIOMMMIOWRITE pfnWrite, PFNIOMMMIOREAD pfnRead, PFNIOMMMIOFILL pfnFill,
                                                   uint32_t fFlags, const char *pszDesc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
-    LogFlow(("pdmR3DevHlp_MMIORegister: caller='%s'/%d: GCPhysStart=%RGp cbRange=%#x pvUser=%p pfnWrite=%p pfnRead=%p pfnFill=%p fFlags=%#x pszDesc=%p:{%s}\n",
+    LogFlow(("pdmR3DevHlp_MMIORegister: caller='%s'/%d: GCPhysStart=%RGp cbRange=%RGp pvUser=%p pfnWrite=%p pfnRead=%p pfnFill=%p fFlags=%#x pszDesc=%p:{%s}\n",
              pDevIns->pReg->szName, pDevIns->iInstance, GCPhysStart, cbRange, pvUser, pfnWrite, pfnRead, pfnFill, pszDesc, fFlags, pszDesc));
 
     if (pDevIns->iInstance > 0)
@@ -299,13 +299,13 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIORegister(PPDMDEVINS pDevIns, RTGCPHYS G
 
 
 /** @interface_method_impl{PDMDEVHLPR3,pfnMMIORegisterRC} */
-static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterRC(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t cbRange, RTRCPTR pvUser,
+static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterRC(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS cbRange, RTRCPTR pvUser,
                                                     const char *pszWrite, const char *pszRead, const char *pszFill)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
-    LogFlow(("pdmR3DevHlp_MMIORegisterRC: caller='%s'/%d: GCPhysStart=%RGp cbRange=%#x pvUser=%p pszWrite=%p:{%s} pszRead=%p:{%s} pszFill=%p:{%s}\n",
+    LogFlow(("pdmR3DevHlp_MMIORegisterRC: caller='%s'/%d: GCPhysStart=%RGp cbRange=%RGp pvUser=%p pszWrite=%p:{%s} pszRead=%p:{%s} pszFill=%p:{%s}\n",
              pDevIns->pReg->szName, pDevIns->iInstance, GCPhysStart, cbRange, pvUser, pszWrite, pszWrite, pszRead, pszRead, pszFill, pszFill));
 
 
@@ -356,12 +356,12 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterRC(PPDMDEVINS pDevIns, RTGCPHYS
 }
 
 /** @interface_method_impl{PDMDEVHLPR3,pfnMMIORegisterR0} */
-static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterR0(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t cbRange, RTR0PTR pvUser,
+static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterR0(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS cbRange, RTR0PTR pvUser,
                                                     const char *pszWrite, const char *pszRead, const char *pszFill)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DevHlp_MMIORegisterHC: caller='%s'/%d: GCPhysStart=%RGp cbRange=%#x pvUser=%p pszWrite=%p:{%s} pszRead=%p:{%s} pszFill=%p:{%s}\n",
+    LogFlow(("pdmR3DevHlp_MMIORegisterHC: caller='%s'/%d: GCPhysStart=%RGp cbRange=%RGp pvUser=%p pszWrite=%p:{%s} pszRead=%p:{%s} pszFill=%p:{%s}\n",
              pDevIns->pReg->szName, pDevIns->iInstance, GCPhysStart, cbRange, pvUser, pszWrite, pszWrite, pszRead, pszRead, pszFill, pszFill));
 
     /*
@@ -384,7 +384,8 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterR0(PPDMDEVINS pDevIns, RTGCPHYS
         if (pszFill)
             rc3 = pdmR3DevGetSymbolR0Lazy(pDevIns, pszFill, &pfnR0PtrFill);
         if (RT_SUCCESS(rc) && RT_SUCCESS(rc2) && RT_SUCCESS(rc3))
-            rc = IOMR3MmioRegisterR0(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange, pvUser, pfnR0PtrWrite, pfnR0PtrRead, pfnR0PtrFill);
+            rc = IOMR3MmioRegisterR0(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange, pvUser,
+                                     pfnR0PtrWrite, pfnR0PtrRead, pfnR0PtrFill);
         else
         {
             AssertMsgRC(rc,  ("Failed to resolve %s.%s (pszWrite)\n", pDevIns->pReg->szR0Mod, pszWrite));
@@ -408,11 +409,11 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterR0(PPDMDEVINS pDevIns, RTGCPHYS
 
 
 /** @interface_method_impl{PDMDEVHLPR3,pfnMMIODeregister} */
-static DECLCALLBACK(int) pdmR3DevHlp_MMIODeregister(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t cbRange)
+static DECLCALLBACK(int) pdmR3DevHlp_MMIODeregister(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS cbRange)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DevHlp_MMIODeregister: caller='%s'/%d: GCPhysStart=%RGp cbRange=%#x\n",
+    LogFlow(("pdmR3DevHlp_MMIODeregister: caller='%s'/%d: GCPhysStart=%RGp cbRange=%RGp\n",
              pDevIns->pReg->szName, pDevIns->iInstance, GCPhysStart, cbRange));
 
     int rc = IOMR3MmioDeregister(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange);
@@ -1245,12 +1246,13 @@ static DECLCALLBACK(int) pdmR3DevHlp_PCIRegister(PPDMDEVINS pDevIns, PPCIDEVICE 
 
 
 /** @interface_method_impl{PDMDEVHLPR3,pfnPCIIORegionRegister} */
-static DECLCALLBACK(int) pdmR3DevHlp_PCIIORegionRegister(PPDMDEVINS pDevIns, int iRegion, uint32_t cbRegion, PCIADDRESSSPACE enmType, PFNPCIIOREGIONMAP pfnCallback)
+static DECLCALLBACK(int) pdmR3DevHlp_PCIIORegionRegister(PPDMDEVINS pDevIns, int iRegion, RTGCPHYS cbRegion,
+                                                         PCIADDRESSSPACE enmType, PFNPCIIOREGIONMAP pfnCallback)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
-    LogFlow(("pdmR3DevHlp_PCIIORegionRegister: caller='%s'/%d: iRegion=%d cbRegion=%#x enmType=%d pfnCallback=%p\n",
+    LogFlow(("pdmR3DevHlp_PCIIORegionRegister: caller='%s'/%d: iRegion=%d cbRegion=%RGp enmType=%d pfnCallback=%p\n",
              pDevIns->pReg->szName, pDevIns->iInstance, iRegion, cbRegion, enmType, pfnCallback));
 
     /*
@@ -1262,29 +1264,38 @@ static DECLCALLBACK(int) pdmR3DevHlp_PCIIORegionRegister(PPDMDEVINS pDevIns, int
         LogFlow(("pdmR3DevHlp_PCIIORegionRegister: caller='%s'/%d: returns %Rrc (iRegion)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
         return VERR_INVALID_PARAMETER;
     }
+
     switch ((int)enmType)
     {
         case PCI_ADDRESS_SPACE_IO:
             /*
              * Sanity check: don't allow to register more than 32K of the PCI I/O space.
              */
-            AssertMsgReturn(cbRegion <= _32K,
-                            ("caller='%s'/%d: %#x\n", pDevIns->pReg->szName, pDevIns->iInstance, cbRegion),
-                            VERR_INVALID_PARAMETER);
+            AssertLogRelMsgReturn(cbRegion <= _32K,
+                                  ("caller='%s'/%d: %#x\n", pDevIns->pReg->szName, pDevIns->iInstance, cbRegion),
+                                  VERR_INVALID_PARAMETER);
             break;
 
         case PCI_ADDRESS_SPACE_MEM:
         case PCI_ADDRESS_SPACE_MEM_PREFETCH:
-        case PCI_ADDRESS_SPACE_MEM | PCI_ADDRESS_SPACE_BAR64:
-        case PCI_ADDRESS_SPACE_MEM_PREFETCH | PCI_ADDRESS_SPACE_BAR64:
             /*
-             * Sanity check: don't allow to register more than 512MB of the PCI MMIO space for
-             * now. If this limit is increased beyond 2GB, adapt the aligned check below as well!
+             * Sanity check: Don't allow to register more than 2GB of the PCI MMIO space.
              */
-            AssertMsgReturn(cbRegion <= 512 * _1M,
-                            ("caller='%s'/%d: %#x\n", pDevIns->pReg->szName, pDevIns->iInstance, cbRegion),
-                            VERR_INVALID_PARAMETER);
+            AssertLogRelMsgReturn(cbRegion <= _2G,
+                                  ("caller='%s'/%d: %RGp\n", pDevIns->pReg->szName, pDevIns->iInstance, cbRegion),
+                                  VERR_OUT_OF_RANGE);
             break;
+
+        case PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_MEM:
+        case PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_MEM_PREFETCH:
+            /*
+             * Sanity check: Don't allow to register more than 64GB of the 64-bit PCI MMIO space.
+             */
+            AssertLogRelMsgReturn(cbRegion <= 64*_1G64,
+                                  ("caller='%s'/%d: %RGp\n", pDevIns->pReg->szName, pDevIns->iInstance, cbRegion),
+                                  VERR_OUT_OF_RANGE);
+            break;
+
         default:
             AssertMsgFailed(("enmType=%#x is unknown\n", enmType));
             LogFlow(("pdmR3DevHlp_PCIIORegionRegister: caller='%s'/%d: returns %Rrc (enmType)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
@@ -1308,20 +1319,20 @@ static DECLCALLBACK(int) pdmR3DevHlp_PCIIORegionRegister(PPDMDEVINS pDevIns, int
         /*
          * We're currently restricted to page aligned MMIO regions.
          */
-        if (    ((enmType & ~(PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_MEM_PREFETCH)) == PCI_ADDRESS_SPACE_MEM)
-            &&  cbRegion != RT_ALIGN_32(cbRegion, PAGE_SIZE))
+        if (   ((enmType & ~(PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_MEM_PREFETCH)) == PCI_ADDRESS_SPACE_MEM)
+            && cbRegion != RT_ALIGN_64(cbRegion, PAGE_SIZE))
         {
-            Log(("pdmR3DevHlp_PCIIORegionRegister: caller='%s'/%d: aligning cbRegion %#x -> %#x\n",
-                 pDevIns->pReg->szName, pDevIns->iInstance, cbRegion, RT_ALIGN_32(cbRegion, PAGE_SIZE)));
-            cbRegion = RT_ALIGN_32(cbRegion, PAGE_SIZE);
+            Log(("pdmR3DevHlp_PCIIORegionRegister: caller='%s'/%d: aligning cbRegion %RGp -> %RGp\n",
+                 pDevIns->pReg->szName, pDevIns->iInstance, cbRegion, RT_ALIGN_64(cbRegion, PAGE_SIZE)));
+            cbRegion = RT_ALIGN_64(cbRegion, PAGE_SIZE);
         }
 
         /*
          * For registering PCI MMIO memory or PCI I/O memory, the size of the region must be a power of 2!
          */
-        int iLastSet = ASMBitLastSetU32(cbRegion);
+        int iLastSet = ASMBitLastSetU64(cbRegion);
         Assert(iLastSet > 0);
-        uint32_t cbRegionAligned = RT_BIT_32(iLastSet - 1);
+        uint64_t cbRegionAligned = RT_BIT_64(iLastSet - 1);
         if (cbRegion > cbRegionAligned)
             cbRegion = cbRegionAligned * 2; /* round up */
 

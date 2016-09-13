@@ -26,7 +26,7 @@
     <message>
         <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Dawid Wrobel, Adrian Lubik, Wiktor Wandachowicz, hawkeye116477</translation>
+        <translation>Dawid Wrobel, Adrian Lubik, Wiktor Wandachowicz, Bartosz</translation>
     </message>
 </context>
 <context>
@@ -463,7 +463,7 @@
     </message>
     <message>
         <source>&amp;Shared Folders...</source>
-        <translation type="obsolete">W&amp;spółdzielone folderi...</translation>
+        <translation type="obsolete">W&amp;spółdzielone foldery...</translation>
     </message>
     <message>
         <source>Create or modify shared folders</source>
@@ -592,7 +592,7 @@
     </message>
     <message>
         <source>Session I&amp;nformation...</source>
-        <translation>I&amp;nformacje o sesji</translation>
+        <translation>I&amp;nformacje o sesji...</translation>
     </message>
     <message>
         <source>Show the log files of the selected virtual machine</source>
@@ -772,7 +772,7 @@
     <message>
         <source>&amp;Add Machine...</source>
         <translatorcomment>&amp;Dodaj maszynę...</translatorcomment>
-        <translation>Dodaj maszynę...</translation>
+        <translation>&amp;Dodaj maszynę...</translation>
     </message>
     <message>
         <source>Gro&amp;up</source>
@@ -935,7 +935,7 @@
     </message>
     <message>
         <source>Show Menu &amp;Bar</source>
-        <translation>Wyświetl pasek menu</translation>
+        <translation>Wyświetl &amp;pasek menu</translation>
     </message>
     <message>
         <source>Enable menu-bar</source>
@@ -955,7 +955,7 @@
     </message>
     <message>
         <source>Show Status &amp;Bar</source>
-        <translation>Wyświetl pasek stanu</translation>
+        <translation>Wyświetl &amp;pasek stanu</translation>
     </message>
     <message>
         <source>Enable status-bar</source>
@@ -1008,7 +1008,7 @@
     </message>
     <message>
         <source>&amp;Hard Disk Settings...</source>
-        <translation>&amp;ustawienia dysków twardych...</translation>
+        <translation>&amp;Ustawienia dysków twardych...</translation>
     </message>
     <message>
         <source>Display virtual machine settings window to configure hard disks</source>
@@ -1324,8 +1324,8 @@
         <source>&lt;nobr&gt;Used by the following %n hard disk(s):&lt;/nobr&gt;&lt;br&gt;%1</source>
         <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many hard drives are in the tool-tip and doesn&apos;t need to be told).</comment>
         <translation>
-            <numerusform>&lt;nobr&gt;Używany przez następujący %n twardy dysk:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
-            <numerusform>&lt;nobr&gt;Używany przez następujące %n twarde dyski:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
+            <numerusform>&lt;nobr&gt;Używany przez następujący twardy dysk:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
+            <numerusform>&lt;nobr&gt;Używany przez następujące twarde dyski:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
             <numerusform></numerusform>
         </translation>
     </message>
@@ -1465,7 +1465,7 @@
     </message>
     <message>
         <source>When checked a new unique MAC address will assigned to all configured network cards.</source>
-        <translation>Po zaznaczeniu tej opcji, zostanie przydzielony nowy unikalny adres MAC do skonfigurowanych kart sieciowych</translation>
+        <translation>Po zaznaczeniu tej opcji, zostanie przydzielony nowy unikalny adres MAC do skonfigurowanych kart sieciowych.</translation>
     </message>
     <message>
         <source>&amp;Reinitialize the MAC address of all network cards</source>
@@ -1761,7 +1761,7 @@
     <message>
         <source>Shared Folders</source>
         <comment>details report (shared folders)</comment>
-        <translation type="obsolete">Współdzielone folderi</translation>
+        <translation type="obsolete">Współdzielone foldery</translation>
     </message>
     <message>
         <source>None</source>
@@ -1913,7 +1913,7 @@
     <message>
         <source>Shared Folders</source>
         <comment>details report (shared folders)</comment>
-        <translation type="obsolete">Współdzielone folderi</translation>
+        <translation type="obsolete">Współdzielone foldery</translation>
     </message>
     <message>
         <source>None</source>
@@ -1977,7 +1977,7 @@
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation type="obsolete">Współdzielone folderi</translation>
+        <translation type="obsolete">Współdzielone foldery</translation>
     </message>
     <message>
         <source>Description</source>
@@ -2454,7 +2454,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Displays a window to select a different file.</source>
-        <translation>Wyświetla okno, by wybrać inny plik</translation>
+        <translation>Wyświetla okno, by wybrać inny plik.</translation>
     </message>
     <message>
         <source>Resets the file path to the default value.</source>
@@ -2478,11 +2478,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Holds the folder path.</source>
-        <translation>Przechowuje ścieżkę do folderu</translation>
+        <translation>Przechowuje ścieżkę do folderu.</translation>
     </message>
     <message>
         <source>Holds the file path.</source>
-        <translation>Przechowuje ścieżkę do pliku</translation>
+        <translation>Przechowuje ścieżkę do pliku.</translation>
     </message>
 </context>
 <context>
@@ -2994,17 +2994,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged Adapter, %1</source>
         <comment>details (network)</comment>
-        <translation>Mostkowana karta sieciowa</translation>
+        <translation>Mostkowana karta sieciowa, %1</translation>
     </message>
     <message>
         <source>Internal Network, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation>Sieć wewnętrzna</translation>
+        <translation>Sieć wewnętrzna, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Host-only Adapter, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation>Karta sieci izolowanej</translation>
+        <translation>Karta sieci izolowanej, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Generic Driver, &apos;%1&apos;</source>
@@ -3355,7 +3355,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Do not attempt to limit the size of the guest screen.</source>
-        <translation>Nie próbuje ograniczać wymiarów ekranu gościa</translation>
+        <translation>Nie próbuje ograniczać wymiarów ekranu gościa.</translation>
     </message>
     <message>
         <source>Hint</source>
@@ -3431,11 +3431,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Adds new package.</source>
-        <translation>Dodaje nową paczkę</translation>
+        <translation>Dodaje nową paczkę.</translation>
     </message>
     <message>
         <source>Removes selected package.</source>
-        <translation>Usuwa wybraną paczkę</translation>
+        <translation>Usuwa wybraną paczkę.</translation>
     </message>
 </context>
 <context>
@@ -3541,11 +3541,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Lists all available shortcuts which can be configured.</source>
-        <translation>Wyświetla wszystkie dostępne konfigurowalne skróty</translation>
+        <translation>Wyświetla wszystkie dostępne konfigurowalne skróty.</translation>
     </message>
     <message>
         <source>Holds a sequence to filter the shortcut list.</source>
-        <translation>Utrzymuje sekwencję do filtrowania listy skrótów</translation>
+        <translation>Przechowuje sekwencję do filtrowania listy skrótów.</translation>
     </message>
 </context>
 <context>
@@ -3761,7 +3761,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Lists all available NAT networks.</source>
-        <translation>Wyświetla wszystkie dostępne sieci NAT</translation>
+        <translation>Wyświetla wszystkie dostępne sieci NAT.</translation>
     </message>
     <message>
         <source>&amp;Host-only Networks</source>
@@ -3769,7 +3769,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>No new name specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Brak określonej nowej nazwy dla wcześniej przywołanej sieci NAT</translation>
+        <translation>Brak określonej nowej nazwy dla wcześniej przywołanej sieci NAT&lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>No CIDR specified for the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -3894,7 +3894,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Add Host-only Network</source>
-        <translation>Dodaj sieć izolowaną.</translation>
+        <translation>Dodaj sieć izolowaną</translation>
     </message>
     <message>
         <source>Remove Host-only Network</source>
@@ -4135,7 +4135,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Holds the name for this network.</source>
-        <translation>Przechowuje nazwę dla tej sieci</translation>
+        <translation>Przechowuje nazwę dla tej sieci.</translation>
     </message>
     <message>
         <source>Network &amp;CIDR:</source>
@@ -4735,7 +4735,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Wskaźnik aktywności interfejsów sieciowych:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Wskazuje aktywność interfejsów sieciowych:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
@@ -4760,7 +4760,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Wskaźnik aktywności podłączonych urządzeń USB:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Wskazuje aktywność podłączonych urządzeń USB:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
@@ -4775,7 +4775,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Wskaźnik aktywności udostępnianych folderów maszyny:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Wskazuje aktywność udostępnianych folderów maszyny:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
@@ -4802,7 +4802,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Wskazuje, czy kursor myszy gospodarza jest przechwycony przez goszczony system operacyjny:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;kursor nie jest przechwycony&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;kursor jest przechwycony&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integracja myszy (IM) jest włączona&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM wyłączona, kursor przechwycony&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM wyłączona, kursor nie jest przechwycony&lt;/nobr&gt;&lt;br&gt;Uwaga:  funkcja integracji kursora myszy wymaga zainstalowania Dodatków gościa w goszczonym systemie operacyjnym.</translation>
+        <translation>Wskazuje, czy kursor myszy gospodarza jest przechwytywany przez goszczony system operacyjny:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;kursor nie jest przechwytywany&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;kursor jest przechwytywany&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integracja myszy (IM) jest włączona&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM wyłączona, kursor przechwytywany&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM wyłączona, kursor nie jest przechwytywany&lt;/nobr&gt;&lt;br&gt;Uwaga:  funkcja integracji kursora myszy wymaga zainstalowania Dodatków gościa w goszczonym systemie operacyjnym.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
@@ -5511,7 +5511,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Frame Rate:</source>
-        <translation>&amp;Częstotliwość wyświetlania klatek</translation>
+        <translation>&amp;Częstotliwość wyświetlania klatek:</translation>
     </message>
     <message>
         <source>&amp;Quality:</source>
@@ -5586,7 +5586,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Controls the guest screen scale factor.</source>
-        <translation>Kontroluje współczynnik skali ekranu gościa</translation>
+        <translation>Kontroluje współczynnik skali ekranu gościa.</translation>
     </message>
     <message>
         <source>%</source>
@@ -5937,7 +5937,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>D&amp;rag&apos;n&apos;Drop:</source>
-        <translation>Przeciąganie i upuszczanie</translation>
+        <translation>P&amp;rzeciąganie i upuszczanie:</translation>
     </message>
     <message>
         <source>D&amp;escription</source>
@@ -6013,7 +6013,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Mini ToolBar:</source>
-        <translation>Mini pasek narzędziowy</translation>
+        <translation>Mini pasek narzędziowy:</translation>
     </message>
     <message>
         <source>When checked, show the Mini ToolBar in full-screen and seamless modes.</source>
@@ -6021,7 +6021,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Show in &amp;Full-screen/Seamless</source>
-        <translation>Wyświetl w trybie pełnego ekranu/Seamless</translation>
+        <translation>Wyświetl w &amp;trybie pełnego ekranu/Seamless</translation>
     </message>
     <message>
         <source>When checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
@@ -6029,7 +6029,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Show at &amp;Top of Screen</source>
-        <translation>Pokaż u &amp;góry ekranu</translation>
+        <translation>Wyświetl u &amp;góry ekranu</translation>
     </message>
     <message>
         <source>Allows to modify VM status-bar contents.</source>
@@ -6519,7 +6519,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source> Transient Folders</source>
-        <translation> folderi tymczasowe</translation>
+        <translation>Foldery tymczasowe</translation>
     </message>
     <message>
         <source>Full</source>
@@ -6547,7 +6547,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source> Global Folders</source>
-        <translation type="obsolete">folderi globalne</translation>
+        <translation type="obsolete">foldery globalne</translation>
     </message>
     <message>
         <source>&amp;Add Shared Folder</source>
@@ -7264,7 +7264,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Choose Virtual Floppy Disk File...</source>
-        <translation>Wybierz plik wirtualnej dyskietki</translation>
+        <translation>Wybierz plik wirtualnej dyskietki...</translation>
     </message>
     <message>
         <source>Add NVMe Controller</source>
@@ -7312,7 +7312,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Base &amp;Memory:</source>
-        <translation>Pamięć p&amp;odstawowa:</translation>
+        <translation>R&amp;AM:</translation>
     </message>
     <message>
         <source>Controls the amount of memory provided to the virtual machine. If you assign too much, the machine might not start.</source>
@@ -7477,11 +7477,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>For performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
-        <translation>Ze względu na wydajność, liczba procesorów wirtualnych podłączonych do maszyny wirtualnej nie może być większa niż dwukrotność liczby procesorów fizycznych na systemie gospodarza (&lt;b&gt;% 1 &lt;/ b&gt;). Należy zmniejszyć liczbę wirtualnych procesorów.</translation>
+        <translation>Ze względu na wydajność, liczba procesorów wirtualnych podłączonych do maszyny wirtualnej nie może być większa niż dwukrotność liczby procesorów fizycznych na systemie gospodarza (&lt;b&gt;%1 &lt;/b&gt;). Należy zmniejszyć liczbę wirtualnych procesorów.</translation>
     </message>
     <message>
         <source>More virtual CPUs are assigned to the virtual machine than the number of physical CPUs on the host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
-        <translation>Więcej wirtualnych procesorów jest przydzielonych do maszyny wirtualnej niż liczba procesorów fizycznych w systemie gospodarza (&lt;b&gt;% 1 &lt;/ b&gt;). To prawdopodobnie obniży wydajność maszyny wirtualnej. Proszę rozważyć zmniejszenie liczby wirtualnych procesorów.</translation>
+        <translation>Więcej wirtualnych procesorów jest przydzielonych do maszyny wirtualnej niż liczba procesorów fizycznych w systemie gospodarza (&lt;b&gt;%1&lt;/b&gt;). To prawdopodobnie obniży wydajność maszyny wirtualnej. Proszę rozważyć zmniejszenie liczby wirtualnych procesorów.</translation>
     </message>
     <message>
         <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
@@ -8057,7 +8057,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to pause the execution of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Nie udało się wsPrzechowujeć pracy maszyny wirtualnej &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Nie udało się wstrzymać wykonywanie maszyny wirtualnej &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to resume the execution of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -8209,7 +8209,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine is currently in the &lt;b&gt;Paused&lt;/b&gt; state and not able to see any keyboard or mouse input. If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Maszyna Wirtualna jest aktualnie w stanie &lt;b&gt;WsPrzechowujenia&lt;/b&gt; i tym samym nie obsłuży żadnych danych wejściowych pochodzących od klawiatury lub myszy. Aby kontynuować pracę w maszynie wirtualnej, należy ją najpierw wznowić poprzez wybranie odpowiedniej opcji z menu &lt;i&gt;Maszyna&lt;/i&gt; w oknie maszyny.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Maszyna Wirtualna jest aktualnie w stanie &lt;b&gt;wstrzymania&lt;/b&gt; i tym samym nie obsłuży żadnych danych wejściowych pochodzących od klawiatury lub myszy. Aby kontynuować pracę w maszynie wirtualnej, należy ją najpierw wznowić poprzez wybranie odpowiedniej opcji z menu &lt;i&gt;Maszyna&lt;/i&gt; w oknie maszyny.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;One or more of the registered virtual hard disks, CD/DVD or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to open the Virtual Disk Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
@@ -9100,7 +9100,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to add virtual machine &lt;b&gt;%1&lt;/b&gt; located in &lt;i&gt;%2&lt;/i&gt; because its already present.</source>
-        <translation>Nie udało się dodać maszyny wirtualnej zlokalizowanej w&lt;b&gt;%1&lt;/b&gt;, ponieważ już istnieje.</translation>
+        <translation>Nie udało się dodać maszyny wirtualnej &lt;b&gt;%1&lt;/b&gt; zlokalizowanej w&lt;i&gt;%2&lt;/i&gt;, ponieważ już istnieje.</translation>
     </message>
     <message>
         <source>Delete all files</source>
@@ -9253,23 +9253,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Could not load the Host USB Proxy Service (VERR_FILE_NOT_FOUND). The service might not be installed on the host computer</source>
-        <translation>Nie można załadować usługi Host USB Proxy (VERR_FILE_NOT_FOUND). Usługa ta być może nie została zainstalowana na komputerze gospodarza.</translation>
+        <translation>Nie można załadować usługi Host USB Proxy (VERR_FILE_NOT_FOUND). Usługa ta być może nie została zainstalowana na komputerze gospodarza</translation>
     </message>
     <message>
         <source>VirtualBox is not currently allowed to access USB devices.  You can change this by adding your user to the &apos;vboxusers&apos; group.  Please see the user manual for a more detailed explanation</source>
-        <translation>VirtualBox aktualnie nie ma dostępu do urządzeń USB. Można to zmienić, dodając użytkownika do grupy vboxusers&apos;. Proszę zapoznać się z instrukcją obsługi w celu bardziej szczegółowego wyjaśnienia.</translation>
+        <translation>VirtualBox aktualnie nie ma dostępu do urządzeń USB. Można to zmienić, dodając użytkownika do grupy vboxusers&apos;. Proszę zapoznać się z instrukcją obsługi w celu bardziej szczegółowego wyjaśnienia</translation>
     </message>
     <message>
         <source>VirtualBox is not currently allowed to access USB devices.  You can change this by allowing your user to access the &apos;usbfs&apos; folder and files.  Please see the user manual for a more detailed explanation</source>
-        <translation>VirtualBox aktualnie nie ma dostępu do urządzeń USB. Można to zmienić, zezwalając na dostęp użytkownika do folderu &apos;usbfs&apos; i plików. Proszę zapoznać się z instrukcją obsługi w celu bardziej szczegółowego wyjaśnienia.</translation>
+        <translation>VirtualBox aktualnie nie ma dostępu do urządzeń USB. Można to zmienić, zezwalając na dostęp użytkownika do folderu &apos;usbfs&apos; i plików. Proszę zapoznać się z instrukcją obsługi w celu bardziej szczegółowego wyjaśnienia</translation>
     </message>
     <message>
         <source>The USB Proxy Service has not yet been ported to this host</source>
-        <translation>Usługa USB Proxy nie została jeszcze przeniesiona do tego hosta.</translation>
+        <translation>Usługa USB Proxy nie została jeszcze przeniesiona do tego hosta</translation>
     </message>
     <message>
         <source>Could not load the Host USB Proxy service</source>
-        <translation>Nie można załadować usługi Host USB Proxy.</translation>
+        <translation>Nie można załadować usługi Host USB Proxy</translation>
     </message>
     <message>
         <source>Can&apos;t find snapshot named &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -9737,6 +9737,19 @@ p, li { white-space: pre-wrap; }
         <source>&lt;p&gt;Failed to acquire the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Nie powiodło się otrzymanie obiektu VirtualBox COM.&lt;/p&gt;&lt;p&gt;Aplikacja zostanie teraz zakończona.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>Delete</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Do you want to delete the downloaded file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Do you want to delete following list of files &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -9841,7 +9854,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>N&amp;ame:</source>
-        <translation>&amp;Nazwa</translation>
+        <translation>&amp;Nazwa:</translation>
     </message>
     <message>
         <source>Holds the location of the virtual machine.</source>
@@ -10745,11 +10758,11 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     </message>
     <message>
         <source>Adds new port forwarding rule.</source>
-        <translation>Dodaje nową regułę przekierowania portu</translation>
+        <translation>Dodaje nową regułę przekierowania portu.</translation>
     </message>
     <message>
         <source>Copies selected port forwarding rule.</source>
-        <translation>Kopiuje wybraną regułę przekierowania portu</translation>
+        <translation>Kopiuje wybraną regułę przekierowania portu.</translation>
     </message>
     <message>
         <source>Removes selected port forwarding rule.</source>
@@ -10824,7 +10837,7 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     <name>UISettingsDialog</name>
     <message>
         <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information.&lt;/i&gt;</source>
-        <translation>&lt;i&gt;Proszę wybrać kategorię ustawień z listy po lewej i przesunąć kursor myszy nad wybraną pozycję, aby uzyskać więcej informacji&lt;i&gt;.</translation>
+        <translation>&lt;i&gt;Proszę wybrać kategorię ustawień z listy po lewej i przesunąć kursor myszy nad wybraną pozycję, aby uzyskać więcej informacji.&lt;/i&gt;</translation>
     </message>
     <message>
         <source>On the &lt;b&gt;%1&lt;/b&gt; page, %2</source>
@@ -11140,7 +11153,7 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     </message>
     <message>
         <source>S&amp;end the shutdown signal</source>
-        <translation>Wysłanie &amp;sygnału wyłączenia</translation>
+        <translation>Wyślij &amp;sygnał wyłączenia</translation>
     </message>
     <message>
         <source>&lt;p&gt;Turns off the virtual machine.&lt;/p&gt;&lt;p&gt;Note that this action will stop machine execution immediately so that the guest operating system running inside it will not be able to perform a clean shutdown procedure which may result in &lt;i&gt;data loss&lt;/i&gt; inside the virtual machine. Selecting this action is recommended only if the virtual machine does not respond to the &lt;b&gt;Send the shutdown signal&lt;/b&gt; action.&lt;/p&gt;</source>
@@ -11148,7 +11161,7 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     </message>
     <message>
         <source>&amp;Power off the machine</source>
-        <translation>&amp;Wyłączenie maszyny</translation>
+        <translation>&amp;Wyłącz maszynę</translation>
     </message>
     <message>
         <source>Restore the machine state stored in the current snapshot</source>
@@ -11479,7 +11492,7 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     </message>
     <message>
         <source>Choose a virtual hard disk file to copy...</source>
-        <translation>Wybierz plik dysku wirtualnego, który chcesz skopiować</translation>
+        <translation>Wybierz plik dysku wirtualnego, który chcesz skopiować...</translation>
     </message>
     <message>
         <source>Hard disk file type</source>
@@ -11511,7 +11524,7 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     </message>
     <message>
         <source>Please choose a location for new virtual hard disk file</source>
-        <translation>Wybierz lokalizację dla pliku nowego wirtualnego dysku twardego.</translation>
+        <translation>Wybierz lokalizację dla pliku nowego wirtualnego dysku twardego</translation>
     </message>
     <message>
         <source>New hard disk to create</source>
@@ -11749,7 +11762,7 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     </message>
     <message>
         <source>Virtual &amp;machines to export</source>
-        <translation>Wirtualne maszyny do wyeksportowania</translation>
+        <translation>Wirtualne &amp;maszyny do wyeksportowania</translation>
     </message>
     <message>
         <source>Appliance &amp;settings</source>
@@ -12473,7 +12486,7 @@ Wersja %1</translation>
     </message>
     <message>
         <source>&amp;Shared Folders...</source>
-        <translation type="obsolete">W&amp;spółdzielone folderi...</translation>
+        <translation type="obsolete">W&amp;spółdzielone foldery...</translation>
     </message>
     <message>
         <source>Create or modify shared folders</source>
@@ -13630,7 +13643,7 @@ Wersja %1</translation>
     <message>
         <source>Paused</source>
         <comment>MachineState</comment>
-        <translation>WsPrzechowujena</translation>
+        <translation>Wstrzymana</translation>
     </message>
     <message>
         <source>Starting</source>
@@ -14426,7 +14439,7 @@ Wersja %1</translation>
     <message>
         <source>Teleporting</source>
         <comment>MachineState</comment>
-        <translation>Teleportacja</translation>
+        <translation>Teleportowanie</translation>
     </message>
     <message>
         <source>Taking Live Snapshot</source>
@@ -14436,7 +14449,7 @@ Wersja %1</translation>
     <message>
         <source>Teleporting Paused VM</source>
         <comment>MachineState</comment>
-        <translation>Teleportacja wsPrzechowujenej maszyny</translation>
+        <translation>Teleportowanie wstrzymanej maszyny</translation>
     </message>
     <message>
         <source>Restoring Snapshot</source>
@@ -15438,7 +15451,7 @@ Wersja %1</translation>
     </message>
     <message>
         <source>Default &amp;Folders</source>
-        <translation type="obsolete">&amp;folderi domyślne</translation>
+        <translation type="obsolete">&amp;foldery domyślne</translation>
     </message>
     <message>
         <source>Machines</source>
@@ -16399,7 +16412,7 @@ języka ustawiony jako domyślny dla systemu.&lt;/qt&gt;
     <name>VBoxSFDialog</name>
     <message>
         <source>Shared Folders</source>
-        <translation type="obsolete">Współdzielone folderi</translation>
+        <translation type="obsolete">Współdzielone foldery</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -16747,7 +16760,7 @@ języka ustawiony jako domyślny dla systemu.&lt;/qt&gt;
     </message>
     <message>
         <source>Shared &amp;Folders</source>
-        <translation type="obsolete">W&amp;spółdzielone folderi</translation>
+        <translation type="obsolete">W&amp;spółdzielone foldery</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Lists all shared folders accessible to this machine.
@@ -16799,11 +16812,11 @@ Uwaga: funkcja ta wymaga zainstalowania Dodatków gościa.&lt;/qt&gt;</translati
     </message>
     <message>
         <source> Machine Folders</source>
-        <translation type="obsolete"> folderi maszyny</translation>
+        <translation type="obsolete"> foldery maszyny</translation>
     </message>
     <message>
         <source> Transient Folders</source>
-        <translation type="obsolete"> folderi tymczasowe</translation>
+        <translation type="obsolete"> foldery tymczasowe</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Name:&amp;nbsp;&amp;nbsp;%1&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Path:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;</source>
@@ -17982,7 +17995,7 @@ Puste pole sprawi, że filtr zadziała dla jakiejkolwiek wartości.&lt;/qt&gt;</
     </message>
     <message>
         <source> Shared Folders </source>
-        <translation type="obsolete"> Współdzielone folderi </translation>
+        <translation type="obsolete"> Współdzielone foldery </translation>
     </message>
     <message>
         <source>&amp;Identification</source>
@@ -18836,7 +18849,7 @@ makes the guest see an audio card, however every access to it will be ignored.&l
     </message>
     <message>
         <source>Shared Folders</source>
-        <translation type="obsolete">Współdzielone folderi</translation>
+        <translation type="obsolete">Współdzielone foldery</translation>
     </message>
     <message>
         <source>Remote Display</source>

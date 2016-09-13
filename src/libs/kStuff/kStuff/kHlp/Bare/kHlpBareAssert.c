@@ -1,4 +1,4 @@
-/* $Id: kHlpBareAssert.c 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kHlpBareAssert.c 82 2016-08-22 21:01:51Z bird $ */
 /** @file
  * kHlpBare - Assert Backend.
  */
@@ -81,15 +81,15 @@ static void kHlpAssertWrite(const char *pszMsg)
     {
         cbWritten = pszNl - pszMsg;
 
-#if K_OS == K_OS_OS2
+# if K_OS == K_OS_OS2
         if (cbWritten)
             DosWrite((HFILE)2, pszMsg, cbWritten, &cbWritten);
         DosWrite((HFILE)2, "\r\n", 2, &cbWritten);
-#else /* K_OS == K_OS_WINDOWS */
+# else /* K_OS == K_OS_WINDOWS */
         if (cbWritten)
             WriteFile((HANDLE)STD_ERROR_HANDLE, pszMsg, cbWritten, &cbWritten, NULL);
         WriteFile((HANDLE)STD_ERROR_HANDLE, "\r\n", 2, &cbWritten, NULL);
-#endif
+# endif
 
         /* next */
         pszMsg = pszNl + 1;
@@ -102,11 +102,11 @@ static void kHlpAssertWrite(const char *pszMsg)
     if (*pszMsg)
     {
         cbWritten = kHlpStrLen(pszMsg);
-#if K_OS == K_OS_OS2
+# if K_OS == K_OS_OS2
         DosWrite((HFILE)2, pszMsg, cbWritten, &cbWritten);
-#else /* K_OS == K_OS_WINDOWS */
+# else /* K_OS == K_OS_WINDOWS */
         WriteFile((HANDLE)STD_ERROR_HANDLE, pszMsg, cbWritten, &cbWritten, NULL);
-#endif
+# endif
     }
 
 #else
