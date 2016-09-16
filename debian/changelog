@@ -1,4 +1,4 @@
-virtualbox (5.1.6-dfsg-2) UNRELEASED; urgency=medium
+virtualbox (5.1.6-dfsg-2) unstable; urgency=medium
 
   * Tweak description to mention that dkms and source are
     mutually exclusive (Closes: #634042)
