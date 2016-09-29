@@ -1,7 +1,8 @@
 virtualbox (5.1.8-dfsg-1) UNRELEASED; urgency=medium
 
   * New upstream release.
-  * Switch to Python3
+    - builds with new openssl 1.1 (Closes: #828593)
+  * Switch to Python3 (LP: #1528016, Closes: #830878)
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 28 Sep 2016 20:14:35 +0200
 
