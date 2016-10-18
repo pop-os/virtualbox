@@ -201,6 +201,7 @@ VBOXWEB_OTHERS += \
 # disable -fvisibility=hidden as the SOAP stuff does not properly set the visibility attributes
 TEMPLATE_VBOXWEBR3EXE = Webservices without -fvisibility
 TEMPLATE_VBOXWEBR3EXE_EXTENDS = VBOXR3EXE
+TEMPLATE_VBOXWEBR3EXE_DEFS.win += WIN32_LEAN_AND_MEAN $(TEMPLATE_VBOXR3EXE_DEFS.win) # Makes the redefinition warnings go away.
 TEMPLATE_VBOXWEBR3EXE_CXXFLAGS = $(filter-out $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden),\
 				 $(TEMPLATE_VBOXR3EXE_CXXFLAGS))
 
@@ -213,6 +214,7 @@ ifdef VBOX_GSOAP_INSTALLED
   vboxsoap_TEMPLATE = VBOXWEBR3EXE
   vboxsoap_CXXFLAGS += $(VBOX_C_CXX_FLAGS_NO_UNUSED_PARAMETERS)
   vboxsoap_CXXFLAGS.win += -bigobj
+  vboxsoap_CXXFLAGS.win += -wd4702 # soapc-4.cpp(16) : warning C4702: unreachable code
   ifn1of ($(KBUILD_TARGET), win)
    vboxsoap_CXXFLAGS += -Wno-shadow -Wno-parentheses $(VBOX_GCC_Wno-literal-suffix)
   endif
@@ -254,7 +256,9 @@ ifdef VBOX_GSOAP_INSTALLED
 	$(VBOXWEB_OUT_DIR)/soapC-19.cpp \
 	$(VBOXWEB_OUT_DIR)/soapC-20.cpp
   vboxsoap_CXXFLAGS += \
-  	$(VBOX_GCC_Wno-vla)
+  	$(VBOX_GCC_Wno-vla) \
+	$(if-expr $(KBUILD_TARGET) == "win",,-Wno-format) \
+  	$(if-expr $(KBUILD_TARGET) == "win",,-Wno-deprecated-declarations)
   endif
   vboxsoap_CLEAN := $(vboxsoap_SOURCES) # lazy bird
   vboxsoap_SOURCES += \
@@ -310,6 +314,7 @@ ifdef VBOX_GSOAP_INSTALLED
  PROGRAMS += vboxwebsrv
  vboxwebsrv_TEMPLATE = VBOXMAINCLIENTEXE
  vboxwebsrv_DEFS += SOCKET_CLOSE_ON_EXEC
+ vboxwebsrv_DEFS.win += WIN32_LEAN_AND_MEAN
  vboxwebsrv_INCS = \
 	$(VBOX_GSOAP_INCS) \
 	$(VBOXWEB_OUT_DIR) \
@@ -338,7 +343,9 @@ ifdef VBOX_GSOAP_INSTALLED
 	$(VBOXWEB_OUT_DIR)/methodmaps.cpp \
 	$(VBOXWEB_OUT_DIR)/soapServer.cpp \
     $(VBOXWEB_OUT_DIR)/vboxweb-wsdl.c
-
+ # gcc 6.2 warns about aborting misleading indentation detection (too much code)
+ vboxweb.cpp_CXXFLAGS = \
+	$(VBOX_GCC_Wno-misleading-indentation)
  vboxweb.cpp_DEFS = \
 	$(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
 

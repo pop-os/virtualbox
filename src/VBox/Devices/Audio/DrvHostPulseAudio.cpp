@@ -852,10 +852,9 @@ static DECLCALLBACK(int) drvHostPulseAudioStreamCapture(PPDMIHOSTAUDIO pInterfac
     if (RT_SUCCESS(rc))
     {
         uint32_t cProcessed = 0;
-      /*  if (cWrittenTotal)
-            rc = AudioMixBufMixToParent(&pStream->MixBuf, cWrittenTotal,
-                                        &cProcessed);*/
-        NOREF(cProcessed);
+        if (cWrittenTotal)
+            rc = AudioMixBufMixToParent(&pStream->MixBuf, cWrittenTotal, &cProcessed);
+
         if (pcbRead)
             *pcbRead = cWrittenTotal;
 

@@ -43,7 +43,6 @@
 #include <algorithm>
 #include <list>
 
-#include <openssl/rand.h>
 
 typedef std::list<Guid> GuidList;
 
@@ -224,7 +223,6 @@ public:
           mVDOperationIfaces(NULL),
           mMedium(aMedium),
           mMediumCaller(aMedium),
-          mThread(NIL_RTTHREAD),
           mProgress(aProgress),
           mVirtualBoxCaller(NULL)
     {
@@ -259,14 +257,13 @@ public:
     virtual ~Task()
     {
         /* send the notification of completion.*/
-        if (!mProgress.isNull())
+        if (   isAsync()
+            && !mProgress.isNull())
             mProgress->i_notifyComplete(mRC);
     }
 
     HRESULT rc() const { return mRC; }
     bool isOk() const { return SUCCEEDED(rc()); }
-
-    bool isAsync() { return mThread != NIL_RTTHREAD; }
 
     const ComPtr<Progress>& GetProgressObject() const {return mProgress;}
 
@@ -312,7 +309,6 @@ public:
 
 protected:
     HRESULT mRC;
-    RTTHREAD mThread;
 
 private:
     virtual HRESULT executeTask() = 0;
@@ -7899,7 +7895,7 @@ HRESULT Medium::i_taskCreateBaseHandler(Medium::CreateBaseTask &task)
         AutoWriteLock treeLock(m->pVirtualBox->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
         ComObjPtr<Medium> pMedium;
         rc = m->pVirtualBox->i_registerMedium(this, &pMedium, treeLock);
-        Assert(this == pMedium);
+        Assert(pMedium == NULL || this == pMedium);
     }
 
     // re-acquire the lock before changing state

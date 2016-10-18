@@ -1916,6 +1916,10 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
 
     switch (::GetEventClass(event))
     {
+        // Keep in mind that this stuff should not be enabled while we are still using
+        // own native keyboard filter installed through cocoa API, to be reworked.
+        // S.a. registerForNativeEvents call in UIKeyboardHandler implementation.
+#if 0
         /* Watch for keyboard-events: */
         case kEventClassKeyboard:
         {
@@ -1935,6 +1939,7 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
             }
             break;
         }
+#endif
         /* Watch for mouse-events: */
         case kEventClassMouse:
         {
@@ -1971,15 +1976,6 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
         case WM_KEYUP:
         case WM_SYSKEYUP:
         {
-            // WORKAROUND:
-            // Can't do COM inter-process calls from a SendMessage handler,
-            // see http://support.microsoft.com/kb/131056.
-            if (vboxGlobal().isSeparateProcess() && InSendMessage())
-            {
-                PostMessage(pEvent->hwnd, pEvent->message, pEvent->wParam, pEvent->lParam);
-                return true;
-            }
-
             // WORKAROUND:
             // There is an issue in the Windows Qt5 event processing sequence
             // causing QAbstractNativeEventFilter to receive Windows native events

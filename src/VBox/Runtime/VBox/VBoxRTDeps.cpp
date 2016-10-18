@@ -76,26 +76,36 @@ PFNRT g_VBoxRTDeps[] =
     (PFNRT)i2d_X509,
     (PFNRT)i2d_X509,
     (PFNRT)i2d_PublicKey,
-    (PFNRT)RSA_generate_key,
+#if OPENSSL_VERSION_NUMBER < 0x10100000 || defined(LIBRESSL_VERSION_NUMBER) || defined(OPENSSL_MANGLER)
+    (PFNRT)RSA_generate_key, /* gsoap */
+#endif
     (PFNRT)RSA_generate_key_ex,
-    (PFNRT)DH_generate_parameters,
+#if OPENSSL_VERSION_NUMBER < 0x10100000 || defined(LIBRESSL_VERSION_NUMBER) || defined(OPENSSL_MANGLER)
+    (PFNRT)DH_generate_parameters, /* gsoap */
+#endif
     (PFNRT)DH_generate_parameters_ex,
     (PFNRT)RAND_load_file,
+#if OPENSSL_VERSION_NUMBER < 0x10100000 || defined(LIBRESSL_VERSION_NUMBER)
     (PFNRT)CRYPTO_set_dynlock_create_callback,
     (PFNRT)CRYPTO_set_dynlock_lock_callback,
     (PFNRT)CRYPTO_set_dynlock_destroy_callback,
+#endif
     (PFNRT)RTAssertShouldPanic,
     (PFNRT)ASMAtomicReadU64,
     (PFNRT)ASMAtomicCmpXchgU64,
     (PFNRT)ASMBitFirstSet,
     (PFNRT)RTBldCfgRevision,
     (PFNRT)SSL_free,
+#if OPENSSL_VERSION_NUMBER < 0x10100000 || defined(LIBRESSL_VERSION_NUMBER)
     (PFNRT)SSL_library_init,
     (PFNRT)SSL_load_error_strings,
+#endif
     (PFNRT)SSL_CTX_free,
     (PFNRT)SSL_CTX_use_certificate_file,
     (PFNRT)SSLv23_method,
+#if OPENSSL_VERSION_NUMBER < 0x10100000 || defined(LIBRESSL_VERSION_NUMBER)
     (PFNRT)TLSv1_server_method,
+#endif
     NULL
 };
 
