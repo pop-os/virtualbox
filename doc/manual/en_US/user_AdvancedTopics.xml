@@ -4287,4 +4287,78 @@ VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
     (could be hidden in the mixer settings) and that it isn't muted.</para>
   </sect1>
 
+  <sect1 id="usbip">
+    <title>Accessing USB devices exposed over the network with USB/IP</title>
+
+    <para>Starting with 5.1.0, VirtualBox supports passing through USB
+    devices which are exposed over the network using the USB over IP protocol
+    without the need to configure the client side provided by the kernel and
+    usbip tools. Furthermore, this feature works with VirtualBox running on any
+    supported host, rather than just Linux alone - as is the case with the official
+    client.</para>
+
+    <para>To enable support for passing through USB/IP devices, the device server exporting
+    the devices must be added with the following command:
+    <screen>VBoxManage usbdevsource add "Unique name" --backend "USBIP" --address "Device server[:port]"</screen>
+    USB devices exported on the device server are then accessible through the GUI
+    or VBoxManage, like any USB devices attached locally. This can be used multiple times
+    to access different device servers.</para>
+
+    <para>To remove a device server, the following command can be used:
+      <screen>VBoxManage usbdevsource remove "Unique name"</screen>
+    </para>
+
+    <sect2 id="usbip-setup-server">
+      <title>Setting up USB/IP support on a Linux system</title>
+
+      <para>This section gives a brief overview on how to set up a Linux based system
+      to act as a USB device server. The system on the server requires that the
+      <computeroutput>usbip-core.ko</computeroutput> and
+      <computeroutput>usbip-host.ko</computeroutput> kernel drivers
+      are available, and that the USB/IP tools package is installed.
+      The particular installation method for the necessary tools depends on which 
+      distribution is used.
+      For example, for Debian based systems - the following command should be used to 
+      install the required tools:
+      <screen>apt-get install usbip-utils</screen></para>
+      <para>To check whether the necessary tools are already installed use
+      the following command:
+      <screen>
+$ usbip list -l
+      </screen></para>
+      <para>
+      which should produce output similar to that shown in the example below:
+      <screen>
+ - busid 4-2 (0bda:0301)
+   Realtek Semiconductor Corp. : multicard reader (0bda:0301)
+
+ - busid 5-1 (046d:c52b)
+   Logitech, Inc. : Unifying Receiver (046d:c52b)
+      </screen></para>
+
+      <para>If everything is installed, the USB/IP server needs to be started as
+      <computeroutput>root</computeroutput> using the following command:
+      <screen>usbipd -D</screen>
+      Refer to the documentation for the installed distribution to determine how to start the
+      service when the system boots.</para>
+
+      <para>By default, no device on the server is exported - and this must be done manually
+      for each device. To export a device use: 
+      <screen>usbip bind -b "bus identifier"</screen>
+      To export the multicard reader from above, for example  - use:
+      <screen>usbip bind -b 4-2</screen></para>
+    </sect2>
+
+    <sect2 id="usbip-security">
+      <title>Security considerations</title>
+
+      <para>The communication between the server and client is unencrypted and
+      there is no authorization required to access exported devices. An attacker
+      might sniff sensitive data or gain control over a device. To mitigate this
+      risk, the device should be exposed over a local network to which only trusted
+      clients have access. To access the device remotely over a public network,
+      a VPN solution should be used to provide the required level of security protection.</para>
+    </sect2>
+  </sect1>
+
 </chapter>

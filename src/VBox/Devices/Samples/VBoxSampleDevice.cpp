@@ -42,11 +42,6 @@ typedef VBOXSAMPLEDEVICE *PVBOXSAMPLEDEVICE;
 
 
 
-
-    FNPDMDEVCONSTRUCT  pfnConstruct;
-    /** Destruct instance - optional. */
-    FNPDMDEVDESTRUCT   pfnDestruct;
-
 static DECLCALLBACK(int) devSampleDestruct(PPDMDEVINS pDevIns)
 {
     /*
@@ -68,7 +63,7 @@ static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, P
     AssertLogRelMsgReturn(pDevIns->pHlpR3->u32Version == PDM_DEVHLPR3_VERSION, ("%#x, expected %#x\n", pDevIns->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), VERR_VERSION_MISMATCH);
 
     /*
-     * Initialize the instance data so that the destructure won't mess up.
+     * Initialize the instance data so that the destructor won't mess up.
      */
     PVBOXSAMPLEDEVICE pThis = PDMINS_2_DATA(pDevIns, PVBOXSAMPLEDEVICE);
     pThis->Whatever = 0;
@@ -81,6 +76,11 @@ static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, P
                               "Whatever2\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
+    /*
+     * Use the instance number if necessary (not for this device, which in
+     * g_DeviceSample below declares a maximum instance count of 1).
+     */
+    NOREF(iInstance);
 
     return VINF_SUCCESS;
 }
@@ -143,7 +143,7 @@ static const PDMDEVREG g_DeviceSample =
 
 
 /**
- * Register builtin devices.
+ * Register devices provided by the plugin.
  *
  * @returns VBox status code.
  * @param   pCallbacks      Pointer to the callback table.
@@ -153,10 +153,18 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
 {
     LogFlow(("VBoxSampleDevice::VBoxDevicesRegister: u32Version=%#x pCallbacks->u32Version=%#x\n", u32Version, pCallbacks->u32Version));
 
+    AssertLogRelMsgReturn(u32Version >= VBOX_VERSION,
+                          ("VirtualBox version %#x, expected %#x or higher\n", u32Version, VBOX_VERSION),
+                          VERR_VERSION_MISMATCH);
     AssertLogRelMsgReturn(pCallbacks->u32Version == PDM_DEVREG_CB_VERSION,
-                          ("%#x, expected %#x\n", pCallbacks->u32Version, PDM_DEVREG_CB_VERSION),
+                          ("callback version %#x, expected %#x\n", pCallbacks->u32Version, PDM_DEVREG_CB_VERSION),
                           VERR_VERSION_MISMATCH);
 
-    return pCallbacks->pfnRegister(pCallbacks, &g_DeviceSample);
+    /* Two devices in this module. */
+    extern const PDMDEVREG g_DevicePlayground;
+    int rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceSample);
+    if (RT_SUCCESS(rc))
+        rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePlayground);
+    return rc;
 }
 

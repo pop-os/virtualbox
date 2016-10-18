@@ -3,6 +3,138 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.8 (2016-10-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: fixed keyboard shortcut handling regressions (Mac OS X hosts
+          only; bugs #15937 and #15938)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed keyboard handling regression for separate UI (Windows
+          hosts only; bugs #15928)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: don't exceed the maximum number of "search" suffixes.
+          Patch from bug #15948.</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed parsing of port-forwarding rules with a name which
+          contains a slah (bug #16002)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: when the host has only loopback nameserver
+          that cannot be mapped to the guests (e.g. dnsmasq running on
+          127.0.1.1), make DHCP supply NAT Network DNS proxy as
+          nameserver.</para>
+      </listitem>
+
+      <listitem>
+        <para>Bridged Network: prevent flooding syslog with packet allocation
+          error messages (bug #15569)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: now using Audio Queues on Mac OS X hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed recording with the PulseAudio backend (5.1 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: various bugfixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: fixed regression in 5.1.4 for deleting snapshots with
+          several disks (bug #15831)</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: crash fix and better error reporting when snapshot
+          deletion failed</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: some fixes for the NVMe emulation with Windows guests</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed initialization of SAS controllers (bug #15972)</para>
+      </listitem>
+
+      <listitem>
+        <para>Build system: make it possible to build VBox on systems which
+          default to Python 3</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: detect certain cases of
+          <emphasis>REGDB_E_CLASSNOTREG</emphasis> errors and print a helpful
+          error message</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: adapted to changes in Windows 10 build 14901
+          (bug #15944)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: better support for processor groups on Windows 7
+          and later which is required on certain hosts with many CPUs</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows installer / Additions: added option to prevent creating
+          of start menu items (bug #15922)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions / VGA: if the guest's power management turns
+          a virtual screen off, blank the corresponding VM window rather than
+          hide the window</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed a generic bug which could lead to
+          freezing shared folders (bug #15662)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: fix for kernels with
+          <emphasis>CONFIG_CPUMASK_OFFSTACK</emphasis> set (bug #16020)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: don't require all virtual consoles be in text
+          mode. This should fix cases when the guest is booted with a graphical
+          boot screen (bug #15683)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: added depmod overrides for the vboxguest and vboxsf
+          kernel modules to fix conflicts with modules shipped by certain Linux
+          distributions</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: disable 3D on the guest if the host does not
+           provide enough capabilities (bug #15860)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.6 (2016-09-12)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

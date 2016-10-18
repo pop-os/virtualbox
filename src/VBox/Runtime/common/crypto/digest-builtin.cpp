@@ -561,7 +561,7 @@ static PCRTCRDIGESTDESC const g_apDigestOps[] =
  * OpenSSL EVP.
  */
 
-# if OPENSSL_VERSION_NUMBER >= 0x10100000
+# if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(LIBRESSL_VERSION_NUMBER)
 /** @impl_interface_method{RTCRDIGESTDESC::pfnNew} */
 static DECLCALLBACK(void*) rtCrDigestOsslEvp_New(void)
 {
@@ -597,7 +597,7 @@ static DECLCALLBACK(int) rtCrDigestOsslEvp_Init(void *pvState, void *pvOpaque, b
     if (fReInit)
     {
         pEvpType = EVP_MD_CTX_md(pThis);
-# if OPENSSL_VERSION_NUMBER >= 0x10100000
+# if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(LIBRESSL_VERSION_NUMBER)
         EVP_MD_CTX_reset(pThis);
 # else
         EVP_MD_CTX_cleanup(pThis);
@@ -605,7 +605,11 @@ static DECLCALLBACK(int) rtCrDigestOsslEvp_Init(void *pvState, void *pvOpaque, b
     }
 
     AssertPtrReturn(pEvpType, VERR_INVALID_PARAMETER);
+# if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(LIBRESSL_VERSION_NUMBER)
+    Assert(EVP_MD_block_size(pEvpType));
+# else
     Assert(pEvpType->md_size);
+# endif
     if (EVP_DigestInit(pThis, pEvpType))
         return VINF_SUCCESS;
     return VERR_CR_DIGEST_OSSL_DIGEST_INIT_ERROR;
@@ -616,7 +620,7 @@ static DECLCALLBACK(int) rtCrDigestOsslEvp_Init(void *pvState, void *pvOpaque, b
 static DECLCALLBACK(void) rtCrDigestOsslEvp_Delete(void *pvState)
 {
     EVP_MD_CTX *pThis = (EVP_MD_CTX *)pvState;
-# if OPENSSL_VERSION_NUMBER >= 0x10100000
+# if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(LIBRESSL_VERSION_NUMBER)
     EVP_MD_CTX_reset(pThis);
 # else
     EVP_MD_CTX_cleanup(pThis);
@@ -661,13 +665,13 @@ static RTCRDIGESTDESC const g_rtCrDigestOpenSslDesc =
     NULL,
     RTDIGESTTYPE_UNKNOWN,
     EVP_MAX_MD_SIZE,
-# if OPENSSL_VERSION_NUMBER >= 0x10100000
+# if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(LIBRESSL_VERSION_NUMBER)
     0,
 # else
     sizeof(EVP_MD_CTX),
 # endif
     0,
-# if OPENSSL_VERSION_NUMBER >= 0x10100000
+# if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(LIBRESSL_VERSION_NUMBER)
     rtCrDigestOsslEvp_New,
     rtCrDigestOsslEvp_Free,
 # else
@@ -729,7 +733,11 @@ RTDECL(PCRTCRDIGESTDESC) RTCrDigestFindByObjIdString(const char *pszObjId, void 
                 /*
                  * Return the OpenSSL provider descriptor and the EVP_MD address.
                  */
+# if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(LIBRESSL_VERSION_NUMBER)
+                Assert(EVP_MD_block_size(pEvpMdType));
+# else
                 Assert(pEvpMdType->md_size);
+# endif
                 *ppvOpaque = (void *)pEvpMdType;
                 return &g_rtCrDigestOpenSslDesc;
             }

@@ -933,7 +933,16 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
         dev_kfree_skb(pBuf);
         if (!pCopy)
         {
-            LogRel(("VBoxNetFlt: Failed to allocate packet buffer, dropping the packet.\n"));
+            static volatile uint32_t s_cMessages  = 0;
+            static volatile uint32_t s_cThreshold = 1;
+            if (ASMAtomicIncU32(&s_cMessages) == ASMAtomicReadU32(&s_cThreshold))
+            {
+                LogRel(("VBoxNetFlt: Failed to allocate packet buffer, dropping the packet.\n"));
+                if (ASMAtomicReadU32(&s_cMessages) != 1)
+                    LogRel(("VBoxNetFlt: (the above error has occured %u times so far)\n",
+                            ASMAtomicReadU32(&s_cMessages)));
+                ASMAtomicWriteU32(&s_cThreshold, ASMAtomicReadU32(&s_cThreshold) * 10);
+            }
             return 0;
         }
         pBuf = pCopy;

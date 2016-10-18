@@ -492,6 +492,7 @@
 %define  MSR_K6_EFER_LME                     RT_BIT_32(8)
 %define  MSR_K6_EFER_LMA                     RT_BIT_32(10)
 %define  MSR_K6_EFER_NXE                     RT_BIT_32(11)
+%define  MSR_K6_EFER_BIT_NXE                 11
 %define  MSR_K6_EFER_SVME                    RT_BIT_32(12)
 %define  MSR_K6_EFER_LMSLE                   RT_BIT_32(13)
 %define  MSR_K6_EFER_FFXSR                   RT_BIT_32(14)
@@ -570,6 +571,7 @@
 %define X86_PTE_BIT_D                       6
 %define X86_PTE_BIT_PAT                     7
 %define X86_PTE_BIT_G                       8
+%define X86_PTE_PAE_BIT_NX                  63
 %define X86_PTE_P                           RT_BIT_32(0)
 %define X86_PTE_RW                          RT_BIT_32(1)
 %define X86_PTE_US                          RT_BIT_32(2)

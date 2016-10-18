@@ -130,17 +130,34 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv)
                 && g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_INVARIANT_TSC)
                 SUPR3GipSetFlags(SUPGIP_FLAGS_TESTING_ENABLE, UINT32_MAX);
 
-            RTPrintf("tstGIP-2: cCpus=%d  u32UpdateHz=%RU32  u32UpdateIntervalNS=%RU32  u64NanoTSLastUpdateHz=%RX64  u64CpuHz=%RU64  uCpuHzRef=%RU64  u32Mode=%d (%s)  fTestMode=%RTbool  u32Version=%#x\n",
+            RTPrintf("tstGIP-2: u32Mode=%d (%s)  fTestMode=%RTbool  u32Version=%#x  fGetGipCpu=%#RX32\n",
+                     g_pSUPGlobalInfoPage->u32Mode,
+                     SUPGetGIPModeName(g_pSUPGlobalInfoPage),
+                     fTestMode,
+                     g_pSUPGlobalInfoPage->u32Version,
+                     g_pSUPGlobalInfoPage->fGetGipCpu);
+            RTPrintf("tstGIP-2: cCpus=%d  cPossibleCpus=%d cPossibleCpuGroups=%d cPresentCpus=%d cOnlineCpus=%d idCpuMax=%#x\n",
                      g_pSUPGlobalInfoPage->cCpus,
+                     g_pSUPGlobalInfoPage->cPossibleCpus,
+                     g_pSUPGlobalInfoPage->cPossibleCpuGroups,
+                     g_pSUPGlobalInfoPage->cPresentCpus,
+                     g_pSUPGlobalInfoPage->cOnlineCpus,
+                     g_pSUPGlobalInfoPage->idCpuMax);
+            RTPrintf("tstGIP-2: u32UpdateHz=%RU32  u32UpdateIntervalNS=%RU32  u64NanoTSLastUpdateHz=%RX64  u64CpuHz=%RU64  uCpuHzRef=%RU64\n",
                      g_pSUPGlobalInfoPage->u32UpdateHz,
                      g_pSUPGlobalInfoPage->u32UpdateIntervalNS,
                      g_pSUPGlobalInfoPage->u64NanoTSLastUpdateHz,
                      g_pSUPGlobalInfoPage->u64CpuHz,
-                     uCpuHzRef,
-                     g_pSUPGlobalInfoPage->u32Mode,
-                     SUPGetGIPModeName(g_pSUPGlobalInfoPage),
-                     fTestMode,
-                     g_pSUPGlobalInfoPage->u32Version);
+                     uCpuHzRef);
+            for (uint32_t iCpu = 0; iCpu < g_pSUPGlobalInfoPage->cCpus; iCpu++)
+                if (g_pSUPGlobalInfoPage->aCPUs[iCpu].enmState != SUPGIPCPUSTATE_INVALID)
+                {
+                    SUPGIPCPU const *pGipCpu = &g_pSUPGlobalInfoPage->aCPUs[iCpu];
+                    RTPrintf("tstGIP-2: aCPU[%u]: enmState=%d iCpuSet=%u idCpu=%#010x iCpuGroup=%u iCpuGroupMember=%u idApic=%#x\n",
+                             iCpu, pGipCpu->enmState, pGipCpu->iCpuSet, pGipCpu->idCpu, pGipCpu->iCpuGroup,
+                             pGipCpu->iCpuGroupMember, pGipCpu->idApic);
+                }
+
             RTPrintf(fHex
                      ? "tstGIP-2:     it: u64NanoTS        delta     u64TSC           UpIntTSC H  TransId      CpuHz      %sTSC Interval History...\n"
                      : "tstGIP-2:     it: u64NanoTS        delta     u64TSC             UpIntTSC H    TransId      CpuHz      %sTSC Interval History...\n",
