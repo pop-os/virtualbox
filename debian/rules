@@ -33,7 +33,7 @@ export DEB_BUILD_HARDENING_BINDNOW=0
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie,-format,-bindnow
 
 %:
-	dh $@ --with python3,dkms,systemd
+	dh $@ --with python2,dkms,systemd
 
 override_dh_auto_configure:
 	@echo Building for $(DIST_RELEASE)
@@ -82,7 +82,7 @@ override_dh_auto_install:
 
 	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
 	    cd out/bin/sdk/installer && \
-	    python3 ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
+	    python ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
 
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
@@ -135,9 +135,9 @@ ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.rc;
 	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.r0;
 
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python3/xpcom/*.py;
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python3/xpcom/server/*.py;
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python3/xpcom/client/*.py;
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/*.py;
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/server/*.py;
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/client/*.py;
 	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/java/vboxjxpcom.jar;
 
 	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh;
