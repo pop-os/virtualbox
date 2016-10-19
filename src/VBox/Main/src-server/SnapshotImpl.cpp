@@ -3093,7 +3093,13 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
             }
 
             if (fNeedSourceUninit)
+            {
+                // make sure that the diff image to be deleted has no parent,
+                // even in error cases (where the deparenting may be missing)
+                if (it->mpSource->i_getParent())
+                    it->mpSource->i_deparent();
                 it->mpSource->uninit();
+            }
 
             // One attachment is merged, must save the settings
             mParent->i_markRegistryModified(i_getId());

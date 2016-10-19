@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 107150 $)
+# Linux Additions X11 setup init script ($Revision: 110817 $)
 #
 
 #
@@ -380,7 +380,10 @@ setup()
     *)
         if test -f /etc/modprobe.d/blacklist-vboxvideo.conf; then
             rm -f /etc/modprobe.d/blacklist-vboxvideo.conf
-            ${MODPROBE} vboxvideo
+            # We do not want to load the driver if X.Org Server is already
+            # running, as without a driver the server will touch the hardware
+            # directly, causing problems.
+            ps -Af | grep -q '[X]org' || ${MODPROBE} vboxvideo
         fi
         ;;
     esac

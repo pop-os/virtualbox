@@ -799,6 +799,42 @@ void VBOXCALL   supdrvOSSessionHashTabInserted(PSUPDRVDEVEXT pDevExt, PSUPDRVSES
  */
 void VBOXCALL   supdrvOSSessionHashTabRemoved(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser);
 
+/**
+ * Called during GIP initializtion to calc the CPU group table size.
+ *
+ * This is currently only implemented on windows [lazy bird].
+ *
+ * @returns Number of bytes needed for SUPGIPCPUGROUP structures.
+ * @param   pDevExt             The device globals.
+ */
+size_t VBOXCALL supdrvOSGipGetGroupTableSize(PSUPDRVDEVEXT pDevExt);
+
+/**
+ * Called during GIP initialization to set up the group table and group count.
+ *
+ * This is currently only implemented on windows [lazy bird].
+ *
+ * @param   pDevExt             The device globals.
+ * @param   pGip                The GIP which group table needs initialization.
+ *                              It's only partially initialized at this point.
+ * @param   cbGipCpuGroups      What supdrvOSGipGetGroupTableSize returned.
+ */
+int VBOXCALL    supdrvOSInitGipGroupTable(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, size_t cbGipCpuGroups);
+
+/**
+ * Initializes the group related members when a CPU is added to the GIP.
+ *
+ * This is called both during GIP initalization and during an CPU online event.
+ *
+ * This is currently only implemented on windows [lazy bird].
+ *
+ * @returns CPU group number.
+ * @param   pDevExt             The device globals.
+ * @param   pGip                The GIP.
+ * @param   pGipCpu             The GIP CPU structure being initialized.
+ */
+void VBOXCALL supdrvOSGipInitGroupBitsForCpu(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu);
+
 void VBOXCALL   supdrvOSObjInitCreator(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession);
 bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, const char *pszObjName, int *prc);
 bool VBOXCALL   supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt);

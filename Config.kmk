@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 1
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 6
+VBOX_VERSION_BUILD = 8
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -747,6 +747,8 @@ VBOX_WITH_EXTPACK_VBOXDTRACE = 1
 
 ## @name Misc
 ## @{
+# Enable to compile with OpenSSL 1.0 (only relevant for Windows, see src/VBox/Runtime/Makefile.kmk)
+#VBOX_WITH_OPENSSL_PRE_1_1 = 1
 # Enable Seamless mode
 VBOX_X11_SEAMLESS_GUEST = 1
 # Enables all the doxgen bits.
@@ -1730,7 +1732,8 @@ ifndef VBOX_BLD_PYTHON
   				   python-not-found.exe)
  else
   VBOX_BLD_PYTHON := $(firstword $(which python2.7$(HOSTSUFF_EXE)) $(which python2.6$(HOSTSUFF_EXE)) \
-                                 $(which python$(HOSTSUFF_EXE)) python$(HOSTSUFF_EXE))
+                                 $(which python$(HOSTSUFF_EXE)) $(which python3$(HOSTSUFF_EXE)) \
+				   python-not-found)
  endif
 endif
 
@@ -1944,7 +1947,7 @@ VBOX_MAKESELF  ?= $(KBUILD_DEVTOOLS)/common/makeself/v2.1.5/makeself.sh
 VBOX_PATH_HTML_HELP_WORKSHOP ?= $(KBUILD_DEVTOOLS)/win.x86/HTML_Help_Workshop/v1.3/
 
 # Path to the null soft installer.
-VBOX_PATH_NSIS ?= $(KBUILD_DEVTOOLS)/win.x86/nsis/v2.46-log-nsscm-r1
+VBOX_PATH_NSIS ?= $(KBUILD_DEVTOOLS)/win.x86/nsis/v2.51-log-nsscm-r1
 
 # Path to AutoIt3.
 VBOX_PATH_AUTOIT3 ?= $(KBUILD_DEVTOOLS)/win.x86/autoit/v3.2.10.0
@@ -2437,9 +2440,9 @@ ifeq ($(KBUILD_HOST),win)
  VBOX_GCC32_CHECK_CXX = $(2)
 else
  VBOX_GCC_CHECK_EX_CC = $(shell \
-    if $(1) $(subst -Wno-,-W,$(2)) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(2)"; else echo "$(3)"; fi; )
+    if $(1) $(subst -Wno-,-W,$(2)) -Werror -c -o /dev/null -xc   $(PATH_OUT)/DynamicConfig.c   > /dev/null 2>&1; then echo "$(2)"; else echo "$(3)"; fi; )
  VBOX_GCC_CHECK_EX_CXX = $(shell \
-    if $(1) $(subst -Wno-,-W,$(2)) -S -o /dev/null -xc++ /dev/null > /dev/null 2>&1; then echo "$(2)"; else echo "$(3)"; fi; )
+    if $(1) $(subst -Wno-,-W,$(2)) -Werror -c -o /dev/null -xc++ $(PATH_OUT)/DynamicConfig.cpp > /dev/null 2>&1; then echo "$(2)"; else echo "$(3)"; fi; )
  VBOX_GCC_CHECK_EX_LD = $(shell \
     if $(1) -Wl,$(2) $(if $(eq $(KBUILD_HOST),darwin),-Wl$(COMMA)-u$(COMMA)start -Wl$(COMMA)-undefined$(COMMA)dynamic_lookup,) \
             -nostdlib -o /dev/null -xc /dev/null > /dev/null 2>&1; \
@@ -2528,6 +2531,11 @@ endif
 VBOX_PYLINT_FIGURE_VERSION = $(shell $(1) --version 2> /dev/null \
 	| $(SED_EXT) -n -e 's|^ *pylint *\([0-9][0-9]*\).\([0-9][0-9]*\)\.\([0-9][0-9]*\).*$(DOLLAR)|$$(expr \1 * 10000 + \2 * 100 + \3)|p' )
 
+# Test C and C++ files.
+$(PATH_OUT)/DynamicConfig.c $(PATH_OUT)/DynamicConfig.cpp:
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(APPEND) -tn "$@" "int foobar(void)" "{" "    return 42;" "}" ""
+
 # No $(QUIET) here as it's interesting to see what goes into the file.
 $(PATH_OUT)/DynamicConfig.kmk: \
 		$(PATH_ROOT)/Config.kmk \
@@ -2538,7 +2546,8 @@ $(PATH_OUT)/DynamicConfig.kmk: \
 		$(VBOX_GCC32_PATH_CC) \
 		$(VBOX_GCC32_PATH_CXX) \
 		$(if-expr "$(KBUILD_HOST).$(KBUILD_HOST_ARCH)" == "solaris.amd64" && $(KBUILD_HOST_VERSION_MINOR) >= 11 \
-			, /platform/i86pc/kernel/$(KBUILD_HOST_ARCH)/unix,)
+			, /platform/i86pc/kernel/$(KBUILD_HOST_ARCH)/unix,) \
+        	| $(PATH_OUT)/DynamicConfig.c $(PATH_OUT)/DynamicConfig.cpp
 	$(call MSG_GENERATE,,$@,)
 	$(QUIET)$(RM) -f '$@'
 	$(QUIET)$(MKDIR) -p $(@D)
@@ -2562,11 +2571,8 @@ $(PATH_OUT)/DynamicConfig.kmk: \
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-delete-non-virtual-dtor    ?= $(call VBOX_GCC_CHECK_CXX,-Wno-delete-non-virtual-dtor,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-int-to-pointer-cast        ?= $(call VBOX_GCC_CHECK_CC,-Wno-int-to-pointer-cast,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-invalid-offsetof           ?= $(call VBOX_GCC_CHECK_CXX,-Wno-invalid-offsetof,)'
-if $(KBUILD_TARGET) != "darwin" || !defined(VBOX_WITH_NEW_XCODE) ## @todo somthing goes entirely sideways with the detection. clang doesn't know the option, but only complains when we use it in webservices/Makefile.kmk!
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-literal-suffix             ?= $(call VBOX_GCC_CHECK_CXX,-Wno-literal-suffix,)'
-else
-	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-literal-suffix             ?='
-endif
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-misleading-indentation     ?= $(call VBOX_GCC_CHECK_CC,-Wno-misleading-indentation,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-missing-field-initializers ?= $(call VBOX_GCC_CHECK_CC,-Wno-missing-field-initializers,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-pointer-to-int-cast        ?= $(call VBOX_GCC_CHECK_CC,-Wno-pointer-to-int-cast,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-variadic-macros   ?= $(call VBOX_GCC_CHECK_CXX,-Wno-variadic-macros,)'
@@ -3572,7 +3578,7 @@ if1of ($(KBUILD_TARGET), os2 win) # Not required on solaris.
 endif
 
 SDK_VBOX_OPENSSL      = Only for VBoxRT and/or statically linked programs.
-SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS := $(PATH_OUT)/obj/crypto-headers/include
+SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS := $(PATH_OUT)/obj/crypto-1.1.0-headers/include
 SDK_VBOX_OPENSSL_INCS ?= $(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)
 SDK_VBOX_OPENSSL_ORDERDEPS ?= $(crypto-headers_1_TARGET)
 SDK_VBOX_OPENSSL_LIBS ?= \
@@ -3580,7 +3586,7 @@ SDK_VBOX_OPENSSL_LIBS ?= \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB)
 
 SDK_VBOX_OPENSSL-x86      = Only for VBoxRT and/or statically linked programs.
-SDK_VBOX_OPENSSL-x86_VBOX_DEFAULT_INCS := $(PATH_OUT)/obj/crypto-headers/include
+SDK_VBOX_OPENSSL-x86_VBOX_DEFAULT_INCS := $(PATH_OUT)/obj/crypto-1.1.0-headers/include
 SDK_VBOX_OPENSSL-x86_INCS ?= $(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)
 SDK_VBOX_OPENSSL-x86_ORDERDEPS ?= $(crypto-headers_1_TARGET)
 SDK_VBOX_OPENSSL-x86_LIBS ?= \
@@ -3593,21 +3599,14 @@ if "$(SDK_VBOX_OPENSSL_INCS)" == "$(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)"
  SDK_VBOX_OPENSSL2_LIBS = $(NO_SUCH_VARIABLE)
 endif
 
-SDK_VBoxOpenSslExtPack                 = Internal use only.
-SDK_VBoxOpenSslExtPack_INCS            = $(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)
-SDK_VBoxOpenSslExtPack_ORDERDEPS       = $(crypto-headers_1_TARGET)
-SDK_VBoxOpenSslExtPack_LIBS    = \
-	$(PATH_STAGE_LIB)/VBoxExtPack-libssl$(VBOX_SUFF_LIB) \
-	$(PATH_STAGE_LIB)/VBoxExtPack-libcrypto$(VBOX_SUFF_LIB)
-
 ifdef VBOX_WITH_LIBCURL
 SDK_VBOX_LIBCURL       = .
-SDK_VBOX_LIBCURL_INCS ?= $(PATH_ROOT)/src/libs/curl-7.47.0/include
+SDK_VBOX_LIBCURL_INCS ?= $(PATH_ROOT)/src/libs/curl-7.50.3/include
 SDK_VBOX_LIBCURL_LIBS ?= $(PATH_STAGE_LIB)/VBox-libcurl$(VBOX_SUFF_LIB)
 SDK_VBOX_LIBCURL_DEFS ?= BUILDING_LIBCURL
 
 SDK_VBOX_LIBCURL-x86           = .
-SDK_VBOX_LIBCURL-x86_INCS     ?= $(PATH_ROOT)/src/libs/curl-7.47.0/include
+SDK_VBOX_LIBCURL-x86_INCS     ?= $(PATH_ROOT)/src/libs/curl-7.50.3/include
 SDK_VBOX_LIBCURL-x86_LIBS.x86 ?= $(PATH_STAGE_LIB)/VBox-libcurl-x86$(VBOX_SUFF_LIB)
 SDK_VBOX_LIBCURL-x86_DEFS     ?= BUILDING_LIBCURL
 endif
@@ -5658,6 +5657,16 @@ ifdef VBOX_WITH_EXTPACK
   TEMPLATE_VBoxR3ExtPackPuel_INST = $(INST_EXTPACK_PUEL)$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/
   TEMPLATE_VBoxR3ExtPackPuel_DEFS = $(TEMPLATE_VBoxR3ExtPack_DEFS) VBOX_IN_PUEL_EXTPACK
 
+  TEMPLATE_VBoxR3ExtPackPuelWithOpenSsl = For the ring-3 context modules in the PUEL extension pack using ExtPack OpenSSL.
+  TEMPLATE_VBoxR3ExtPackPuelWithOpenSsl_EXTENDS = VBoxR3ExtPackPuel
+  TEMPLATE_VBoxR3ExtPackPuelWithOpenSsl_INCS = \
+  	$(TEMPLATE_VBoxR3ExtPack_INCS) \
+  	$(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)
+  TEMPLATE_VBoxR3ExtPackPuelWithOpenSsl_LIBS = \
+  	$(PATH_STAGE_LIB)/VBoxExtPack-libssl$(VBOX_SUFF_LIB) \
+  	$(PATH_STAGE_LIB)/VBoxExtPack-libcrypto$(VBOX_SUFF_LIB) \
+  	$(TEMPLATE_VBoxR3ExtPack_LIBS) # Must come after the two libraries or we'll pick up SSL from VBoxRT!
+
   TEMPLATE_VBoxR0ExtPackPuel = For the ring-0 context modules in the PUEL extension pack.
   TEMPLATE_VBoxR0ExtPackPuel_EXTENDS = VBoxR0ExtPack
   TEMPLATE_VBoxR0ExtPackPuel_INST = $(INST_EXTPACK_PUEL)$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/
@@ -6847,7 +6856,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 110634 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 111374 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

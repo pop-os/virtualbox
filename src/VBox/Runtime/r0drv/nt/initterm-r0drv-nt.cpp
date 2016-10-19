@@ -30,9 +30,7 @@
 *********************************************************************************************************************************/
 #include "the-nt-kernel.h"
 #include <iprt/asm-amd64-x86.h>
-#include <iprt/assert.h>
 #include <iprt/err.h>
-#include <iprt/mp.h>
 #include <iprt/string.h>
 #include "internal/initterm.h"
 #include "internal-r0drv-nt.h"
@@ -43,52 +41,67 @@
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
-/** The NT CPU set.
- * KeQueryActiveProcssors() cannot be called at all IRQLs and therefore we'll
- * have to cache it. Fortunately, Nt doesn't really support taking CPUs offline
- * or online. It's first with W2K8 that support for CPU hotplugging was added.
- * Once we start caring about this, we'll simply let the native MP event callback
- * and update this variable as CPUs comes online. (The code is done already.)
- */
-RTCPUSET                            g_rtMpNtCpuSet;
-
 /** ExSetTimerResolution, introduced in W2K. */
-PFNMYEXSETTIMERRESOLUTION           g_pfnrtNtExSetTimerResolution;
+PFNMYEXSETTIMERRESOLUTION               g_pfnrtNtExSetTimerResolution;
 /** KeFlushQueuedDpcs, introduced in XP. */
-PFNMYKEFLUSHQUEUEDDPCS              g_pfnrtNtKeFlushQueuedDpcs;
+PFNMYKEFLUSHQUEUEDDPCS                  g_pfnrtNtKeFlushQueuedDpcs;
 /** HalRequestIpi, version introduced with windows 7. */
-PFNHALREQUESTIPI_W7PLUS             g_pfnrtHalRequestIpiW7Plus;
+PFNHALREQUESTIPI_W7PLUS                 g_pfnrtHalRequestIpiW7Plus;
 /** HalRequestIpi, version valid up to windows vista?? */
-PFNHALREQUESTIPI_PRE_W7             g_pfnrtHalRequestIpiPreW7;
+PFNHALREQUESTIPI_PRE_W7                 g_pfnrtHalRequestIpiPreW7;
 /** Worker for RTMpPokeCpu. */
-PFNRTSENDIPI                        g_pfnrtMpPokeCpuWorker;
+PFNRTSENDIPI                            g_pfnrtMpPokeCpuWorker;
 /** KeIpiGenericCall - Introduced in Windows Server 2003. */
-PFNRTKEIPIGENERICCALL               g_pfnrtKeIpiGenericCall;
+PFNRTKEIPIGENERICCALL                   g_pfnrtKeIpiGenericCall;
+/** KeSetTargetProcessorDpcEx - Introduced in Windows 7. */
+PFNKESETTARGETPROCESSORDPCEX            g_pfnrtKeSetTargetProcessorDpcEx;
 /** KeInitializeAffinityEx - Introducted in Windows 7. */
-PFNKEINITIALIZEAFFINITYEX           g_pfnrtKeInitializeAffinityEx;
+PFNKEINITIALIZEAFFINITYEX               g_pfnrtKeInitializeAffinityEx;
 /** KeAddProcessorAffinityEx - Introducted in Windows 7. */
-PFNKEADDPROCESSORAFFINITYEX         g_pfnrtKeAddProcessorAffinityEx;
-/** KeGetProcessorIndexFromNumber - Introducted in Windows  7. */
-PFNKEGETPROCESSORINDEXFROMNUMBER    g_pfnrtKeGetProcessorIndexFromNumber;
+PFNKEADDPROCESSORAFFINITYEX             g_pfnrtKeAddProcessorAffinityEx;
+/** KeGetProcessorIndexFromNumber - Introducted in Windows 7. */
+PFNKEGETPROCESSORINDEXFROMNUMBER        g_pfnrtKeGetProcessorIndexFromNumber;
+/** KeGetProcessorNumberFromIndex - Introducted in Windows 7. */
+PFNKEGETPROCESSORNUMBERFROMINDEX        g_pfnrtKeGetProcessorNumberFromIndex;
+/** KeGetCurrentProcessorNumberEx - Introducted in Windows 7. */
+PFNKEGETCURRENTPROCESSORNUMBEREX        g_pfnrtKeGetCurrentProcessorNumberEx;
+/** KeQueryActiveProcessors - Introducted in Windows 2000. */
+PFNKEQUERYACTIVEPROCESSORS              g_pfnrtKeQueryActiveProcessors;
+/** KeQueryMaximumProcessorCount   - Introducted in Vista and obsoleted W7. */
+PFNKEQUERYMAXIMUMPROCESSORCOUNT         g_pfnrtKeQueryMaximumProcessorCount;
+/** KeQueryMaximumProcessorCountEx - Introducted in Windows 7. */
+PFNKEQUERYMAXIMUMPROCESSORCOUNTEX       g_pfnrtKeQueryMaximumProcessorCountEx;
+/** KeQueryMaximumGroupCount - Introducted in Windows 7. */
+PFNKEQUERYMAXIMUMGROUPCOUNT             g_pfnrtKeQueryMaximumGroupCount;
+/** KeQueryActiveProcessorCount   - Introducted in Vista and obsoleted W7. */
+PFNKEQUERYACTIVEPROCESSORCOUNT          g_pfnrtKeQueryActiveProcessorCount;
+/** KeQueryActiveProcessorCountEx - Introducted in Windows 7. */
+PFNKEQUERYACTIVEPROCESSORCOUNTEX        g_pfnrtKeQueryActiveProcessorCountEx;
+/** KeQueryLogicalProcessorRelationship - Introducted in Windows 7. */
+PFNKEQUERYLOGICALPROCESSORRELATIONSHIP  g_pfnrtKeQueryLogicalProcessorRelationship;
+/** KeRegisterProcessorChangeCallback - Introducted in Windows 7. */
+PFNKEREGISTERPROCESSORCHANGECALLBACK    g_pfnrtKeRegisterProcessorChangeCallback;
+/** KeDeregisterProcessorChangeCallback - Introducted in Windows 7. */
+PFNKEDEREGISTERPROCESSORCHANGECALLBACK  g_pfnrtKeDeregisterProcessorChangeCallback;
 /** RtlGetVersion, introduced in ??. */
-PFNRTRTLGETVERSION                  g_pfnrtRtlGetVersion;
+PFNRTRTLGETVERSION                      g_pfnrtRtlGetVersion;
 #ifndef RT_ARCH_AMD64
 /** KeQueryInterruptTime - exported/new in Windows 2000. */
-PFNRTKEQUERYINTERRUPTTIME           g_pfnrtKeQueryInterruptTime;
+PFNRTKEQUERYINTERRUPTTIME               g_pfnrtKeQueryInterruptTime;
 /** KeQuerySystemTime - exported/new in Windows 2000. */
-PFNRTKEQUERYSYSTEMTIME              g_pfnrtKeQuerySystemTime;
+PFNRTKEQUERYSYSTEMTIME                  g_pfnrtKeQuerySystemTime;
 #endif
 /** KeQueryInterruptTimePrecise - new in Windows 8. */
-PFNRTKEQUERYINTERRUPTTIMEPRECISE    g_pfnrtKeQueryInterruptTimePrecise;
+PFNRTKEQUERYINTERRUPTTIMEPRECISE        g_pfnrtKeQueryInterruptTimePrecise;
 /** KeQuerySystemTimePrecise - new in Windows 8. */
-PFNRTKEQUERYSYSTEMTIMEPRECISE       g_pfnrtKeQuerySystemTimePrecise;
+PFNRTKEQUERYSYSTEMTIMEPRECISE           g_pfnrtKeQuerySystemTimePrecise;
 
 /** Offset of the _KPRCB::QuantumEnd field. 0 if not found. */
-uint32_t                            g_offrtNtPbQuantumEnd;
+uint32_t                                g_offrtNtPbQuantumEnd;
 /** Size of the _KPRCB::QuantumEnd field. 0 if not found. */
-uint32_t                            g_cbrtNtPbQuantumEnd;
+uint32_t                                g_cbrtNtPbQuantumEnd;
 /** Offset of the _KPRCB::DpcQueueDepth field. 0 if not found. */
-uint32_t                            g_offrtNtPbDpcQueueDepth;
+uint32_t                                g_offrtNtPbDpcQueueDepth;
 
 
 /**
@@ -124,9 +137,23 @@ static void rtR0NtGetOsVersionInfo(PRTNTSDBOSVER pOsVerInfo)
     }
 
     /* Note! We cannot quite say if something is MP or UNI. So, fSmp is
-             redefined to indicate that it must be MP. */
-    pOsVerInfo->fSmp        = RTMpGetCount() >  1
-                           || ulMajorVersion >= 6; /* Vista and later has no UNI kernel AFAIK. */
+             redefined to indicate that it must be MP.
+       Note! RTMpGetCount is not available here. */
+    pOsVerInfo->fSmp = ulMajorVersion >= 6; /* Vista and later has no UNI kernel AFAIK. */
+    if (!pOsVerInfo->fSmp)
+    {
+        if (   g_pfnrtKeQueryMaximumProcessorCountEx
+            && g_pfnrtKeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS) > 1)
+            pOsVerInfo->fSmp = true;
+        else if (   g_pfnrtKeQueryMaximumProcessorCount
+                 && g_pfnrtKeQueryMaximumProcessorCount() > 1)
+            pOsVerInfo->fSmp = true;
+        else if (   g_pfnrtKeQueryActiveProcessors
+                 && g_pfnrtKeQueryActiveProcessors() > 1)
+            pOsVerInfo->fSmp = true;
+        else if (KeNumberProcessors > 1)
+            pOsVerInfo->fSmp = true;
+    }
 }
 
 
@@ -205,72 +232,56 @@ static bool rtR0NtTryMatchSymSet(PCRTNTSDBSET pSet, uint8_t *pbPrcb, const char 
 DECLHIDDEN(int) rtR0InitNative(void)
 {
     /*
-     * Init the Nt cpu set.
-     */
-#ifdef IPRT_TARGET_NT4
-    KAFFINITY ActiveProcessors = (UINT64_C(1) << KeNumberProcessors) - UINT64_C(1);
-#else
-    KAFFINITY ActiveProcessors = KeQueryActiveProcessors();
-#endif
-    RTCpuSetEmpty(&g_rtMpNtCpuSet);
-    RTCpuSetFromU64(&g_rtMpNtCpuSet, ActiveProcessors);
-/** @todo Port to W2K8 with > 64 cpus/threads. */
-
-    /*
      * Initialize the function pointers.
      */
 #ifdef IPRT_TARGET_NT4
-    g_pfnrtNtExSetTimerResolution = NULL;
-    g_pfnrtNtKeFlushQueuedDpcs = NULL;
-    g_pfnrtHalRequestIpiW7Plus = NULL;
-    g_pfnrtHalRequestIpiPreW7 = NULL;
-    g_pfnrtKeIpiGenericCall = NULL;
-    g_pfnrtKeInitializeAffinityEx = NULL;
-    g_pfnrtKeAddProcessorAffinityEx = NULL;
-    g_pfnrtKeGetProcessorIndexFromNumber = NULL;
-    g_pfnrtRtlGetVersion = NULL;
-    g_pfnrtKeQueryInterruptTime = NULL;
-    g_pfnrtKeQueryInterruptTimePrecise = NULL;
-    g_pfnrtKeQuerySystemTime = NULL;
-    g_pfnrtKeQuerySystemTimePrecise = NULL;
+# define GET_SYSTEM_ROUTINE_EX(a_Prf, a_Name, a_pfnType) do { RT_CONCAT3(g_pfnrt, a_Prf, a_Name) = NULL; } while (0)
 #else
     UNICODE_STRING RoutineName;
-    RtlInitUnicodeString(&RoutineName, L"ExSetTimerResolution");
-    g_pfnrtNtExSetTimerResolution = (PFNMYEXSETTIMERRESOLUTION)MmGetSystemRoutineAddress(&RoutineName);
+# define GET_SYSTEM_ROUTINE_EX(a_Prf, a_Name, a_pfnType) \
+    do { \
+        RtlInitUnicodeString(&RoutineName, L#a_Name); \
+        RT_CONCAT3(g_pfnrt, a_Prf, a_Name) = (a_pfnType)MmGetSystemRoutineAddress(&RoutineName); \
+    } while (0)
+#endif
+#define GET_SYSTEM_ROUTINE(a_Name)                 GET_SYSTEM_ROUTINE_EX(RT_NOTHING, a_Name, decltype(a_Name) *)
+#define GET_SYSTEM_ROUTINE_PRF(a_Prf,a_Name)       GET_SYSTEM_ROUTINE_EX(a_Prf, a_Name, decltype(a_Name) *)
+#define GET_SYSTEM_ROUTINE_TYPE(a_Name, a_pfnType) GET_SYSTEM_ROUTINE_EX(RT_NOTHING, a_Name, a_pfnType)
 
-    RtlInitUnicodeString(&RoutineName, L"KeFlushQueuedDpcs");
-    g_pfnrtNtKeFlushQueuedDpcs = (PFNMYKEFLUSHQUEUEDDPCS)MmGetSystemRoutineAddress(&RoutineName);
+    GET_SYSTEM_ROUTINE_PRF(Nt,ExSetTimerResolution);
+    GET_SYSTEM_ROUTINE_PRF(Nt,KeFlushQueuedDpcs);
+    GET_SYSTEM_ROUTINE(KeIpiGenericCall);
+    GET_SYSTEM_ROUTINE(KeSetTargetProcessorDpcEx);
+    GET_SYSTEM_ROUTINE(KeInitializeAffinityEx);
+    GET_SYSTEM_ROUTINE(KeAddProcessorAffinityEx);
+    GET_SYSTEM_ROUTINE_TYPE(KeGetProcessorIndexFromNumber, PFNKEGETPROCESSORINDEXFROMNUMBER);
+    GET_SYSTEM_ROUTINE(KeGetProcessorNumberFromIndex);
+    GET_SYSTEM_ROUTINE_TYPE(KeGetCurrentProcessorNumberEx, PFNKEGETCURRENTPROCESSORNUMBEREX);
+    GET_SYSTEM_ROUTINE(KeQueryActiveProcessors);
+    GET_SYSTEM_ROUTINE(KeQueryMaximumProcessorCount);
+    GET_SYSTEM_ROUTINE(KeQueryMaximumProcessorCountEx);
+    GET_SYSTEM_ROUTINE(KeQueryMaximumGroupCount);
+    GET_SYSTEM_ROUTINE(KeQueryActiveProcessorCount);
+    GET_SYSTEM_ROUTINE(KeQueryActiveProcessorCountEx);
+    GET_SYSTEM_ROUTINE(KeQueryLogicalProcessorRelationship);
+    GET_SYSTEM_ROUTINE(KeRegisterProcessorChangeCallback);
+    GET_SYSTEM_ROUTINE(KeDeregisterProcessorChangeCallback);
 
+    GET_SYSTEM_ROUTINE_TYPE(RtlGetVersion, PFNRTRTLGETVERSION);
+#ifndef RT_ARCH_AMD64
+    GET_SYSTEM_ROUTINE(KeQueryInterruptTime);
+    GET_SYSTEM_ROUTINE(KeQuerySystemTime);
+#endif
+    GET_SYSTEM_ROUTINE_TYPE(KeQueryInterruptTimePrecise, PFNRTKEQUERYINTERRUPTTIMEPRECISE);
+    GET_SYSTEM_ROUTINE_TYPE(KeQuerySystemTimePrecise, PFNRTKEQUERYSYSTEMTIMEPRECISE);
+
+#ifdef IPRT_TARGET_NT4
+    g_pfnrtHalRequestIpiW7Plus = NULL;
+    g_pfnrtHalRequestIpiPreW7 = NULL;
+#else
     RtlInitUnicodeString(&RoutineName, L"HalRequestIpi");
     g_pfnrtHalRequestIpiW7Plus = (PFNHALREQUESTIPI_W7PLUS)MmGetSystemRoutineAddress(&RoutineName);
     g_pfnrtHalRequestIpiPreW7 = (PFNHALREQUESTIPI_PRE_W7)g_pfnrtHalRequestIpiW7Plus;
-
-    RtlInitUnicodeString(&RoutineName, L"KeIpiGenericCall");
-    g_pfnrtKeIpiGenericCall = (PFNRTKEIPIGENERICCALL)MmGetSystemRoutineAddress(&RoutineName);
-
-    RtlInitUnicodeString(&RoutineName, L"KeInitializeAffinityEx");
-    g_pfnrtKeInitializeAffinityEx = (PFNKEINITIALIZEAFFINITYEX)MmGetSystemRoutineAddress(&RoutineName);
-
-    RtlInitUnicodeString(&RoutineName, L"KeAddProcessorAffinityEx");
-    g_pfnrtKeAddProcessorAffinityEx = (PFNKEADDPROCESSORAFFINITYEX)MmGetSystemRoutineAddress(&RoutineName);
-
-    RtlInitUnicodeString(&RoutineName, L"KeGetProcessorIndexFromNumber");
-    g_pfnrtKeGetProcessorIndexFromNumber = (PFNKEGETPROCESSORINDEXFROMNUMBER)MmGetSystemRoutineAddress(&RoutineName);
-
-    RtlInitUnicodeString(&RoutineName, L"RtlGetVersion");
-    g_pfnrtRtlGetVersion = (PFNRTRTLGETVERSION)MmGetSystemRoutineAddress(&RoutineName);
-# ifndef RT_ARCH_AMD64
-    RtlInitUnicodeString(&RoutineName, L"KeQueryInterruptTime");
-    g_pfnrtKeQueryInterruptTime = (PFNRTKEQUERYINTERRUPTTIME)MmGetSystemRoutineAddress(&RoutineName);
-
-    RtlInitUnicodeString(&RoutineName, L"KeQuerySystemTime");
-    g_pfnrtKeQuerySystemTime = (PFNRTKEQUERYSYSTEMTIME)MmGetSystemRoutineAddress(&RoutineName);
-# endif
-    RtlInitUnicodeString(&RoutineName, L"KeQueryInterruptTimePrecise");
-    g_pfnrtKeQueryInterruptTimePrecise = (PFNRTKEQUERYINTERRUPTTIMEPRECISE)MmGetSystemRoutineAddress(&RoutineName);
-
-    RtlInitUnicodeString(&RoutineName, L"KeQuerySystemTimePrecise");
-    g_pfnrtKeQuerySystemTimePrecise = (PFNRTKEQUERYSYSTEMTIMEPRECISE)MmGetSystemRoutineAddress(&RoutineName);
 #endif
 
     /*
@@ -396,53 +407,22 @@ DECLHIDDEN(int) rtR0InitNative(void)
 # ifdef DEBUG
     else
         DbgPrint("IPRT: _KPRCB:{.QuantumEnd=%x/%d, .DpcQueueDepth=%x/%d} Kernel %u.%u %u %s\n",
-                 g_offrtNtPbQuantumEnd, g_cbrtNtPbQuantumEnd, g_offrtNtPbDpcQueueDepth,
+                 g_offrtNtPbQuantumEnd, g_cbrtNtPbQuantumEnd, g_offrtNtPbDpcQueueDepth, g_offrtNtPbDpcQueueDepth,
                  OsVerInfo.uMajorVer, OsVerInfo.uMinorVer, OsVerInfo.uBuildNo, OsVerInfo.fChecked ? "checked" : "free");
 # endif
 #endif
 
     /*
-     * Special IPI fun for RTMpPokeCpu.
-     *
-     * On Vista and later the DPC method doesn't seem to reliably send IPIs,
-     * so we have to use alternative methods.
-     *
-     * On AMD64 We used to use the HalSendSoftwareInterrupt API (also x86 on
-     * W10+), it looks faster and more convenient to use, however we're either
-     * using it wrong or it doesn't reliably do what we want (see @bugref{8343}).
-     *
-     * The HalRequestIpip API is thus far the only alternative to KeInsertQueueDpc
-     * for doing targetted IPIs.  Trouble with this API is that it changed
-     * fundamentally in Window 7 when they added support for lots of processors.
-     *
-     * If we really think we cannot use KeInsertQueueDpc, we use the broadcast IPI
-     * API KeIpiGenericCall.
+     * Initialize multi processor stuff.  This registers a callback, so
+     * we call rtR0TermNative to do the deregistration on failure.
      */
-    if (   OsVerInfo.uMajorVer > 6
-        || (OsVerInfo.uMajorVer == 6 && OsVerInfo.uMinorVer > 0))
-        g_pfnrtHalRequestIpiPreW7 = NULL;
-    else
-        g_pfnrtHalRequestIpiW7Plus = NULL;
-
-    g_pfnrtMpPokeCpuWorker = rtMpPokeCpuUsingDpc;
-#ifndef IPRT_TARGET_NT4
-    if (   g_pfnrtHalRequestIpiW7Plus
-        && g_pfnrtKeInitializeAffinityEx
-        && g_pfnrtKeAddProcessorAffinityEx
-        && g_pfnrtKeGetProcessorIndexFromNumber)
+    int rc = rtR0MpNtInit(&OsVerInfo);
+    if (RT_FAILURE(rc))
     {
-        DbgPrint("IPRT: RTMpPoke => rtMpPokeCpuUsingHalReqestIpiW7Plus\n");
-        g_pfnrtMpPokeCpuWorker = rtMpPokeCpuUsingHalReqestIpiW7Plus;
+        rtR0TermNative();
+        DbgPrint("IPRT: Fatal: rtR0MpNtInit failed: %d\n", rc);
+        return rc;
     }
-    else if (OsVerInfo.uMajorVer >= 6 && g_pfnrtKeIpiGenericCall)
-    {
-        DbgPrint("IPRT: RTMpPoke => rtMpPokeCpuUsingBroadcastIpi\n");
-        g_pfnrtMpPokeCpuWorker = rtMpPokeCpuUsingBroadcastIpi;
-    }
-    else
-        DbgPrint("IPRT: RTMpPoke => rtMpPokeCpuUsingDpc\n");
-    /* else: Windows XP should send always send an IPI -> VERIFY */
-#endif
 
     return VINF_SUCCESS;
 }
@@ -450,5 +430,6 @@ DECLHIDDEN(int) rtR0InitNative(void)
 
 DECLHIDDEN(void) rtR0TermNative(void)
 {
+    rtR0MpNtTerm();
 }
 

@@ -182,6 +182,12 @@
 /*
  * Use ntifs.h and wdm.h.
  */
+# if _MSC_VER >= 1200 /* Fix/workaround for KeInitializeSpinLock visibility issue on AMD64. */
+#  define FORCEINLINE static __forceinline
+# else
+#  define FORCEINLINE static __inline
+# endif
+
 # pragma warning(push)
 # ifdef RT_ARCH_X86
 #  define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
@@ -2372,6 +2378,17 @@ typedef RTL_CRITICAL_SECTION *PRTL_CRITICAL_SECTION;
 
 /*NTSYSAPI ULONG NTAPI RtlNtStatusToDosError(NTSTATUS rcNt);*/
 
+/** @def RTL_QUERY_REGISTRY_TYPECHECK
+ * WDK 8.1+, backported in updates, ignored in older. */
+#if !defined(RTL_QUERY_REGISTRY_TYPECHECK) || defined(DOXYGEN_RUNNING)
+# define RTL_QUERY_REGISTRY_TYPECHECK       UINT32_C(0x00000100)
+#endif
+/** @def RTL_QUERY_REGISTRY_TYPECHECK_SHIFT
+ * WDK 8.1+, backported in updates, ignored in older. */
+#if !defined(RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) || defined(DOXYGEN_RUNNING)
+# define RTL_QUERY_REGISTRY_TYPECHECK_SHIFT 24
+#endif
+
 
 RT_C_DECLS_END
 /** @} */
@@ -2419,6 +2436,20 @@ NTSYSAPI KEPROCESSORINDEX  NTAPI KeFindFirstSetLeftAffinityEx(PCKAFFINITY_EX pAf
 typedef  KEPROCESSORINDEX (NTAPI *PFNKEFINDFIRSTSETLEFTAFFINITYEX)(PCKAFFINITY_EX pAffinity);
 typedef  NTSTATUS (NTAPI *PFNKEGETPROCESSORNUMBERFROMINDEX)(KEPROCESSORINDEX idxProcessor, PPROCESSOR_NUMBER pProcNumber);
 typedef  KEPROCESSORINDEX (NTAPI *PFNKEGETPROCESSORINDEXFROMNUMBER)(const PROCESSOR_NUMBER *pProcNumber);
+typedef  NTSTATUS (NTAPI *PFNKEGETPROCESSORNUMBERFROMINDEX)(KEPROCESSORINDEX ProcIndex, PROCESSOR_NUMBER *pProcNumber);
+typedef  KEPROCESSORINDEX (NTAPI *PFNKEGETCURRENTPROCESSORNUMBEREX)(const PROCESSOR_NUMBER *pProcNumber);
+typedef  KAFFINITY (NTAPI *PFNKEQUERYACTIVEPROCESSORS)(VOID);
+typedef  ULONG   (NTAPI *PFNKEQUERYMAXIMUMPROCESSORCOUNT)(VOID);
+typedef  ULONG   (NTAPI *PFNKEQUERYMAXIMUMPROCESSORCOUNTEX)(USHORT GroupNumber);
+typedef  USHORT  (NTAPI *PFNKEQUERYMAXIMUMGROUPCOUNT)(VOID);
+typedef  ULONG   (NTAPI *PFNKEQUERYACTIVEPROCESSORCOUNT)(KAFFINITY *pfActiveProcessors);
+typedef  ULONG   (NTAPI *PFNKEQUERYACTIVEPROCESSORCOUNTEX)(USHORT GroupNumber);
+typedef  NTSTATUS (NTAPI *PFNKEQUERYLOGICALPROCESSORRELATIONSHIP)(PROCESSOR_NUMBER *pProcNumber,
+                                                                  LOGICAL_PROCESSOR_RELATIONSHIP RelationShipType,
+                                                                  SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *pInfo, PULONG pcbInfo);
+typedef  PVOID   (NTAPI *PFNKEREGISTERPROCESSORCHANGECALLBACK)(PPROCESSOR_CALLBACK_FUNCTION pfnCallback, void *pvUser, ULONG fFlags);
+typedef  VOID    (NTAPI *PFNKEDEREGISTERPROCESSORCHANGECALLBACK)(PVOID pvCallback);
+typedef  NTSTATUS (NTAPI *PFNKESETTARGETPROCESSORDPCEX)(KDPC *pDpc, PROCESSOR_NUMBER *pProcNumber);
 
 NTSYSAPI BOOLEAN  NTAPI ObFindHandleForObject(PEPROCESS pProcess, PVOID pvObject, POBJECT_TYPE pObjectType,
                                               PVOID pvOptionalConditions, PHANDLE phFound);
