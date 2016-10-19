@@ -1,3 +1,10 @@
+virtualbox (5.1.8-dfsg-3) unstable; urgency=medium
+
+  * Fix build with the correct upstream patch.
+    (Closes: #841340)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 19 Oct 2016 19:33:05 +0200
+
 virtualbox (5.1.8-dfsg-2) unstable; urgency=medium
 
   * Fix a build failure with newer gcc.
