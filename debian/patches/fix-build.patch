@@ -1,0 +1,14 @@
+Description: Upstream patch to workaround gcc-6 6.2.0-7 build failure
+
+--- virtualbox-5.1.8-dfsg.orig/src/VBox/Main/src-server/linux/HostDnsServiceLinux.cpp
++++ virtualbox-5.1.8-dfsg/src/VBox/Main/src-server/linux/HostDnsServiceLinux.cpp
+@@ -78,8 +78,8 @@ class AutoNotify:public FileDescriptor
+ 
+ struct InotifyEventWithName
+ {
+-    struct inotify_event e;
+     char name[NAME_MAX];
++    struct inotify_event e;
+ };
+ 
+ HostDnsServiceLinux::~HostDnsServiceLinux()
