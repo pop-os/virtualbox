@@ -15,4 +15,4 @@
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
 fix-build.patch
-#python3.patch
+python3.patch
