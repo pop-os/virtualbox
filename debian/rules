@@ -53,6 +53,9 @@ endif
 	    --enable-vde \
 	    --enable-vnc
 
+override_dh_python3:
+	dh_python3 --no-ext-rename
+
 override_dh_auto_build:
 	# Building package
 	. out/env.sh && $(MAKE) \
