@@ -24,7 +24,6 @@ virtualbox (5.1.8-dfsg-1) unstable; urgency=medium
   * New upstream release.
     - builds with new openssl 1.1 (Closes: #828593)
     - fix double snapshot deletion crash (Closes: #838766)
-  * Switch to Python3 (LP: #1528016, Closes: #830878)
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 19 Oct 2016 00:12:38 +0200
 
