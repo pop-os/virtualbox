@@ -16,3 +16,4 @@
 36-fix-vnc-version-string.patch
 fix-build.patch
 python3.patch
+old-python.patch
