@@ -1,0 +1,87 @@
+Description: cherry-pick upstream 64561 64562 and 64534
+Index: src/VBox/Additions/linux/drm/vbox_ttm.c
+===================================================================
+--- a/src/VBox/Additions/linux/drm/vbox_ttm.c
++++ b/src/VBox/Additions/linux/drm/vbox_ttm.c
+@@ -224,6 +224,8 @@
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+     r = ttm_bo_move_memcpy(bo, evict, no_wait_gpu, new_mem);
++#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
++    r = ttm_bo_move_memcpy(bo, evict, interruptible, no_wait_gpu, new_mem);
+ #else
+-    r = ttm_bo_move_memcpy(bo, evict, interruptible, no_wait_gpu, new_mem);
++    r = ttm_bo_move_memcpy(bo, interruptible, no_wait_gpu, new_mem);
+ #endif
+     return r;
+
+Index: src/VBox/Additions/linux/sharedfolders/dirops.c
+===================================================================
+--- a/src/VBox/Additions/linux/sharedfolders/dirops.c
++++ b/src/VBox/Additions/linux/sharedfolders/dirops.c
+@@ -749,5 +749,9 @@
+  */
+ static int sf_rename(struct inode *old_parent, struct dentry *old_dentry,
+-                     struct inode *new_parent, struct dentry *new_dentry)
++                     struct inode *new_parent, struct dentry *new_dentry
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
++                     , unsigned flags
++#endif
++                     )
+ {
+     int err = 0, rc = VINF_SUCCESS;
+@@ -755,4 +759,12 @@
+ 
+     TRACE();
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
++    if (flags)
++    {
++        LogFunc(("rename with flags=%x\n", flags));
++        return -EINVAL;
++    }
++#endif
+ 
+     if (sf_g != GET_GLOB_INFO(new_parent->i_sb))
+Index: src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c
+===================================================================
+--- a/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c
++++ b/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c
+@@ -1050,6 +1050,12 @@
+             rc = get_user_pages(R3Ptr,                  /* Where from. */
+                                 cPages,                 /* How many pages. */
++# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
++                                fWrite ? FOLL_WRITE |   /* Write to memory. */
++                                         FOLL_FORCE     /* force write access. */
++                                       : 0,             /* Write to memory. */
++# else
+                                 fWrite,                 /* Write to memory. */
+                                 fWrite,                 /* force write access. */
++# endif
+                                 &pMemLnx->apPages[0],   /* Page array. */
+                                 papVMAs);               /* vmas */
+@@ -1064,6 +1070,12 @@
+                                 R3Ptr,                  /* Where from. */
+                                 cPages,                 /* How many pages. */
++# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
++                                fWrite ? FOLL_WRITE |   /* Write to memory. */
++                                         FOLL_FORCE     /* force write access. */
++                                       : 0,             /* Write to memory. */
++# else
+                                 fWrite,                 /* Write to memory. */
+                                 fWrite,                 /* force write access. */
++# endif
+                                 &pMemLnx->apPages[0],   /* Page array. */
+                                 papVMAs);               /* vmas */
+@@ -1073,6 +1085,12 @@
+                                 R3Ptr,                  /* Where from. */
+                                 cPages,                 /* How many pages. */
++# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
++                                fWrite ? FOLL_WRITE |   /* Write to memory. */
++                                         FOLL_FORCE     /* force write access. */
++                                       : 0,             /* Write to memory. */
++# else
+                                 fWrite,                 /* Write to memory. */
+                                 fWrite,                 /* force write access. */
++# endif
+                                 &pMemLnx->apPages[0],   /* Page array. */
+                                 papVMAs);               /* vmas */
