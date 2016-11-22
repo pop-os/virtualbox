@@ -1,3 +1,9 @@
+virtualbox (5.1.10-dfsg-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #843619)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 22 Nov 2016 11:03:17 +0100
+
 virtualbox (5.1.8-dfsg-7) unstable; urgency=medium
 
   * d/p/linux-4.9-fix.patch (LP: #1642163):
