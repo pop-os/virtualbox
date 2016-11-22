@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 1
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 8
+VBOX_VERSION_BUILD = 10
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -234,6 +234,9 @@ ifneq ($(VBOX_RELEASE_EXACT_MATCH),)
  export VBOX_EFI_SH_MODE           = release
  export VBOX_EXTPACKS_SH_MODE      = release
 endif
+
+# by default use the old 5.0 audio code as the new code still has too many regressions
+VBOX_WITH_AUDIO_50 := 1
 
 # Some info on the vendor
 VBOX_VENDOR       = Oracle Corporation
@@ -1163,6 +1166,18 @@ ifdef VBOX_OSE
  VBOX_BRAND_GUI_VBOX_64PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_64px.png
  VBOX_BRAND_GUI_CUBE_42PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_cube_42px.png
  VBOX_BRAND_GUI_VBOX_SVG             := $(PATH_ROOT)/src/VBox/Artwork/OSE/virtualbox.svg
+endif
+
+#
+# Audio: Which code base to use.
+# This can be overriden in LocalConfig.kmk.
+#
+ifdef VBOX_WITH_AUDIO_50
+ VBOX_AUDIO_PATH_SOURCES=Audio_50
+ VBOX_AUDIO_FILE_SUFFIX=_50
+else
+ VBOX_AUDIO_PATH_SOURCES=Audio
+ VBOX_AUDIO_FILE_SUFFIX=
 endif
 
 #
@@ -2462,8 +2477,9 @@ else
  # This is kind of bad, the returned string needs to be re-evaluated before use.
  # The reason for this hack is that the windows kmk_ash cannot deal with $((1+1)).
  # Some versions of gcc (e.g. openSUSE11) return only major.minor on `gcc -dumpversion`.
+ # gcc-5 of openSUSE42.1 only returns the major version on `gcc -dumpversion`!
  VBOX_GCC_VERSION = $(shell \
-    $(1) -dumpversion | $(SED_EXT) 's|\([0-9]\)\.\([0-9]\)\.\{0,1\}\([0-9]\{0,1\}\).*|$$(int-add $$(int-mul 10000, \1), $$(int-mul 100, \2), $$(firstword \3 0))|' )
+    $(1) -dumpversion | $(SED_EXT) 's|\([0-9]\)\.\{0,1\}\([0-9]\{0,1\}\)\.\{0,1\}\([0-9]\{0,1\}\).*|$$(int-add $$(int-mul 10000, \1), $$(int-mul 100, $$(firstword \2 0)), $$(firstword \3 0))|' )
 endif
 
 # Find MinGW cross compilers for EFI on non-windows systems. We need to probe
@@ -2892,6 +2908,17 @@ if !defined(VBOX_WITHOUT_NO_GCC_WARNING_POLICY) && !defined(VBOX_WITH_NO_GCC_WAR
 endif
 ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
  $(info build debug: VBOX_WITH_NO_GCC_WARNING_POLICY is enabled)
+endif
+
+#
+# We compile the kernel driver/module and related runtime libraries with C++.
+# This does not work for g++-4.8 and recent Linux kernels.
+#
+ifeq ($(BUILD_TARGET),linux)
+ ifeq ($(int-div $(VBOX_GCC_VERSION_CXX),100), 408)
+  VBOX_WITH_VBOXDRV =
+  VBOX_WITH_ADDITION_DRIVERS =
+ endif
 endif
 
 
@@ -5809,6 +5836,7 @@ ifdef VBOX_WITH_QTGUI
   TEMPLATE_VBOXQTGUIEXE_RCCTOOL = QT5
   TEMPLATE_VBOXQTGUIEXE_LRCTOOL = QT5
   TEMPLATE_VBOXQTGUIEXE_SDKS = QT5
+  TEMPLATE_VBOXQTGUIEXE_MOCDEFS.darwin += QT_VERSION=0x050602
  endif # VBOX_WITH_QTGUI_V5
  TEMPLATE_VBOXQTGUIEXE_QT_INFIX = $(VBOX_QT_INFIX)
  TEMPLATE_VBOXQTGUIEXE_DEFS = IN_RING3 QT_NO_DEBUG QT_THREAD_SUPPORT QT_SHARED HAVE_CONFIG_H $(ARCH_BITS_DEFS)
@@ -6856,7 +6884,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 111374 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 112026 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 111712 $"
 
 # Standard Python imports.
 
@@ -733,7 +733,7 @@ class WuiMain(WuiDispatcherBase):
         #
         # Fetch the group members.
         #
-        # If no grouping is selected, we'll fill the the grouping combo with
+        # If no grouping is selected, we'll fill the grouping combo with
         # testboxes just to avoid having completely useless combo box.
         #
         oTrLogic = TestResultLogic(self._oDb);

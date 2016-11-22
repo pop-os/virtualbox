@@ -116,7 +116,7 @@
 # undef LOG_GROUP
 # include "../Audio/DevIchAc97.cpp"
 # undef LOG_GROUP
-# include "../Audio/DevIchHda.cpp"
+# include "../Audio/DevHDA.cpp"
 #ifdef VBOX_WITH_NVME_IMPL
 # undef LOG_GROUP
 # include "../Storage/DevNVMe.cpp"
@@ -147,31 +147,31 @@ int main()
     GEN_CHECK_OFF(PDMDEVINS, achInstanceData);
 
     /* DevPCI.cpp */
-    GEN_CHECK_SIZE(PCIDEVICE);
-    GEN_CHECK_SIZE(PCIDEVICEINT);
+    GEN_CHECK_SIZE(PDMPCIDEV);
+    GEN_CHECK_SIZE(PDMPCIDEVINT);
     GEN_CHECK_SIZE(PCIIOREGION);
-    GEN_CHECK_OFF(PCIDEVICE, config);
-    GEN_CHECK_OFF(PCIDEVICE, devfn);
-    GEN_CHECK_OFF(PCIDEVICE, name);
-    GEN_CHECK_OFF(PCIDEVICE, pDevIns);
-    GEN_CHECK_OFF(PCIDEVICE, Int);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.aIORegions);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.aIORegions[1]);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.aIORegions[PCI_NUM_REGIONS - 1]);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.aIORegions[0].addr);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.aIORegions[0].size);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.aIORegions[0].type);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.aIORegions[0].padding);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.pBusR3);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.pBusR0);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.pBusRC);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.pfnConfigRead);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.pfnConfigWrite);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.fFlags);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.uIrqPinState);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.pfnBridgeConfigRead);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.pfnBridgeConfigWrite);
-    GEN_CHECK_PADDING(PCIDEVICE, Int, 8);
+    GEN_CHECK_OFF(PDMPCIDEV, abConfig);
+    GEN_CHECK_OFF(PDMPCIDEV, uDevFn);
+    GEN_CHECK_OFF(PDMPCIDEV, pszNameR3);
+    GEN_CHECK_OFF(PDMPCIDEV, pvReserved);
+    GEN_CHECK_OFF(PDMPCIDEV, Int);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.aIORegions);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.aIORegions[1]);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.aIORegions[VBOX_PCI_NUM_REGIONS - 1]);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.aIORegions[0].addr);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.aIORegions[0].size);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.aIORegions[0].type);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.aIORegions[0].padding);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.pBusR3);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.pBusR0);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.pBusRC);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.pfnConfigRead);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.pfnConfigWrite);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.fFlags);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.uIrqPinState);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.pfnBridgeConfigRead);
+    GEN_CHECK_OFF(PDMPCIDEV, Int.s.pfnBridgeConfigWrite);
+    GEN_CHECK_PADDING(PDMPCIDEV, Int, 8);
     GEN_CHECK_SIZE(PIIX3State);
     GEN_CHECK_SIZE(PCIBUS);
     GEN_CHECK_OFF(PCIBUS, iBus);

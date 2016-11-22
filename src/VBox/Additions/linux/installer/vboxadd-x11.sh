@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 110817 $)
+# Linux Additions X11 setup init script ($Revision: 111712 $)
 #
 
 #
@@ -454,7 +454,7 @@ $generated
 
 EOF
         cat << EOF
-You may need to restart the the Window System (or just restart the guest system)
+You may need to restart the Window System (or just restart the guest system)
 to enable the Guest Additions.
 
 EOF

@@ -29,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 111712 $"
 __all__     = ['HtmlReport', 'RstReport', 'TextReport'];
 
 
@@ -238,7 +238,7 @@ def produceTextReport(oTest):
     ## @todo later
 
     #
-    # Tabelize the the results and display the tables.
+    # Tabelize the results and display the tables.
     #
     aoTables = tabelizeTestResults(oTest, True)
     for oTable in aoTables:

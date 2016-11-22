@@ -83,6 +83,9 @@ static struct pbuf *recv_data;
 
 struct tcp_pcb *tcp_input_pcb;
 
+static int fin2debug;
+#define FIN2DEBUG(args) do { if (fin2debug) LogRel2(args); } while (0)
+
 /* Forward declarations. */
 static void tcp_input1(struct pbuf *p, struct netif *inp);
 static err_t tcp_process(struct tcp_pcb *pcb);
@@ -195,6 +198,11 @@ tcp_input1(struct pbuf *p, struct netif *inp)
 
   flags = TCPH_FLAGS(tcphdr);
   tcplen = p->tot_len + ((flags & (TCP_FIN | TCP_SYN)) ? 1 : 0);
+
+  /* XXX: temporary instrumentation for ticketref:14748 */
+  fin2debug = 0;
+  if ((flags & TCP_FIN) && tcphdr->dest == 8080)
+      fin2debug = 1;
 
   /* Demultiplex an incoming segment. First, we check if it is destined
      for an active connection. */
@@ -337,6 +345,16 @@ tcp_input1(struct pbuf *p, struct netif *inp)
 #endif /* TCP_DEBUG */
 #endif /* TCP_INPUT_DEBUG */
 
+    if (fin2debug) {
+        if (pcb->state != FIN_WAIT_2) {
+            FIN2DEBUG(("> ignoring pcb->state = %d\n", pcb->state));
+            fin2debug = 0;
+        }
+        else {
+            FIN2DEBUG(("> fin2debug: tcplen = %d\n", tcplen));
+        }
+    }
+
     /* Set up a tcp_seg structure. */
     inseg.next = NULL;
     inseg.len = p->tot_len;
@@ -352,6 +370,7 @@ tcp_input1(struct pbuf *p, struct netif *inp)
 
     /* If there is data which was previously "refused" by upper layer */
     if (pcb->refused_data != NULL) {
+      FIN2DEBUG(("pcb->refused_data != NULL\n")); /* very unlikely */
       if ((tcp_process_refused_data(pcb) == ERR_ABRT) ||
         ((pcb->refused_data != NULL) && (tcplen > 0))) {
         /* pcb has been aborted or refused data is still refused and the new
@@ -1042,7 +1061,8 @@ tcp_process(struct tcp_pcb *pcb)
   case FIN_WAIT_1:
     tcp_receive(pcb);
     if (recv_flags & TF_GOT_FIN) {
-      if ((flags & TCP_ACK) && (ackno == pcb->snd_nxt)) {
+      if ((flags & TCP_ACK) && (ackno == pcb->snd_nxt) &&
+          pcb->unsent == NULL) {
         LWIP_DEBUGF(TCP_DEBUG,
           ("TCP connection closed: FIN_WAIT_1 %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
         tcp_ack_now(pcb);
@@ -1054,13 +1074,15 @@ tcp_process(struct tcp_pcb *pcb)
         tcp_ack_now(pcb);
         pcb->state = CLOSING;
       }
-    } else if ((flags & TCP_ACK) && (ackno == pcb->snd_nxt)) {
+    } else if ((flags & TCP_ACK) && (ackno == pcb->snd_nxt) &&
+               pcb->unsent == NULL) {
       pcb->state = FIN_WAIT_2;
     }
     break;
   case FIN_WAIT_2:
     tcp_receive(pcb);
     if (recv_flags & TF_GOT_FIN) {
+      FIN2DEBUG(("TF_GOT_FIN\n"));
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: FIN_WAIT_2 %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
       tcp_ack_now(pcb);
       tcp_pcb_purge(pcb);
@@ -1068,10 +1090,12 @@ tcp_process(struct tcp_pcb *pcb)
       pcb->state = TIME_WAIT;
       TCP_REG(&tcp_tw_pcbs, pcb);
     }
+    else
+        FIN2DEBUG(("not TF_GOT_FIN?!\n"));
     break;
   case CLOSING:
     tcp_receive(pcb);
-    if (flags & TCP_ACK && ackno == pcb->snd_nxt) {
+    if (flags & TCP_ACK && ackno == pcb->snd_nxt && pcb->unsent == NULL) {
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: CLOSING %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
       tcp_pcb_purge(pcb);
       TCP_RMV_ACTIVE(pcb);
@@ -1081,7 +1105,7 @@ tcp_process(struct tcp_pcb *pcb)
     break;
   case LAST_ACK:
     tcp_receive(pcb);
-    if (flags & TCP_ACK && ackno == pcb->snd_nxt) {
+    if (flags & TCP_ACK && ackno == pcb->snd_nxt && pcb->unsent == NULL) {
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: LAST_ACK %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
       /* bugfix #21699: don't set pcb->state to CLOSED here or we risk leaking segments */
       recv_flags |= TF_CLOSED;
@@ -1459,6 +1483,7 @@ tcp_receive(struct tcp_pcb *pcb)
     /*    if (TCP_SEQ_LT(seqno, pcb->rcv_nxt)){
           if (TCP_SEQ_LT(pcb->rcv_nxt, seqno + tcplen)) {*/
     if (TCP_SEQ_BETWEEN(pcb->rcv_nxt, seqno + 1, seqno + tcplen - 1)){
+      FIN2DEBUG(("trim left: seqno %u, rcv_nxt %u\n", seqno, pcb->rcv_nxt));
       /* Trimming the first edge is done by pushing the payload
          pointer in the pbuf downwards. This is somewhat tricky since
          we do not want to discard the full contents of the pbuf up to
@@ -1528,12 +1553,14 @@ tcp_receive(struct tcp_pcb *pcb)
            we have to trim the end of the segment and update rcv_nxt
            and pass the data to the application. */
         tcplen = TCP_TCPLEN(&inseg);
+        FIN2DEBUG(("in-sequence FIN %u, new tcplen = %u\n", seqno, tcplen));
 
         if (tcplen > pcb->rcv_wnd) {
           LWIP_DEBUGF(TCP_INPUT_DEBUG, 
                       ("tcp_receive: other end overran receive window"
                        "seqno %"U32_F" len %"U16_F" right edge %"U32_F"\n",
                        seqno, tcplen, pcb->rcv_nxt + pcb->rcv_wnd));
+          FIN2DEBUG(("tcplen %u > rcv_wnd %u\n", tcplen, pcb->rcv_wnd));
           if (TCPH_FLAGS(inseg.tcphdr) & TCP_FIN) {
             /* Must remove the FIN from the header as we're trimming 
              * that byte of sequence-space from the packet */
@@ -1554,6 +1581,7 @@ tcp_receive(struct tcp_pcb *pcb)
            - FIN has been received or
            - inseq overlaps with ooseq */
         if (pcb->ooseq != NULL) {
+          FIN2DEBUG(("ooseq != NULL\n")); /* very unlikely */
           if (TCPH_FLAGS(inseg.tcphdr) & TCP_FIN) {
             LWIP_DEBUGF(TCP_INPUT_DEBUG, 
                         ("tcp_receive: received in-order FIN, binning ooseq queue\n"));
@@ -1629,6 +1657,9 @@ tcp_receive(struct tcp_pcb *pcb)
         if (TCPH_FLAGS(inseg.tcphdr) & TCP_FIN) {
           LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: received FIN.\n"));
           recv_flags |= TF_GOT_FIN;
+        }
+        else {
+            FIN2DEBUG(("flags 0x%x?!\n", TCPH_FLAGS(inseg.tcphdr)));
         }
 
 #if TCP_QUEUE_OOSEQ

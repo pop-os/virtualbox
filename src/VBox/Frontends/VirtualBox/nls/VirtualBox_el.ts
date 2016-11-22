@@ -6,6 +6,7 @@
     <message>
         <source>English</source>
         <comment>Native language name</comment>
+        <translatorcomment>2016-11-10</translatorcomment>
         <translation>Ελληνικά</translation>
     </message>
     <message>
@@ -100,22 +101,22 @@
     <name>QIArrowButtonPress</name>
     <message>
         <source>&amp;Back</source>
-        <translation>&amp;Προηγούμενο</translation>
+        <translation>Προηγούμενο</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>&amp;Επόμενο</translation>
+        <translation>Επόμενο</translation>
     </message>
 </context>
 <context>
     <name>QIArrowSplitter</name>
     <message>
         <source>&amp;Back</source>
-        <translation type="vanished">&amp;Προηγούμενο</translation>
+        <translation type="vanished">Προηγούμενο</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation type="vanished">&amp;Επόμενο</translation>
+        <translation type="vanished">Επόμενο</translation>
     </message>
     <message>
         <source>&amp;Details</source>
@@ -367,7 +368,7 @@
     </message>
     <message>
         <source>S&amp;tart</source>
-        <translation>Ξεκίνημα</translation>
+        <translation>Εκκίνηση</translation>
     </message>
     <message>
         <source>S&amp;how</source>
@@ -475,7 +476,7 @@
     </message>
     <message>
         <source>&amp;VirtualBox</source>
-        <translation>&amp;VirtualBox</translation>
+        <translation>VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Menu Bar</source>
@@ -592,7 +593,7 @@
     </message>
     <message>
         <source>&amp;USB</source>
-        <translation>&amp;USB</translation>
+        <translation>USB</translation>
     </message>
     <message>
         <source>&amp;Logging</source>
@@ -1890,7 +1891,7 @@
     </message>
     <message>
         <source>V&amp;RDP Authentication Library:</source>
-        <translation>Βιβλιοθήκη πιστοποίησης V&amp;RDP:</translation>
+        <translation>Βιβλιοθήκη πιστοποίησης VRDP:</translation>
     </message>
     <message>
         <source>When checked, the host screensaver will be disabled whenever a virtual machine is running.</source>
@@ -1925,7 +1926,7 @@
     </message>
     <message>
         <source>&amp;VirtualBox Manager</source>
-        <translation>Διαχειριστής &amp;VirtualBox</translation>
+        <translation>Διαχειριστής VirtualBox</translation>
     </message>
     <message>
         <source>Virtual &amp;Machine</source>
@@ -1945,7 +1946,7 @@
     <message>
         <source> (built-in)</source>
         <comment>Language</comment>
-        <translation> (εγγενές)</translation>
+        <translation> (εγγενής)</translation>
     </message>
     <message>
         <source>&lt;unavailable&gt;</source>
@@ -2382,15 +2383,15 @@
     </message>
     <message>
         <source>Supports &amp;DHCP</source>
-        <translation>Υποστηρίζει &amp;DHCP</translation>
+        <translation>Υποστηρίζει DHCP</translation>
     </message>
     <message>
         <source>Supports &amp;IPv6</source>
-        <translation>Υποστηρίζει &amp;IPv6</translation>
+        <translation>Υποστηρίζει IPv6</translation>
     </message>
     <message>
         <source>Advertise Default IPv6 &amp;Route</source>
-        <translation>Διαλάληση του προεπιλεγμένου δρομολογητή IPv6</translation>
+        <translation>Κοινοποίηση του προεπιλεγμένου δρομολογητή IPv6</translation>
     </message>
     <message>
         <source>&amp;Port Forwarding</source>
@@ -2410,7 +2411,7 @@
     </message>
     <message>
         <source>When checked, this network will be advertised as the default IPv6 route.</source>
-        <translation>Όταν επιλεγεί, αυτό το δίκτυο θα διαλαλείται σαν τον προεπιλεγμένο δρομολογητή IPv6.</translation>
+        <translation>Όταν επιλεγεί, αυτό το δίκτυο θα κοινοποιείται σαν τον προεπιλεγμένο δρομολογητή IPv6.</translation>
     </message>
     <message>
         <source>Displays a window to configure port forwarding rules.</source>
@@ -2650,7 +2651,7 @@
     </message>
     <message>
         <source>&amp;Agree</source>
-        <translation>&amp;Συμφωνώ</translation>
+        <translation>Συμφωνώ</translation>
     </message>
     <message>
         <source>&amp;Print...</source>
@@ -2658,7 +2659,7 @@
     </message>
     <message>
         <source>&amp;Save...</source>
-        <translation>Σώσιμο...</translation>
+        <translation>Αποθήκευση...</translation>
     </message>
     <message>
         <source>Text (*.txt)</source>
@@ -2666,7 +2667,7 @@
     </message>
     <message>
         <source>Save license to file...</source>
-        <translation>Σώστε την άδεια σε αρχείο...</translation>
+        <translation>Αποθηκεύστε την άδεια σε αρχείο...</translation>
     </message>
 </context>
 <context>
@@ -3802,7 +3803,7 @@
     </message>
     <message>
         <source>&amp;IRQ:</source>
-        <translation>&amp;IRQ:</translation>
+        <translation>IRQ:</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
@@ -3995,7 +3996,7 @@
     </message>
     <message>
         <source>&amp;IRQ:</source>
-        <translation>&amp;IRQ:</translation>
+        <translation>IRQ:</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
@@ -4058,7 +4059,7 @@
     <name>UIMachineSettingsStorage</name>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Type:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Δίαυλος:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Τύπος:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Ελεγκτής:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Τύπος:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Add Controller</source>
@@ -4429,7 +4430,7 @@
     </message>
     <message>
         <source>Enable PA&amp;E/NX</source>
-        <translation>Ενεργοποίηση PA&amp;E/NX</translation>
+        <translation>Ενεργοποίηση PAE/NX</translation>
     </message>
     <message>
         <source>Acce&amp;leration</source>
@@ -4465,7 +4466,7 @@
     </message>
     <message>
         <source>Hardware Clock in &amp;UTC Time</source>
-        <translation>Ρολόι συστήματος σε ώρα &amp;UTC</translation>
+        <translation>Ρολόι συστήματος σε ώρα UTC</translation>
     </message>
     <message>
         <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
@@ -4635,15 +4636,15 @@
     </message>
     <message>
         <source>USB &amp;1.1 (OHCI) Controller</source>
-        <translation>Ελεγκτής USB &amp;1.1 (OHCI)</translation>
+        <translation>Ελεγκτής USB 1.1 (OHCI)</translation>
     </message>
     <message>
         <source>USB &amp;2.0 (EHCI) Controller</source>
-        <translation>Ελεγκτής USB &amp;2.0 (EHCI)</translation>
+        <translation>Ελεγκτής USB 2.0 (EHCI)</translation>
     </message>
     <message>
         <source>USB &amp;3.0 (xHCI) Controller</source>
-        <translation>Ελεγκτής USB &amp;3.0 (xHCI)</translation>
+        <translation>Ελεγκτής USB 3.0 (xHCI)</translation>
     </message>
     <message>
         <source>USB 2.0/3.0 is currently enabled for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0/3.0 to be able to start the machine.</source>
@@ -4845,7 +4846,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to change the settings of the disk image file &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please choose one of the following modes and press &lt;b&gt;%2&lt;/b&gt; to proceed or &lt;b&gt;%3&lt;/b&gt; otherwise.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Πρόκειται να αλλάξετε τις ρυθμίσεις του αρχείου εικόνας δίσκου &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Επιλέξτε έναν από τις παρακάτω λειτουργίες και πατήστε &lt;b&gt;%2&lt;/b&gt; για να προχωρήσετε ή &lt;b&gt;%3&lt;/b&gt; αλλιώς.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Πρόκειται να αλλάξετε τις ρυθμίσεις του αρχείου εικόνας δίσκου &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Επιλέξτε μία από τις παρακάτω λειτουργίες και πατήστε &lt;b&gt;%2&lt;/b&gt; για να προχωρήσετε ή &lt;b&gt;%3&lt;/b&gt; αλλιώς.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose mode:</source>
@@ -5182,7 +5183,7 @@
     <message>
         <source>Keep</source>
         <comment>hard disk storage</comment>
-        <translation>Κράτηση</translation>
+        <translation>Διατήρηση</translation>
     </message>
     <message>
         <source>Failed to delete the storage unit of the hard disk &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -5331,7 +5332,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to add a virtual hard disk to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to create a new, empty file to hold the disk contents or select an existing one?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Θα προσθέσετε ένα εικονικό σκληρό δίσκο στον ελεγκτή &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Θέλετε να δημιουργήσετε ένα καινούριο, κενό αρχείο με τα περιεχόμενα του δίσκου ή να επιλέξετε ένα υπάρχον;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Θα προσθέσετε ένα εικονικό σκληρό δίσκο στον ελεγκτή &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Θέλετε να δημιουργήσετε ένα καινούριο, κενό αρχείο για τα περιεχόμενα του δίσκου ή να επιλέξετε ένα υπάρχον;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to add a new floppy drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual floppy disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
@@ -5948,17 +5949,21 @@
         <translation>&lt;p&gt;Αποτυχία δημιουργίας του αντικειμένου COM του VirtualBoxClient.&lt;/p&gt;&lt;p&gt;Η εφαρμογή θα τερματιστεί τώρα.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Delete</source>
-        <comment>extension pack</comment>
-        <translation type="unfinished">Διαγραφή</translation>
+        <source>Do you want to delete the downloaded file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
+        <translation>Θέλετε να διαγράψετε το κατεβασμένο αρχείο &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;;</translation>
     </message>
     <message>
-        <source>Do you want to delete the downloaded file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <source>Delete</source>
+        <comment>extension pack</comment>
+        <translation>Διαγραφή</translation>
     </message>
     <message>
         <source>Do you want to delete following list of files &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Θέλετε να διαγράψετε την ακόλουθη λίστα αρχείων &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The reason for this error are most likely wrong permissions of the IPC daemon socket due to an installation problem. Please check the permissions of &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; and &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</source>
+        <translation>Ο λόγος γι&apos; αυτό το λάθος είναι μάλλον λάθος δικαιώματα της υποδοχής του δαίμονα IPC εξ αιτίας προβλημάτων στην εγκατάσταση. Ελέξτε τα δικαιώματα στα &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; και &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -6395,11 +6400,11 @@
     <name>UISettingsSerializerProgress</name>
     <message>
         <source>Loading Settings...</source>
-        <translation>Φορτώνονται οι Ρυθμίσεις...</translation>
+        <translation>Φόρτωση των ρυθμίσεων...</translation>
     </message>
     <message>
         <source>Saving Settings...</source>
-        <translation>Σώζονται οι Ρυθμίσεις...</translation>
+        <translation>Αποθήκευση των ρυθμίσεων...</translation>
     </message>
 </context>
 <context>
@@ -6557,7 +6562,7 @@
     </message>
     <message>
         <source>&amp;Snapshots</source>
-        <translation>&amp;Στιγμιότυπα</translation>
+        <translation>Στιγμιότυπα</translation>
     </message>
 </context>
 <context>
@@ -6706,7 +6711,7 @@
     </message>
     <message>
         <source>&amp;Previous</source>
-        <translation>&amp;Προηγούμενο</translation>
+        <translation>Προηγούμενο</translation>
     </message>
     <message>
         <source>Search for the previous occurrence of the string</source>
@@ -6714,7 +6719,7 @@
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>&amp;Επόμενο</translation>
+        <translation>Επόμενο</translation>
     </message>
     <message>
         <source>Search for the next occurrence of the string</source>
@@ -6738,7 +6743,7 @@
     </message>
     <message>
         <source>Save VirtualBox Log As</source>
-        <translation>Σώστε την καταγραφή VirtualBox ως</translation>
+        <translation>Αποθηκεύστε την καταγραφή VirtualBox ως</translation>
     </message>
     <message>
         <source>%1 - VirtualBox Log Viewer</source>
@@ -6750,7 +6755,7 @@
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>Σώσιμο</translation>
+        <translation>Αποθήκευση</translation>
     </message>
     <message>
         <source>Close</source>
@@ -7039,7 +7044,7 @@
     </message>
     <message>
         <source>Sun &amp;Cloud</source>
-        <translation>Sun &amp;Cloud</translation>
+        <translation>Sun Cloud</translation>
     </message>
     <message>
         <source>&amp;Simple Storage System (S3)</source>
@@ -7180,7 +7185,7 @@
     </message>
     <message>
         <source>Start</source>
-        <translation>Ξεκίνημα</translation>
+        <translation>Εκκίνηση</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from and should contain the operating system you wish to install on the virtual machine if you want to do that now. The disk will be ejected from the virtual drive automatically next time you switch the virtual machine off, but you can also do this yourself if needed using the Devices menu.&lt;/p&gt;</source>
@@ -8481,17 +8486,17 @@
     <message>
         <source>Immutable</source>
         <comment>MediumType</comment>
-        <translation>Αμετάβλητος</translation>
+        <translation>Αμετάβλητο</translation>
     </message>
     <message>
         <source>Writethrough</source>
         <comment>MediumType</comment>
-        <translation>Άφθαρτος</translation>
+        <translation>Άφθαρτο</translation>
     </message>
     <message>
         <source>Shareable</source>
         <comment>MediumType</comment>
-        <translation>Διαμοιρασμένος</translation>
+        <translation>Διαμοιρασμένο</translation>
     </message>
     <message>
         <source>Readonly</source>
@@ -9066,11 +9071,11 @@
     </message>
     <message>
         <source>I &amp;Agree</source>
-        <translation>&amp;Συμφωνώ</translation>
+        <translation>Συμφωνώ</translation>
     </message>
     <message>
         <source>I &amp;Disagree</source>
-        <translation>&amp;Διαφωνώ</translation>
+        <translation>Διαφωνώ</translation>
     </message>
 </context>
 <context>
