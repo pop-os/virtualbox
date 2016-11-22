@@ -1016,7 +1016,10 @@ int VBoxNetLwipNAT::processFrame(void *pvFrame, size_t cbFrame)
 
     struct pbuf *p = pbuf_alloc(PBUF_RAW, (u16_t)cbFrame + ETH_PAD_SIZE, PBUF_POOL);
     if (RT_UNLIKELY(p == NULL))
+    {
+        LogRel2(("pbuf_alloc failed\n"));
         return VERR_NO_MEMORY;
+    }
 
     /*
      * The code below is inlined version of:

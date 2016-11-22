@@ -1935,11 +1935,11 @@
     </message>
     <message>
         <source>Signature Algorithm</source>
-        <translation type="unfinished"></translation>
+        <translation>Algoritmo de Assinatura</translation>
     </message>
     <message>
         <source>X.509 Version Number</source>
-        <translation type="unfinished"></translation>
+        <translation>Versão X.509</translation>
     </message>
 </context>
 <context>
@@ -11452,15 +11452,19 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Delete</source>
         <comment>extension pack</comment>
-        <translation type="unfinished">Apagar</translation>
+        <translation>Apagar</translation>
     </message>
     <message>
         <source>Do you want to delete the downloaded file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Você deseja apagar o arquivo baixado &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</translation>
     </message>
     <message>
         <source>Do you want to delete following list of files &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Você deseja apagar a seguinte lista de arquivos &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The reason for this error are most likely wrong permissions of the IPC daemon socket due to an installation problem. Please check the permissions of &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; and &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;A provável razão para este erro são permissões incorretas para o socket do daemon de IPC devido a um problema durante a instalação. Verifique as permissões de &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; e &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -17953,82 +17957,82 @@ Versão %1</translation>
     <message>
         <source>General</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Geral</translation>
+        <translation>Geral</translation>
     </message>
     <message>
         <source>Preview</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Pré-Visualização</translation>
+        <translation>Pré-Visualização</translation>
     </message>
     <message>
         <source>System</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Sistema</translation>
+        <translation>Sistema</translation>
     </message>
     <message>
         <source>Display</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Tela</translation>
     </message>
     <message>
         <source>Storage</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Armazenamento</translation>
+        <translation>Armazenamento</translation>
     </message>
     <message>
         <source>Audio</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Áudio</translation>
+        <translation>Áudio</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Rede</translation>
+        <translation>Rede</translation>
     </message>
     <message>
         <source>Serial ports</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Portas Seriais</translation>
+        <translation>Portas Seriais</translation>
     </message>
     <message>
         <source>Parallel ports</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Portas Paralelas</translation>
+        <translation>Portas Paralelas</translation>
     </message>
     <message>
         <source>USB</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">USB</translation>
+        <translation>USB</translation>
     </message>
     <message>
         <source>Shared folders</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Pastas Compartilhadas</translation>
+        <translation>Pastas Compartilhadas</translation>
     </message>
     <message>
         <source>User interface</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Interface do Usuário</translation>
+        <translation>Interface do Usuário</translation>
     </message>
     <message>
         <source>Description</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Descrição</translation>
+        <translation>Descrição</translation>
     </message>
     <message>
         <source>Runtime attributes</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Atributos de Tempo de Execução</translation>
     </message>
     <message>
         <source>Storage statistics</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Estatísticas de Armazenamento</translation>
     </message>
     <message>
         <source>Network statistics</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Estatísticas de Rede</translation>
     </message>
 </context>
 <context>

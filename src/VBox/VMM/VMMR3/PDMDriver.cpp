@@ -467,6 +467,17 @@ static int pdmR3DrvMaybeTransformChain(PVM pVM, PPDMDRVINS pDrvAbove, PPDMLUN pL
         /*
          * We've got a match! Now, what are we supposed to do?
          */
+        /** @cfgm{/PDM/DriverTransformations/&lt;name&gt;/Action,string,inject}
+         * The action that the transformation takes.  Possible values are:
+         *      - inject
+         *      - mergeconfig: This merges and the content of the 'Config' key under the
+         *        transformation into the driver's own 'Config' key, replacing any
+         *        duplicates.
+         *      - remove
+         *      - removetree
+         *      - replace
+         *      - replacetree
+         */
         char szAction[16];
         rc = CFGMR3QueryStringDef(pCurTrans, "Action", szAction, sizeof(szAction), "inject");
         AssertLogRelRCReturn(rc, rc);

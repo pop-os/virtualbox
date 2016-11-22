@@ -25,7 +25,7 @@ endif
 
 # Include sub-makefiles.
 include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
-include $(PATH_SUB_CURRENT)/Audio/testcase/Makefile.kmk
+include $(PATH_SUB_CURRENT)/$(VBOX_AUDIO_PATH_SOURCES)/testcase/Makefile.kmk
 include $(PATH_SUB_CURRENT)/Input/testcase/Makefile.kmk
 ifdef VBOX_WITH_TESTCASES
  include $(PATH_SUB_CURRENT)/Samples/Makefile.kmk
@@ -540,51 +540,53 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  # Enable Audio Queues implementation for macOS hosts (Core Audio backend).
  VBoxDD_DEFS.darwin += VBOX_WITH_AUDIO_CA_QUEUES
 
- VBoxDD_SOURCES         += \
-	Audio/DevIchAc97.cpp \
-	Audio/DevSB16.cpp \
-	Audio/DevIchHda.cpp \
-	Audio/DevIchHdaCodec.cpp \
-	Audio/AudioMixBuffer.cpp \
-	Audio/AudioMixer.cpp \
-	Audio/DrvAudio.cpp \
-	Audio/DrvAudioCommon.cpp \
-	Audio/DrvHostNullAudio.cpp
+ VBoxDD_DEFS  += $(if-expr defined(VBOX_WITH_AUDIO_50),VBOX_WITH_AUDIO_50,)
+
+ VBoxDD_SOURCES += \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DevIchAc97.cpp \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DevSB16.cpp \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DevHDA.cpp \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/HDACodec.cpp \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/AudioMixBuffer.cpp \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/AudioMixer.cpp \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DrvAudio.cpp \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DrvAudioCommon.cpp \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DrvHostNullAudio.cpp
 
  ifdef VBOX_WITH_AUDIO_DEBUG
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_DEBUG
   VBoxDD_SOURCES += \
-	Audio/DrvHostDebugAudio.cpp
+	$(VBOX_AUDIO_PATH_SOURCES)/DrvHostDebugAudio.cpp
  endif
 
  ifeq ($(KBUILD_TARGET),darwin)
   VBoxDD_SOURCES += \
-	Audio/DrvHostCoreAudio.cpp
+	$(VBOX_AUDIO_PATH_SOURCES)/DrvHostCoreAudio.cpp
  endif
 
  ifeq ($(KBUILD_TARGET),win)
   VBoxDD_SOURCES += \
-	Audio/DrvHostDSound.cpp
+	$(VBOX_AUDIO_PATH_SOURCES)/DrvHostDSound.cpp
  endif
 
  ifdef VBOX_WITH_AUDIO_OSS
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_OSS
   VBoxDD_SOURCES += \
-	Audio/DrvHostOSSAudio.cpp
+	$(VBOX_AUDIO_PATH_SOURCES)/DrvHostOSSAudio.cpp
  endif
 
  ifdef VBOX_WITH_AUDIO_ALSA
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_ALSA
   VBoxDD_SOURCES += \
-	Audio/DrvHostALSAAudio.cpp \
-	Audio/alsa_stubs.c
+	$(VBOX_AUDIO_PATH_SOURCES)/DrvHostALSAAudio.cpp \
+	$(VBOX_AUDIO_PATH_SOURCES)/alsa_stubs.c
  endif
 
  ifdef VBOX_WITH_AUDIO_PULSE
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_PULSE
   VBoxDD_SOURCES += \
-	Audio/DrvHostPulseAudio.cpp \
-	Audio/pulse_stubs.c
+	$(VBOX_AUDIO_PATH_SOURCES)/DrvHostPulseAudio.cpp \
+	$(VBOX_AUDIO_PATH_SOURCES)/pulse_stubs.c
  endif
 
  # --- WARNING! SLIRP MESS AHEAD! ;-) ---
@@ -881,8 +883,9 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   	Parallel/DevParallel.cpp \
   	VMMDev/VMMDevTesting.cpp
 
+  VBoxDDRC_DEFS         += $(if-expr defined(VBOX_WITH_AUDIO_50),VBOX_WITH_AUDIO_50,)
   VBoxDDRC_SOURCES      += \
- 	Audio/DevIchHda.cpp
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DevHDA.cpp
 
   ifdef VBOX_WITH_E1000
    VBoxDDRC_DEFS        += VBOX_WITH_E1000
@@ -1046,10 +1049,13 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Parallel/DevParallel.cpp \
  	VMMDev/VMMDevTesting.cpp \
  	Network/DrvIntNet.cpp \
- 	Network/DrvDedicatedNic.cpp \
- 	Audio/DevIchHda.cpp
+ 	Network/DrvDedicatedNic.cpp
 
- VBoxDDR0_SOURCES.win += Parallel/DrvHostParallel.cpp
+ VBoxDDR0_DEFS          += $(if-expr defined(VBOX_WITH_AUDIO_50),VBOX_WITH_AUDIO_50,)
+ VBoxDDR0_SOURCES       += \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DevHDA.cpp
+
+ VBoxDDR0_SOURCES.win   += Parallel/DrvHostParallel.cpp
 
  VBoxDDR0_DEFS          += \
 	$(if $(VBOX_WITH_HGSMI),VBOX_WITH_HGSMI,) \

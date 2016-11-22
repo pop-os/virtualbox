@@ -22,6 +22,9 @@
 /* Qt includes: */
 # include <QApplication>
 # include <QDesktopWidget>
+# ifdef VBOX_WS_X11
+#  include <QTimer>
+# endif
 # if QT_VERSION >= 0x050000
 #  include <QScreen>
 # endif /* QT_VERSION >= 0x050000 */
@@ -34,6 +37,7 @@
 
 /* Other VBox includes: */
 # include <iprt/assert.h>
+# include <VBox/log.h>
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -59,13 +63,25 @@ public:
     /** Constructs invisible window for the host-screen with @a iHostScreenIndex. */
     UIInvisibleWindow(int iHostScreenIndex);
 
+private slots:
+
+    /** Performs fallback drop. */
+    void sltFallback();
+
 private:
 
+    /** Move @a pEvent handler. */
+    void moveEvent(QMoveEvent *pEvent);
     /** Resize @a pEvent handler. */
     void resizeEvent(QResizeEvent *pEvent);
 
     /** Holds the index of the host-screen this window created for. */
-    int m_iHostScreenIndex;
+    const int m_iHostScreenIndex;
+
+    /** Holds whether the move event came. */
+    bool m_fMoveCame;
+    /** Holds whether the resize event came. */
+    bool m_fResizeCame;
 };
 
 
@@ -76,6 +92,8 @@ private:
 UIInvisibleWindow::UIInvisibleWindow(int iHostScreenIndex)
     : QWidget(0, Qt::Window | Qt::FramelessWindowHint)
     , m_iHostScreenIndex(iHostScreenIndex)
+    , m_fMoveCame(false)
+    , m_fResizeCame(false)
 {
     /* Resize to minimum size of 1 pixel: */
     resize(1, 1);
@@ -84,10 +102,56 @@ UIInvisibleWindow::UIInvisibleWindow(int iHostScreenIndex)
     /* For composite WMs make this 1 pixel transparent: */
     if (vboxGlobal().isCompositingManagerRunning())
         setAttribute(Qt::WA_TranslucentBackground);
+    /* Install fallback handler: */
+    QTimer::singleShot(5000, this, SLOT(sltFallback()));
+}
+
+void UIInvisibleWindow::sltFallback()
+{
+    /* Sanity check for fallback geometry: */
+    QRect fallbackGeometry(x(), y(), width(), height());
+    if (   fallbackGeometry.width() <= 1
+        || fallbackGeometry.height() <= 1)
+        fallbackGeometry = gpDesktop->screenGeometry(m_iHostScreenIndex);
+    LogRel(("GUI: UIInvisibleWindow::sltFallback: %s event haven't came. "
+            "Screen: %d, work area: %dx%d x %dx%d\n",
+            !m_fMoveCame ? "Move" : !m_fResizeCame ? "Resize" : "Some",
+            m_iHostScreenIndex, fallbackGeometry.x(), fallbackGeometry.y(), fallbackGeometry.width(), fallbackGeometry.height()));
+    emit sigHostScreenAvailableGeometryCalculated(m_iHostScreenIndex, fallbackGeometry);
+}
+
+void UIInvisibleWindow::moveEvent(QMoveEvent *pEvent)
+{
+    /* We do have both move and resize events,
+     * with no idea who will come first, but we need
+     * to send a final signal after last of events arrived. */
+
+    /* Call to base-class: */
+    QWidget::moveEvent(pEvent);
+
+    /* Ignore 'not-yet-shown' case: */
+    if (!isVisible())
+        return;
+
+    /* Mark move event as received: */
+    m_fMoveCame = true;
+
+    /* If the resize event already came: */
+    if (m_fResizeCame)
+    {
+        /* Notify listeners about host-screen available-geometry was calulated: */
+        LogRel2(("GUI: UIInvisibleWindow::moveEvent: Screen: %d, work area: %dx%d x %dx%d\n", m_iHostScreenIndex,
+                 x(), y(), width(), height()));
+        emit sigHostScreenAvailableGeometryCalculated(m_iHostScreenIndex, QRect(x(), y(), width(), height()));
+    }
 }
 
 void UIInvisibleWindow::resizeEvent(QResizeEvent *pEvent)
 {
+    /* We do have both move and resize events,
+     * with no idea who will come first, but we need
+     * to send a final signal after last of events arrived. */
+
     /* Call to base-class: */
     QWidget::resizeEvent(pEvent);
 
@@ -95,8 +159,17 @@ void UIInvisibleWindow::resizeEvent(QResizeEvent *pEvent)
     if (!isVisible())
         return;
 
-    /* Notify listeners about host-screen available-geometry was calulated: */
-    emit sigHostScreenAvailableGeometryCalculated(m_iHostScreenIndex, QRect(x(), y(), width(), height()));
+    /* Mark resize event as received: */
+    m_fResizeCame = true;
+
+    /* If the move event already came: */
+    if (m_fMoveCame)
+    {
+        /* Notify listeners about host-screen available-geometry was calulated: */
+        LogRel2(("GUI: UIInvisibleWindow::resizeEvent: Screen: %d, work area: %dx%d x %dx%d\n", m_iHostScreenIndex,
+                 x(), y(), width(), height()));
+        emit sigHostScreenAvailableGeometryCalculated(m_iHostScreenIndex, QRect(x(), y(), width(), height()));
+    }
 }
 
 #endif /* VBOX_WS_X11 */
@@ -283,11 +356,10 @@ bool UIDesktopWidgetWatchdog::isFakeScreenDetected() const
 }
 #endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
+#if QT_VERSION < 0x050000
+
 void UIDesktopWidgetWatchdog::sltHandleHostScreenCountChanged(int cHostScreenCount)
 {
-    Q_UNUSED(cHostScreenCount);
-
-#if QT_VERSION < 0x050000
 //    printf("UIDesktopWidgetWatchdog::sltHandleHostScreenCountChanged(%d)\n", cHostScreenCount);
 
 # ifdef VBOX_WS_X11
@@ -297,51 +369,16 @@ void UIDesktopWidgetWatchdog::sltHandleHostScreenCountChanged(int cHostScreenCou
 
     /* Notify listeners: */
     emit sigHostScreenCountChanged(cHostScreenCount);
-#endif /* QT_VERSION < 0x050000 */
-}
-
-void UIDesktopWidgetWatchdog::sltHostScreenAdded(QScreen *pHostScreen)
-{
-    Q_UNUSED(pHostScreen);
-
-#if QT_VERSION >= 0x050000
-//    printf("UIDesktopWidgetWatchdog::sltHostScreenAdded(%d)\n", screenCount());
-
-# ifdef VBOX_WS_X11
-    /* Update host-screen configuration: */
-    updateHostScreenConfiguration();
-# endif /* VBOX_WS_X11 */
-
-    /* Notify listeners: */
-    emit sigHostScreenCountChanged(screenCount());
-#endif /* QT_VERSION >= 0x050000 */
-}
-
-void UIDesktopWidgetWatchdog::sltHostScreenRemoved(QScreen *pHostScreen)
-{
-    Q_UNUSED(pHostScreen);
-
-#if QT_VERSION >= 0x050000
-//    printf("UIDesktopWidgetWatchdog::sltHostScreenRemoved(%d)\n", screenCount());
-
-# ifdef VBOX_WS_X11
-    /* Update host-screen configuration: */
-    updateHostScreenConfiguration();
-# endif /* VBOX_WS_X11 */
-
-    /* Notify listeners: */
-    emit sigHostScreenCountChanged(screenCount());
-#endif /* QT_VERSION >= 0x050000 */
 }
 
 void UIDesktopWidgetWatchdog::sltHandleHostScreenResized(int iHostScreenIndex)
 {
 //    printf("UIDesktopWidgetWatchdog::sltHandleHostScreenResized(%d)\n", iHostScreenIndex);
 
-#ifdef VBOX_WS_X11
+# ifdef VBOX_WS_X11
     /* Update host-screen available-geometry: */
     updateHostScreenAvailableGeometry(iHostScreenIndex);
-#endif /* VBOX_WS_X11 */
+# endif /* VBOX_WS_X11 */
 
     /* Notify listeners: */
     emit sigHostScreenResized(iHostScreenIndex);
@@ -351,15 +388,110 @@ void UIDesktopWidgetWatchdog::sltHandleHostScreenWorkAreaResized(int iHostScreen
 {
 //    printf("UIDesktopWidgetWatchdog::sltHandleHostScreenWorkAreaResized(%d)\n", iHostScreenIndex);
 
+# ifdef VBOX_WS_X11
+    /* Update host-screen available-geometry: */
+    updateHostScreenAvailableGeometry(iHostScreenIndex);
+# endif /* VBOX_WS_X11 */
+
     /* Notify listeners: */
     emit sigHostScreenWorkAreaResized(iHostScreenIndex);
 }
 
+#else /* QT_VERSION >= 0x050000 */
+
+void UIDesktopWidgetWatchdog::sltHostScreenAdded(QScreen *pHostScreen)
+{
+//    printf("UIDesktopWidgetWatchdog::sltHostScreenAdded(%d)\n", screenCount());
+
+    /* Listen for screen signals: */
+    connect(pHostScreen, SIGNAL(geometryChanged(const QRect &)),
+            this, SLOT(sltHandleHostScreenResized(const QRect &)));
+    connect(pHostScreen, SIGNAL(availableGeometryChanged(const QRect &)),
+            this, SLOT(sltHandleHostScreenWorkAreaResized(const QRect &)));
+
+# ifdef VBOX_WS_X11
+    /* Update host-screen configuration: */
+    updateHostScreenConfiguration();
+# endif /* VBOX_WS_X11 */
+
+    /* Notify listeners: */
+    emit sigHostScreenCountChanged(screenCount());
+}
+
+void UIDesktopWidgetWatchdog::sltHostScreenRemoved(QScreen *pHostScreen)
+{
+//    printf("UIDesktopWidgetWatchdog::sltHostScreenRemoved(%d)\n", screenCount());
+
+    /* Forget about screen signals: */
+    disconnect(pHostScreen, SIGNAL(geometryChanged(const QRect &)),
+               this, SLOT(sltHandleHostScreenResized(const QRect &)));
+    disconnect(pHostScreen, SIGNAL(availableGeometryChanged(const QRect &)),
+               this, SLOT(sltHandleHostScreenWorkAreaResized(const QRect &)));
+
+# ifdef VBOX_WS_X11
+    /* Update host-screen configuration: */
+    updateHostScreenConfiguration();
+# endif /* VBOX_WS_X11 */
+
+    /* Notify listeners: */
+    emit sigHostScreenCountChanged(screenCount());
+}
+
+void UIDesktopWidgetWatchdog::sltHandleHostScreenResized(const QRect &geometry)
+{
+    /* Get the screen: */
+    QScreen *pScreen = sender() ? qobject_cast<QScreen*>(sender()) : 0;
+    AssertPtrReturnVoid(pScreen);
+
+    /* Determine screen index: */
+    const int iHostScreenIndex = qApp->screens().indexOf(pScreen);
+    AssertReturnVoid(iHostScreenIndex != -1);
+    LogRel(("GUI: UIDesktopWidgetWatchdog::sltHandleHostScreenResized: "
+            "Screen %d is formally resized to: %dx%d x %dx%d\n",
+            iHostScreenIndex, geometry.x(), geometry.y(),
+            geometry.width(), geometry.height()));
+
+# ifdef VBOX_WS_X11
+    /* Update host-screen available-geometry: */
+    updateHostScreenAvailableGeometry(iHostScreenIndex);
+# endif /* VBOX_WS_X11 */
+
+    /* Notify listeners: */
+    emit sigHostScreenResized(iHostScreenIndex);
+}
+
+void UIDesktopWidgetWatchdog::sltHandleHostScreenWorkAreaResized(const QRect &availableGeometry)
+{
+    /* Get the screen: */
+    QScreen *pScreen = sender() ? qobject_cast<QScreen*>(sender()) : 0;
+    AssertPtrReturnVoid(pScreen);
+
+    /* Determine screen index: */
+    const int iHostScreenIndex = qApp->screens().indexOf(pScreen);
+    AssertReturnVoid(iHostScreenIndex != -1);
+    LogRel(("GUI: UIDesktopWidgetWatchdog::sltHandleHostScreenWorkAreaResized: "
+            "Screen %d work area is formally resized to: %dx%d x %dx%d\n",
+            iHostScreenIndex, availableGeometry.x(), availableGeometry.y(),
+            availableGeometry.width(), availableGeometry.height()));
+
+# ifdef VBOX_WS_X11
+    /* Update host-screen available-geometry: */
+    updateHostScreenAvailableGeometry(iHostScreenIndex);
+# endif /* VBOX_WS_X11 */
+
+    /* Notify listeners: */
+    emit sigHostScreenWorkAreaResized(iHostScreenIndex);
+}
+
+#endif /* QT_VERSION >= 0x050000 */
+
 #ifdef VBOX_WS_X11
 void UIDesktopWidgetWatchdog::sltHandleHostScreenAvailableGeometryCalculated(int iHostScreenIndex, QRect availableGeometry)
 {
-//    printf("UIDesktopWidgetWatchdog::sltHandleHostScreenAvailableGeometryCalculated(%d): %dx%d x %dx%d\n",
-//           iHostScreenIndex, availableGeometry.x(), availableGeometry.y(), availableGeometry.width(), availableGeometry.height());
+    LogRel(("GUI: UIDesktopWidgetWatchdog::sltHandleHostScreenAvailableGeometryCalculated: "
+            "Screen %d work area is actually resized to: %dx%d x %dx%d\n",
+            iHostScreenIndex, availableGeometry.x(), availableGeometry.y(),
+            availableGeometry.width(), availableGeometry.height()));
 
     /* Apply received data: */
     const bool fSendSignal = m_availableGeometryData.value(iHostScreenIndex).isValid();
@@ -379,11 +511,21 @@ void UIDesktopWidgetWatchdog::sltHandleHostScreenAvailableGeometryCalculated(int
 void UIDesktopWidgetWatchdog::prepare()
 {
     /* Prepare connections: */
+#if QT_VERSION < 0x050000
     connect(QApplication::desktop(), SIGNAL(screenCountChanged(int)), this, SLOT(sltHandleHostScreenCountChanged(int)));
-    connect(qApp, SIGNAL(screenAdded(QScreen *)), this, SLOT(sltHostScreenAdded(QScreen *)));
-    connect(qApp, SIGNAL(screenRemoved(QScreen *)), this, SLOT(sltHostScreenRemoved(QScreen *)));
     connect(QApplication::desktop(), SIGNAL(resized(int)), this, SLOT(sltHandleHostScreenResized(int)));
     connect(QApplication::desktop(), SIGNAL(workAreaResized(int)), this, SLOT(sltHandleHostScreenWorkAreaResized(int)));
+#else /* QT_VERSION >= 0x050000 */
+    connect(qApp, SIGNAL(screenAdded(QScreen *)), this, SLOT(sltHostScreenAdded(QScreen *)));
+    connect(qApp, SIGNAL(screenRemoved(QScreen *)), this, SLOT(sltHostScreenRemoved(QScreen *)));
+    foreach (QScreen *pHostScreen, qApp->screens())
+    {
+        connect(pHostScreen, SIGNAL(geometryChanged(const QRect &)),
+                this, SLOT(sltHandleHostScreenResized(const QRect &)));
+        connect(pHostScreen, SIGNAL(availableGeometryChanged(const QRect &)),
+                this, SLOT(sltHandleHostScreenWorkAreaResized(const QRect &)));
+    }
+#endif /* QT_VERSION >= 0x050000 */
 
 #ifdef VBOX_WS_X11
     /* Update host-screen configuration: */
@@ -394,11 +536,21 @@ void UIDesktopWidgetWatchdog::prepare()
 void UIDesktopWidgetWatchdog::cleanup()
 {
     /* Cleanup connections: */
+#if QT_VERSION < 0x050000
     disconnect(QApplication::desktop(), SIGNAL(screenCountChanged(int)), this, SLOT(sltHandleHostScreenCountChanged(int)));
-    disconnect(qApp, SIGNAL(screenAdded(QScreen *)), this, SLOT(sltHostScreenAdded(QScreen *)));
-    disconnect(qApp, SIGNAL(screenRemoved(QScreen *)), this, SLOT(sltHostScreenRemoved(QScreen *)));
     disconnect(QApplication::desktop(), SIGNAL(resized(int)), this, SLOT(sltHandleHostScreenResized(int)));
     disconnect(QApplication::desktop(), SIGNAL(workAreaResized(int)), this, SLOT(sltHandleHostScreenWorkAreaResized(int)));
+#else /* QT_VERSION >= 0x050000 */
+    disconnect(qApp, SIGNAL(screenAdded(QScreen *)), this, SLOT(sltHostScreenAdded(QScreen *)));
+    disconnect(qApp, SIGNAL(screenRemoved(QScreen *)), this, SLOT(sltHostScreenRemoved(QScreen *)));
+    foreach (QScreen *pHostScreen, qApp->screens())
+    {
+        disconnect(pHostScreen, SIGNAL(geometryChanged(const QRect &)),
+                   this, SLOT(sltHandleHostScreenResized(const QRect &)));
+        disconnect(pHostScreen, SIGNAL(availableGeometryChanged(const QRect &)),
+                   this, SLOT(sltHandleHostScreenWorkAreaResized(const QRect &)));
+    }
+#endif /* QT_VERSION >= 0x050000 */
 
 #ifdef VBOX_WS_X11
     /* Cleanup existing workers finally: */
@@ -449,7 +601,7 @@ void UIDesktopWidgetWatchdog::updateHostScreenAvailableGeometry(int iHostScreenI
                 this, SLOT(sltHandleHostScreenAvailableGeometryCalculated(int, QRect)));
 
         /* Place worker to corresponding host-screen: */
-        pWorker->move(hostScreenGeometry.topLeft());
+        pWorker->move(hostScreenGeometry.center());
         /* And finally, maximize it: */
         pWorker->showMaximized();
     }

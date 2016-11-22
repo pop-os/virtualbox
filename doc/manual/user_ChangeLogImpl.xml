@@ -3,6 +3,111 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.10 (2016-11-21)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: the USB filter settings dialog should allow to specify the
+          USB revision in hexadecimal format (bug #15400)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed crash on certain hosts when pressing certain key
+          combinations (Windows hosts only; bug #15719)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed issue with updating the available-geometry on
+          host-screen work-area resize</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: don't crash / hang on certain environments if accessibility
+          support is enabled</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed various issues in Unscaled HiDPI Output mode
+          (bug #15707)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: extend the VM Input menu with
+          <emphasis>Print Screen</emphasis>-related actions</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: improved handling of inserting the Guest Additions ISO image
+          by trying all available optical drives rather than only the first one
+          and by not asking the user if he wants to force unmounting (which
+          doesn't work in most cases anyway)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: default to RTC using UTC for Solaris 11 guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: be less restrictive when reading a VM configuration
+          containing a host-only adapter without an interface name</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed resizing VDI images resulting in an
+          unbootable image under certain circumstances (bug #15983)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed several 5.1.8 regressions on Mac OS X and Windows
+          hosts (bug #16084)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed a few 5.1.x regressions by using the audio code
+          from 5.0.x until the audio overhaul is completed</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed documentation of the
+          <emphasis>storagectl</emphasis> command (bug #15971)</para>
+      </listitem>
+
+      <listitem>
+        <para>Build system: another fix for building VirtualBox on systems
+          which default to Python 3</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: hardening fix for Windows 10 build 14971 (bug #16202)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: properly start the VirtualBox guest services even
+          if the guest user name contains special characters (bug #15982)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: fixed preemptible mouse notification callback being
+          executed under a spinlock for Solaris guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: Linux 4.9 fixes (bugs #16155 and #16064)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed Linux kernel module override rule
+          (thanks Mark Furneaux)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.8 (2016-10-18)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -27,7 +132,7 @@
 
       <listitem>
         <para>NAT: fixed parsing of port-forwarding rules with a name which
-          contains a slah (bug #16002)</para>
+          contains a slash (bug #16002)</para>
       </listitem>
 
       <listitem>
@@ -219,7 +324,7 @@
       </listitem>
 
       <listitem>
-        <para>Audio: fixed stream access mode with OSS backend (5.1 regression, 
+        <para>Audio: fixed stream access mode with OSS backend (5.1 regression,
           thanks to Jung-uk Kim)</para>
       </listitem>
 

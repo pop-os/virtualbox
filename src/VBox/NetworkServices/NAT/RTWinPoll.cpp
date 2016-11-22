@@ -40,12 +40,16 @@ RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready)
     {
         g_hNetworkEvent = WSACreateEvent();
         AssertReturn(g_hNetworkEvent != WSA_INVALID_EVENT, VERR_INTERNAL_ERROR);
+
+        /* XXX: provide feedback that env vars are set correctly */
+        LogRel2(("NAT_SERVICE LogRel2 enabled\n"));
     }
 
     for (unsigned int i = 0; i < nfds; ++i)
     {
         long eventMask = 0;
         short pollEvents = pFds[i].events;
+        int err;
 
         /* clean revents */
         pFds[i].revents = 0;
@@ -75,7 +79,15 @@ RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready)
          * This is "moral" equivalent to POLLHUP.
          */
         eventMask |= FD_CLOSE;
-        WSAEventSelect(pFds[i].fd, g_hNetworkEvent, eventMask);
+
+        err = WSAEventSelect(pFds[i].fd, g_hNetworkEvent, eventMask);
+        if (err != 0)
+        {
+            err = WSAGetLastError();
+            LogRel2(("sock %d: WSAEventSelect: %R[sockerr]\n", pFds[i].fd, err));
+
+            pFds[i].revents = POLLNVAL;
+        }
     }
 
     DWORD index = WSAWaitForMultipleEvents(1,
@@ -99,24 +111,36 @@ RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready)
         if (pFds[i].fd == INVALID_SOCKET)
             continue;
 
+        if (pFds[i].revents == POLLNVAL)
+        {
+            ++nready;
+            continue;
+        }
+
+
         RT_ZERO(NetworkEvents);
 
         err = WSAEnumNetworkEvents(pFds[i].fd,
                                    g_hNetworkEvent,
                                    &NetworkEvents);
 
-        if (err == SOCKET_ERROR)
+        if (err != 0)
+            err = WSAGetLastError();
+
+        /* disociate socket from event */
+        WSAEventSelect(pFds[i].fd, g_hNetworkEvent, 0);
+
+        if (err != 0)
         {
-            if (WSAGetLastError() == WSAENOTSOCK)
+            LogRel2(("sock %d: WSAEnumNetworkEvents: %R[sockerr]\n", pFds[i].fd, err));
+
+            if (err == WSAENOTSOCK)
             {
                 pFds[i].revents = POLLNVAL;
                 ++nready;
             }
             continue;
         }
-
-        /* deassociate socket with event */
-        WSAEventSelect(pFds[i].fd, g_hNetworkEvent, 0);
 
 #define WSA_TO_POLL(_wsaev, _pollev)                                    \
         do {                                                            \

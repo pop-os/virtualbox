@@ -23,6 +23,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
+#ifdef VBOX_WITH_AUDIO_50
+# include "pdmaudioifs_50.h"
+#endif
+
 #ifndef ___VBox_vmm_pdmaudioifs_h
 #define ___VBox_vmm_pdmaudioifs_h
 

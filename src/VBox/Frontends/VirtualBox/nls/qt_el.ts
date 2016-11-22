@@ -29,6 +29,7 @@
     </message>
     <message>
         <source>About %1</source>
+        <translatorcomment>2016-11-10</translatorcomment>
         <translation>Πληροφορίες για το %1</translation>
     </message>
 </context>
@@ -218,19 +219,19 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Εντάξει</translation>
+        <translation>Εντάξει</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Ψάξε &amp;in :</translation>
+        <translation>Ψάξε σε:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>&amp;Όνομα αρχεiου:</translation>
+        <translation>Όνομα αρχεiου:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>&amp;Τύπος αρχείου:</translation>
+        <translation>Τύπος αρχείου:</translation>
     </message>
     <message>
         <source>Back</source>
@@ -310,39 +311,39 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Άνοιγμα</translation>
+        <translation>Άνοιγμα</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Αποθήκευση</translation>
+        <translation>Αποθήκευση</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Μετονομασία</translation>
+        <translation>Μετονομασία</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Διαγραφή</translation>
+        <translation>Διαγραφή</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>Φ&amp;όρτωμα</translation>
+        <translation>Φόρτωμα</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Ταξινόμηση κατά &amp;Όνομα</translation>
+        <translation>Ταξινόμηση κατά Όνομα</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Ταξινόμηση κατά &amp;Μέγεθος</translation>
+        <translation>Ταξινόμηση κατά Μέγεθος</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Ταξινόμηση κατά &amp;Ημερομηνία</translation>
+        <translation>Ταξινόμηση κατά Ημερομηνία</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Αταξινόμητα</translation>
+        <translation>Αταξινόμητα</translation>
     </message>
     <message>
         <source>Sort</source>
@@ -350,7 +351,7 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Εμφάνιση &amp;Κρυφών Αρχείων</translation>
+        <translation>Εμφάνιση κρυφών αρχείων</translation>
     </message>
     <message>
         <source>the file</source>
@@ -374,11 +375,11 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Ναι</translation>
+        <translation>Ναι</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Όχι</translation>
+        <translation>Όχι</translation>
     </message>
     <message>
         <source>New Folder 1</source>
@@ -512,23 +513,23 @@ to
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Αναίρεση</translation>
+        <translation>Αναίρεση</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Ακύρωση Αναίρεσης</translation>
+        <translation>Ακύρωση Αναίρεσης</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Αποκοπ&amp;ή</translation>
+        <translation>Αποκοπή</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Αντιγραφή</translation>
+        <translation>Αντιγραφή</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Επικόλληση</translation>
+        <translation>Επικόλληση</translation>
     </message>
     <message>
         <source>Clear</source>
@@ -644,23 +645,23 @@ to
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Άκυρο</translation>
+        <translation>Άκυρο</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Πίσω</translation>
+        <translation>&lt; Πίσω</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Επόμενο &gt;</translation>
+        <translation>Επόμενο &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Τέλος</translation>
+        <translation>Τέλος</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Βοήθεια</translation>
+        <translation>Βοήθεια</translation>
     </message>
 </context>
 <context>
@@ -686,15 +687,15 @@ to
     <name>QAbstractSpinBox</name>
     <message>
         <source>&amp;Step up</source>
-        <translation>&amp;Βήμα πάνω</translation>
+        <translation>Βήμα πάνω</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
-        <translation>Βήμα &amp;κάτω</translation>
+        <translation>Βήμα κάτω</translation>
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation>&amp;Επιλογή Όλων</translation>
+        <translation>Επιλογή Όλων</translation>
     </message>
 </context>
 <context>
@@ -740,43 +741,43 @@ to
     <name>QColorDialog</name>
     <message>
         <source>Hu&amp;e:</source>
-        <translation>Απόχρωσ&amp;η:</translation>
+        <translation>Απόχρωση:</translation>
     </message>
     <message>
         <source>&amp;Sat:</source>
-        <translation>&amp;Κορεσμός:</translation>
+        <translation>Κορεσμός:</translation>
     </message>
     <message>
         <source>&amp;Val:</source>
-        <translation>&amp;Φωτεινότητα:</translation>
+        <translation>Φωτεινότητα:</translation>
     </message>
     <message>
         <source>&amp;Red:</source>
-        <translation>&amp;Κόκκινο:</translation>
+        <translation>Κόκκινο:</translation>
     </message>
     <message>
         <source>&amp;Green:</source>
-        <translation>&amp;Πράσινο:</translation>
+        <translation>Πράσινο:</translation>
     </message>
     <message>
         <source>Bl&amp;ue:</source>
-        <translation>Μπ&amp;λε:</translation>
+        <translation>Μπλε:</translation>
     </message>
     <message>
         <source>A&amp;lpha channel:</source>
-        <translation>Ά&amp;λφα κανάλι:</translation>
+        <translation>Άλφα κανάλι:</translation>
     </message>
     <message>
         <source>&amp;Basic colors</source>
-        <translation>&amp;Βασικά χρώματα</translation>
+        <translation>Βασικά χρώματα</translation>
     </message>
     <message>
         <source>&amp;Custom colors</source>
-        <translation>&amp;Ειδικά χρώματα</translation>
+        <translation>Ειδικά χρώματα</translation>
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
-        <translation>&amp;Πρόσθεση σε ειδικά χρώματα</translation>
+        <translation>Πρόσθεση σε ειδικά χρώματα</translation>
     </message>
     <message>
         <source>Select color</source>
@@ -980,19 +981,19 @@ to
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Ναι</translation>
+        <translation>Ναι</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Ναι σε &amp;Όλα</translation>
+        <translation>Ναι σε Όλα</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Όχι</translation>
+        <translation>Όχι</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>Ό&amp;χι σε Όλα</translation>
+        <translation>Όχι σε Όλα</translation>
     </message>
     <message>
         <source>Save All</source>
@@ -1020,7 +1021,7 @@ to
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Ναι</translation>
+        <translation>Ναι</translation>
     </message>
 </context>
 <context>
@@ -1090,11 +1091,11 @@ to
     </message>
     <message>
         <source>&amp;Show this message again</source>
-        <translation>&amp;Προβολή αυτού του μηνύματος πάλι</translation>
+        <translation>Προβολή αυτού του μηνύματος πάλι</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Ναι</translation>
+        <translation>Ναι</translation>
     </message>
 </context>
 <context>
@@ -1109,11 +1110,11 @@ to
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Άνοιγμα</translation>
+        <translation>Άνοιγμα</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Αποθήκευση</translation>
+        <translation>Αποθήκευση</translation>
     </message>
     <message>
         <source>Open</source>
@@ -1139,15 +1140,15 @@ Please verify the correct file name was given.</source>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Μετονομασία</translation>
+        <translation>Μετονομασία</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Διαγραφή</translation>
+        <translation>Διαγραφή</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Εμφάνιση &amp;κρυφών αρχείων</translation>
+        <translation>Εμφάνιση κρυφών αρχείων</translation>
     </message>
     <message>
         <source>Back</source>
@@ -1229,11 +1230,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&amp;New Folder</source>
-        <translation>&amp;Νέος Φάκελος</translation>
+        <translation>Νέος Φάκελος</translation>
     </message>
     <message>
         <source>&amp;Choose</source>
-        <translation>&amp;Επιλογή</translation>
+        <translation>Επιλογή</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -1241,7 +1242,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Όνομα &amp;αρχείου  :</translation>
+        <translation>Όνομα αρχείου  :</translation>
     </message>
     <message>
         <source>Look in:</source>
@@ -1484,15 +1485,15 @@ Do you want to delete it anyway?</source>
     <name>QFontDialog</name>
     <message>
         <source>&amp;Font</source>
-        <translation>&amp;Γραμματοσειρά</translation>
+        <translation>Γραμματοσειρά</translation>
     </message>
     <message>
         <source>Font st&amp;yle</source>
-        <translation>Στυλ γρ&amp;αμματοσειράς</translation>
+        <translation>Στυλ γραμματοσειράς</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Μέγεθος</translation>
+        <translation>Μέγεθος</translation>
     </message>
     <message>
         <source>Effects</source>
@@ -1500,11 +1501,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation>Γρά&amp;μμιση</translation>
+        <translation>Γράμμιση</translation>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation>&amp;Υπογράμμιση</translation>
+        <translation>Υπογράμμιση</translation>
     </message>
     <message>
         <source>Sample</source>
@@ -1512,7 +1513,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation>Σύ&amp;στημα εγγραφής</translation>
+        <translation>Σύστημα εγγραφής</translation>
     </message>
     <message>
         <source>Select Font</source>
@@ -1939,23 +1940,23 @@ Do you want to delete it anyway?</source>
     <name>QLineEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Αναίρεση</translation>
+        <translation>Αναίρεση</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Ακύρωση Αναίρεσης</translation>
+        <translation>Ακύρωση Αναίρεσης</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Αποκοπ&amp;ή</translation>
+        <translation>Αποκοπή</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Αντιγραφή</translation>
+        <translation>Αντιγραφή</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Επικόλληση</translation>
+        <translation>Επικόλληση</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -2125,31 +2126,31 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Επαναφορά</translation>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Μετακίνηση</translation>
+        <translation>Μετακίνηση</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Μέγεθος</translation>
+        <translation>Μέγεθος</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Ε&amp;λαχιστοποίηση</translation>
+        <translation>Ελαχιστοποίηση</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Μ&amp;εγιστοποίηση</translation>
+        <translation>Μεγιστοποίηση</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Παραμονή στην &amp;επιφάνεια</translation>
+        <translation>Παραμονή στην επιφάνεια</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Κλείσιμο</translation>
+        <translation>Κλείσιμο</translation>
     </message>
     <message>
         <source>- [%1]</source>
@@ -3084,7 +3085,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation>&amp;Όνομα:</translation>
+        <translation>Όνομα:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
@@ -3913,27 +3914,27 @@ Please choose a different file name.</source>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Αναίρεση</translation>
+        <translation>Αναίρεση</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Ακύρωση Αναίρεσης</translation>
+        <translation>Ακύρωση Αναίρεσης</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Αποκοπ&amp;ή</translation>
+        <translation>Αποκοπή</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Αντιγραφή</translation>
+        <translation>Αντιγραφή</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Αντιγραφή &amp;Θέσης Δεσμού</translation>
+        <translation>Αντιγραφή Θέσης Δεσμού</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Επικόλληση</translation>
+        <translation>Επικόλληση</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -4358,11 +4359,11 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Πίσω</translation>
+        <translation>&lt; Πίσω</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Τέλος</translation>
+        <translation>Τέλος</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -4370,46 +4371,46 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Βοήθεια</translation>
+        <translation>Βοήθεια</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>&amp;Επόμενο</translation>
+        <translation>Επόμενο</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Επόμενο &gt;</translation>
+        <translation>Επόμενο &gt;</translation>
     </message>
 </context>
 <context>
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Επαναφορά</translation>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Μετακίνηση</translation>
+        <translation>Μετακίνηση</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Μέγεθος</translation>
+        <translation>Μέγεθος</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Ε&amp;λαχιστοποίηση</translation>
+        <translation>Ελαχιστοποίηση</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Μ&amp;εγιστοποίηση</translation>
+        <translation>Μεγιστοποίηση</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Κλείσιμο</translation>
+        <translation>Κλείσιμο</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Παραμονή στην &amp;επιφάνεια</translation>
+        <translation>Παραμονή στην επιφάνεια</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>

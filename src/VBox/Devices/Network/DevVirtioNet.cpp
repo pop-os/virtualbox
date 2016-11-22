@@ -1772,10 +1772,11 @@ static DECLCALLBACK(int) vnetLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int) vnetMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) vnetMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                 RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
-    RT_NOREF(iRegion);
-    PVNETSTATE pThis = PDMINS_2_DATA(pPciDev->pDevIns, PVNETSTATE);
+    RT_NOREF(pPciDev, iRegion);
+    PVNETSTATE pThis = PDMINS_2_DATA(pDevIns, PVNETSTATE);
     int       rc;
 
     if (enmType != PCI_ADDRESS_SPACE_IO)
@@ -1786,16 +1787,16 @@ static DECLCALLBACK(int) vnetMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhy
     }
 
     pThis->VPCI.IOPortBase = (RTIOPORT)GCPhysAddress;
-    rc = PDMDevHlpIOPortRegister(pPciDev->pDevIns, pThis->VPCI.IOPortBase,
+    rc = PDMDevHlpIOPortRegister(pDevIns, pThis->VPCI.IOPortBase,
                                  cb, 0, vnetIOPortOut, vnetIOPortIn,
                                  NULL, NULL, "VirtioNet");
 #ifdef VNET_GC_SUPPORT
     AssertRCReturn(rc, rc);
-    rc = PDMDevHlpIOPortRegisterR0(pPciDev->pDevIns, pThis->VPCI.IOPortBase,
+    rc = PDMDevHlpIOPortRegisterR0(pDevIns, pThis->VPCI.IOPortBase,
                                    cb, 0, "vnetIOPortOut", "vnetIOPortIn",
                                    NULL, NULL, "VirtioNet");
     AssertRCReturn(rc, rc);
-    rc = PDMDevHlpIOPortRegisterRC(pPciDev->pDevIns, pThis->VPCI.IOPortBase,
+    rc = PDMDevHlpIOPortRegisterRC(pDevIns, pThis->VPCI.IOPortBase,
                                    cb, 0, "vnetIOPortOut", "vnetIOPortIn",
                                    NULL, NULL, "VirtioNet");
 #endif

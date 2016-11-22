@@ -263,7 +263,7 @@ typedef struct OHCIPAGECACHE
 typedef struct OHCI
 {
     /** The PCI device. */
-    PCIDEVICE           PciDev;
+    PDMPCIDEV           PciDev;
 
     /** Pointer to the device instance - R3 ptr. */
     PPDMDEVINSR3        pDevInsR3;
@@ -4149,7 +4149,7 @@ static void ohciBusStart(POHCI pThis)
     VUSBIDevPowerOn(pThis->RootHub.pIDev);
     pThis->dqic = 0x7;
 
-    Log(("ohci: %s: Bus started\n", pThis->PciDev.name));
+    Log(("ohci: %s: Bus started\n", pThis->PciDev.pszNameR3));
 
     pThis->SofTime = PDMDevHlpTMTimeVirtGet(pThis->CTX_SUFF(pDevIns));
     int rc = pThis->RootHub.pIRhConn->pfnSetPeriodicFrameProcessing(pThis->RootHub.pIRhConn, OHCI_DEFAULT_TIMER_FREQ);
@@ -4888,7 +4888,7 @@ static int HcRhDescriptorA_w(POHCI pThis, uint32_t iReg, uint32_t val)
     if ((val & (OHCI_RHA_NDP | OHCI_RHA_DT)) != OHCI_NDP_CFG(pThis))
     {
         Log(("ohci: %s: invalid write to NDP or DT in roothub descriptor A!!! val=0x%.8x\n",
-                pThis->PciDev.name, val));
+             pThis->PciDev.pszNameR3, val));
         val &= ~(OHCI_RHA_NDP | OHCI_RHA_DT);
         val |= OHCI_NDP_CFG(pThis);
     }
@@ -4924,8 +4924,7 @@ static int HcRhDescriptorB_w(POHCI pThis, uint32_t iReg, uint32_t val)
 
     if ( pThis->RootHub.desc_b != val )
         Log(("ohci: %s: unsupported write to root descriptor B!!! 0x%.8x -> 0x%.8x\n",
-                pThis->PciDev.name,
-                pThis->RootHub.desc_b, val));
+             pThis->PciDev.pszNameR3, pThis->RootHub.desc_b, val));
     pThis->RootHub.desc_b = val;
     return VINF_SUCCESS;
 }
@@ -4969,7 +4968,7 @@ static int HcRhStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
     if ( val & OHCI_RHS_LPSC )
     {
         unsigned i;
-        Log2(("ohci: %s: global power up\n", pThis->PciDev.name));
+        Log2(("ohci: %s: global power up\n", pThis->PciDev.pszNameR3));
         for (i = 0; i < OHCI_NDP_CFG(pThis); i++)
             rhport_power(&pThis->RootHub, i, true /* power up */);
     }
@@ -4978,7 +4977,7 @@ static int HcRhStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
     if ( val & OHCI_RHS_LPS )
     {
         unsigned i;
-        Log2(("ohci: %s: global power down\n", pThis->PciDev.name));
+        Log2(("ohci: %s: global power down\n", pThis->PciDev.pszNameR3));
         for (i = 0; i < OHCI_NDP_CFG(pThis); i++)
             rhport_power(&pThis->RootHub, i, false /* power down */);
     }
@@ -5359,11 +5358,12 @@ PDMBOTHCBDECL(int) ohciMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPh
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int) ohciR3Map(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) ohciR3Map(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                   RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
     RT_NOREF(iRegion, enmType);
     POHCI pThis = (POHCI)pPciDev;
-    int rc = PDMDevHlpMMIORegister(pThis->CTX_SUFF(pDevIns), GCPhysAddress, cb, NULL /*pvUser*/,
+    int rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL /*pvUser*/,
                                    IOMMMIO_FLAGS_READ_DWORD | IOMMMIO_FLAGS_WRITE_DWORD_ZEROED
                                    | IOMMMIO_FLAGS_DBGSTOP_ON_COMPLICATED_WRITE,
                                    ohciMmioWrite, ohciMmioRead, "USB OHCI");
@@ -5372,13 +5372,11 @@ static DECLCALLBACK(int) ohciR3Map(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCP
 
     if (pThis->fRZEnabled)
     {
-        rc = PDMDevHlpMMIORegisterRC(pThis->CTX_SUFF(pDevIns), GCPhysAddress, cb,
-                                     NIL_RTRCPTR /*pvUser*/, "ohciMmioWrite", "ohciMmioRead");
+        rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, NIL_RTRCPTR /*pvUser*/, "ohciMmioWrite", "ohciMmioRead");
         if (RT_FAILURE(rc))
             return rc;
 
-        rc = PDMDevHlpMMIORegisterR0(pThis->CTX_SUFF(pDevIns), GCPhysAddress, cb,
-                                     NIL_RTR0PTR /*pvUser*/, "ohciMmioWrite", "ohciMmioRead");
+        rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysAddress, cb, NIL_RTR0PTR /*pvUser*/, "ohciMmioWrite", "ohciMmioRead");
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -5633,12 +5631,12 @@ static DECLCALLBACK(int) ohciR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
     {
         static SSMFIELD const s_aOhciFields22[] =
         {
-            SSMFIELD_ENTRY_OLD(           PciDev.config,                256),   /* DevPCI restores this. */
+            SSMFIELD_ENTRY_OLD(           PciDev.abConfig,              256),   /* DevPCI restores this. */
             SSMFIELD_ENTRY_OLD(           PciDev.Int,                   224),
-            SSMFIELD_ENTRY_OLD(           PciDev.devfn,                 4),
+            SSMFIELD_ENTRY_OLD(           PciDev.uDevFn,                4),
             SSMFIELD_ENTRY_OLD(           PciDev.Alignment0,            4),
-            SSMFIELD_ENTRY_OLD_HCPTR(     PciDev.name),
-            SSMFIELD_ENTRY_OLD_HCPTR(     PciDev.pDevIns),
+            SSMFIELD_ENTRY_OLD_HCPTR(     PciDev.pszNameR3),
+            SSMFIELD_ENTRY_OLD_HCPTR(     PciDev.pvReserved),
             SSMFIELD_ENTRY_OLD_HCPTR(     pDevInsR3),
             SSMFIELD_ENTRY_OLD_HCPTR(     pEndOfFrameTimerR3),
             SSMFIELD_ENTRY_OLD_HCPTR(     pDevInsR0),
