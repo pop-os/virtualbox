@@ -26,12 +26,12 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 111712 $"
 __all__     = ['BaselineDiff', ];
 
 
 def _findBaselineTest(oBaseline, oTest):
-    """ Recursively finds the the test in oBaseline corresponding to oTest. """
+    """ Recursively finds the test in oBaseline corresponding to oTest. """
     if oTest.oParent is None:
         return oBaseline;
     oBaseline = _findBaselineTest(oBaseline, oTest.oParent);

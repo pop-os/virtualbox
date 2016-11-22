@@ -33,7 +33,7 @@ export DEB_BUILD_HARDENING_BINDNOW=0
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie,-format,-bindnow
 
 %:
-	dh $@ --with python2,dkms,systemd
+	dh $@ --with python3,dkms,systemd
 
 override_dh_auto_configure:
 	@echo Building for $(DIST_RELEASE)
@@ -52,6 +52,9 @@ endif
 	    --enable-webservice \
 	    --enable-vde \
 	    --enable-vnc
+
+override_dh_python3:
+	dh_python3 --no-ext-rename
 
 override_dh_auto_build:
 	# Building package
@@ -82,7 +85,7 @@ override_dh_auto_install:
 
 	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
 	    cd out/bin/sdk/installer && \
-	    python ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
+	    python3 ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
 
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links

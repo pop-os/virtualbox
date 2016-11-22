@@ -4,7 +4,7 @@
 <context>
     <name>@@@</name>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+2064"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+2065"/>
         <source>English</source>
         <comment>Native language name</comment>
         <translation>Slovenščina</translation>
@@ -171,7 +171,7 @@
     <name>QIMessageBox</name>
     <message>
         <location filename="../src/extensions/QIMessageBox.cpp" line="+301"/>
-        <location filename="../src/globals/UIMessageCenter.cpp" line="+1796"/>
+        <location filename="../src/globals/UIMessageCenter.cpp" line="+1801"/>
         <location filename="../src/widgets/UIPopupPaneButtonPane.cpp" line="+180"/>
         <source>OK</source>
         <translation>V redu</translation>
@@ -6103,36 +6103,36 @@
 <context>
     <name>UIMessageCenter</name>
     <message>
-        <location filename="../src/globals/UIMessageCenter.cpp" line="-1517"/>
-        <location line="+2642"/>
+        <location filename="../src/globals/UIMessageCenter.cpp" line="-1522"/>
+        <location line="+2647"/>
         <source>VirtualBox - Information</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - podatki</translation>
     </message>
     <message>
-        <location line="-2638"/>
-        <location line="+2642"/>
+        <location line="-2643"/>
+        <location line="+2647"/>
         <source>VirtualBox - Question</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - vprašanje</translation>
     </message>
     <message>
-        <location line="-2638"/>
-        <location line="+2642"/>
+        <location line="-2643"/>
+        <location line="+2647"/>
         <source>VirtualBox - Warning</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - opozorilo</translation>
     </message>
     <message>
-        <location line="-2638"/>
-        <location line="+2642"/>
+        <location line="-2643"/>
+        <location line="+2647"/>
         <source>VirtualBox - Error</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - napaka</translation>
     </message>
     <message>
-        <location line="-2638"/>
-        <location line="+2642"/>
+        <location line="-2643"/>
+        <location line="+2647"/>
         <source>VirtualBox - Critical Error</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - kritična napaka</translation>
@@ -6149,12 +6149,12 @@
         <translation>Odpiranje &lt;tt&gt;%1&lt;/tt&gt; je spodeltelo. Prepričajte se, da lahko vaše namizno okolje pravilno obvlada URL te vrste.</translation>
     </message>
     <message>
-        <location line="-110"/>
+        <location line="-115"/>
         <source>&lt;p&gt;Failed to initialize COM or to find the VirtualBox COM server. Most likely, the VirtualBox server is not running or failed to start.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Začenjanje COM-a ali iskanje strežnika COM VirtualBox je spodletelo. Najverjetneje se VirtualBox ne izvaja ali je njegov zagon spodletel.&lt;/p&gt;&lt;p&gt;Program se bo sedaj končal.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location line="+626"/>
+        <location line="+631"/>
         <source>Failed to set global VirtualBox properties.</source>
         <translation>Nastavitev splošnih lastnosti VirtualBoxa je spodletela.</translation>
     </message>
@@ -6498,7 +6498,7 @@
         <translation>Naslednje datoteke že obstajajo:&lt;br /&gt;&lt;br /&gt;%1.&lt;br /&gt;&lt;br /&gt;Ali jih res želite nadomestiti? Njihova nadomestitev bo prepisala njihovo vsebino.</translation>
     </message>
     <message>
-        <location line="-2074"/>
+        <location line="-2079"/>
         <source>You are running a prerelease version of VirtualBox. This version is not suitable for production use.</source>
         <translation>Izvajajte predizdajno različico VirtualBoxa. Ta različica ni primerna za proizvodno uporabo.</translation>
     </message>
@@ -6508,7 +6508,7 @@
         <translation>Gosta poizkušate izklopiti z gumbom za izklop ACPI. To trenutno ni mogoče, ker gost ne podpira zaustavtve programske opreme.</translation>
     </message>
     <message>
-        <location filename="../src/globals/UIMessageCenter.cpp" line="+1422"/>
+        <location filename="../src/globals/UIMessageCenter.cpp" line="+1427"/>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration has been enabled, but is not operational. Your 64-bit guest will fail to detect a 64-bit CPU and will not be able to boot.&lt;/p&gt;&lt;p&gt;Please ensure that you have enabled VT-x/AMD-V properly in the BIOS of your host computer.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Strojno pospeševanje VT-x/AMD-V je bilo omogočeno, vendar ne deluje. Vaš 64-bitni gost ne bo zaznal 64-bitnega CPE-ja in se ne bo mogel zagnati.&lt;/p&gt;&lt;p&gt;Prepričajte se, da ste pravilno omogočili VT-x/AMD-V v BIOS-u svojega gostiteljskega računalnika.&lt;/p&gt;</translation>
     </message>
@@ -6584,7 +6584,7 @@
         <translation>Odstranjevanje datoteke je spodletelo.</translation>
     </message>
     <message>
-        <location line="-1239"/>
+        <location line="-1244"/>
         <source>You seem to have the USBFS filesystem mounted at /sys/bus/usb/drivers. We strongly recommend that you change this, as it is a severe mis-configuration of your system which could cause USB devices to fail in unexpected ways.</source>
         <translation>Videti je, da imate na /sys/bus/usb/drivers priklopljen datotečni sistem USBFS. Zelo priporočamo, da to spremenite, ker je to resna napačna nastavitev vašega sistema, ki lahko povzroči, da naprave USB spodletijo na nepričakovane načine.</translation>
     </message>
@@ -6594,7 +6594,7 @@
         <translation>Izvajate PREIZKUSNO izgradnjo VirtualBoxa. Ta različica ni primerna za proizvodno uporabo.</translation>
     </message>
     <message>
-        <location line="+447"/>
+        <location line="+452"/>
         <location line="+9"/>
         <source>Restore</source>
         <translation>Obnovi</translation>
@@ -6919,12 +6919,12 @@
         <translation>&lt;p&gt;Nameščeno imate različico %1 &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Prejmite in namestite različico %3 tega paketa razširitev od Oracla!&lt;/p&gt;</translation>
     </message>
     <message>
-        <location line="-1701"/>
+        <location line="-1706"/>
         <source>&lt;p&gt;Failed to initialize COM because the VirtualBox global configuration directory &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is not accessible. Please check the permissions of this directory and of its parent directory.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Začenjanje COM-a je spodletelo, ker mapa splošnih nastavitev VirtualBoxa &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; ni na voljo. Preverite dovoljenja te in njene nadrejene mape.&lt;/p&gt;&lt;p&gt;Program se bo sedaj končal.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location line="+200"/>
+        <location line="+205"/>
         <source>&lt;p&gt;You are about to remove following virtual machine items from the machine list:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
         <translation>&lt;p&gt;Ste pred odstranitvijo naslednjih predmetov navideznega računalnika s seznama računalnikov:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Ali želite nadaljevati?&lt;/p&gt;</translation>
     </message>
@@ -7031,12 +7031,17 @@
         <translation>Spremeni omrežne nastavitve</translation>
     </message>
     <message>
-        <location line="-1467"/>
+        <location line="-1472"/>
         <source>&lt;p&gt;Cannot start the VirtualBox Manager due to local restrictions.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Upravljalnika VirtualBoxa ni mogoče zagnati zaradi krajevnih omejitev.&lt;/p&gt;&lt;p&gt;Program se bo sedaj zaprl.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location line="+57"/>
+        <location line="+52"/>
+        <source>&lt;p&gt;The reason for this error are most likely wrong permissions of the IPC daemon socket due to an installation problem. Please check the permissions of &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; and &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+10"/>
         <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the VirtualBox Manager window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Datoteke jezika &lt;b&gt;%1&lt;/b&gt; v mapi &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; ni bilo mogoče najti.&lt;/p&gt;&lt;p&gt;Jezik bo začasno ponastavljen na sistemsko privzetega. Pojdite v okno &lt;b&gt;Možnosti&lt;/b&gt;, ki ga lahko odprete iz menija&lt;b&gt;Datoteka&lt;/b&gt; okna Upravljalnika VirtualBoxa in izbiro enega od obstoječih jezikov na strani &lt;b&gt;Jeziki&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
@@ -7298,12 +7303,12 @@
         <translation>Trenutna pravila posredovanja vrat niso veljavna. Nekaj pravil ima enaka vrata gostitelja in naslove IP v sporu.</translation>
     </message>
     <message>
-        <location line="-771"/>
+        <location line="-776"/>
         <source>&lt;p&gt;Failed to create the VirtualBoxClient COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Ustvarjanje predmeta COM odjemalca VirtualBox je spodletelo.&lt;/p&gt;&lt;p&gt;Program se bo sedaj zaprl.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location line="+109"/>
+        <location line="+114"/>
         <source>Failed to set the global VirtualBox extra data for key &lt;i&gt;%1&lt;/i&gt; to value &lt;i&gt;{%2}&lt;/i&gt;.</source>
         <translation>Nastavitev splošnih dodatnih podatkov VirtualBoxa za ključ &lt;i&gt;%1&lt;/i&gt; na vrednost &lt;i&gt;{%2}&lt;/i&gt; je spodletela.</translation>
     </message>
@@ -7471,7 +7476,7 @@
         <translation>Trenutna pravila posredovanja vrat niso veljavna. Nobena vrednost naslovov gosta ne sme biti prazna.</translation>
     </message>
     <message>
-        <location line="-747"/>
+        <location line="-753"/>
         <source>&lt;p&gt;Failed to acquire the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Pridobivanje predmeta VirtualBox COM je spodletelo.&lt;/p&gt;&lt;p&gt;Program se bo sedaj zaprl.&lt;/p&gt;</translation>
     </message>

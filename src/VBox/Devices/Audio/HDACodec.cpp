@@ -1,4 +1,4 @@
-/* $Id: DevIchHdaCodec.cpp $ */
+/* $Id: HDACodec.cpp $ */
 /** @file
  * DevIchHdaCodec - VBox ICH Intel HD Audio Codec.
  *
@@ -35,8 +35,8 @@
 
 #include "VBoxDD.h"
 #include "DrvAudio.h"
-#include "DevIchHdaCodec.h"
-#include "DevIchHdaCommon.h"
+#include "HDACodec.h"
+#include "DevHDACommon.h"
 #include "AudioMixer.h"
 
 

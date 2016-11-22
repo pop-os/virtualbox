@@ -1538,8 +1538,8 @@ typedef PGMRAMRANGE *PPGMRAMRANGE;
 #define PGM_RAM_RANGE_FLAGS_AD_HOC_ROM      RT_BIT(21)
 /** Ad hoc RAM range for an MMIO mapping. */
 #define PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO     RT_BIT(22)
-/** Ad hoc RAM range for an MMIO2 mapping. */
-#define PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO2    RT_BIT(23)
+/** Ad hoc RAM range for an MMIO2 or pre-registered MMIO mapping. */
+#define PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO_EX  RT_BIT(23)
 /** @} */
 
 /** Tests if a RAM range is an ad hoc one or not.
@@ -1547,7 +1547,7 @@ typedef PGMRAMRANGE *PPGMRAMRANGE;
  * @param   pRam    The RAM range.
  */
 #define PGM_RAM_RANGE_IS_AD_HOC(pRam) \
-    (!!( (pRam)->fFlags & (PGM_RAM_RANGE_FLAGS_AD_HOC_ROM | PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO | PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO2) ) )
+    (!!( (pRam)->fFlags & (PGM_RAM_RANGE_FLAGS_AD_HOC_ROM | PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO | PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO_EX) ) )
 
 /** The number of entries in the RAM range TLBs (there is one for each
  *  context).  Must be a power of two. */
@@ -1687,55 +1687,71 @@ typedef struct PGMLIVESAVEMMIO2PAGE
 typedef PGMLIVESAVEMMIO2PAGE *PPGMLIVESAVEMMIO2PAGE;
 
 /**
- * A registered MMIO2 (= Device RAM) range.
+ * A registered MMIO2 (= Device RAM) or pre-registered MMIO range.
  *
- * There are a few reason why we need to keep track of these
- * registrations.  One of them is the deregistration & cleanup stuff,
- * while another is that the PGMRAMRANGE associated with such a region may
- * have to be removed from the ram range list.
+ * There are a few reason why we need to keep track of these registrations.  One
+ * of them is the deregistration & cleanup stuff, while another is that the
+ * PGMRAMRANGE associated with such a region may have to be removed from the ram
+ * range list.
  *
- * Overlapping with a RAM range has to be 100% or none at all.  The pages
- * in the existing RAM range must not be ROM nor MMIO.  A guru meditation
- * will be raised if a partial overlap or an overlap of ROM pages is
- * encountered.  On an overlap we will free all the existing RAM pages and
- * put in the ram range pages instead.
+ * Overlapping with a RAM range has to be 100% or none at all.  The pages in the
+ * existing RAM range must not be ROM nor MMIO.  A guru meditation will be
+ * raised if a partial overlap or an overlap of ROM pages is encountered.  On an
+ * overlap we will free all the existing RAM pages and put in the ram range
+ * pages instead.
  */
-typedef struct PGMMMIO2RANGE
+typedef struct PGMREGMMIORANGE
 {
     /** The owner of the range. (a device) */
     PPDMDEVINSR3                        pDevInsR3;
-    /** Pointer to the ring-3 mapping of the allocation. */
+    /** Pointer to the ring-3 mapping of the allocation, if MMIO2. */
     RTR3PTR                             pvR3;
     /** Pointer to the next range - R3. */
-    R3PTRTYPE(struct PGMMMIO2RANGE *)   pNextR3;
-    /** Whether it's mapped or not. */
-    bool                                fMapped;
-    /** Whether it's overlapping or not. */
-    bool                                fOverlapping;
-    /** The PCI region number.
-     * @remarks This ASSUMES that nobody will ever really need to have multiple
-     *          PCI devices with matching MMIO region numbers on a single device. */
+    R3PTRTYPE(struct PGMREGMMIORANGE *) pNextR3;
+    /** Flags (PGMREGMMIORANGE_F_XXX). */
+    uint16_t                            fFlags;
+    /** The sub device number (internal PCI config (CFGM) number). */
+    uint8_t                             iSubDev;
+    /** The PCI region number. */
     uint8_t                             iRegion;
     /** The saved state range ID. */
     uint8_t                             idSavedState;
     /** MMIO2 range identifier, for page IDs (PGMPAGE::s.idPage). */
     uint8_t                             idMmio2;
     /** Alignment padding for putting the ram range on a PGMPAGE alignment boundary. */
-    uint8_t                             abAlignment[HC_ARCH_BITS == 32 ? 11 : 11];
-    /** Live save per page tracking data. */
+    uint8_t                             abAlignment[HC_ARCH_BITS == 32 ? 6 : 2];
+    /** Pointer to the physical handler for MMIO. */
+    R3PTRTYPE(PPGMPHYSHANDLER)          pPhysHandlerR3;
+    /** Live save per page tracking data for MMIO2. */
     R3PTRTYPE(PPGMLIVESAVEMMIO2PAGE)    paLSPages;
     /** The associated RAM range. */
     PGMRAMRANGE                         RamRange;
-} PGMMMIO2RANGE;
-/** Pointer to a MMIO2 range. */
-typedef PGMMMIO2RANGE *PPGMMMIO2RANGE;
+} PGMREGMMIORANGE;
+AssertCompileMemberAlignment(PGMREGMMIORANGE, RamRange, 16);
+/** Pointer to a MMIO2 or pre-registered MMIO range. */
+typedef PGMREGMMIORANGE *PPGMREGMMIORANGE;
+
+/** @name PGMREGMMIORANGE_F_XXX - Registered MMIO range flags.
+ * @{ */
+/** Set if it's an MMIO2 range. */
+#define PGMREGMMIORANGE_F_MMIO2             UINT16_C(0x0001)
+/** Set if this is the first chunk in the MMIO2 range. */
+#define PGMREGMMIORANGE_F_FIRST_CHUNK       UINT16_C(0x0002)
+/** Set if this is the last chunk in the MMIO2 range. */
+#define PGMREGMMIORANGE_F_LAST_CHUNK        UINT16_C(0x0004)
+/** Set if the whole range is mapped. */
+#define PGMREGMMIORANGE_F_MAPPED            UINT16_C(0x0008)
+/** Set if it's overlapping, clear if not. */
+#define PGMREGMMIORANGE_F_OVERLAPPING       UINT16_C(0x0010)
+/** @} */
+
 
 /** @name Internal MMIO2 constants.
  * @{ */
 /** The maximum number of MMIO2 ranges. */
 #define PGM_MMIO2_MAX_RANGES                        8
 /** The maximum number of pages in a MMIO2 range. */
-#define PGM_MMIO2_MAX_PAGE_COUNT                    UINT32_C(0x00ffffff)
+#define PGM_MMIO2_MAX_PAGE_COUNT                    UINT32_C(0x01000000)
 /** Makes a MMIO2 page ID out of a MMIO2 range ID and page index number. */
 #define PGM_MMIO2_PAGEID_MAKE(a_idMmio2, a_iPage)   ( ((uint32_t)(a_idMmio2) << 24) | (uint32_t)(a_iPage) )
 /** Gets the MMIO2 range ID from an MMIO2 page ID. */
@@ -3307,13 +3323,13 @@ typedef struct PGM
     R3PTRTYPE(PPGMROMRANGE)         pRomRangesR3;
     /** Pointer to the list of MMIO2 ranges - for R3.
      * Registration order. */
-    R3PTRTYPE(PPGMMMIO2RANGE)       pMmio2RangesR3;
+    R3PTRTYPE(PPGMREGMMIORANGE)     pRegMmioRangesR3;
     /** Pointer to SHW+GST mode data (function pointers).
      * The index into this table is made up from */
     R3PTRTYPE(PPGMMODEDATA)         paModeData;
     RTR3PTR                         R3PtrAlignment0;
     /** MMIO2 lookup array for ring-3.  Indexed by idMmio2 minus 1. */
-    R3PTRTYPE(PPGMMMIO2RANGE)       apMmio2RangesR3[PGM_MMIO2_MAX_RANGES];
+    R3PTRTYPE(PPGMREGMMIORANGE)     apMmio2RangesR3[PGM_MMIO2_MAX_RANGES];
 
     /** RAM range TLB for R0. */
     R0PTRTYPE(PPGMRAMRANGE)         apRamRangesTlbR0[PGM_RAMRANGE_TLB_ENTRIES];
@@ -3333,8 +3349,8 @@ typedef struct PGM
     /** R0 pointer corresponding to PGM::pRomRangesR3. */
     R0PTRTYPE(PPGMROMRANGE)         pRomRangesR0;
     RTR0PTR                         R0PtrAlignment0;
-    /** MMIO2 lookup array for ring-3.  Indexed by idMmio2 minus 1. */
-    R0PTRTYPE(PPGMMMIO2RANGE)       apMmio2RangesR0[PGM_MMIO2_MAX_RANGES];
+    /** MMIO2 lookup array for ring-0.  Indexed by idMmio2 minus 1. */
+    R0PTRTYPE(PPGMREGMMIORANGE)     apMmio2RangesR0[PGM_MMIO2_MAX_RANGES];
 
     /** RAM range TLB for RC. */
     RCPTRTYPE(PPGMRAMRANGE)         apRamRangesTlbRC[PGM_RAMRANGE_TLB_ENTRIES];
@@ -4138,6 +4154,12 @@ int             pgmMapResolveConflicts(PVM pVM);
 PPGMMAPPING     pgmGetMapping(PVM pVM, RTGCPTR GCPtr);
 DECLCALLBACK(void) pgmR3MapInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 
+int             pgmHandlerPhysicalExCreate(PVM pVM, PGMPHYSHANDLERTYPE hType, RTR3PTR pvUserR3, RTR0PTR pvUserR0,
+                                           RTRCPTR pvUserRC, R3PTRTYPE(const char *) pszDesc, PPGMPHYSHANDLER *ppPhysHandler);
+int             pgmHandlerPhysicalExDup(PVM pVM, PPGMPHYSHANDLER pPhysHandlerSrc, PPGMPHYSHANDLER *ppPhysHandler);
+int             pgmHandlerPhysicalExRegister(PVM pVM, PPGMPHYSHANDLER pPhysHandler, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast);
+int             pgmHandlerPhysicalExDeregister(PVM pVM, PPGMPHYSHANDLER pPhysHandler);
+int             pgmHandlerPhysicalExDestroy(PVM pVM, PPGMPHYSHANDLER pHandler);
 void            pgmR3HandlerPhysicalUpdateAll(PVM pVM);
 bool            pgmHandlerPhysicalIsAll(PVM pVM, RTGCPHYS GCPhys);
 void            pgmHandlerPhysicalResetAliasedPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhysPage, bool fDoAccounting);

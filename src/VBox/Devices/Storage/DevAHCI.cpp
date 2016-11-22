@@ -596,7 +596,7 @@ AssertCompileSizeAlignment(AHCIPort, 8);
 typedef struct AHCI
 {
     /** The PCI device structure. */
-    PCIDEVICE                       dev;
+    PDMPCIDEV                       dev;
     /** Pointer to the device instance - R3 ptr */
     PPDMDEVINSR3                    pDevInsR3;
     /** Pointer to the device instance - R0 ptr */
@@ -2551,12 +2551,11 @@ PDMBOTHCBDECL(int) ahciIdxDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int) ahciR3MMIOMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion, RTGCPHYS GCPhysAddress,
-                                       RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) ahciR3MMIOMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                       RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
     RT_NOREF(iRegion, enmType);
     PAHCI pThis = PCIDEV_2_PAHCI(pPciDev);
-    PPDMDEVINS pDevIns = pPciDev->pDevIns;
 
     Log2(("%s: registering MMIO area at GCPhysAddr=%RGp cb=%RGp\n", __FUNCTION__, GCPhysAddress, cb));
 
@@ -2596,12 +2595,11 @@ static DECLCALLBACK(int) ahciR3MMIOMap(PPCIDEVICE pPciDev, /*unsigned*/ int iReg
  *      Map the legacy I/O port ranges to make Solaris work with the
  *      controller.}
  */
-static DECLCALLBACK(int) ahciR3LegacyFakeIORangeMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion, RTGCPHYS GCPhysAddress,
-                                                    RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) ahciR3LegacyFakeIORangeMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                                    RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
     RT_NOREF(iRegion, enmType);
     PAHCI pThis = PCIDEV_2_PAHCI(pPciDev);
-    PPDMDEVINS pDevIns = pPciDev->pDevIns;
     int   rc = VINF_SUCCESS;
 
     Log2(("%s: registering fake I/O area at GCPhysAddr=%RGp cb=%RGp\n", __FUNCTION__, GCPhysAddress, cb));
@@ -2637,12 +2635,11 @@ static DECLCALLBACK(int) ahciR3LegacyFakeIORangeMap(PPCIDEVICE pPciDev, /*unsign
  * @callback_method_impl{FNPCIIOREGIONMAP,
  *      Map the BMDMA I/O port range (used for the Index/Data pair register access)}
  */
-static DECLCALLBACK(int) ahciR3IdxDataIORangeMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion, RTGCPHYS GCPhysAddress,
-                                                 RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) ahciR3IdxDataIORangeMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                                 RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
     RT_NOREF(iRegion, enmType);
     PAHCI pThis = PCIDEV_2_PAHCI(pPciDev);
-    PPDMDEVINS pDevIns = pPciDev->pDevIns;
     int   rc = VINF_SUCCESS;
 
     Log2(("%s: registering fake I/O area at GCPhysAddr=%RGp cb=%RGp\n", __FUNCTION__, GCPhysAddress, cb));
@@ -8415,18 +8412,18 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     PCIDevSetInterruptLine(&pThis->dev, 0x00);
     PCIDevSetInterruptPin (&pThis->dev, 0x01);
 
-    pThis->dev.config[0x70] = VBOX_PCI_CAP_ID_PM; /* Capability ID: PCI Power Management Interface */
-    pThis->dev.config[0x71] = 0xa8; /* next */
-    pThis->dev.config[0x72] = 0x03; /* version ? */
+    pThis->dev.abConfig[0x70] = VBOX_PCI_CAP_ID_PM; /* Capability ID: PCI Power Management Interface */
+    pThis->dev.abConfig[0x71] = 0xa8; /* next */
+    pThis->dev.abConfig[0x72] = 0x03; /* version ? */
 
-    pThis->dev.config[0x90] = 0x40; /* AHCI mode. */
-    pThis->dev.config[0x92] = 0x3f;
-    pThis->dev.config[0x94] = 0x80;
-    pThis->dev.config[0x95] = 0x01;
-    pThis->dev.config[0x97] = 0x78;
+    pThis->dev.abConfig[0x90] = 0x40; /* AHCI mode. */
+    pThis->dev.abConfig[0x92] = 0x3f;
+    pThis->dev.abConfig[0x94] = 0x80;
+    pThis->dev.abConfig[0x95] = 0x01;
+    pThis->dev.abConfig[0x97] = 0x78;
 
-    pThis->dev.config[0xa8] = 0x12;                /* SATACR capability */
-    pThis->dev.config[0xa9] = 0x00;                /* next */
+    pThis->dev.abConfig[0xa8] = 0x12;              /* SATACR capability */
+    pThis->dev.abConfig[0xa9] = 0x00;              /* next */
     PCIDevSetWord(&pThis->dev, 0xaa, 0x0010);      /* Revision */
     PCIDevSetDWord(&pThis->dev, 0xac, 0x00000028); /* SATA Capability Register 1 */
 
@@ -8616,7 +8613,7 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
             /* Mark that a device is present on that port */
             if (i < 6)
-                pThis->dev.config[0x93] |= (1 << i);
+                pThis->dev.abConfig[0x93] |= (1 << i);
 
             /*
              * Init vendor product data.

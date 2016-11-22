@@ -1,9 +1,39 @@
-virtualbox (5.1.8-dfsg-4) xenial; urgency=medium
+virtualbox (5.1.10-dfsg-1) unstable; urgency=medium
 
-  [ Gianfranco Costamagna, Peter Meiser ]
-  * Major rewrite of the guest-additions GL library handling
+  * New upstream release (Closes: #843619)
+    - drop linux-4.9-fix.patch, python3.patch, fix-build.patch,
+      old-python.patch: upstream
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 19 Oct 2016 21:00:26 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 22 Nov 2016 11:03:17 +0100
+
+virtualbox (5.1.8-dfsg-7) unstable; urgency=medium
+
+  * d/p/linux-4.9-fix.patch (LP: #1642163):
+    - Fix build with kernel 4.9, cherry-picking upstream
+      commit 64561 64562 64564
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 16 Nov 2016 10:18:29 +0100
+
+virtualbox (5.1.8-dfsg-6) unstable; urgency=medium
+
+  * Try to avoid dh_python3 symlinks
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 21 Oct 2016 17:54:55 +0200
+
+virtualbox (5.1.8-dfsg-5) unstable; urgency=high
+
+  * Back to Python2, seems that at runtime some symbolik
+    links need mangling (Closes: #841634)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 21 Oct 2016 17:28:00 +0200
+
+virtualbox (5.1.8-dfsg-4) unstable; urgency=medium
+
+  * cherry-pick upstream 64330 to bring Python3
+    - debian/patches/python3.patch
+      switch finally to Python3 (LP: #1528016, Closes: #830878)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 20 Oct 2016 14:34:26 +0200
 
 virtualbox (5.1.8-dfsg-3) unstable; urgency=medium
 

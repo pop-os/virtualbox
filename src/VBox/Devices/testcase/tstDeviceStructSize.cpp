@@ -122,7 +122,7 @@
 # undef LOG_GROUP
 # include "../Audio/DevIchAc97.cpp"
 # undef LOG_GROUP
-# include "../Audio/DevIchHda.cpp"
+# include "../Audio/DevHDA.cpp"
 
 #include <stdio.h>
 
@@ -280,8 +280,8 @@ int main()
 
     /* Basic alignment checks. */
     CHECK_MEMBER_ALIGNMENT(PDMDEVINS, achInstanceData, 64);
-    CHECK_MEMBER_ALIGNMENT(PCIDEVICE, Int.s, 16);
-    CHECK_MEMBER_ALIGNMENT(PCIDEVICE, Int.s.aIORegions, 16);
+    CHECK_MEMBER_ALIGNMENT(PDMPCIDEV, Int.s, 16);
+    CHECK_MEMBER_ALIGNMENT(PDMPCIDEV, Int.s.aIORegions, 16);
 
     /*
      * Misc alignment checks (keep this somewhat alphabetical).

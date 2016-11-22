@@ -4,7 +4,7 @@
 <context>
     <name>@@@</name>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+2064"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+2065"/>
         <source>English</source>
         <comment>Native language name</comment>
         <translation>Euskara</translation>
@@ -175,7 +175,7 @@
     <name>QIMessageBox</name>
     <message>
         <location filename="../src/extensions/QIMessageBox.cpp" line="+301"/>
-        <location filename="../src/globals/UIMessageCenter.cpp" line="+1796"/>
+        <location filename="../src/globals/UIMessageCenter.cpp" line="+1801"/>
         <location filename="../src/widgets/UIPopupPaneButtonPane.cpp" line="+180"/>
         <source>OK</source>
         <translation>Ongi</translation>
@@ -7797,52 +7797,57 @@
 <context>
     <name>UIMessageCenter</name>
     <message>
-        <location filename="../src/globals/UIMessageCenter.cpp" line="-1517"/>
-        <location line="+2642"/>
+        <location filename="../src/globals/UIMessageCenter.cpp" line="-1522"/>
+        <location line="+2647"/>
         <source>VirtualBox - Information</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - Argibideak</translation>
     </message>
     <message>
-        <location line="-2638"/>
-        <location line="+2642"/>
+        <location line="-2643"/>
+        <location line="+2647"/>
         <source>VirtualBox - Question</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - Galdera</translation>
     </message>
     <message>
-        <location line="-2638"/>
-        <location line="+2642"/>
+        <location line="-2643"/>
+        <location line="+2647"/>
         <source>VirtualBox - Warning</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - Ohartarazpena</translation>
     </message>
     <message>
-        <location line="-2638"/>
-        <location line="+2642"/>
+        <location line="-2643"/>
+        <location line="+2647"/>
         <source>VirtualBox - Error</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - Akatsa</translation>
     </message>
     <message>
-        <location line="-2638"/>
-        <location line="+2642"/>
+        <location line="-2643"/>
+        <location line="+2647"/>
         <source>VirtualBox - Critical Error</source>
         <comment>msg box title</comment>
         <translation>VirtualBox - Akats Larria</translation>
     </message>
     <message>
-        <location line="-2501"/>
+        <location line="-2506"/>
         <source>&lt;p&gt;Failed to create the VirtualBoxClient COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Hutsegitea VirtualBox COM objetua sortzerakoan.&lt;/p&gt;&lt;p&gt;Orain aplikazioak amaitu egingo du.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+7"/>
         <source>&lt;p&gt;Failed to acquire the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+101"/>
+        <location line="+4"/>
+        <source>&lt;p&gt;The reason for this error are most likely wrong permissions of the IPC daemon socket due to an installation problem. Please check the permissions of &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; and &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+103"/>
         <source>Failed to set the global VirtualBox extra data for key &lt;i&gt;%1&lt;/i&gt; to value &lt;i&gt;{%2}&lt;/i&gt;.</source>
         <translation>Hutsegitea VirtualBox gain datuak ezartzerakoan &lt;i&gt;%1&lt;/i&gt;-rako &lt;i&gt;{%2}&lt;/i&gt; balioan.</translation>
     </message>
@@ -8135,7 +8140,7 @@
         <translation>Hutsegitea &lt;tt&gt;%1&lt;/tt&gt; irekitzerakoan. Zihurtatu zure mahaigin inguruak mota honetako URL-ak egoki kudeatu ditzakeela.</translation>
     </message>
     <message>
-        <location line="-110"/>
+        <location line="-115"/>
         <source>&lt;p&gt;Failed to initialize COM or to find the VirtualBox COM server. Most likely, the VirtualBox server is not running or failed to start.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Hutsegitea COM abiaraztean edo VirtualBox COM zerbitzaria aurkitzerakoan. Zihurrenik VirtualBox zerbitzaria ez dago ekinean edo huts egin du abiatzean.&lt;/p&gt;&lt;p&gt;Orain aplikazioak amaitu egingo du.&lt;/p&gt;</translation>
     </message>
@@ -8144,7 +8149,7 @@
         <translation type="obsolete">&lt;p&gt;Hutsegitea VirtualBox COM objetua sortzerakoan.&lt;/p&gt;&lt;p&gt;Orain aplikazioak amaitu egingo du.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location line="+626"/>
+        <location line="+631"/>
         <source>Failed to set global VirtualBox properties.</source>
         <translation>Hutsegitea VirtualBox ezaugarri orokorrak ezartzerakoan.</translation>
     </message>
@@ -8702,7 +8707,7 @@
         <translation>Jadanik badaude hurrengo agiriak:&lt;br /&gt;&lt;br /&gt;%1&lt;br /&gt;&lt;br /&gt;Zihur zaude ordeztea nahi dituzula? Hauek ordezteak beren edukiak gainidaztea eragingo du.</translation>
     </message>
     <message>
-        <location line="-2074"/>
+        <location line="-2079"/>
         <source>You are running a prerelease version of VirtualBox. This version is not suitable for production use.</source>
         <translation>VirtualBox aurreargitalpen bertsio bat ari zara erabiltzen. Bertsio hau ez da ekoizpen erabilpenerako.</translation>
     </message>
@@ -8712,7 +8717,7 @@
         <translation>Gonbidatua ACPI indar botoiarekin itzaltzen saiatzen ari zara. Hau oraingoz ezinezkoa da gonbidatuak ez duelako software itzalketa sostengatzen.</translation>
     </message>
     <message>
-        <location filename="../src/globals/UIMessageCenter.cpp" line="+1422"/>
+        <location filename="../src/globals/UIMessageCenter.cpp" line="+1427"/>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration has been enabled, but is not operational. Your 64-bit guest will fail to detect a 64-bit CPU and will not be able to boot.&lt;/p&gt;&lt;p&gt;Please ensure that you have enabled VT-x/AMD-V properly in the BIOS of your host computer.&lt;/p&gt;</source>
         <translation>&lt;p&gt;VT-x/AMD-V hardware bizkorpena gaitu egin da, baina ez dago eraginkor. Zure 64-biteko gonbidatuak huts egingo du 64-bit CPU bat atzematerakoan eta ez da abiatzeko gai izango.&lt;/p&gt;&lt;p&gt;Mesedez zihurtatu VT-x/AMD-V egoki gaituta duzula zure hostalari ordenagailuaren BIOS-ean.&lt;/p&gt;</translation>
     </message>
@@ -8812,7 +8817,7 @@
         <translation>Hutsegitea agiria kentzerakoan.</translation>
     </message>
     <message>
-        <location line="-1239"/>
+        <location line="-1244"/>
         <source>You seem to have the USBFS filesystem mounted at /sys/bus/usb/drivers. We strongly recommend that you change this, as it is a severe mis-configuration of your system which could cause USB devices to fail in unexpected ways.</source>
         <translation>Dirudienez USBFS agiri-sistema duzu muntatuta honela: /sys/bus/usb/drivers. Hau aldatzea gomendatzen dizugu, zure sistemaren itxurapen-oker larria denez eta USB gailuek ustekabeko moduan huts egitea eragin dezakeelako.</translation>
     </message>
@@ -8827,7 +8832,7 @@
         <translation>VirtualBox eraiketa ESPERIMENTAL bat erabiltzen ari zara. Bertsio hau ez da ekoizpen erabilpenerako.</translation>
     </message>
     <message>
-        <location line="+43"/>
+        <location line="+48"/>
         <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the VirtualBox Manager window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Ezin da &lt;b&gt;%1&lt;/b&gt; hizkuntzarako hizkuntza agiria aurkitu &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; zuzenbidean.&lt;/p&gt;&lt;p&gt;Hizkuntza aldibaterako sistemaren berezko hizkuntzan berrezarriko da. Mesedez joan &lt;b&gt;Hobespenak&lt;/b&gt; leihora VirtualBox Kudeatzaile leihoko &lt;b&gt;Agiria&lt;/b&gt; menutik ireki dezakezuna, eta hautatu &lt;b&gt;Hizkuntza&lt;/b&gt; orrialdean badagoen hizkuntzetako bat.&lt;/p&gt;</translation>
     </message>
@@ -9256,12 +9261,12 @@
         <translation type="obsolete">Ongi</translation>
     </message>
     <message>
-        <location line="-1701"/>
+        <location line="-1706"/>
         <source>&lt;p&gt;Failed to initialize COM because the VirtualBox global configuration directory &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is not accessible. Please check the permissions of this directory and of its parent directory.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Hutsegitea COM abiarazterakoan &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; VirtualBox-en itxurapen orokorraren zuzenbidea ez dagoelako eskuragarri. Mesedez egiaztatu zuzenbide honen eta bere gaineko zuzenbidearen baimenak.&lt;/p&gt;&lt;p&gt;Aplikazioak orain amaitu egingo du.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location line="+200"/>
+        <location line="+205"/>
         <source>&lt;p&gt;You are about to remove following virtual machine items from the machine list:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
         <translation>&lt;p&gt;Hurrengo makina birtual gaiak kentzear zaude makinaren zerrendatik:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Jarraitzea nahi duzu?&lt;/p&gt;</translation>
     </message>

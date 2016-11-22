@@ -1,4 +1,4 @@
-/* $Id: DevIchHdaCodec.h $ */
+/* $Id: HDACodec.h $ */
 /** @file
  * DevIchHdaCodec - VBox ICH Intel HD Audio Codec.
  */

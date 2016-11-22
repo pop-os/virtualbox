@@ -420,6 +420,11 @@ pollmgr_loop(void)
                 }
 # endif /* LWIP_PROXY_DEBUG / DEBUG */
 #endif
+                /* XXX: temporary instrumentation for ticketref:13899 */
+                if (revents == POLLNVAL) {
+                    LogRel2(("sock %d: POLLNVAL handler=%p\n", fd, handler));
+                }
+
                 nevents = (*handler->callback)(handler, fd, revents);
             }
             else {

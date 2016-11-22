@@ -32,19 +32,24 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+/* NOTE: do NOT use any include files here which are only available in the
+ * VirtualBox tree, e.g. iprt. They are not available in the SDK, which is
+ * where this file will provided as source code and has to be compilable. */
 #include "VBoxCAPIGlue.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#ifdef WIN32
+# define _INTPTR 2 /* on Windows stdint.h compares this in #if, causing warnings if not defined */
+#endif /* WIN32 */
+#include <stdint.h>
 #ifndef WIN32
-# include <stdint.h>
 # include <dlfcn.h>
 # include <pthread.h>
 #else /* WIN32 */
-# include <iprt/stdint.h>
-# include <iprt/win/windows.h>
+# include <Windows.h>
 #endif /* WIN32 */
 
 

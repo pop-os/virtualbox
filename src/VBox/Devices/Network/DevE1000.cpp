@@ -47,7 +47,11 @@
 #include "DevE1000Phy.h"
 
 
-/* Options *******************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+/** @name E1000 Build Options
+ * @{ */
 /** @def E1K_INIT_RA0
  * E1K_INIT_RA0 forces E1000 to set the first entry in Receive Address filter
  * table to MAC address obtained from CFGM. Most guests read MAC address from
@@ -61,6 +65,16 @@
  * that requires it is Mac OS X (see @bugref{4657}).
  */
 #define E1K_LSC_ON_SLU
+/** @def E1K_INIT_LINKUP_DELAY
+ * E1K_INIT_LINKUP_DELAY prevents the link going up while the driver is still
+ * in init (see @bugref{8624}).
+ */
+#define E1K_INIT_LINKUP_DELAY (500 * 1000)
+/** @def E1K_IMS_INT_DELAY_NS
+ * E1K_IMS_INT_DELAY_NS prevents interrupt storms in Windows guests on enabling
+ * interrupts (see @bugref{8624}).
+ */
+#define E1K_IMS_INT_DELAY_NS 100
 /** @def E1K_TX_DELAY
  * E1K_TX_DELAY aims to improve guest-host transfer rate for TCP streams by
  * preventing packets to be sent immediately. It allows to send several
@@ -116,6 +130,11 @@
  * order to work properly (see @bugref{6217}).
  */
 #define E1K_WITH_RXD_CACHE
+/** @def E1K_WITH_PREREG_MMIO
+ * E1K_WITH_PREREG_MMIO enables a new style MMIO registration and is
+ * currently only done for testing the relateted PDM, IOM and PGM code. */
+//#define E1K_WITH_PREREG_MMIO
+/* @} */
 /* End of Options ************************************************************/
 
 #ifdef E1K_WITH_TXD_CACHE
@@ -1069,7 +1088,7 @@ struct E1kState_st
     /** Base port of I/O space region. */
     RTIOPORT    IOPortBase;
     /** EMT: */
-    PCIDEVICE   pciDevice;
+    PDMPCIDEV   pciDevice;
     /** EMT: Last time the interrupt was acknowledged.  */
     uint64_t    u64AckedAt;
     /** All: Used for eliminating spurious interrupts. */
@@ -1240,10 +1259,10 @@ struct E1kState_st
     uint32_t    uStatInt;
     uint32_t    uStatIntTry;
     uint32_t    uStatIntLower;
-    uint32_t    uStatIntDly;
+    uint32_t    uStatNoIntICR;
     int32_t     iStatIntLost;
     int32_t     iStatIntLostOne;
-    uint32_t    uStatDisDly;
+    uint32_t    uStatIntIMS;
     uint32_t    uStatIntSkip;
     uint32_t    uStatIntLate;
     uint32_t    uStatIntMasked;
@@ -2518,6 +2537,7 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
 }
 
 
+#ifdef IN_RING3
 /**
  * Bring the link up after the configured delay, 5 seconds by default.
  *
@@ -2531,7 +2551,6 @@ DECLINLINE(void) e1kBringLinkUpDelayed(PE1KSTATE pThis)
     e1kArmTimer(pThis, pThis->CTX_SUFF(pLUTimer), pThis->cMsLinkUpDelay * 1000);
 }
 
-#ifdef IN_RING3
 /**
  * Bring up the link immediately.
  *
@@ -2648,18 +2667,20 @@ static int e1kRegWriteCTRL(PE1KSTATE pThis, uint32_t offset, uint32_t index, uin
     }
     else
     {
+        /*
+         * When the guest changes 'Set Link Up' bit from 0 to 1 we check if
+         * the link is down and the cable is connected, and if they are we
+         * bring the link up, see @bugref{8624}.
+         */
         if (   (value & CTRL_SLU)
+            && !(CTRL & CTRL_SLU)
             && pThis->fCableConnected
             && !(STATUS & STATUS_LU))
         {
-            /* The driver indicates that we should bring up the link */
-            /* Do so in 5 seconds (by default). */
-            e1kBringLinkUpDelayed(pThis);
             /*
-             * Change the status (but not PHY status) anyway as Windows expects
-             * it for 82543GC.
-             */
-            STATUS |= STATUS_LU;
+             * The driver indicates that we should bring up the link. Our default 5-second delay is too long,
+             * as Linux guests detect Tx hang after 2 seconds. Let's use 500 ms delay instead. */
+            e1kArmTimer(pThis, pThis->CTX_SUFF(pLUTimer), E1K_INIT_LINKUP_DELAY);
         }
         if (value & CTRL_VME)
         {
@@ -2902,6 +2923,8 @@ static int e1kRegReadICR(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint3
     {
         if (value)
         {
+            if (!pThis->fIntRaised)
+                E1K_INC_ISTAT_CNT(pThis->uStatNoIntICR);
             /*
              * Not clearing ICR causes QNX to hang as it reads ICR in a loop
              * with disabled interrupts.
@@ -2979,7 +3002,15 @@ static int e1kRegWriteIMS(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
     IMS |= value;
     E1kLogRel(("E1000: irq enabled, RDH=%x RDT=%x TDH=%x TDT=%x\n", RDH, RDT, TDH, TDT));
     E1kLog(("%s e1kRegWriteIMS: IRQ enabled\n", pThis->szPrf));
-    e1kRaiseInterrupt(pThis, VINF_IOM_R3_MMIO_WRITE, 0);
+    /*
+     * We cannot raise an interrupt here as it will occasionally cause an interrupt storm
+     * in Windows guests (see @bugref{8624}, @bugref{5023}).
+     */
+    if ((ICR & IMS) && !pThis->fLocked)
+    {
+        E1K_INC_ISTAT_CNT(pThis->uStatIntIMS);
+        e1kPostponeInterrupt(pThis, E1K_IMS_INT_DELAY_NS);
+    }
 
     return VINF_SUCCESS;
 }
@@ -6042,8 +6073,8 @@ static void e1kDumpState(PE1KSTATE pThis)
     LogRel(("%s Interrupt attempts: %d\n", pThis->szPrf, pThis->uStatIntTry));
     LogRel(("%s Interrupts raised : %d\n", pThis->szPrf, pThis->uStatInt));
     LogRel(("%s Interrupts lowered: %d\n", pThis->szPrf, pThis->uStatIntLower));
-    LogRel(("%s Interrupts delayed: %d\n", pThis->szPrf, pThis->uStatIntDly));
-    LogRel(("%s Disabled delayed:   %d\n", pThis->szPrf, pThis->uStatDisDly));
+    LogRel(("%s ICR outside ISR   : %d\n", pThis->szPrf, pThis->uStatNoIntICR));
+    LogRel(("%s IMS raised ints   : %d\n", pThis->szPrf, pThis->uStatIntIMS));
     LogRel(("%s Interrupts skipped: %d\n", pThis->szPrf, pThis->uStatIntSkip));
     LogRel(("%s Masked interrupts : %d\n", pThis->szPrf, pThis->uStatIntMasked));
     LogRel(("%s Early interrupts  : %d\n", pThis->szPrf, pThis->uStatIntEarly));
@@ -6084,23 +6115,24 @@ static void e1kDumpState(PE1KSTATE pThis)
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int) e1kMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) e1kMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
-    RT_NOREF(iRegion);
-    PE1KSTATE pThis = PDMINS_2_DATA(pPciDev->pDevIns, E1KSTATE*);
+    RT_NOREF(pPciDev, iRegion);
+    PE1KSTATE pThis = PDMINS_2_DATA(pDevIns, E1KSTATE *);
     int       rc;
 
     switch (enmType)
     {
         case PCI_ADDRESS_SPACE_IO:
             pThis->IOPortBase = (RTIOPORT)GCPhysAddress;
-            rc = PDMDevHlpIOPortRegister(pPciDev->pDevIns, pThis->IOPortBase, cb, NULL /*pvUser*/,
+            rc = PDMDevHlpIOPortRegister(pDevIns, pThis->IOPortBase, cb, NULL /*pvUser*/,
                                          e1kIOPortOut, e1kIOPortIn, NULL, NULL, "E1000");
             if (pThis->fR0Enabled && RT_SUCCESS(rc))
-                rc = PDMDevHlpIOPortRegisterR0(pPciDev->pDevIns, pThis->IOPortBase, cb, NIL_RTR0PTR /*pvUser*/,
+                rc = PDMDevHlpIOPortRegisterR0(pDevIns, pThis->IOPortBase, cb, NIL_RTR0PTR /*pvUser*/,
                                              "e1kIOPortOut", "e1kIOPortIn", NULL, NULL, "E1000");
             if (pThis->fRCEnabled && RT_SUCCESS(rc))
-                rc = PDMDevHlpIOPortRegisterRC(pPciDev->pDevIns, pThis->IOPortBase, cb, NIL_RTRCPTR /*pvUser*/,
+                rc = PDMDevHlpIOPortRegisterRC(pDevIns, pThis->IOPortBase, cb, NIL_RTRCPTR /*pvUser*/,
                                                "e1kIOPortOut", "e1kIOPortIn", NULL, NULL, "E1000");
             break;
 
@@ -6112,16 +6144,27 @@ static DECLCALLBACK(int) e1kMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhys
              *    Partial reads return all 32 bits of data regardless of the
              *    byte enables.
              */
+#ifdef E1K_WITH_PREREG_MMIO
+            pThis->addrMMReg = GCPhysAddress;
+            if (GCPhysAddress == NIL_RTGCPHYS)
+                rc = VINF_SUCCESS;
+            else
+            {
+                Assert(!(GCPhysAddress & 7));
+                rc = PDMDevHlpMMIOExMap(pDevIns, pPciDev, iRegion, GCPhysAddress);
+            }
+#else
             pThis->addrMMReg = GCPhysAddress; Assert(!(GCPhysAddress & 7));
-            rc = PDMDevHlpMMIORegister(pPciDev->pDevIns, GCPhysAddress, cb, NULL /*pvUser*/,
+            rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL /*pvUser*/,
                                        IOMMMIO_FLAGS_READ_DWORD | IOMMMIO_FLAGS_WRITE_ONLY_DWORD,
                                        e1kMMIOWrite, e1kMMIORead, "E1000");
             if (pThis->fR0Enabled && RT_SUCCESS(rc))
-                rc = PDMDevHlpMMIORegisterR0(pPciDev->pDevIns, GCPhysAddress, cb, NIL_RTR0PTR /*pvUser*/,
+                rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysAddress, cb, NIL_RTR0PTR /*pvUser*/,
                                              "e1kMMIOWrite", "e1kMMIORead");
             if (pThis->fRCEnabled && RT_SUCCESS(rc))
-                rc = PDMDevHlpMMIORegisterRC(pPciDev->pDevIns, GCPhysAddress, cb, NIL_RTRCPTR /*pvUser*/,
+                rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, NIL_RTRCPTR /*pvUser*/,
                                              "e1kMMIOWrite", "e1kMMIORead");
+#endif
             break;
 
         default:
@@ -7115,8 +7158,8 @@ static DECLCALLBACK(void) e1kInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const 
     pHlp->pfnPrintf(pHlp, "Interrupt attempts: %d\n", pThis->uStatIntTry);
     pHlp->pfnPrintf(pHlp, "Interrupts raised : %d\n", pThis->uStatInt);
     pHlp->pfnPrintf(pHlp, "Interrupts lowered: %d\n", pThis->uStatIntLower);
-    pHlp->pfnPrintf(pHlp, "Interrupts delayed: %d\n", pThis->uStatIntDly);
-    pHlp->pfnPrintf(pHlp, "Disabled delayed:   %d\n", pThis->uStatDisDly);
+    pHlp->pfnPrintf(pHlp, "ICR outside ISR   : %d\n", pThis->uStatNoIntICR);
+    pHlp->pfnPrintf(pHlp, "IMS raised ints   : %d\n", pThis->uStatIntIMS);
     pHlp->pfnPrintf(pHlp, "Interrupts skipped: %d\n", pThis->uStatIntSkip);
     pHlp->pfnPrintf(pHlp, "Masked interrupts : %d\n", pThis->uStatIntMasked);
     pHlp->pfnPrintf(pHlp, "Early interrupts  : %d\n", pThis->uStatIntEarly);
@@ -7384,7 +7427,7 @@ static DECLCALLBACK(int) e1kR3Destruct(PPDMDEVINS pDevIns)
  * @param   pci         Reference to PCI device structure.
  * @thread  EMT
  */
-static DECLCALLBACK(void) e1kConfigurePciDev(PPCIDEVICE pPciDev, E1KCHIP eChip)
+static DECLCALLBACK(void) e1kConfigurePciDev(PPDMPCIDEV pPciDev, E1KCHIP eChip)
 {
     Assert(eChip < RT_ELEMENTS(g_aChips));
     /* Configure PCI Device, assume 32-bit mode ******************************/
@@ -7640,6 +7683,15 @@ static DECLCALLBACK(int) e1kR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, E1K_MM_SIZE, PCI_ADDRESS_SPACE_MEM, e1kMap);
     if (RT_FAILURE(rc))
         return rc;
+#ifdef E1K_WITH_PREREG_MMIO
+    rc = PDMDevHlpMMIOExPreRegister(pDevIns, 0, E1K_MM_SIZE, IOMMMIO_FLAGS_READ_DWORD | IOMMMIO_FLAGS_WRITE_ONLY_DWORD, "E1000",
+                                    NULL        /*pvUserR3*/, e1kMMIOWrite, e1kMMIORead, NULL /*pfnFillR3*/,
+                                    NIL_RTR0PTR /*pvUserR0*/, pThis->fR0Enabled ? "e1kMMIOWrite" : NULL,
+                                    pThis->fR0Enabled ? "e1kMMIORead" : NULL, NULL /*pszFillR0*/,
+                                    NIL_RTRCPTR /*pvUserRC*/, pThis->fRCEnabled ? "e1kMMIOWrite" : NULL,
+                                    pThis->fRCEnabled ? "e1kMMIORead" : NULL, NULL /*pszFillRC*/);
+    AssertLogRelRCReturn(rc, rc);
+#endif
     /* Map our registers to IO space (region 2, see e1kConfigurePCI) */
     rc = PDMDevHlpPCIIORegionRegister(pDevIns, 2, E1K_IOPORT_SIZE, PCI_ADDRESS_SPACE_IO, e1kMap);
     if (RT_FAILURE(rc))
@@ -7833,10 +7885,10 @@ static DECLCALLBACK(int) e1kR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatInt,               STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatInt",                           "/Devices/E1k%d/uStatInt", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatIntTry,            STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatIntTry",                        "/Devices/E1k%d/uStatIntTry", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatIntLower,          STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatIntLower",                      "/Devices/E1k%d/uStatIntLower", iInstance);
-    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatIntDly,            STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatIntDly",                        "/Devices/E1k%d/uStatIntDly", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatNoIntICR,          STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatNoIntICR",                      "/Devices/E1k%d/uStatNoIntICR", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->iStatIntLost,           STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "iStatIntLost",                       "/Devices/E1k%d/iStatIntLost", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->iStatIntLostOne,        STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "iStatIntLostOne",                    "/Devices/E1k%d/iStatIntLostOne", iInstance);
-    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatDisDly,            STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatDisDly",                        "/Devices/E1k%d/uStatDisDly", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatIntIMS,            STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatIntIMS",                        "/Devices/E1k%d/uStatIntIMS", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatIntSkip,           STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatIntSkip",                       "/Devices/E1k%d/uStatIntSkip", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatIntLate,           STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatIntLate",                       "/Devices/E1k%d/uStatIntLate", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->uStatIntMasked,         STAMTYPE_U32,     STAMVISIBILITY_ALWAYS, STAMUNIT_NS,             "uStatIntMasked",                     "/Devices/E1k%d/uStatIntMasked", iInstance);

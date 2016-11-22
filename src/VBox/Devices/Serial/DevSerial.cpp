@@ -229,7 +229,7 @@ typedef struct SerialState
     uint64_t                        char_transmit_time;
 
 #ifdef VBOX_SERIAL_PCI
-    PCIDEVICE                       PciDev;
+    PDMPCIDEV                       PciDev;
 #endif /* VBOX_SERIAL_PCI */
 } DEVSERIAL;
 /** Pointer to the serial device state. */
@@ -1050,8 +1050,8 @@ static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int) serialIOPortRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress,
-                                               RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) serialIOPortRegionMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                               RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
     PDEVSERIAL pThis = RT_FROM_MEMBER(pPciDev, DEVSERIAL, PciDev);
     int rc = VINF_SUCCESS;
@@ -1067,7 +1067,7 @@ static DECLCALLBACK(int) serialIOPortRegionMap(PPCIDEVICE pPciDev, int iRegion, 
     /*
      * Register our port IO handlers.
      */
-    rc = PDMDevHlpIOPortRegister(pPciDev->pDevIns, (RTIOPORT)GCPhysAddress, 8, (void *)pThis,
+    rc = PDMDevHlpIOPortRegister(pDevIns, (RTIOPORT)GCPhysAddress, 8, (void *)pThis,
                                  serial_io_write, serial_io_read, NULL, NULL, "SERIAL");
     AssertRC(rc);
     return rc;
@@ -1188,17 +1188,17 @@ static DECLCALLBACK(int) serialConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
 #ifdef VBOX_SERIAL_PCI
     /* the PCI device */
-    pThis->PciDev.config[0x00] = 0xee; /* Vendor: ??? */
-    pThis->PciDev.config[0x01] = 0x80;
-    pThis->PciDev.config[0x02] = 0x01; /* Device: ??? */
-    pThis->PciDev.config[0x03] = 0x01;
-    pThis->PciDev.config[0x04] = PCI_COMMAND_IOACCESS;
-    pThis->PciDev.config[0x09] = 0x01; /* Programming interface: 16450 */
-    pThis->PciDev.config[0x0a] = 0x00; /* Subclass: Serial controller */
-    pThis->PciDev.config[0x0b] = 0x07; /* Class: Communication controller */
-    pThis->PciDev.config[0x0e] = 0x00; /* Header type: standard */
-    pThis->PciDev.config[0x3c] = irq_lvl; /* preconfigure IRQ number (0 = autoconfig)*/
-    pThis->PciDev.config[0x3d] = 1;    /* interrupt pin 0 */
+    pThis->PciDev.abConfig[0x00] = 0xee; /* Vendor: ??? */
+    pThis->PciDev.abConfig[0x01] = 0x80;
+    pThis->PciDev.abConfig[0x02] = 0x01; /* Device: ??? */
+    pThis->PciDev.abConfig[0x03] = 0x01;
+    pThis->PciDev.abConfig[0x04] = PCI_COMMAND_IOACCESS;
+    pThis->PciDev.abConfig[0x09] = 0x01; /* Programming interface: 16450 */
+    pThis->PciDev.abConfig[0x0a] = 0x00; /* Subclass: Serial controller */
+    pThis->PciDev.abConfig[0x0b] = 0x07; /* Class: Communication controller */
+    pThis->PciDev.abConfig[0x0e] = 0x00; /* Header type: standard */
+    pThis->PciDev.abConfig[0x3c] = irq_lvl; /* preconfigure IRQ number (0 = autoconfig)*/
+    pThis->PciDev.abConfig[0x3d] = 1;    /* interrupt pin 0 */
 #endif /* VBOX_SERIAL_PCI */
 
     /*

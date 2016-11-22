@@ -1,6 +1,6 @@
-/* $Id: DevIchHda.cpp $ */
+/* $Id: DevHDA.cpp $ */
 /** @file
- * DevIchHda - VBox ICH Intel HD Audio Controller.
+ * DevHDA - VBox HD Audio Controller.
  *
  * Implemented against the specifications found in "High Definition Audio
  * Specification", Revision 1.0a June 17, 2010, and  "Intel I/O Controller
@@ -45,8 +45,8 @@
 
 #include "AudioMixBuffer.h"
 #include "AudioMixer.h"
-#include "DevIchHdaCodec.h"
-#include "DevIchHdaCommon.h"
+#include "HDACodec.h"
+#include "DevHDACommon.h"
 #include "DrvAudio.h"
 
 
@@ -772,7 +772,7 @@ typedef struct HDADRIVER
 typedef struct HDASTATE
 {
     /** The PCI device structure. */
-    PCIDevice                          PciDev;
+    PDMPCIDEV                          PciDev;
     /** R3 Pointer to the device instance. */
     PPDMDEVINSR3                       pDevInsR3;
     /** R0 Pointer to the device instance. */
@@ -4766,11 +4766,10 @@ PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int)
-hdaPciIoRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int)  hdaPciIoRegionMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                            RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
     RT_NOREF(iRegion, enmType);
-    PPDMDEVINS  pDevIns = pPciDev->pDevIns;
     PHDASTATE   pThis = RT_FROM_MEMBER(pPciDev, HDASTATE, PciDev);
 
     /*
@@ -6258,7 +6257,7 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     {
         /* Start the emulation timer. */
         rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, hdaTimer, pThis,
-                                    TMTIMER_FLAGS_NO_CRIT_SECT, "DevIchHda", &pThis->pTimer);
+                                    TMTIMER_FLAGS_NO_CRIT_SECT, "DevHDA", &pThis->pTimer);
         AssertRCReturn(rc, rc);
 
         if (RT_SUCCESS(rc))
@@ -6323,7 +6322,7 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 /**
  * The device registration structure.
  */
-const PDMDEVREG g_DeviceICH6_HDA =
+const PDMDEVREG g_DeviceHDA =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,

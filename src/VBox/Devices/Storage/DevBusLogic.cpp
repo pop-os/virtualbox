@@ -317,13 +317,13 @@ typedef struct BUSLOGICTASKSTATE *PBUSLOGICTASKSTATE;
 /**
  * Main BusLogic device state.
  *
- * @extends     PCIDEVICE
+ * @extends     PDMPCIDEV
  * @implements  PDMILEDPORTS
  */
 typedef struct BUSLOGIC
 {
     /** The PCI device structure. */
-    PCIDEVICE                       dev;
+    PDMPCIDEV                       dev;
     /** Pointer to the device instance - HC ptr */
     PPDMDEVINSR3                    pDevInsR3;
     /** Pointer to the device instance - R0 ptr */
@@ -2770,11 +2770,10 @@ static void buslogicR3RedoSetWarning(PBUSLOGIC pThis, int rc)
 /**
  * @callback_method_impl{FNPCIIOREGIONMAP}
  */
-static DECLCALLBACK(int) buslogicR3MmioMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion,
+static DECLCALLBACK(int) buslogicR3MmioMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
                                            RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
-    RT_NOREF(iRegion);
-    PPDMDEVINS pDevIns = pPciDev->pDevIns;
+    RT_NOREF(pPciDev, iRegion);
     PBUSLOGIC  pThis = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
     int   rc = VINF_SUCCESS;
 
