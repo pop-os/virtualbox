@@ -14,7 +14,3 @@
 32-disable-guest-version-check.patch
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
-fix-build.patch
-python3.patch
-old-python.patch
-linux-4.9-fix.patch
