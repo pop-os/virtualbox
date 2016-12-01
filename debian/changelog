@@ -1,7 +1,12 @@
-virtualbox (5.1.10-dfsg-2) experimental; urgency=medium
+virtualbox (5.1.10-dfsg-2) unstable; urgency=low
 
   [ Gianfranco Costamagna, Peter Meiser ]
   * Major rewrite of the guest-additions GL library handling
+
+  [ Gianfranco Costamagna ]
+  * Cherry-pick upstream fixes for xorg 1.19 (Closes: #845644)
+    - remove vboxvideo_drv_system.so, obsolete and useless
+      (according to upstream ticket 16052)
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 22 Nov 2016 18:48:42 +0100
 

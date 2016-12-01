@@ -64,6 +64,7 @@ override_dh_auto_build:
 	    PATH_OUT=$(abspath out) \
 	    TOOL_YASM_AS=yasm \
 	    VBOX_USE_SYSTEM_XORG_HEADERS=1 \
+	    VBOX_NO_LEGACY_XORG_X11=1 \
 	    VBOX_BUILD_PUBLISHER=_$(DIST_NAME) \
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
@@ -104,10 +105,10 @@ endif
 override_dh_install:
 	dh_install -p$(sname) -X out/bin/VBoxDbg.so
 	dh_install --remaining-packages
-ifneq (,$(filter $(uxname), $(shell dh_listpackages)))
-	install -m 644 -p -D out/bin/additions/vboxvideo_drv_system.so \
-	    debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
-endif
+#ifneq (,$(filter $(uxname), $(shell dh_listpackages)))
+#	install -m 644 -p -D out/bin/additions/vboxvideo_drv_system.so \
+#	    debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+#endif
 # check if arch-any packages are being built
 ifneq (,$(filter $(sxname), $(shell dh_listpackages)))
 	convert debian/$(sxname)/usr/share/icons/hicolor/32x32/apps/virtualbox.png \
