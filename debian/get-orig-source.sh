@@ -44,8 +44,8 @@ rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxml2*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxslt*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/zlib*
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/linux/selinux-fedora
-find   ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11include -mindepth 1 -maxdepth 1 \
-   -type d ! -name '*mesa-*' -exec rm -rf {} \;
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11include
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11stubs
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/kStuff/kStuff/kLdr/testcase/bin
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Ebc/Fat.efi
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Ia32/Fat.efi
