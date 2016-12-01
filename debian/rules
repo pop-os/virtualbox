@@ -21,8 +21,6 @@ upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)
 DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
 
-XSERVER_VERSION = 17
-
 SERVER_DEPENDS = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
 
 export DEB_BUILD_HARDENING=1
