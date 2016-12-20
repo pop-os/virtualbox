@@ -86,6 +86,10 @@ typedef enum RTCRPKCS7ATTRIBUTETYPE
     RTCRPKCS7ATTRIBUTETYPE_SIGNING_TIME,
     /** Microsoft timestamp info (RFC-3161) signed data, use pContentInfo. */
     RTCRPKCS7ATTRIBUTETYPE_MS_TIMESTAMP,
+    /** Microsoft nested PKCS\#7 signature (signtool /as). */
+    RTCRPKCS7ATTRIBUTETYPE_MS_NESTED_SIGNATURE,
+    /** Microsoft statement type, use pObjIdSeqs. */
+    RTCRPKCS7ATTRIBUTETYPE_MS_STATEMENT_TYPE,
     /** Blow the type up to 32-bits. */
     RTCRPKCS7ATTRIBUTETYPE_32BIT_HACK = 0x7fffffff
 } RTCRPKCS7ATTRIBUTETYPE;
@@ -110,13 +114,16 @@ typedef struct RTCRPKCS7ATTRIBUTE
         PRTASN1SETOFCORES               pCores;
         /** ASN.1 object identifiers (RTCRPKCS7ATTRIBUTETYPE_OBJ_IDS). */
         PRTASN1SETOFOBJIDS              pObjIds;
+        /** Sequence of ASN.1 object identifiers (RTCRPKCS7ATTRIBUTETYPE_MS_STATEMENT_TYPE). */
+        PRTASN1SETOFOBJIDSEQS           pObjIdSeqs;
         /** ASN.1 octet strings (RTCRPKCS7ATTRIBUTETYPE_OCTET_STRINGS). */
         PRTASN1SETOFOCTETSTRINGS        pOctetStrings;
         /** Counter signatures RTCRPKCS7ATTRIBUTETYPE_COUNTER_SIGNATURES(). */
         PRTCRPKCS7SIGNERINFOS           pCounterSignatures;
         /** Signing time(s) (RTCRPKCS7ATTRIBUTETYPE_SIGNING_TIME). */
         PRTASN1SETOFTIMES               pSigningTime;
-        /** Microsoft timestamp (RFC-3161 signed data). */
+        /** Microsoft timestamp (RFC-3161 signed data, RTCRPKCS7ATTRIBUTETYPE_MS_TIMESTAMP),
+         * Microsoft nested signature (RTCRPKCS7ATTRIBUTETYPE_MS_NESTED_SIGNATURE). */
         struct RTCRPKCS7SETOFCONTENTINFOS *pContentInfos;
     } uValues;
 } RTCRPKCS7ATTRIBUTE;
@@ -177,9 +184,17 @@ RTASN1TYPE_STANDARD_PROTOTYPES(RTCRPKCS7SIGNERINFO, RTDECL, RTCrPkcs7SignerInfo,
  * Value: SignerInfo. */
 #define RTCR_PKCS9_ID_COUNTER_SIGNATURE_OID "1.2.840.113549.1.9.6"
 /** Microsoft timestamp (RTF-3161) counter signature (SignedData).
- * @remarks This isn't defined by PKCS \#9, but lumped in here for
- *          convenience.  It's actually listed as SPC by MS. */
+ * @remarks This isn't defined by PKCS \#9, but lumped in here for convenience. It's actually listed as SPC by MS. */
 #define RTCR_PKCS9_ID_MS_TIMESTAMP          "1.3.6.1.4.1.311.3.3.1"
+/** Microsoft nested PKCS\#7 signature.
+ * @remarks This isn't defined by PKCS \#9, but lumped in here for convenience. */
+#define RTCR_PKCS9_ID_MS_NESTED_SIGNATURE   "1.3.6.1.4.1.311.2.4.1"
+/** Microsoft statement type.
+ * @remarks This isn't defined by PKCS \#9, but lumped in here for convenience. It's actually listed as SPC by MS. */
+#define RTCR_PKCS9_ID_MS_STATEMENT_TYPE     "1.3.6.1.4.1.311.2.1.11"
+/** Microsoft opus info.
+ * @remarks This isn't defined by PKCS \#9, but lumped in here for convenience. It's actually listed as SPC by MS. */
+#define RTCR_PKCS9_ID_MS_SP_OPUS_INFO       "1.3.6.1.4.1.311.2.1.12"
 /** @} */
 
 
@@ -209,11 +224,11 @@ RTDECL(PCRTASN1TIME) RTCrPkcs7SignerInfo_GetSigningTime(PCRTCRPKCS7SIGNERINFO pT
  *
  * @returns Pointer to the signing time if found, NULL if not.
  * @param   pThis               The SignerInfo to search.
- * @param   ppContentInfo       Where to return the pointer to the counter
+ * @param   ppContentInfoRet    Where to return the pointer to the counter
  *                              signature, optional.
  */
 RTDECL(PCRTASN1TIME) RTCrPkcs7SignerInfo_GetMsTimestamp(PCRTCRPKCS7SIGNERINFO pThis,
-                                                        struct RTCRPKCS7CONTENTINFO const **ppContentInfo);
+                                                        struct RTCRPKCS7CONTENTINFO const **ppContentInfoRet);
 
 
 

@@ -19,7 +19,6 @@
 #define ___UIKeyboardHandler_h___
 
 /* Qt includes: */
-#include <QtGlobal>
 #include <QMap>
 #include <QObject>
 
@@ -136,6 +135,9 @@ protected slots:
 #if QT_VERSION >= 0x050000
     /** Finalises keyboard capture. */
     void sltFinaliseCaptureKeyboard();
+#elif QT_VERSION == 0
+    /** Stupid moc does not warn if it cannot find headers! */
+    void QT_VERSION_NOT_DEFINED
 #endif
 
 protected:

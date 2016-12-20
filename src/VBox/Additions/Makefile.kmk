@@ -241,27 +241,43 @@ endif
 # Microsoft Windows.
 ifdef VBOX_WITH_ADDITIONS_ISO.win.amd64
  VBOX_PATH_ADDITIONS.win.amd64 = $(PATH_OUT_BASE)/win.amd64/$(KBUILD_TYPE)/bin/additions
+ VBOX_PATH_ADDITIONS.win = $(VBOX_PATH_ADDITIONS.win.amd64)
  GUESTADDITIONS_FILESPEC.win.amd64 = \
 	VBoxWindowsAdditions-amd64.exe=$(VBOX_PATH_ADDITIONS.win.amd64)/VBoxWindowsAdditions-amd64.exe
  ifndef VBOX_WITH_ADDITIONS_ISO.win.x86
   GUESTADDITIONS_FILESPEC.win.amd64 += \
-	cert/oracle-vbox.cer=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/tools/oracle-vbox.cer \
 	cert/VBoxCertUtil.exe=$(VBOX_PATH_ADDITIONS.win.amd64)/VBoxCertUtil.exe
  endif
 endif
 
 ifdef VBOX_WITH_ADDITIONS_ISO.win.x86
  VBOX_PATH_ADDITIONS.win.x86 = $(PATH_OUT_BASE)/win.x86/$(KBUILD_TYPE)/bin/additions
+ VBOX_PATH_ADDITIONS.win = $(VBOX_PATH_ADDITIONS.win.x86)
  GUESTADDITIONS_FILESPEC.win.x86 = \
 	VBoxWindowsAdditions-x86.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxWindowsAdditions-x86.exe \
 	VBoxWindowsAdditions.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxWindowsAdditions.exe \
 	AUTORUN.INF=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/Installer/ISO/AUTORUN.INF \
 	32Bit/Readme.txt=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/Installer/ISO/ReadmeDrivers.txt \
 	64Bit/Readme.txt=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/Installer/ISO/ReadmeDrivers.txt \
-	cert/oracle-vbox.cer=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/tools/oracle-vbox.cer \
 	cert/VBoxCertUtil.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxCertUtil.exe
 endif # win.x86
 
+if defined(VBOX_WITH_ADDITIONS_ISO.win.amd64) || defined(VBOX_WITH_ADDITIONS_ISO.win.x86)
+ ifndef VBOX_SIGNING_MODE
+  GUESTADDITIONS_FILESPEC.win =
+ else if "$(VBOX_WITH_CORP_CODE_SIGNING)" == "all" || (!defined(VBOX_CERTIFICATE_SHA2_SUBJECT_NAME) && !defined(VBOX_WITH_CORP_CODE_SIGNING))
+  GUESTADDITIONS_FILESPEC.win = cert/vbox.cer=$(VBOX_PATH_ADDITIONS.win)/vbox.cer
+ else
+  GUESTADDITIONS_FILESPEC.win = \
+  	cert/vbox-sha1.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1.cer \
+  	cert/vbox-sha256.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256.cer
+  if defined(VBOX_CERTIFICATE_SHA2_SUBJECT_NAME) && defined(VBOX_WITH_CORP_CODE_SIGNING)
+   GUESTADDITIONS_FILESPEC.win += cert/vbox-sha256-r3.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-r3.cer
+  endif
+ endif
+endif
+
+# haiku
 ifdef VBOX_WITH_ADDITIONS_ISO.haiku.x86
  VBOX_PATH_ADDITIONS.haiku.x86 = $(PATH_OUT_BASE)/haiku.x86/$(KBUILD_TYPE)/bin/additions
  # or bfs?
@@ -277,6 +293,7 @@ ifndef VBOX_WITHOUT_ADDITIONS_ISO
 $(VBOX_PATH_ADDITIONS_ISO)/VBoxGuestAdditions.iso: \
 		$(filter-out %=deleteme=,\
 			$(subst =,=deleteme= ,\
+				$(GUESTADDITIONS_FILESPEC.win) \
 				$(GUESTADDITIONS_FILESPEC.win.x86) \
 				$(GUESTADDITIONS_FILESPEC.win.amd64) \
 				$(GUESTADDITIONS_FILESPEC.solaris.x86) \

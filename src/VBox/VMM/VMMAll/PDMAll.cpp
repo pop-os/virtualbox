@@ -50,7 +50,7 @@
  *          or other reasons).
  *
  * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pu8Interrupt    Where to store the interrupt on success.
+ * @param   pu8Interrupt    Where to store the interrupt.
  */
 VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
 {
@@ -70,13 +70,11 @@ VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt));
         uint32_t uTagSrc;
-        uint8_t  uVector;
-        rc = pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu, &uVector, &uTagSrc);
+        rc = pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu, pu8Interrupt, &uTagSrc);
         if (RT_SUCCESS(rc))
         {
-            *pu8Interrupt = uVector;
             if (rc == VINF_SUCCESS)
-                VBOXVMM_PDM_IRQ_GET(pVCpu, RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc), uVector);
+                VBOXVMM_PDM_IRQ_GET(pVCpu, RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc), *pu8Interrupt);
 #ifndef VBOX_WITH_NEW_APIC
             pdmUnlock(pVM);
 #endif

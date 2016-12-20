@@ -3,6 +3,115 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.12 (2016-12-20)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed <emphasis>VERR_IEM_ASPECT_NOT_IMPLEMENTED</emphasis>
+          Guru Meditations with certain Linux guests if KVM paravirtualization
+          is enabled (5.1 regression; bugs #15613 and #16251)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed <emphasis>VERR_VMX_UNABLE_TO_START_VM</emphasis>
+          Guru Meditations under rare conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: prevent a crash under certain conditions if the VM is
+          terminated very early</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed certain keyboard capture issues (5.1.10 regression;
+          Mac OS X hosts only; bug #16150)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed dragging guest windows in seamless mode with the
+           keyboard captured (X11 hosts only; bug #15837)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a problem where the <emphasis>new version detected</emphasis>
+          dialog was covered by the <emphasis>appliance import</emphasis> dialog
+          (Mac OS X hosts only; bug #16238)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed NVMe reset processing when doing
+          <emphasis>rmmod nvme; modprobe nvme</emphasis> in a Linux guest
+          (bug #16080)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed creating a snapshot when the VM is running
+          and an NVMe controller is present</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a problem with the LsiLogic SCSI controller where
+          requests could be lost with SMP guests</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: fixed "cable disconnected" issue (Mac OS X guests only;
+          5.1.10 regression; bug #16260)</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: fixed "TX unit hang" issue (Linux guests only;
+          5.1.10 regression; bug #16221)</para>
+      </listitem>
+
+      <listitem>
+        <para>Parallel ports: fixed port enumeration on Windows host (bugs
+          #15872 and #16127)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: don't crash when sanitizing certain VM names
+          (bug #16299)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: automatically disable asynchronous I/O on Linux 2.6.18
+          kernels as high I/O load may trigger kernel oopses on these kernels if
+          this feature is enabled</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: Linux 2.6.28 compile fix (bug #16267)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: compile Linux 4.9 compile fix (bug #16286)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: warn the user about a known bug with older
+          Linux guests (e.g. Debian 7) requiring manual work to get 3D
+          working (bug #15319)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix the graphics driver build with Linux
+           4.10 and later (bug #16298)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed a crash in the WDDM driver under
+          certain conditions</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.10 (2016-11-21)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

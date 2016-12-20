@@ -27,6 +27,7 @@
 #define PCTRL_RESET   0x8000
 
 #define PSTATUS_LNKSTAT 0x0004
+#define PSTATUS_NEGCOMP 0x0020
 
 /*
  * Speed: 1000 Mb/s
@@ -36,7 +37,8 @@
  * Link up
  * Receive Pause Enable
  */
-#define PSSTAT_LINK     0xBC08
+#define PSSTAT_LINK_ALL 0xBC08
+#define PSSTAT_LINK     0x0400
 
 namespace Phy
 {

@@ -88,7 +88,10 @@ RTDECL(int) RTNtPathExpand8dot3Path(PUNICODE_STRING pUniStr, bool fPathOnly)
         {
             puBuf = (union fix8dot3tmp *)RTMemAlloc(sizeof(*puBuf));
             if (!puBuf)
+            {
+                rc = -VERR_NO_MEMORY;
                 break;
+            }
         }
 
         RTUTF16 const wcSaved = *pwszFix;
@@ -108,7 +111,7 @@ RTDECL(int) RTNtPathExpand8dot3Path(PUNICODE_STRING pUniStr, bool fPathOnly)
 #endif
 
         NTSTATUS rcNt = NtCreateFile(&hDir,
-                                     FILE_READ_DATA | SYNCHRONIZE,
+                                     FILE_LIST_DIRECTORY | SYNCHRONIZE,
                                      &ObjAttr,
                                      &Ios,
                                      NULL /* Allocation Size*/,
@@ -174,6 +177,8 @@ RTDECL(int) RTNtPathExpand8dot3Path(PUNICODE_STRING pUniStr, bool fPathOnly)
 
             NtClose(hDir);
         }
+        else
+            rc = -RTErrConvertFromNtStatus(rcNt);
 
         /* Advance */
         pwszFix = pwszFixEnd;
