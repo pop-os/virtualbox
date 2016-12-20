@@ -48,6 +48,10 @@
 #define REG(x) pPhy->au16Regs[x##_IDX]
 
 
+/* External callback declaration */
+void e1kPhyLinkResetCallback(PPHY pPhy);
+
+
 /* Internals */
 namespace Phy {
 #if defined(LOG_ENABLED) && !defined(PHY_UNIT_TEST)
@@ -299,8 +303,6 @@ void Phy::writeRegister(PPHY pPhy, uint32_t u32Address, uint16_t u16Value)
 void Phy::init(PPHY pPhy, int iNICInstance, uint16_t u16EPid)
 {
     pPhy->iInstance = iNICInstance;
-    /* Make sure the link is down */
-    REG(PSTATUS)  = 0;
     /* The PHY identifier composed of bits 3 through 18 of the OUI */
     /* (Organizationally Unique Identifier). OUI is 0x05043.       */
     REG(PID)      = 0x0141;
@@ -319,10 +321,10 @@ void Phy::hardReset(PPHY pPhy)
     PhyLog(("PHY#%d Hard reset\n", pPhy->iInstance));
     REG(PCTRL) = PCTRL_SPDSELM | PCTRL_DUPMOD | PCTRL_ANEG;
     /*
-     * 100 and 10 FD/HD, MF Preamble Suppression, Auto-Negotiation Complete,
+     * 100 and 10 FD/HD, Extended Status, MF Preamble Suppression,
      * AUTO NEG AB, EXT CAP
      */
-    REG(PSTATUS)  = (REG(PSTATUS) & ~PSTATUS_LNKSTAT) | 0x7969;
+    REG(PSTATUS)  = 0x7949;
     REG(ANA)      = 0x01E1;
     /* No flow control by our link partner, all speeds */
     REG(LPA)      = 0x01E0;
@@ -350,8 +352,18 @@ void Phy::hardReset(PPHY pPhy)
  */
 static void Phy::softReset(PPHY pPhy)
 {
-    RT_NOREF1(pPhy);
-    PhyLog(("PHY#%d Soft reset is not yet implemented!\n", pPhy->iInstance));
+    PhyLog(("PHY#%d Soft reset\n", pPhy->iInstance));
+
+    REG(PCTRL)    = REG(PCTRL) & (PCTRL_SPDSELM | PCTRL_DUPMOD | PCTRL_ANEG | PCTRL_SPDSELL);
+    /*
+     * 100 and 10 FD/HD, Extended Status, MF Preamble Suppression,
+     * AUTO NEG AB, EXT CAP
+     */
+    REG(PSTATUS)  = 0x7949;
+    REG(PSSTAT)  &= 0xe001;
+    PhyLog(("PHY#%d PSTATUS=%04x PSSTAT=%04x\n", pPhy->iInstance, REG(PSTATUS), REG(PSSTAT)));
+
+    e1kPhyLinkResetCallback(pPhy);
 }
 
 /**
@@ -375,12 +387,16 @@ bool Phy::isLinkUp(PPHY pPhy)
 void Phy::setLinkStatus(PPHY pPhy, bool fLinkIsUp)
 {
     if (fLinkIsUp)
-        REG(PSSTAT)  |= PSSTAT_LINK;
+    {
+        REG(PSSTAT)  |= PSSTAT_LINK_ALL;
+        REG(PSTATUS) |= PSTATUS_NEGCOMP; /* PSTATUS_LNKSTAT is latched low */
+    }
     else
     {
-        REG(PSSTAT)  &= ~PSSTAT_LINK;
-        REG(PSTATUS) &= ~PSTATUS_LNKSTAT;
+        REG(PSSTAT)  &= ~PSSTAT_LINK_ALL;
+        REG(PSTATUS) &= ~(PSTATUS_LNKSTAT | PSTATUS_NEGCOMP);
     }
+    PhyLog(("PHY#%d setLinkStatus: PSTATUS=%04x PSSTAT=%04x\n", pPhy->iInstance, REG(PSTATUS), REG(PSSTAT)));
 }
 
 #ifdef IN_RING3

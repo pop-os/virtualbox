@@ -2561,6 +2561,7 @@ APICBOTHCBDECL(int) apicGetInterrupt(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t *
     else
         Log2(("APIC%u: apicGetInterrupt: APIC %s disabled\n", pVCpu->idCpu, !fApicHwEnabled ? "hardware" : "software"));
 
+    *pu8Vector = 0;
     return VERR_APIC_INTR_NOT_PENDING;
 }
 

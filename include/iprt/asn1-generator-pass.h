@@ -77,6 +77,7 @@
 #define RTASN1TMPL_PASS_CLONE          17
 #define RTASN1TMPL_PASS_SETTERS_1      18
 #define RTASN1TMPL_PASS_SETTERS_2      19
+#define RTASN1TMPL_PASS_ARRAY          20
 
 #define RTASN1TMPL_PASS_DECODE         24
 /** @} */
@@ -371,7 +372,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_Init)(RT_CONCAT(P,RTASN1TMPL
 
 # define RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi, a_OfApi, a_OfMember) \
     RTASN1TMPL_BEGIN_COMMON(); \
-    RTAsn1MemInitAllocation(&pThis->Allocation, pAllocator); \
+    RTAsn1MemInitArrayAllocation(&pThis->Allocation, pAllocator, sizeof(a_ItemType)); \
     int rc = RT_CONCAT(a_OfApi,_Init)(&pThis->a_OfMember, &RT_CONCAT3(g_,RTASN1TMPL_INT_NAME,_Vtable)); \
     if (RT_FAILURE(rc)) \
         RT_ZERO(*pThis); \
@@ -554,20 +555,16 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_DecodeAsn1)(PRTASN1CURSOR pC
     { \
         pCursor = &ThisCursor; \
         pThis->a_OfMember.Asn1Core.pOps = &RT_CONCAT3(g_,RTASN1TMPL_INT_NAME,_Vtable); \
-        RTAsn1CursorInitAllocation(pCursor, &pThis->Allocation); \
+        RTAsn1CursorInitArrayAllocation(pCursor, &pThis->Allocation, sizeof(a_ItemType)); \
         \
         uint32_t i = 0; \
         while (   pCursor->cbLeft > 0 \
                && RT_SUCCESS(rc)) \
         { \
-            rc = RTAsn1MemGrowArray(&pThis->Allocation, \
-                                    (void **)&pThis->paItems, \
-                                    sizeof(pThis->paItems[0]), \
-                                    i, \
-                                    i + 1); \
+            rc = RTAsn1MemResizeArray(&pThis->Allocation, (void ***)&pThis->papItems, i, i + 1); \
             if (RT_SUCCESS(rc)) \
             { \
-                rc = RT_CONCAT(a_ItemApi,_DecodeAsn1)(pCursor, 0, &pThis->paItems[i], "paItems[#]"); \
+                rc = RT_CONCAT(a_ItemApi,_DecodeAsn1)(pCursor, 0, pThis->papItems[i], "papItems[#]"); \
                 if (RT_SUCCESS(rc)) \
                 { \
                     i++; \
@@ -662,7 +659,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_Enum)(RT_CONCAT(P,RTASN1TMPL
 # define RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi) \
     RTASN1TMPL_BEGIN_COMMON(); \
     for (uint32_t i = 0; i < pThis->cItems && rc == VINF_SUCCESS; i++) \
-        rc = pfnCallback(RT_CONCAT(a_ItemApi,_GetAsn1Core)(&pThis->paItems[i]), "paItems[#]", uDepth, pvUser); \
+        rc = pfnCallback(RT_CONCAT(a_ItemApi,_GetAsn1Core)(pThis->papItems[i]), "papItems[#]", uDepth, pvUser); \
     RTASN1TMPL_END_COMMON()
 # define RTASN1TMPL_SEQ_OF(a_ItemType, a_ItemApi) RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi)
 # define RTASN1TMPL_SET_OF(a_ItemType, a_ItemApi) RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi)
@@ -740,6 +737,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_Clone)(RT_CONCAT(P,RTASN1TMP
 # define RTASN1TMPL_BEGIN_PCHOICE() \
     RTASN1TMPL_BEGIN_COMMON(); \
     RTAsn1Dummy_InitEx(&pThis->Dummy); \
+    pThis->Dummy.Asn1Core.pOps = &RT_CONCAT3(g_,RTASN1TMPL_INT_NAME,_Vtable); \
     RTAsn1MemInitAllocation(&pThis->Allocation, pAllocator); \
     int rc; \
     pThis->enmChoice = pSrc->enmChoice; \
@@ -772,17 +770,17 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_Clone)(RT_CONCAT(P,RTASN1TMP
     int rc = RT_CONCAT(a_OfApi,_Clone)(&pThis->a_OfMember, &RT_CONCAT3(g_,RTASN1TMPL_INT_NAME,_Vtable), &pSrc->a_OfMember); \
     if (RT_SUCCESS(rc)) \
     { \
-        RTAsn1MemInitAllocation(&pThis->Allocation, pAllocator); \
+        RTAsn1MemInitArrayAllocation(&pThis->Allocation, pAllocator, sizeof(a_ItemType)); \
         uint32_t const cItems = pSrc->cItems; \
         if (cItems > 0) \
         { \
-            rc = RTAsn1MemGrowArray(&pThis->Allocation, (void **)&pThis->paItems, sizeof(pThis->paItems[0]), 0, cItems); \
+            rc = RTAsn1MemResizeArray(&pThis->Allocation, (void ***)&pThis->papItems, 0, cItems); \
             if (RT_SUCCESS(rc)) \
             { \
                 uint32_t i = 0; \
                 while (i < cItems) \
                 { \
-                    rc = RT_CONCAT(a_ItemApi,_Clone)(&pThis->paItems[i], &pSrc->paItems[i], pAllocator); \
+                    rc = RT_CONCAT(a_ItemApi,_Clone)(pThis->papItems[i], pSrc->papItems[i], pAllocator); \
                     if (RT_SUCCESS(rc)) \
                         pThis->cItems = ++i; \
                     else \
@@ -867,6 +865,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT3(RTASN1TMPL_EXT_NAME,_Set,a_Name)(RT_CONCAT(P,RTA
     AssertPtr(pSrc); AssertPtr(pThis); \
     RT_CONCAT(RTASN1TMPL_EXT_NAME,_Delete)(pThis); /* See _Init. */ \
     RTAsn1Dummy_InitEx(&pThis->Dummy); \
+    pThis->Dummy.Asn1Core.pOps = &RT_CONCAT3(g_,RTASN1TMPL_INT_NAME,_Vtable); \
     RTAsn1MemInitAllocation(&pThis->Allocation, pAllocator); \
     pThis->enmChoice = a_enmChoice; \
     int rc = RTAsn1MemAllocZ(&pThis->Allocation, (void **)&pThis->a_PtrName, sizeof(*pThis->a_PtrName)); \
@@ -890,6 +889,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT3(RTASN1TMPL_EXT_NAME,_Set,a_Name)(RT_CONCAT(P,RTA
     AssertPtr(pThis); AssertPtr(pSrc); Assert(RT_CONCAT(a_Api,_IsPresent)(pSrc)); \
     RT_CONCAT(RTASN1TMPL_EXT_NAME,_Delete)(pThis); /* See _Init. */ \
     RTAsn1Dummy_InitEx(&pThis->Dummy); \
+    pThis->Dummy.Asn1Core.pOps = &RT_CONCAT3(g_,RTASN1TMPL_INT_NAME,_Vtable); \
     RTAsn1MemInitAllocation(&pThis->Allocation, pAllocator); \
     pThis->enmChoice = a_enmChoice; \
     int rc = RTAsn1MemAllocZ(&pThis->Allocation, (void **)&pThis->a_PtrTnNm, sizeof(*pThis->a_PtrTnNm)); \
@@ -908,11 +908,113 @@ RTASN1TMPL_DECL(int) RT_CONCAT3(RTASN1TMPL_EXT_NAME,_Set,a_Name)(RT_CONCAT(P,RTA
     return rc; \
 } RTASN1TMPL_SEMICOLON_DUMMY()
 
-#define RTASN1TMPL_END_PCHOICE() RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_END_PCHOICE() RTASN1TMPL_SEMICOLON_DUMMY()
 
 
 # define RTASN1TMPL_SEQ_OF(a_ItemType, a_ItemApi)   RTASN1TMPL_SEMICOLON_DUMMY()
 # define RTASN1TMPL_SET_OF(a_ItemType, a_ItemApi)   RTASN1TMPL_SEMICOLON_DUMMY()
+
+
+#elif RTASN1TMPL_PASS == RTASN1TMPL_PASS_ARRAY
+/*
+ *
+ * Array operations.
+ *
+ */
+# define RTASN1TMPL_BEGIN_SEQCORE()                                                 RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_BEGIN_SETCORE()                                                 RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_MEMBER_EX(a_Name, a_Type, a_Api, a_Constraints)                     RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_MEMBER_DYN_BEGIN(a_enmType, a_enmMembNm, a_Allocation)              RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_MEMBER_DYN_END(a_enmType, a_enmMembNm, a_Allocation)                RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_END_SEQCORE()                                                   RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_END_SETCORE()                                                   RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_BEGIN_PCHOICE()                                                 RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_PCHOICE_ITAG_EX(a_uTag, a_enmChoice, a_PtrName, a_Name, a_Type, a_Api, a_fClue, a_Constraints) \
+                                                                                    RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_PCHOICE_XTAG_EX(a_uTag, a_enmChoice, a_PtrTnNm, a_CtxTagN, a_Name, a_Type, a_Api, a_Constraints) \
+                                                                                    RTASN1TMPL_SEMICOLON_DUMMY()
+# define RTASN1TMPL_END_PCHOICE()                                                   RTASN1TMPL_SEMICOLON_DUMMY()
+
+# define RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi) \
+    RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_Erase)(RT_CONCAT(P,RTASN1TMPL_TYPE) pThis, uint32_t iPosition) \
+    { \
+        /* Check and adjust iPosition. */ \
+        uint32_t const cItems = pThis->cItems; \
+        if (iPosition < cItems) \
+        { /* likely */ } \
+        else \
+        { \
+            AssertReturn(iPosition == UINT32_MAX, VERR_OUT_OF_RANGE); \
+            AssertReturn(cItems > 0, VERR_OUT_OF_RANGE); \
+            iPosition = cItems - 1; \
+        } \
+        \
+        /* Delete the entry instance. */ \
+        RT_CONCAT(P, a_ItemType) pErased = pThis->papItems[iPosition]; \
+        if (RT_CONCAT(a_ItemApi,_IsPresent)(pErased)) \
+            RT_CONCAT(a_ItemApi,_Delete)(pErased); \
+        \
+        /* If not the final entry, shift the other entries up and place the erased on at the end. */ \
+        if (iPosition < cItems - 1) \
+        { \
+            memmove(&pThis->papItems[iPosition], &pThis->papItems[iPosition + 1], (cItems - iPosition - 1) * sizeof(void *)); \
+            pThis->papItems[cItems - 1] = pErased; \
+        } \
+        /* Commit the new array size. */ \
+        pThis->cItems = cItems - 1; \
+        \
+        /* Call the allocator to resize the array (ignore return). */ \
+        RTAsn1MemResizeArray(&pThis->Allocation, (void ***)&pThis->papItems, cItems - 1, cItems); \
+        return VINF_SUCCESS; \
+    } \
+    \
+    RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_InsertEx)(RT_CONCAT(P,RTASN1TMPL_TYPE) pThis, uint32_t iPosition, \
+                                                                  RT_CONCAT(PC, a_ItemType) pToClone, \
+                                                                  PCRTASN1ALLOCATORVTABLE pAllocator, uint32_t *piActualPos) \
+    { \
+        /* Check and adjust iPosition. */ \
+        uint32_t const cItems = pThis->cItems; \
+        if (iPosition <= cItems) \
+        { /* likely */ } \
+        else \
+        { \
+            AssertReturn(iPosition == UINT32_MAX, VERR_OUT_OF_RANGE); \
+            iPosition = cItems; \
+        } \
+        \
+        /* Ensure we've got space in the array. */ \
+        int rc = RTAsn1MemResizeArray(&pThis->Allocation, (void ***)&pThis->papItems, cItems, cItems + 1); \
+        if (RT_SUCCESS(rc)) \
+        { \
+            /* Initialize the new entry (which is currently at the end of the array) either with defaults or as a clone. */ \
+            RT_CONCAT(P,a_ItemType) pInserted = pThis->papItems[cItems]; \
+            if (RT_CONCAT(a_ItemApi,_IsPresent)(pToClone)) \
+                rc = RT_CONCAT(a_ItemApi,_Clone)(pInserted, pToClone, pAllocator); \
+            else \
+                rc = RT_CONCAT(a_ItemApi,_Init)(pInserted, pAllocator); \
+            if (RT_SUCCESS(rc)) \
+            { \
+                pThis->cItems = cItems + 1; \
+                \
+                /* If not inserting at the end of the array, shift existing items out of the way and insert the new as req. */ \
+                if (iPosition != cItems) \
+                { \
+                    memmove(&pThis->papItems[iPosition + 1], &pThis->papItems[iPosition], (cItems - iPosition) * sizeof(void *)); \
+                    pThis->papItems[iPosition] = pInserted; \
+                } \
+                \
+                /* Done! */ \
+                if (piActualPos) \
+                    *piActualPos = iPosition; \
+                return VINF_SUCCESS; \
+            } \
+            RTAsn1MemResizeArray(&pThis->Allocation, (void ***)&pThis->papItems, cItems + 1, cItems); \
+        } \
+        return rc; \
+    } RTASN1TMPL_SEMICOLON_DUMMY()
+
+# define RTASN1TMPL_SEQ_OF(a_ItemType, a_ItemApi)   RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi)
+# define RTASN1TMPL_SET_OF(a_ItemType, a_ItemApi)   RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi)
 
 
 #elif RTASN1TMPL_PASS == RTASN1TMPL_PASS_COMPARE
@@ -989,7 +1091,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_Compare)(RT_CONCAT(PC,RTASN1
     uint32_t cItems = pLeft->cItems; \
     if (cItems == pRight->cItems) \
         for (uint32_t i = 0; iDiff == 0 && i < cItems; i++) \
-            iDiff = RT_CONCAT(a_ItemApi,_Compare)(&pLeft->paItems[i], &pRight->paItems[i]); \
+            iDiff = RT_CONCAT(a_ItemApi,_Compare)(pLeft->papItems[i], pRight->papItems[i]); \
     else \
         iDiff = cItems < pRight->cItems ? -1 : 1; \
     RTASN1TMPL_END_COMMON()
@@ -1134,8 +1236,8 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_CheckSanity)(RT_CONCAT(PC,RT
 # define RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi) \
     RTASN1TMPL_BEGIN_COMMON(); \
     for (uint32_t i = 0; RT_SUCCESS(rc) && i < pThis->cItems; i++) \
-        rc = RT_CONCAT(a_ItemApi,_CheckSanity)(&pThis->paItems[i], fFlags & RTASN1_CHECK_SANITY_F_COMMON_MASK, \
-                                               pErrInfo, RT_XSTR(RTASN1TMPL_TYPE) "::paItems[#]"); \
+        rc = RT_CONCAT(a_ItemApi,_CheckSanity)(pThis->papItems[i], fFlags & RTASN1_CHECK_SANITY_F_COMMON_MASK, \
+                                               pErrInfo, RT_XSTR(RTASN1TMPL_TYPE) "::papItems[#]"); \
     if (RT_SUCCESS(rc)) { RTASN1TMPL_SET_SEQ_EXEC_CHECK_SANITY(); } \
     RTASN1TMPL_END_COMMON()
 # define RTASN1TMPL_SEQ_OF(a_ItemType, a_ItemApi) RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi)
@@ -1268,9 +1370,10 @@ RTASN1TMPL_DECL(void) RT_CONCAT(RTASN1TMPL_EXT_NAME,_Delete)(RT_CONCAT(P,RTASN1T
     RTASN1TMPL_BEGIN_COMMON(); \
     uint32_t i = pThis->cItems; \
     while (i-- > 0) \
-        RT_CONCAT(a_ItemApi,_Delete)(&pThis->paItems[i]); \
-    RTAsn1MemFree(&pThis->Allocation, pThis->paItems); \
-    pThis->paItems = NULL; \
+        RT_CONCAT(a_ItemApi,_Delete)(pThis->papItems[i]); \
+    RTAsn1MemFreeArray(&pThis->Allocation, (void **)pThis->papItems); \
+    pThis->papItems = NULL; \
+    pThis->cItems   = 0; \
     RTASN1TMPL_END_COMMON()
 # define RTASN1TMPL_SEQ_OF(a_ItemType, a_ItemApi) RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi)
 # define RTASN1TMPL_SET_OF(a_ItemType, a_ItemApi) RTASN1TMPL_SET_SEQ_OF_COMMON(a_ItemType, a_ItemApi)

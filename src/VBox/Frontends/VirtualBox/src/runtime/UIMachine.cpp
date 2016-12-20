@@ -117,13 +117,16 @@ bool UIMachine::create()
 void UIMachine::destroy()
 {
     /* Make sure machine is created: */
-    AssertPtrReturnVoid(m_spInstance);
+    if (!m_spInstance)
+        return;
 
-    /* Cleanup machine UI: */
-    m_spInstance->cleanup();
-    /* Destroy machine UI: */
-    delete m_spInstance;
+    /* Protect versus recursive call: */
+    UIMachine *pInstance = m_spInstance;
     m_spInstance = 0;
+    /* Cleanup machine UI: */
+    pInstance->cleanup();
+    /* Destroy machine UI: */
+    delete pInstance;
 }
 
 QWidget* UIMachine::activeWindow() const
@@ -152,6 +155,7 @@ void UIMachine::sltChangeVisualState(UIVisualStateType visualState)
         {
             m_pMachineLogic->cleanup();
             UIMachineLogic::destroy(m_pMachineLogic);
+            m_pMachineLogic = 0;
         }
 
         /* Set the new machine-logic as current one: */
@@ -274,10 +278,11 @@ void UIMachine::cleanupMachineLogic()
     }
 
     /* Destroy machine-logic if exists: */
-    if (machineLogic())
+    if (m_pMachineLogic)
     {
         m_pMachineLogic->cleanup();
         UIMachineLogic::destroy(m_pMachineLogic);
+        m_pMachineLogic = 0;
     }
 }
 

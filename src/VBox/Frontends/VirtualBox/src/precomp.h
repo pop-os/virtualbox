@@ -209,7 +209,6 @@
 #endif
 //#include <QXmlStreamReader> - only used once
 //#include <QXmlStreamWriter> - only used once
-#include <QtGlobal>
 
 
 /*

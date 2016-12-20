@@ -3573,20 +3573,20 @@ static DECLCALLBACK(int) vdPluginRegisterFilter(void *pvUser, PCVDFILTERBACKEND 
 /**
  * Checks whether the given plugin filename was already loaded.
  *
- * @returns true if the plugin was already loaded, false otherwise.
+ * @returns Pointer to already loaded plugin, NULL if not found.
  * @param   pszFilename    The filename to check.
  */
-static bool vdPluginFind(const char *pszFilename)
+static PVDPLUGIN vdPluginFind(const char *pszFilename)
 {
     PVDPLUGIN pIt = NULL;
 
     RTListForEach(&g_ListPluginsLoaded, pIt, VDPLUGIN, NodePlugin)
     {
         if (!RTStrCmp(pIt->pszFilename, pszFilename))
-            return true;
+            return pIt;
     }
 
-    return false;
+    return NULL;
 }
 
 /**
@@ -3622,12 +3622,7 @@ static int vdAddPlugin(RTLDRMOD hPlugin, const char *pszFilename)
 static int vdRemovePlugin(const char *pszFilename)
 {
     /* Find plugin to be removed from the list. */
-    PVDPLUGIN pIt = NULL;
-    RTListForEach(&g_ListPluginsLoaded, pIt, VDPLUGIN, NodePlugin)
-    {
-        if (!RTStrCmp(pIt->pszFilename, pszFilename))
-            break;
-    }
+    PVDPLUGIN pIt = vdPluginFind(pszFilename);
     if (!pIt)
         return VINF_SUCCESS;
 
@@ -6990,6 +6985,12 @@ VBOXDDU_DECL(int) VDCreateBase(PVBOXHDD pDisk, const char *pszBackend,
         AssertMsgBreakStmt(cbSize,
                            ("cbSize=%llu\n", cbSize),
                            rc = VERR_INVALID_PARAMETER);
+        if (cbSize % 512)
+        {
+            rc = vdError(pDisk, VERR_VD_INVALID_SIZE, RT_SRC_POS,
+                         N_("VD: The given disk size %llu is not aligned on a sector boundary (512 bytes)"), cbSize);
+            break;
+        }
         AssertMsgBreakStmt(   ((uImageFlags & ~VD_IMAGE_FLAGS_MASK) == 0)
                            || ((uImageFlags & (VD_IMAGE_FLAGS_FIXED | VD_IMAGE_FLAGS_DIFF)) != VD_IMAGE_FLAGS_FIXED),
                            ("uImageFlags=%#x\n", uImageFlags),

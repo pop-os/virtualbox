@@ -1321,7 +1321,8 @@ HRESULT VirtualBox::composeMachineFilename(const com::Utf8Str &aName,
                                            const com::Utf8Str &aBaseFolder,
                                            com::Utf8Str       &aFile)
 {
-    LogFlowThisFuncEnter();
+    if (RT_UNLIKELY(aName.isEmpty()))
+        return setError(E_INVALIDARG, tr("Machine name is invalid, must not be empty"));
 
     Utf8Str strBase = aBaseFolder;
     Utf8Str strName = aName;
@@ -1343,7 +1344,7 @@ HRESULT VirtualBox::composeMachineFilename(const com::Utf8Str &aName,
             else if (strKey == "directoryIncludesUUID")
                 fDirectoryIncludesUUID = (strValue == "1");
 
-        } while(uPos != com::Utf8Str::npos);
+        } while (uPos != com::Utf8Str::npos);
     }
 
     if (id.isZero())
@@ -1404,6 +1405,9 @@ HRESULT VirtualBox::composeMachineFilename(const com::Utf8Str &aName,
  */
 void sanitiseMachineFilename(Utf8Str &strName)
 {
+    if (strName.isEmpty())
+        return;
+
     /* Set of characters which should be safe for use in filenames: some basic
      * ASCII, Unicode from Latin-1 alphabetic to the end of Hangul.  We try to
      * skip anything that could count as a control character in Windows or
@@ -1439,9 +1443,9 @@ void sanitiseMachineFilename(Utf8Str &strName)
 
     /* Mangle leading and trailing spaces. */
     for (size_t i = 0; pszName[i] == ' '; ++i)
-       pszName[i] = '_';
+        pszName[i] = '_';
     for (size_t i = strName.length() - 1; i && pszName[i] == ' '; --i)
-       pszName[i] = '_';
+        pszName[i] = '_';
 }
 
 #ifdef DEBUG

@@ -42,6 +42,8 @@ RT_C_DECLS_BEGIN
 
 /** Pointer to ASN.1 allocation information. */
 typedef struct RTASN1ALLOCATION *PRTASN1ALLOCATION;
+/** Pointer to ASN.1 array allocation information. */
+typedef struct RTASN1ARRAYALLOCATION *PRTASN1ARRAYALLOCATION;
 /** Pointer to a ASN.1 byte decoder cursor. */
 typedef struct RTASN1CURSOR *PRTASN1CURSOR;
 
@@ -100,6 +102,49 @@ typedef struct RTASN1ALLOCATORVTABLE
      */
     DECLCALLBACKMEMBER(int, pfnRealloc)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ALLOCATION pAllocation,
                                         void *pvOld, void **ppvNew, size_t cbNew);
+
+    /**
+     * Frees an array allocation (the array an all instances in it).
+     *
+     * @returns IPRT status code.
+     * @param   pThis           Pointer to the vtable structure.
+     * @param   pAllocation     Pointer to the allocation info structure.
+     * @param   papvArray       Pointer to the pointer array to be freed.  Not NULL.
+     */
+    DECLCALLBACKMEMBER(void, pfnFreeArray)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
+                                           void **papvArray);
+    /**
+     * Grows the array to at least @a cMinEntries.
+     *
+     * The entries are initalized with ZEROs.
+     *
+     * @returns IPRT status code.
+     * @param   pThis           Pointer to the vtable structure.
+     * @param   pAllocation     Pointer to the allocation info structure.
+     * @param   ppapvArray      Pointer to the pointer to the array to be grown (or
+     *                          allocated).
+     * @param   cMinEntries     The minimum number of entries (array size and
+     *                          instantiated entries) that must be available
+     *                          on successful return.
+     */
+    DECLCALLBACKMEMBER(int, pfnGrowArray)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
+                                          void ***ppapvArray, uint32_t cMinEntries);
+    /**
+     * Shrinks the array (depends on allocator policy).
+     *
+     * If memory isn't freed, the implementation must fill the entries being
+     * shredded with ZEROs so the growth optimizations in RTAsn1MemResizeArray
+     * returns ZEROed entries.
+     *
+     * @returns IPRT status code.
+     * @param   pThis           Pointer to the vtable structure.
+     * @param   pAllocation     Pointer to the allocation info structure.
+     * @param   ppapvArray      Pointer to the pointer to the array to shrunk.
+     * @param   cNew            The new entry count.
+     * @param   cCurrent        The new entry count.
+     */
+    DECLCALLBACKMEMBER(void, pfnShrinkArray)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
+                                             void ***ppapvArray, uint32_t cNew, uint32_t cCurrent);
 } RTASN1ALLOCATORVTABLE;
 /** Pointer to an ASN.1 allocator vtable. */
 typedef RTASN1ALLOCATORVTABLE *PRTASN1ALLOCATORVTABLE;
@@ -130,20 +175,29 @@ typedef struct RTASN1ALLOCATION
 
 
 /**
- * Grow an array by zero initialized memory.
+ * Pointer array allocation information.
  *
- * @returns IPRT status code.
- * @param   pAllocation The allocation record (initialized by
- *                      RTAsn1CursorInitAllocation or similar).
- * @param   ppvArray    Pointer to the variable pointing to the array.  This is
- *                      both input and output. Remains valid on failure.
- * @param   cbEntry     The size of an array entry.
- * @param   cCurrent    The current entry count.  (Relevant for zero
- *                      initialization of the new entries.)
- * @param   cNew        The new entry count.
+ * Used by SET OF and SEQUENCE OF structures (typically automatically
+ * generated).
  */
-RTDECL(int) RTAsn1MemGrowArray(PRTASN1ALLOCATION pAllocation, void **ppvArray, size_t cbEntry,
-                               uint32_t cCurrent, uint32_t cNew);
+typedef struct RTASN1ARRAYALLOCATION
+{
+    /** The size of the array entry. */
+    uint32_t                    cbEntry;
+    /** The size of the pointer array allocation. */
+    uint32_t                    cPointersAllocated;
+    /** Number of entry instances allocated.  This can be greater than the
+     * official array size. */
+    uint32_t                    cEntriesAllocated;
+    /** Number of array resizing calls (for increasing growth rate).
+     * Maintained by RTAsn1MemResizeArray().  */
+    uint16_t                    cResizeCalls;
+    /** Reserved / padding. */
+    uint16_t                    uReserved0;
+    /** Allocator vtable, NULL for the default allocator. */
+    PCRTASN1ALLOCATORVTABLE     pAllocator;
+} RTASN1ARRAYALLOCATION;
+
 
 /**
  * Allocate a block of zero initialized memory.
@@ -180,23 +234,59 @@ RTDECL(void) RTAsn1MemFree(PRTASN1ALLOCATION pAllocation, void *pv);
 /**
  * Initalize an allocation.
  *
+ * @returns pAllocation
  * @param   pAllocation The allocation record (initialized by
  *                      RTAsn1CursorInitAllocation or similar).
  * @param   pAllocator  The allocator
  */
 RTDECL(PRTASN1ALLOCATION) RTAsn1MemInitAllocation(PRTASN1ALLOCATION pAllocation, PCRTASN1ALLOCATORVTABLE pAllocator);
 
-RTDECL(int)  RTAsn1ContentAllocZ(struct RTASN1CORE *pAsn1Core, size_t cb, PCRTASN1ALLOCATORVTABLE pAllocator);
-RTDECL(int)  RTAsn1ContentDup(struct RTASN1CORE *pAsn1Core, void const *pvSrc, size_t cbSrc, PCRTASN1ALLOCATORVTABLE pAllocator);
-RTDECL(int)  RTAsn1ContentReallocZ(struct RTASN1CORE *pAsn1Core, size_t cb, PCRTASN1ALLOCATORVTABLE pAllocator);
-RTDECL(void) RTAsn1ContentFree(struct RTASN1CORE *pAsn1Core);
+/**
+ * Initalize an array allocation.
+ *
+ * @returns pAllocation
+ * @param   pAllocation The allocation record (initialized by
+ *                      RTAsn1CursorInitAllocation or similar).
+ * @param   pAllocator  The allocator
+ * @param   cbEntry     The entry size.
+ */
+RTDECL(PRTASN1ARRAYALLOCATION) RTAsn1MemInitArrayAllocation(PRTASN1ARRAYALLOCATION pAllocation,
+                                                            PCRTASN1ALLOCATORVTABLE pAllocator, size_t cbEntry);
 
+/**
+ * Resize an array with zero initialized memory.
+ *
+ * @returns IPRT status code.
+ * @param   pAllocation The allocation record (initialized by
+ *                      RTAsn1CursorInitAllocation or similar).
+ * @param   ppapvArray  Pointer to the variable pointing to the array.  This is
+ *                      both input and output.  Remains valid on failure.
+ * @param   cCurrent    The current entry count.  (Relevant for zero
+ *                      initialization of the new entries.)
+ * @param   cNew        The new entry count.
+ */
+RTDECL(int) RTAsn1MemResizeArray(PRTASN1ARRAYALLOCATION pAllocation, void ***ppapvArray, uint32_t cCurrent, uint32_t cNew);
+
+/**
+ * Frees an array and all its entries.
+ *
+ * @param   pAllocation The array allocation record (initialized by
+ *                      RTAsn1CursorInitArrayAllocation or similar).
+ * @param   papvArray   The array to free.  NULL is ignored.
+ */
+RTDECL(void) RTAsn1MemFreeArray(PRTASN1ARRAYALLOCATION pAllocation, void **papvArray);
 
 
 /** Pointer to a core ASN.1 encoding info structure. */
 typedef struct RTASN1CORE *PRTASN1CORE;
 /** Pointer to a const core ASN.1 encoding info structure. */
 typedef struct RTASN1CORE const *PCRTASN1CORE;
+
+RTDECL(int)  RTAsn1ContentAllocZ(struct RTASN1CORE *pAsn1Core, size_t cb, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int)  RTAsn1ContentDup(struct RTASN1CORE *pAsn1Core, void const *pvSrc, size_t cbSrc, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int)  RTAsn1ContentReallocZ(struct RTASN1CORE *pAsn1Core, size_t cb, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(void) RTAsn1ContentFree(struct RTASN1CORE *pAsn1Core);
+
 
 
 /**
@@ -504,11 +594,11 @@ RTASN1TYPE_STANDARD_PROTOTYPES_NO_GET_CORE(RTASN1CORE, RTDECL, RTAsn1Core);
 /** @} */
 
 
-/** Check s whether an ASN.1 core object present in some way (default data,
+/** Checks whether an ASN.1 core object present in some way (default data,
  *  decoded data, ...). */
 #define RTASN1CORE_IS_PRESENT(a_pAsn1Core)          ( RT_BOOL((a_pAsn1Core)->fFlags) )
 
-/** Check s whether an ASN.1 core object is a dummy object (and is present). */
+/** Checks whether an ASN.1 core object is a dummy object (and is present). */
 #define RTASN1CORE_IS_DUMMY(a_pAsn1Core)            ( RT_BOOL((a_pAsn1Core)->fFlags & RTASN1CORE_F_DUMMY) )
 
 /**
@@ -647,22 +737,40 @@ RTDECL(int) RTAsn1SeqOfCore_Init(PRTASN1SEQOFCORE pThis, PCRTASN1COREVTABLE pVta
 RTDECL(int) RTAsn1SeqOfCore_Clone(PRTASN1SEQOFCORE pThis, PCRTASN1COREVTABLE pVtable, PCRTASN1SEQOFCORE pSrc);
 
 
-/** Defines the typedefs and prototypes for a generic sequence-of type. */
-#define RTASN1_IMPL_GEN_SEQ_OF_TYPEDEFS_AND_PROTOS(a_SeqOfType, a_ItemType, a_DeclMacro, a_ImplExtNm) \
-    typedef struct a_SeqOfType \
+/** Defines the typedefs and prototypes for a generic sequence-of/set-of type. */
+#define RTASN1_IMPL_GEN_SEQ_OR_SET_OF_TYPEDEFS_AND_PROTOS(a_CoreType, a_CoreMember, \
+                                                          a_ThisType, a_ItemType, a_DeclMacro, a_ImplExtNm) \
+    typedef struct a_ThisType \
     { \
-        /** Sequence core. */ \
-        RTASN1SEQUENCECORE          SeqCore; \
+        /** Sequence/set core. */ \
+        a_CoreType                  a_CoreMember; \
         /** The array allocation tracker. */ \
-        RTASN1ALLOCATION            Allocation; \
+        RTASN1ARRAYALLOCATION       Allocation; \
         /** Items in the array. */ \
         uint32_t                    cItems; \
-        /** Array.  */ \
-        RT_CONCAT(P,a_ItemType)     paItems; \
-    } a_SeqOfType; \
-    typedef a_SeqOfType *RT_CONCAT(P,a_SeqOfType); \
-    typedef a_SeqOfType const *RT_CONCAT(PC,a_SeqOfType); \
-    RTASN1TYPE_STANDARD_PROTOTYPES(a_SeqOfType, a_DeclMacro, a_ImplExtNm, SeqCore.Asn1Core)
+        /** Array. */ \
+        RT_CONCAT(P,a_ItemType)    *papItems; \
+    } a_ThisType; \
+    typedef a_ThisType *RT_CONCAT(P,a_ThisType); \
+    typedef a_ThisType const *RT_CONCAT(PC,a_ThisType); \
+    a_DeclMacro(int)  RT_CONCAT(a_ImplExtNm,_Erase)(RT_CONCAT(P,a_ThisType) pThis, uint32_t iPosition); \
+    a_DeclMacro(int)  RT_CONCAT(a_ImplExtNm,_InsertEx)(RT_CONCAT(P,a_ThisType) pThis, uint32_t iPosition, \
+                                                       RT_CONCAT(PC,a_ItemType) pToClone, \
+                                                       PCRTASN1ALLOCATORVTABLE pAllocator, uint32_t *piActualPos); \
+    /** Appends entry with default content, returns index or negative error code. */ \
+    DECLINLINE(int32_t) RT_CONCAT(a_ImplExtNm,_Append)(RT_CONCAT(P,a_ThisType) pThis) \
+    { \
+        uint32_t uPos = pThis->cItems; \
+        int rc = RT_CONCAT(a_ImplExtNm,_InsertEx)(pThis, uPos, NULL /*pToClone*/, pThis->Allocation.pAllocator, &uPos); \
+        if (RT_SUCCESS(rc)) \
+            return uPos; \
+        return rc; \
+    } \
+    RTASN1TYPE_STANDARD_PROTOTYPES(a_ThisType, a_DeclMacro, a_ImplExtNm, a_CoreMember.Asn1Core)
+
+/** Defines the typedefs and prototypes for a generic sequence-of type. */
+#define RTASN1_IMPL_GEN_SEQ_OF_TYPEDEFS_AND_PROTOS(a_SeqOfType, a_ItemType, a_DeclMacro, a_ImplExtNm) \
+    RTASN1_IMPL_GEN_SEQ_OR_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SEQUENCECORE, SeqCore, a_SeqOfType, a_ItemType, a_DeclMacro, a_ImplExtNm)
 
 
 /**
@@ -705,20 +813,7 @@ RTDECL(int) RTAsn1SetOfCore_Clone(PRTASN1SETOFCORE pThis, PCRTASN1COREVTABLE pVt
 
 /** Defines the typedefs and prototypes for a generic set-of type. */
 #define RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(a_SetOfType, a_ItemType, a_DeclMacro, a_ImplExtNm) \
-    typedef struct a_SetOfType \
-    { \
-        /** Set core. */ \
-        RTASN1SETCORE               SetCore; \
-        /** The array allocation tracker. */ \
-        RTASN1ALLOCATION            Allocation; \
-        /** Items in the array. */ \
-        uint32_t                    cItems; \
-        /** Array.  */ \
-        RT_CONCAT(P,a_ItemType)     paItems; \
-    } a_SetOfType; \
-    typedef a_SetOfType *RT_CONCAT(P,a_SetOfType); \
-    typedef a_SetOfType const *RT_CONCAT(PC,a_SetOfType); \
-    RTASN1TYPE_STANDARD_PROTOTYPES(a_SetOfType, a_DeclMacro, a_ImplExtNm, SetCore.Asn1Core)
+    RTASN1_IMPL_GEN_SEQ_OR_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SETCORE, SetCore, a_SetOfType, a_ItemType, a_DeclMacro, a_ImplExtNm)
 
 
 /*
@@ -1000,6 +1095,7 @@ RTDECL(uint32_t) RTAsn1ObjIdGetLastComponentsAsUInt32(PCRTASN1OBJID pThis);
 
 RTASN1_IMPL_GEN_SEQ_OF_TYPEDEFS_AND_PROTOS(RTASN1SEQOFOBJIDS, RTASN1OBJID, RTDECL, RTAsn1SeqOfObjIds);
 RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SETOFOBJIDS, RTASN1OBJID, RTDECL, RTAsn1SetOfObjIds);
+RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SETOFOBJIDSEQS, RTASN1SEQOFOBJIDS, RTDECL, RTAsn1SetOfObjIdSeqs);
 
 
 /**
@@ -1063,10 +1159,12 @@ typedef struct RTASN1OCTETSTRING
 {
     /** Core ASN.1 encoding details. */
     RTASN1CORE          Asn1Core;
-    /** Pointer to user structure encapsulated in this string, if dynamically
-     * allocated the EncapsulatedAllocation member can be used to track it and
-     * trigger automatic cleanup on object destruction.  If EncapsulatedAllocation
-     * is zero, any object pointed to will only be deleted. */
+    /** Pointer to user structure encapsulated in this string.
+     *
+     * If dynamically allocated the EncapsulatedAllocation member can be used to
+     * track it and trigger automatic cleanup on object destruction.  If
+     * EncapsulatedAllocation is zero, any object pointed to will only be
+     * deleted. */
     PRTASN1CORE         pEncapsulated;
     /** Allocation tracking structure for pEncapsulated. */
     RTASN1ALLOCATION    EncapsulatedAllocation;
@@ -1610,7 +1708,7 @@ RTDECL(int) RTAsn1CursorInitSubFromCore(PRTASN1CURSOR pParent, PRTASN1CORE pAsn1
  * To try unify and optimize memory managment for decoding and in-memory
  * construction of ASN.1 objects, each allocation has an allocation structure
  * associated with it.  This stores the allocator and keep statistics for
- * optimizing array allocations.
+ * optimizing resizable allocations.
  *
  * @returns Pointer to the allocator info (for call in alloc parameter).
  * @param   pCursor             The cursor.
@@ -1618,6 +1716,19 @@ RTDECL(int) RTAsn1CursorInitSubFromCore(PRTASN1CURSOR pParent, PRTASN1CORE pAsn1
  */
 RTDECL(PRTASN1ALLOCATION) RTAsn1CursorInitAllocation(PRTASN1CURSOR pCursor, PRTASN1ALLOCATION pAllocation);
 
+/**
+ * Initalizes the an array allocation structure prior to making an allocation.
+ *
+ * This is a special case of RTAsn1CursorInitAllocation.  We store a little bit
+ * more detail here in order to optimize growing and shrinking of arrays.
+ *
+ * @returns Pointer to the allocator info (for call in alloc parameter).
+ * @param   pCursor             The cursor.
+ * @param   pAllocation         The allocation structure to initialize.
+ * @param   cbEntry             The array entry size.
+ */
+RTDECL(PRTASN1ARRAYALLOCATION) RTAsn1CursorInitArrayAllocation(PRTASN1CURSOR pCursor, PRTASN1ARRAYALLOCATION pAllocation,
+                                                               size_t cbEntry);
 
 /**
  * Wrapper around RTErrInfoSetV.
@@ -2082,6 +2193,22 @@ DECLINLINE(bool) RTAsn1CursorIsSetNext(PRTASN1CURSOR pCursor)
  * @param   pvUser              Argument to the output function.
  */
 RTDECL(int) RTAsn1Dump(PCRTASN1CORE pAsn1Core, uint32_t fFlags, uint32_t uLevel, PFNRTDUMPPRINTFV pfnPrintfV, void *pvUser);
+
+/**
+ * Queries the name for an object identifier.
+ *
+ * This API is very simple due to how we store the data.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_NOT_FOUND if not found.
+ * @retval  VERR_BUFFER_OVERFLOW if more buffer space is required.
+ *
+ * @param   pObjId          The object ID to name.
+ * @param   pszDst          Where to store the name if found.
+ * @param   cbDst           The size of the destination buffer.
+ */
+RTDECL(int) RTAsn1QueryObjIdName(PCRTASN1OBJID pObjId, char *pszDst, size_t cbDst);
 
 /** @} */
 

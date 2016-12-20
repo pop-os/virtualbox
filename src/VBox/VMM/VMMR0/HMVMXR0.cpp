@@ -327,7 +327,7 @@ typedef VMXMSREXITWRITE* PVMXMSREXITWRITE;
  * @param   pVmxTransient   Pointer to the VMX-transient structure.
  */
 #ifndef HMVMX_USE_FUNCTION_TABLE
-typedef DECLINLINE(VBOXSTRICTRC)    FNVMXEXITHANDLER(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
+typedef VBOXSTRICTRC                FNVMXEXITHANDLER(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
 #else
 typedef DECLCALLBACK(VBOXSTRICTRC)  FNVMXEXITHANDLER(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
 /** Pointer to VM-exit handler. */
@@ -351,7 +351,7 @@ typedef FNVMXEXITHANDLER           *PFNVMXEXITHANDLER;
  *          later when switching over to IEM.
  */
 #ifndef HMVMX_USE_FUNCTION_TABLE
-typedef DECLINLINE(int)             FNVMXEXITHANDLERNSRC(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
+typedef int                         FNVMXEXITHANDLERNSRC(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
 #else
 typedef FNVMXEXITHANDLER            FNVMXEXITHANDLERNSRC;
 #endif
@@ -510,9 +510,9 @@ static const PFNVMXEXITHANDLER g_apfnVMExitHandlers[VMX_EXIT_MAX + 1] =
  /* 57  VMX_EXIT_RDRAND                  */  hmR0VmxExitRdrand,
  /* 58  VMX_EXIT_INVPCID                 */  hmR0VmxExitInvpcid,
  /* 59  VMX_EXIT_VMFUNC                  */  hmR0VmxExitSetPendingXcptUD,
- /* 60  VMX_EXIT_RESERVED_60             */  hmR0VmxExitErrUndefined,
+ /* 60  VMX_EXIT_ENCLS                   */  hmR0VmxExitErrUndefined,
  /* 61  VMX_EXIT_RDSEED                  */  hmR0VmxExitErrUndefined, /* only spurious exits, so undefined */
- /* 62  VMX_EXIT_RESERVED_62             */  hmR0VmxExitErrUndefined,
+ /* 62  VMX_EXIT_PML_FULL                */  hmR0VmxExitErrUndefined,
  /* 63  VMX_EXIT_XSAVES                  */  hmR0VmxExitSetPendingXcptUD,
  /* 64  VMX_EXIT_XRSTORS                 */  hmR0VmxExitSetPendingXcptUD,
 };
@@ -7599,6 +7599,12 @@ static uint32_t hmR0VmxEvaluatePendingEvent(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
                 if (pVCpu->hm.s.vmx.u32ProcCtls & VMX_VMCS_CTRL_PROC_EXEC_USE_TPR_SHADOW)
                     hmR0VmxApicSetTprThreshold(pVCpu, u8Interrupt >> 4);
                 STAM_COUNTER_INC(&pVCpu->hm.s.StatSwitchTprMaskedIrq);
+
+                /*
+                 * If the CPU doesn't have TPR shadowing, we will always get a VM-exit on TPR changes and
+                 * APICSetTpr() will end up setting the VMCPU_FF_INTERRUPT_APIC if required, so there is no
+                 * need to re-set this force-flag here.
+                 */
             }
             else
                 STAM_COUNTER_INC(&pVCpu->hm.s.StatSwitchGuestIrq);
@@ -8936,9 +8942,6 @@ static void hmR0VmxPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXT
     pVmxTransient->uExitReason    = (uint16_t)VMX_EXIT_REASON_BASIC(uExitReason);
     pVmxTransient->fVMEntryFailed = VMX_ENTRY_INTERRUPTION_INFO_IS_VALID(pVmxTransient->uEntryIntInfo);
 
-    /* Update the VM-exit history array. */
-    HMCPU_EXIT_HISTORY_ADD(pVCpu, pVmxTransient->uExitReason);
-
     /* If the VMLAUNCH/VMRESUME failed, we can bail out early. This does -not- cover VMX_EXIT_ERR_*. */
     if (RT_UNLIKELY(rcVMRun != VINF_SUCCESS))
     {
@@ -8946,6 +8949,19 @@ static void hmR0VmxPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXT
               pVmxTransient->fVMEntryFailed));
         return;
     }
+
+    /*
+     * Update the VM-exit history array here even if the VM-entry failed due to:
+     *  - Invalid guest state.
+     *  - MSR loading.
+     *  - Machine-check event.
+     *
+     * In any of the above cases we will still have a "valid" VM-exit reason
+     * despite @a fVMEntryFailed being false.
+     *
+     * See Intel spec. 26.7 "VM-Entry failures during or after loading guest state".
+     */
+    HMCPU_EXIT_HISTORY_ADD(pVCpu, pVmxTransient->uExitReason);
 
     if (RT_LIKELY(!pVmxTransient->fVMEntryFailed))
     {
@@ -10495,9 +10511,9 @@ DECLINLINE(VBOXSTRICTRC) hmR0VmxHandleExit(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVM
         case VMX_EXIT_XSAVES:
         case VMX_EXIT_XRSTORS:
             return hmR0VmxExitSetPendingXcptUD(pVCpu, pMixedCtx, pVmxTransient);
-        case VMX_EXIT_RESERVED_60:
+        case VMX_EXIT_ENCLS:
         case VMX_EXIT_RDSEED: /* only spurious exits, so undefined */
-        case VMX_EXIT_RESERVED_62:
+        case VMX_EXIT_PML_FULL:
         default:
             return hmR0VmxExitErrUndefined(pVCpu, pMixedCtx, pVmxTransient);
     }
