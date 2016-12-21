@@ -1,6 +1,7 @@
 virtualbox (5.1.12-dfsg-2) unstable; urgency=medium
 
   * Add missing libegl1-mesa-dev dependency
+    (Closes: #848946)
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 21 Dec 2016 07:37:38 +0100
 
