@@ -33,6 +33,7 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* Other VBox includes: */
 #include <iprt/sha.h>
 
 
@@ -60,12 +61,14 @@ UIDownloaderExtensionPack::UIDownloaderExtensionPack()
         m_spInstance = this;
 
     /* Prepare source/target: */
+    QString strVersion = vboxGlobal().vboxVersionStringNormalized();
     QString strExtPackUnderscoredName(QString(GUI_ExtPackName).replace(' ', '_'));
     QString strTemplateSourcePath("http://download.virtualbox.org/virtualbox/%1/");
     QString strTemplateSourceName(QString("%1-%2.vbox-extpack").arg(strExtPackUnderscoredName));
-    QString strSourcePath(strTemplateSourcePath.arg(vboxGlobal().vboxVersionStringNormalized()));
-    QString strSourceName(strTemplateSourceName.arg(vboxGlobal().vboxVersionStringNormalized()));
+    QString strSourcePath(strTemplateSourcePath.arg(strVersion));
+    QString strSourceName(strTemplateSourceName.arg(strVersion));
     QString strSource(strSourcePath + strSourceName);
+    QString strPathSHA256SumsFile = QString("https://www.virtualbox.org/download/hashes/%1/SHA256SUMS").arg(strVersion);
     QString strTargetPath(vboxGlobal().homeFolder());
     QString strTargetName(strSourceName);
     QString strTarget(QDir(strTargetPath).absoluteFilePath(strTargetName));
@@ -73,6 +76,7 @@ UIDownloaderExtensionPack::UIDownloaderExtensionPack()
     /* Set source/target: */
     setSource(strSource);
     setTarget(strTarget);
+    setPathSHA256SumsFile(strPathSHA256SumsFile);
 }
 
 UIDownloaderExtensionPack::~UIDownloaderExtensionPack()
@@ -96,7 +100,64 @@ bool UIDownloaderExtensionPack::askForDownloadingConfirmation(UINetworkReply *pR
 void UIDownloaderExtensionPack::handleDownloadedObject(UINetworkReply *pReply)
 {
     /* Read received data into the buffer: */
-    QByteArray receivedData(pReply->readAll());
+    m_receivedData = pReply->readAll();
+}
+
+void UIDownloaderExtensionPack::handleVerifiedObject(UINetworkReply *pReply)
+{
+    /* Try to verify the SHA-256 checksum: */
+    QString strCalculatedSumm;
+    bool fSuccess = false;
+    do
+    {
+        /* Read received data into the buffer: */
+        const QByteArray receivedData(pReply->readAll());
+        /* Make sure it's not empty: */
+        if (receivedData.isEmpty())
+            break;
+
+        /* Parse buffer contents to dictionary: */
+        const QStringList dictionary(QString(receivedData).split("\n", QString::SkipEmptyParts));
+        /* Make sure it's not empty: */
+        if (dictionary.isEmpty())
+            break;
+
+        /* Parse each record to tags, look for the required one: */
+        foreach (const QString &strRecord, dictionary)
+        {
+            const QString strFileName = strRecord.section(" *", 1);
+            const QString strDownloadedSumm = strRecord.section(" *", 0, 0);
+            if (strFileName == source().fileName())
+            {
+                /* Calc the SHA-256 on the bytes, creating a string: */
+                uint8_t abHash[RTSHA256_HASH_SIZE];
+                RTSha256(m_receivedData.constData(), m_receivedData.length(), abHash);
+                char szDigest[RTSHA256_DIGEST_LEN + 1];
+                int rc = RTSha256ToString(abHash, szDigest, sizeof(szDigest));
+                if (RT_FAILURE(rc))
+                {
+                    AssertRC(rc);
+                    szDigest[0] = '\0';
+                }
+                strCalculatedSumm = szDigest;
+                //printf("Downloaded SHA-256 summ: [%s]\n", strDownloadedSumm.toUtf8().constData());
+                //printf("Calculated SHA-256 summ: [%s]\n", strCalculatedSumm.toUtf8().constData());
+                /* Make sure checksum is valid: */
+                fSuccess = strDownloadedSumm == strCalculatedSumm;
+                break;
+            }
+        }
+    }
+    while (false);
+
+    /* If SHA-256 checksum verification failed: */
+    if (!fSuccess)
+    {
+        /* Warn the user about additions-image was downloaded and saved but checksum is invalid: */
+        msgCenter().cannotValidateExtentionPackSHA256Sum(GUI_ExtPackName, source().toString(), QDir::toNativeSeparators(target()));
+        return;
+    }
+
     /* Serialize that buffer into the file: */
     while (true)
     {
@@ -105,22 +166,11 @@ void UIDownloaderExtensionPack::handleDownloadedObject(UINetworkReply *pReply)
         if (file.open(QIODevice::WriteOnly))
         {
             /* Write buffer into the file: */
-            file.write(receivedData);
+            file.write(m_receivedData);
             file.close();
 
-            /* Calc the SHA-256 on the bytes, creating a string: */
-            uint8_t abHash[RTSHA256_HASH_SIZE];
-            RTSha256(receivedData.constData(), receivedData.length(), abHash);
-            char szDigest[RTSHA256_DIGEST_LEN + 1];
-            int rc = RTSha256ToString(abHash, szDigest, sizeof(szDigest));
-            if (RT_FAILURE(rc))
-            {
-                AssertRC(rc);
-                szDigest[0] = '\0';
-            }
-
             /* Warn the listener about extension-pack was downloaded: */
-            emit sigDownloadFinished(source().toString(), target(), &szDigest[0]);
+            emit sigDownloadFinished(source().toString(), target(), strCalculatedSumm);
             break;
         }
 

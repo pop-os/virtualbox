@@ -813,7 +813,7 @@ static int  hdaRegWriteSDFIFOS(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value
 static int  hdaRegWriteSDFMT(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
 static int  hdaRegWriteSDBDPL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
 static int  hdaRegWriteSDBDPU(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-DECLINLINE(bool) hdaRegWriteSDIsAllowed(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+inline bool hdaRegWriteSDIsAllowed(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
 
 /*
  * Generic register read/write functions.
@@ -1249,10 +1249,13 @@ static int hdaProcessInterrupt(PHDASTATE pThis)
  * Looks up a register at the exact offset given by @a offReg.
  *
  * @returns Register index on success, -1 if not found.
+ * @param   pThis               The HDA device state.
  * @param   offReg              The register offset.
  */
-static int hdaRegLookup(uint32_t offReg)
+static int hdaRegLookup(PHDASTATE pThis, uint32_t offReg)
 {
+    RT_NOREF(pThis);
+
     /*
      * Aliases.
      */
@@ -1300,10 +1303,13 @@ static int hdaRegLookup(uint32_t offReg)
  * Looks up a register covering the offset given by @a offReg.
  *
  * @returns Register index on success, -1 if not found.
+ * @param   pThis               The HDA device state.
  * @param   offReg              The register offset.
  */
-static int hdaRegLookupWithin(uint32_t offReg)
+static int hdaRegLookupWithin(PHDASTATE pThis, uint32_t offReg)
 {
+     RT_NOREF(pThis);
+
     /*
      * Aliases.
      */
@@ -1440,7 +1446,8 @@ static int hdaCORBCmdProcess(PHDASTATE pThis)
             rc = pfn(pThis->pCodec, HDA_CODEC_CMD(cmd, 0 /* LUN */), &resp);
         }
 
-        AssertRCReturn(rc, rc);
+        if (RT_FAILURE(rc))
+            AssertRCReturn(rc, rc);
         (rirbWp)++;
 
         LogFunc(("verb:%08x->%016lx\n", cmd, resp));
@@ -1824,9 +1831,12 @@ static int hdaRegReadINTSTS(PHDASTATE pThis, uint32_t iReg, uint32_t *pu32Value)
 static int hdaRegReadLPIB(PHDASTATE pThis, uint32_t iReg, uint32_t *pu32Value)
 {
     const uint8_t  u8Strm  = HDA_SD_NUM_FROM_REG(pThis, LPIB, iReg);
-    uint32_t       u32LPIB = HDA_STREAM_REG(pThis, LPIB, u8Strm);
+          uint32_t u32LPIB = HDA_STREAM_REG(pThis, LPIB, u8Strm);
 
-    LogFlowFunc(("[SD%RU8]: LPIB=%RU32, CBL=%RU32\n", u8Strm, u32LPIB, HDA_STREAM_REG(pThis, CBL,  u8Strm)));
+#if defined(LOG_ENABLED)
+    const uint32_t u32CBL  = HDA_STREAM_REG(pThis, CBL,  u8Strm);
+    LogFlowFunc(("[SD%RU8]: LPIB=%RU32, CBL=%RU32\n", u8Strm, u32LPIB, u32CBL));
+#endif
 
     *pu32Value = u32LPIB;
     return VINF_SUCCESS;
@@ -2308,7 +2318,7 @@ static int hdaRegWriteSDBDPU(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
  * @param   iReg                Register to write.
  * @param   u32Value            Value to write.
  */
-DECLINLINE(bool) hdaRegWriteSDIsAllowed(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
+inline bool hdaRegWriteSDIsAllowed(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 {
     RT_NOREF(u32Value);
 
@@ -3369,7 +3379,7 @@ PDMBOTHCBDECL(int) hdaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
      * Look up and log.
      */
     uint32_t        offReg = GCPhysAddr - pThis->MMIOBaseAddr;
-    int             idxRegDsc = hdaRegLookup(offReg);    /* Register descriptor index. */
+    int             idxRegDsc = hdaRegLookup(pThis, offReg);    /* Register descriptor index. */
 #ifdef LOG_ENABLED
     unsigned const  cbLog     = cb;
     uint32_t        offRegLog = offReg;
@@ -3488,7 +3498,7 @@ PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
      * Look up and log the access.
      */
     uint32_t    offReg = GCPhysAddr - pThis->MMIOBaseAddr;
-    int         idxRegDsc = hdaRegLookup(offReg);
+    int         idxRegDsc = hdaRegLookup(pThis, offReg);
     uint32_t    idxRegMem = idxRegDsc != -1 ? g_aHdaRegMap[idxRegDsc].mem_idx : UINT32_MAX;
     uint64_t    u64Value;
     if (cb == 4)        u64Value = *(uint32_t const *)pv;
@@ -3537,7 +3547,7 @@ PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
          * will only see 1 or 2 byte accesses of this kind, so no risk of
          * shifting out input values.
          */
-        if (idxRegDsc == -1 && (idxRegDsc = hdaRegLookupWithin(offReg)) != -1)
+        if (idxRegDsc == -1 && (idxRegDsc = hdaRegLookupWithin(pThis, offReg)) != -1)
         {
             uint32_t const cbBefore = offReg - g_aHdaRegMap[idxRegDsc].offset; Assert(cbBefore > 0 && cbBefore < 4);
             offReg    -= cbBefore;
@@ -3584,7 +3594,7 @@ PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
             cb     -= cbReg;
             u64Value >>= cbReg * 8;
             if (idxRegDsc == -1)
-                idxRegDsc = hdaRegLookup(offReg);
+                idxRegDsc = hdaRegLookup(pThis, offReg);
             else
             {
                 idxRegDsc++;

@@ -995,6 +995,10 @@ static int ichac97WriteAudio(PAC97STATE pThis, PAC97STREAM pStrmSt, uint32_t cbM
     PPDMDEVINS  pDevIns = ICHAC97STATE_2_DEVINS(pThis);
     PAC97BMREGS pRegs   = &pStrmSt->Regs;
 
+    uint32_t    addr           = pRegs->bd.addr;
+    uint32_t    cbWrittenTotal = 0;
+    uint32_t    cbToRead       = 0;
+
     uint32_t cbToWrite = RT_MIN((uint32_t)(pRegs->picb << 1), cbMax);
     if (!cbToWrite)
     {
@@ -1003,10 +1007,7 @@ static int ichac97WriteAudio(PAC97STATE pThis, PAC97STREAM pStrmSt, uint32_t cbM
         return VINF_EOF;
     }
 
-    uint32_t addr = pRegs->bd.addr;
-    int      rc = VINF_SUCCESS;
-    uint32_t cbWrittenTotal = 0;
-    uint32_t cbToRead = 0;
+    int rc = VINF_SUCCESS;
 
     LogFlowFunc(("pReg=%p, cbMax=%RU32, cbToWrite=%RU32\n", pRegs, cbMax, cbToWrite));
 
@@ -1024,7 +1025,8 @@ static int ichac97WriteAudio(PAC97STATE pThis, PAC97STREAM pStrmSt, uint32_t cbM
         {
             int rc2 = pDrv->pConnector->pfnWrite(pDrv->pConnector, pDrv->Out.pStrmOut,
                                                  pThis->pvReadWriteBuf, cbToRead, &cbWritten);
-            LogFlowFunc(("\tLUN#%RU8: rc=%Rrc, cbWritten=%RU32\n", pDrv->uLUN, rc2, cbWritten)); NOREF(rc2);
+            RT_NOREF(rc2);
+            LogFlowFunc(("\tLUN#%RU8: rc=%Rrc, cbWritten=%RU32\n", pDrv->uLUN, rc2, cbWritten));
         }
 
         LogFlowFunc(("\tcbToRead=%RU32, cbToWrite=%RU32, cbLeft=%RU32\n",
@@ -1766,7 +1768,8 @@ static DECLCALLBACK(int) ichac97IOPortNAMRead(PPDMDEVINS pDevIns, void *pvUser, 
 /**
  * @callback_method_impl{FNIOMIOPORTOUT}
  */
-static DECLCALLBACK(int) ichac97IOPortNAMWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32Val, unsigned cbVal)
+static DECLCALLBACK(int) ichac97IOPortNAMWrite(PPDMDEVINS pDevIns,
+                                               void *pvUser, RTIOPORT Port, uint32_t u32Val, unsigned cbVal)
 {
     RT_NOREF(pDevIns);
     PAC97STATE pThis = (PAC97STATE)pvUser;

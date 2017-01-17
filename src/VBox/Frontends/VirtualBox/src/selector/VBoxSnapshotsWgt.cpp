@@ -558,7 +558,7 @@ void VBoxSnapshotsWgt::onCurrentChanged (QTreeWidgetItem *aItem)
                                       (item && !mCurSnapshotItem)));
 
     /* Enable/disable cloning snapshots */
-    mCloneSnapshotAction->setEnabled(!busy && item);
+    mCloneSnapshotAction->setEnabled(item && (!item->isCurrentStateItem() || !busy));
 }
 
 void VBoxSnapshotsWgt::onContextMenuRequested (const QPoint &aPoint)

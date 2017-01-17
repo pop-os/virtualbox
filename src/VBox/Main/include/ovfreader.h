@@ -346,6 +346,7 @@ public:
 
     VirtualHardwareItem()
         : ulInstanceID(0),
+          fResourceRequired(false),
           fAutomaticAllocation(false),
           fAutomaticDeallocation(false),
           ullVirtualQuantity(0),
@@ -353,7 +354,8 @@ public:
           ullLimit(0),
           ullWeight(0),
           ulBusNumber(0),
-          ulLineNumber(0)
+          ulLineNumber(0),
+          fDefault(false)
     {
         itemName = "Item";
     };

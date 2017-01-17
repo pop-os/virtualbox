@@ -1748,10 +1748,10 @@ static DECLCALLBACK(int) drvAudioCallback(PPDMIAUDIOCONNECTOR pInterface, PDMAUD
  * @param   pThis               Driver instance to be called.
  * @param   pCfgHandle          CFGM configuration handle to use for this driver.
  */
-static int drvAudioHostInit(PDRVAUDIO pThis, PCFGMNODE pCfgHandle)
+static int drvAudioHostInit(PCFGMNODE pCfgHandle, PDRVAUDIO pThis)
 {
     /* pCfgHandle is optional. */
-    NOREF(pCfgHandle);
+    RT_NOREF(pCfgHandle);
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);
 
     LogFlowFuncEnter();
@@ -1760,7 +1760,7 @@ static int drvAudioHostInit(PDRVAUDIO pThis, PCFGMNODE pCfgHandle)
     int rc = pThis->pHostDrvAudio->pfnInit(pThis->pHostDrvAudio);
     if (RT_FAILURE(rc))
     {
-        LogRel(("Audio: Initialization of host backend failed with %Rrc\n", rc));
+        LogFlowFunc(("Initialization of lower driver failed with rc=%Rrc\n", rc));
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
@@ -1768,7 +1768,7 @@ static int drvAudioHostInit(PDRVAUDIO pThis, PCFGMNODE pCfgHandle)
     rc = pThis->pHostDrvAudio->pfnGetConf(pThis->pHostDrvAudio, &pThis->BackendCfg);
     if (RT_FAILURE(rc))
     {
-        LogRel(("Audio: Getting host backend configuration failed with %Rrc\n", rc));
+        LogFlowFunc(("Getting backend configuration failed with rc=%Rrc\n", rc));
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
@@ -1911,7 +1911,7 @@ static DECLCALLBACK(int) drvAudioInit(PCFGMNODE pCfgHandle, PPDMDRVINS pDrvIns)
      * If everything went well, initialize the lower driver.
      */
     if (RT_SUCCESS(rc))
-        rc = drvAudioHostInit(pThis, pCfgHandle);
+        rc = drvAudioHostInit(pCfgHandle, pThis);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
