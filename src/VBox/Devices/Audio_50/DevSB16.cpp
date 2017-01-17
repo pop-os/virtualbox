@@ -1639,7 +1639,8 @@ static int sb16WriteAudio(PSB16STATE pThis, int nchan, uint32_t dma_pos,
         {
             int rc2 = pDrv->pConnector->pfnWrite(pDrv->pConnector, pDrv->Out.pStrmOut,
                                                  tmpbuf, cbToRead, &cbWritten);
-            LogFlowFunc(("\tLUN#%RU8: rc=%Rrc, cbWritten=%RU32\n", pDrv->uLUN, rc2, cbWritten)); NOREF(rc2);
+            RT_NOREF(rc2);
+            LogFlowFunc(("\tLUN#%RU8: rc=%Rrc, cbWritten=%RU32\n", pDrv->uLUN, rc2, cbWritten));
         }
 
         Assert(cbToWrite >= cbToRead);
@@ -2157,6 +2158,7 @@ static DECLCALLBACK(int) sb16Destruct(PPDMDEVINS pDevIns)
     PSB16STATE pThis = PDMINS_2_DATA(pDevIns, PSB16STATE);
 
     PSB16DRIVER pDrv;
+
     RTListForEach(&pThis->lstDrv, pDrv, SB16DRIVER, Node)
         pDrv->Out.phStrmOut = NULL;
 

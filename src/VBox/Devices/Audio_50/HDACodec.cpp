@@ -1353,7 +1353,7 @@ static DECLCALLBACK(int) vrbProcUnimplemented(PHDACODEC pThis, uint32_t cmd, uin
 {
     RT_NOREF(pThis, cmd);
     LogFlowFunc(("cmd(raw:%x: cad:%x, d:%c, nid:%x, verb:%x)\n", cmd,
-                 CODEC_CAD(cmd), CODEC_DIRECT(cmd) ? 'N' : 'Y', CODEC_NID(cmd), CODEC_VERBDATA(cmd)));
+        CODEC_CAD(cmd), CODEC_DIRECT(cmd) ? 'N' : 'Y', CODEC_NID(cmd), CODEC_VERBDATA(cmd)));
     *pResp = 0;
     return VINF_SUCCESS;
 }
@@ -2346,7 +2346,6 @@ static const CODECVERB g_aCodecVerbs[] =
 };
 
 #ifdef DEBUG
-
 typedef struct CODECDBGINFO
 {
     /** DBGF info helpers. */

@@ -46,11 +46,11 @@
         return pTask->createThread(); // pTask is always consumed
    @endcode
  *
- * @sa createThreadWithType, createThreadWithRaceCondition
+ * @sa createThreadWithType
  */
 HRESULT ThreadTask::createThread(void)
 {
-    return createThreadInternal(RTTHREADTYPE_MAIN_WORKER, NULL /*phThread*/);
+    return createThreadInternal(RTTHREADTYPE_MAIN_WORKER);
 }
 
 
@@ -61,33 +61,20 @@ HRESULT ThreadTask::createThread(void)
  */
 HRESULT ThreadTask::createThreadWithType(RTTHREADTYPE enmType)
 {
-    return createThreadInternal(enmType, NULL /*phThread*/);
-}
-
-
-/**
- * Same ThreadTask::createThread(), except it returns a thread handle.
- *
- * If the task thread is incorrectly mananged, the caller may easily race the
- * completion and termination of the task thread!  Use with care!
- *
- * @param   phThread    Handle of the worker thread.
- */
-HRESULT ThreadTask::createThreadWithRaceCondition(PRTTHREAD phThread)
-{
-    return createThreadInternal(RTTHREADTYPE_MAIN_WORKER, phThread);
+    return createThreadInternal(enmType);
 }
 
 
 /**
  * Internal worker for ThreadTask::createThread,
- * ThreadTask::createThreadWithType, ThreadTask::createThreadwithRaceCondition.
+ * ThreadTask::createThreadWithType.
  *
  * @note Always consumes @a this!
  */
-HRESULT ThreadTask::createThreadInternal(RTTHREADTYPE enmType, PRTTHREAD phThread)
+HRESULT ThreadTask::createThreadInternal(RTTHREADTYPE enmType)
 {
-    int vrc = RTThreadCreate(&m_hThread,
+    mAsync = true;
+    int vrc = RTThreadCreate(NULL,
                              taskHandlerThreadProc,
                              (void *)this,
                              0,
@@ -95,13 +82,9 @@ HRESULT ThreadTask::createThreadInternal(RTTHREADTYPE enmType, PRTTHREAD phThrea
                              0,
                              this->getTaskName().c_str());
     if (RT_SUCCESS(vrc))
-    {
-        mAsync = true;
-        if (phThread)
-            *phThread = m_hThread;
         return S_OK;
-    }
 
+    mAsync = false;
     delete this;
     return E_FAIL;
 }
@@ -123,7 +106,6 @@ HRESULT ThreadTask::createThreadInternal(RTTHREADTYPE enmType, PRTTHREAD phThrea
      */
     pTask->handler();
 
-    pTask->m_hThread = NIL_RTTHREAD; /* unnecessary, but whatever. */
     delete pTask;
     return VINF_SUCCESS;
 }

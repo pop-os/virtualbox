@@ -3,6 +3,64 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.14 (2017-01-16)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed emulation of certain instructions for 64-bit guests
+          on 32-bit hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: properly handle certain MSRs for 64-bit guests on ancient
+          CPUs without VT-x support for MSR bitmaps (bug #13886)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a crash with multimonitor setups under certain
+          conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: allow cloning of snapshots when the VM is running</para>
+      </listitem>
+
+      <listitem>
+        <para>NVMe: fixed compatibility with the Storage Performance Development
+          Kit (SPDK, bug #16368)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed a crash under rare circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: added a sanity check to
+          <emphasis>modifymedium --resize</emphasis> to prevent users from
+          resizing their hard disk from 1GB to 1PB (bug #16311)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: another fix for recent Windows 10 hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: Linux 4.10 fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed protocol error during certain operations on
+          shared folders (bug #8463)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.12 (2016-12-20)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

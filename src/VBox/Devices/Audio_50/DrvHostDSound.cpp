@@ -18,6 +18,7 @@
  */
 #define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
 #include <VBox/log.h>
+
 #include <iprt/win/windows.h>
 #include <dsound.h>
 
@@ -249,17 +250,21 @@ static int dsoundGetPosOut(PDRVHOSTDSOUND   pThis,
     DWORD cbBuffer = AUDIOMIXBUF_S2B(&pDSoundStrmOut->strmOut.MixBuf, pDSoundStrmOut->csPlaybackBufferSize);
 
     /* Get the current play position which is used for calculating the free space in the buffer. */
-    DWORD cbPlayPos = 0;
-
-    HRESULT hr = E_FAIL;
+    DWORD   cbPlayPos = 0;  /* MSC maybe used uninitialized */
+    HRESULT hr = E_FAIL; /* MSC maybe used uninitialized */
     for (unsigned i = 0; i < DRV_DSOUND_RESTORE_ATTEMPTS_MAX; i++)
     {
         hr = IDirectSoundBuffer8_GetCurrentPosition(pDSB, &cbPlayPos, NULL);
         if (   SUCCEEDED(hr)
             || hr != DSERR_BUFFERLOST) /** @todo: MSDN doesn't state this error for GetCurrentPosition(). */
+        {
             break;
-        LogFlowFunc(("Getting playing position failed due to lost buffer, restoring ...\n"));
-        directSoundPlayRestore(pThis, pDSB);
+        }
+        else
+        {
+            LogFlowFunc(("Getting playing position failed due to lost buffer, restoring ...\n"));
+            directSoundPlayRestore(pThis, pDSB);
+        }
     }
 
     int rc = VINF_SUCCESS;
@@ -372,18 +377,24 @@ static HRESULT directSoundPlayLock(PDRVHOSTDSOUND pThis,
     DWORD cb1 = 0;
     DWORD cb2 = 0;
 
+    HRESULT hr = E_FAIL; /* MSC maybe uninitalized  */
     for (unsigned i = 0; i < DRV_DSOUND_RESTORE_ATTEMPTS_MAX; i++)
     {
-        HRESULT hr = IDirectSoundBuffer8_Lock(pDSB, dwOffset, dwBytes, &pv1, &cb1, &pv2, &cb2, dwFlags);
-        if (SUCCEEDED(hr))
+        hr = IDirectSoundBuffer8_Lock(pDSB, dwOffset, dwBytes, &pv1, &cb1, &pv2, &cb2, dwFlags);
+        if (   SUCCEEDED(hr)
+            || hr != DSERR_BUFFERLOST)
             break;
-        if (hr != DSERR_BUFFERLOST)
+        else
         {
-            DSLOGREL(("DSound: Locking playback buffer failed with %Rhrc\n", hr));
-            return hr;
+            LogFlowFunc(("Locking failed due to lost buffer, restoring ...\n"));
+            directSoundPlayRestore(pThis, pDSB);
         }
-        LogFlowFunc(("Locking failed due to lost buffer, restoring ...\n"));
-        directSoundPlayRestore(pThis, pDSB);
+    }
+
+    if (FAILED(hr))
+    {
+        DSLOGREL(("DSound: Locking playback buffer failed with %Rhrc\n", hr));
+        return hr;
     }
 
     if (   (pv1 && (cb1 & pProps->uAlign))
@@ -751,7 +762,7 @@ static HRESULT directSoundPlayGetStatus(PDRVHOSTDSOUND pThis, LPDIRECTSOUNDBUFFE
 
     DWORD dwStatus = 0;
 
-    HRESULT hr = E_FAIL;
+    HRESULT hr = E_FAIL; /* MSC maybe used uninitialized */
     for (unsigned i = 0; i < DRV_DSOUND_RESTORE_ATTEMPTS_MAX; i++)
     {
         hr = IDirectSoundBuffer8_GetStatus(pDSB, &dwStatus);
@@ -2186,7 +2197,6 @@ static DECLCALLBACK(int) drvHostDSoundConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     PDRVHOSTDSOUND pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTDSOUND);
 
     LogRel(("Audio: Initializing DirectSound audio driver\n"));
-
 
     HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     if (FAILED(hr))

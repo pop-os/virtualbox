@@ -72,7 +72,6 @@ static int tstSingle(RTTEST hTest)
     int8_t  samples8 [2] = { 0x12, 0x34 };
     int16_t samples16[2] = { 0xAA, 0xBB };
     int32_t samples32[2] = { 0xCC, 0xDD };
-    //int64_t samples64[2] = { 0xEE, 0xFF };
 
     RTTESTI_CHECK_RC_OK(AudioMixBufWriteAt(&mb, 0, &samples8, sizeof(samples8), &written));
     RTTESTI_CHECK(written == 0 /* Samples */);
