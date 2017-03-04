@@ -1,0 +1,149 @@
+Author: Andreas Pokorny <andreas.pokorny@canonical.com>
+Description: fix unity9
+--- virtualbox-5.1.14-dfsg.orig/src/VBox/Additions/linux/drm/Makefile.module.kms
++++ virtualbox-5.1.14-dfsg/src/VBox/Additions/linux/drm/Makefile.module.kms
+@@ -32,7 +32,7 @@ ifeq ($(filter 1.% 2.% 3.0.% 3.1.% 3.2.%
+ 3.8.% 3.9.% 3.10.%,$(MY_KERNELRELEASE)),)
+ MOD_OBJS   = HGSMIBase.o HGSMICommon.o HGSMIMemAlloc.o heapoffset.o \
+              Modesetting.o vbox_drv.o vbox_fb.o vbox_irq.o vbox_main.o \
+-             vbox_mode.o vbox_ttm.o VBVABase.o
++             vbox_mode.o vbox_ttm.o vbox_prime.o VBVABase.o
+ else
+ MOD_OBJS   = vbox_dummy.o
+ endif
+--- virtualbox-5.1.14-dfsg.orig/src/VBox/Additions/linux/drm/files_vboxvideo_drv
++++ virtualbox-5.1.14-dfsg/src/VBox/Additions/linux/drm/files_vboxvideo_drv
+@@ -66,6 +66,7 @@ FILES_VBOXVIDEO_DRM_NOBIN=" \
+     ${PATH_ROOT}/src/VBox/Additions/linux/drm/vbox_main.c=>vbox_main.c \
+     ${PATH_ROOT}/src/VBox/Additions/linux/drm/vbox_mode.c=>vbox_mode.c \
+     ${PATH_ROOT}/src/VBox/Additions/linux/drm/vbox_ttm.c=>vbox_ttm.c \
++    ${PATH_ROOT}/src/VBox/Additions/linux/drm/vbox_prime.c=>vbox_prime.c \
+     ${PATH_ROOT}/src/VBox/GuestHost/HGSMI/HGSMICommon.cpp=>HGSMICommon.c \
+     ${PATH_ROOT}/src/VBox/GuestHost/HGSMI/HGSMIMemAlloc.cpp=>HGSMIMemAlloc.c \
+     ${PATH_ROOT}/src/VBox/Runtime/common/alloc/heapoffset.cpp=>heapoffset.c \
+--- virtualbox-5.1.14-dfsg.orig/src/VBox/Additions/linux/drm/vbox_drv.c
++++ virtualbox-5.1.14-dfsg/src/VBox/Additions/linux/drm/vbox_drv.c
+@@ -273,7 +273,7 @@ static void vbox_master_drop(struct drm_
+ 
+ static struct drm_driver driver =
+ {
+-    .driver_features = DRIVER_MODESET | DRIVER_GEM | DRIVER_HAVE_IRQ | DRIVER_IRQ_SHARED,
++    .driver_features = DRIVER_MODESET | DRIVER_GEM | DRIVER_HAVE_IRQ | DRIVER_IRQ_SHARED | DRIVER_PRIME,
+     .dev_priv_size = 0,
+ 
+     .load = vbox_driver_load,
+@@ -302,6 +302,17 @@ static struct drm_driver driver =
+ #else
+     .dumb_destroy = drm_gem_dumb_destroy,
+ #endif
++    .prime_handle_to_fd = drm_gem_prime_handle_to_fd,
++    .prime_fd_to_handle = drm_gem_prime_fd_to_handle,
++    .gem_prime_export = drm_gem_prime_export,
++    .gem_prime_import = drm_gem_prime_import,
++    .gem_prime_pin = vbox_gem_prime_pin,
++    .gem_prime_unpin = vbox_gem_prime_unpin,
++    .gem_prime_get_sg_table = vbox_gem_prime_get_sg_table,
++    .gem_prime_import_sg_table = vbox_gem_prime_import_sg_table,
++    .gem_prime_vmap = vbox_gem_prime_vmap,
++    .gem_prime_vunmap = vbox_gem_prime_vunmap,
++    .gem_prime_mmap = vbox_gem_prime_mmap,
+ 
+ };
+ 
+--- virtualbox-5.1.14-dfsg.orig/src/VBox/Additions/linux/drm/vbox_drv.h
++++ virtualbox-5.1.14-dfsg/src/VBox/Additions/linux/drm/vbox_drv.h
+@@ -313,6 +313,18 @@ void vbox_ttm_placement(struct vbox_bo *
+ int vbox_bo_push_sysram(struct vbox_bo *bo);
+ int vbox_mmap(struct file *filp, struct vm_area_struct *vma);
+ 
++/*vbox_prime*/
++int vbox_gem_prime_pin(struct drm_gem_object *obj);
++void vbox_gem_prime_unpin(struct drm_gem_object *obj);
++struct sg_table *vbox_gem_prime_get_sg_table(struct drm_gem_object *obj);
++struct drm_gem_object *vbox_gem_prime_import_sg_table(
++        struct drm_device *dev, struct dma_buf_attachment *attach,
++        struct sg_table *table);
++void *vbox_gem_prime_vmap(struct drm_gem_object *obj);
++void vbox_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr);
++int vbox_gem_prime_mmap(struct drm_gem_object *obj,
++        struct vm_area_struct *area);
++
+ /* vbox_irq.c */
+ int vbox_irq_init(struct vbox_private *vbox);
+ void vbox_irq_fini(struct vbox_private *vbox);
+--- /dev/null
++++ virtualbox-5.1.14-dfsg/src/VBox/Additions/linux/drm/vbox_prime.c
+@@ -0,0 +1,73 @@
++/*
++ * Copyright 2017 Canonical
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * Authors: Andreas Pokorny
++ */
++
++#include "vbox_drv.h"
++
++/* Based on qxl_prime.c:
++ * Empty Implementations as there should not be any other driver for a virtual
++ * device that might share buffers with vboxvideo */
++
++int vbox_gem_prime_pin(struct drm_gem_object *obj)
++{
++    WARN_ONCE(1, "not implemented");
++    return -ENOSYS;
++}
++
++void vbox_gem_prime_unpin(struct drm_gem_object *obj)
++{
++    WARN_ONCE(1, "not implemented");
++}
++
++
++struct sg_table *vbox_gem_prime_get_sg_table(struct drm_gem_object *obj)
++{
++    WARN_ONCE(1, "not implemented");
++    return ERR_PTR(-ENOSYS);
++}
++
++struct drm_gem_object *vbox_gem_prime_import_sg_table(
++        struct drm_device *dev, struct dma_buf_attachment *attach,
++        struct sg_table *table)
++{
++    WARN_ONCE(1, "not implemented");
++    return ERR_PTR(-ENOSYS);
++}
++
++void *vbox_gem_prime_vmap(struct drm_gem_object *obj)
++{
++    WARN_ONCE(1, "not implemented");
++    return ERR_PTR(-ENOSYS);
++}
++
++void vbox_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr)
++{
++    WARN_ONCE(1, "not implemented");
++}
++
++int vbox_gem_prime_mmap(struct drm_gem_object *obj,
++        struct vm_area_struct *area)
++{
++    WARN_ONCE(1, "not implemented");
++    return -ENOSYS;
++}
