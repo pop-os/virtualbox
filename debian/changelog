@@ -1,3 +1,10 @@
+virtualbox (5.1.14-dfsg-4) UNRELEASED; urgency=medium
+
+  [ David Baumann ]
+  * Fix desktop file (LP: #1507324)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 06 Mar 2017 15:09:23 +0100
+
 virtualbox (5.1.14-dfsg-3) unstable; urgency=medium
 
   [ Andreas Pokorny ]
