@@ -736,11 +736,21 @@ DECLINLINE(bool) pgmPoolMonitorIsForking(PPGMPOOL pPool, PDISCPUSTATE pDis, unsi
  * @param   pRegFrame   Trap register frame.
  * @param   pDis        The disassembly info for the faulting instruction.
  * @param   pvFault     The fault address.
+ * @param   pPage       The pool page being accessed.
  *
  * @remark  The REP prefix check is left to the caller because of STOSD/W.
  */
-DECLINLINE(bool) pgmPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pDis, RTGCPTR pvFault)
+DECLINLINE(bool) pgmPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pDis, RTGCPTR pvFault,
+                                        PPGMPOOLPAGE pPage)
 {
+    /* Locked (CR3, PDPTR*4) should not be reusable.  Considering them as
+       such may cause loops booting tst-ubuntu-15_10-64-efi, ++. */
+    if (pPage->cLocked)
+    {
+        Log2(("pgmRZPoolMonitorIsReused: %RGv (%p) can't have been resued, because it's locked!\n", pvFault, pPage));
+        return false;
+    }
+
 #ifndef IN_RC
     /** @todo could make this general, faulting close to rsp should be a safe reuse heuristic. */
     if (   HMHasPendingIrq(pVM)
@@ -1187,7 +1197,7 @@ DECLEXPORT(VBOXSTRICTRC) pgmPoolAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT 
     if (    (   pPage->cModifications < cMaxModifications   /** @todo \#define */ /** @todo need to check that it's not mapping EIP. */ /** @todo adjust this! */
              || pgmPoolIsPageLocked(pPage)
             )
-        &&  !(fReused = pgmPoolMonitorIsReused(pVM, pVCpu, pRegFrame, pDis, pvFault))
+        &&  !(fReused = pgmPoolMonitorIsReused(pVM, pVCpu, pRegFrame, pDis, pvFault, pPage))
         &&  !pgmPoolMonitorIsForking(pPool, pDis, GCPhysFault & PAGE_OFFSET_MASK))
     {
         /*
@@ -1288,7 +1298,7 @@ DECLEXPORT(VBOXSTRICTRC) pgmPoolAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT 
         &&  !fForcedFlush
         &&  (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT || pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_32BIT_PT)
         &&  (   fNotReusedNotForking
-             || (   !pgmPoolMonitorIsReused(pVM, pVCpu, pRegFrame, pDis, pvFault)
+             || (   !pgmPoolMonitorIsReused(pVM, pVCpu, pRegFrame, pDis, pvFault, pPage)
                  && !pgmPoolMonitorIsForking(pPool, pDis, GCPhysFault & PAGE_OFFSET_MASK))
             )
        )
@@ -5447,7 +5457,6 @@ void pgmR3PoolReset(PVM pVM)
         pPage->iModifiedPrev = NIL_PGMPOOL_IDX;
         pPage->iMonitoredNext = NIL_PGMPOOL_IDX;
         pPage->iMonitoredPrev = NIL_PGMPOOL_IDX;
-        pPage->cModifications = 0;
         pPage->GCPhys     = NIL_RTGCPHYS;
         pPage->enmKind    = PGMPOOLKIND_FREE;
         pPage->enmAccess  = PGMPOOLACCESS_DONTCARE;
@@ -5461,8 +5470,12 @@ void pgmR3PoolReset(PVM pVM)
         pPage->fCached    = false;
         pPage->fReusedFlushPending = false;
         pPage->iUserHead  = NIL_PGMPOOL_USER_INDEX;
+        pPage->cPresent = 0;
+        pPage->iFirstPresent = NIL_PGMPOOL_PRESENT_INDEX;
+        pPage->cModifications = 0;
         pPage->iAgeNext   = NIL_PGMPOOL_IDX;
         pPage->iAgePrev   = NIL_PGMPOOL_IDX;
+        pPage->idxDirtyEntry = 0;
         pPage->GCPtrLastAccessHandlerRip = NIL_RTGCPTR;
         pPage->GCPtrLastAccessHandlerFault = NIL_RTGCPTR;
         pPage->cLastAccessHandler = 0;

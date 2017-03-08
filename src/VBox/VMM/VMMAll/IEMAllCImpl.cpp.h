@@ -1330,7 +1330,7 @@ IEM_CIMPL_DEF_4(iemCImpl_BranchCallGate, uint16_t, uSel, IEMBRANCH, enmBranch, I
             }
 
             /* Only used outside of long mode. */
-            cbWords = pDesc->Legacy.Gate.u4ParmCount;
+            cbWords = pDesc->Legacy.Gate.u5ParmCount;
 
             /* If EFER.LMA is 0, there's extra work to do. */
             if (!IEM_IS_LONG_MODE(pVCpu))
@@ -2295,6 +2295,7 @@ IEM_CIMPL_DEF_2(iemCImpl_retf, IEMMODE, enmEffOpSize, uint16_t, cbPop)
             uNewOuterRsp = uPtrFrame.pu64[0];
             uNewOuterSs  = uPtrFrame.pu16[4];
         }
+        uPtrFrame.pu8 -= cbPop; /* Put uPtrFrame back the way it was. */
         rcStrict = iemMemStackPopDoneSpecial(pVCpu, uPtrFrame.pv);
         if (RT_LIKELY(rcStrict == VINF_SUCCESS))
         { /* extremely likely */ }
@@ -2421,7 +2422,6 @@ IEM_CIMPL_DEF_2(iemCImpl_retf, IEMMODE, enmEffOpSize, uint16_t, cbPop)
         }
 
         /* commit */
-        pCtx->rsp               = uNewRsp;
         if (enmEffOpSize == IEMMODE_16BIT)
             pCtx->rip           = uNewRip & UINT16_MAX; /** @todo Testcase: When exactly does this occur? With call it happens prior to the limit check according to Intel... */
         else
@@ -3003,6 +3003,7 @@ IEM_CIMPL_DEF_5(iemCImpl_iret_prot_v8086, PCPUMCTX, pCtx, uint32_t, uNewEip, uin
     RTTraceBufAddMsgF(pVCpu->CTX_SUFF(pVM)->CTX_SUFF(hTraceBuf), "iret/p/v %04x:%08x -> %04x:%04x %x %04x:%04x",
                       pCtx->cs.Sel, pCtx->eip, uNewCs, uNewEip, uNewFlags, uNewSs, uNewEsp);
 #endif
+    Log7(("iemCImpl_iret_prot_v8086: %04x:%08x -> %04x:%04x %x %04x:%04x\n", pCtx->cs.Sel, pCtx->eip, uNewCs, uNewEip, uNewFlags, uNewSs, uNewEsp));
 
     IEMMISC_SET_EFL(pVCpu, pCtx, uNewFlags);
     iemCImplCommonV8086LoadSeg(&pCtx->cs, uNewCs);
@@ -3141,7 +3142,7 @@ IEM_CIMPL_DEF_1(iemCImpl_iret_prot, IEMMODE, enmEffOpSize)
     { /* extremely likely */ }
     else
         return rcStrict;
-    Log7(("iemCImpl_iret_prot: uNewCs=%#06x uNewEip=%#010x uNewFlags=%#x uNewRsp=%#18llx\n", uNewCs, uNewEip, uNewFlags, uNewRsp));
+    Log7(("iemCImpl_iret_prot: uNewCs=%#06x uNewEip=%#010x uNewFlags=%#x uNewRsp=%#18llx uCpl=%u\n", uNewCs, uNewEip, uNewFlags, uNewRsp, pVCpu->iem.s.uCpl));
 
     /*
      * We're hopefully not returning to V8086 mode...

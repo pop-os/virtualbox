@@ -390,14 +390,23 @@ void UIMiniToolBarPrivate::rebuildShape()
 }
 
 /* static */
-Qt::WindowFlags UIMiniToolBar::defaultWindowFlags()
+Qt::WindowFlags UIMiniToolBar::defaultWindowFlags(GeometryType geometryType)
 {
+    /* Not everywhere: */
+    Q_UNUSED(geometryType);
+
 #ifdef VBOX_WS_X11
     /* Depending on current WM: */
     switch (vboxGlobal().typeOfWindowManager())
     {
-        /* Frameless top-level window for Unity, issues with tool window there.. */
-        case X11WMType_Compiz: return Qt::Window | Qt::FramelessWindowHint;
+        // WORKAROUND:
+        // Frameless top-level window for Unity(Compiz) full-screen mode,
+        // otherwise we have Unity panel and menu-bar visible in full-screen mode.
+        // Frameless top-level tool-window for Unity(Compiz) seamless mode,
+        // otherwise we have Unity panel and menu-bar hidden in seamless mode.
+        case X11WMType_Compiz: return geometryType == GeometryType_Full ?
+                                      Qt::Window | Qt::FramelessWindowHint :
+                                      Qt::Tool | Qt::FramelessWindowHint;
         default: break;
     }
 #endif /* VBOX_WS_X11 */
@@ -410,7 +419,7 @@ UIMiniToolBar::UIMiniToolBar(QWidget *pParent,
                              GeometryType geometryType,
                              Qt::Alignment alignment,
                              bool fAutoHide /* = true */)
-    : QWidget(pParent, defaultWindowFlags())
+    : QWidget(pParent, defaultWindowFlags(geometryType))
     /* Variables: General stuff: */
     , m_geometryType(geometryType)
     , m_alignment(alignment)
@@ -790,6 +799,12 @@ void UIMiniToolBar::prepare()
 
     /* Adjust geometry first time: */
     adjustGeometry();
+
+#ifdef VBOX_WS_X11
+    /* Hide mini-toolbar from taskbar and pager: */
+    vboxGlobal().setSkipTaskBarFlag(this);
+    vboxGlobal().setSkipPagerFlag(this);
+#endif
 }
 
 void UIMiniToolBar::cleanup()
@@ -822,6 +837,19 @@ void UIMiniToolBar::enterEvent(QEvent*)
 
 void UIMiniToolBar::leaveEvent(QEvent*)
 {
+    // WORKAROUND:
+    // No idea why, but GUI receives mouse leave event
+    // when the mouse cursor is on the border of screen
+    // even if underlying widget is on the border of
+    // screen as well, we should detect and ignore that.
+    // Besides that, this is a good way to keep the
+    // tool-bar visible when the mouse moving through
+    // the desktop strut till the real screen border.
+    const QPoint cursorPosition = QCursor::pos();
+    if (   cursorPosition.y() <= y() + 1
+        || cursorPosition.y() >= y() + height() - 1)
+        return;
+
     /* Stop the hover-enter timer if necessary: */
     if (m_pHoverEnterTimer && m_pHoverEnterTimer->isActive())
         m_pHoverEnterTimer->stop();

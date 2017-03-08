@@ -997,14 +997,14 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                  * This does not change anything really as the access to the device is not going
                  * through the bridge but we want to be compliant to the spec.
                  */
-                if ((pGlobals->pci_bios_io_addr % 4096) != 0)
-                    pGlobals->pci_bios_io_addr = RT_ALIGN_32(pGlobals->pci_bios_io_addr, 4*1024);
+                if ((pGlobals->pci_bios_io_addr % _4K) != 0)
+                    pGlobals->pci_bios_io_addr = RT_ALIGN_32(pGlobals->pci_bios_io_addr, _4K);
                 Log(("%s: Aligned I/O start address. New address %#x\n", __FUNCTION__, pGlobals->pci_bios_io_addr));
                 pci_config_writeb(pGlobals, uBus, uDevFn, VBOX_PCI_IO_BASE, (pGlobals->pci_bios_io_addr >> 8) & 0xf0);
 
                 /* The MMIO range for the bridge must be aligned to a 1MB boundary. */
-                if ((pGlobals->pci_bios_mem_addr % (1024 * 1024)) != 0)
-                    pGlobals->pci_bios_mem_addr = RT_ALIGN_32(pGlobals->pci_bios_mem_addr, 1024*1024);
+                if ((pGlobals->pci_bios_mem_addr % _1M) != 0)
+                    pGlobals->pci_bios_mem_addr = RT_ALIGN_32(pGlobals->pci_bios_mem_addr, _1M);
                 Log(("%s: Aligned MMIO start address. New address %#x\n", __FUNCTION__, pGlobals->pci_bios_mem_addr));
                 pci_config_writew(pGlobals, uBus, uDevFn, VBOX_PCI_MEMORY_BASE, (pGlobals->pci_bios_mem_addr >> 16) & UINT32_C(0xffff0));
 
@@ -1025,18 +1025,18 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                  * The result with a real bridge is that no I/O transactions are passed to the secondary
                  * interface. Again this doesn't really matter here but we want to be compliant to the spec.
                  */
-                if ((u32IoAddressBase != pGlobals->pci_bios_io_addr) && ((pGlobals->pci_bios_io_addr % 4096) != 0))
+                if ((u32IoAddressBase != pGlobals->pci_bios_io_addr) && ((pGlobals->pci_bios_io_addr % _4K) != 0))
                 {
                     /* The upper boundary must be one byte less than a 4KB boundary. */
-                    pGlobals->pci_bios_io_addr = RT_ALIGN_32(pGlobals->pci_bios_io_addr, 4*1024);
+                    pGlobals->pci_bios_io_addr = RT_ALIGN_32(pGlobals->pci_bios_io_addr, _4K);
                 }
                 pci_config_writeb(pGlobals, uBus, uDevFn, VBOX_PCI_IO_LIMIT, ((pGlobals->pci_bios_io_addr >> 8) & 0xf0) - 1);
 
                 /* Same with the MMIO limit register but with 1MB boundary here. */
-                if ((u32MMIOAddressBase != pGlobals->pci_bios_mem_addr) && ((pGlobals->pci_bios_mem_addr % (1024 * 1024)) != 0))
+                if ((u32MMIOAddressBase != pGlobals->pci_bios_mem_addr) && ((pGlobals->pci_bios_mem_addr % _1M) != 0))
                 {
                     /* The upper boundary must be one byte less than a 1MB boundary. */
-                    pGlobals->pci_bios_mem_addr = RT_ALIGN_32(pGlobals->pci_bios_mem_addr, 1024*1024);
+                    pGlobals->pci_bios_mem_addr = RT_ALIGN_32(pGlobals->pci_bios_mem_addr, _1M);
                 }
                 pci_config_writew(pGlobals, uBus, uDevFn, VBOX_PCI_MEMORY_LIMIT, ((pGlobals->pci_bios_mem_addr >> 16) & UINT32_C(0xfff0)) - 1);
 

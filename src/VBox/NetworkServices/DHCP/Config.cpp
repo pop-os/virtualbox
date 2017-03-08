@@ -340,6 +340,7 @@ int
 ConfigurationManager::findOption(uint8_t uOption, PCRTNETBOOTP pDhcpMsg, size_t cbDhcpMsg, RawOption& opt)
 {
     Assert(uOption != RTNET_DHCP_OPT_PAD);
+    Assert(uOption != RTNET_DHCP_OPT_END);
 
     /*
      * Validate the DHCP bits and figure the max size of the options in the vendor field.
@@ -366,6 +367,8 @@ ConfigurationManager::findOption(uint8_t uOption, PCRTNETBOOTP pDhcpMsg, size_t 
             cbLeft--;
             pb++;
         }
+        else if (uCur == RTNET_DHCP_OPT_END)
+            break;
         else if (cbLeft <= 1)
             break;
         else
@@ -381,7 +384,7 @@ ConfigurationManager::findOption(uint8_t uOption, PCRTNETBOOTP pDhcpMsg, size_t 
                 return VINF_SUCCESS;
             }
             pb     += cbCur + 2;
-            cbLeft -= cbCur - 2;
+            cbLeft -= cbCur + 2;
         }
     }
 

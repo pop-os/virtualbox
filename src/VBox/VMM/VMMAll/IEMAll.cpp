@@ -921,6 +921,7 @@ DECLINLINE(void) iemUninitExec(PVMCPU pVCpu)
 #endif
 #ifdef VBOX_STRICT
 # ifdef IEM_WITH_CODE_TLB
+    NOREF(pVCpu);
 # else
     pVCpu->iem.s.cbOpcode = 0;
 # endif
@@ -1476,9 +1477,6 @@ IEM_STATIC void iemOpcodeFetchBytesJmp(PVMCPU pVCpu, size_t cbDst, void *pvDst)
 {
 #ifdef IN_RING3
 //__debugbreak();
-#else
-    longjmp(*CTX_SUFF(pVCpu->iem.s.pJmpBuf), VERR_INTERNAL_ERROR);
-#endif
     for (;;)
     {
         Assert(cbDst <= 8);
@@ -1746,6 +1744,10 @@ IEM_STATIC void iemOpcodeFetchBytesJmp(PVMCPU pVCpu, size_t cbDst, void *pvDst)
         cbDst -= cbMaxRead;
         pvDst  = (uint8_t *)pvDst + cbMaxRead;
     }
+#else
+    RT_NOREF(pvDst, cbDst);
+    longjmp(*CTX_SUFF(pVCpu->iem.s.pJmpBuf), VERR_INTERNAL_ERROR);
+#endif
 }
 
 #else
@@ -4342,7 +4344,7 @@ iemRaiseXcptOrIntInProtMode(PVMCPU      pVCpu,
         return rcStrict;
     Log(("iemRaiseXcptOrIntInProtMode: vec=%#x P=%u DPL=%u DT=%u:%u A=%u %04x:%04x%04x\n",
          u8Vector, Idte.Gate.u1Present, Idte.Gate.u2Dpl, Idte.Gate.u1DescType, Idte.Gate.u4Type,
-         Idte.Gate.u4ParmCount, Idte.Gate.u16Sel, Idte.Gate.u16OffsetHigh, Idte.Gate.u16OffsetLow));
+         Idte.Gate.u5ParmCount, Idte.Gate.u16Sel, Idte.Gate.u16OffsetHigh, Idte.Gate.u16OffsetLow));
 
     /*
      * Check the descriptor type, DPL and such.
@@ -4552,6 +4554,15 @@ iemRaiseXcptOrIntInProtMode(PVMCPU      pVCpu,
         if (rcStrict != VINF_SUCCESS)
             return rcStrict;
 
+        /* If the new SS is 16-bit, we are only going to use SP, not ESP. */
+        if (!DescSS.Legacy.Gen.u1DefBig)
+        {
+            Log(("iemRaiseXcptOrIntInProtMode: Forcing ESP=%#x to 16 bits\n", uNewEsp));
+            uNewEsp = (uint16_t)uNewEsp;
+        }
+
+        Log7(("iemRaiseXcptOrIntInProtMode: New SS=%#x ESP=%#x (from TSS); current SS=%#x ESP=%#x\n", NewSS, uNewEsp, pCtx->ss.Sel, pCtx->esp));
+
         /* Check that there is sufficient space for the stack frame. */
         uint32_t cbLimitSS = X86DESC_LIMIT_G(&DescSS.Legacy);
         uint8_t const cbStackFrame = !(fEfl & X86_EFL_VM)
@@ -4570,7 +4581,7 @@ iemRaiseXcptOrIntInProtMode(PVMCPU      pVCpu,
         }
         else
         {
-            if (   uNewEsp - 1 > (DescSS.Legacy.Gen.u4Type & X86_DESC_DB ? UINT32_MAX : UINT32_C(0xffff))
+            if (   uNewEsp - 1 > (DescSS.Legacy.Gen.u1DefBig ? UINT32_MAX : UINT16_MAX)
                 || uNewEsp - cbStackFrame < cbLimitSS + UINT32_C(1))
             {
                 Log(("RaiseXcptOrIntInProtMode: %#x - SS=%#x ESP=%#x cbStackFrame=%#x (expand down) is out of bounds -> #GP\n",
@@ -5240,14 +5251,6 @@ DECL_NO_INLINE(IEM_STATIC, VBOXSTRICTRC) iemRaiseTaskSwitchFaultBySelector(PVMCP
 DECL_NO_INLINE(IEM_STATIC, VBOXSTRICTRC) iemRaiseSelectorNotPresentWithErr(PVMCPU pVCpu, uint16_t uErr)
 {
     return iemRaiseXcptOrInt(pVCpu, 0, X86_XCPT_NP, IEM_XCPT_FLAGS_T_CPU_XCPT | IEM_XCPT_FLAGS_ERR, uErr, 0);
-}
-
-
-/** \#NP(seg) - 0b.  */
-DECL_NO_INLINE(IEM_STATIC, VBOXSTRICTRC) iemRaiseSelectorNotPresentBySegReg(PVMCPU pVCpu, uint32_t iSegReg)
-{
-    return iemRaiseXcptOrInt(pVCpu, 0, X86_XCPT_NP, IEM_XCPT_FLAGS_T_CPU_XCPT | IEM_XCPT_FLAGS_ERR,
-                             iemSRegFetchU16(pVCpu, iSegReg) & ~X86_SEL_RPL, 0);
 }
 
 
@@ -7406,7 +7409,12 @@ iemMemSegCheckWriteAccessEx(PVMCPU pVCpu, PCCPUMSELREGHID pHid, uint8_t iSegReg,
     else
     {
         if (!pHid->Attr.n.u1Present)
-            return iemRaiseSelectorNotPresentBySegReg(pVCpu, iSegReg);
+        {
+            uint16_t    uSel = iemSRegFetchU16(pVCpu, iSegReg);
+            AssertRelease(uSel == 0);
+            Log(("iemMemSegCheckWriteAccessEx: %#x (index %u) - bad selector -> #GP\n", uSel, iSegReg));
+            return iemRaiseGeneralProtectionFault0(pVCpu);
+        }
 
         if (   (   (pHid->Attr.n.u4Type & X86_SEL_TYPE_CODE)
                 || !(pHid->Attr.n.u4Type & X86_SEL_TYPE_WRITE) )
@@ -7439,7 +7447,12 @@ iemMemSegCheckReadAccessEx(PVMCPU pVCpu, PCCPUMSELREGHID pHid, uint8_t iSegReg, 
     else
     {
         if (!pHid->Attr.n.u1Present)
-            return iemRaiseSelectorNotPresentBySegReg(pVCpu, iSegReg);
+        {
+            uint16_t    uSel = iemSRegFetchU16(pVCpu, iSegReg);
+            AssertRelease(uSel == 0);
+            Log(("iemMemSegCheckReadAccessEx: %#x (index %u) - bad selector -> #GP\n", uSel, iSegReg));
+            return iemRaiseGeneralProtectionFault0(pVCpu);
+        }
 
         if ((pHid->Attr.n.u4Type & (X86_SEL_TYPE_CODE | X86_SEL_TYPE_READ)) == X86_SEL_TYPE_CODE)
             return iemRaiseSelectorInvalidAccess(pVCpu, iSegReg, IEM_ACCESS_DATA_R);
@@ -7595,7 +7608,8 @@ iemMemPageTranslateAndCheckAccess(PVMCPU pVCpu, RTGCPTR GCPtrMem, uint32_t fAcce
         /* Write to read only memory? */
         if (   (fAccess & IEM_ACCESS_TYPE_WRITE)
             && !(fFlags & X86_PTE_RW)
-            && (   pVCpu->iem.s.uCpl != 0
+            && (       (pVCpu->iem.s.uCpl == 3
+                    && !(fAccess & IEM_ACCESS_WHAT_SYS))
                 || (IEM_GET_CTX(pVCpu)->cr0 & X86_CR0_WP)))
         {
             Log(("iemMemPageTranslateAndCheckAccess: GCPtrMem=%RGv - read-only page -> #PF\n", GCPtrMem));
@@ -10249,7 +10263,21 @@ iemMemFetchSelDescWithErr(PVMCPU pVCpu, PIEMSELDESC pDesc, uint16_t uSel, uint8_
      * Read the legacy descriptor and maybe the long mode extensions if
      * required.
      */
-    VBOXSTRICTRC rcStrict = iemMemFetchSysU64(pVCpu, &pDesc->Legacy.u, UINT8_MAX, GCPtrBase + (uSel & X86_SEL_MASK));
+    VBOXSTRICTRC rcStrict;
+    if (IEM_GET_TARGET_CPU(pVCpu) > IEMTARGETCPU_286)
+        rcStrict = iemMemFetchSysU64(pVCpu, &pDesc->Legacy.u, UINT8_MAX, GCPtrBase + (uSel & X86_SEL_MASK));
+    else
+    {
+        rcStrict = iemMemFetchSysU16(pVCpu, &pDesc->Legacy.au16[0], UINT8_MAX, GCPtrBase + (uSel & X86_SEL_MASK) + 0);
+        if (rcStrict != VINF_SUCCESS)
+            return rcStrict;
+        rcStrict = iemMemFetchSysU16(pVCpu, &pDesc->Legacy.au16[1], UINT8_MAX, GCPtrBase + (uSel & X86_SEL_MASK) + 2);
+        if (rcStrict != VINF_SUCCESS)
+            return rcStrict;
+        rcStrict = iemMemFetchSysU16(pVCpu, &pDesc->Legacy.au16[2], UINT8_MAX, GCPtrBase + (uSel & X86_SEL_MASK) + 4);
+        pDesc->Legacy.au16[3] = 0;
+    }
+
     if (rcStrict == VINF_SUCCESS)
     {
         if (   !IEM_IS_LONG_MODE(pVCpu)
@@ -10400,6 +10428,11 @@ IEM_STATIC VBOXSTRICTRC iemMemMarkSelDescAccessed(PVMCPU pVCpu, uint16_t uSel)
 #define IEM_MC_MAYBE_RAISE_DEVICE_NOT_AVAILABLE()       \
     do { \
         if ((pVCpu)->iem.s.CTX_SUFF(pCtx)->cr0 & (X86_CR0_EM | X86_CR0_TS)) \
+            return iemRaiseDeviceNotAvailable(pVCpu); \
+    } while (0)
+#define IEM_MC_MAYBE_RAISE_WAIT_DEVICE_NOT_AVAILABLE()  \
+    do { \
+        if (((pVCpu)->iem.s.CTX_SUFF(pCtx)->cr0 & (X86_CR0_MP | X86_CR0_TS)) == (X86_CR0_MP | X86_CR0_TS)) \
             return iemRaiseDeviceNotAvailable(pVCpu); \
     } while (0)
 #define IEM_MC_MAYBE_RAISE_FPU_XCPT() \
@@ -14092,7 +14125,8 @@ VMMDECL(VBOXSTRICTRC) IEMExecLots(PVMCPU pVCpu, uint32_t *pcInstructions)
                                                                 | VMCPU_FF_SELM_SYNC_LDT
 # endif
                                                                 | VMCPU_FF_INHIBIT_INTERRUPTS
-                                                                | VMCPU_FF_BLOCK_NMIS ));
+                                                                | VMCPU_FF_BLOCK_NMIS
+                                                                | VMCPU_FF_UNHALT ));
 
                         if (RT_LIKELY(   (   !fCpu
                                           || (   !(fCpu & ~(VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))

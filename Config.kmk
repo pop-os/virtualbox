@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 1
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 14
+VBOX_VERSION_BUILD = 16
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -234,9 +234,6 @@ ifneq ($(VBOX_RELEASE_EXACT_MATCH),)
  export VBOX_EFI_SH_MODE           = release
  export VBOX_EXTPACKS_SH_MODE      = release
 endif
-
-# by default use the old 5.0 audio code as the new code still has too many regressions
-VBOX_WITH_AUDIO_50 := 1
 
 # Some info on the vendor
 VBOX_VENDOR       = Oracle Corporation
@@ -1166,18 +1163,6 @@ ifdef VBOX_OSE
  VBOX_BRAND_GUI_VBOX_64PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_64px.png
  VBOX_BRAND_GUI_CUBE_42PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_cube_42px.png
  VBOX_BRAND_GUI_VBOX_SVG             := $(PATH_ROOT)/src/VBox/Artwork/OSE/virtualbox.svg
-endif
-
-#
-# Audio: Which code base to use.
-# This can be overriden in LocalConfig.kmk.
-#
-ifdef VBOX_WITH_AUDIO_50
- VBOX_AUDIO_PATH_SOURCES=Audio_50
- VBOX_AUDIO_FILE_SUFFIX=_50
-else
- VBOX_AUDIO_PATH_SOURCES=Audio
- VBOX_AUDIO_FILE_SUFFIX=
 endif
 
 #
@@ -2339,6 +2324,12 @@ VBOX_PATH_X11_ROOT      = $(PATH_ROOT)/src/VBox/Additions/x11/x11include
 VBOX_PATH_X11_XFREE_4_3 = $(VBOX_PATH_X11_ROOT)/4.3
 VBOX_PATH_X11_XORG_7_0  = $(VBOX_PATH_X11_ROOT)/7.0
 VBOX_PATH_X11_XORG_7_1  = $(VBOX_PATH_X11_ROOT)/7.1
+
+
+#
+# Miscellaneous includes
+#
+VBOX_JPEG_INCS     = $(PATH_ROOT)/src/libs/jpeg-9b
 
 
 #
@@ -3641,7 +3632,7 @@ VBOXLNX32GUEST_SUFF_LIB = .a
 # SDKs for external libraries.
 #
 SDK_VBOX_LIBXML2          = .
-SDK_VBOX_LIBXML2_INCS   ?= $(PATH_ROOT)/src/libs/libxml2-2.9.2/include
+SDK_VBOX_LIBXML2_INCS   ?= $(PATH_ROOT)/src/libs/libxml2-2.9.4/include
 SDK_VBOX_LIBXML2_DEFS  ?= _REENTRANT
 SDK_VBOX_LIBXML2_DEFS.win += WIN32 _WINDOWS _MBCS
 # note: no linking to LIB here, we do that explicitly in src/VBox/Runtime/Makefile.kmk to link
@@ -6955,7 +6946,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 112924 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 113841 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

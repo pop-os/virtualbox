@@ -2587,7 +2587,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
         if (!description.isEmpty())
         {
             if (details == VMINFO_MACHINEREADABLE)
-                RTPrintf("description=\"%ls\"\n", description.raw());
+                outputMachineReadableString("description", &description);
             else
                 RTPrintf("Description:\n%ls\n", description.raw());
         }

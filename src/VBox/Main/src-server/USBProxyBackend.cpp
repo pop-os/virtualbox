@@ -65,8 +65,11 @@ void USBProxyBackend::FinalRelease()
 /**
  * Stub needed as long as the class isn't virtual
  */
-int USBProxyBackend::init(USBProxyService *pUsbProxyService, const com::Utf8Str &strId, const com::Utf8Str &strAddress)
+int USBProxyBackend::init(USBProxyService *pUsbProxyService, const com::Utf8Str &strId,
+                          const com::Utf8Str &strAddress, bool fLoadingSettings)
 {
+    RT_NOREF1(fLoadingSettings);
+
     m_pUsbProxyService    = pUsbProxyService;
     mThread               = NIL_RTTHREAD;
     mTerminate            = false;
@@ -524,19 +527,19 @@ USBProxyBackend::initFilterFromDevice(PUSBFILTER aFilter, HostUSBDevice *aDevice
     if (pDev->pszSerialNumber)
     {
         vrc = USBFilterSetStringExact(aFilter, USBFILTERIDX_SERIAL_NUMBER_STR, pDev->pszSerialNumber,
-                                      true /*fMustBePresent*/, false /*fPurge*/);
+                                      true /*fMustBePresent*/, true /*fPurge*/);
         AssertRC(vrc);
     }
     if (pDev->pszProduct)
     {
         vrc = USBFilterSetStringExact(aFilter, USBFILTERIDX_PRODUCT_STR, pDev->pszProduct,
-                                      true /*fMustBePresent*/, false /*fPurge*/);
+                                      true /*fMustBePresent*/, true /*fPurge*/);
         AssertRC(vrc);
     }
     if (pDev->pszManufacturer)
     {
         vrc = USBFilterSetStringExact(aFilter, USBFILTERIDX_MANUFACTURER_STR, pDev->pszManufacturer,
-                                      true /*fMustBePresent*/, false /*fPurge*/);
+                                      true /*fMustBePresent*/, true /*fPurge*/);
         AssertRC(vrc);
     }
 }

@@ -235,6 +235,8 @@ struct Appliance::Data
 struct Appliance::XMLStack
 {
     std::map<Utf8Str, const VirtualSystemDescriptionEntry*> mapDisks;
+    std::list<Utf8Str> mapDiskSequence;
+    std::list<Utf8Str> mapDiskSequenceForOneVM;//temporary keeps all disks attached to one exported VM
     std::map<Utf8Str, bool> mapNetworks;
 };
 

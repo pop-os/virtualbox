@@ -2488,6 +2488,10 @@
         <source>Downloading %1...</source>
         <translation>S&apos;està baixant %1...</translation>
     </message>
+    <message>
+        <source>Verifying %1...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIDownloaderAdditions</name>
@@ -10053,11 +10057,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Could not change the guest screen to this host screen due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;No s&apos;ha pogut canviar la pantalla del client a este patalla de l&apos;amfitrió perquè no hi ha memòria de vídeo suficient.&lt;/p&gt;&lt;p&gt;Haureu de configurar la màquina virtual per tal que tinga un mínim de &lt;b&gt;%1&lt;/b&gt; de memòria de vídeo.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;No s&apos;ha pogut canviar la pantalla del client a este pantalla de l&apos;amfitrió perquè no hi ha memòria de vídeo suficient.&lt;/p&gt;&lt;p&gt;Haureu de configurar la màquina virtual per tal que tinga un mínim de &lt;b&gt;%1&lt;/b&gt; de memòria de vídeo.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not change the guest screen to this host screen due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch the screen anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;No s&apos;ha pogut canviar la pantalla del client a este patalla de l&apos;amfitrió perquè no hi ha memòria de vídeo suficient.&lt;/p&gt;&lt;p&gt;Haureu de configurar la màquina virtual per tal que tinga almenys &lt;b&gt;%1&lt;/b&gt; de memòria de vídeo.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;Ignora&lt;/b&gt; per canviar la pantalla de totes maneres o premeu &lt;b&gt;Cancel·la&lt;/b&gt; per cancel·lar l&apos;operació.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;No s&apos;ha pogut canviar la pantalla del client a este pantalla de l&apos;amfitrió perquè no hi ha memòria de vídeo suficient.&lt;/p&gt;&lt;p&gt;Haureu de configurar la màquina virtual per tal que tinga almenys &lt;b&gt;%1&lt;/b&gt; de memòria de vídeo.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;Ignora&lt;/b&gt; per canviar la pantalla de totes maneres o premeu &lt;b&gt;Cancel·la&lt;/b&gt; per cancel·lar l&apos;operació.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Can not switch the guest display to fullscreen mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
@@ -10917,6 +10921,14 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The reason for this error are most likely wrong permissions of the IPC daemon socket due to an installation problem. Please check the permissions of &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; and &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -13743,14 +13755,6 @@ pas i connectar discos durs més avant, fent servir el diàleg de configuració 
     </message>
     <message>
         <source>Choose a virtual hard disk file...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;&lt;nobr&gt;Holds the name or full path to the virtual machine folder you are about to create.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;&lt;nobr&gt;You are about to create the virtual machine in the following folder:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

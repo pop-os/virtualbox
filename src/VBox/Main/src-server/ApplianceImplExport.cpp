@@ -347,7 +347,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                 if (FAILED(rc)) throw rc;
 
                 Utf8Str strName = Utf8Str(locInfo.strPath).stripPath().stripSuffix();
-                strTargetImageName = Utf8StrFmt("%s-disk%d.vmdk", strName.c_str(), ++pAppliance->m->cDisks);
+                strTargetImageName = Utf8StrFmt("%s-disk%.3d.vmdk", strName.c_str(), ++pAppliance->m->cDisks);
                 if (strTargetImageName.length() > RTTAR_NAME_MAX)
                     throw setError(VBOX_E_NOT_SUPPORTED,
                                 tr("Cannot attach disk '%s' -- file name too long"), strTargetImageName.c_str());
@@ -439,7 +439,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                     continue;
 
                 Utf8Str strName = Utf8Str(locInfo.strPath).stripPath().stripSuffix();
-                strTargetImageName = Utf8StrFmt("%s-disk%d.iso", strName.c_str(), ++pAppliance->m->cDisks);
+                strTargetImageName = Utf8StrFmt("%s-disk%.3d.iso", strName.c_str(), ++pAppliance->m->cDisks);
                 if (strTargetImageName.length() > RTTAR_NAME_MAX)
                     throw setError(VBOX_E_NOT_SUPPORTED,
                                 tr("Cannot attach image '%s' -- file name too long"), strTargetImageName.c_str());
@@ -902,7 +902,7 @@ void Appliance::i_buildXML(AutoWriteLockBase& writeLock,
     // this list receives pointers to the XML elements in the machine XML which
     // might have UUIDs that need fixing after we know the UUIDs of the exported images
     std::list<xml::ElementNode*> llElementsWithUuidAttributes;
-
+    uint32_t ulFile = 1;
     list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
     /* Iterate through all virtual systems of that appliance */
     for (it = m->virtualSystemDescriptions.begin();
@@ -916,6 +916,144 @@ void Appliance::i_buildXML(AutoWriteLockBase& writeLock,
                                       vsdescThis,
                                       enFormat,
                                       stack);         // disks and networks stack
+
+        list<Utf8Str> diskList;
+        list<Utf8Str>::const_iterator itS;
+
+        for (itS = stack.mapDiskSequenceForOneVM.begin();
+             itS != stack.mapDiskSequenceForOneVM.end();
+             ++itS)
+        {
+            const Utf8Str &strDiskID = *itS;
+            const VirtualSystemDescriptionEntry *pDiskEntry = stack.mapDisks[strDiskID];
+
+            // source path: where the VBox image is
+            const Utf8Str &strSrcFilePath = pDiskEntry->strVBoxCurrent;
+            Bstr bstrSrcFilePath(strSrcFilePath);
+
+            //skip empty Medium. There are no information to add into section <References> or <DiskSection>
+            if (strSrcFilePath.isEmpty() ||
+                pDiskEntry->skipIt == true)
+                continue;
+
+            // Do NOT check here whether the file exists. FindMedium will figure
+            // that out, and filesystem-based tests are simply wrong in the
+            // general case (think of iSCSI).
+
+            // We need some info from the source disks
+            ComPtr<IMedium> pSourceDisk;
+            //DeviceType_T deviceType = DeviceType_HardDisk;// by default
+
+            Log(("Finding source disk \"%ls\"\n", bstrSrcFilePath.raw()));
+
+            HRESULT rc;
+
+            if (pDiskEntry->type == VirtualSystemDescriptionType_HardDiskImage)
+            {
+                rc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(),
+                                             DeviceType_HardDisk,
+                                             AccessMode_ReadWrite,
+                                             FALSE /* fForceNewUuid */,
+                                             pSourceDisk.asOutParam());
+                if (FAILED(rc))
+                    throw rc;
+            }
+            else if (pDiskEntry->type == VirtualSystemDescriptionType_CDROM)//may be, this is CD/DVD
+            {
+                rc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(),
+                                             DeviceType_DVD,
+                                             AccessMode_ReadOnly,
+                                             FALSE,
+                                             pSourceDisk.asOutParam());
+                if (FAILED(rc))
+                    throw rc;
+            }
+
+            Bstr uuidSource;
+            rc = pSourceDisk->COMGETTER(Id)(uuidSource.asOutParam());
+            if (FAILED(rc)) throw rc;
+            Guid guidSource(uuidSource);
+
+            // output filename
+            const Utf8Str &strTargetFileNameOnly = pDiskEntry->strOvf;
+            // target path needs to be composed from where the output OVF is
+            Utf8Str strTargetFilePath(strPath);
+            strTargetFilePath.stripFilename();
+            strTargetFilePath.append("/");
+            strTargetFilePath.append(strTargetFileNameOnly);
+
+            // We are always exporting to VMDK stream optimized for now
+            //Bstr bstrSrcFormat = L"VMDK";//not used
+
+            diskList.push_back(strTargetFilePath);
+
+            LONG64 cbCapacity = 0;     // size reported to guest
+            rc = pSourceDisk->COMGETTER(LogicalSize)(&cbCapacity);
+            if (FAILED(rc)) throw rc;
+            /// @todo r=poetzsch: wrong it is reported in bytes ...
+            // capacity is reported in megabytes, so...
+            //cbCapacity *= _1M;
+
+            Guid guidTarget; /* Creates a new uniq number for the target disk. */
+            guidTarget.create();
+
+            // now handle the XML for the disk:
+            Utf8StrFmt strFileRef("file%RI32", ulFile++);
+            // <File ovf:href="WindowsXpProfessional-disk1.vmdk" ovf:id="file1" ovf:size="1710381056"/>
+            xml::ElementNode *pelmFile = pelmReferences->createChild("File");
+            pelmFile->setAttribute("ovf:id", strFileRef);
+            pelmFile->setAttribute("ovf:href", strTargetFileNameOnly);
+            /// @todo the actual size is not available at this point of time,
+            // cause the disk will be compressed. The 1.0 standard says this is
+            // optional! 1.1 isn't fully clear if the "gzip" format is used.
+            // Need to be checked. */
+            //            pelmFile->setAttribute("ovf:size", Utf8StrFmt("%RI64", cbFile).c_str());
+
+            // add disk to XML Disks section
+            // <Disk ovf:capacity="8589934592" ovf:diskId="vmdisk1" ovf:fileRef="file1" ovf:format="..."/>
+            xml::ElementNode *pelmDisk = pelmDiskSection->createChild("Disk");
+            pelmDisk->setAttribute("ovf:capacity", Utf8StrFmt("%RI64", cbCapacity).c_str());
+            pelmDisk->setAttribute("ovf:diskId", strDiskID);
+            pelmDisk->setAttribute("ovf:fileRef", strFileRef);
+
+            if (pDiskEntry->type == VirtualSystemDescriptionType_HardDiskImage)//deviceType == DeviceType_HardDisk
+            {
+                pelmDisk->setAttribute("ovf:format",
+                                       (enFormat == ovf::OVFVersion_0_9)
+                                       ?  "http://www.vmware.com/specifications/vmdk.html#sparse"      // must be sparse or ovftoo
+                                       :  "http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"
+                                       // correct string as communicated to us by VMware (public bug #6612)
+                                      );
+            }
+            else //pDiskEntry->type == VirtualSystemDescriptionType_CDROM, deviceType == DeviceType_DVD
+            {
+                pelmDisk->setAttribute("ovf:format",
+                                       "http://www.ecma-international.org/publications/standards/Ecma-119.htm"
+                                      );
+            }
+
+            // add the UUID of the newly target image to the OVF disk element, but in the
+            // vbox: namespace since it's not part of the standard
+            pelmDisk->setAttribute("vbox:uuid", Utf8StrFmt("%RTuuid", guidTarget.raw()).c_str());
+
+            // now, we might have other XML elements from vbox:Machine pointing to this image,
+            // but those would refer to the UUID of the _source_ image (which we created the
+            // export image from); those UUIDs need to be fixed to the export image
+            Utf8Str strGuidSourceCurly = guidSource.toStringCurly();
+            for (std::list<xml::ElementNode*>::iterator eit = llElementsWithUuidAttributes.begin();
+                 eit != llElementsWithUuidAttributes.end();
+                 ++eit)
+            {
+                xml::ElementNode *pelmImage = *eit;
+                Utf8Str strUUID;
+                pelmImage->getAttributeValue("uuid", strUUID);
+                if (strUUID == strGuidSourceCurly)
+                    // overwrite existing uuid attribute
+                    pelmImage->setAttribute("uuid", guidTarget.toStringCurly());
+            }
+        }
+        llElementsWithUuidAttributes.clear();
+        stack.mapDiskSequenceForOneVM.clear();
     }
 
     // now, fill in the network section we set up empty above according
@@ -931,142 +1069,6 @@ void Appliance::i_buildXML(AutoWriteLockBase& writeLock,
         pelmNetwork->createChild("Description")->addContent("Logical network used by this appliance.");
     }
 
-    // Finally, write out the disk info
-    list<Utf8Str> diskList;
-    map<Utf8Str, const VirtualSystemDescriptionEntry*>::const_iterator itS;
-    uint32_t ulFile = 1;
-    for (itS = stack.mapDisks.begin();
-         itS != stack.mapDisks.end();
-         ++itS)
-    {
-        const Utf8Str &strDiskID = itS->first;
-        const VirtualSystemDescriptionEntry *pDiskEntry = itS->second;
-
-        // source path: where the VBox image is
-        const Utf8Str &strSrcFilePath = pDiskEntry->strVBoxCurrent;
-        Bstr bstrSrcFilePath(strSrcFilePath);
-
-        //skip empty Medium. There are no information to add into section <References> or <DiskSection>
-        if (strSrcFilePath.isEmpty() ||
-            pDiskEntry->skipIt == true)
-            continue;
-
-        // Do NOT check here whether the file exists. FindMedium will figure
-        // that out, and filesystem-based tests are simply wrong in the
-        // general case (think of iSCSI).
-
-        // We need some info from the source disks
-        ComPtr<IMedium> pSourceDisk;
-        //DeviceType_T deviceType = DeviceType_HardDisk;// by default
-
-        Log(("Finding source disk \"%ls\"\n", bstrSrcFilePath.raw()));
-
-        HRESULT rc;
-
-        if (pDiskEntry->type == VirtualSystemDescriptionType_HardDiskImage)
-        {
-            rc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(),
-                                         DeviceType_HardDisk,
-                                         AccessMode_ReadWrite,
-                                         FALSE /* fForceNewUuid */,
-                                         pSourceDisk.asOutParam());
-            if (FAILED(rc))
-                throw rc;
-        }
-        else if (pDiskEntry->type == VirtualSystemDescriptionType_CDROM)//may be, this is CD/DVD
-        {
-            rc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(),
-                                         DeviceType_DVD,
-                                         AccessMode_ReadOnly,
-                                         FALSE,
-                                         pSourceDisk.asOutParam());
-            if (FAILED(rc))
-                throw rc;
-        }
-
-        Bstr uuidSource;
-        rc = pSourceDisk->COMGETTER(Id)(uuidSource.asOutParam());
-        if (FAILED(rc)) throw rc;
-        Guid guidSource(uuidSource);
-
-        // output filename
-        const Utf8Str &strTargetFileNameOnly = pDiskEntry->strOvf;
-        // target path needs to be composed from where the output OVF is
-        Utf8Str strTargetFilePath(strPath);
-        strTargetFilePath.stripFilename();
-        strTargetFilePath.append("/");
-        strTargetFilePath.append(strTargetFileNameOnly);
-
-        // We are always exporting to VMDK stream optimized for now
-        //Bstr bstrSrcFormat = L"VMDK";//not used
-
-        diskList.push_back(strTargetFilePath);
-
-        LONG64 cbCapacity = 0;     // size reported to guest
-        rc = pSourceDisk->COMGETTER(LogicalSize)(&cbCapacity);
-        if (FAILED(rc)) throw rc;
-        /// @todo r=poetzsch: wrong it is reported in bytes ...
-        // capacity is reported in megabytes, so...
-        //cbCapacity *= _1M;
-
-        Guid guidTarget; /* Creates a new uniq number for the target disk. */
-        guidTarget.create();
-
-        // now handle the XML for the disk:
-        Utf8StrFmt strFileRef("file%RI32", ulFile++);
-        // <File ovf:href="WindowsXpProfessional-disk1.vmdk" ovf:id="file1" ovf:size="1710381056"/>
-        xml::ElementNode *pelmFile = pelmReferences->createChild("File");
-        pelmFile->setAttribute("ovf:href", strTargetFileNameOnly);
-        pelmFile->setAttribute("ovf:id", strFileRef);
-        /// @todo the actual size is not available at this point of time,
-        // cause the disk will be compressed. The 1.0 standard says this is
-        // optional! 1.1 isn't fully clear if the "gzip" format is used.
-        // Need to be checked. */
-        //            pelmFile->setAttribute("ovf:size", Utf8StrFmt("%RI64", cbFile).c_str());
-
-        // add disk to XML Disks section
-        // <Disk ovf:capacity="8589934592" ovf:diskId="vmdisk1" ovf:fileRef="file1" ovf:format="..."/>
-        xml::ElementNode *pelmDisk = pelmDiskSection->createChild("Disk");
-        pelmDisk->setAttribute("ovf:capacity", Utf8StrFmt("%RI64", cbCapacity).c_str());
-        pelmDisk->setAttribute("ovf:diskId", strDiskID);
-        pelmDisk->setAttribute("ovf:fileRef", strFileRef);
-
-        if (pDiskEntry->type == VirtualSystemDescriptionType_HardDiskImage)//deviceType == DeviceType_HardDisk
-        {
-            pelmDisk->setAttribute("ovf:format",
-                                   (enFormat == ovf::OVFVersion_0_9)
-                                   ?  "http://www.vmware.com/specifications/vmdk.html#sparse"      // must be sparse or ovftool ch
-                                   :  "http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"
-                                   // correct string as communicated to us by VMware (public bug #6612)
-                                  );
-        }
-        else //pDiskEntry->type == VirtualSystemDescriptionType_CDROM, deviceType == DeviceType_DVD
-        {
-            pelmDisk->setAttribute("ovf:format",
-                                   "http://www.ecma-international.org/publications/standards/Ecma-119.htm"
-                                  );
-        }
-
-        // add the UUID of the newly target image to the OVF disk element, but in the
-        // vbox: namespace since it's not part of the standard
-        pelmDisk->setAttribute("vbox:uuid", Utf8StrFmt("%RTuuid", guidTarget.raw()).c_str());
-
-        // now, we might have other XML elements from vbox:Machine pointing to this image,
-        // but those would refer to the UUID of the _source_ image (which we created the
-        // export image from); those UUIDs need to be fixed to the export image
-        Utf8Str strGuidSourceCurly = guidSource.toStringCurly();
-        for (std::list<xml::ElementNode*>::iterator eit = llElementsWithUuidAttributes.begin();
-             eit != llElementsWithUuidAttributes.end();
-             ++eit)
-        {
-            xml::ElementNode *pelmImage = *eit;
-            Utf8Str strUUID;
-            pelmImage->getAttributeValue("uuid", strUUID);
-            if (strUUID == strGuidSourceCurly)
-                // overwrite existing uuid attribute
-                pelmImage->setAttribute("uuid", guidTarget.toStringCurly());
-        }
-    }
 }
 
 /**
@@ -1545,6 +1547,11 @@ void Appliance::i_buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
                                            desc.strExtraConfigCurrent.c_str());
 
                         stack.mapDisks[strDiskID] = &desc;
+
+                        //use the list stack.mapDiskSequence where the disks go as the "VirtualSystem" should be placed
+                        //in the OVF description file.
+                        stack.mapDiskSequence.push_back(strDiskID);
+                        stack.mapDiskSequenceForOneVM.push_back(strDiskID);
                     }
                     break;
 
@@ -1570,9 +1577,9 @@ void Appliance::i_buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
                         </Item> */
                     if (uLoop == 2)
                     {
-                        //uint32_t cDisks = stack.mapDisks.size();
-                        Utf8Str strDiskID = Utf8StrFmt("iso%RI32", ++cDVDs);
-
+                        uint32_t cDisks = (uint32_t)stack.mapDisks.size();
+                        Utf8Str strDiskID = Utf8StrFmt("iso%RI32", ++cDisks);
+                        ++cDVDs;
                         strDescription = "CD-ROM Drive";
                         strCaption = Utf8StrFmt("cdrom%RI32", cDVDs);     // OVFTool starts with 1
                         type = ovf::ResourceType_CDDrive; // 15
@@ -1617,6 +1624,11 @@ void Appliance::i_buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
                                            desc.strExtraConfigCurrent.c_str());
 
                         stack.mapDisks[strDiskID] = &desc;
+
+                        //use the list stack.mapDiskSequence where the disks go as the "VirtualSystem" should be placed
+                        //in the OVF description file.
+                        stack.mapDiskSequence.push_back(strDiskID);
+                        stack.mapDiskSequenceForOneVM.push_back(strDiskID);
                         // there is no DVD drive map to update because it is
                         // handled completely with this entry.
                     }
@@ -2146,12 +2158,18 @@ HRESULT Appliance::i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, P
         }
 
         // Finally, write out the disks!
-        map<Utf8Str, const VirtualSystemDescriptionEntry*>::const_iterator itS;
-        for (itS = stack.mapDisks.begin();
-             itS != stack.mapDisks.end();
-             ++itS)
+        //use the list stack.mapDiskSequence where the disks were put as the "VirtualSystem"s had been placed
+        //in the OVF description file. I.e. we have one "VirtualSystem" in the OVF file, we extract all disks
+        //attached to it. And these disks are stored in the stack.mapDiskSequence. Next we shift to the next
+        //"VirtualSystem" and repeat the operation.
+        //And here we go through the list and extract all disks in the same sequence
+        list<Utf8Str>::const_iterator itS;
+        for (itS = stack.mapDiskSequence.begin();
+              itS != stack.mapDiskSequence.end();
+              ++itS)
         {
-            const VirtualSystemDescriptionEntry *pDiskEntry = itS->second;
+            const Utf8Str &strDiskID = *itS;
+            const VirtualSystemDescriptionEntry *pDiskEntry = stack.mapDisks[strDiskID];
 
             // source path: where the VBox image is
             const Utf8Str &strSrcFilePath = pDiskEntry->strVBoxCurrent;

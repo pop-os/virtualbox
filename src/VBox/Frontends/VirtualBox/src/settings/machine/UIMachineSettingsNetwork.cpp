@@ -90,7 +90,7 @@ UIMachineSettingsNetwork::UIMachineSettingsNetwork(UIMachineSettingsNetworkPage 
     retranslateUi();
 }
 
-void UIMachineSettingsNetwork::fetchAdapterCache(const UICacheSettingsMachineNetworkAdapter &adapterCache)
+void UIMachineSettingsNetwork::fetchAdapterCache(const UISettingsCacheMachineNetworkAdapter &adapterCache)
 {
     /* Get adapter data: */
     const UIDataSettingsMachineNetworkAdapter &adapterData = adapterCache.base();
@@ -129,7 +129,7 @@ void UIMachineSettingsNetwork::fetchAdapterCache(const UICacheSettingsMachineNet
     m_portForwardingRules = adapterData.m_redirects;
 }
 
-void UIMachineSettingsNetwork::uploadAdapterCache(UICacheSettingsMachineNetworkAdapter &adapterCache)
+void UIMachineSettingsNetwork::uploadAdapterCache(UISettingsCacheMachineNetworkAdapter &adapterCache)
 {
     /* Prepare adapter data: */
     UIDataSettingsMachineNetworkAdapter adapterData = adapterCache.base();
@@ -825,6 +825,10 @@ UIMachineSettingsNetworkPage::UIMachineSettingsNetworkPage()
     pMainLayout->addWidget(m_pTwAdapters);
 
     /* How many adapters to display: */
+    /** @todo r=klaus this needs to be done based on the actual chipset type of the VM,
+     * but in this place the m_machine field isn't set yet. My observation (on Linux)
+     * is that the limitation to 4 isn't necessary any more, but this needs to be checked
+     * on all platforms to be certain that it's usable everywhere. */
     ulong uCount = qMin((ULONG)4, vboxGlobal().virtualBox().GetSystemProperties().GetMaxNetworkAdapters(KChipsetType_PIIX3));
     /* Add corresponding tab pages to parent tab widget: */
     for (ulong uSlot = 0; uSlot < uCount; ++uSlot)
@@ -965,7 +969,7 @@ void UIMachineSettingsNetworkPage::saveFromCacheTo(QVariant &data)
         for (int iSlot = 0; iSlot < m_pTwAdapters->count(); ++iSlot)
         {
             /* Check if adapter data was changed: */
-            const UICacheSettingsMachineNetworkAdapter &adapterCache = m_cache.child(iSlot);
+            const UISettingsCacheMachineNetworkAdapter &adapterCache = m_cache.child(iSlot);
             if (adapterCache.wasChanged())
             {
                 /* Check if adapter still valid: */
