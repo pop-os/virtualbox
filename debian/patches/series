@@ -15,5 +15,4 @@
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
 new-xorg-1.19.patch
-linux-4.10-dont-use-generic-readlink.patch
 add-prime-to-vbox-video.patch

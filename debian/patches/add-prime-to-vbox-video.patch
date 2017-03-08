@@ -52,7 +52,7 @@ Description: fix unity9
  
 --- virtualbox-5.1.14-dfsg.orig/src/VBox/Additions/linux/drm/vbox_drv.h
 +++ virtualbox-5.1.14-dfsg/src/VBox/Additions/linux/drm/vbox_drv.h
-@@ -313,6 +313,18 @@ void vbox_ttm_placement(struct vbox_bo *
+@@ -320,6 +320,18 @@ void vbox_ttm_placement(struct vbox_bo *
  int vbox_bo_push_sysram(struct vbox_bo *bo);
  int vbox_mmap(struct file *filp, struct vm_area_struct *vma);
  
