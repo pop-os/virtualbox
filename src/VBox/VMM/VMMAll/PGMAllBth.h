@@ -1209,21 +1209,33 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPU pVCpu, RTGCPTR GCPtrPage)
      * (Guessing that it is frequent for a shadow PDE to not be present, do this first.)
      */
 # if PGM_SHW_TYPE == PGM_TYPE_32BIT
-    const unsigned  iPDDst    = (GCPtrPage >> SHW_PD_SHIFT) & SHW_PD_MASK;
+    const unsigned  iPDDst    = (uint32_t)GCPtrPage >> SHW_PD_SHIFT;
     PX86PDE         pPdeDst   = pgmShwGet32BitPDEPtr(pVCpu, GCPtrPage);
 
     /* Fetch the pgm pool shadow descriptor. */
     PPGMPOOLPAGE    pShwPde = pVCpu->pgm.s.CTX_SUFF(pShwPageCR3);
+#  ifdef IN_RING3 /* Possible we didn't resync yet when called from REM. */
+    if (!pShwPde)
+    {
+        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
+        return VINF_SUCCESS;
+    }
+#  else
     Assert(pShwPde);
+#  endif
 
 # elif PGM_SHW_TYPE == PGM_TYPE_PAE
-    const unsigned  iPdpt     = (GCPtrPage >> X86_PDPT_SHIFT);
+    const unsigned  iPdpt     = (uint32_t)GCPtrPage >> X86_PDPT_SHIFT;
     PX86PDPT        pPdptDst  = pgmShwGetPaePDPTPtr(pVCpu);
 
     /* If the shadow PDPE isn't present, then skip the invalidate. */
+#  ifdef IN_RING3 /* Possible we didn't resync yet when called from REM. */
+    if (!pPdptDst || !pPdptDst->a[iPdpt].n.u1Present)
+#  else
     if (!pPdptDst->a[iPdpt].n.u1Present)
+#  endif
     {
-        Assert(!(pPdptDst->a[iPdpt].u & PGM_PLXFLAGS_MAPPING));
+        Assert(!pPdptDst || !(pPdptDst->a[iPdpt].u & PGM_PLXFLAGS_MAPPING));
         STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
         PGM_INVL_PG(pVCpu, GCPtrPage);
         return VINF_SUCCESS;
@@ -1288,7 +1300,7 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPU pVCpu, RTGCPTR GCPtrPage)
      */
 # if PGM_GST_TYPE == PGM_TYPE_32BIT
     PGSTPD          pPDSrc      = pgmGstGet32bitPDPtr(pVCpu);
-    const unsigned  iPDSrc      = GCPtrPage >> GST_PD_SHIFT;
+    const unsigned  iPDSrc      = (uint32_t)GCPtrPage >> GST_PD_SHIFT;
     GSTPDE          PdeSrc      = pPDSrc->a[iPDSrc];
 # else /* PGM_GST_TYPE != PGM_TYPE_32BIT */
     unsigned        iPDSrc = 0;
@@ -3366,7 +3378,7 @@ PGM_BTH_DECL(int, PrefetchPage)(PVMCPU pVCpu, RTGCPTR GCPtrPage)
     int             rc     = VINF_SUCCESS;
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
 #  if PGM_GST_TYPE == PGM_TYPE_32BIT
-    const unsigned  iPDSrc = GCPtrPage >> GST_PD_SHIFT;
+    const unsigned  iPDSrc = (uint32_t)GCPtrPage >> GST_PD_SHIFT;
     PGSTPD          pPDSrc = pgmGstGet32bitPDPtr(pVCpu);
 #  elif PGM_GST_TYPE == PGM_TYPE_PAE
     unsigned        iPDSrc;
@@ -3528,7 +3540,7 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPU pVCpu, RTGCPTR GCPtrPage, unsigne
      *        PGMGstGetPage call. */
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
 #  if PGM_GST_TYPE == PGM_TYPE_32BIT
-    const unsigned  iPDSrc = GCPtrPage >> GST_PD_SHIFT;
+    const unsigned  iPDSrc = (uint32_t)GCPtrPage >> GST_PD_SHIFT;
     PGSTPD          pPDSrc = pgmGstGet32bitPDPtr(pVCpu);
 
 #  elif PGM_GST_TYPE == PGM_TYPE_PAE

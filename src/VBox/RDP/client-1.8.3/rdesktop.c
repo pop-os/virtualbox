@@ -63,6 +63,9 @@
 #endif
 
 #include "ssl.h"
+#if defined(VBOX) && defined(OPENSSL_MANGLER)
+# include <iprt/initterm.h>
+#endif
 
 /* Reconnect timeout based on approxiamted cookie life-time */
 #define RECONNECT_TIMEOUT (3600+600)
@@ -261,7 +264,7 @@ usage(char *program)
 	rdpsnd_show_help();
 #endif
 #ifdef WITH_RDPUSB
-        fprintf(stderr, 
+        fprintf(stderr,
                 "         '-r usb': enable USB redirection\n");
 #endif
 	fprintf(stderr,
@@ -581,6 +584,12 @@ main(int argc, char *argv[])
 	RD_BOOL geometry_option = False;
 #ifdef WITH_RDPSND
 	char *rdpsnd_optarg = NULL;
+#endif
+
+#if defined(VBOX) && defined(OPENSSL_MANGLER)
+    /* Only need RT initialization if building against OpenSSL using
+     * RT synchronization, standalone rdesktop doesn't need this. */
+    RTR3InitExe(argc, &argv, 0);
 #endif
 
 #ifdef HAVE_LOCALE_H
@@ -1241,7 +1250,7 @@ main(int argc, char *argv[])
 			continue;
 		}
 
-		/* By setting encryption to False here, we have an encrypted login 
+		/* By setting encryption to False here, we have an encrypted login
 		   packet but unencrypted transfer of other packets */
 		if (!g_packet_encryption)
 			g_encryption_initial = g_encryption = False;
@@ -1820,7 +1829,7 @@ save_licence(unsigned char *data, int length)
 	sec_hash_sha1_16(ho, hi, g_static_rdesktop_salt_16);
 	sec_hash_to_string(hash, sizeof(hash), ho, sizeof(ho));
 
-	/* write licence to {sha1}.cal.new, then atomically 
+	/* write licence to {sha1}.cal.new, then atomically
 	   rename to {sha1}.cal */
 	snprintf(path, PATH_MAX, "%s" RDESKTOP_LICENSE_STORE "/%s.cal", home, hash);
 	path[sizeof(path) - 1] = '\0';

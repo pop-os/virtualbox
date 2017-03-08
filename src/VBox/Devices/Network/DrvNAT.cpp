@@ -1478,6 +1478,9 @@ static DECLCALLBACK(void) drvNATDestruct(PPDMDRVINS pDrvIns)
     RTReqQueueDestroy(pThis->hUrgRecvReqQueue);
     pThis->hUrgRecvReqQueue = NIL_RTREQQUEUE;
 
+    RTReqQueueDestroy(pThis->hRecvReqQueue);
+    pThis->hRecvReqQueue = NIL_RTREQQUEUE;
+
     RTSemEventDestroy(pThis->EventRecv);
     pThis->EventRecv = NIL_RTSEMEVENT;
 
@@ -1489,6 +1492,11 @@ static DECLCALLBACK(void) drvNATDestruct(PPDMDRVINS pDrvIns)
 
     if (RTCritSectIsInitialized(&pThis->XmitLock))
         RTCritSectDelete(&pThis->XmitLock);
+
+#ifndef RT_OS_WINDOWS
+    RTPipeClose(pThis->hPipeRead);
+    RTPipeClose(pThis->hPipeWrite);
+#endif
 
 #ifdef RT_OS_DARWIN
     /* Cleanup the DNS watcher. */
@@ -1711,14 +1719,11 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
             rc = RTSemEventCreate(&pThis->EventRecv);
             AssertRCReturn(rc, rc);
 
+            rc = RTSemEventCreate(&pThis->EventUrgRecv);
+            AssertRCReturn(rc, rc);
+
             rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pUrgRecvThread, pThis, drvNATUrgRecv,
                                        drvNATUrgRecvWakeup, 128 * _1K, RTTHREADTYPE_IO, "NATURGRX");
-            AssertRCReturn(rc, rc);
-
-            rc = RTSemEventCreate(&pThis->EventRecv);
-            AssertRCReturn(rc, rc);
-
-            rc = RTSemEventCreate(&pThis->EventUrgRecv);
             AssertRCReturn(rc, rc);
 
             rc = RTReqQueueCreate(&pThis->hHostResQueue);

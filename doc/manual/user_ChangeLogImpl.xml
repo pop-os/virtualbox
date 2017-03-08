@@ -3,6 +3,150 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.16 (2017-03-08)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: don't access the <emphasis>MSR_IA32_SMM_MONITOR_CTL</emphasis>
+          MSR if <emphasis>dual-monitor treatment</emphasis> is not available
+          (KVM workaround, bug #14965)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: another fix for handling certain MSRs on ancient CPUs
+          without VT-x support for MSR bitmaps</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed <emphasis>VERR_SSM_LOAD_CPUID_MISMATCH</emphasis>
+          errors when restoring a saved state with SMP guests on hosts without
+          the <emphasis>CPUID/HTT</emphasis> bit set (bug #16428)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a bug in call gate emulation</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: <emphasis>FWAIT</emphasis> instruction fix</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a sporadic guest hang under certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: hide the mini-toolbar from the taskbar and the pager on
+          certain X11 hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: better error handling on the global settings / network /
+          host-only / DHCP server settings</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixes for full-screen with multiple screens</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-only Network: fixed host-only adapter creation issue preventing
+          VirtualBox installation on Windows 10 hosts (bug #16379)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT network: fixed two potential crashes in the DHCP server</para>
+      </listitem>
+
+      <listitem>
+        <para>ICH9: fixed incorrect initialization of the primary bus for PCI
+          bridges (5.1.14 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: LsiLogic fix for Windows 10</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed not being able to attach certain USB devices having
+          invalid characters in the device strings (5.0.18 regression; bug #15956)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: several fixes for the USB/IP support (bug #16462)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed another crash during shutdown under rare
+          circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed a stack overflow on (Windows debug builds
+          only; bug #16409)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: when importing an appliance handle more than 10 network
+          adapters if the OVA was created by VirtualBox (bug #16401)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: fixes for exporting and importing appliances with many
+          disks (bug #16402)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed regression with <emphasis>modifyhd
+          --resize</emphasis> (bug #16311)</para>
+      </listitem>
+
+      <listitem>
+        <para>rdesktop-vrdp: source code tarball fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Installers: do not rebuild kernel modules unnecessarily
+          (bug #16408)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: added an action for opening the VM manager
+          window to the .desktop file</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: Linux 4.11 compile fixes (bug #16506)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: added <emphasis>vboxsf</emphasis> FS modules
+          alias (bug #16404)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix for the shared folders kernel module to
+          compile on Linux 4.10</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: properly install the Linux kernel module
+          override rule on distributions without /etc/depmod.d</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed a crash with recent Windows 10 builds
+          if 3D is disabled (bug #15973)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.14 (2017-01-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -593,7 +737,7 @@
       </listitem>
 
       <listitem>
-        <para>VMDK: Fixed an issue creating fixed size images with certain
+        <para>VMDK: fixed an issue creating fixed size images with certain
           sizes and the Split2G option enabled (bug #15748)</para>
       </listitem>
 
@@ -603,7 +747,7 @@
       </listitem>
 
       <listitem>
-        <para>Storage: Fixed broken bandwidth limitation when the limit is very
+        <para>Storage: fixed broken bandwidth limitation when the limit is very
           low (bug #14982)</para>
       </listitem>
 
@@ -1727,7 +1871,7 @@
 
       <listitem>
         <para>GUI: fixed another 3D overlay window reparenting issue when the
-          VM is switched to fullscreen mode on X11 hosts</para>
+          VM is switched to full-screen mode on X11 hosts</para>
       </listitem>
 
       <listitem>
@@ -3278,13 +3422,13 @@
 
       <listitem>
         <para>VMM: fixed a Guru Meditation <emphasis>VINF_EM_TRIPLE_FAULT</emphasis>
-          on older CPUs that don't support MSR-bitmaps (VT-x only;
+          on older CPUs that don't support MSR bitmaps (VT-x only;
           bugs #13034, #13125, #13311, #13425, #13426, #13463, #13585)</para>
       </listitem>
 
       <listitem>
         <para>GUI: fix 3D overlay window reparenting issue when VM goes to
-          fullscreen mode on X11 hosts</para>
+          full-screen mode on X11 hosts</para>
       </listitem>
 
       <listitem>
@@ -4582,7 +4726,7 @@
       </listitem>
 
       <listitem>
-        <para>Host-only Networking: fixed creating of host-only network interfaces
+        <para>Host-only Network: fixed creating of host-only network interfaces
           (4.3.0 regression; bug #12182)</para>
       </listitem>
 

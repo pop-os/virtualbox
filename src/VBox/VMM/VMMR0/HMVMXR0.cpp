@@ -7152,9 +7152,9 @@ static int hmR0VmxLeave(PVMCPU pVCpu, PCPUMCTX pMixedCtx, bool fSaveGuestState)
     /* Restore host FPU state if necessary and resync on next R0 reentry .*/
     if (CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(pVCpu))
     {
-        if (fSaveGuestState)
+        /* We shouldn't reload CR0 without saving it first. */
+        if (!fSaveGuestState)
         {
-            /* We shouldn't reload CR0 without saving it first. */
             int rc = hmR0VmxSaveGuestCR0(pVCpu, pMixedCtx);
             AssertRCReturn(rc, rc);
         }
@@ -11609,6 +11609,7 @@ HMVMX_EXIT_DECL hmR0VmxExitVmcall(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIEN
 #else
         /* Aggressive state sync. for now. */
         int rc  = hmR0VmxSaveGuestRip(pVCpu, pMixedCtx);
+        rc     |= hmR0VmxSaveGuestRflags(pVCpu,pMixedCtx);          /* For CPL checks in gimHvHypercall() & gimKvmHypercall() */
         rc     |= hmR0VmxSaveGuestSegmentRegs(pVCpu, pMixedCtx);    /* For long-mode checks in gimKvmHypercall(). */
         AssertRCReturn(rc, rc);
 #endif
@@ -12144,9 +12145,18 @@ HMVMX_EXIT_DECL hmR0VmxExitWrmsr(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT
         {
             switch (pMixedCtx->ecx)
             {
-                case MSR_IA32_SYSENTER_CS:  HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SYSENTER_CS_MSR);  break;
-                case MSR_IA32_SYSENTER_EIP: HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SYSENTER_EIP_MSR); break;
-                case MSR_IA32_SYSENTER_ESP: HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SYSENTER_ESP_MSR); break;
+                case MSR_IA32_SYSENTER_CS:
+                    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SYSENTER_CS_MSR);
+                    HMVMXCPU_GST_SET_UPDATED(pVCpu, HMVMX_UPDATED_GUEST_SYSENTER_CS_MSR);
+                    break;
+                case MSR_IA32_SYSENTER_EIP:
+                    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SYSENTER_EIP_MSR);
+                    HMVMXCPU_GST_SET_UPDATED(pVCpu, HMVMX_UPDATED_GUEST_SYSENTER_EIP_MSR);
+                    break;
+                case MSR_IA32_SYSENTER_ESP: 
+                    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SYSENTER_ESP_MSR);
+                    HMVMXCPU_GST_SET_UPDATED(pVCpu, HMVMX_UPDATED_GUEST_SYSENTER_ESP_MSR);
+                    break;
                 case MSR_K8_FS_BASE:        /* no break */
                 case MSR_K8_GS_BASE:        HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SEGMENT_REGS);     break;
                 case MSR_K6_EFER:           /* already handled above */                             break;

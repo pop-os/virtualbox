@@ -153,6 +153,10 @@ void UIMachineViewNormal::setGuestAutoresizeEnabled(bool fEnabled)
 
 void UIMachineViewNormal::resendSizeHint()
 {
+    /* Skip if another visual representation mode requested: */
+    if (uisession()->requestedVisualState() == UIVisualStateType_Seamless) // Seamless only for now.
+        return;
+
     /* Get the last guest-screen size-hint, taking the scale factor into account. */
     const QSize sizeHint = scaledBackward(guestScreenSizeHint());
     LogRel(("GUI: UIMachineViewNormal::resendSizeHint: Restoring guest size-hint for screen %d to %dx%d\n",
@@ -224,6 +228,15 @@ void UIMachineViewNormal::adjustGuestScreenSize()
         if (!m_bIsGuestAutoresizeEnabled)
         {
             LogRel2(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Guest-screen auto-resize is disabled, adjustment is omitted.\n"));
+            fAdjust = false;
+        }
+    }
+    /* Step 5: Is another visual representation mode requested? */
+    if (fAdjust)
+    {
+        if (uisession()->requestedVisualState() == UIVisualStateType_Seamless) // Seamless only for now.
+        {
+            LogRel2(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Seamless mode is requested, adjustment is omitted.\n"));
             fAdjust = false;
         }
     }

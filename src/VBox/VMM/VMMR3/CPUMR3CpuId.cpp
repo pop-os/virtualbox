@@ -1629,6 +1629,7 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUM
         pFeatures->fSysEnter            = RT_BOOL(pStd1Leaf->uEdx & X86_CPUID_FEATURE_EDX_SEP);
         pFeatures->fHypervisorPresent   = RT_BOOL(pStd1Leaf->uEcx & X86_CPUID_FEATURE_ECX_HVP);
         pFeatures->fMonitorMWait        = RT_BOOL(pStd1Leaf->uEcx & X86_CPUID_FEATURE_ECX_MONITOR);
+        pFeatures->fMovCmpXchg16b       = RT_BOOL(pStd1Leaf->uEcx & X86_CPUID_FEATURE_ECX_CX16);
 
         /* Structured extended features. */
         PCCPUMCPUIDLEAF const pSxfLeaf0 = cpumR3CpuIdFindLeafEx(paLeaves, cLeaves, 7, 0);
@@ -5223,7 +5224,7 @@ int cpumR3LoadCpuIdInner(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCPUMCPUID
     CPUID_GST_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_SSE);     // -> EMU
     CPUID_GST_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_SSE2);    // -> EMU
     CPUID_GST_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_SS);      // -> EMU?
-    CPUID_GST_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_HTT);     // -> EMU?
+    CPUID_GST_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_HTT);     // -> EMU?
     CPUID_GST_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_TM);      // -> EMU?
     CPUID_GST_FEATURE_RET(Std, uEdx, RT_BIT_32(30) /*JMPE/IA64*/);   // -> EMU
     CPUID_GST_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_PBE);     // -> EMU?

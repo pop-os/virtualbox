@@ -2545,6 +2545,7 @@ VMMR3DECL(void) PGMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
 {
     int rc = PGM_GST_PFN(Exit, pVCpu)(pVCpu);
     AssertRC(rc);
+    pVCpu->pgm.s.GCPhysCR3 = NIL_RTGCPHYS;
 
     rc = PGMR3ChangeMode(pVM, pVCpu, PGMMODE_REAL);
     AssertRC(rc);
@@ -2599,6 +2600,7 @@ VMMR3_INT_DECL(void) PGMR3Reset(PVM pVM)
         PVMCPU  pVCpu = &pVM->aCpus[i];
         int rc = PGM_GST_PFN(Exit, pVCpu)(pVCpu);
         AssertReleaseRC(rc);
+        pVCpu->pgm.s.GCPhysCR3 = NIL_RTGCPHYS;
     }
 
 #ifdef DEBUG
@@ -3509,6 +3511,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
             return rc;
         }
     }
+    pVCpu->pgm.s.GCPhysCR3 = NIL_RTGCPHYS;
 
     /*
      * Load new paging mode data.
@@ -3679,7 +3682,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
 #ifdef VBOX_WITH_64_BITS_GUESTS
         case PGMMODE_AMD64_NX:
         case PGMMODE_AMD64:
-            GCPhysCR3 = CPUMGetGuestCR3(pVCpu) & UINT64_C(0xfffffffffffff000); /** @todo define this mask! */
+            GCPhysCR3 = CPUMGetGuestCR3(pVCpu) & X86_CR3_AMD64_PAGE_MASK;
             rc = PGM_GST_NAME_AMD64(Enter)(pVCpu, GCPhysCR3);
             switch (pVCpu->pgm.s.enmShadowMode)
             {
@@ -3707,6 +3710,9 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
             rc = VERR_NOT_IMPLEMENTED;
             break;
     }
+
+    /* Set the new guest CR3. */
+    pVCpu->pgm.s.GCPhysCR3 = GCPhysCR3;
 
     /* status codes. */
     AssertRC(rc);

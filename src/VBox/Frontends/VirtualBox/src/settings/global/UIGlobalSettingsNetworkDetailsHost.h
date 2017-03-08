@@ -24,7 +24,7 @@
 #include "UIGlobalSettingsNetworkDetailsHost.gen.h"
 
 /* Forward decalrations: */
-struct UIDataNetworkHost;
+struct UIDataSettingsGlobalNetworkHost;
 
 /* Global settings / Network page / Details sub-dialog: */
 class UIGlobalSettingsNetworkDetailsHost : public QIWithRetranslateUI2<QIDialog>, public Ui::UIGlobalSettingsNetworkDetailsHost
@@ -34,7 +34,7 @@ class UIGlobalSettingsNetworkDetailsHost : public QIWithRetranslateUI2<QIDialog>
 public:
 
     /* Constructor: */
-    UIGlobalSettingsNetworkDetailsHost(QWidget *pParent, UIDataNetworkHost &data);
+    UIGlobalSettingsNetworkDetailsHost(QWidget *pParent, UIDataSettingsGlobalNetworkHost &data);
 
 protected:
 
@@ -58,8 +58,13 @@ private:
     void loadServerStuff();
     void save();
 
+    /** Converts IPv4 address from QString to quint32. */
+    static quint32 ipv4FromQStringToQuint32(const QString &strAddress);
+    /** Converts IPv4 address from quint32 to QString. */
+    static QString ipv4FromQuint32ToQString(quint32 uAddress);
+
     /* Variable: External data reference: */
-    UIDataNetworkHost &m_data;
+    UIDataSettingsGlobalNetworkHost &m_data;
 };
 
 #endif /* __UIGlobalSettingsNetworkDetailsHost_h__ */

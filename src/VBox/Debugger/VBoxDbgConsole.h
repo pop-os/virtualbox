@@ -29,6 +29,13 @@
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
 
+// VirtualBox COM interfaces declarations (generated header)
+#ifdef VBOX_WITH_XPCOM
+# include <VirtualBox_XPCOM.h>
+#else
+# include <VirtualBox.h>
+#endif
+
 
 class VBoxDbgConsoleOutput : public QTextEdit
 {
@@ -39,9 +46,10 @@ public:
      * Constructor.
      *
      * @param   pParent     Parent Widget.
+     * @param   pVirtualBox VirtualBox object for storing extra data.
      * @param   pszName     Widget name.
      */
-    VBoxDbgConsoleOutput(QWidget *pParent = NULL, const char *pszName = NULL);
+    VBoxDbgConsoleOutput(QWidget *pParent = NULL, IVirtualBox *pVirtualBox = NULL, const char *pszName = NULL);
 
     /**
      * Destructor
@@ -89,6 +97,8 @@ protected:
     RTNATIVETHREAD m_hGUIThread;
     /** The current color scheme (foreground on background). */
     VBoxDbgConsoleColor m_enmColorScheme;
+    /** The IVirtualBox object */
+    IVirtualBox *m_pVirtualBox;
 
 private slots:
     /**
@@ -178,8 +188,9 @@ public:
      *
      * @param   a_pDbgGui       Pointer to the debugger gui object.
      * @param   a_pParent       Parent Widget.
+     * @param   a_pVirtualBox   VirtualBox object for storing extra data.
      */
-    VBoxDbgConsole(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent = NULL);
+    VBoxDbgConsole(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent = NULL, IVirtualBox *a_pVirtualBox = NULL);
 
     /**
      * Destructor

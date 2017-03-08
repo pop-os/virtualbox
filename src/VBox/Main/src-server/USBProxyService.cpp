@@ -80,7 +80,7 @@ HRESULT USBProxyService::init(void)
     ComObjPtr<USBProxyBackend> UsbProxyBackendHost;
 # endif
     UsbProxyBackendHost.createObject();
-    int vrc = UsbProxyBackendHost->init(this, Utf8Str("host"), Utf8Str(""));
+    int vrc = UsbProxyBackendHost->init(this, Utf8Str("host"), Utf8Str(""), false /* fLoadingSettings */);
     if (RT_FAILURE(vrc))
     {
         mLastError = vrc;
@@ -211,7 +211,8 @@ HRESULT USBProxyService::addUSBDeviceSource(const com::Utf8Str &aBackend, const 
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT hrc = createUSBDeviceSource(aBackend, aId, aAddress, aPropertyNames, aPropertyValues);
+    HRESULT hrc = createUSBDeviceSource(aBackend, aId, aAddress, aPropertyNames,
+                                        aPropertyValues, false /* fLoadingSettings */);
     if (SUCCEEDED(hrc))
     {
         alock.release();
@@ -496,7 +497,8 @@ HRESULT USBProxyService::i_loadSettings(const settings::USBDeviceSourcesList &ll
     {
         std::vector<com::Utf8Str> vecPropNames, vecPropValues;
         const settings::USBDeviceSource &src = *it;
-        hrc = createUSBDeviceSource(src.strBackend, src.strName, src.strAddress, vecPropNames, vecPropValues);
+        hrc = createUSBDeviceSource(src.strBackend, src.strName, src.strAddress,
+                                    vecPropNames, vecPropValues, true /* fLoadingSettings */);
     }
 
     return hrc;
@@ -887,10 +889,13 @@ ComObjPtr<HostUSBDevice> USBProxyService::findDeviceById(IN_GUID aId)
  * @param   aAddress          The backend specific address.
  * @param   aPropertyNames    Vector of optional property keys the backend supports.
  * @param   aPropertyValues   Vector of optional property values the backend supports.
+ * @param   fLoadingSettings  Flag whether the USB device source is created while the
+ *                            settings are loaded or through the Main API.
  */
 HRESULT USBProxyService::createUSBDeviceSource(const com::Utf8Str &aBackend, const com::Utf8Str &aId,
                                                const com::Utf8Str &aAddress, const std::vector<com::Utf8Str> &aPropertyNames,
-                                               const std::vector<com::Utf8Str> &aPropertyValues)
+                                               const std::vector<com::Utf8Str> &aPropertyValues,
+                                               bool fLoadingSettings)
 {
     HRESULT hrc = S_OK;
 
@@ -918,7 +923,7 @@ HRESULT USBProxyService::createUSBDeviceSource(const com::Utf8Str &aBackend, con
         ComObjPtr<USBProxyBackendUsbIp> UsbProxyBackend;
 
         UsbProxyBackend.createObject();
-        int vrc = UsbProxyBackend->init(this, aId, aAddress);
+        int vrc = UsbProxyBackend->init(this, aId, aAddress, fLoadingSettings);
         if (RT_FAILURE(vrc))
             hrc = setError(E_FAIL,
                            tr("Creating the USB device source \"%s\" using backend \"%s\" failed with %Rrc"),
@@ -941,7 +946,7 @@ HRESULT USBProxyService::setError(HRESULT aResultCode, const char *aText, ...)
     HRESULT rc = VirtualBoxBase::setErrorInternal(aResultCode,
                                                     COM_IIDOF(IHost),
                                                     "USBProxyService",
-                                                    Utf8StrFmt(aText, va),
+                                                    Utf8Str(aText, va),
                                                     false /* aWarning*/,
                                                     true /* aLogIt*/);
     va_end(va);

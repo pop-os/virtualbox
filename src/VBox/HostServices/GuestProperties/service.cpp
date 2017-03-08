@@ -1582,6 +1582,18 @@ int Service::initialize()
 
     return rc;
 }
+
+/**
+ * @callback_method_impl{FNRTSTRSPACECALLBACK, Destroys Property.}
+ */
+static DECLCALLBACK(int) destroyProperty(PRTSTRSPACECORE pStr, void *pvUser)
+{
+    RT_NOREF(pvUser);
+    Property *pProp = RT_FROM_MEMBER(pStr, struct Property, mStrCore);
+    delete pProp;
+    return 0;
+}
+
 #endif
 
 int Service::uninit()
@@ -1600,6 +1612,8 @@ int Service::uninit()
         AssertRC(rc);
         mhReqQNotifyHost = NIL_RTREQQUEUE;
         mhThreadNotifyHost = NIL_RTTHREAD;
+        RTStrSpaceDestroy(&mhProperties, destroyProperty, NULL);
+        mhProperties = NULL;
     }
 #endif
 

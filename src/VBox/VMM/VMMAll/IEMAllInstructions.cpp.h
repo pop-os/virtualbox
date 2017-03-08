@@ -4909,7 +4909,7 @@ FNIEMOP_DEF_1(iemOpCommonBit_Ev_Gv, PCIEMOPBINSIZES, pImpl)
                 IEM_MC_ASSIGN(i16AddrAdj, u16Src);
                 IEM_MC_AND_ARG_U16(u16Src, 0x0f);
                 IEM_MC_SAR_LOCAL_S16(i16AddrAdj, 4);
-                IEM_MC_SAR_LOCAL_S16(i16AddrAdj, 1);
+                IEM_MC_SHL_LOCAL_S16(i16AddrAdj, 1);
                 IEM_MC_ADD_LOCAL_S16_TO_EFF_ADDR(GCPtrEffDst, i16AddrAdj);
                 IEM_MC_FETCH_EFLAGS(EFlags);
 
@@ -6805,7 +6805,19 @@ FNIEMOP_DEF_1(iemOp_Grp9_cmpxchg8b_Mq, uint8_t, bRm)
 
 
 /** Opcode REX.W 0x0f 0xc7 !11/1. */
-FNIEMOP_UD_STUB_1(iemOp_Grp9_cmpxchg16b_Mdq, uint8_t, bRm);
+FNIEMOP_DEF_1(iemOp_Grp9_cmpxchg16b_Mdq, uint8_t, bRm)
+{
+    IEMOP_MNEMONIC("cmpxchg16b Mdq");
+    if (IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fMovCmpXchg16b)
+    {
+        RT_NOREF(bRm);
+        IEMOP_BITCH_ABOUT_STUB();
+        return VERR_IEM_INSTR_NOT_IMPLEMENTED;
+    }
+    Log(("cmpxchg16b -> #UD\n"));
+    return IEMOP_RAISE_INVALID_OPCODE();
+}
+
 
 /** Opcode 0x0f 0xc7 11/6. */
 FNIEMOP_UD_STUB_1(iemOp_Grp9_rdrand_Rv, uint8_t, bRm);
@@ -6837,7 +6849,7 @@ FNIEMOP_DEF(iemOp_Grp9)
             if (   (bRm & X86_MODRM_MOD_MASK) == (3 << X86_MODRM_MOD_SHIFT)
                 || (pVCpu->iem.s.fPrefixes & (IEM_OP_PRF_SIZE_OP | IEM_OP_PRF_REPZ))) /** @todo Testcase: AMD seems to express a different idea here wrt prefixes. */
                 return IEMOP_RAISE_INVALID_OPCODE();
-            if (bRm & IEM_OP_PRF_SIZE_REX_W)
+            if (pVCpu->iem.s.fPrefixes & IEM_OP_PRF_SIZE_REX_W)
                 return FNIEMOP_CALL_1(iemOp_Grp9_cmpxchg16b_Mdq, bRm);
             return FNIEMOP_CALL_1(iemOp_Grp9_cmpxchg8b_Mq, bRm);
         case 6:
@@ -11177,7 +11189,7 @@ FNIEMOP_DEF(iemOp_wait)
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
 
     IEM_MC_BEGIN(0, 0);
-    IEM_MC_MAYBE_RAISE_DEVICE_NOT_AVAILABLE();
+    IEM_MC_MAYBE_RAISE_WAIT_DEVICE_NOT_AVAILABLE();
     IEM_MC_MAYBE_RAISE_FPU_XCPT();
     IEM_MC_ADVANCE_RIP();
     IEM_MC_END();

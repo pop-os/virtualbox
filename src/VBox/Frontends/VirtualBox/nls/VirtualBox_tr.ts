@@ -2345,6 +2345,10 @@
         <source>Downloading %1...</source>
         <translation>%1 indiriliyor...</translation>
     </message>
+    <message>
+        <source>Verifying %1...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIDownloaderAdditions</name>
@@ -9909,6 +9913,14 @@
         <source>Do you want to delete following list of files &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
         <translation>Aşağıda listelenen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; dosyalarını silmek istiyor musunuz?</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -12402,11 +12414,11 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>&lt;p&gt;&lt;nobr&gt;Holds the name or full path to the virtual machine folder you are about to create.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;nobr&gt;Oluşturmak üzere olduğunuz sanal makine klasörü için adı veya tam yolu tutar.&lt;/nobr&gt;&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;&lt;nobr&gt;Oluşturmak üzere olduğunuz sanal makine klasörü için adı veya tam yolu tutar.&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;&lt;nobr&gt;You are about to create the virtual machine in the following folder:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;nobr&gt;Aşağıdaki klasörde sanal makineyi oluşturmak üzeresiniz:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;&lt;nobr&gt;Aşağıdaki klasörde sanal makineyi oluşturmak üzeresiniz:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

@@ -51,6 +51,9 @@ UIMachineWindowSeamless::UIMachineWindowSeamless(UIMachineLogic *pMachineLogic, 
     , m_pMiniToolBar(0)
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
     , m_fWasMinimized(false)
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+    , m_fIsMinimized(false)
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 {
 }
 
@@ -171,14 +174,50 @@ void UIMachineWindowSeamless::cleanupVisualState()
 
 void UIMachineWindowSeamless::placeOnScreen()
 {
+    /* Make sure this window has seamless logic: */
+    UIMachineLogicSeamless *pSeamlessLogic = qobject_cast<UIMachineLogicSeamless*>(machineLogic());
+    AssertPtrReturnVoid(pSeamlessLogic);
+
     /* Get corresponding host-screen: */
-    const int iHostScreen = qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
+    const int iHostScreen = pSeamlessLogic->hostScreenForGuestScreen(m_uScreenId);
     /* And corresponding working area: */
     const QRect workingArea = gpDesktop->availableGeometry(iHostScreen);
+    Q_UNUSED(workingArea);
 
-    /* Set appropriate geometry for window: */
-    resize(workingArea.size());
-    move(workingArea.topLeft());
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+
+    /* Make sure we are located on corresponding host-screen: */
+    if (   gpDesktop->screenCount() > 1
+        && (x() != workingArea.x() || y() != workingArea.y()))
+    {
+        // WORKAROUND:
+        // With Qt5 on X11 we can't just move the window onto desired host-screen if
+        // window size is more than the available geometry (working area) of that
+        // host-screen. So we are resizing it to a smaller size first of all:
+        const QSize newSize = workingArea.size() * .9;
+        LogRel(("GUI: UIMachineWindowSeamless::placeOnScreen: Resize window: %d to smaller size: %dx%d\n",
+                m_uScreenId, newSize.width(), newSize.height()));
+        resize(newSize);
+        /* Move window onto required screen: */
+        const QPoint newPosition = workingArea.topLeft();
+        LogRel(("GUI: UIMachineWindowSeamless::placeOnScreen: Move window: %d to: %dx%d\n",
+                m_uScreenId, newPosition.x(), newPosition.y()));
+        move(newPosition);
+    }
+
+#else
+
+    /* Set appropriate window geometry: */
+    const QSize newSize = workingArea.size();
+    LogRel(("GUI: UIMachineWindowSeamless::placeOnScreen: Resize window: %d to: %dx%d\n",
+            m_uScreenId, newSize.width(), newSize.height()));
+    resize(newSize);
+    const QPoint newPosition = workingArea.topLeft();
+    LogRel(("GUI: UIMachineWindowSeamless::placeOnScreen: Move window: %d to: %dx%d\n",
+            m_uScreenId, newPosition.x(), newPosition.y()));
+    move(newPosition);
+
+#endif
 }
 
 void UIMachineWindowSeamless::showInNecessaryMode()
@@ -211,8 +250,14 @@ void UIMachineWindowSeamless::showInNecessaryMode()
         /* Make sure window have appropriate geometry: */
         placeOnScreen();
 
-        /* Show window in normal mode: */
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+        /* Show window: */
+        if (!isMaximized())
+            showMaximized();
+#else
+        /* Show window: */
         show();
+#endif
 
         /* Restore minimized state if necessary: */
         if (m_fWasMinimized || fWasMinimized)
@@ -254,6 +299,46 @@ void UIMachineWindowSeamless::updateAppearanceOf(int iElement)
     }
 }
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+
+#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+void UIMachineWindowSeamless::changeEvent(QEvent *pEvent)
+{
+    switch (pEvent->type())
+    {
+        case QEvent::WindowStateChange:
+        {
+            /* Watch for window state changes: */
+            QWindowStateChangeEvent *pChangeEvent = static_cast<QWindowStateChangeEvent*>(pEvent);
+            LogRel2(("GUI: UIMachineWindowSeamless::changeEvent: Window state changed from %d to %d\n",
+                     (int)pChangeEvent->oldState(), (int)windowState()));
+            if (   windowState() == Qt::WindowMinimized
+                && pChangeEvent->oldState() == Qt::WindowNoState
+                && !m_fIsMinimized)
+            {
+                /* Mark window minimized, isMinimized() is not enough due to Qt5vsX11 fight: */
+                LogRel2(("GUI: UIMachineWindowSeamless::changeEvent: Window minimized\n"));
+                m_fIsMinimized = true;
+            }
+            else
+            if (   windowState() == Qt::WindowNoState
+                && pChangeEvent->oldState() == Qt::WindowMinimized
+                && m_fIsMinimized)
+            {
+                /* Mark window restored, and do manual restoring with showInNecessaryMode(): */
+                LogRel2(("GUI: UIMachineWindowSeamless::changeEvent: Window restored\n"));
+                m_fIsMinimized = false;
+                showInNecessaryMode();
+            }
+            break;
+        }
+        default:
+            break;
+    }
+
+    /* Call to base-class: */
+    UIMachineWindow::changeEvent(pEvent);
+}
+#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
 
 #ifdef VBOX_WS_WIN
 # if QT_VERSION >= 0x050000

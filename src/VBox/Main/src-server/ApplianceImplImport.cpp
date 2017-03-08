@@ -3332,7 +3332,7 @@ l_skipped:
                                               mhda.lDevice);
 
                 Log(("Attaching disk %s to port %d on device %d\n",
-                vsdeTargetHD->strVBoxCurrent.c_str(), mhda.lControllerPort, mhda.lDevice));
+                     vsdeTargetHD->strVBoxCurrent.c_str(), mhda.lControllerPort, mhda.lDevice));
 
                 ComObjPtr<MediumFormat> mediumFormat;
                 rc = i_findMediumFormatFromDiskImage(diCurrent, mediumFormat);
@@ -3557,7 +3557,7 @@ void Appliance::i_importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescT
             if (   vsdeNW->strExtraConfigCurrent.startsWith("slot=", Utf8Str::CaseInsensitive)
                 && vsdeNW->strExtraConfigCurrent.length() > 6)
             {
-                uint32_t iSlot = vsdeNW->strExtraConfigCurrent.substr(5, 1).toUInt32();
+                uint32_t iSlot = vsdeNW->strExtraConfigCurrent.substr(5).toUInt32();
                 /* Iterate through all network adapters in the machine config. */
                 for (it1 = llNetworkAdapters.begin();
                      it1 != llNetworkAdapters.end();
@@ -3748,6 +3748,7 @@ l_skipped:
                      * Again iterate over all given disk images of the virtual system
                      * disks description using the found disk image
                      */
+                    vsdeTargetHD = NULL;
                     for (list<VirtualSystemDescriptionEntry*>::const_iterator itHD = avsdeHDs.begin();
                          itHD != avsdeHDs.end();
                          ++itHD)
