@@ -19,8 +19,10 @@
 #endif
 
 #include "mappings.h"
+#include "vbsfpath.h"
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
+#include <iprt/path.h>
 #include <iprt/string.h>
 
 #ifdef UNITTEST
@@ -223,7 +225,13 @@ int vbsfMappingsAdd(const char *pszFolderName, PSHFLSTRING pMapName,
     {
         if (FolderMapping[i].fValid == false)
         {
-            FolderMapping[i].pszFolderName = RTStrDup(pszFolderName);
+            /* Make sure the folder name is an absolute path, otherwise we're
+               likely to get into trouble with buffer sizes in vbsfPathGuestToHost. */
+            char szAbsFolderName[RTPATH_MAX];
+            int rc = vbsfPathAbs(NULL, pszFolderName, szAbsFolderName, sizeof(szAbsFolderName));
+            AssertRCReturn(rc, rc);
+
+            FolderMapping[i].pszFolderName = RTStrDup(szAbsFolderName);
             if (!FolderMapping[i].pszFolderName)
             {
                 return VERR_NO_MEMORY;
@@ -252,16 +260,8 @@ int vbsfMappingsAdd(const char *pszFolderName, PSHFLSTRING pMapName,
             /* Check if the host file system is case sensitive */
             RTFSPROPERTIES prop;
             prop.fCaseSensitive = false; /* Shut up MSC. */
-            char *pszAsciiRoot;
-
-            int rc = RTStrUtf8ToCurrentCP(&pszAsciiRoot, FolderMapping[i].pszFolderName);
-            if (RT_SUCCESS(rc))
-            {
-                rc = RTFsQueryProperties(pszAsciiRoot, &prop);
-                AssertRC(rc);
-                RTStrFree(pszAsciiRoot);
-            }
-
+            rc = RTFsQueryProperties(FolderMapping[i].pszFolderName, &prop);
+            AssertRC(rc);
             FolderMapping[i].fHostCaseSensitive = RT_SUCCESS(rc) ? prop.fCaseSensitive : false;
             vbsfRootHandleAdd(i);
             break;

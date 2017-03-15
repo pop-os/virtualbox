@@ -3,6 +3,50 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.18 (2017-08-15)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Shared Folders: fixed case insensitive filename access
+          (5.1.16 regression; Windows guests only; bug #16549)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: fixed access to long pathes
+          (5.1.16 regression; Windows guests only; bugs #14651, #16564)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed snapshot handling of medium attachments and PCI device
+          attachments (bug #16545)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: make 32-bit Windows guests in raw mode boot again if the
+          ICH9 chipset is used (5.1.16 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxBugReport: fixed VM log collection issue</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed autostart service script (bug #14955)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed automatic logins for Windows Vista and
+          newer (5.1.4 regression; bug #15904)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.16 (2017-03-08)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

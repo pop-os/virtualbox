@@ -1537,7 +1537,7 @@
     <message>
         <location line="+1"/>
         <source>Verifying %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>Preverjanje %1 …</translation>
     </message>
 </context>
 <context>
@@ -6320,19 +6320,19 @@
     <message>
         <location line="+407"/>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Datoteka odtis diska &lt;b&gt;Dodatki za gosta VirtualBox&lt;/b&gt; je bila uspešno prejeta s/z &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; in krajevno shranjena kot &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;vendar je preverjanje nadzorne vsote SHA-256 spodletelo.&lt;/p&gt;&lt;p&gt;Prosimo, da prejem, namestitev in preverjanje opravite ročno.&lt;/p&gt;</translation>
     </message>
     <message>
         <location line="+100"/>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; je bil uspešno prejet s/z &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; in krajevno shranjen kot &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;vendar je preverjanje nadzorne vsote SHA-256 spodletelo.&lt;/p&gt;&lt;p&gt;Prosimo, da prejem, namestitev in preverjanje opravite ročno.&lt;/p&gt;</translation>
     </message>
     <message>
         <location line="+14"/>
         <location line="+9"/>
         <source>Delete</source>
         <comment>extension pack</comment>
-        <translation type="unfinished">Izbriši</translation>
+        <translation>Izbriši</translation>
     </message>
     <message>
         <location line="+337"/>
@@ -6777,12 +6777,12 @@
     <message>
         <location line="-20"/>
         <source>Do you want to delete the downloaded file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Ali želite izbrisati prejeto datoteko &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</translation>
     </message>
     <message>
         <location line="+9"/>
         <source>Do you want to delete following list of files &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Ali želite izbrisati naslednji seznam datotek &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</translation>
     </message>
     <message>
         <location line="+30"/>
@@ -6918,7 +6918,7 @@
     <message>
         <location line="+20"/>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; je bil uspešno prejet iz &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; in krajevno shranjen kot &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Ali želite namestiti paket razširitev?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; je bil uspešno prejet s/z &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; in krajevno shranjen kot &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Ali želite namestiti paket razširitev?&lt;/p&gt;</translation>
     </message>
     <message>
         <location line="+6"/>
@@ -7057,7 +7057,7 @@
     <message>
         <location line="+52"/>
         <source>&lt;p&gt;The reason for this error are most likely wrong permissions of the IPC daemon socket due to an installation problem. Please check the permissions of &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; and &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Razlog za to napako so najverjetneje napačna dovoljenja vtiča opravila IPC zaradi težav pri namestitvi. Preverite dovoljenja map &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; in &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <location line="+10"/>
@@ -8739,18 +8739,18 @@
     <message>
         <location line="+3"/>
         <source>&lt;p&gt;If you choose &lt;b&gt;Current snapshot tree branch&lt;/b&gt;, the new machine will reflect the current state of the original machine and will have matching snapshots for all snapshots in the tree branch starting at the current state in the original machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Če izberete &lt;b&gt;Trenutno vejo drevesa posnetka stanja&lt;/b&gt;, bo nov računalnik odražal trenutno stanje izvirnega računalnika in bo imel ujemajoče se posnetke stanja za vse posnetke v veji drevesa z začetkom pri trenutnem stanju v izvirnem računalniku.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Če izberete &lt;b&gt;Trenutno vejo drevesa posnetka stanja&lt;/b&gt;, bo nov računalnik odražal trenutno stanje izvirnega računalnika in bo imel ujemajoče se posnetke stanja vseh posnetkov v veji drevesa z začetkom pri trenutnem stanju v izvirnem računalniku.&lt;/p&gt;</translation>
     </message>
     <message>
         <location line="+5"/>
         <source>&lt;p&gt;If you choose &lt;b&gt;Everything&lt;/b&gt;, the new machine will reflect the current state of the original machine and will have matching snapshots for all snapshots in the original machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Če izberete &lt;b&gt;Vse&lt;/b&gt;, bo nov računalnik odražal trenutno stanje izvirnega računalnika in bo imel ujemajoče se posnetke stanja za vse posnetke stanja v izvirnem računalniku.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Če izberete &lt;b&gt;Vse&lt;/b&gt;, bo nov računalnik odražal trenutno stanje izvirnega računalnika in bo imel ujemajoče se posnetke stanja vseh posnetkov stanja v izvirnem računalniku.&lt;/p&gt;</translation>
     </message>
     <message>
         <location line="+16"/>
         <location filename="../src/wizards/clonevm/UIWizardCloneVMPageExpert.cpp" line="+1"/>
         <source>Current &amp;machine state</source>
-        <translation>Trenutno &amp;stanje računlanika</translation>
+        <translation>Trenutno &amp;stanje računalnika</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -11686,7 +11686,7 @@
     <message>
         <location line="+2"/>
         <source>The current state is identical to the state stored in the current snapshot</source>
-        <translation>Trenutno stanje je enko stanju shranjenemu v trenutnem posnetku</translation>
+        <translation>Trenutno stanje je enako stanju, shranjenemu v trenutnem posnetku</translation>
     </message>
     <message>
         <location line="+108"/>

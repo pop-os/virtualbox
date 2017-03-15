@@ -36,6 +36,8 @@
 #include <iprt/symlink.h>
 #include <iprt/stream.h>
 #include <iprt/test.h>
+#include <iprt/string.h>
+#include <iprt/utf16.h>
 
 #include "teststubs.h"
 
@@ -115,6 +117,7 @@ static void bufferFromPath(void *pvDest, size_t cb, const char *pcszSrc)
 /*********************************************************************************************************************************
 *   Stub functions and data                                                                                                      *
 *********************************************************************************************************************************/
+static bool g_fFailIfNotLowercase = false;
 
 static PRTDIR g_testRTDirClosepDir;
 
@@ -133,19 +136,41 @@ extern int testRTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
     RT_NOREF2(fMode, fCreate);
  /* RTPrintf("%s: pszPath=%s, fMode=0x%llx\n", __PRETTY_FUNCTION__, pszPath,
              LLUIFY(fMode)); */
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszPath, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     ARRAY_FROM_PATH(testRTDirCreatePath, pszPath);
     return 0;
 }
 
 static char testRTDirOpenName[256];
+static struct TESTDIRHANDLE
+{
+    int iEntry;
+    int iDir;
+} g_aTestDirHandles[4];
+static int g_iNextDirHandle = 0;
 static PRTDIR testRTDirOpenpDir;
 
 extern int testRTDirOpen(PRTDIR *ppDir, const char *pszPath)
 {
  /* RTPrintf("%s: pszPath=%s\n", __PRETTY_FUNCTION__, pszPath); */
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszPath, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     ARRAY_FROM_PATH(testRTDirOpenName, pszPath);
     *ppDir = testRTDirOpenpDir;
     testRTDirOpenpDir = 0;
+    if (!*ppDir && g_fFailIfNotLowercase)
+        *ppDir = (PRTDIR)&g_aTestDirHandles[g_iNextDirHandle++ % RT_ELEMENTS(g_aTestDirHandles)];
+    if (*ppDir)
+    {
+        struct TESTDIRHANDLE *pRealDir = (struct TESTDIRHANDLE *)*ppDir;
+        pRealDir->iEntry = 0;
+        pRealDir->iDir   = 0;
+        const char *pszSlash = pszPath - 1;
+        while ((pszSlash = strpbrk(pszSlash + 1, "\\/")) != NULL)
+            pRealDir->iDir += 1;
+        /*RTPrintf("opendir %s = %d \n", pszPath, pRealDir->iDir);*/
+    }
     return VINF_SUCCESS;
 }
 
@@ -153,9 +178,24 @@ extern int testRTDirOpen(PRTDIR *ppDir, const char *pszPath)
 extern int testRTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER, uint32_t)
 {
  /* RTPrintf("%s: pszPath=%s\n", __PRETTY_FUNCTION__, pszPath); */
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszPath, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     ARRAY_FROM_PATH(testRTDirOpenName, pszPath);
     *ppDir = testRTDirOpenpDir;
     testRTDirOpenpDir = 0;
+    if (!*ppDir && g_fFailIfNotLowercase)
+        *ppDir = (PRTDIR)&g_aTestDirHandles[g_iNextDirHandle++ % RT_ELEMENTS(g_aTestDirHandles)];
+    if (*ppDir)
+    {
+        struct TESTDIRHANDLE *pRealDir = (struct TESTDIRHANDLE *)*ppDir;
+        pRealDir->iEntry = 0;
+        pRealDir->iDir   = 0;
+        const char *pszSlash = pszPath - 1;
+        while ((pszSlash = strpbrk(pszSlash + 1, "\\/")) != NULL)
+            pRealDir->iDir += 1;
+        pRealDir->iDir -= 1;
+        /*RTPrintf("openfiltered %s = %d\n", pszPath, pRealDir->iDir);*/
+    }
     return VINF_SUCCESS;
 }
 
@@ -176,7 +216,8 @@ extern int testRTDirQueryInfo(PRTDIR pDir, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD
 
 extern int testRTDirRemove(const char *pszPath)
 {
-    RT_NOREF1(pszPath);
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszPath, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     RTPrintf("%s\n", __PRETTY_FUNCTION__);
     return 0;
 }
@@ -191,6 +232,41 @@ extern int testRTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirE
              __PRETTY_FUNCTION__, pDir, pcbDirEntry ? (int) *pcbDirEntry : -1,
              LLUIFY(enmAdditionalAttribs), LLUIFY(fFlags)); */
     g_testRTDirReadExDir = pDir;
+    if (g_fFailIfNotLowercase && pDir)
+    {
+        struct TESTDIRHANDLE *pRealDir = (struct TESTDIRHANDLE *)pDir;
+        if (pRealDir->iDir == 2) /* /test/mapping/ */
+        {
+            if (pRealDir->iEntry == 0)
+            {
+                pRealDir->iEntry++;
+                RT_ZERO(*pDirEntry);
+                pDirEntry->Info.Attr.fMode = RTFS_TYPE_DIRECTORY | RTFS_DOS_DIRECTORY | RTFS_UNIX_IROTH | RTFS_UNIX_IXOTH;
+                pDirEntry->cbName = 4;
+                pDirEntry->cwcShortName = 4;
+                strcpy(pDirEntry->szName, "test");
+                RTUtf16CopyAscii(pDirEntry->wszShortName, RT_ELEMENTS(pDirEntry->wszShortName), "test");
+                /*RTPrintf("readdir: 'test'\n");*/
+                return VINF_SUCCESS;
+            }
+        }
+        else if (pRealDir->iDir == 3) /* /test/mapping/test/ */
+        {
+            if (pRealDir->iEntry == 0)
+            {
+                pRealDir->iEntry++;
+                RT_ZERO(*pDirEntry);
+                pDirEntry->Info.Attr.fMode = RTFS_TYPE_FILE | RTFS_DOS_NT_NORMAL | RTFS_UNIX_IROTH | RTFS_UNIX_IXOTH;
+                pDirEntry->cbName = 4;
+                pDirEntry->cwcShortName = 4;
+                strcpy(pDirEntry->szName, "file");
+                RTUtf16CopyAscii(pDirEntry->wszShortName, RT_ELEMENTS(pDirEntry->wszShortName), "file");
+                /*RTPrintf("readdir: 'file'\n");*/
+                return VINF_SUCCESS;
+            }
+        }
+        /*else RTPrintf("%s: iDir=%d\n", pRealDir->iDir);*/
+    }
     return VERR_NO_MORE_FILES;
 }
 
@@ -225,7 +301,8 @@ extern int  testRTFileClose(RTFILE File)
 
 extern int  testRTFileDelete(const char *pszFilename)
 {
-    RT_NOREF1(pszFilename);
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszFilename, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     RTPrintf("%s\n", __PRETTY_FUNCTION__);
     return 0;
 }
@@ -266,6 +343,8 @@ extern int  testRTFileOpen(PRTFILE pFile, const char *pszFilename, uint64_t fOpe
              pszFilename, LLUIFY(fOpen)); */
     ARRAY_FROM_PATH(testRTFileOpenName, pszFilename);
     testRTFileOpenFlags = fOpen;
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszFilename, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     *pFile = testRTFileOpenpFile;
     testRTFileOpenpFile = 0;
     return VINF_SUCCESS;
@@ -407,10 +486,12 @@ extern int testRTFsQuerySizes(const char *pszFsPath, PRTFOFF pcbTotal, RTFOFF *p
 
 extern int testRTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs, uint32_t fFlags)
 {
-    RT_NOREF3(pszPath, enmAdditionalAttribs, fFlags);
+    RT_NOREF2(enmAdditionalAttribs, fFlags);
  /* RTPrintf("%s: pszPath=%s, enmAdditionalAttribs=0x%x, fFlags=0x%x\n",
              __PRETTY_FUNCTION__, pszPath, (unsigned) enmAdditionalAttribs,
              (unsigned) fFlags); */
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszPath, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     RT_ZERO(*pObjInfo);
     return VINF_SUCCESS;
 }
@@ -418,12 +499,16 @@ extern int testRTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTF
 extern int testRTSymlinkDelete(const char *pszSymlink, uint32_t fDelete)
 {
     RT_NOREF2(pszSymlink, fDelete);
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszSymlink, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     RTPrintf("%s\n", __PRETTY_FUNCTION__);
     return 0;
 }
 
 extern int testRTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget, uint32_t fRead)
 {
+    if (g_fFailIfNotLowercase && !RTStrIsLowerCased(strpbrk(pszSymlink, "/\\")))
+        return VERR_FILE_NOT_FOUND;
     RT_NOREF4(pszSymlink, pszTarget, cbTarget, fRead);
     RTPrintf("%s\n", __PRETTY_FUNCTION__);
     return 0;
@@ -501,20 +586,22 @@ void testMappingsAddBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 /* Sub-tests for testMappingsRemove(). */
 void testMappingsRemoveBadParameters(RTTEST hTest) { RT_NOREF1(hTest); }
 
-struct TESTSHFLSTRING
+union TESTSHFLSTRING
 {
     SHFLSTRING string;
     char acData[256];
 };
 
-static void fillTestShflString(struct TESTSHFLSTRING *pDest,
+static void fillTestShflString(union TESTSHFLSTRING *pDest,
                                const char *pcszSource)
 {
-    AssertRelease(  strlen(pcszSource) * 2 + 2
+    const size_t cchSource = strlen(pcszSource);
+    AssertRelease(  cchSource * 2 + 2
                   < sizeof(*pDest) - RT_UOFFSETOF(SHFLSTRING, String));
-    pDest->string.u16Length = (uint16_t)(strlen(pcszSource) * sizeof(RTUTF16));
+    pDest->string.u16Length = (uint16_t)(cchSource * sizeof(RTUTF16));
     pDest->string.u16Size   = pDest->string.u16Length + sizeof(RTUTF16);
-    for (unsigned i = 0; i <= pDest->string.u16Length; ++i)
+    /* Copy pcszSource ASCIIZ, including the trailing 0, to the UTF16 pDest->string.String.ucs2. */
+    for (unsigned i = 0; i <= cchSource; ++i)
         pDest->string.String.ucs2[i] = (uint16_t)pcszSource[i];
 }
 
@@ -522,12 +609,13 @@ static SHFLROOT initWithWritableMapping(RTTEST hTest,
                                         VBOXHGCMSVCFNTABLE *psvcTable,
                                         VBOXHGCMSVCHELPERS *psvcHelpers,
                                         const char *pcszFolderName,
-                                        const char *pcszMapping)
+                                        const char *pcszMapping,
+                                        bool fCaseSensitive = true)
 {
     VBOXHGCMSVCPARM aParms[RT_MAX(SHFL_CPARMS_ADD_MAPPING,
                                   SHFL_CPARMS_MAP_FOLDER)];
-    struct TESTSHFLSTRING FolderName;
-    struct TESTSHFLSTRING Mapping;
+    union TESTSHFLSTRING FolderName;
+    union TESTSHFLSTRING Mapping;
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
     int rc;
 
@@ -550,7 +638,7 @@ static SHFLROOT initWithWritableMapping(RTTEST hTest,
                                    + Mapping.string.u16Size);
     aParms[1].setUInt32(0);  /* root */
     aParms[2].setUInt32('/');  /* delimiter */
-    aParms[3].setUInt32(1);  /* case sensitive */
+    aParms[3].setUInt32(fCaseSensitive);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_MAP_FOLDER,
                        SHFL_CPARMS_MAP_FOLDER, aParms);
@@ -567,7 +655,7 @@ static void unmapAndRemoveMapping(RTTEST hTest, VBOXHGCMSVCFNTABLE *psvcTable,
     VBOXHGCMSVCPARM aParms[RT_MAX(SHFL_CPARMS_UNMAP_FOLDER,
                                   SHFL_CPARMS_REMOVE_MAPPING)];
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
-    struct TESTSHFLSTRING FolderName;
+    union TESTSHFLSTRING FolderName;
     int rc;
 
     aParms[0].setUInt32(root);
@@ -588,7 +676,7 @@ static int createFile(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT Root,
                       SHFLHANDLE *pHandle, SHFLCREATERESULT *pResult)
 {
     VBOXHGCMSVCPARM aParms[SHFL_CPARMS_CREATE];
-    struct TESTSHFLSTRING Path;
+    union TESTSHFLSTRING Path;
     SHFLCREATEPARMS CreateParms;
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
@@ -671,7 +759,7 @@ static int listDir(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT root,
                    uint32_t resumePoint, uint32_t *pcFiles)
 {
     VBOXHGCMSVCPARM aParms[SHFL_CPARMS_LIST];
-    struct TESTSHFLSTRING Path;
+    union TESTSHFLSTRING Path;
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
     aParms[0].setUInt32(root);
@@ -750,8 +838,9 @@ void testCreateFileSimple(RTTEST hTest)
                     &Result);
     RTTEST_CHECK_RC_OK(hTest, rc);
     RTTEST_CHECK_MSG(hTest,
-                     !strcmp(testRTFileOpenName, "/test/mapping/test/file"),
-                     (hTest, "pszFilename=%s\n", testRTFileOpenName));
+                     !strcmp(&testRTFileOpenName[RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS ? 2 : 0],
+                             "/test/mapping/test/file"),
+                     (hTest, "pszFilename=%s\n", &testRTFileOpenName[RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS ? 2 : 0]));
     RTTEST_CHECK_MSG(hTest, testRTFileOpenFlags == 0x181,
                      (hTest, "fOpen=%llu\n", LLUIFY(testRTFileOpenFlags)));
     RTTEST_CHECK_MSG(hTest, Result == SHFL_FILE_CREATED,
@@ -763,34 +852,72 @@ void testCreateFileSimple(RTTEST hTest)
                      (hTest, "File=%u\n", (uintptr_t)g_testRTFileCloseFile));
 }
 
+void testCreateFileSimpleCaseInsensitive(RTTEST hTest)
+{
+    VBOXHGCMSVCFNTABLE  svcTable;
+    VBOXHGCMSVCHELPERS  svcHelpers;
+    SHFLROOT Root;
+    const RTFILE hcFile = (RTFILE) 0x10000;
+    SHFLCREATERESULT Result;
+    int rc;
+
+    g_fFailIfNotLowercase = true;
+
+    RTTestSub(hTest, "Create file case insensitive");
+    Root = initWithWritableMapping(hTest, &svcTable, &svcHelpers,
+                                   "/test/mapping", "testname", false /*fCaseSensitive*/);
+    testRTFileOpenpFile = hcFile;
+    rc = createFile(&svcTable, Root, "/TesT/FilE", SHFL_CF_ACCESS_READ, NULL,
+                    &Result);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+
+    RTTEST_CHECK_MSG(hTest,
+                     !strcmp(&testRTFileOpenName[RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS ? 2 : 0],
+                             "/test/mapping/test/file"),
+                     (hTest, "pszFilename=%s\n", &testRTFileOpenName[RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS ? 2 : 0]));
+    RTTEST_CHECK_MSG(hTest, testRTFileOpenFlags == 0x181,
+                     (hTest, "fOpen=%llu\n", LLUIFY(testRTFileOpenFlags)));
+    RTTEST_CHECK_MSG(hTest, Result == SHFL_FILE_CREATED,
+                     (hTest, "Result=%d\n", (int) Result));
+    unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
+    AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
+    RTTestGuardedFree(hTest, svcTable.pvService);
+    RTTEST_CHECK_MSG(hTest, g_testRTFileCloseFile == hcFile,
+                     (hTest, "File=%u\n", (uintptr_t)g_testRTFileCloseFile));
+
+    g_fFailIfNotLowercase = false;
+}
+
 void testCreateDirSimple(RTTEST hTest)
 {
     VBOXHGCMSVCFNTABLE  svcTable;
     VBOXHGCMSVCHELPERS  svcHelpers;
     SHFLROOT Root;
-    PRTDIR pcDir = (PRTDIR)0x10000;
+    PRTDIR pDir = (PRTDIR)&g_aTestDirHandles[g_iNextDirHandle++ % RT_ELEMENTS(g_aTestDirHandles)];
     SHFLCREATERESULT Result;
     int rc;
 
     RTTestSub(hTest, "Create directory simple");
     Root = initWithWritableMapping(hTest, &svcTable, &svcHelpers,
                                    "/test/mapping", "testname");
-    testRTDirOpenpDir = pcDir;
+    testRTDirOpenpDir = pDir;
     rc = createFile(&svcTable, Root, "test/dir",
                     SHFL_CF_DIRECTORY | SHFL_CF_ACCESS_READ, NULL, &Result);
     RTTEST_CHECK_RC_OK(hTest, rc);
     RTTEST_CHECK_MSG(hTest,
-                     !strcmp(testRTDirCreatePath, "/test/mapping/test/dir"),
-                     (hTest, "pszPath=%s\n", testRTDirCreatePath));
+                     !strcmp(&testRTDirCreatePath[RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS ? 2 : 0],
+                             "/test/mapping/test/dir"),
+                     (hTest, "pszPath=%s\n", &testRTDirCreatePath[RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS ? 2 : 0]));
     RTTEST_CHECK_MSG(hTest,
-                     !strcmp(testRTDirOpenName, "/test/mapping/test/dir"),
-                     (hTest, "pszFilename=%s\n", testRTDirOpenName));
+                     !strcmp(&testRTDirOpenName[RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS ? 2 : 0],
+                             "/test/mapping/test/dir"),
+                     (hTest, "pszFilename=%s\n", &testRTDirOpenName[RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS ? 2 : 0]));
     RTTEST_CHECK_MSG(hTest, Result == SHFL_FILE_CREATED,
                      (hTest, "Result=%d\n", (int) Result));
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pcDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
 }
 
 void testReadFileSimple(RTTEST hTest)
@@ -890,7 +1017,7 @@ void testDirListEmpty(RTTEST hTest)
     VBOXHGCMSVCFNTABLE  svcTable;
     VBOXHGCMSVCHELPERS  svcHelpers;
     SHFLROOT Root;
-    PRTDIR pcDir = (PRTDIR)0x10000;
+    PRTDIR pDir = (PRTDIR)&g_aTestDirHandles[g_iNextDirHandle++ % RT_ELEMENTS(g_aTestDirHandles)];
     SHFLHANDLE Handle;
     SHFLDIRINFO DirInfo;
     uint32_t cFiles;
@@ -899,20 +1026,20 @@ void testDirListEmpty(RTTEST hTest)
     RTTestSub(hTest, "List empty directory");
     Root = initWithWritableMapping(hTest, &svcTable, &svcHelpers,
                                    "/test/mapping", "testname");
-    testRTDirOpenpDir = pcDir;
+    testRTDirOpenpDir = pDir;
     rc = createFile(&svcTable, Root, "test/dir",
                     SHFL_CF_DIRECTORY | SHFL_CF_ACCESS_READ, &Handle, NULL);
     RTTEST_CHECK_RC_OK(hTest, rc);
     rc = listDir(&svcTable, Root, Handle, 0, sizeof (SHFLDIRINFO), NULL,
                  &DirInfo, sizeof(DirInfo), 0, &cFiles);
     RTTEST_CHECK_RC(hTest, rc, VERR_NO_MORE_FILES);
-    RTTEST_CHECK_MSG(hTest, g_testRTDirReadExDir == pcDir, (hTest, "Dir=%p\n", g_testRTDirReadExDir));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirReadExDir == pDir, (hTest, "Dir=%p\n", g_testRTDirReadExDir));
     RTTEST_CHECK_MSG(hTest, cFiles == 0,
                      (hTest, "cFiles=%llu\n", LLUIFY(cFiles)));
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pcDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
 }
 
 void testFSInfoQuerySetFMode(RTTEST hTest)
@@ -923,16 +1050,17 @@ void testFSInfoQuerySetFMode(RTTEST hTest)
     const RTFILE hcFile = (RTFILE) 0x10000;
     const uint32_t fMode = 0660;
     SHFLFSOBJINFO Info;
-    SHFLHANDLE Handle;
     int rc;
 
     RTTestSub(hTest, "Query and set file size");
     Root = initWithWritableMapping(hTest, &svcTable, &svcHelpers,
                                    "/test/mapping", "testname");
+    SHFLHANDLE Handle = SHFL_HANDLE_NIL;
     testRTFileOpenpFile = hcFile;
     rc = createFile(&svcTable, Root, "/test/file", SHFL_CF_ACCESS_READ,
                     &Handle, NULL);
-    RTTEST_CHECK_RC_OK(hTest, rc);
+    RTTEST_CHECK_RC_OK_RETV(hTest, rc);
+
     RT_ZERO(Info);
     testRTFileQueryInfoFMode = fMode;
     rc = sfInformation(&svcTable, Root, Handle, SHFL_INFO_FILE, sizeof(Info),
@@ -959,7 +1087,7 @@ void testFSInfoQuerySetDirATime(RTTEST hTest)
     VBOXHGCMSVCFNTABLE  svcTable;
     VBOXHGCMSVCHELPERS  svcHelpers;
     SHFLROOT Root;
-    const PRTDIR pcDir = (PRTDIR) 0x10000;
+    const PRTDIR pDir = (PRTDIR)&g_aTestDirHandles[g_iNextDirHandle++ % RT_ELEMENTS(g_aTestDirHandles)];
     const int64_t ccAtimeNano = 100000;
     SHFLFSOBJINFO Info;
     SHFLHANDLE Handle;
@@ -968,7 +1096,7 @@ void testFSInfoQuerySetDirATime(RTTEST hTest)
     RTTestSub(hTest, "Query and set directory atime");
     Root = initWithWritableMapping(hTest, &svcTable, &svcHelpers,
                                    "/test/mapping", "testname");
-    testRTDirOpenpDir = pcDir;
+    testRTDirOpenpDir = pDir;
     rc = createFile(&svcTable, Root, "test/dir",
                     SHFL_CF_DIRECTORY | SHFL_CF_ACCESS_READ, &Handle, NULL);
     RTTEST_CHECK_RC_OK(hTest, rc);
@@ -977,7 +1105,7 @@ void testFSInfoQuerySetDirATime(RTTEST hTest)
     rc = sfInformation(&svcTable, Root, Handle, SHFL_INFO_FILE, sizeof(Info),
                        &Info);
     RTTEST_CHECK_RC_OK(hTest, rc);
-    RTTEST_CHECK_MSG(hTest, g_testRTDirQueryInfoDir == pcDir, (hTest, "Dir=%p\n", g_testRTDirQueryInfoDir));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirQueryInfoDir == pDir, (hTest, "Dir=%p\n", g_testRTDirQueryInfoDir));
     RTTEST_CHECK_MSG(hTest, RTTimeSpecGetNano(&Info.AccessTime) == ccAtimeNano,
                      (hTest, "ATime=%llu\n",
                       LLUIFY(RTTimeSpecGetNano(&Info.AccessTime))));
@@ -993,7 +1121,7 @@ void testFSInfoQuerySetDirATime(RTTEST hTest)
     unmapAndRemoveMapping(hTest, &svcTable, Root, "testname");
     AssertReleaseRC(svcTable.pfnDisconnect(NULL, 0, svcTable.pvService));
     RTTestGuardedFree(hTest, svcTable.pvService);
-    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pcDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
+    RTTEST_CHECK_MSG(hTest, g_testRTDirClosepDir == pDir, (hTest, "pDir=%p\n", g_testRTDirClosepDir));
 }
 
 void testFSInfoQuerySetFileATime(RTTEST hTest)

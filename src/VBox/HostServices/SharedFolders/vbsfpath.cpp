@@ -594,11 +594,10 @@ int vbsfPathGuestToHost(SHFLCLIENTDATA *pClient, SHFLROOT hRoot,
 
                 if (RT_SUCCESS(rc))
                 {
-                    const size_t cbFullPathLength = pchDst - &pszFullPath[0]; /* As strlen(pszFullPath). */
                     *pchDst++ = 0;
 
                     /* Construct the full host path removing '.' and '..'. */
-                    rc = RTPathAbsEx(pszRoot, pchVerifiedPath, pszFullPath, cbFullPathAlloc);
+                    rc = vbsfPathAbs(pszRoot, pchVerifiedPath, pszFullPath, cbFullPathAlloc);
                     if (RT_SUCCESS(rc))
                     {
                         if (pfu32PathFlags && fLastComponentHasWildcard)
@@ -626,7 +625,7 @@ int vbsfPathGuestToHost(SHFLCLIENTDATA *pClient, SHFLROOT hRoot,
                             {
                                 const bool fWildCard = RT_BOOL(fu32Options & VBSF_O_PATH_WILDCARD);
                                 const bool fPreserveLastComponent = RT_BOOL(fu32Options & VBSF_O_PATH_PRESERVE_LAST_COMPONENT);
-                                rc = vbsfCorrectPathCasing(pClient, pszFullPath, cbFullPathLength,
+                                rc = vbsfCorrectPathCasing(pClient, pszFullPath, strlen(pszFullPath),
                                                            fWildCard, fPreserveLastComponent);
                             }
 
@@ -649,7 +648,7 @@ int vbsfPathGuestToHost(SHFLCLIENTDATA *pClient, SHFLROOT hRoot,
                     }
                     else
                     {
-                        LogFunc(("RTPathAbsEx %Rrc\n", rc));
+                        LogFunc(("vbsfPathAbs %Rrc\n", rc));
                     }
                 }
 

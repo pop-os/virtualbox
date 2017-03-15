@@ -2771,7 +2771,7 @@
     </message>
     <message>
         <source>Verifying %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>Verifica di %1 in corso...</translation>
     </message>
 </context>
 <context>
@@ -11619,11 +11619,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Il file dell&apos;immagine del disco delle &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; è stato scaricato correttamente da &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; e salvato localmente come &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;ma la verifica del codice di controllo SHA-256 non è riuscita..&lt;/p&gt;&lt;p&gt;Esegui lo scaricamento, l&apos;installazione e la verifica manualmente.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Il file di &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; è stato scaricato correttamente da &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; e salvato localmente come &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;ma la verifica del codice di controllo SHA-256 non è riuscita..&lt;/p&gt;&lt;p&gt;Esegui lo scaricamento, l&apos;installazione e la verifica manualmente.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

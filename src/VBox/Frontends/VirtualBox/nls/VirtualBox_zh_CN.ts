@@ -1666,52 +1666,52 @@
     <message>
         <source>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</source>
         <comment>key: value</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;tr&gt;&lt;td&gt;%1:&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;</translation>
     </message>
     <message>
         <source>Issuer</source>
-        <translation type="unfinished"></translation>
+        <translation>签发者</translation>
     </message>
     <message>
         <source>Subject</source>
-        <translation type="unfinished"></translation>
+        <translation>主题</translation>
     </message>
     <message>
         <source>Not Valid Before</source>
-        <translation type="unfinished"></translation>
+        <translation>在此之前无效</translation>
     </message>
     <message>
         <source>Not Valid After</source>
-        <translation type="unfinished"></translation>
+        <translation>在此之后无效</translation>
     </message>
     <message>
         <source>Serial Number</source>
-        <translation type="unfinished"></translation>
+        <translation>序列号</translation>
     </message>
     <message>
         <source>Self-Signed</source>
-        <translation type="unfinished"></translation>
+        <translation>自行签署</translation>
     </message>
     <message>
         <source>Authority (CA)</source>
-        <translation type="unfinished"></translation>
+        <translation>授权机构 (CA)</translation>
     </message>
     <message>
         <source>Public Algorithm</source>
-        <translation type="unfinished"></translation>
+        <translation>公钥算法</translation>
     </message>
     <message>
         <source>%1 (%2)</source>
         <comment>value (clarification)</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1 (%2)</translation>
     </message>
     <message>
         <source>Signature Algorithm</source>
-        <translation type="unfinished"></translation>
+        <translation>签名算法</translation>
     </message>
     <message>
         <source>X.509 Version Number</source>
-        <translation type="unfinished"></translation>
+        <translation>X.509 版本</translation>
     </message>
 </context>
 <context>
@@ -2393,7 +2393,7 @@
     </message>
     <message>
         <source>Verifying %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>校验 %1...</translation>
     </message>
 </context>
 <context>
@@ -9401,27 +9401,27 @@
     <message>
         <source>Delete</source>
         <comment>extension pack</comment>
-        <translation type="unfinished">删除</translation>
+        <translation>删除</translation>
     </message>
     <message>
         <source>Do you want to delete the downloaded file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>确认删除已下载的文件 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</translation>
     </message>
     <message>
         <source>Do you want to delete following list of files &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>确认删除下列文件 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</translation>
     </message>
     <message>
         <source>&lt;p&gt;The reason for this error are most likely wrong permissions of the IPC daemon socket due to an installation problem. Please check the permissions of &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; and &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;此错误的原因很可能是安装问题导致 IPC 守护套接字权限有误。 请检查 &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; 和 &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt; 的权限。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;增强功能包虚拟光盘已从 &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt;成功下载并保存在 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;但是 SHA-256 校验有误。&lt;/p&gt;&lt;p&gt;请你自己下载安装和校验。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;已从 &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt;成功下载并保存在 &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;但是 SHA-256 校验有误。&lt;/p&gt;&lt;p&gt;请你自己下载安装和校验。&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -13396,82 +13396,82 @@
     <message>
         <source>General</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">常规</translation>
+        <translation>常规</translation>
     </message>
     <message>
         <source>Preview</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">预览</translation>
+        <translation>预览</translation>
     </message>
     <message>
         <source>System</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">系统</translation>
+        <translation>系统</translation>
     </message>
     <message>
         <source>Display</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">显示</translation>
+        <translation>显示</translation>
     </message>
     <message>
         <source>Storage</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">存储</translation>
+        <translation>存储</translation>
     </message>
     <message>
         <source>Audio</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">声音</translation>
+        <translation>声音</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">网络</translation>
+        <translation>网络</translation>
     </message>
     <message>
         <source>Serial ports</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">串口</translation>
+        <translation>串口</translation>
     </message>
     <message>
         <source>Parallel ports</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">并口</translation>
+        <translation>并口</translation>
     </message>
     <message>
         <source>USB</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
+        <translation>USB设备</translation>
     </message>
     <message>
         <source>Shared folders</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">共享文件夹</translation>
+        <translation>共享文件夹</translation>
     </message>
     <message>
         <source>User interface</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">用户界面</translation>
+        <translation>用户界面</translation>
     </message>
     <message>
         <source>Description</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">描述</translation>
+        <translation>描述</translation>
     </message>
     <message>
         <source>Runtime attributes</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
+        <translation>运行属性</translation>
     </message>
     <message>
         <source>Storage statistics</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
+        <translation>存储统计</translation>
     </message>
     <message>
         <source>Network statistics</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
+        <translation>网络统计</translation>
     </message>
 </context>
 <context>

@@ -6,7 +6,7 @@
     <message>
         <source>English</source>
         <comment>Native language name</comment>
-        <translatorcomment>2016-11-10</translatorcomment>
+        <translatorcomment>2017-03-13</translatorcomment>
         <translation>Ελληνικά</translation>
     </message>
     <message>
@@ -1220,7 +1220,7 @@
     </message>
     <message>
         <source>Verifying %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>Επιβεβαιώνεται %1...</translation>
     </message>
 </context>
 <context>
@@ -5163,7 +5163,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Η Εικονική Μηχανή αναφέρει οτι το λειτουργικό του επισκέπτη υποστηρίζει &lt;b&gt;ενσωμάτωση δείκτη ποντικιού&lt;/b&gt;. Αυτό σημαίνει οτι δεν χρειάζεται να &lt;i&gt;δεσμεύσετε&lt;/i&gt; τον δείκτη ποντικιού για να μπορέσετε να το χρησιμοποιήσετε στο λειτουργικό του επισκέπτη - όλες οι ενέργειες που πραγματοποιείται όταν ο δείκτης ποντικιού είναι πάνω από την οθόνη της Εικονικής Μηχανής στέλνονται κατευθείαν στο λειτουργικό του επισκέπτη. Αν το ποντίκι είναι δεσμευμένο, θα αποδεσμευτεί αυτόματα.&lt;/p&gt;&lt;p&gt;Το εικονίδιο για το ποντίκι στη γραμμή κατάστασης θα μοιάζει με&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;για να σας πληροφορήσει οτι η ενσωμάτωση ποντικιού υποστηρίζεται από το λειτουργικό του επισκέπτη και είναι ενεργή.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Σημείωση&lt;/b&gt;: Μερικές εφαρμογές μπορεί να μην συμπεριφέρονται κανονικά με την ενσωμάτωση δείκτη ποντικιού. Μπορείτε να την απενεργοποιήσετε για την τρέχουσα συνεδρία (και να την ενεργοποιήσετε ξανά) επιλέγοντας την αντίστοιχη δράση από τη γραμμή επιλογών.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Η Εικονική Μηχανή αναφέρει οτι το λειτουργικό του επισκέπτη υποστηρίζει &lt;b&gt;ενσωμάτωση δείκτη ποντικιού&lt;/b&gt;. Αυτό σημαίνει οτι δεν χρειάζεται να &lt;i&gt;δεσμεύσετε&lt;/i&gt; τον δείκτη ποντικιού για να μπορέσετε να το χρησιμοποιήσετε στο λειτουργικό του επισκέπτη - όλες οι ενέργειες που πραγματοποιούνται όταν ο δείκτης ποντικιού είναι πάνω από την οθόνη της Εικονικής Μηχανής στέλνονται κατευθείαν στο λειτουργικό του επισκέπτη. Αν το ποντίκι είναι δεσμευμένο, θα αποδεσμευτεί αυτόματα.&lt;/p&gt;&lt;p&gt;Το εικονίδιο του ποντικιού στη γραμμή κατάστασης θα μοιάζει με&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;για να σας πληροφορήσει οτι η ενσωμάτωση δείκτη ποντικιού υποστηρίζεται από το λειτουργικό του επισκέπτη και είναι ενεργή.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Σημείωση&lt;/b&gt;: Μερικές εφαρμογές μπορεί να μην συμπεριφέρονται κανονικά με την ενσωμάτωση δείκτη ποντικιού. Μπορείτε να την απενεργοποιήσετε για την τρέχουσα συνεδρία (και να την ενεργοποιήσετε ξανά) επιλέγοντας την αντίστοιχη δράση από τη γραμμή επιλογών.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Release</source>
@@ -5500,7 +5500,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Το &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; κατέβηκε επιτυχώς από &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; και σώθηκε τοπικά ως &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Θέλετε να εγκαταστήσετε το πακέτο επέκτρασης;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Το &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; κατέβηκε επιτυχώς από &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; και αποθηκεύτηκε τοπικά ως &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Θέλετε να εγκαταστήσετε το πακέτο επέκτρασης;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Install</source>
@@ -5623,7 +5623,7 @@
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Αγνόησε</translation>
+        <translation>Αγνοήστε</translation>
     </message>
     <message>
         <source>Failed to create NAT network.</source>
@@ -5745,7 +5745,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Το αρχείο εικόνας δίσκου &lt;b&gt;Προσθήκες Επισκέπτη του VirtualBox&lt;/b&gt; κατέβηκε επιτυχώς από &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; αλλά δεν μπορεί να αποθηκευθεί τοπικά ως &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Παρακαλώ επιλέξτε μία άλλη τοποθεσία για αυτό το αρχείο.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Το αρχείο εικόνας δίσκου &lt;b&gt;Προσθήκες Επισκέπτη του VirtualBox&lt;/b&gt; κατέβηκε επιτυχώς από &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; αλλά δεν μπορεί να αποθηκευτεί τοπικά ως &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Παρακαλώ επιλέξτε μία άλλη τοποθεσία για αυτό το αρχείο.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
@@ -5971,11 +5971,11 @@
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Το αρχείο εικόνας δίσκου &lt;b&gt;Προσθήκες Επισκέπτη του VirtualBox&lt;/b&gt; κατέβηκε επιτυχώς από &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; και αποθηκεύτηκε επιτυχώς ως &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;αλλά ο έλεγχος για την επιβεβαίωση του SHA-256 απέτυχε.&lt;/p&gt;&lt;p&gt;Παρακαλούμε κατεβάστε, εγκαταστήστε και επιβεβαιώστε μη αυτόματα.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Το &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; κατέβηκε επιτυχώς από &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; και αποθηκεύτηκε τοπικά ως &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;αλλά ο έλεγχος για την επιβεβαίωση του SHA-256 απέτυχε.&lt;/p&gt;&lt;p&gt;Παρακαλούμε κατεβάστε, εγκαταστήστε και επιβεβαιώστε μη αυτόματα.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -6527,7 +6527,7 @@
     </message>
     <message>
         <source>&amp;Save the machine state</source>
-        <translation>Αποθήκευση την κατάστασης της μηχανής</translation>
+        <translation>Αποθήκευση της κατάστασης της μηχανής</translation>
     </message>
     <message>
         <source>&lt;p&gt;Sends the ACPI Power Button press event to the virtual machine.&lt;/p&gt;&lt;p&gt;Normally, the guest operating system running inside the virtual machine will detect this event and perform a clean shutdown procedure. This is a recommended way to turn off the virtual machine because all applications running inside it will get a chance to save their data and state.&lt;/p&gt;&lt;p&gt;If the machine doesn&apos;t respond to this action then the guest operating system may be misconfigured or doesn&apos;t understand ACPI Power Button events at all. In this case you should select the &lt;b&gt;Power off the machine&lt;/b&gt; action to stop virtual machine execution.&lt;/p&gt;</source>
@@ -8588,12 +8588,12 @@
     <message>
         <source>Ignore</source>
         <comment>USBDeviceFilterAction</comment>
-        <translation>Αγνόησε</translation>
+        <translation>Αγνοήστε</translation>
     </message>
     <message>
         <source>Hold</source>
         <comment>USBDeviceFilterAction</comment>
-        <translation>Κράτα</translation>
+        <translation>Κρατήστε</translation>
     </message>
     <message>
         <source>UDP</source>
