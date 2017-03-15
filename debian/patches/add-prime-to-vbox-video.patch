@@ -2,7 +2,7 @@ Author: Andreas Pokorny <andreas.pokorny@canonical.com>
 Description: fix unity9
 --- virtualbox-5.1.14-dfsg.orig/src/VBox/Additions/linux/drm/Makefile.module.kms
 +++ virtualbox-5.1.14-dfsg/src/VBox/Additions/linux/drm/Makefile.module.kms
-@@ -32,7 +32,7 @@ ifeq ($(filter 1.% 2.% 3.0.% 3.1.% 3.2.%
+@@ -36,7 +36,7 @@ ifeq ($(filter 1.% 2.% 3.0.% 3.1.% 3.2.%
  3.8.% 3.9.% 3.10.%,$(MY_KERNELRELEASE)),)
  MOD_OBJS   = HGSMIBase.o HGSMICommon.o HGSMIMemAlloc.o heapoffset.o \
               Modesetting.o vbox_drv.o vbox_fb.o vbox_irq.o vbox_main.o \
@@ -73,8 +73,19 @@ Description: fix unity9
  void vbox_irq_fini(struct vbox_private *vbox);
 --- /dev/null
 +++ virtualbox-5.1.14-dfsg/src/VBox/Additions/linux/drm/vbox_prime.c
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,84 @@
 +/*
++ * Copyright (C) 2017 Oracle Corporation
++ *
++ * This file is part of VirtualBox Open Source Edition (OSE), as
++ * available from http://www.virtualbox.org. This file is free software;
++ * you can redistribute it and/or modify it under the terms of the GNU
++ * General Public License (GPL) as published by the Free Software
++ * Foundation, in version 2 as it comes in the "COPYING" file of the
++ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
++ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
++ * --------------------------------------------------------------------
++
 + * Copyright 2017 Canonical
 + *
 + * Permission is hereby granted, free of charge, to any person obtaining a
