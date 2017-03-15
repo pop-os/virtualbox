@@ -515,7 +515,7 @@ to
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>重作(&amp;R)</translation>
+        <translation>重做(&amp;R)</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
@@ -1942,7 +1942,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>重作(&amp;R)</translation>
+        <translation>重做(&amp;R)</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
@@ -2663,15 +2663,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Orientation</source>
-        <translation>橫向</translation>
+        <translation>方向</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation>橫向</translation>
+        <translation>直向</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation>直向</translation>
+        <translation>橫向</translation>
     </message>
     <message>
         <source>Reverse landscape</source>
@@ -3916,7 +3916,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>重作(&amp;R)</translation>
+        <translation>重做(&amp;R)</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
@@ -3969,7 +3969,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Redo</source>
-        <translation>重作</translation>
+        <translation>重做</translation>
     </message>
 </context>
 <context>
@@ -3987,7 +3987,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Redo</source>
-        <translation>重作</translation>
+        <translation>重做</translation>
     </message>
 </context>
 <context>
@@ -4118,17 +4118,17 @@ Please choose a different file name.</source>
     <message>
         <source>Open Image</source>
         <comment>Open Image in New Window context menu item</comment>
-        <translation>開啟映像</translation>
+        <translation>開啟圖片</translation>
     </message>
     <message>
         <source>Save Image</source>
         <comment>Download Image context menu item</comment>
-        <translation>儲存映像</translation>
+        <translation>儲存圖片</translation>
     </message>
     <message>
         <source>Copy Image</source>
         <comment>Copy Link context menu item</comment>
-        <translation>複製映像</translation>
+        <translation>複製圖片</translation>
     </message>
     <message>
         <source>Open Frame</source>
