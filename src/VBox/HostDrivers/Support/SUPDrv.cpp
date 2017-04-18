@@ -849,8 +849,9 @@ static void supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
 
     Assert(!pSession->fInHashTable);
     Assert(!pSession->ppOsSessionPtr);
-    AssertReleaseMsg(pSession->R0Process == RTR0ProcHandleSelf() || pSession->R0Process == NIL_RTR0PROCESS,
-                     ("R0Process=%p cur=%p; Process=%u curpid=%u\n", RTR0ProcHandleSelf(), RTProcSelf()));
+    AssertLogRelMsg(pSession->R0Process == RTR0ProcHandleSelf() || pSession->R0Process == NIL_RTR0PROCESS,
+                    ("R0Process=%p cur=%p; curpid=%u\n",
+                    pSession->R0Process, RTR0ProcHandleSelf(), RTProcSelf()));
 
     /*
      * Remove logger instances related to this session.
@@ -4924,7 +4925,7 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     }
     if (RT_SUCCESS(rc))
     {
-        SUPR0Printf("vboxdrv: %p %s\n", pImage->pvImage, pImage->szName);
+        SUPR0Printf("vboxdrv: %RKv %s\n", pImage->pvImage, pImage->szName);
         pReq->u.Out.uErrorMagic = 0;
         pReq->u.Out.szError[0]  = '\0';
     }

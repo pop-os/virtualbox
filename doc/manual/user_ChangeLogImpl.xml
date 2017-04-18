@@ -3,6 +3,57 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.20 (2017-04-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: don't check if the Extension Pack is up-to-date if the user
+          is about to install a new Extension Pack (bug #16317)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a possible crash when switching a multi-monitor VM
+          into full-screen or seamless mode</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed non-literal shortcuts if the keyboard is not captured
+          (5.1.10 regression; Windows hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: several mini-toolbar fixes in full-screen / seamless mode
+          (X11 hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: don't crash on restoring defaults in the
+          <emphasis>appliance import</emphasis> dialog</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: another fix for automatic logins for Windows
+          Vista and newer (bug #15904)</para>
+      </listitem>
+
+      <listitem>
+        <para>ICH9: fix for Windows guests with a huge amount (>64G) of guest
+          memory</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: fixed El Torito hard disk emulation geometry calculation
+          (thanks Dwight Engen)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.18 (2017-08-15)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

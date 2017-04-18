@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 113648 $)
+# Linux Additions kernel module init script ($Revision: 114389 $)
 #
 
 #
@@ -30,6 +30,20 @@
 
 ## @todo This file duplicates a lot of script with vboxdrv.sh.  When making
 # changes please try to reduce differences between the two wherever possible.
+
+# Testing:
+# * Should fail if the configuration file is missing or missing INSTALL_DIR or
+#   INSTALL_VER entries.
+# * vboxadd user and vboxsf groups should be created if they do not exist - test
+#   by removing them before installing.
+# * Shared folders can be mounted and auto-mounts accessible to vboxsf group,
+#   including on recent Fedoras with SELinux.
+# * Setting INSTALL_NO_MODULE_BUILDS inhibits modules and module automatic
+#   rebuild script creation; otherwise modules, user, group, rebuild script,
+#   udev rule and shared folder mount helper should be created/set up.
+# * Setting INSTALL_NO_MODULE_BUILDS inhibits module load and unload on start
+#   and stop.
+# * Uninstalling the Additions and re-installing them does not trigger warnings.
 
 PATH=$PATH:/bin:/sbin:/usr/sbin
 PACKAGE=VBoxGuestAdditions
@@ -97,6 +111,14 @@ userdev=/dev/vboxuser
 config=/var/lib/VBoxGuestAdditions/config
 owner=vboxadd
 group=1
+
+if test -r $config; then
+  . $config
+else
+  fail "Configuration file $config not found"
+fi
+test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
+  fail "Configuration file $config not complete"
 
 running_vboxguest()
 {
@@ -171,50 +193,45 @@ start()
     begin "Starting the VirtualBox Guest Additions" console;
     # If we got this far assume that the slow set-up has been done.
     QUICKSETUP=yes
-    if test -r $config; then
-      . $config
-    else
-      fail "Configuration file $config not found"
-    fi
-    test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
-      fail "Configuration file $config not complete"
-    uname -r | grep -q -E '^2\.6|^3|^4' 2>/dev/null &&
-        ps -A -o comm | grep -q '/*udevd$' 2>/dev/null ||
-        no_udev=1
-    running_vboxguest || {
-        rm -f $dev || {
-            fail "Cannot remove $dev"
-        }
-
-        rm -f $userdev || {
-            fail "Cannot remove $userdev"
-        }
-
-        $MODPROBE vboxguest >/dev/null 2>&1 || {
-            setup
-            $MODPROBE vboxguest >/dev/null 2>&1 || {
-                /sbin/rcvboxadd-x11 cleanup
-                fail "modprobe vboxguest failed"
+    if test -z "${INSTALL_NO_MODULE_BUILDS}"; then
+        uname -r | grep -q -E '^2\.6|^3|^4' 2>/dev/null &&
+            ps -A -o comm | grep -q '/*udevd$' 2>/dev/null ||
+            no_udev=1
+        running_vboxguest || {
+            rm -f $dev || {
+                fail "Cannot remove $dev"
             }
+
+            rm -f $userdev || {
+                fail "Cannot remove $userdev"
+            }
+
+            $MODPROBE vboxguest >/dev/null 2>&1 || {
+                setup
+                $MODPROBE vboxguest >/dev/null 2>&1 || {
+                    ${INSTALL_DIR}/init/vboxadd-x11 cleanup
+                    fail "modprobe vboxguest failed"
+                }
+            }
+            case "$no_udev" in 1)
+                sleep .5;;
+            esac
         }
         case "$no_udev" in 1)
-            sleep .5;;
+            do_vboxguest_non_udev;;
         esac
-    }
-    case "$no_udev" in 1)
-        do_vboxguest_non_udev;;
-    esac
 
-    running_vboxsf || {
-        $MODPROBE vboxsf > /dev/null 2>&1 || {
-            if dmesg | grep "VbglR0SfConnect failed" > /dev/null 2>&1; then
-                show_error "Unable to start shared folders support.  Make sure that your VirtualBox build"
-                show_error "supports this feature."
-            else
-                show_error "modprobe vboxsf failed"
-            fi
+        running_vboxsf || {
+            $MODPROBE vboxsf > /dev/null 2>&1 || {
+                if dmesg | grep "VbglR0SfConnect failed" > /dev/null 2>&1; then
+                    show_error "Unable to start shared folders support.  Make sure that your VirtualBox build"
+                    show_error "supports this feature."
+                else
+                    show_error "modprobe vboxsf failed"
+                fi
+            }
         }
-    }
+    fi  # INSTALL_NO_MODULE_BUILDS
 
     # Put the X.Org driver in place.  This is harmless if it is not needed.
     /sbin/rcvboxadd-x11 setup
@@ -259,6 +276,7 @@ stop()
     if ! umount -a -t vboxsf 2>/dev/null; then
         fail "Cannot unmount vboxsf folders"
     fi
+    test -n "${INSTALL_NO_MODULE_BUILDS}" && return 0
     modprobe -q -r -a vboxvideo vboxsf vboxguest
     egrep -q 'vboxguest|vboxsf|vboxvideo' /proc/modules &&
         echo "You may need to restart your guest system to finish removing the guest drivers."
@@ -308,7 +326,7 @@ setup_modules()
         --module-source $MODULE_SRC/vboxguest \
         --no-print-directory install >> $LOG 2>&1; then
         show_error "Look at $LOG to find out what went wrong"
-        return 1
+        return 0
     fi
     succ_msg
     begin "Building the shared folder support module"
@@ -317,7 +335,7 @@ setup_modules()
         --module-source $MODULE_SRC/vboxsf \
         --no-print-directory install >> $LOG 2>&1; then
         show_error  "Look at $LOG to find out what went wrong"
-        return 1
+        return 0
     fi
     succ_msg
     begin "Building the graphics driver module"
@@ -336,9 +354,7 @@ setup_modules()
     return 0
 }
 
-# Do non-kernel bits needed for the kernel modules to work properly (user
-# creation, udev, mount helper...)
-extra_setup()
+create_vbox_user()
 {
     begin "Doing non-kernel setup of the Guest Additions"
     echo "Creating user for the Guest Additions." >> $LOG
@@ -348,11 +364,10 @@ extra_setup()
     # And for the others, we choose a UID ourselves
     useradd -d /var/run/vboxadd -g 1 -u 501 -o -s /bin/false vboxadd >/dev/null 2>&1
 
-    # Add a group "vboxsf" for Shared Folders access
-    # All users which want to access the auto-mounted Shared Folders have to
-    # be added to this group.
-    groupadd -r -f vboxsf >/dev/null 2>&1
+}
 
+create_udev_rule()
+{
     # Create udev description file
     if [ -d /etc/udev/rules.d ]; then
         echo "Creating udev rule for the Guest Additions kernel module." >> $LOG
@@ -378,12 +393,10 @@ extra_setup()
         echo "KERNEL=${udev_fix}\"vboxguest\", NAME=\"vboxguest\", OWNER=\"vboxadd\", MODE=\"0660\"" > /etc/udev/rules.d/60-vboxadd.rules
         echo "KERNEL=${udev_fix}\"vboxuser\", NAME=\"vboxuser\", OWNER=\"vboxadd\", MODE=\"0666\"" >> /etc/udev/rules.d/60-vboxadd.rules
     fi
+}
 
-    # Put mount.vboxsf in the right place
-    ln -sf "$lib_path/$PACKAGE/mount.vboxsf" /sbin
-    # And an rc file to re-build the kernel modules and re-set-up the X server.
-    ln -sf "$lib_path/$PACKAGE/vboxadd" /sbin/rcvboxadd
-    ln -sf "$lib_path/$PACKAGE/vboxadd-x11" /sbin/rcvboxadd-x11
+create_module_rebuild_script()
+{
     # And a post-installation script for rebuilding modules when a new kernel
     # is installed.
     mkdir -p /etc/kernel/postinst.d /etc/kernel/prerm.d
@@ -401,6 +414,19 @@ rmdir -p /lib/modules/"\$1"/misc 2>/dev/null
 exit 0
 EOF
     chmod 0755 /etc/kernel/postinst.d/vboxadd /etc/kernel/prerm.d/vboxadd
+}
+
+shared_folder_setup()
+{
+    # Add a group "vboxsf" for Shared Folders access
+    # All users which want to access the auto-mounted Shared Folders have to
+    # be added to this group.
+    groupadd -r -f vboxsf >/dev/null 2>&1
+
+    # Put the mount.vboxsf mount helper in the right place.
+    ## @todo It would be nicer if the kernel module just parsed parameters
+    # itself instead of needing a separate binary to do that.
+    ln -sf "${INSTALL_DIR}/other/mount.vboxsf" /sbin
     # SELinux security context for the mount helper.
     if test -e /etc/selinux/config; then
         # This is correct.  semanage maps this to the real path, and it aborts
@@ -416,14 +442,6 @@ EOF
 # setup_script
 setup()
 {
-    begin "Building Guest Additions kernel modules" console
-    if test -r $config; then
-      . $config
-    else
-      fail "Configuration file $config not found"
-    fi
-    test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
-      fail "Configuration file $config not complete"
     export BUILD_TYPE
     export USERNAME
 
@@ -432,51 +450,41 @@ setup()
     BUILDINTMP="$MODULE_SRC/build_in_tmp"
     chcon -t bin_t "$BUILDINTMP" > /dev/null 2>&1
 
-    if setup_modules; then
-        mod_succ=0
-    else
-        mod_succ=1
-        show_error "Please check that you have gcc, make, the header files for your Linux kernel and possibly perl installed."
+    test -z "${INSTALL_NO_MODULE_BUILDS}" && setup_modules
+    create_vbox_user
+    create_udev_rule
+    test -z "${INSTALL_NO_MODULE_BUILDS}" && create_module_rebuild_script
+    test -n "${QUICKSETUP}" && return 0
+    shared_folder_setup
+    if  running_vboxguest || running_vboxadd; then
+        begin "Running kernel modules will not be replaced until the system is restarted"
     fi
-    test -n "${QUICKSETUP}" && return "${mod_succ}"
-    extra_setup
-    if [ "$mod_succ" -eq "0" ]; then
-        if running_vboxguest || running_vboxadd; then
-            begin "You should restart your guest to make sure the new modules are actually used" console
-        fi
-    fi
-    return "${mod_succ}"
+    return 0
 }
 
 # cleanup_script
 cleanup()
 {
-    if test -r $config; then
-      . $config
-      test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
-        fail "Configuration file $config not complete"
-    else
-      fail "Configuration file $config not found"
+    if test -z "${INSTALL_NO_MODULE_BUILDS}"; then
+        # Delete old versions of VBox modules.
+        cleanup_modules
+        depmod
+
+        # Remove old module sources
+        for i in $OLDMODULES; do
+          rm -rf /usr/src/$i-*
+        done
     fi
 
-    # Delete old versions of VBox modules.
-    cleanup_modules
-    depmod
-
-    # Remove old module sources
-    for i in $OLDMODULES; do
-      rm -rf /usr/src/$i-*
-    done
-
     # Clean-up X11-related bits
-    /sbin/rcvboxadd-x11 cleanup
+    ${INSTALL_DIR}/init/vboxadd-x11 cleanup
 
     # Remove other files
     rm /sbin/mount.vboxsf 2>/dev/null
-    rm /sbin/rcvboxadd 2>/dev/null
-    rm /sbin/rcvboxadd-x11 2>/dev/null
-    rm -f /etc/kernel/postinst.d/vboxadd /etc/kernel/prerm.d/vboxadd
-    rmdir -p /etc/kernel/postinst.d /etc/kernel/prerm.d 2>/dev/null
+    if test -z "${INSTALL_NO_MODULE_BUILDS}"; then
+        rm -f /etc/kernel/postinst.d/vboxadd /etc/kernel/prerm.d/vboxadd
+        rmdir -p /etc/kernel/postinst.d /etc/kernel/prerm.d 2>/dev/null
+    fi
     rm /etc/udev/rules.d/60-vboxadd.rules 2>/dev/null
 }
 
@@ -500,7 +508,8 @@ restart)
     restart
     ;;
 setup)
-    setup && start
+    setup
+    start
     ;;
 quicksetup)
     QUICKSETUP=yes

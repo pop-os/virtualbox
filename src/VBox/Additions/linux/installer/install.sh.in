@@ -16,17 +16,20 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
-# This is a stub installation script to be included in VirtualBox Makeself
-# installers which removes any previous installations of the package, unpacks
-# the package into the filesystem (by default under /opt) and starts the real
-# installation script.
-#
+# Testing:
+# * After successful installation, 0 is returned if the vboxguest module version
+#   built matches the one loaded and 2 is returned otherwise.  E.g. VBoxClient
+#   running will prevent vboxguest reloading.
+# * If the kernel modules cannot be built (run the installer with KERN_DIR=/) or
+#   loaded (run with KERN_VER=<installed non-current version>) then 1 is returned.
+
 PATH=$PATH:/bin:/sbin:/usr/sbin
 
 # Note: These variable names must *not* clash with variables in $CONFIG_DIR/$CONFIG!
 PACKAGE="VBoxGuestAdditions"
 PACKAGE_NAME="VirtualBox Guest Additions"
 UNINSTALL="uninstall.sh"
+PUBLIC_UNINSTALL_HOOK="/usr/sbin/vbox-uninstall-guest-additions"
 ROUTINES="routines.sh"
 ARCH="_ARCH_"
 INSTALLATION_VER="_VERSION_"
@@ -41,6 +44,9 @@ CONFIG="config"
 CONFIG_FILES="filelist"
 SELF=$1
 LOGFILE="/var/log/$PACKAGE.log"
+
+## Were we able to stop any previously running Additions kernel modules?
+MODULES_STOPPED=1
 
 . "./$ROUTINES"
 
@@ -301,6 +307,13 @@ do
 done
 
 # uninstall any previous installation
+# If the currently installed Additions have provided an uninstallation hook, try
+# that first.
+if test -x "${PUBLIC_UNINSTALL_HOOK}"; then
+  "${PUBLIC_UNINSTALL_HOOK}" 1>&2 || 
+    abort "Failed to remove existing installation.  Aborting..."
+fi
+
 INSTALL_DIR=""
 uninstalled=0
 test -r "$CONFIG_DIR/$CONFIG" &&
@@ -317,6 +330,9 @@ rm -f "$CONFIG_DIR/$CONFIG"
 rm -f "$CONFIG_DIR/$CONFIG_FILES"
 rmdir "$CONFIG_DIR" 2>/dev/null
 test "$ACTION" = "install" || exit 0
+
+# Now check whether the kernel modules were stopped.
+lsmod | grep -q vboxguest && MODULES_STOPPED=
 
 # Choose a proper umask
 umask 022
@@ -541,6 +557,20 @@ echo $INSTALLATION_DIR/$UNINSTALL >> "$CONFIG_DIR/$CONFIG_FILES"
 test -n "$REMOVE_INSTALLATION_DIR" &&
   echo "$INSTALLATION_DIR/" >> "$CONFIG_DIR/$CONFIG_FILES"
 
+cat > "${PUBLIC_UNINSTALL_HOOK}" << EOF
+#!/bin/sh
+# This executable provides a well-known way to uninstall VirtualBox Guest
+# Additions in order to re-install them from a different source.  A common case
+# is uninstalling distribution-provide Additions to install the version provided
+# by VirtualBox.  Distributions should put the right command in here to do the
+# removal, e.g. "dnf remove VirtualBox-guest-additions".  Leaving kernel modules
+# provided by the distribution kernel package in place is acceptable if the
+# location does not clash with the VirtualBox-provided module location (misc).
+$INSTALLATION_DIR/$UNINSTALL
+EOF
+chmod 0755 "${PUBLIC_UNINSTALL_HOOK}"
+echo "$PUBLIC_UNINSTALL_HOOK" >> "$CONFIG_DIR/$CONFIG_FILES"
+
 # Test for a problem with old Mesa versions which stopped our 3D libraries
 # from working.  Known to affect Debian 7.11, probably OL/RHEL 5.
 # The problem was that the system Mesa library had an ABI note, which caused
@@ -559,3 +589,14 @@ EOF
     done
     echo >&2 "  ldconfig"
 fi
+
+# And do a final test as to whether the kernel modules were properly created
+# and loaded.  Return 0 if both are true, 1 if the modules could not be built
+# or loaded (except due to already running older modules) and 2 if already
+# running modules probably prevented new ones from loading.  vboxvideo is
+# currently not tested.
+# Assume that we have already printed enough messages by now and stay silent.
+modinfo vboxguest >/dev/null 2>&1 || exit 1
+lsmod | grep -q vboxguest || exit 1
+test -n "${MODULES_STOPPED}" || exit 2
+exit 0

@@ -1141,7 +1141,9 @@ UIApplianceEditorWidget::UIApplianceEditorWidget(QWidget *pParent /* = NULL */)
 
 void UIApplianceEditorWidget::restoreDefaults()
 {
-    m_pModel->restoreDefaults();
+    /* Make sure model exists, it's being created in sub-classes: */
+    if (m_pModel)
+        m_pModel->restoreDefaults();
 }
 
 void UIApplianceEditorWidget::retranslateUi()

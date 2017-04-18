@@ -1333,6 +1333,9 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
         {
             RTMemFree(pHandle->dir.pLastValidEntry);
             pHandle->dir.pLastValidEntry = NULL;
+
+            /* And use the newly allocated buffer from now. */
+            pDirEntry = pDirEntryOrg;
         }
 
         if (flags & SHFL_LIST_RETURN_ONE)

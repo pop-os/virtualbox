@@ -537,6 +537,7 @@ RuntimeR3_SOURCES       = \
 	common/string/RTStrPrintHexBytes.cpp \
 	common/string/RTStrStartsWith.cpp \
 	common/string/RTStrIStartsWith.cpp \
+	common/string/RTStrICmpAscii.cpp \
 	common/string/RTStrStr.cpp \
 	common/string/RTUtf16Copy.cpp \
 	common/string/RTUtf16CopyAscii.cpp \
@@ -635,6 +636,7 @@ RuntimeR3_SOURCES       = \
 	generic/RTPathGetCurrentDrive-generic.cpp \
 	generic/RTPathIsSame-generic.cpp \
 	generic/RTTimerLRCreate-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	generic/mempool-generic.cpp \
 	generic/semfastmutex-generic.cpp \
 	generic/semxroads-generic.cpp \
@@ -1879,6 +1881,8 @@ RuntimeR0_SOURCES      := \
 	common/string/RTStrCopyEx.cpp \
 	common/string/RTStrCopyP.cpp \
 	common/string/RTStrCopyPEx.cpp \
+	common/string/RTStrCmp.cpp \
+	common/string/RTStrICmpAscii.cpp \
 	common/string/RTStrNLen.cpp \
 	common/string/RTStrNLenEx.cpp \
 	common/table/avlgcptr.cpp \
@@ -1988,13 +1992,10 @@ RuntimeR0Drv_TEMPLATE   = VBoxR0DrvLib
 RuntimeR0Drv_SDKS.win   = ReorderCompilerIncs $(VBOX_WINDDK) $(VBOX_WINPSDK)INCS VBOX_OPENSSL
 RuntimeR0Drv_DEFS       = IN_RT_R0 RT_WITH_VBOX RT_WITHOUT_NOCRT_WRAPPERS RT_NO_EXPORT_SYMBOL NOFILEID
 RuntimeR0Drv_DEFS.win   = IN_SUP_R0 LDR_ONLY_PE
-RuntimeR0Drv_DEFS.linux = MODULE KBUILD_MODNAME=KBUILD_STR\(vboxdrv\) KBUILD_BASENAME=KBUILD_STR\(vboxdrv\) IN_SUP_R0
 
 RuntimeR0Drv_INCS      := $(PATH_SUB_CURRENT) include
 RuntimeR0Drv_INCS.freebsd = \
 	$(PATH_STAGE)/gen-sys-hdrs
-RuntimeR0Drv_INCS.linux = \
-	r0drv/linux
 RuntimeR0Drv_INCS.solaris = \
 	r0drv/solaris/vbi/i86pc \
 	r0drv/solaris/vbi/i86pc/sys
@@ -2062,9 +2063,11 @@ RuntimeR0Drv_SOURCES    = \
 	common/string/RTStrCopyEx.cpp \
 	common/string/RTStrCopyP.cpp \
 	common/string/RTStrCopyPEx.cpp \
+	common/string/RTStrICmpAscii.cpp \
 	common/string/RTStrNCmp.cpp \
 	common/string/RTStrNLen.cpp \
 	common/string/RTStrNLenEx.cpp \
+	common/string/RTUtf16ICmpAscii.cpp \
 	common/string/straprintf.cpp \
 	common/string/strformat.cpp \
 	common/string/strformatnum.cpp \
@@ -2093,6 +2096,7 @@ RuntimeR0Drv_SOURCES    = \
  	generic/RTSemEventWaitNoResume-2-ex-generic.cpp \
  	generic/RTSemEventMultiWait-2-ex-generic.cpp \
  	generic/RTSemEventMultiWaitNoResume-2-ex-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	generic/critsect-generic.cpp \
 	generic/errvars-generic.cpp \
 	generic/uuid-generic.cpp \
@@ -2591,8 +2595,10 @@ ifdef VBOX_WITH_RAW_MODE
  	common/string/strncmp.cpp \
  	common/string/strpbrk.cpp \
  	common/string/strprintf.cpp \
+	common/string/RTStrCmp.cpp \
  	common/string/RTStrCopy.cpp \
  	common/string/RTStrCopyEx.cpp \
+	common/string/RTStrICmpAscii.cpp \
  	common/table/avllu32.cpp \
  	common/table/avlou32.cpp \
  	common/table/avlogcphys.cpp \
@@ -2608,6 +2614,7 @@ ifdef VBOX_WITH_RAW_MODE
  	common/time/timesup.cpp \
  	gc/initterm-gc.cpp \
  	generic/RTAssertShouldPanic-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	generic/errvars-generic.cpp \
  	\
  	$(RuntimeNoCrt_SOURCES)

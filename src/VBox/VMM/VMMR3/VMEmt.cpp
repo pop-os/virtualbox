@@ -96,10 +96,12 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
     for (;;)
     {
         /*
-         * During early init there is no pVM, so make a special path
+         * During early init there is no pVM and/or pVCpu, so make a special path
          * for that to keep things clearly separate.
          */
-        if (!pUVM->pVM)
+        PVM    pVM   = pUVM->pVM;
+        PVMCPU pVCpu = pUVCpu->pVCpu;
+        if (!pVCpu || !pVM)
         {
             /*
              * Check for termination first.
@@ -153,8 +155,6 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
              * We check for state changes in addition to status codes when
              * servicing requests. (Look after the ifs.)
              */
-            PVM    pVM   = pUVM->pVM;
-            PVMCPU pVCpu = pUVCpu->pVCpu;
             enmBefore = pVM->enmVMState;
             if (pUVM->vm.s.fTerminateEMT)
             {
@@ -227,16 +227,18 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
          * or start the VM, in that case we'll get a change in VM status
          * indicating that we're now running.
          */
-        if (    RT_SUCCESS(rc)
-            &&  pUVM->pVM)
+        if (RT_SUCCESS(rc))
         {
-            PVM     pVM   = pUVM->pVM;
-            PVMCPU  pVCpu = &pVM->aCpus[idCpu];
-            if (    pVM->enmVMState == VMSTATE_RUNNING
-                &&  VMCPUSTATE_IS_STARTED(VMCPU_GET_STATE(pVCpu)))
+            pVM = pUVM->pVM;
+            if (pVM)
             {
-                rc = EMR3ExecuteVM(pVM, pVCpu);
-                Log(("vmR3EmulationThread: EMR3ExecuteVM() -> rc=%Rrc, enmVMState=%d\n", rc, pVM->enmVMState));
+                pVCpu = &pVM->aCpus[idCpu];
+                if (   pVM->enmVMState == VMSTATE_RUNNING
+                    && VMCPUSTATE_IS_STARTED(VMCPU_GET_STATE(pVCpu)))
+                {
+                    rc = EMR3ExecuteVM(pVM, pVCpu);
+                    Log(("vmR3EmulationThread: EMR3ExecuteVM() -> rc=%Rrc, enmVMState=%d\n", rc, pVM->enmVMState));
+                }
             }
         }
 

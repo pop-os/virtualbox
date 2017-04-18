@@ -370,11 +370,16 @@ bool UIKeyboardHandler::finaliseCaptureKeyboard()
          * the keyboard before the target window sees the click. (GNOME Shell's hot corner has
          * the same problem. At present we just let that problem be.) */
 
-         /* Grab the mouse button.
-          * We do not check for failure as we do not currently implement a back-up plan. */
-         xcb_grab_button_checked(QX11Info::connection(), 0, QX11Info::appRootWindow(),
-                                 XCB_EVENT_MASK_BUTTON_PRESS, XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC,
-                                 XCB_NONE, XCB_NONE, XCB_BUTTON_INDEX_ANY, XCB_MOD_MASK_ANY);
+        /* Grab the mouse button.
+         * We do not check for failure as we do not currently implement a back-up plan. */
+        /* If any previous grab is still in process, release it. */
+        if (m_hButtonGrabWindow != 0)
+            xcb_ungrab_button_checked(QX11Info::connection(), XCB_BUTTON_INDEX_ANY,
+                                      m_hButtonGrabWindow, XCB_MOD_MASK_ANY);
+        m_hButtonGrabWindow = QX11Info::appRootWindow();
+        xcb_grab_button_checked(QX11Info::connection(), 0, m_hButtonGrabWindow,
+                                XCB_EVENT_MASK_BUTTON_PRESS, XCB_GRAB_MODE_SYNC, XCB_GRAB_MODE_ASYNC,
+                                XCB_NONE, XCB_NONE, XCB_BUTTON_INDEX_ANY, XCB_MOD_MASK_ANY);
         /* And grab the keyboard, using XCB directly, as Qt does not report failure. */
         xcb_grab_keyboard_cookie_t xcbGrabCookie = xcb_grab_keyboard(QX11Info::connection(), false, m_views[m_iKeyboardCaptureViewIndex]->winId(),
                                                                      XCB_TIME_CURRENT_TIME, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
@@ -384,7 +389,8 @@ bool UIKeyboardHandler::finaliseCaptureKeyboard()
             /* Release the mouse button grab.
              * We do not check for failure as we do not currently implement a back-up plan. */
             xcb_ungrab_button_checked(QX11Info::connection(), XCB_BUTTON_INDEX_ANY,
-                                      QX11Info::appRootWindow(), XCB_MOD_MASK_ANY);
+                                      m_hButtonGrabWindow, XCB_MOD_MASK_ANY);
+            m_hButtonGrabWindow = 0;
             /* Try again later: */
             free(pGrabReply);
             return false;
@@ -486,7 +492,8 @@ void UIKeyboardHandler::releaseKeyboard()
         /* Release the mouse button grab.
          * We do not check for failure as we do not currently implement a back-up plan. */
         xcb_ungrab_button_checked(QX11Info::connection(), XCB_BUTTON_INDEX_ANY,
-                                  QX11Info::appRootWindow(), XCB_MOD_MASK_ANY);
+                                  m_hButtonGrabWindow, XCB_MOD_MASK_ANY);
+        m_hButtonGrabWindow = 0;
 
 # endif /* QT_VERSION >= 0x050000 */
 #else
@@ -1551,7 +1558,11 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     , m_fSkipKeyboardEvents(false)
     , m_keyboardHook(NULL)
     , m_pAltGrMonitor(0)
-#endif /* VBOX_WS_WIN */
+#elif defined(VBOX_WS_X11)
+# if QT_VERSION >= 0x050000
+    , m_hButtonGrabWindow(0)
+# endif
+#endif /* VBOX_WS_X11 */
     , m_cMonitors(1)
 {
     /* Prepare: */
