@@ -331,12 +331,15 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/memmove.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/mempcpy.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/memset.asm \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/strversion.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrPrintHexBytes.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCat.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCmp.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCopy.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrICmpAscii.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrNCmp.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrNLen.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16Copy.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16NLenEx.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strchr.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strcmp.asm \
@@ -361,6 +364,7 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/generic/RTPathAbs-generic.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/generic/RTPathGetCurrentDrive-generic.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/generic/RTPathGetCurrentOnDrive-generic.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/generic/rtStrFormatKernelAddress-generic.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/generic/memsafer-generic.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/generic/uuid-generic.cpp \
        \
@@ -409,6 +413,35 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 		          | $(SED_EXT) -n -e '/[\\/:]$(notdir $@)/p'` \
 		"/OUT:$@"
  endif
+endif
+
+# Things specific to the posix crowd.
+if1of ($(KBUILD_TARGET), linux darwin solaris)
+ SUPR3HardenedStatic_DEFS += \
+ 	IN_DIS \
+ 	DIS_CORE_ONLY \
+ 	LOG_DISABLED
+ SUPR3HardenedStatic_DEFS.linux += \
+ 	SUP_HARDENED_WITH_DLMOPEN
+ SUPR3HardenedStatic_DEFS.solaris += \
+ 	SUP_HARDENED_WITH_DLMOPEN
+
+ SUPR3HardenedStatic_INCS += $(VBOX_PATH_RUNTIME_SRC)/include
+
+ SUPR3HardenedStatic_SOURCES += \
+ 	posix/SUPR3HardenedMain-posix.cpp \
+	posix/SUPR3HardenedMainA-posix.asm \
+       \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg1Weak.cpp \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2.cpp \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2Weak.cpp \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2WeakV.cpp \
+ 	$(VBOX_PATH_RUNTIME_SRC)/generic/RTAssertShouldPanic-generic.cpp \
+       \
+ 	../../Disassembler/DisasmCore.cpp \
+ 	../../Disassembler/DisasmTables.cpp \
+ 	../../Disassembler/DisasmTablesX64.cpp \
+ 	../../Disassembler/DisasmReg.cpp
 endif
 
 SUPR3HardenedMain.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
@@ -543,13 +576,12 @@ endif # os2
 #
 # New VBoxDrv target. TODO: Convert all the above to use this!
 #
-if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
+if1of ($(KBUILD_TARGET), darwin freebsd solaris win)
  ifdef VBOX_WITH_VBOXDRV
   SYSMODS += VBoxDrv
  endif
  VBoxDrv_TEMPLATE         = VBOXR0DRV
  VBoxDrv_NAME.freebsd     = vboxdrv
- VBoxDrv_NAME.linux       = vboxdrv
  VBoxDrv_NAME.solaris     = vboxdrv
  ifdef VBOX_SIGNING_MODE
   VBoxDrv_INSTTYPE.win    = none
@@ -575,11 +607,6 @@ if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
  ifdef VBOX_WITH_RAW_MODE
   VBoxDrv_DEFS.darwin    += VBOX_WITH_RAW_MODE
  endif
- VBoxDrv_DEFS.linux      := \
-	KBUILD_MODNAME=KBUILD_STR\(vboxdrv\) KBUILD_BASENAME=KBUILD_STR\(vboxdrv\) MODULE CONFIG_VBOXDRV_AS_MISC
- ifdef VBOX_LINUX_VERSION_2_4
-  VBoxDrv_DEFS.linux     += EXPORT_SYMTAB
- endif
  ifdef VBOX_WITH_NETFLT
   VBoxDrv_DEFS.solaris   += VBOX_WITH_NETFLT
  endif
@@ -601,10 +628,8 @@ if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
 
  VBoxDrv_INCS             = . $(VBoxDrv_0_OUTDIR)
  VBoxDrv_INCS.darwin      = ./darwin
- VBoxDrv_INCS.linux       = $(PATH_ROOT)/src/VBox/Runtime/r0drv/linux
 
  VBoxDrv_LIBS             = $(PATH_STAGE_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
- VBoxDrv_LIBS.linux.debug = $(VBoxDrv_LIBS) $(VBOX_GCC_LIBGCC)
  VBoxDrv_LIBS.win         = \
  	$(PATH_STAGE_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB) \
  	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/ntoskrnl.lib \
@@ -621,8 +646,6 @@ if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
 
  VBoxDrv_SOURCES.darwin   = \
 	darwin/SUPDrv-darwin.cpp
- VBoxDrv_SOURCES.linux    = \
-	linux/SUPDrv-linux.c
  VBoxDrv_SOURCES.solaris  = \
 	solaris/SUPDrv-solaris.c
  VBoxDrv_SOURCES.win      = \
@@ -650,10 +673,6 @@ if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
  ifn1of ($(KBUILD_TARGET), linux freebsd)
   VBoxDrv_SOURCES        += \
  	SUPDrvTracerA.asm
- endif
- ifndef VBOX_LINUX_VERSION_2_4
-  VBoxDrv_SOURCES.linux  += \
- 	linux/SUPDrv-linux.mod.c
  endif
 
  linux/SUPDrv-linux.c_DEPS = $(VBOX_SVN_REV_HEADER)

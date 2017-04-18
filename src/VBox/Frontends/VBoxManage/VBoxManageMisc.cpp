@@ -37,6 +37,7 @@
 #include <iprt/env.h>
 #include <VBox/err.h>
 #include <iprt/file.h>
+#include <iprt/sha.h>
 #include <iprt/initterm.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
@@ -1117,9 +1118,11 @@ RTEXITCODE handleExtPack(HandlerArg *a)
 
         static const RTGETOPTDEF s_aInstallOptions[] =
         {
-            { "--replace",  'r', RTGETOPT_REQ_NOTHING },
+            { "--replace",        'r', RTGETOPT_REQ_NOTHING },
+            { "--accept-license", 'a', RTGETOPT_REQ_STRING },
         };
 
+        RTCList<RTCString> lstLicenseHashes;
         RTGetOptInit(&GetState, a->argc, a->argv, s_aInstallOptions, RT_ELEMENTS(s_aInstallOptions), 1, 0 /*fFlags*/);
         while ((ch = RTGetOpt(&GetState, &ValueUnion)))
         {
@@ -1127,6 +1130,11 @@ RTEXITCODE handleExtPack(HandlerArg *a)
             {
                 case 'r':
                     fReplace = true;
+                    break;
+
+                case 'a':
+                    lstLicenseHashes.append(ValueUnion.psz);
+                    lstLicenseHashes[lstLicenseHashes.size() - 1].toLower();
                     break;
 
                 case VINF_GETOPT_NOT_OPTION:
@@ -1152,6 +1160,41 @@ RTEXITCODE handleExtPack(HandlerArg *a)
         ComPtr<IExtPackFile> ptrExtPackFile;
         CHECK_ERROR2I_RET(ptrExtPackMgr, OpenExtPackFile(bstrTarball.raw(), ptrExtPackFile.asOutParam()), RTEXITCODE_FAILURE);
         CHECK_ERROR2I_RET(ptrExtPackFile, COMGETTER(Name)(bstrName.asOutParam()), RTEXITCODE_FAILURE);
+        BOOL fShowLicense = true;
+        CHECK_ERROR2I_RET(ptrExtPackFile, COMGETTER(ShowLicense)(&fShowLicense), RTEXITCODE_FAILURE);
+        if (fShowLicense)
+        {
+            Bstr bstrLicense;
+            CHECK_ERROR2I_RET(ptrExtPackFile,
+                              QueryLicense(Bstr("").raw() /* PreferredLocale */,
+                                           Bstr("").raw() /* PreferredLanguage */,
+                                           Bstr("txt").raw() /* Format */,
+                                           bstrLicense.asOutParam()), RTEXITCODE_FAILURE);
+            Utf8Str strLicense(bstrLicense);
+            uint8_t abHash[RTSHA256_HASH_SIZE];
+            char    szDigest[RTSHA256_DIGEST_LEN + 1];
+            RTSha256(strLicense.c_str(), strLicense.length(), abHash);
+            vrc = RTSha256ToString(abHash, szDigest, sizeof(szDigest));
+            AssertRCStmt(vrc, szDigest[0] = '\0');
+            if (lstLicenseHashes.contains(szDigest))
+                RTPrintf("License accepted.\n");
+            else
+            {
+                RTPrintf("%s\n", strLicense.c_str());
+                RTPrintf("Do you agree to these license terms and conditions (y/n)? " );
+                ch = RTStrmGetCh(g_pStdIn);
+                RTPrintf("\n");
+                if (ch != 'y' && ch != 'Y')
+                {
+                    RTPrintf("Installation of \"%ls\" aborted.\n", bstrName.raw());
+                    return RTEXITCODE_FAILURE;
+                }
+                if (szDigest[0])
+                    RTPrintf("License accepted. For batch installaltion add\n"
+                             "--accept-license=%s\n"
+                             "to the VBoxManage command line.\n\n", szDigest);
+            }
+        }
         ComPtr<IProgress> ptrProgress;
         CHECK_ERROR2I_RET(ptrExtPackFile, Install(fReplace, NULL, ptrProgress.asOutParam()), RTEXITCODE_FAILURE);
         hrc = showProgress(ptrProgress);

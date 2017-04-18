@@ -635,6 +635,7 @@ static int suplibOsStartService(void)
 
     return rc;
 }
+#endif /* !IN_SUP_HARDENED_R3 */
 
 
 int suplibOsTerm(PSUPLIBDATA pThis)
@@ -644,7 +645,7 @@ int suplibOsTerm(PSUPLIBDATA pThis)
      */
     if (pThis->hDevice != NULL)
     {
-        if (!CloseHandle((HANDLE)pThis->hDevice))
+        if (!NtClose((HANDLE)pThis->hDevice))
             AssertFailed();
         pThis->hDevice = NIL_RTFILE; /* yes, that's right */
     }
@@ -652,6 +653,8 @@ int suplibOsTerm(PSUPLIBDATA pThis)
     return VINF_SUCCESS;
 }
 
+
+#ifndef IN_SUP_HARDENED_R3
 
 int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
 {

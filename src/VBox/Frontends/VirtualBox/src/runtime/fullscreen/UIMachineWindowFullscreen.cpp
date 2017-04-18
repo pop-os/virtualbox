@@ -23,10 +23,8 @@
 # include <QMenu>
 # include <QTimer>
 # ifdef VBOX_WS_WIN
-#  if QT_VERSION >= 0x050000
-#   include <QWindow>
-#  endif /* QT_VERSION >= 0x050000 */
-# endif /* VBOX_WS_WIN */
+#  include <QWindow>
+# endif
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -61,9 +59,10 @@ UIMachineWindowFullscreen::UIMachineWindowFullscreen(UIMachineLogic *pMachineLog
     , m_fIsInFullscreenTransition(false)
 #endif /* VBOX_WS_MAC */
     , m_fWasMinimized(false)
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#ifdef VBOX_WS_X11
+    , m_fIsMinimizationRequested(false)
     , m_fIsMinimized(false)
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#endif
 {
 }
 
@@ -137,6 +136,14 @@ void UIMachineWindowFullscreen::sltMachineStateChanged()
 
 void UIMachineWindowFullscreen::sltRevokeWindowActivation()
 {
+#ifdef VBOX_WS_X11
+    // WORKAROUND:
+    // We could be asked to minimize already, but just
+    // not yet executed that order to current moment.
+    if (m_fIsMinimizationRequested)
+        return;
+#endif
+
     /* Make sure window is visible: */
     if (!isVisible() || isMinimized())
         return;
@@ -200,6 +207,16 @@ void UIMachineWindowFullscreen::sltExitNativeFullscreen(UIMachineWindow *pMachin
 }
 #endif /* VBOX_WS_MAC */
 
+void UIMachineWindowFullscreen::sltShowMinimized()
+{
+#ifdef VBOX_WS_X11
+    /* Remember that we are asked to minimize: */
+    m_fIsMinimizationRequested = true;
+#endif
+
+    showMinimized();
+}
+
 void UIMachineWindowFullscreen::prepareVisualState()
 {
     /* Call to base-class: */
@@ -262,7 +279,7 @@ void UIMachineWindowFullscreen::prepareMiniToolbar()
         /* Configure mini-toolbar: */
         m_pMiniToolBar->addMenus(actionPool()->menus());
         connect(m_pMiniToolBar, SIGNAL(sigMinimizeAction()),
-                this, SLOT(showMinimized()), Qt::QueuedConnection);
+                this, SLOT(sltShowMinimized()), Qt::QueuedConnection);
         connect(m_pMiniToolBar, SIGNAL(sigExitAction()),
                 actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SLOT(trigger()));
         connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
@@ -355,16 +372,10 @@ void UIMachineWindowFullscreen::placeOnScreen()
 
 #elif defined(VBOX_WS_WIN)
 
-# if QT_VERSION >= 0x050000
     /* Map window onto required screen: */
     windowHandle()->setScreen(qApp->screens().at(iHostScreen));
-# endif /* QT_VERSION >= 0x050000 */
     /* Set appropriate window size: */
     resize(workingArea.size());
-# if QT_VERSION < 0x050000
-    /* Move window onto required screen: */
-    move(workingArea.topLeft());
-# endif /* QT_VERSION < 0x050000 */
 
 #elif defined(VBOX_WS_X11)
 
@@ -544,7 +555,7 @@ void UIMachineWindowFullscreen::updateAppearanceOf(int iElement)
 }
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#ifdef VBOX_WS_X11
 void UIMachineWindowFullscreen::changeEvent(QEvent *pEvent)
 {
     switch (pEvent->type())
@@ -571,6 +582,8 @@ void UIMachineWindowFullscreen::changeEvent(QEvent *pEvent)
                 /* Mark window restored, and do manual restoring with showInNecessaryMode(): */
                 LogRel2(("GUI: UIMachineWindowFullscreen::changeEvent: Window restored\n"));
                 m_fIsMinimized = false;
+                /* Remember that we no more asked to minimize: */
+                m_fIsMinimizationRequested = false;
                 showInNecessaryMode();
             }
             break;
@@ -582,10 +595,9 @@ void UIMachineWindowFullscreen::changeEvent(QEvent *pEvent)
     /* Call to base-class: */
     UIMachineWindow::changeEvent(pEvent);
 }
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_X11 */
 
 #ifdef VBOX_WS_WIN
-# if QT_VERSION >= 0x050000
 void UIMachineWindowFullscreen::showEvent(QShowEvent *pEvent)
 {
     /* Expose workaround again,
@@ -597,6 +609,5 @@ void UIMachineWindowFullscreen::showEvent(QShowEvent *pEvent)
     /* Call to base-class: */
     UIMachineWindow::showEvent(pEvent);
 }
-# endif /* QT_VERSION >= 0x050000 */
 #endif /* VBOX_WS_WIN */
 

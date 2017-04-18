@@ -1769,7 +1769,8 @@ static DECLCALLBACK(int) dmgCheckIfValid(const char *pszFilename, PVDINTERFACE p
         rc = vdIfIoIntFileGetSize(pIfIo, pStorage, &cbFile);
     else
         rc = RTVfsFileGetSize(hDmgFileInXar, &cbFile);
-    if (RT_SUCCESS(rc))
+    if (   RT_SUCCESS(rc)
+        && cbFile >= sizeof(DMGUDIF))
     {
         DMGUDIF  Ftr;
         uint64_t offFtr = cbFile - sizeof(Ftr);
@@ -1801,6 +1802,8 @@ static DECLCALLBACK(int) dmgCheckIfValid(const char *pszFilename, PVDINTERFACE p
             else
                 rc = VERR_VD_DMG_INVALID_HEADER;
         }
+        else
+            rc = VERR_VD_DMG_INVALID_HEADER;
     }
     else
         rc = VERR_VD_DMG_INVALID_HEADER;

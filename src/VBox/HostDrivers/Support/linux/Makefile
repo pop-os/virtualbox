@@ -89,6 +89,7 @@ OBJS   = \
 	r0drv/linux/mp-r0drv-linux.o \
 	r0drv/linux/mpnotification-r0drv-linux.o \
 	r0drv/linux/process-r0drv-linux.o \
+	r0drv/linux/rtStrFormatKernelAddress-r0drv-linux.o \
 	r0drv/linux/semevent-r0drv-linux.o \
 	r0drv/linux/semeventmulti-r0drv-linux.o \
 	r0drv/linux/semfastmutex-r0drv-linux.o \

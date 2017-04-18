@@ -49,6 +49,20 @@
 # endif
 #endif /* DEBUG */
 
+/*
+ * AC97_DEBUG_DUMP_PCM_DATA enables dumping the raw PCM data
+ * to a file on the host. Be sure to adjust AC97_DEBUG_DUMP_PCM_DATA_PATH
+ * to your needs before using this!
+ */
+//#define AC97_DEBUG_DUMP_PCM_DATA
+#ifdef AC97_DEBUG_DUMP_PCM_DATA
+# ifdef RT_OS_WINDOWS
+#  define AC97_DEBUG_DUMP_PCM_DATA_PATH "c:\\temp\\"
+# else
+#  define AC97_DEBUG_DUMP_PCM_DATA_PATH "/tmp/"
+# endif
+#endif
+
 #define AC97_SSM_VERSION 1
 
 #ifdef VBOX
@@ -1018,6 +1032,13 @@ static int ichac97WriteAudio(PAC97STATE pThis, PAC97STREAM pStrmSt, uint32_t cbM
 
         uint32_t cbWritten;
 
+#ifdef AC97_DEBUG_DUMP_PCM_DATA
+        RTFILE fh;
+        RTFileOpen(&fh, AC97_DEBUG_DUMP_PCM_DATA_PATH "ac97DMARead.pcm",
+                   RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+        RTFileWrite(fh, pThis->pvReadWriteBuf, cbToRead, NULL);
+        RTFileClose(fh);
+#endif
         /* Just multiplex the output to the connected backends.
          * No need to utilize the virtual mixer here (yet). */
         PAC97DRIVER pDrv;
@@ -1247,7 +1268,7 @@ static DECLCALLBACK(void) ichac97Timer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void
         cbInMax  = RT_MAX(cbInMax, cbIn);
     }
 
-    Log3Func(("cbInMax=%RU32, cbOutMin=%RU32\n", cbInMax, cbOutMin));
+    Log3Func(("cbInMax=%RU32, cbOutMin=%RU32, cbMixerSamplesMin=%RU32\n", cbInMax, cbOutMin, cbMixerSamplesMin));
 
     if (cbOutMin == UINT32_MAX)
         cbOutMin = 0;

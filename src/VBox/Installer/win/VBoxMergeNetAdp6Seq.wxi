@@ -32,15 +32,26 @@
             <![CDATA[(NOT Installed) AND (VersionNT >= 600) AND ($cp_NetAdp6Driver=3)]]>
         <?endif ?>
     </Custom>
-    <!-- Don't remove the host-only interfaces on update, only on uninstall -->
+    <!-- Remove the host-only interfaces on uninstall only. Includes
+         VBoxNetAdp6 driver uninstall.
+         @todo r=klaus Clean up this inconsistency by changing what the
+         install helper DLL does. It's very surprising behavior and needs
+         digging through a lot of code to understand the where and why. -->
     <Custom Action="ca_RemoveHostOnlyInterfacesNDIS6" After="InstallInitialize" >
         <![CDATA[NOT (UPGRADINGPRODUCTCODE) AND (Installed) AND (REMOVE="ALL")]]>
     </Custom>
-    <!-- First stop the existing host-only interfaces on update ... -->
+    <!-- Stop the host-only interfaces on update only. Driver still has to be
+         uninstalled, and the creation of interfaces in the new installer will
+         do the actual upgrading, preserving the interfaces. -->
     <Custom Action="ca_StopHostOnlyInterfacesNDIS6" After="InstallInitialize" >
         <![CDATA[(UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")]]>
     </Custom>
 
+    <!-- Uninstall the driver only on package upgrade, as for uninstall it is
+         included in ca_RemoveHostOnlyInterfaces.
+         @todo r=klaus Clean up this inconsistency by changing what the
+         install helper DLL does. It's very surprising behavior and needs
+         digging through a lot of code to understand the where and why. -->
     <Custom Action="ca_UninstallNetAdp6Args" Before="ca_UninstallNetAdp6" >
         <![CDATA[(UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")]]>
     </Custom>
