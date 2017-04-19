@@ -117,7 +117,7 @@ Index: virtualbox/src/VBox/Installer/linux/Makefile.include.header
 ===================================================================
 --- virtualbox.orig/src/VBox/Installer/linux/Makefile.include.header	2013-11-19 03:41:05.821476025 -0500
 +++ virtualbox/src/VBox/Installer/linux/Makefile.include.header	2013-11-19 03:41:05.821476025 -0500
-@@ -54,9 +54,21 @@
+@@ -60,9 +60,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
