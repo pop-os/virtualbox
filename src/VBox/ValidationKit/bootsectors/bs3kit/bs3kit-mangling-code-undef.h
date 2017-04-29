@@ -30,7 +30,16 @@
 #undef Bs3A20Enable
 #undef Bs3A20EnableViaKbd
 #undef Bs3A20EnableViaPortA
+#undef Bs3ExtCtxAlloc
+#undef Bs3ExtCtxCopy
+#undef Bs3ExtCtxFree
+#undef Bs3ExtCtxGetSize
+#undef Bs3ExtCtxInit
+#undef Bs3ExtCtxRestore
+#undef Bs3ExtCtxSave
+#undef Bs3GetCpuVendor
 #undef Bs3GetModeName
+#undef Bs3GetModeNameShortLower
 #undef Bs3KbdRead
 #undef Bs3KbdWait
 #undef Bs3KbdWrite
@@ -45,16 +54,19 @@
 #undef Bs3MemGuardedTestPageFree
 #undef Bs3MemMove
 #undef Bs3MemPCpy
+#undef Bs3MemPrintInfo
 #undef Bs3MemSet
 #undef Bs3MemZero
 #undef Bs3PagingAlias
 #undef bs3PagingGetLegacyPte
-#undef bs3PagingGetPte
+#undef bs3PagingGetPaePte
+#undef Bs3PagingGetPte
 #undef Bs3PagingInitRootForLM
 #undef Bs3PagingInitRootForPAE
 #undef Bs3PagingInitRootForPP
 #undef Bs3PagingProtect
 #undef Bs3PagingProtectPtr
+#undef Bs3PagingQueryAddressInfo
 #undef Bs3PagingSetupCanonicalTraps
 #undef Bs3PagingUnalias
 #undef Bs3Panic
@@ -95,6 +107,8 @@
 #undef Bs3SelRealModeCodeToProtMode
 #undef Bs3SelRealModeDataToFlat
 #undef Bs3SelRealModeDataToProtFar16
+#undef Bs3SelSetup16BitCode
+#undef Bs3SelSetup16BitData
 #undef Bs3Shutdown
 #undef Bs3SlabAlloc
 #undef Bs3SlabAllocEx
@@ -152,7 +166,9 @@
 #undef Bs3UtilSetFullIdtr
 #ifndef BS3_CMN_ONLY
 # undef Bs3CpuDetect
+# undef Bs3SwitchTo32BitAndCallC
 # undef Bs3TestDoModes
+# undef Bs3TestDoModesByMax
 # undef Bs3TestDoModesByOne
 # undef Bs3TrapInit
 #endif /* !BS3_CMN_ONLY */

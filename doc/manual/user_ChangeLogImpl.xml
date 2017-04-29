@@ -3,6 +3,50 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.22 (2017-04-28)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed <emphasis>VERR_IEM_INSTR_NOT_IMPLEMENTED</emphasis>
+          Guru Meditation under certain conditions (5.1 regression;
+          mostly Mac OS X hosts; bugs #15693, #15801, #16274, #16569, #16663)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed software virtualization on Solaris hosts
+          (5.1.20 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a potential hang under rare circumstances
+          (bug #16677)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a potential crash under rare circumstances
+          (asynchronous I/O disabled or during maintenance file operations
+          like merging snapshots)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: make the ALSA backend work again as well as
+          loading the GL libraries on certain hosts (5.1.20 regression;
+          bugs #16667, #16693)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed mount.vboxsf symlink problem (5.1.20
+          regression; bug #16670)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.20 (2017-04-18)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -54,7 +98,7 @@
   </sect1>
 
   <sect1>
-    <title>Version 5.1.18 (2017-08-15)</title>
+    <title>Version 5.1.18 (2017-03-15)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
       added:</para>
@@ -77,8 +121,8 @@
       </listitem>
 
       <listitem>
-        <para>API: make 32-bit Windows guests in raw mode boot again if the
-          ICH9 chipset is used (5.1.16 regression)</para>
+        <para>API: make 32-bit Windows guests boot again with software
+          virtualization if the ICH9 chipset is used (5.1.16 regression)</para>
       </listitem>
 
       <listitem>
@@ -3589,8 +3633,9 @@
 
       <listitem>
         <para>Storage: fixed a Guru Meditation under certain conditions when
-          using the DevLsiLogic controller with VMs running in raw mode
-          (4.3 regression; bugs #12254, #12655, #12709, #12774, #12886)</para>
+          using the DevLsiLogic controller with VMs running in software
+          virtualization mode (4.3 regression; bugs #12254, #12655, #12709,
+          #12774, #12886)</para>
       </listitem>
 
       <listitem>

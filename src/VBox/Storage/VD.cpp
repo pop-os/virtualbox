@@ -1808,8 +1808,12 @@ static int vdDiskProcessWaitingIoCtx(PVBOXHDD pDisk, PVDIOCTX pIoCtxRc)
         {
             LogFlowFunc(("Waiting I/O context completed pTmp=%#p\n", pTmp));
             vdThreadFinishWrite(pDisk);
+
+            bool fFreeCtx = RT_BOOL(!(pTmp->fFlags & VDIOCTX_FLAGS_DONT_FREE));
             vdIoCtxRootComplete(pDisk, pTmp);
-            vdIoCtxFree(pDisk, pTmp);
+
+            if (fFreeCtx)
+                vdIoCtxFree(pDisk, pTmp);
         }
     }
 
@@ -1863,8 +1867,11 @@ static void vdDiskProcessBlockedIoCtx(PVBOXHDD pDisk)
         {
             LogFlowFunc(("Waiting I/O context completed pTmp=%#p\n", pTmp));
             vdThreadFinishWrite(pDisk);
+
+            bool fFreeCtx = RT_BOOL(!(pTmp->fFlags & VDIOCTX_FLAGS_DONT_FREE));
             vdIoCtxRootComplete(pDisk, pTmp);
-            vdIoCtxFree(pDisk, pTmp);
+            if (fFreeCtx)
+                vdIoCtxFree(pDisk, pTmp);
         }
     }
 
@@ -4128,6 +4135,7 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
             && ASMAtomicCmpXchgBool(&pIoCtx->fComplete, true, false))
         {
             LogFlowFunc(("I/O context completed pIoCtx=%#p\n", pIoCtx));
+            bool fFreeCtx = RT_BOOL(!(pIoCtx->fFlags & VDIOCTX_FLAGS_DONT_FREE));
             if (pIoCtx->pIoCtxParent)
             {
                 PVDIOCTX pIoCtxParent = pIoCtx->pIoCtxParent;
@@ -4165,9 +4173,12 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
                     && ASMAtomicCmpXchgBool(&pIoCtxParent->fComplete, true, false))
                 {
                     LogFlowFunc(("Parent I/O context completed pIoCtxParent=%#p rcReq=%Rrc\n", pIoCtxParent, pIoCtxParent->rcReq));
+                    bool fFreeParentCtx = RT_BOOL(!(pIoCtxParent->fFlags & VDIOCTX_FLAGS_DONT_FREE));
                     vdIoCtxRootComplete(pDisk, pIoCtxParent);
                     vdThreadFinishWrite(pDisk);
-                    vdIoCtxFree(pDisk, pIoCtxParent);
+
+                    if (fFreeParentCtx)
+                        vdIoCtxFree(pDisk, pIoCtxParent);
                     vdDiskProcessBlockedIoCtx(pDisk);
                 }
                 else if (!vdIoCtxIsDiskLockOwner(pDisk, pIoCtx))
@@ -4196,7 +4207,8 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
                 vdIoCtxRootComplete(pDisk, pIoCtx);
             }
 
-            vdIoCtxFree(pDisk, pIoCtx);
+            if (fFreeCtx)
+                vdIoCtxFree(pDisk, pIoCtx);
         }
     }
 

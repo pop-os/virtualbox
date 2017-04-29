@@ -208,6 +208,17 @@
 %define X86_CPUID_AMD_ADVPOWER_EDX_EFRO      RT_BIT_32(10)
 %define X86_CPUID_AMD_ADVPOWER_EDX_PFI       RT_BIT_32(11)
 %define X86_CPUID_AMD_ADVPOWER_EDX_PA        RT_BIT_32(12)
+%define X86_CPUID_SVM_FEATURE_EDX_NESTED_PAGING             RT_BIT(0)
+%define X86_CPUID_SVM_FEATURE_EDX_LBR_VIRT                  RT_BIT(1)
+%define X86_CPUID_SVM_FEATURE_EDX_SVM_LOCK                  RT_BIT(2)
+%define X86_CPUID_SVM_FEATURE_EDX_NRIP_SAVE                 RT_BIT(3)
+%define X86_CPUID_SVM_FEATURE_EDX_TSC_RATE_MSR              RT_BIT(4)
+%define X86_CPUID_SVM_FEATURE_EDX_VMCB_CLEAN                RT_BIT(5)
+%define X86_CPUID_SVM_FEATURE_EDX_FLUSH_BY_ASID             RT_BIT(6)
+%define X86_CPUID_SVM_FEATURE_EDX_DECODE_ASSIST             RT_BIT(7)
+%define X86_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER              RT_BIT(10)
+%define X86_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER_THRESHOLD    RT_BIT(12)
+%define X86_CPUID_SVM_FEATURE_EDX_AVIC                      RT_BIT(13)
 %define X86_CR0_PE                          RT_BIT_32(0)
 %define X86_CR0_PROTECTION_ENABLE           RT_BIT_32(0)
 %define X86_CR0_MP                          RT_BIT_32(1)
@@ -532,6 +543,10 @@
 %define MSR_K8_NB_CFG                       0xc001001f
 %define MSR_K8_INT_PENDING                  0xc0010055
 %define MSR_K8_VM_CR                        0xc0010114
+%define MSR_K8_VM_CR_DPD                    RT_BIT_32(0)
+%define MSR_K8_VM_CR_R_INIT                 RT_BIT_32(1)
+%define MSR_K8_VM_CR_DIS_A20M               RT_BIT_32(2)
+%define MSR_K8_VM_CR_LOCK                   RT_BIT_32(3)
 %define MSR_K8_VM_CR_SVM_DISABLE            RT_BIT_32(4)
 %define MSR_K8_IGNNE                        0xc0010115
 %define MSR_K8_SMM_CTL                      0xc0010116
@@ -762,26 +777,26 @@
 %define X86_FCW_RC_UP       0x0800
 %define X86_FCW_RC_ZERO     0x0c00
 %define X86_FCW_ZERO_MASK   0xf080
-%define X86_MXSCR_IE          RT_BIT_32(0)
-%define X86_MXSCR_DE          RT_BIT_32(1)
-%define X86_MXSCR_ZE          RT_BIT_32(2)
-%define X86_MXSCR_OE          RT_BIT_32(3)
-%define X86_MXSCR_UE          RT_BIT_32(4)
-%define X86_MXSCR_PE          RT_BIT_32(5)
-%define X86_MXSCR_DAZ         RT_BIT_32(6)
-%define X86_MXSCR_IM          RT_BIT_32(7)
-%define X86_MXSCR_DM          RT_BIT_32(8)
-%define X86_MXSCR_ZM          RT_BIT_32(9)
-%define X86_MXSCR_OM          RT_BIT_32(10)
-%define X86_MXSCR_UM          RT_BIT_32(11)
-%define X86_MXSCR_PM          RT_BIT_32(12)
-%define X86_MXSCR_RC_MASK     0x6000
-%define X86_MXSCR_RC_NEAREST  0x0000
-%define X86_MXSCR_RC_DOWN     0x2000
-%define X86_MXSCR_RC_UP       0x4000
-%define X86_MXSCR_RC_ZERO     0x6000
-%define X86_MXSCR_FZ          RT_BIT_32(15)
-%define X86_MXSCR_MM          RT_BIT_32(17)
+%define X86_MXCSR_IE          RT_BIT_32(0)
+%define X86_MXCSR_DE          RT_BIT_32(1)
+%define X86_MXCSR_ZE          RT_BIT_32(2)
+%define X86_MXCSR_OE          RT_BIT_32(3)
+%define X86_MXCSR_UE          RT_BIT_32(4)
+%define X86_MXCSR_PE          RT_BIT_32(5)
+%define X86_MXCSR_DAZ         RT_BIT_32(6)
+%define X86_MXCSR_IM          RT_BIT_32(7)
+%define X86_MXCSR_DM          RT_BIT_32(8)
+%define X86_MXCSR_ZM          RT_BIT_32(9)
+%define X86_MXCSR_OM          RT_BIT_32(10)
+%define X86_MXCSR_UM          RT_BIT_32(11)
+%define X86_MXCSR_PM          RT_BIT_32(12)
+%define X86_MXCSR_RC_MASK     0x6000
+%define X86_MXCSR_RC_NEAREST  0x0000
+%define X86_MXCSR_RC_DOWN     0x2000
+%define X86_MXCSR_RC_UP       0x4000
+%define X86_MXCSR_RC_ZERO     0x6000
+%define X86_MXCSR_FZ          RT_BIT_32(15)
+%define X86_MXCSR_MM          RT_BIT_32(17)
 %ifndef VBOX_FOR_DTRACE_LIB
 %endif
 %ifndef VBOX_FOR_DTRACE_LIB
@@ -820,6 +835,8 @@
 %define XSAVE_C_PKRU            RT_BIT_64(XSAVE_C_PKRU_BIT)
 %define XSAVE_C_LWP_BIT         62
 %define XSAVE_C_LWP             RT_BIT_64(XSAVE_C_LWP_BIT)
+%define XSAVE_C_X_BIT           63
+%define XSAVE_C_X               RT_BIT_64(XSAVE_C_X_BIT)
 %ifndef VBOX_FOR_DTRACE_LIB
 %endif
 %define X86DESCATTR_TYPE            0x0000000f
@@ -946,7 +963,7 @@
 %define X86_SEL_LDT             0x0004
 %define X86_SEL_RPL             0x0003
 %define X86_SEL_RPL_LDT         0x0007
-%define X86_XCPT_MAX                (X86_XCPT_SX)
+%define X86_XCPT_LAST               0x1f
 %define X86_TRAP_ERR_EXTERNAL       1
 %define X86_TRAP_ERR_IDT            2
 %define X86_TRAP_ERR_TI             4
@@ -972,6 +989,7 @@
 %define X86_MODRM_MOD_SMASK     0x03
 %define X86_MODRM_MOD_SHIFT     6
 %ifndef VBOX_FOR_DTRACE_LIB
+ %define X86_MODRM_MAKE(a_Mod, a_Reg, a_RegMem) (((a_Mod) << X86_MODRM_MOD_SHIFT) | ((a_Reg) << X86_MODRM_REG_SHIFT) | (a_RegMem))
 %endif
 %define X86_SIB_BASE_MASK     0x07
 %define X86_SIB_INDEX_MASK    0x38
@@ -1014,8 +1032,8 @@
 %define X86_OP_PRF_SIZE_OP      0x66
 %define X86_OP_PRF_SIZE_ADDR    0x67
 %define X86_OP_PRF_LOCK         0xf0
-%define X86_OP_PRF_REPZ         0xf2
-%define X86_OP_PRF_REPNZ        0xf3
+%define X86_OP_PRF_REPZ         0xf3
+%define X86_OP_PRF_REPNZ        0xf2
 %define X86_OP_REX_B            0x41
 %define X86_OP_REX_X            0x42
 %define X86_OP_REX_R            0x44

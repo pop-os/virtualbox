@@ -199,6 +199,7 @@ static void fd_init(fdrive_t *drv, bool fInit)
                     break;
                 default:
                     AssertFailed();
+                    /* fall thru */
                 case PDMMEDIATYPE_FLOPPY_2_88:
                     drv->drive = FDRIVE_DRV_288;
                     break;

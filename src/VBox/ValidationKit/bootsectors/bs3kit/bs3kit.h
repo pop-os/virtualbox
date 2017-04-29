@@ -37,6 +37,33 @@
 # undef  IN_RING0
 #endif
 
+/*
+ * Make asm.h and friend compatible with our 64-bit assembly config (ASM_CALL64_MSC).
+ */
+#if defined(__GNUC__) && ARCH_BITS == 64
+# undef DECLASM
+# ifdef __cplusplus
+#  define DECLASM(type)             extern "C" type BS3_CALL
+# else
+#  define DECLASM(type)             type BS3_CALL
+# endif
+#endif
+
+
+/*
+ * Work around ms_abi trouble in the gcc camp (gcc bugzilla #50818).
+ * ASSUMES all va_lists are in functions with
+ */
+#if defined(__GNUC__) && ARCH_BITS == 64
+# undef  va_list
+# undef  va_start
+# undef  va_end
+# undef  va_copy
+# define va_list                    __builtin_ms_va_list
+# define va_start(a_Va, a_Arg)      __builtin_ms_va_start(a_Va, a_Arg)
+# define va_end(a_Va)               __builtin_ms_va_end(a_Va)
+# define va_copy(a_DstVa, a_SrcVa)  __builtin_ms_va_copy(a_DstVa, a_SrcVa)
+#endif
 
 
 /** @def BS3_USE_ALT_16BIT_TEXT_SEG
@@ -44,7 +71,7 @@
  * Combines the BS3_USE_RM_TEXT_SEG,  BS3_USE_X0_TEXT_SEG, and
  * BS3_USE_X1_TEXT_SEG indicators into a single one.
  */
-#if defined(BS3_USE_RM_TEXT_SEG) || defined(BS3_USE_X0_TEXT_SEG) || defined(BS3_USE_X1_TEXT_SEG)
+#if defined(BS3_USE_RM_TEXT_SEG) || defined(BS3_USE_X0_TEXT_SEG) || defined(BS3_USE_X1_TEXT_SEG) || defined(DOXYGEN_RUNNING)
 # define BS3_USE_ALT_16BIT_TEXT_SEG
 #else
 # undef  BS3_USE_ALT_16BIT_TEXT_SEG
@@ -227,6 +254,10 @@ RT_C_DECLS_BEGIN
                                                  || ((a_fMode) & BS3_MODE_SYS_MASK) == BS3_MODE_SYS_PAE32)
 /** Whether the system is long mode. */
 #define BS3_MODE_IS_64BIT_SYS(a_fMode)          (((a_fMode) & BS3_MODE_SYS_MASK) == BS3_MODE_SYS_LM)
+
+/** Whether the system is in protected mode (with or without paging).
+ * @note Long mode is not included. */
+#define BS3_MODE_IS_PM_SYS(a_fMode)             ((a_fMode) >= BS3_MODE_SYS_PE16 && (a_fMode) < BS3_MODE_SYS_LM)
 
 /** @todo testcase: How would long-mode handle a 16-bit TSS loaded prior to the switch? (mainly stack switching wise) Hopefully, it will tripple fault, right? */
 /** @} */
@@ -538,7 +569,7 @@ RT_C_DECLS_BEGIN
 # define BS3_FP_OFF(a_pv)            ((uintptr_t)(a_pv))
 #endif
 
-/** @def BS3_MAKE_PROT_PTR_FROM_FLAT
+/** @def BS3_MAKE_PROT_R0PTR_FROM_FLAT
  * Creates a protected mode pointer from a flat address.
  *
  * For sake of convenience, this macro also works in 32-bit and 64-bit mode,
@@ -694,7 +725,7 @@ RT_C_DECLS_BEGIN
  * Example: @code{.c}
  *  \#define Bs3Gdt BS3_DATA_NM(Bs3Gdt)
  *  extern X86DESC BS3_FAR_DATA Bs3Gdt
-f * @endcode
+ * @endcode
  *
  * @param   a_Name      The name of the global variable.
  * @remarks Mainly used in bs3kit-mangling.h, internal headers and templates.
@@ -706,9 +737,9 @@ f * @endcode
 //converter does this now//#endif
 
 /**
- * Template for createing a pointer union type.
+ * Template for creating a pointer union type.
  * @param   a_BaseName      The base type name.
- * @param   a_Modifier      The type modifier.
+ * @param   a_Modifiers     The type modifier.
  */
 #define BS3_PTR_UNION_TEMPLATE(a_BaseName, a_Modifiers) \
     typedef union a_BaseName \
@@ -1009,7 +1040,7 @@ extern X86XDTR64 BS3_FAR_DATA Bs3Lidt_Idt32;
 /** Structure for the LIDT instruction for loading the 64-bit IDT. */
 extern X86XDTR64 BS3_FAR_DATA Bs3Lidt_Idt64;
 /** Structure for the LIDT instruction for loading the real mode interrupt
- *  vector table.. */
+ *  vector table. */
 extern X86XDTR64 BS3_FAR_DATA Bs3Lidt_Ivt;
 /** Structure for the LGDT instruction for loading the current GDT. */
 extern X86XDTR64 BS3_FAR_DATA Bs3Lgdt_Gdt;
@@ -1189,7 +1220,7 @@ AssertCompileSize(BS3XPTR, 4);
 # error "ARCH_BITS"
 #endif
 
-/** @def BS3_XPTR_DEF_MEMBER
+/** @def BS3_XPTR_MEMBER
  * Defines a pointer member that can be shared by all CPU modes.
  *
  * @param   a_Type      The type we're pointing to.
@@ -1197,7 +1228,7 @@ AssertCompileSize(BS3XPTR, 4);
  */
 #define BS3_XPTR_MEMBER(a_Type, a_Name) BS3_XPTR_DEF_INTERNAL(RT_NOTHING, a_Type, a_Name)
 
-/** @def BS3_XPTR_DEF_AUTO
+/** @def BS3_XPTR_AUTO
  * Defines a pointer static variable for working with an XPTR.
  *
  * This is typically used to convert flat pointers into context specific
@@ -1208,7 +1239,7 @@ AssertCompileSize(BS3XPTR, 4);
  */
 #define BS3_XPTR_AUTO(a_Type, a_Name) BS3_XPTR_DEF_INTERNAL(RT_NOTHING, a_Type, a_Name)
 
-/** @def BS3_XPTR_SET
+/** @def BS3_XPTR_SET_FLAT
  * Sets a cross context pointer.
  *
  * @param   a_Type      The type we're pointing to.
@@ -1377,7 +1408,7 @@ DECLINLINE(void BS3_FAR *) Bs3XptrFlatToCurrent(RTCCUINTXREG uFlatPtr)
     BS3_DECL_NEAR(a_RetType) BS3_CMN_NM(a_Name) a_Params
 #endif
 
-/** @BS3_CMN_PROTO_STUB
+/** @def BS3_CMN_PROTO_STUB
  * Macro for prototyping all the variations of a common function with automatic
  * near -> far stub.
  *
@@ -1388,7 +1419,7 @@ DECLINLINE(void BS3_FAR *) Bs3XptrFlatToCurrent(RTCCUINTXREG uFlatPtr)
  */
 #define BS3_CMN_PROTO_STUB(a_RetType, a_Name, a_Params) BS3_CMN_PROTO_INT(a_RetType, a_Name, a_Params)
 
-/** @BS3_CMN_PROTO_NOSB
+/** @def BS3_CMN_PROTO_NOSB
  * Macro for prototyping all the variations of a common function without any
  * near > far stub.
  *
@@ -1399,7 +1430,7 @@ DECLINLINE(void BS3_FAR *) Bs3XptrFlatToCurrent(RTCCUINTXREG uFlatPtr)
  */
 #define BS3_CMN_PROTO_NOSB(a_RetType, a_Name, a_Params) BS3_CMN_PROTO_INT(a_RetType, a_Name, a_Params)
 
-/** @BS3_CMN_PROTO_FRST
+/** @def BS3_CMN_PROTO_FARSTUB
  * Macro for prototyping all the variations of a common function with automatic
  * far -> near stub.
  *
@@ -1462,6 +1493,33 @@ BS3_CMN_PROTO_NOSB(DECL_NO_RETURN(void), Bs3Panic,(void));
 BS3_CMN_PROTO_STUB(const char BS3_FAR *, Bs3GetModeName,(uint8_t bMode));
 
 /**
+ * Translate a mode into a short lower case string.
+ *
+ * @returns Pointer to read-only short mode name string.
+ * @param   bMode       The mode value (BS3_MODE_XXX).
+ */
+BS3_CMN_PROTO_STUB(const char BS3_FAR *, Bs3GetModeNameShortLower,(uint8_t bMode));
+
+/** CPU vendors. */
+typedef enum BS3CPUVENDOR
+{
+    BS3CPUVENDOR_INVALID = 0,
+    BS3CPUVENDOR_INTEL,
+    BS3CPUVENDOR_AMD,
+    BS3CPUVENDOR_VIA,
+    BS3CPUVENDOR_CYRIX,
+    BS3CPUVENDOR_UNKNOWN,
+    BS3CPUVENDOR_END
+} BS3CPUVENDOR;
+
+/**
+ * Tries to detect the CPU vendor.
+ *
+ * @returns CPU vendor.
+ */
+BS3_CMN_PROTO_STUB(BS3CPUVENDOR, Bs3GetCpuVendor,(void));
+
+/**
  * Shutdown the system, never returns.
  *
  * This currently only works for VMs.  When running on real systems it will
@@ -1486,7 +1544,7 @@ BS3_CMN_PROTO_NOSB(void, Bs3PrintX32,(uint32_t uValue));
 /**
  * Formats and prints a string to the screen.
  *
- * See #Bs3StrFormatV_c16 for supported format types.
+ * See #Bs3StrFormatV for supported format types.
  *
  * @param   pszFormat       The format string.
  * @param   ...             Format arguments.
@@ -1496,7 +1554,7 @@ BS3_CMN_PROTO_STUB(size_t, Bs3Printf,(const char BS3_FAR *pszFormat, ...));
 /**
  * Formats and prints a string to the screen, va_list version.
  *
- * See #Bs3Format_c16 for supported format types.
+ * See #Bs3StrFormatV for supported format types.
  *
  * @param   pszFormat       The format string.
  * @param   va              Format arguments.
@@ -1513,7 +1571,7 @@ BS3_CMN_PROTO_STUB(void, Bs3PrintStr,(const char BS3_FAR *pszString));
 /**
  * Prints a string to the screen.
  *
- * @param   pchString       The string to print.  Any terminator charss will be printed.
+ * @param   pszString       The string to print.  Any terminator charss will be printed.
  * @param   cchString       The exact number of characters to print.
  */
 BS3_CMN_PROTO_NOSB(void, Bs3PrintStrN,(const char BS3_FAR *pszString, size_t cchString));
@@ -1563,7 +1621,7 @@ BS3_CMN_PROTO_STUB(size_t, Bs3StrFormatV,(const char BS3_FAR *pszFormat, va_list
 /**
  * Formats a string into a buffer.
  *
- * See #Bs3Format_c16 for supported format types.
+ * See #Bs3StrFormatV for supported format types.
  *
  * @returns The length of the formatted string (excluding terminator).
  *          This will be higher or equal to @c cbBuf in case of an overflow.
@@ -1577,7 +1635,7 @@ BS3_CMN_PROTO_STUB(size_t, Bs3StrPrintfV,(char BS3_FAR *pszBuf, size_t cbBuf, co
 /**
  * Formats a string into a buffer.
  *
- * See #Bs3Format_c16 for supported format types.
+ * See #Bs3StrFormatV for supported format types.
  *
  * @returns The length of the formatted string (excluding terminator).
  *          This will be higher or equal to @c cbBuf in case of an overflow.
@@ -1623,7 +1681,7 @@ BS3_CMN_PROTO_STUB(char BS3_FAR *, Bs3StrCpy,(char BS3_FAR *pszDst, const char B
  * @returns pvDst
  * @param   pvDst           The destination buffer.
  * @param   pvSrc           The source buffer.
- * @param   cbCopy          The number of bytes to copy.
+ * @param   cbToCopy        The number of bytes to copy.
  */
 BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemCpy,(void BS3_FAR *pvDst, const void BS3_FAR *pvSrc, size_t cbToCopy));
 
@@ -1633,7 +1691,7 @@ BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemCpy,(void BS3_FAR *pvDst, const void BS
  * @returns pvDst + cbCopy
  * @param   pvDst           The destination buffer.
  * @param   pvSrc           The source buffer.
- * @param   cbCopy          The number of bytes to copy.
+ * @param   cbToCopy        The number of bytes to copy.
  */
 BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemPCpy,(void BS3_FAR *pvDst, const void BS3_FAR *pvSrc, size_t cbToCopy));
 
@@ -1643,7 +1701,7 @@ BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemPCpy,(void BS3_FAR *pvDst, const void B
  * @returns pvDst
  * @param   pvDst           The destination buffer.
  * @param   pvSrc           The source buffer.
- * @param   cbCopy          The number of bytes to copy.
+ * @param   cbToCopy        The number of bytes to copy.
  */
 BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemMove,(void BS3_FAR *pvDst, const void BS3_FAR *pvSrc, size_t cbToCopy));
 
@@ -1680,7 +1738,7 @@ BS3_CMN_PROTO_NOSB(void BS3_FAR *, Bs3MemChr,(void const BS3_FAR *pvHaystack, ui
  *          side, and positive in the other case.
  * @param   pv1             The left hand memory.
  * @param   pv2             The right hand memory.
- * @param   bNeedle         The number of bytes to compare.
+ * @param   cb              The number of bytes to compare.
  */
 BS3_CMN_PROTO_NOSB(int, Bs3MemCmp,(void const BS3_FAR *pv1, void const BS3_FAR *pv2, size_t cb));
 
@@ -1846,6 +1904,23 @@ DECLINLINE(RTCCUINTXREG) Bs3SelPtrToFlat(void BS3_FAR *pv)
     return (uintptr_t)pv;
 #endif
 }
+
+/**
+ * Sets up a 16-bit read-write data selector with ring-3 access and 64KB limit.
+ *
+ * @param   pDesc       Pointer to the descriptor table entry.
+ * @param   uBaseAddr   The base address of the descriptor.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3SelSetup16BitData,(X86DESC BS3_FAR *pDesc, uint32_t uBaseAddr));
+
+/**
+ * Sets up a 16-bit execute-read selector with a 64KB limit.
+ *
+ * @param   pDesc       Pointer to the descriptor table entry.
+ * @param   uBaseAddr   The base address of the descriptor.
+ * @param   bDpl        The descriptor privilege level.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3SelSetup16BitCode,(X86DESC BS3_FAR *pDesc, uint32_t uBaseAddr, uint8_t bDpl));
 
 
 /**
@@ -2067,6 +2142,11 @@ BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemGuardedTestPageAllocEx,(BS3MEMKIND enmK
  */
 BS3_CMN_PROTO_STUB(void, Bs3MemGuardedTestPageFree,(void BS3_FAR *pvGuardedPage));
 
+/**
+ * Print all heap info.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3MemPrintInfo, (void));
+
 /** Highes RAM byte below 4G. */
 extern uint32_t  g_uBs3EndOfRamBelow4G;
 
@@ -2201,6 +2281,64 @@ BS3_CMN_PROTO_STUB(int, Bs3PagingAlias,(uint64_t uDst, uint64_t uPhysToAlias, ui
  */
 BS3_CMN_PROTO_STUB(int, Bs3PagingUnalias,(uint64_t uDst, uint32_t cbHowMuch));
 
+/**
+ * Get the pointer to the PTE for the given address.
+ *
+ * @returns Pointer to the PTE.
+ * @param   uFlat               The flat address of the page which PTE we want.
+ * @param   prc                 Where to return additional error info. Optional.
+ */
+BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3PagingGetPte,(uint64_t uFlat, int *prc));
+
+/**
+ * Paging information for an address.
+ */
+typedef struct BS3PAGINGINFO4ADDR
+{
+    /** The depth of the system's paging mode.
+     * This is always 2 for legacy, 3 for PAE and 4 for long mode. */
+    uint8_t             cEntries;
+    /** The size of the page structures (the entires). */
+    uint8_t             cbEntry;
+    /** Flags defined for future fun, currently zero. */
+    uint16_t            fFlags;
+    /** Union display different view on the entry pointers. */
+    union
+    {
+        /** Pointer to the page structure entries, starting with the PTE as 0.
+         * If large pages are involved, the first entry will be NULL (first two if 1GB
+         * page).  Same if the address is invalid on a higher level. */
+        uint8_t BS3_FAR    *apbEntries[4];
+        /** Alternative view for legacy mode. */
+        struct
+        {
+            X86PTE BS3_FAR *pPte;
+            X86PDE BS3_FAR *pPde;
+            void           *pvUnused2;
+            void           *pvUnused3;
+        } Legacy;
+        /** Alternative view for PAE and Long mode. */
+        struct
+        {
+            X86PTEPAE BS3_FAR *pPte;
+            X86PDEPAE BS3_FAR *pPde;
+            X86PDPE   BS3_FAR *pPdpe;
+            X86PML4E  BS3_FAR *pPml4e;
+        } Pae;
+    } u;
+} BS3PAGINGINFO4ADDR;
+/** Pointer to paging information for and address.   */
+typedef BS3PAGINGINFO4ADDR BS3_FAR *PBS3PAGINGINFO4ADDR;
+
+/**
+ * Queries paging information about the given virtual address.
+ *
+ * @returns VBox status code.
+ * @param   uFlat               The flat address to query information about.
+ * @param   pPgInfo             Where to return the information.
+ */
+BS3_CMN_PROTO_STUB(int, Bs3PagingQueryAddressInfo,(uint64_t uFlat, PBS3PAGINGINFO4ADDR pPgInfo));
+
 
 /** The physical / flat address of the buffer backing the canonical traps.
  * This buffer is spread equally on each side of the 64-bit non-canonical
@@ -2312,10 +2450,11 @@ extern uint16_t             g_cBs3PitIntervalHz;
  * @a fpfnCall with @a cbParams bytes of parameters pushed on the stack.
  * Afterwards it switches back to v8086 mode and returns a 16-bit status code.
  *
- * @returns     16-bit status code if the function returned anything.
- * @param       fpfnCall        Far real mode pointer to the function to call.
- * @param       cbParams        The size of the parameter list, in bytes.
- * @param       ...             The parameters.
+ * @returns 16-bit status code if the function returned anything.
+ * @param   fpfnCall        Far real mode pointer to the function to call.
+ * @param   cbParams        The size of the parameter list, in bytes.
+ * @param   ...             The parameters.
+ * @sa Bs3SwitchTo32BitAndCallC
  */
 BS3_CMN_PROTO_STUB(int, Bs3SwitchFromV86To16BitAndCallC,(FPFNBS3FAR fpfnCall, unsigned cbParams, ...));
 
@@ -2539,6 +2678,125 @@ BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetRipCsFromCurPtr,(PBS3REGCTX pRegCtx, FPFNBS
 
 
 /**
+ * The method to be used to save and restore the extended context.
+ */
+typedef enum BS3EXTCTXMETHOD
+{
+    BS3EXTCTXMETHOD_INVALID = 0,
+    BS3EXTCTXMETHOD_ANCIENT,    /**< Ancient fnsave/frstor format. */
+    BS3EXTCTXMETHOD_FXSAVE,     /**< fxsave/fxrstor format. */
+    BS3EXTCTXMETHOD_XSAVE,      /**< xsave/xrstor format. */
+    BS3EXTCTXMETHOD_END,
+} BS3EXTCTXMETHOD;
+
+
+/**
+ * Extended CPU context (FPU, SSE, AVX, ++).
+ *
+ * @remarks Also in bs3kit.inc
+ */
+typedef struct BS3EXTCTX
+{
+    /** Dummy/magic value. */
+    uint16_t            u16Magic;
+    /** The size of the structure. */
+    uint16_t            cb;
+    /** The method used to save and restore the context (BS3EXTCTXMETHOD). */
+    uint8_t             enmMethod;
+    uint8_t             abPadding0[3];
+    /** Nominal XSAVE_C_XXX. */
+    uint64_t            fXcr0Nominal;
+    /** The saved XCR0 mask (restored after xrstor).  */
+    uint64_t            fXcr0Saved;
+
+    /** Explicit alignment padding. */
+    uint8_t             abPadding[64 - 2 - 2 - 1 - 3 - 8 - 8];
+
+    /** The context, variable size (see above).
+     * This must be aligned on a 64 byte boundrary. */
+    union
+    {
+        /** fnsave/frstor. */
+        X86FPUSTATE     Ancient;
+        /** fxsave/fxrstor   */
+        X86FXSTATE      x87;
+        /** xsave/xrstor   */
+        X86XSAVEAREA    x;
+        /** Byte array view. */
+        uint8_t         ab[sizeof(X86XSAVEAREA)];
+    } Ctx;
+} BS3EXTCTX;
+AssertCompileMemberAlignment(BS3EXTCTX, Ctx, 64);
+/** Pointer to an extended CPU context. */
+typedef BS3EXTCTX BS3_FAR *PBS3EXTCTX;
+/** Pointer to a const extended CPU context. */
+typedef BS3EXTCTX const BS3_FAR *PCBS3EXTCTX;
+
+/** Magic value for BS3EXTCTX. */
+#define BS3EXTCTX_MAGIC     UINT16_C(0x1980)
+
+/**
+ * Allocates and initializes the extended CPU context structure.
+ *
+ * @returns The new extended CPU context structure.
+ * @param   enmKind         The kind of allocation to make.
+ */
+BS3_CMN_PROTO_STUB(PBS3EXTCTX, Bs3ExtCtxAlloc,(BS3MEMKIND enmKind));
+
+/**
+ * Frees an extended CPU context structure.
+ *
+ * @param   pExtCtx         The extended CPU context (returned by
+ *                          Bs3ExtCtxAlloc).
+ */
+BS3_CMN_PROTO_STUB(void,       Bs3ExtCtxFree,(PBS3EXTCTX pExtCtx));
+
+/**
+ * Get the size required for a BS3EXTCTX structure.
+ *
+ * @returns size in bytes of the whole structure.
+ * @param   pfFlags         Where to return flags for Bs3ExtCtxInit.
+ * @note    Use Bs3ExtCtxAlloc when possible.
+ */
+BS3_CMN_PROTO_STUB(uint16_t,   Bs3ExtCtxGetSize,(uint64_t *pfFlags));
+
+/**
+ * Initializes the extended CPU context structure.
+ * @returns pExtCtx
+ * @param   pExtCtx         The extended CPU context.
+ * @param   cbExtCtx        The size of the @a pExtCtx allocation.
+ * @param   fFlags          XSAVE_C_XXX flags.
+ */
+BS3_CMN_PROTO_STUB(PBS3EXTCTX, Bs3ExtCtxInit,(PBS3EXTCTX pExtCtx, uint16_t cbExtCtx, uint64_t fFlags));
+
+/**
+ * Saves the extended CPU state to the given structure.
+ *
+ * @param   pExtCtx         The extended CPU context.
+ * @remarks All GPRs preserved.
+ */
+BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxSave,(PBS3EXTCTX pExtCtx));
+
+/**
+ * Restores the extended CPU state from the given structure.
+ *
+ * @param   pExtCtx         The extended CPU context.
+ * @remarks All GPRs preserved.
+ */
+BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxRestore,(PBS3EXTCTX pExtCtx));
+
+/**
+ * Copies the state from one context to another.
+ *
+ * @returns pDst
+ * @param   pDst            The destination extended CPU context.
+ * @param   pSrc            The source extended CPU context.
+ */
+BS3_CMN_PROTO_STUB(PBS3EXTCTX, Bs3ExtCtxCopy,(PBS3EXTCTX pDst, PCBS3EXTCTX pSrc));
+
+
+
+/**
  * Trap frame.
  */
 typedef struct BS3TRAPFRAME
@@ -2640,7 +2898,7 @@ BS3_CMN_PROTO_STUB(void, Bs3Trap64Init,(void));
  * Modifies the real-mode / V86 IVT entry specified by @a iIvt.
  *
  * @param   iIvt        The index of the IDT entry to set.
- * @param   uSel        The handler real-mode segment.
+ * @param   uSeg        The handler real-mode segment.
  * @param   off         The handler offset.
  */
 BS3_CMN_PROTO_STUB(void, Bs3TrapRmV86SetGate,(uint8_t iIvt, uint16_t uSeg, uint16_t off));
@@ -2879,18 +3137,21 @@ BS3_CMN_PROTO_STUB(void, Bs3TestPrintfV,(const char BS3_FAR *pszFormat, va_list 
 
 /**
  * Equivalent to RTTestIFailed.
+ * @returns false.
  */
-BS3_CMN_PROTO_STUB(void, Bs3TestFailed,(const char BS3_FAR *pszMessage));
+BS3_CMN_PROTO_STUB(bool, Bs3TestFailed,(const char BS3_FAR *pszMessage));
 
 /**
  * Equivalent to RTTestIFailedF.
+ * @returns false.
  */
-BS3_CMN_PROTO_STUB(void, Bs3TestFailedF,(const char BS3_FAR *pszFormat, ...));
+BS3_CMN_PROTO_STUB(bool, Bs3TestFailedF,(const char BS3_FAR *pszFormat, ...));
 
 /**
  * Equivalent to RTTestIFailedV.
+ * @returns false.
  */
-BS3_CMN_PROTO_STUB(void, Bs3TestFailedV,(const char BS3_FAR *pszFormat, va_list va));
+BS3_CMN_PROTO_STUB(bool, Bs3TestFailedV,(const char BS3_FAR *pszFormat, va_list va));
 
 /**
  * Equivalent to RTTestISkipped.
@@ -2961,6 +3222,7 @@ typedef FNBS3TESTDOMODE            *PFNBS3TESTDOMODE;
  */
 typedef struct BS3TESTMODEENTRY
 {
+    /** The sub-test name to be passed to Bs3TestSub if not NULL. */
     const char * BS3_FAR    pszSubTest;
 
     PFNBS3TESTDOMODE        pfnDoRM;
@@ -3030,6 +3292,39 @@ typedef BS3TESTMODEENTRY const *PCBS3TESTMODEENTRY;
     FNBS3TESTDOMODE /*BS3_FAR_CODE*/    RT_CONCAT(a_BaseNm, _c32); \
     FNBS3TESTDOMODE /*BS3_FAR_CODE*/    RT_CONCAT(a_BaseNm, _c64)
 
+/** @def BS3TESTMODEENTRY_CMN_64
+ * Produces a BS3TESTMODEENTRY initializer for common 64-bit test functions. */
+#define BS3TESTMODEENTRY_CMN_64(a_szTest, a_BaseNm) \
+    {   /*pszSubTest =*/ a_szTest, \
+        /*RM*/        NULL, \
+        /*PE16*/      NULL, \
+        /*PE16_32*/   NULL, \
+        /*PE16_V86*/  NULL, \
+        /*PE32*/      NULL, \
+        /*PE32_16*/   NULL, \
+        /*PEV86*/     NULL, \
+        /*PP16*/      NULL, \
+        /*PP16_32*/   NULL, \
+        /*PP16_V86*/  NULL, \
+        /*PP32*/      NULL, \
+        /*PP32_16*/   NULL, \
+        /*PPV86*/     NULL, \
+        /*PAE16*/     NULL, \
+        /*PAE16_32*/  NULL, \
+        /*PAE16_V86*/ NULL, \
+        /*PAE32*/     NULL, \
+        /*PAE32_16*/  NULL, \
+        /*PAEV86*/    NULL, \
+        /*LM16*/      NULL, \
+        /*LM32*/      NULL, \
+        /*LM64*/      RT_CONCAT(a_BaseNm, _c64), \
+    }
+
+/** @def BS3TESTMODE_PROTOTYPES_CMN
+ * Standard protype to go with #BS3TESTMODEENTRY_CMN_64. */
+#define BS3TESTMODE_PROTOTYPES_CMN_64(a_BaseNm) \
+    FNBS3TESTDOMODE /*BS3_FAR_CODE*/    RT_CONCAT(a_BaseNm, _c64)
+
 /** @def BS3TESTMODEENTRY_MODE
  * Produces a BS3TESTMODEENTRY initializer for a full set of mode test
  * functions. */
@@ -3087,6 +3382,162 @@ typedef BS3TESTMODEENTRY const *PCBS3TESTMODEENTRY;
 
 
 /**
+ * Mode sub-test entry, max bit-count driven
+ *
+ * This is an alternative to BS3TESTMODEENTRY where a few workers (test drivers)
+ * does all the work, using faster 32-bit and 64-bit code where possible.  This
+ * avoids executing workers in V8086 mode.  It allows for modifying and checking
+ * 64-bit register content when testing LM16 and LM32.
+ *
+ * The 16-bit workers are only used for real mode and 16-bit protected mode.
+ * So, the 16-bit version of the code template can be stripped of anything
+ * related to paging and/or v8086, saving code space.
+ */
+typedef struct BS3TESTMODEBYMAXENTRY
+{
+    /** The sub-test name to be passed to Bs3TestSub if not NULL. */
+    const char * BS3_FAR    pszSubTest;
+
+    PFNBS3TESTDOMODE        pfnDoRM;
+    PFNBS3TESTDOMODE        pfnDoPE16;
+    PFNBS3TESTDOMODE        pfnDoPE16_32;
+    PFNBS3TESTDOMODE        pfnDoPE32;
+    PFNBS3TESTDOMODE        pfnDoPP16_32;
+    PFNBS3TESTDOMODE        pfnDoPP32;
+    PFNBS3TESTDOMODE        pfnDoPAE16_32;
+    PFNBS3TESTDOMODE        pfnDoPAE32;
+    PFNBS3TESTDOMODE        pfnDoLM64;
+
+    bool                    fDoRM : 1;
+
+    bool                    fDoPE16 : 1;
+    bool                    fDoPE16_32 : 1;
+    bool                    fDoPE16_V86 : 1;
+    bool                    fDoPE32 : 1;
+    bool                    fDoPE32_16 : 1;
+    bool                    fDoPEV86 : 1;
+
+    bool                    fDoPP16 : 1;
+    bool                    fDoPP16_32 : 1;
+    bool                    fDoPP16_V86 : 1;
+    bool                    fDoPP32 : 1;
+    bool                    fDoPP32_16 : 1;
+    bool                    fDoPPV86 : 1;
+
+    bool                    fDoPAE16 : 1;
+    bool                    fDoPAE16_32 : 1;
+    bool                    fDoPAE16_V86 : 1;
+    bool                    fDoPAE32 : 1;
+    bool                    fDoPAE32_16 : 1;
+    bool                    fDoPAEV86 : 1;
+
+    bool                    fDoLM16 : 1;
+    bool                    fDoLM32 : 1;
+    bool                    fDoLM64 : 1;
+
+} BS3TESTMODEBYMAXENTRY;
+/** Pointer to a mode-by-max sub-test entry. */
+typedef BS3TESTMODEBYMAXENTRY const *PCBS3TESTMODEBYMAXENTRY;
+
+/** @def BS3TESTMODEBYMAXENTRY_CMN
+ * Produces a BS3TESTMODEBYMAXENTRY initializer for common (c16,c32,c64) test
+ * functions. */
+#define BS3TESTMODEBYMAXENTRY_CMN(a_szTest, a_BaseNm) \
+    {   /*pszSubTest =*/    a_szTest, \
+        /*RM*/              RT_CONCAT(a_BaseNm, _c16), \
+        /*PE16*/            RT_CONCAT(a_BaseNm, _c16), \
+        /*PE16_32*/         RT_CONCAT(a_BaseNm, _c32), \
+        /*PE32*/            RT_CONCAT(a_BaseNm, _c32), \
+        /*PP16_32*/         RT_CONCAT(a_BaseNm, _c32), \
+        /*PP32*/            RT_CONCAT(a_BaseNm, _c32), \
+        /*PAE16_32*/        RT_CONCAT(a_BaseNm, _c32), \
+        /*PAE32*/           RT_CONCAT(a_BaseNm, _c32), \
+        /*LM64*/            RT_CONCAT(a_BaseNm, _c64), \
+        /*fDoRM*/           true, \
+        /*fDoPE16*/         true, \
+        /*fDoPE16_32*/      true, \
+        /*fDoPE16_V86*/     true, \
+        /*fDoPE32*/         true, \
+        /*fDoPE32_16*/      true, \
+        /*fDoPEV86*/        true, \
+        /*fDoPP16*/         true, \
+        /*fDoPP16_32*/      true, \
+        /*fDoPP16_V86*/     true, \
+        /*fDoPP32*/         true, \
+        /*fDoPP32_16*/      true, \
+        /*fDoPPV86*/        true, \
+        /*fDoPAE16*/        true, \
+        /*fDoPAE16_32*/     true, \
+        /*fDoPAE16_V86*/    true, \
+        /*fDoPAE32*/        true, \
+        /*fDoPAE32_16*/     true, \
+        /*fDoPAEV86*/       true, \
+        /*fDoLM16*/         true, \
+        /*fDoLM32*/         true, \
+        /*fDoLM64*/         true, \
+    }
+
+/** @def BS3TESTMODEBYMAX_PROTOTYPES_CMN
+ * A set of standard protypes to go with #BS3TESTMODEBYMAXENTRY_CMN. */
+#define BS3TESTMODEBYMAX_PROTOTYPES_CMN(a_BaseNm) \
+    FNBS3TESTDOMODE /*BS3_FAR_CODE*/    RT_CONCAT(a_BaseNm, _c16); \
+    FNBS3TESTDOMODE /*BS3_FAR_CODE*/    RT_CONCAT(a_BaseNm, _c32); \
+    FNBS3TESTDOMODE /*BS3_FAR_CODE*/    RT_CONCAT(a_BaseNm, _c64)
+
+
+/** @def BS3TESTMODEBYMAXENTRY_MODE
+ * Produces a BS3TESTMODEBYMAXENTRY initializer for a full set of mode test
+ * functions. */
+#define BS3TESTMODEBYMAXENTRY_MODE(a_szTest, a_BaseNm) \
+    {   /*pszSubTest =*/ a_szTest, \
+        /*RM*/              RT_CONCAT(a_BaseNm, _rm), \
+        /*PE16*/            RT_CONCAT(a_BaseNm, _pe16), \
+        /*PE16_32*/         RT_CONCAT(a_BaseNm, _pe16_32), \
+        /*PE32*/            RT_CONCAT(a_BaseNm, _pe32), \
+        /*PP16_32*/         RT_CONCAT(a_BaseNm, _pp16_32), \
+        /*PP32*/            RT_CONCAT(a_BaseNm, _pp32), \
+        /*PAE16_32*/        RT_CONCAT(a_BaseNm, _pae16_32), \
+        /*PAE32*/           RT_CONCAT(a_BaseNm, _pae32), \
+        /*LM64*/            RT_CONCAT(a_BaseNm, _lm64), \
+        /*fDoRM*/           true, \
+        /*fDoPE16*/         true, \
+        /*fDoPE16_32*/      true, \
+        /*fDoPE16_V86*/     true, \
+        /*fDoPE32*/         true, \
+        /*fDoPE32_16*/      true, \
+        /*fDoPEV86*/        true, \
+        /*fDoPP16*/         true, \
+        /*fDoPP16_32*/      true, \
+        /*fDoPP16_V86*/     true, \
+        /*fDoPP32*/         true, \
+        /*fDoPP32_16*/      true, \
+        /*fDoPPV86*/        true, \
+        /*fDoPAE16*/        true, \
+        /*fDoPAE16_32*/     true, \
+        /*fDoPAE16_V86*/    true, \
+        /*fDoPAE32*/        true, \
+        /*fDoPAE32_16*/     true, \
+        /*fDoPAEV86*/       true, \
+        /*fDoLM16*/         true, \
+        /*fDoLM32*/         true, \
+        /*fDoLM64*/         true, \
+    }
+
+/** @def BS3TESTMODEBYMAX_PROTOTYPES_MODE
+ * A set of standard protypes to go with #BS3TESTMODEBYMAXENTRY_MODE. */
+#define BS3TESTMODEBYMAX_PROTOTYPES_MODE(a_BaseNm) \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _rm); \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _pe16); \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _pe16_32); \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _pe32); \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _pp16_32); \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _pp32); \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _pae16_32); \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _pae32); \
+    FNBS3TESTDOMODE   RT_CONCAT(a_BaseNm, _lm64)
+
+
+/**
  * One worker drives all modes.
  *
  * This is an alternative to BS3TESTMODEENTRY where one worker, typically
@@ -3097,10 +3548,17 @@ typedef struct BS3TESTMODEBYONEENTRY
 {
     const char * BS3_FAR    pszSubTest;
     PFNBS3TESTDOMODE        pfnWorker;
-    uint32_t                u32Reserved;
+    /** BS3TESTMODEBYONEENTRY_F_XXX. */
+    uint32_t                fFlags;
 } BS3TESTMODEBYONEENTRY;
 /** Pointer to a mode-by-one sub-test entry. */
 typedef BS3TESTMODEBYONEENTRY const *PCBS3TESTMODEBYONEENTRY;
+
+/** @name BS3TESTMODEBYONEENTRY_F_XXX - flags.
+ * @{ */
+/** Only test modes that has paging enabled. */
+#define BS3TESTMODEBYONEENTRY_F_ONLY_PAGING     RT_BIT_32(0)
+/** @} */
 
 
 /**
@@ -3262,6 +3720,10 @@ BS3_DECL_FAR(void) Bs3InitGdt_rm_far(void);
 /** The TMPL_MODE_STR value for each mode.
  * These are all in DATA16 so they can be accessed from any code.  */
 BS3_MODE_EXPAND_EXTERN_DATA16(const char, g_szBs3ModeName, []);
+/** The TMPL_MODE_LNAME value for each mode.
+ * These are all in DATA16 so they can be accessed from any code.  */
+BS3_MODE_EXPAND_EXTERN_DATA16(const char, g_szBs3ModeNameShortLower, []);
+
 
 /**
  * Basic CPU detection.
@@ -3297,10 +3759,33 @@ BS3_MODE_PROTO_NOSB(uint8_t, Bs3CpuDetect,(void));
 #define BS3CPU_F_PSE                UINT16_C(0x0800)
 /** Flag indicating that the CPU supports long mode. */
 #define BS3CPU_F_LONG_MODE          UINT16_C(0x1000)
+/** Flag indicating that the CPU supports NX. */
+#define BS3CPU_F_NX                 UINT16_C(0x2000)
 /** @} */
 
 /** The return value of #Bs3CpuDetect_mmm. (Initial value is BS3CPU_TYPE_MASK.) */
 extern uint16_t g_uBs3CpuDetected;
+
+/**
+ * Call 32-bit prot mode C function.
+ *
+ * This switches to 32-bit mode and calls the 32-bit @a fpfnCall C code with @a
+ * cbParams on the stack, then returns in the original mode.  When called in
+ * real mode, this will switch to PE32.
+ *
+ * @returns 32-bit status code if the function returned anything.
+ * @param   fpfnCall        Address of the 32-bit C function to call.  When
+ *                          called from 16-bit code, this is a far real mode
+ *                          function pointer, i.e. as fixed up by the linker.
+ *                          In 32-bit and 64-bit code, this is a flat address.
+ * @param   cbParams        The size of the parameter list, in bytes.
+ * @param   ...             The parameters.
+ * @sa      Bs3SwitchFromV86To16BitAndCallC
+ *
+ * @remarks     WARNING! This probably doesn't work in 64-bit mode yet.
+ *                       Only tested for 16-bit real mode.
+ */
+BS3_MODE_PROTO_STUB(int32_t, Bs3SwitchTo32BitAndCallC,(FPFNBS3FAR fpfnCall, unsigned cbParams, ...));
 
 /**
  * Initializes trap handling for the current system.
@@ -3318,7 +3803,7 @@ BS3_MODE_PROTO_STUB(void, Bs3TrapInit,(void));
 BS3_MODE_PROTO_NOSB(void, Bs3TestDoModes,(PCBS3TESTMODEENTRY paEntries, size_t cEntries));
 
 /**
- * Executes the array of tests in every possibly mode, unitifed driver.
+ * Executes the array of tests in every possibly mode, unified driver.
  *
  * This requires much less code space than Bs3TestDoModes as there is only one
  * instace of each sub-test driver code, instead of 3 (cmn) or 22 (per-mode)
@@ -3330,6 +3815,17 @@ BS3_MODE_PROTO_NOSB(void, Bs3TestDoModes,(PCBS3TESTMODEENTRY paEntries, size_t c
  */
 BS3_MODE_PROTO_NOSB(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_t cEntries, uint32_t fFlags));
 
+/**
+ * Executes the array of tests in every possibly mode, using the max bit-count
+ * worker for each.
+ *
+ * @param   paEntries       The mode sub-test entries.
+ * @param   cEntries        The number of sub-test entries.
+ */
+BS3_MODE_PROTO_NOSB(void, Bs3TestDoModesByMax,(PCBS3TESTMODEBYMAXENTRY paEntries, size_t cEntries));
+
+
+/** @} */
 
 /** @} */
 

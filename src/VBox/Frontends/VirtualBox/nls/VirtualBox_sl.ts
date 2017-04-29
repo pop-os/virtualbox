@@ -4,7 +4,7 @@
 <context>
     <name>@@@</name>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+2064"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+2065"/>
         <source>English</source>
         <comment>Native language name</comment>
         <translation>Slovenščina</translation>
@@ -1134,7 +1134,7 @@
     <message>
         <location line="+2"/>
         <source>Cr&amp;eate Shortcut on Desktop</source>
-        <translation>&amp;Ustvari bližnjco na namizju</translation>
+        <translation>&amp;Ustvari bližnjico na namizju</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -1411,7 +1411,7 @@
 <context>
     <name>UIApplianceUnverifiedCertificateViewer</name>
     <message>
-        <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp" line="+260"/>
+        <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp" line="+261"/>
         <source>Unverifiable Certificate! Continue?</source>
         <translation>Potrdila ni mogoče preveriti! Nadaljuj?</translation>
     </message>
@@ -5704,7 +5704,7 @@
 <context>
     <name>UIMachineSettingsUSB</name>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsUSB.cpp" line="+603"/>
+        <location filename="../src/settings/machine/UIMachineSettingsUSB.cpp" line="+608"/>
         <source>New Filter %1</source>
         <comment>usb</comment>
         <translation>Nov filter %1</translation>
@@ -7503,7 +7503,7 @@
 <context>
     <name>UIMiniToolBar</name>
     <message>
-        <location filename="../src/widgets/UIMiniToolBar.cpp" line="+294"/>
+        <location filename="../src/widgets/UIMiniToolBar.cpp" line="+298"/>
         <source>Always show the toolbar</source>
         <translation>Vedno prikaži orodno vrstico</translation>
     </message>
@@ -7851,7 +7851,7 @@
         <translation>Prikaži vrstico stanja</translation>
     </message>
     <message>
-        <location line="+342"/>
+        <location line="+347"/>
         <source>Select a virtual machine file</source>
         <translation>Izberite datoteko navideznega računalnika</translation>
     </message>
@@ -7867,15 +7867,15 @@
         <translation>Upravljalnik</translation>
     </message>
     <message>
-        <location line="-785"/>
+        <location line="-790"/>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Dobrodošli v VirtulBox!&lt;/h3&gt;&lt;p&gt;Levi del tega okna je seznam vseh navideznih računalnikov na vašem računalniku. Seznam je sedaj prazen, ker še niste ustvarili nobenega navideznega računalnika.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Da ustvarite nov navidezni računalnik, pritisnite gumb &lt;b&gt;Nov&lt;/b&gt; v glavni orodni vrstici na vrhu okna.&lt;/p&gt;&lt;p&gt;Lahko pritisnete tipko &lt;b&gt;%1&lt;/b&gt; za takojšnjo pomoč ali obiščite &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; za najnovejše podatke in novice.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;Dobrodošli v VirtualBoxu!&lt;/h3&gt;&lt;p&gt;Levi del tega okna je seznam vseh navideznih računalnikov na vašem računalniku. Seznam je sedaj prazen, ker še niste ustvarili nobenega navideznega računalnika.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Da ustvarite nov navidezni računalnik, pritisnite gumb &lt;b&gt;Nov&lt;/b&gt; v glavni orodni vrstici na vrhu okna.&lt;/p&gt;&lt;p&gt;Lahko pritisnete tipko &lt;b&gt;%1&lt;/b&gt; za takojšnjo pomoč ali obiščite &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; za najnovejše podatke in novice.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UISession</name>
     <message>
-        <location filename="../src/runtime/UISession.cpp" line="+548"/>
+        <location filename="../src/runtime/UISession.cpp" line="+552"/>
         <source>Updating Guest Additions</source>
         <translation>Posodabljanje Dodatkov za gosta</translation>
     </message>
@@ -9093,7 +9093,7 @@
         <translation>Odprta oblika navideznosti (%1)</translation>
     </message>
     <message>
-        <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp" line="-204"/>
+        <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp" line="-205"/>
         <location filename="../src/wizards/importappliance/UIWizardImportAppPageExpert.cpp" line="+1"/>
         <source>Appliance settings</source>
         <translation>Nastavitve namenske naprave</translation>
@@ -9277,7 +9277,7 @@
         <translation>Ustvari</translation>
     </message>
     <message>
-        <location filename="../src/wizards/newvm/UIWizardNewVMPageBasic1.cpp" line="+308"/>
+        <location filename="../src/wizards/newvm/UIWizardNewVMPageBasic1.cpp" line="+309"/>
         <location filename="../src/wizards/newvm/UIWizardNewVMPageExpert.cpp" line="+227"/>
         <source>Name and operating system</source>
         <translation>Ime in operacijski sistem</translation>
@@ -10389,7 +10389,7 @@
         <translation>&lt;b&gt;Nobena datoteka odtisa diska ni na voljo&lt;/b&gt;</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="+237"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="+242"/>
         <source>%n year(s)</source>
         <translation>
             <numerusform>%n leto</numerusform>
@@ -11829,7 +11829,7 @@
 <context>
     <name>VBoxUSBMenu</name>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsUSB.cpp" line="-495"/>
+        <location filename="../src/settings/machine/UIMachineSettingsUSB.cpp" line="-500"/>
         <source>&lt;no devices available&gt;</source>
         <comment>USB devices</comment>
         <translation>&lt;na voljo ni nobena naprava&gt;</translation>

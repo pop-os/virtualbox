@@ -2756,6 +2756,43 @@ static void tstVDIoScriptExec(const char *pszName, const char *pszScript)
                     rc = VDScriptCtxCallFn(hScriptCtx, "main", NULL, 0);
                 VDScriptCtxDestroy(hScriptCtx);
             }
+
+            /* Clean up all leftover resources. */
+            PVDPATTERN pPatternIt, pPatternItNext;
+            RTListForEachSafe(&GlobTest.ListPatterns, pPatternIt, pPatternItNext, VDPATTERN, ListNode)
+            {
+                RTPrintf("Cleanup: Leftover pattern \"%s\", deleting...\n", pPatternIt->pszName);
+                RTListNodeRemove(&pPatternIt->ListNode);
+                RTMemFree(pPatternIt->pvPattern);
+                RTStrFree(pPatternIt->pszName);
+                RTMemFree(pPatternIt);
+            }
+
+            PVDDISK pDiskIt, pDiskItNext;
+            RTListForEachSafe(&GlobTest.ListDisks, pDiskIt, pDiskItNext, VDDISK, ListNode)
+            {
+                RTPrintf("Cleanup: Leftover disk \"%s\", deleting...\n", pDiskIt->pszName);
+                RTListNodeRemove(&pDiskIt->ListNode);
+                VDDestroy(pDiskIt->pVD);
+                if (pDiskIt->pMemDiskVerify)
+                {
+                    VDMemDiskDestroy(pDiskIt->pMemDiskVerify);
+                    RTCritSectDelete(&pDiskIt->CritSectVerify);
+                }
+                RTStrFree(pDiskIt->pszName);
+                RTMemFree(pDiskIt);
+            }
+
+            PVDFILE pFileIt, pFileItNext;
+            RTListForEachSafe(&GlobTest.ListFiles, pFileIt, pFileItNext, VDFILE, Node)
+            {
+                RTPrintf("Cleanup: Leftover file \"%s\", deleting...\n", pFileIt->pszName);
+                RTListNodeRemove(&pFileIt->Node);
+                VDIoBackendStorageDestroy(pFileIt->pIoStorage);
+                RTStrFree(pFileIt->pszName);
+                RTMemFree(pFileIt);
+            }
+
             VDIoBackendDestroy(GlobTest.pIoBackend);
         }
         else
@@ -2829,6 +2866,7 @@ static void tstVDIoRunBuiltinTests(void)
 
         AssertPtr(pszScript);
         tstVDIoScriptExec(g_aVDIoTests[i].pszName, pszScript);
+        RTStrFree(pszScript);
     }
 #endif
 }

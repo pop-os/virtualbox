@@ -54,7 +54,9 @@ bs3-bootsector_SOURCES  = bs3-bootsector.asm
 VBOX_BS3KIT_COMMON_SOURCES = \
 	bs3-cmn-A20Disable.asm \
 	bs3-cmn-A20Enable.asm \
+	bs3-cmn-GetCpuVendor.c \
 	bs3-cmn-GetModeName.c \
+	bs3-cmn-GetModeNameShortLower.c \
 	bs3-cmn-KbdRead.asm \
 	bs3-cmn-KbdWait.asm \
 	bs3-cmn-KbdWrite.asm \
@@ -82,12 +84,14 @@ VBOX_BS3KIT_COMMON_SOURCES = \
        bs3-cmn-MemAllocZ.c \
        bs3-cmn-MemFree.c \
        bs3-cmn-MemGuardedTestPage.c \
+       bs3-cmn-MemPrintInfo.c \
        bs3-cmn-PagingData.c \
        bs3-cmn-PagingInitRootForPP.c \
        bs3-cmn-PagingInitRootForPAE.c \
        bs3-cmn-PagingInitRootForLM.c \
        bs3-cmn-PagingAlias.c \
        bs3-cmn-PagingProtect.c \
+       bs3-cmn-PagingQueryAddressInfo.c \
        bs3-cmn-PagingSetupCanonicalTraps.c \
        bs3-cmn-pic-data.c \
        bs3-cmn-PicMaskAll.c \
@@ -105,6 +109,13 @@ VBOX_BS3KIT_COMMON_SOURCES = \
        bs3-cmn-RegCtxSetRipCsFromCurPtr.c \
        bs3-cmn-RegCtxSetRipCsFromFlat.c \
        bs3-cmn-RegCtxSetRipCsFromLnkPtr.c \
+       bs3-cmn-ExtCtxInit.c \
+       bs3-cmn-ExtCtxSave.asm \
+       bs3-cmn-ExtCtxRestore.asm \
+       bs3-cmn-ExtCtxGetSize.c \
+       bs3-cmn-ExtCtxAlloc.c \
+       bs3-cmn-ExtCtxFree.c \
+       bs3-cmn-ExtCtxCopy.c \
        bs3-cmn-SelFar32ToFlat32.c \
        bs3-cmn-SelFar32ToFlat32NoClobber.asm \
        bs3-cmn-SelProtFar32ToFlat32.c \
@@ -118,6 +129,8 @@ VBOX_BS3KIT_COMMON_SOURCES = \
        bs3-cmn-SelProtFar16DataToFlat.asm \
        bs3-cmn-SelFlatDataToProtFar16.asm \
        bs3-cmn-SelFlatDataToRealMode.asm \
+       bs3-cmn-SelSetup16BitData.c \
+       bs3-cmn-SelSetup16BitCode.c \
        bs3-cmn-SlabInit.c \
        bs3-cmn-SlabAlloc.c \
        bs3-cmn-SlabAllocEx.c \
@@ -186,6 +199,10 @@ VBOX_BS3KIT_COMMON_SOURCES = \
        ../../../Runtime/common/asm/ASMSerializeInstruction-cpuid.asm \
        ../../../Runtime/common/asm/ASMSerializeInstruction-iret.asm \
        ../../../Runtime/common/asm/ASMSerializeInstruction-rdtscp.asm \
+       ../../../Runtime/common/asm/ASMCpuIdExSlow.asm \
+       ../../../Runtime/common/asm/ASMCpuId.asm \
+       ../../../Runtime/common/asm/ASMGetXcr0.asm \
+       ../../../Runtime/common/asm/ASMSetXcr0.asm \
 
 # The 16-bit BS3Kit library.
 LIBRARIES += bs3kit-common-16
@@ -222,6 +239,10 @@ bs3kit-common-16_bs3-cmn-UInt64Div.c_CFLAGS = -oh -d0 # -d1+ vs -d0 saves 0x6a3-
 
 $(call BS3KIT_FN_GEN_CMN_FARSTUB,bs3kit-common-16,ASMMemFirstMismatchingU8,8)
 $(call BS3KIT_FN_GEN_CMN_FARSTUB,bs3kit-common-16,ASMMemFirstNonZero,6)
+$(call BS3KIT_FN_GEN_CMN_FARSTUB,bs3kit-common-16,ASMCpuIdExSlow,32)
+$(call BS3KIT_FN_GEN_CMN_FARSTUB,bs3kit-common-16,ASMCpuId,20)
+$(call BS3KIT_FN_GEN_CMN_FARSTUB,bs3kit-common-16,ASMSetXcr0,8)
+$(call BS3KIT_FN_GEN_CMN_FARSTUB,bs3kit-common-16,ASMGetXcr0,0)
 -include $(PATH_SUB_CURRENT)/bs3kit-autostubs.kmk # manually generated from headers, see bottom of this file.
 
 # The 32-bit BS3Kit library.
@@ -260,6 +281,7 @@ bs3kit-common-64_SOURCES  = $(VBOX_BS3KIT_COMMON_SOURCES) \
 #
 VBOX_BS3KIT_MODE_SOURCES = \
 	bs3-mode-Name.asm \
+	bs3-mode-NameShortLower.asm \
 	bs3-mode-SwitchToRM.asm \
 	bs3-mode-SwitchToPE16.asm \
 	bs3-mode-SwitchToPE16_32.asm \
@@ -282,6 +304,7 @@ VBOX_BS3KIT_MODE_SOURCES = \
 	bs3-mode-SwitchToLM64.asm \
 	bs3-mode-SwitchToLM32.asm \
 	bs3-mode-SwitchToLM16.asm \
+	bs3-mode-SwitchTo32BitAndCallC.asm \
 	bs3-mode-EnteredMode.asm \
 	bs3-mode-PagingGetRootForPP16.asm \
 	bs3-mode-PagingGetRootForPP32.asm \
@@ -292,6 +315,7 @@ VBOX_BS3KIT_MODE_SOURCES = \
 	bs3-mode-TrapSystemCallHandler.asm \
 	bs3-mode-TestDoModes.c \
 	bs3-mode-TestDoModesByOne.c \
+	bs3-mode-TestDoModesByMax.c \
 	bs3-mode-TestDoModesHlp.asm \
 
 # The 16-bit real mode BS3Kit library.
@@ -302,7 +326,9 @@ bs3kit-rm_DEFS     = TMPL_MODE=BS3_MODE_RM
 bs3kit-rm_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
 	bs3-first-rm.asm \
 	bs3-mode-CpuDetect.asm \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 
 # The 16-bit BS3Kit library for 16-bit protected kernel+tss.
@@ -312,7 +338,9 @@ bs3kit-pe16_INSTTYPE = none
 bs3kit-pe16_DEFS     = TMPL_MODE=BS3_MODE_PE16
 bs3kit-pe16_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
 	bs3-first-pe16.asm \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 #	bs3-mode-CpuDetect.asm
 
 # The 32-bit BS3Kit library for 16-bit protected kernel+tss.
@@ -321,7 +349,9 @@ bs3kit-pe16_32_TEMPLATE = VBoxBS3KitImg32
 bs3kit-pe16_32_INSTTYPE = none
 bs3kit-pe16_32_DEFS     = TMPL_MODE=BS3_MODE_PE16_32
 bs3kit-pe16_32_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 # The v86 BS3Kit library for 16-bit protected kernel+tss.
 LIBRARIES += bs3kit-pe16_v86
@@ -329,7 +359,9 @@ bs3kit-pe16_v86_TEMPLATE = VBoxBS3KitImg
 bs3kit-pe16_v86_INSTTYPE = none
 bs3kit-pe16_v86_DEFS     = TMPL_MODE=BS3_MODE_PE16_V86
 bs3kit-pe16_v86_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 # The 32-bit BS3Kit library for 32-bit protected kernel+tss.
 LIBRARIES += bs3kit-pe32
@@ -345,7 +377,9 @@ bs3kit-pe32_16_TEMPLATE = VBoxBS3KitImg
 bs3kit-pe32_16_INSTTYPE = none
 bs3kit-pe32_16_DEFS     = TMPL_MODE=BS3_MODE_PE32_16
 bs3kit-pe32_16_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 # The v8086 BS3Kit library for 32-bit protected kernel+tss.
 LIBRARIES += bs3kit-pev86
@@ -361,7 +395,9 @@ bs3kit-pp16_INSTTYPE = none
 bs3kit-pp16_DEFS     = TMPL_MODE=BS3_MODE_PP16
 bs3kit-pp16_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
 	bs3-mode-CpuDetect.asm \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 # The 32-bit BS3Kit library for 16-bit paged protected kernel+tss.
 LIBRARIES += bs3kit-pp16_32
@@ -391,7 +427,9 @@ bs3kit-pp32_16_TEMPLATE = VBoxBS3KitImg
 bs3kit-pp32_16_INSTTYPE = none
 bs3kit-pp32_16_DEFS     = TMPL_MODE=BS3_MODE_PP32_16
 bs3kit-pp32_16_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 # The v8086 BS3Kit library for 32-bit paged protected kernel+tss.
 LIBRARIES += bs3kit-ppv86
@@ -408,7 +446,9 @@ bs3kit-pae16_INSTTYPE = none
 bs3kit-pae16_DEFS     = TMPL_MODE=BS3_MODE_PAE16
 bs3kit-pae16_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
 	bs3-mode-CpuDetect.asm \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 # The 16-bit BS3Kit library for 16-bit PAE paged protected kernel+tss.
 LIBRARIES += bs3kit-pae16_32
@@ -437,7 +477,9 @@ bs3kit-pae32_16_TEMPLATE = VBoxBS3KitImg
 bs3kit-pae32_16_INSTTYPE = none
 bs3kit-pae32_16_DEFS     = TMPL_MODE=BS3_MODE_PAE32_16
 bs3kit-pae32_16_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 # The v8086 BS3Kit library for 32-bit PAE paged protected kernel+tss.
 LIBRARIES += bs3kit-paev86
@@ -453,7 +495,9 @@ bs3kit-lm16_TEMPLATE = VBoxBS3KitImg
 bs3kit-lm16_INSTTYPE = none
 bs3kit-lm16_DEFS     = TMPL_MODE=BS3_MODE_LM16
 bs3kit-lm16_SOURCES  = $(VBOX_BS3KIT_MODE_SOURCES) \
+	bs3-mode-TestDoModesStub.asm \
 	bs3-mode-TestDoModesByOneStub.asm \
+	bs3-mode-TestDoModesByMaxStub.asm \
 
 # The 32-bit long mode BS3Kit library.
 LIBRARIES += bs3kit-lm32

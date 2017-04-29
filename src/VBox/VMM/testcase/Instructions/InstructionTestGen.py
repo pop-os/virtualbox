@@ -20,7 +20,7 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 100868 $";
+__version__ = "$Revision: 114778 $";
 
 
 # pylint: disable=C0103,R0913
@@ -88,8 +88,8 @@ X86_OP_PRF_GS       = 0x65;
 X86_OP_PRF_SIZE_OP  = 0x66;
 X86_OP_PRF_SIZE_ADDR = 0x67;
 X86_OP_PRF_LOCK     = 0xf0;
-X86_OP_PRF_REPZ     = 0xf2;
-X86_OP_PRF_REPNZ    = 0xf3;
+X86_OP_PRF_REPNZ    = 0xf2;
+X86_OP_PRF_REPZ     = 0xf3;
 X86_OP_REX_B        = 0x41;
 X86_OP_REX_X        = 0x42;
 X86_OP_REX_R        = 0x44;

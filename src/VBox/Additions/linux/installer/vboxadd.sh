@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 114389 $)
+# Linux Additions kernel module init script ($Revision: 114649 $)
 #
 
 #
@@ -426,7 +426,7 @@ shared_folder_setup()
     # Put the mount.vboxsf mount helper in the right place.
     ## @todo It would be nicer if the kernel module just parsed parameters
     # itself instead of needing a separate binary to do that.
-    ln -sf "${INSTALL_DIR}/other/mount.vboxsf" /sbin
+    ln -sf "$lib_path/$PACKAGE/mount.vboxsf" /sbin
     # SELinux security context for the mount helper.
     if test -e /etc/selinux/config; then
         # This is correct.  semanage maps this to the real path, and it aborts
