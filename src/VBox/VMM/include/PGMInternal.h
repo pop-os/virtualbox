@@ -2781,11 +2781,11 @@ typedef struct PGMPTWALKCORE
     bool            fBigPage;
     /** Set if it involves a gigantic page (1 GB). */
     bool            fGigantPage;
-    /** The effect X86_PTE_US flag for the address. */
+    /** The effective X86_PTE_US flag for the address. */
     bool            fEffectiveUS;
-    /** The effect X86_PTE_RW flag for the address. */
+    /** The effective X86_PTE_RW flag for the address. */
     bool            fEffectiveRW;
-    /** The effect X86_PTE_NX flag for the address. */
+    /** The effective X86_PTE_NX flag for the address. */
     bool            fEffectiveNX;
 } PGMPTWALKCORE;
 
@@ -3880,7 +3880,7 @@ typedef struct PGMCPU
     /** The guest paging mode. */
     PGMMODE                         enmGuestMode;
 
-    /** The current physical address representing in the guest CR3 register. */
+    /** The current physical address represented in the guest CR3 register. */
     RTGCPHYS                        GCPhysCR3;
 
     /** @name 32-bit Guest Paging.
@@ -4105,6 +4105,7 @@ typedef PGMCPU *PPGMCPU;
 
 
 /** @name PGM::fSyncFlags Flags
+ * @note Was part of saved state a long time ago.
  * @{
  */
 /** Updates the virtual access handler state bit in PGMPAGE. */

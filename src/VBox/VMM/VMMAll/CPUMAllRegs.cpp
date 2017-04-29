@@ -152,7 +152,8 @@ VMM_INT_DECL(void) CPUMGuestLazyLoadHiddenCsAndSs(PVMCPU pVCpu)
 /**
  * Loads a the hidden parts of a selector register.
  *
- * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   pSReg       The selector register to lazily load hidden parts of.
  */
 VMM_INT_DECL(void) CPUMGuestLazyLoadHiddenSelectorReg(PVMCPU pVCpu, PCPUMSELREG pSReg)
 {
@@ -915,6 +916,26 @@ VMMDECL(RTSEL) CPUMGetGuestSS(PVMCPU pVCpu)
 }
 
 
+VMMDECL(uint64_t)   CPUMGetGuestFlatPC(PVMCPU pVCpu)
+{
+    CPUMSELREG_LAZY_LOAD_HIDDEN_PARTS(pVCpu, &pVCpu->cpum.s.Guest.cs);
+    if (   !CPUMIsGuestInLongMode(pVCpu)
+        || pVCpu->cpum.s.Guest.cs.Attr.n.u1Long)
+        return pVCpu->cpum.s.Guest.eip + (uint32_t)pVCpu->cpum.s.Guest.cs.u64Base;
+    return pVCpu->cpum.s.Guest.rip + pVCpu->cpum.s.Guest.cs.u64Base;
+}
+
+
+VMMDECL(uint64_t)   CPUMGetGuestFlatSP(PVMCPU pVCpu)
+{
+    CPUMSELREG_LAZY_LOAD_HIDDEN_PARTS(pVCpu, &pVCpu->cpum.s.Guest.ss);
+    if (   !CPUMIsGuestInLongMode(pVCpu)
+        || pVCpu->cpum.s.Guest.ss.Attr.n.u1Long)
+        return pVCpu->cpum.s.Guest.eip + (uint32_t)pVCpu->cpum.s.Guest.ss.u64Base;
+    return pVCpu->cpum.s.Guest.rip + pVCpu->cpum.s.Guest.ss.u64Base;
+}
+
+
 VMMDECL(RTSEL) CPUMGetGuestLDTR(PVMCPU pVCpu)
 {
     return pVCpu->cpum.s.Guest.ldtr.Sel;
@@ -1345,6 +1366,7 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPU pVCpu, uint32_t uLeaf, uint32_t uSubLeaf,
         {
             default:
                 AssertFailed();
+                /* fall thru */
             case CPUMUNKNOWNCPUID_DEFAULTS:
             case CPUMUNKNOWNCPUID_LAST_STD_LEAF: /* ASSUME this is executed */
             case CPUMUNKNOWNCPUID_LAST_STD_LEAF_WITH_ECX: /** @todo Implement CPUMUNKNOWNCPUID_LAST_STD_LEAF_WITH_ECX */
@@ -2370,7 +2392,7 @@ VMMDECL(uint32_t) CPUMGetGuestCPL(PVMCPU pVCpu)
      * CPL can reliably be found in SS.DPL (hidden regs valid) or SS if not.
      *
      * Note! We used to check CS.DPL here, assuming it was always equal to
-     * CPL even if a conforming segment was loaded.  But this truned out to
+     * CPL even if a conforming segment was loaded.  But this turned out to
      * only apply to older AMD-V.  With VT-x we had an ACP2 regression
      * during install after a far call to ring 2 with VT-x.  Then on newer
      * AMD-V CPUs we have to move the VMCB.guest.u8CPL into cs.Attr.n.u2Dpl
@@ -2503,5 +2525,20 @@ VMMDECL(DISCPUMODE)     CPUMGetGuestDisMode(PVMCPU pVCpu)
         return DISCPUMODE_32BIT;
 
     return DISCPUMODE_16BIT;
+}
+
+
+/**
+ * Gets the guest MXCSR_MASK value.
+ *
+ * This does not access the x87 state, but the value we determined at VM
+ * initialization.
+ *
+ * @returns MXCSR mask.
+ * @param   pVM                 The cross context VM structure.
+ */
+VMMDECL(uint32_t) CPUMGetGuestMxCsrMask(PVM pVM)
+{
+    return pVM->cpum.s.GuestInfo.fMxCsrMask;
 }
 

@@ -242,6 +242,11 @@ UIMachineSettingsUSB::UIMachineSettingsUSB()
 #endif /* VBOX_WITH_EHCI */
 }
 
+UIMachineSettingsUSB::~UIMachineSettingsUSB()
+{
+    delete mUSBDevicesMenu;
+}
+
 bool UIMachineSettingsUSB::isUSBEnabled() const
 {
     return mGbUSB->isChecked();

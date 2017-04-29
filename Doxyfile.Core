@@ -559,7 +559,12 @@ PREDEFINED += \
     VMMRC_INT_DECL(type)=type \
     VMMRZ_INT_DECL(type)=type \
     GMMR0DECL(type)=type \
-    GMMR3DECL(type)=type 
+    GMMR3DECL(type)=type \
+    VBOX_DND_FN_DECL_LOG(x)=x \
+    DECLSPEC_HIDDEN= \
+    VMSVGA3DCOCOA_DECL(type)=type \
+    VBOX_LISTENER_DECLARE(a)= \
+    VBOX_WITH_RAW_MODE_NOT_R0
 
 # BS3Kit
 PREDEFINED += \
@@ -570,6 +575,7 @@ PREDEFINED += \
     BS3_DECL_NEAR(a_Type)=a_Type \
     BS3_DECL_FAR(a_Type)=a_Type \
     BS3_DECL_CALLBACK(a_Type)=a_Type \
+    BS3_DECL_NEAR_CALLBACK(a_Type)=a_Type \
     BS3_CMN_NM(a_Name)=a_Name \
     BS3_CMN_FAR_NM(a_Name)=a_Name \
     BS3_CMN_FN_NM(a_Name)=a_Name \
@@ -578,6 +584,7 @@ PREDEFINED += \
     TMPL_FAR_NM(a_Name)=a_Name##_mmm \
     "BS3_CMN_PROTO_STUB(a_RetType,a_Name,a_Params)=a_RetType a_Name a_Params" \
     "BS3_CMN_PROTO_NOSB(a_RetType,a_Name,a_Params)=a_RetType a_Name a_Params" \
+    "BS3_CMN_PROTO_FARSTUB(a_cbParam16, a_RetType, a_Name, a_Params)=a_RetType a_Name a_Params" \
     "BS3_CMN_DEF(a_RetType,a_Name,a_Params)=a_RetType a_Name a_Params" \
     "BS3_MODE_PROTO_STUB(a_RetType,a_Name,a_Params)=a_RetType a_Name##_mmm a_Params" \
     "BS3_MODE_PROTO_NOSB(a_RetType,a_Name,a_Params)=a_RetType a_Name##_mmm a_Params" \

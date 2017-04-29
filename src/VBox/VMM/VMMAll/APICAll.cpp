@@ -2369,8 +2369,8 @@ APICBOTHCBDECL(VBOXSTRICTRC) apicLocalInterrupt(PPDMDEVINS pDevIns, PVMCPU pVCpu
                 {
                     /** @todo won't work in R0/RC because callers don't care about rcRZ. */
                     AssertMsgFailed(("INIT through LINT0/LINT1 is not yet supported\n"));
-                    /* fallthru */
                 }
+                /* fall thru */
                 case XAPICDELIVERYMODE_FIXED:
                 {
                     PAPICCPU       pApicCpu = VMCPU_TO_APICCPU(pVCpu);

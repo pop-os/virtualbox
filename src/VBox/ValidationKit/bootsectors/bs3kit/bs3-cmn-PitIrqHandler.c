@@ -1,6 +1,6 @@
 /* $Id: bs3-cmn-PitIrqHandler.c $ */
 /** @file
- * BS3Kit - The PIT IRQ Handler and associated data..
+ * BS3Kit - The PIT IRQ Handler and associated data.
  */
 
 /*

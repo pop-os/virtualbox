@@ -404,7 +404,6 @@ TOOL_Bs3Ow32_COMPILE_C_OUTPUT_MAYBE   = $(TOOL_OPENWATCOM_COMPILE_C_OUTPUT_MAYBE
 define TOOL_Bs3Ow32_COMPILE_C_CMDS
 $(TOOL_OPENWATCOM_COMPILE_C_CMDS)
 	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
-	$(QUIET)$(REDIRECT) -wo /dev/null -- $(KBUILD_BIN_PATH)/kDepObj$(HOSTSUFF_EXE) -s -f -q -o "$(dep)" -t "$(obj)" "$(obj)"
 endef
 
 TOOL_Bs3Ow32_C32OBJSUFF                 = $(TOOL_Bs3Ow32_COBJSUFF)
@@ -438,7 +437,6 @@ TOOL_Bs3Ow32_COMPILE_CXX_OUTPUT_MAYBE = $(TOOL_OPENWATCOM_COMPILE_CXX_OUTPUT_MAY
 define TOOL_Bs3Ow32_COMPILE_CXX_CMDS
 $(TOOL_OPENWATCOM_COMPILE_CXX_CMDS)
 	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
-	$(QUIET)$(REDIRECT) -wo /dev/null -- $(KBUILD_BIN_PATH)/kDepObj$(HOSTSUFF_EXE) -s -f -q -o "$(dep)" -t "$(obj)" "$(obj)"
 endef
 
 
@@ -464,7 +462,6 @@ TOOL_Bs3Ow16_COMPILE_C_OUTPUT_MAYBE   = $(TOOL_OPENWATCOM-16_COMPILE_C_OUTPUT_MA
 define TOOL_Bs3Ow16_COMPILE_C_CMDS
 $(TOOL_OPENWATCOM-16_COMPILE_C_CMDS)
 	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
-	$(QUIET)$(REDIRECT) -wo /dev/null -- $(KBUILD_BIN_PATH)/kDepObj$(HOSTSUFF_EXE) -s -f -q -o "$(dep)" -t "$(obj)" "$(obj)"
 endef
 
 TOOL_Bs3Ow16_C16OBJSUFF                 = $(TOOL_Bs3Ow16_C16OBJSUFF)
@@ -498,7 +495,6 @@ TOOL_Bs3Ow16_COMPILE_CXX_OUTPUT_MAYBE = $(TOOL_OPENWATCOM-16_COMPILE_CXX_OUTPUT_
 define TOOL_Bs3Ow16_COMPILE_CXX_CMDS
 $(TOOL_OPENWATCOM-16_COMPILE_CXX_CMDS)
 	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
-	$(QUIET)$(REDIRECT) -wo /dev/null -- $(KBUILD_BIN_PATH)/kDepObj$(HOSTSUFF_EXE) -s -f -q -o "$(dep)" -t "$(obj)" "$(obj)"
 endef
 
 # Debug info format depends on what we use for 64-bit.
@@ -573,6 +569,7 @@ endef
 #       -of                    Generate stack frames when needed.
 #       -oi                    Inline instrinsics functions.
 #       -ol                    Loop optimizations.
+#       -oh                    Expensive optimizations. (saves a byte or two)
 #       -or                    Reorder for best pipeline.
 #       -os                    Favor size over speed.
 #
@@ -600,9 +597,9 @@ TEMPLATE_VBoxBS3KitImg_ARTOOL       = OPENWATCOM-16
 TEMPLATE_VBoxBS3KitImg_CTOOL        = Bs3Ow16
 TEMPLATE_VBoxBS3KitImg_CXXTOOL      = Bs3Ow16
 TEMPLATE_VBoxBS3KitImg_CFLAGS       = $(if $(BS3KIT_SEGNM_DATA16),-nd=$(BS3KIT_SEGNM_DATA16),) \
-	-nt=BS3TEXT16 -nc=$(BS3KIT_CLASS_CODE16) -ecc -q -0 -wx -zl -zdp -zu -ml $(BS3_OW_DBG_OPT) -s -oa -ob -of -oi -ol -or -os -d+
+	-nt=BS3TEXT16 -nc=$(BS3KIT_CLASS_CODE16) -ecc -q -0 -wx -zl -zdp -zu -ml $(BS3_OW_DBG_OPT) -s -oa -ob -of -oi -ol -or -os -oh -d+
 TEMPLATE_VBoxBS3KitImg_CXXFLAGS     = $(if $(BS3KIT_SEGNM_DATA16),-nd=$(BS3KIT_SEGNM_DATA16),) \
-	-nt=BS3TEXT16 -nc=$(BS3KIT_CLASS_CODE16) -ecc -q -0 -wx -zl -zdp -zu -ml $(BS3_OW_DBG_OPT) -s -oa -ob -of -oi -ol -or -os -d+
+	-nt=BS3TEXT16 -nc=$(BS3KIT_CLASS_CODE16) -ecc -q -0 -wx -zl -zdp -zu -ml $(BS3_OW_DBG_OPT) -s -oa -ob -of -oi -ol -or -os -oh -d+
 TEMPLATE_VBoxBS3KitImg_CDEFS        = ARCH_BITS=16 RT_ARCH_X86
 
 TEMPLATE_VBoxBS3KitImg_TOOL         = $(NO_SUCH_VARIABLE)

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 114790 $"
 
 # Standard Python imports.
 import os;
@@ -167,7 +167,7 @@ def downloadFile(sUrlFile, sDstFile, sLocalPrefix, fnLog, fnError = None, fNoPro
             oDst.write(oSrc.read());
             oDst.close();
             oSrc.close();
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             fnError('Error downloading "%s" to "%s": %s' % (sUrlFile, sDstFile, oXcpt));
             return False;
     else:
@@ -176,7 +176,7 @@ def downloadFile(sUrlFile, sDstFile, sLocalPrefix, fnLog, fnError = None, fNoPro
         fnLog('Copying "%s" to "%s"...' % (sSrcPath, sDstFile));
         try:
             utils.copyFileSimple(sSrcPath, sDstFile);
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             fnError('Error copying "%s" to "%s": %s' % (sSrcPath, sDstFile, oXcpt));
             return False;
 

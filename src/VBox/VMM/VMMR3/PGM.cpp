@@ -3593,6 +3593,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
                 case PGMMODE_AMD64:
                 case PGMMODE_AMD64_NX:
                     AssertMsgFailed(("Should use PAE shadow mode!\n"));
+                    /* fall thru */
                 default: AssertFailed(); break;
             }
             break;
@@ -3617,6 +3618,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
                 case PGMMODE_AMD64:
                 case PGMMODE_AMD64_NX:
                     AssertMsgFailed(("Should use PAE shadow mode!\n"));
+                    /* fall thru */
                 default: AssertFailed(); break;
             }
             break;
@@ -3642,6 +3644,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
                 case PGMMODE_AMD64:
                 case PGMMODE_AMD64_NX:
                     AssertMsgFailed(("Should use PAE shadow mode!\n"));
+                    /* fall thru */
                 default: AssertFailed(); break;
             }
             break;
@@ -3674,6 +3677,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
                 case PGMMODE_AMD64:
                 case PGMMODE_AMD64_NX:
                     AssertMsgFailed(("Should use PAE shadow mode!\n"));
+                    /* fall thru */
                 default: AssertFailed(); break;
             }
             break;
@@ -3700,6 +3704,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
                 case PGMMODE_PAE:
                 case PGMMODE_PAE_NX:
                     AssertMsgFailed(("Should use AMD64 shadow mode!\n"));
+                    /* fall thru */
                 default: AssertFailed(); break;
             }
             break;
@@ -4029,6 +4034,7 @@ static DECLCALLBACK(int) pgmR3CmdPhysToFile(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
 
                     default:
                         AssertFailed();
+                        /* fall thru */
                     case PGMPAGETYPE_MMIO:
                     case PGMPAGETYPE_MMIO2_ALIAS_MMIO:
                     case PGMPAGETYPE_SPECIAL_ALIAS_MMIO:

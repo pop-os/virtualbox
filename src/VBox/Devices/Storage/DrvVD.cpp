@@ -5144,6 +5144,7 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
             {
                 default:
                     AssertFailed();
+                    /* fall thru */
                 case PDMMEDIATYPE_FLOPPY_360:
                     if (cbFloppyImg > 40 * 2 * 9 * 512)
                         pThis->enmType = PDMMEDIATYPE_FLOPPY_720;

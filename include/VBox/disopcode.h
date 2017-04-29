@@ -179,6 +179,7 @@ enum OPCODES
     OP_3DNOW,
     OP_MOVUPS,
     OP_MOVLPS,
+    OP_MOVHLPS = OP_MOVLPS, /**< @todo OP_MOVHLPS */
     OP_UNPCKLPS,
     OP_MOVHPS,
     OP_UNPCKHPS,
@@ -688,6 +689,7 @@ enum OPCODES
     OP_PFSWAPD,
     OP_PAVGUSB,
     OP_PFNACC,
+/** @}  */
     OP_ROL,
     OP_ROR,
     OP_RCL,
@@ -721,6 +723,8 @@ enum OPCODES
     OP_FXRSTOR,
     OP_LDMXCSR,
     OP_STMXCSR,
+    OP_XSAVE,
+    OP_XRSTOR,
     OP_LFENCE,
     OP_MFENCE,
     OP_SFENCE,
@@ -728,12 +732,19 @@ enum OPCODES
     OP_MONITOR,
     OP_MWAIT,
     OP_CLFLUSH,
+    OP_CLFLUSHOPT,
     OP_MOV_DR,
     OP_MOV_TR,
     OP_SWAPGS,
-/** @}  */
+    OP_UD1,
+    OP_UD2,
+/** @name AVX instructions
+ * @{ */
+    OP_VLDMXCSR,
+    OP_VSTMXCSR,
+/** @} */
 /** @name VT-x instructions
-* @{ */
+ * @{ */
     OP_VMREAD,
     OP_VMWRITE,
     OP_VMCALL,
@@ -878,6 +889,28 @@ enum OP_PARM
     OP_PARM_REG_R15,
     OP_PARM_REG_GEN64_END = OP_PARM_REG_R15
 };
+
+
+/* 8-bit GRP aliases (for IEM). */
+#define OP_PARM_AL OP_PARM_REG_AL
+
+/* GPR aliases for op-size specified register sizes (for IEM). */
+#define OP_PARM_rAX OP_PARM_REG_EAX
+#define OP_PARM_rCX OP_PARM_REG_ECX
+#define OP_PARM_rDX OP_PARM_REG_EDX
+#define OP_PARM_rBX OP_PARM_REG_EBX
+#define OP_PARM_rSP OP_PARM_REG_ESP
+#define OP_PARM_rBP OP_PARM_REG_EBP
+#define OP_PARM_rSI OP_PARM_REG_ESI
+#define OP_PARM_rDI OP_PARM_REG_EDI
+
+/* SREG aliases (for IEM). */
+#define OP_PARM_ES  OP_PARM_REG_ES
+#define OP_PARM_CS  OP_PARM_REG_CS
+#define OP_PARM_SS  OP_PARM_REG_SS
+#define OP_PARM_DS  OP_PARM_REG_DS
+#define OP_PARM_FS  OP_PARM_REG_FS
+#define OP_PARM_GS  OP_PARM_REG_GS
 
 /*
  * Note! We don't document anything here if we can help it, because it we love
@@ -1027,6 +1060,17 @@ enum OP_PARM
 #define OP_PARM_Upd             (OP_PARM_U+OP_PARM_pd)
 #define OP_PARM_Udq             (OP_PARM_U+OP_PARM_dq)
 #define OP_PARM_Lx              (OP_PARM_L+OP_PARM_x)
+
+/* For making IEM / bs3-cpu-generated-1 happy: */
+#define OP_PARM_Uq              (OP_PARM_U+OP_PARM_q)
+#define OP_PARM_UqHi            OP_PARM_Uq
+#define OP_PARM_WqZxReg         OP_PARM_Wq              /**< Annotates that register targets get their upper bits cleared. */
+#define OP_PARM_VssZxReg        OP_PARM_Vss             /**< Annotates that register targets get their upper bits cleared. */
+#define OP_PARM_MbRO            OP_PARM_Mb              /**< Annotates read only memory byte operand. */
+#define OP_PARM_MdRO            OP_PARM_Md              /**< Annotates read only memory byte operand. */
+#define OP_PARM_MdWO            OP_PARM_Md              /**< Annotates write only memory byte operand. */
+#define OP_PARM_MRO             OP_PARM_M               /**< Annotates read only memory of variable operand size (xrstor). */
+#define OP_PARM_MRW             OP_PARM_M               /**< Annotates read-write memory of variable operand size (xsave). */
 
 /** @} */
 

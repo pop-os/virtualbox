@@ -1002,6 +1002,10 @@ typedef struct CPUMFEATURES
     uint32_t        fMWaitExtensions : 1;
     /** Supports CMPXCHG16B in 64-bit mode. */
     uint32_t        fMovCmpXchg16b : 1;
+    /** Supports CLFLUSH. */
+    uint32_t        fClFlush : 1;
+    /** Supports CLFLUSHOPT. */
+    uint32_t        fClFlushOpt : 1;
 
     /** Supports AMD 3DNow instructions. */
     uint32_t        f3DNow : 1;
@@ -1020,15 +1024,52 @@ typedef struct CPUMFEATURES
     uint32_t        fRdTscP : 1;
     /** AMD64: Supports MOV CR8 in 32-bit code (lock prefix hack). */
     uint32_t        fMovCr8In32Bit : 1;
+    /** AMD64: Supports XOP (similar to VEX3/AVX). */
+    uint32_t        fXop : 1;
 
     /** Indicates that FPU instruction and data pointers may leak.
      * This generally applies to recent AMD CPUs, where the FPU IP and DP pointer
      * is only saved and restored if an exception is pending. */
     uint32_t        fLeakyFxSR : 1;
 
+    /** AMD64: Supports AMD SVM. */
+    uint32_t        fSvm : 1;
+
+    /** Support for Intel VMX. */
+    uint32_t        fVmx : 1;
+
     /** Alignment padding / reserved for future use. */
-    uint32_t        fPadding : 28;
-    uint32_t        auPadding[3];
+    uint32_t        fPadding : 23;
+
+    /** SVM: Supports Nested-paging. */
+    uint32_t        fSvmNestedPaging : 1;
+    /** SVM: Support LBR (Last Branch Record) virtualization. */
+    uint32_t        fSvmLbrVirt : 1;
+    /** SVM: Supports SVM lock. */
+    uint32_t        fSvmSvmLock : 1;
+    /** SVM: Supports Next RIP save. */
+    uint32_t        fSvmNextRipSave : 1;
+    /** SVM: Supports TSC rate MSR. */
+    uint32_t        fSvmTscRateMsr : 1;
+    /** SVM: Supports VMCB clean bits. */
+    uint32_t        fSvmVmcbClean : 1;
+    /** SVM: Supports Flush-by-ASID. */
+    uint32_t        fSvmFlusbByAsid : 1;
+    /** SVM: Supports decode assist. */
+    uint32_t        fSvmDecodeAssist : 1;
+    /** SVM: Supports Pause filter. */
+    uint32_t        fSvmPauseFilter : 1;
+    /** SVM: Supports Pause filter threshold. */
+    uint32_t        fSvmPauseFilterThreshold : 1;
+    /** SVM: Supports AVIC (Advanced Virtual Interrupt Controller). */
+    uint32_t        fSvmAvic : 1;
+    /** SVM: Padding / reserved for future features. */
+    uint32_t        fSvmPadding0 : 21;
+    /** SVM: Maximum supported ASID. */
+    uint32_t        uSvmMaxAsid;
+
+    /** @todo VMX features. */
+    uint32_t        auPadding[1];
 } CPUMFEATURES;
 #ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSize(CPUMFEATURES, 32);
@@ -1071,6 +1112,8 @@ VMMDECL(RTSEL)      CPUMGetGuestES(PVMCPU pVCpu);
 VMMDECL(RTSEL)      CPUMGetGuestFS(PVMCPU pVCpu);
 VMMDECL(RTSEL)      CPUMGetGuestGS(PVMCPU pVCpu);
 VMMDECL(RTSEL)      CPUMGetGuestSS(PVMCPU pVCpu);
+VMMDECL(uint64_t)   CPUMGetGuestFlatPC(PVMCPU pVCpu);
+VMMDECL(uint64_t)   CPUMGetGuestFlatSP(PVMCPU pVCpu);
 VMMDECL(uint64_t)   CPUMGetGuestDR0(PVMCPU pVCpu);
 VMMDECL(uint64_t)   CPUMGetGuestDR1(PVMCPU pVCpu);
 VMMDECL(uint64_t)   CPUMGetGuestDR2(PVMCPU pVCpu);
@@ -1158,7 +1201,7 @@ VMM_INT_DECL(bool)  CPUMIsGuestInRawMode(PVMCPU pVCpu);
  * Tests if the guest is running in real mode or not.
  *
  * @returns true if in real mode, otherwise false.
- * @param   pCtx    Current CPU context
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestInRealModeEx(PCPUMCTX pCtx)
 {
@@ -1169,7 +1212,7 @@ DECLINLINE(bool) CPUMIsGuestInRealModeEx(PCPUMCTX pCtx)
  * Tests if the guest is running in real or virtual 8086 mode.
  *
  * @returns @c true if it is, @c false if not.
- * @param   pCtx    Current CPU context
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestInRealOrV86ModeEx(PCPUMCTX pCtx)
 {
@@ -1181,7 +1224,7 @@ DECLINLINE(bool) CPUMIsGuestInRealOrV86ModeEx(PCPUMCTX pCtx)
  * Tests if the guest is running in virtual 8086 mode.
  *
  * @returns @c true if it is, @c false if not.
- * @param   pCtx    Current CPU context
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestInV86ModeEx(PCPUMCTX pCtx)
 {
@@ -1192,7 +1235,7 @@ DECLINLINE(bool) CPUMIsGuestInV86ModeEx(PCPUMCTX pCtx)
  * Tests if the guest is running in paged protected or not.
  *
  * @returns true if in paged protected mode, otherwise false.
- * @param   pCtx    Current CPU context
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestInPagedProtectedModeEx(PCPUMCTX pCtx)
 {
@@ -1203,7 +1246,7 @@ DECLINLINE(bool) CPUMIsGuestInPagedProtectedModeEx(PCPUMCTX pCtx)
  * Tests if the guest is running in long mode or not.
  *
  * @returns true if in long mode, otherwise false.
- * @param   pCtx    Current CPU context
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestInLongModeEx(PCPUMCTX pCtx)
 {
@@ -1216,7 +1259,7 @@ VMM_INT_DECL(bool) CPUMIsGuestIn64BitCodeSlow(PCPUMCTX pCtx);
  * Tests if the guest is running in 64 bits mode or not.
  *
  * @returns true if in 64 bits protected mode, otherwise false.
- * @param   pCtx    Current CPU context
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestIn64BitCodeEx(PCPUMCTX pCtx)
 {
@@ -1231,7 +1274,7 @@ DECLINLINE(bool) CPUMIsGuestIn64BitCodeEx(PCPUMCTX pCtx)
  * Tests if the guest has paging enabled or not.
  *
  * @returns true if paging is enabled, otherwise false.
- * @param   pCtx    Current CPU context
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestPagingEnabledEx(PCPUMCTX pCtx)
 {
@@ -1242,7 +1285,7 @@ DECLINLINE(bool) CPUMIsGuestPagingEnabledEx(PCPUMCTX pCtx)
  * Tests if the guest is running in PAE mode or not.
  *
  * @returns true if in PAE mode, otherwise false.
- * @param   pCtx    Current CPU context
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestInPAEModeEx(PCPUMCTX pCtx)
 {
@@ -1253,6 +1296,115 @@ DECLINLINE(bool) CPUMIsGuestInPAEModeEx(PCPUMCTX pCtx)
             && !(pCtx->msrEFER & MSR_K6_EFER_LMA));
 }
 
+# if 0 /* part of too large nested virtualization commit  */
+
+/**
+ * Tests is if the guest has AMD SVM enabled or not.
+ *
+ * @returns true if SMV is enabled, otherwise false.
+ * @param   pCtx    Current CPU context.
+ */
+DECLINLINE(bool) CPUMIsGuestSvmEnabled(PCPUMCTX pCtx)
+{
+    return RT_BOOL(pCtx->msrEFER & MSR_K6_EFER_SVME);
+}
+
+/**
+ * Checks if the guest VMCB has the specified ctrl/instruction intercept active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pCtx          Pointer to the context.
+ * @param   Intercept     The SVM control/instruction intercept,
+ *                        see SVM_CTRL_INTERCEPT_*.
+ */
+DECLINLINE(bool) CPUMIsGuestSvmCtrlInterceptSet(PCPUMCTX pCtx, uint64_t fIntercept)
+{
+    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u64InterceptCtrl & fIntercept);
+}
+
+/**
+ * Checks if the guest VMCB has the specified CR read intercept
+ * active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pCtx          Pointer to the context.
+ * @param   uCr           The CR register number (0 to 15).
+ */
+DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCPUMCTX pCtx, uint8_t uCr)
+{
+    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u16InterceptRdCRx & (1 << uCr));
+}
+
+/**
+ * Checks if the guest VMCB has the specified CR write intercept
+ * active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pCtx          Pointer to the context.
+ * @param   uCr           The CR register number (0 to 15).
+ */
+DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCPUMCTX pCtx, uint8_t uCr)
+{
+    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u16InterceptWrCRx & (1 << uCr));
+}
+
+/**
+ * Checks if the guest VMCB has the specified DR read intercept
+ * active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pCtx    Pointer to the context.
+ * @param   uDr     The DR register number (0 to 15).
+ */
+DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCPUMCTX pCtx, uint8_t uDr)
+{
+    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u16InterceptRdDRx & (1 << uDr));
+}
+
+/**
+ * Checks if the guest VMCB has the specified DR write intercept
+ * active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pCtx    Pointer to the context.
+ * @param   uDr     The DR register number (0 to 15).
+ */
+DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCPUMCTX pCtx, uint8_t uDr)
+{
+    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u16InterceptWrDRx & (1 << uDr));
+}
+
+/**
+ * Checks if the guest VMCB has the specified exception
+ * intercept active.
+ *
+ * @returns true if in intercept is active, false otherwise.
+ * @param   pCtx        Pointer to the context.
+ * @param   uVector     The exception / interrupt vector.
+ */
+DECLINLINE(bool) CPUMIsGuestSvmXcptInterceptSet(PCCPUMCTX pCtx, uint8_t uVector)
+{
+    Assert(uVector < 32);
+    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u32InterceptXcpt & (UINT32_C(1) << uVector));
+}
+
+/**
+ * Checks if we are executing inside the nested hardware-virtualized guest.
+ *
+ * @returns true if in nested-guest mode, false otherwise.
+ * @param   pCtx        Pointer to the context.
+ */
+DECLINLINE(bool) CPUMIsGuestInNestedHwVirtMode(PCPUMCTX pCtx)
+{
+    /*
+     * With AMD-V, the VMRUN intercept is a pre-requisite to entering SVM guest-mode.
+     * See AMD spec. 15.5 "VMRUN instruction" subsection "Canonicalization and Consistency Checks".
+     */
+    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u64InterceptCtrl & SVM_CTRL_INTERCEPT_VMRUN);
+    /** @todo Intel VMX.  */
+}
+
+# endif
 #endif /* VBOX_WITHOUT_UNNAMED_UNIONS */
 
 /** @} */
@@ -1387,6 +1539,7 @@ VMMDECL(uint32_t)       CPUMGetGuestCPL(PVMCPU pVCpu);
 VMMDECL(CPUMMODE)       CPUMGetGuestMode(PVMCPU pVCpu);
 VMMDECL(uint32_t)       CPUMGetGuestCodeBits(PVMCPU pVCpu);
 VMMDECL(DISCPUMODE)     CPUMGetGuestDisMode(PVMCPU pVCpu);
+VMMDECL(uint32_t)       CPUMGetGuestMxCsrMask(PVM pVM);
 VMMDECL(uint64_t)       CPUMGetGuestScalableBusFrequency(PVM pVM);
 
 /** @name Typical scalable bus frequency values.
@@ -1430,6 +1583,7 @@ VMMR3DECL(int)              CPUMR3CpuIdDetectUnknownLeafMethod(PCPUMUNKNOWNCPUID
 VMMR3DECL(const char *)     CPUMR3CpuIdUnknownLeafMethodName(CPUMUNKNOWNCPUID enmUnknownMethod);
 VMMR3DECL(CPUMCPUVENDOR)    CPUMR3CpuIdDetectVendorEx(uint32_t uEAX, uint32_t uEBX, uint32_t uECX, uint32_t uEDX);
 VMMR3DECL(const char *)     CPUMR3CpuVendorName(CPUMCPUVENDOR enmVendor);
+VMMR3DECL(uint32_t)         CPUMR3DeterminHostMxCsrMask(void);
 
 VMMR3DECL(int)              CPUMR3MsrRangesInsert(PVM pVM, PCCPUMMSRRANGE pNewRange);
 

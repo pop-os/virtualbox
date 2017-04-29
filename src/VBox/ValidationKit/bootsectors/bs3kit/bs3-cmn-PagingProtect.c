@@ -144,8 +144,8 @@ BS3_CMN_DEF(X86PTE BS3_FAR *, bs3PagingGetLegacyPte,(RTCCUINTXREG cr3, uint32_t 
  *                              replacing large pages.
  * @param   prc                 Updated only on failure.
  */
-#undef bs3PagingGetPte
-BS3_CMN_DEF(X86PTEPAE BS3_FAR *, bs3PagingGetPte,(RTCCUINTXREG cr3, uint8_t bMode, uint64_t uFlat, bool fUseInvlPg, int *prc))
+#undef bs3PagingGetPaePte
+BS3_CMN_DEF(X86PTEPAE BS3_FAR *, bs3PagingGetPaePte,(RTCCUINTXREG cr3, uint8_t bMode, uint64_t uFlat, bool fUseInvlPg, int *prc))
 {
     X86PTEPAE BS3_FAR  *pPTE = NULL;
 #if TMPL_BITS == 16
@@ -173,7 +173,7 @@ BS3_CMN_DEF(X86PTEPAE BS3_FAR *, bs3PagingGetPte,(RTCCUINTXREG cr3, uint8_t bMod
                     if ((pPdpt->a[iPdpte].u & X86_PDPE_PG_MASK) <= uMaxAddr)
                         pPD = (X86PDPAE BS3_FAR *)Bs3XptrFlatToCurrent(pPdpt->a[iPdpte].u & ~(uint64_t)PAGE_OFFSET_MASK);
                     else
-                        BS3PAGING_DPRINTF1(("bs3PagingGetPte: out of range! iPdpte=%#x: %RX64 max=%RX32\n",
+                        BS3PAGING_DPRINTF1(("bs3PagingGetPaePte: out of range! iPdpte=%#x: %RX64 max=%RX32\n",
                                             iPdpte, pPdpt->a[iPdpte].u, (uint32_t)uMaxAddr));
                 }
                 else
@@ -202,13 +202,13 @@ BS3_CMN_DEF(X86PTEPAE BS3_FAR *, bs3PagingGetPte,(RTCCUINTXREG cr3, uint8_t bMod
             if ((pPdpt->a[iPdpte].u & X86_PDPE_PG_MASK) <= uMaxAddr)
                 pPD = (X86PDPAE BS3_FAR *)Bs3XptrFlatToCurrent(pPdpt->a[iPdpte].u & X86_PDPE_PG_MASK);
             else
-                BS3PAGING_DPRINTF1(("bs3PagingGetPte: out of range! iPdpte=%#x: %RX64 max=%RX32\n",
+                BS3PAGING_DPRINTF1(("bs3PagingGetPaePte: out of range! iPdpte=%#x: %RX64 max=%RX32\n",
                                     iPdpte, pPdpt->a[iPdpte].u, (uint32_t)uMaxAddr));
         }
         else
         {
             pPD = NULL;
-            BS3PAGING_DPRINTF1(("bs3PagingGetPte: out of range! uFlat=%#RX64 max=%RX32\n", uFlat, (uint32_t)uMaxAddr));
+            BS3PAGING_DPRINTF1(("bs3PagingGetPaePte: out of range! uFlat=%#RX64 max=%RX32\n", uFlat, (uint32_t)uMaxAddr));
         }
         if (pPD)
         {
@@ -219,7 +219,7 @@ BS3_CMN_DEF(X86PTEPAE BS3_FAR *, bs3PagingGetPte,(RTCCUINTXREG cr3, uint8_t bMod
                 if ((pPD->a[iPde].u & X86_PDE_PAE_PG_MASK) <= uMaxAddr)
                     pPTE = &((X86PTPAE BS3_FAR *)Bs3XptrFlatToCurrent(pPD->a[iPde].u & ~(uint64_t)PAGE_OFFSET_MASK))->a[iPte];
                 else
-                    BS3PAGING_DPRINTF1(("bs3PagingGetPte: out of range! iPde=%#x: %RX64 max=%RX32\n",
+                    BS3PAGING_DPRINTF1(("bs3PagingGetPaePte: out of range! iPde=%#x: %RX64 max=%RX32\n",
                                         iPde, pPD->a[iPde].u, (uint32_t)uMaxAddr));
             }
             else
@@ -248,7 +248,7 @@ BS3_CMN_DEF(X86PTEPAE BS3_FAR *, bs3PagingGetPte,(RTCCUINTXREG cr3, uint8_t bMod
         }
     }
     else
-        BS3PAGING_DPRINTF1(("bs3PagingGetPte: out of range! cr3=%#RX32 uMaxAddr=%#RX32\n", (uint32_t)cr3, (uint32_t)uMaxAddr));
+        BS3PAGING_DPRINTF1(("bs3PagingGetPaePte: out of range! cr3=%#RX32 uMaxAddr=%#RX32\n", (uint32_t)cr3, (uint32_t)uMaxAddr));
     return pPTE;
 }
 
@@ -313,7 +313,7 @@ BS3_CMN_DEF(int, Bs3PagingProtect,(uint64_t uFlat, uint64_t cb, uint64_t fSet, u
              */
             while (cb > 0)
             {
-                PX86PTEPAE pPte = BS3_CMN_FAR_NM(bs3PagingGetPte)(cr3, g_bBs3CurrentMode, uFlat, fUseInvlPg, &rc);
+                PX86PTEPAE pPte = BS3_CMN_FAR_NM(bs3PagingGetPaePte)(cr3, g_bBs3CurrentMode, uFlat, fUseInvlPg, &rc);
                 if (!pPte)
                     return rc;
 
@@ -345,7 +345,7 @@ BS3_CMN_DEF(int, Bs3PagingProtect,(uint64_t uFlat, uint64_t cb, uint64_t fSet, u
      * We can do this stuff in v8086 mode.
      */
     else
-        return Bs3SwitchFromV86To16BitAndCallC((FPFNBS3FAR)Bs3PagingProtect_f16, sizeof(uint64_t)*4, uFlat, cb, fSet, fClear);
+        return Bs3SwitchFromV86To16BitAndCallC((FPFNBS3FAR)Bs3PagingProtect_f16, sizeof(uint64_t) * 4, uFlat, cb, fSet, fClear);
 #endif
     return VINF_SUCCESS;
 }
@@ -359,5 +359,24 @@ BS3_CMN_DEF(int, Bs3PagingProtectPtr,(void *pv, size_t cb, uint64_t fSet, uint64
 #else
     return BS3_CMN_NM(Bs3PagingProtect)((uintptr_t)pv, cb, fSet, fClear);
 #endif
+}
+
+
+#undef Bs3PagingGetPte
+BS3_CMN_DEF(void BS3_FAR *, Bs3PagingGetPte,(uint64_t uFlat, int *prc))
+{
+    RTCCUINTXREG const  cr3        = ASMGetCR3();
+    RTCCUINTXREG const  cr4        = g_uBs3CpuDetected & BS3CPU_F_CPUID ? ASMGetCR4() : 0;
+    bool const          fLegacyPTs = !(cr4 & X86_CR4_PAE);
+    bool const          fUseInvlPg = (g_uBs3CpuDetected & BS3CPU_TYPE_MASK) >= BS3CPU_80486;
+    int                 rc;
+    if (!prc)
+        prc = &rc;
+    if (!fLegacyPTs)
+        return BS3_CMN_FAR_NM(bs3PagingGetPaePte)(cr3,  g_bBs3CurrentMode, uFlat, fUseInvlPg, prc);
+    if (uFlat < _4G)
+        return BS3_CMN_FAR_NM(bs3PagingGetLegacyPte)(cr3, (uint32_t)uFlat, fUseInvlPg, prc);
+    *prc = VERR_OUT_OF_RANGE;
+    return NULL;
 }
 

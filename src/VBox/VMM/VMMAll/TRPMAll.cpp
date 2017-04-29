@@ -456,7 +456,7 @@ VMMDECL(void) TRPMRestoreTrap(PVMCPU pVCpu)
  * @returns VBox status code.
  *  or does not return at all (when the trap is actually forwarded)
  *
- * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   Pointer to the register frame for the trap.
  * @param   iGate       Trap or interrupt gate number
  * @param   cbInstr     Instruction size (only relevant for software interrupts)
@@ -495,7 +495,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
             if (RT_SUCCESS(rc))
                 Log(("TRPMForwardTrap: caller=%RGv\n", pCallerGC));
         }
-        /* no break */
+        /* fall thru */
     case X86_XCPT_DF:
     case X86_XCPT_TS:
     case X86_XCPT_NP:
