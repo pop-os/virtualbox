@@ -1,3 +1,9 @@
+virtualbox (5.1.22-dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 29 Apr 2017 11:10:07 +0200
+
 virtualbox (5.1.20-dfsg-2) unstable; urgency=medium
 
   * Add two missing files, from new 5.1.20a upstream tarball.
