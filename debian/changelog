@@ -1,3 +1,10 @@
+virtualbox (5.1.22-dfsg-2) unstable; urgency=medium
+
+  [ Michael Hudson-Doyle ]
+  * Look for Python 3.6 as well as all older versions.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 24 Jun 2017 15:00:47 +0200
+
 virtualbox (5.1.22-dfsg-1) unstable; urgency=medium
 
   * New upstream release.
