@@ -4,11 +4,11 @@ Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
 Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
            Gianfranco Costamagna <locutusofborg@debian.org>
-Build-Depends: debhelper (>= 9), kbuild
-Standards-Version: 3.9.6
+Build-Depends: debhelper (>= 10), kbuild
+Standards-Version: 4.0.0
 Homepage: http://www.virtualbox.org/
-Vcs-Git: git://anonscm.debian.org/pkg-virtualbox/virtualbox.git
-Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-virtualbox/virtualbox.git
+Vcs-Git: https://anonscm.debian.org/git/pkg-virtualbox/virtualbox.git
+Vcs-Browser: https://anonscm.debian.org/cgit/pkg-virtualbox/virtualbox.git
 
 Package: virtualbox-guest-modules-_KVERS_
 Section: contrib/kernel
