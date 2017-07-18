@@ -3778,7 +3778,7 @@
         <translation>IPv6 地址</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>IPv6 网络掩码长度</translation>
     </message>
     <message>
@@ -4023,7 +4023,7 @@
         <translation>编辑仅主机(Host-Only)网络。</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translatorcomment>todo</translatorcomment>
         <translation>主机网卡 &lt;b&gt;%1&lt;/b&gt; 目前没有有效的 IPv6 掩码前缀长度。</translation>
     </message>
@@ -4071,11 +4071,11 @@
         <translation type="obsolete">显示主机虚拟网络界面的 IPv6 地址.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">IPv6 网络掩码长度(&amp;L):</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">显示主机虚拟网络界面的 IPv6 网络掩码前缀.</translation>
     </message>
     <message>
@@ -4167,11 +4167,11 @@
         <translation>显示主机虚拟网络界面的 IPv6 地址.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>IPv6 网络掩码长度(&amp;L):</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>显示主机虚拟网络界面的 IPv6 网络掩码前缀.</translation>
     </message>
     <message>

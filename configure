@@ -422,13 +422,19 @@ check_gcc()
 {
   test_header gcc
   if check_avail "$CC" CC really; then
-    cc_ver=`$CC -dumpversion` 2>/dev/null
+    cc_ver=`$CC -dumpfullversion` 2>/dev/null
+    if [ $? -ne 0 ]; then
+      cc_ver=`$CC -dumpversion` 2>/dev/null
+    fi
     if [ $? -ne 0 ]; then
       log_failure "cannot execute '$CC -dumpversion'"
       fail really
     fi
     if check_avail "$CXX" CXX really; then
-      cxx_ver=`$CXX -dumpversion` 2>/dev/null
+      cxx_ver=`$CXX -dumpfullversion` 2>/dev/null
+      if [ $? -ne 0 ]; then
+        cxx_ver=`$CXX -dumpversion` 2>/dev/null
+      fi
       if [ $? -ne 0 ]; then
         log_failure "cannot execute '$CXX -dumpversion'"
         fail really
@@ -444,11 +450,8 @@ check_gcc()
       elif [ $cc_maj -lt 4 \
              -o \( $cc_maj -eq 4 -a $cc_min -lt 4 -a "$OS" != "darwin" \) \
              -o \( $cc_maj -eq 4 -a $cc_min -lt 2 -a "$OS"  = "darwin" \) \
-             -o \( $cc_maj -eq 4 -a $cc_min -gt 9 \) \
-             -o \( $cc_maj -eq 5 -a $cc_min -gt 9 \) \
-             -o \( $cc_maj -eq 6 -a $cc_min -gt 9 \) \
-             -o $cc_maj -gt 6 ]; then
-        log_failure "gcc version $cc_maj.$cc_min found, expected gcc 4.x, gcc 5.x or gcc 6.x"
+             -o $cc_maj -gt 7 ]; then
+        log_failure "gcc version $cc_maj.$cc_min found, expected gcc 4.x...7.x"
         fail really
       else
         log_success "found version $cc_ver"
@@ -530,7 +533,11 @@ check_open_watcom()
   if [ -z "$WATCOM" ]; then
     WATCOM=`/bin/ls -rd1 $PWD/tools/common/openwatcom/* 2> /dev/null | head -1`
     if [ -z "$WATCOM" ]; then
-      log_failure "Open Watcom was not found"
+      if [ $OSE -eq 0 -a $OS = "linux" ]; then
+        log_failure "Open Watcom was not found"
+        exit 1
+      fi
+      log_failure "Open Watcom was not found, using alternative BIOS sources"
       cnf_append "VBOX_WITH_OPEN_WATCOM" ""
       return 0;
     fi
@@ -2348,6 +2355,14 @@ check_darwinversion()
   test_header "Darwin version"
   darwin_ver=`uname -r`
   case "$darwin_ver" in
+    16\.*)
+      check_xcode_sdk_path "$WITH_XCODE_DIR"
+      [ $? -eq 1 ] || fail
+      darwin_ver="10.12" # Sierra
+      sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
+      cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
+      cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
+      ;;
     15\.*)
       check_xcode_sdk_path "$WITH_XCODE_DIR"
       [ $? -eq 1 ] || fail
@@ -2444,26 +2459,6 @@ check_makeself()
       cnf_append "VBOX_MAKESELF" "`which_wrapper $MAKESELF`"
     fi
   fi
-}
-
-
-#
-# Checks that i386-elf-gcc-3.4.6, i386-elf-gcc-3.4.3, i386-elf-gcc-3.4 or i386-elf-gcc
-# is around to prevent confusion when the build fails in src/recompiler.
-# Note. Keep the which order in sync with the $(which ) in src/recompiler/Makefile.kmk.
-#
-check_i386elfgcc()
-{
-  test_header "i386-elf-gcc"
-  i386_elf_gcc=`which_wrapper i386-elf-gcc-3.4.6`
-  test -z "$i386_elf_gcc" && i386_elf_gcc=`which_wrapper i386-elf-gcc-3.4.3`
-  test -z "$i386_elf_gcc" && i386_elf_gcc=`which_wrapper i386-elf-gcc-3.4`
-  test -z "$i386_elf_gcc" && i386_elf_gcc=`which_wrapper i386-elf-gcc`
-  if test -z "$i386_elf_gcc"; then
-    echo "  failed to find i386-elf-gcc"
-    fail
-  fi
-  log_success "found $i386_elf_gcc"
 }
 
 

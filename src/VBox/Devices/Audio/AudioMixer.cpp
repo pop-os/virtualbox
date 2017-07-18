@@ -301,11 +301,7 @@ int AudioMixerProcessSinkIn(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint
 
     /** @todo Handle mixing operation enmOp! */
 
-    uint8_t *pvMixBuf = (uint8_t *)RTMemAlloc(cbBuf);
-    if (!pvMixBuf)
-        return VERR_NO_MEMORY;
-
-    int rc = VERR_NOT_FOUND;
+    int rc = VINF_SUCCESS;
     uint32_t cbProcessed = 0;
 
     LogFlowFunc(("%s: pvBuf=%p, cbBuf=%zu\n", pSink->pszName, pvBuf, cbBuf));
@@ -313,7 +309,6 @@ int AudioMixerProcessSinkIn(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint
     PAUDMIXSTREAM pStream;
     RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
     {
-        /** @todo Support output sinks as well! */
         if (!pStream->pConn->pfnIsActiveIn(pStream->pConn, pStream->pIn))
             continue;
 
@@ -325,7 +320,7 @@ int AudioMixerProcessSinkIn(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint
             uint32_t cbRead;
             AssertPtr(pStream->pConn);
             rc = pStream->pConn->pfnRead(pStream->pConn, pStream->pIn,
-                                         (uint8_t *)pvMixBuf + cbTotalRead, cbToRead, &cbRead);
+                                         (uint8_t *)pvBuf + cbTotalRead, cbToRead, &cbRead);
             if (   RT_FAILURE(rc)
                 || !cbRead)
                 break;
@@ -333,23 +328,25 @@ int AudioMixerProcessSinkIn(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint
             AssertBreakStmt(cbRead <= cbToRead, rc = VERR_BUFFER_OVERFLOW);
             cbToRead -= cbRead;
             cbTotalRead += cbRead;
+            AssertBreakStmt(cbTotalRead <= cbBuf, rc = VERR_BUFFER_OVERFLOW);
         }
 
         if (RT_FAILURE(rc))
             continue;
 
         cbProcessed = RT_MAX(cbProcessed, cbTotalRead);
+
+        /** @todo This needs a mixing buffer / routine here -- otherwise input data gets lost
+         *        if multiple nodes are sending input. */
     }
 
     if (RT_SUCCESS(rc))
     {
-        memcpy(pvBuf, pvMixBuf, cbProcessed); /* @todo Use an intermediate mixing buffer per sink! */
+        Assert(cbProcessed <= cbBuf);
 
         if (pcbProcessed)
             *pcbProcessed = cbProcessed;
     }
-
-    RTMemFree(pvMixBuf);
 
     LogFlowFunc(("cbProcessed=%RU32, rc=%Rrc\n", cbProcessed, rc));
     return rc;

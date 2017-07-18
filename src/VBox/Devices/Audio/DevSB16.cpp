@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2015-2016 Oracle Corporation
+ * Copyright (C) 2015-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,7 +92,7 @@ typedef struct SB16DRIVER
     /** Pointer to SB16 controller (state). */
     R3PTRTYPE(PSB16STATE)              pSB16State;
     /** Driver flags. */
-    PDMAUDIODRVFLAGS                   Flags;
+    PDMAUDIODRVFLAGS                   fFlags;
     uint32_t                           PaddingFlags;
     /** LUN # to which this driver has been assigned. */
     uint8_t                            uLUN;
@@ -215,11 +215,9 @@ static DECLCALLBACK(int) sb16AttachInternal(PPDMDEVINS pDevIns, PSB16DRIVER pDrv
     /*
      * Attach driver.
      */
-    char *pszDesc = NULL;
+    char *pszDesc;
     if (RTStrAPrintf(&pszDesc, "Audio driver port (SB16) for LUN #%u", uLUN) <= 0)
-        AssertReleaseMsgReturn(pszDesc,
-                               ("Not enough memory for SB16 driver port description of LUN #%u\n", uLUN),
-                               VERR_NO_MEMORY);
+        AssertLogRelFailedReturn(VERR_NO_MEMORY);
 
     PPDMIBASE pDrvBase;
     int rc = PDMDevHlpDriverAttach(pDevIns, uLUN,
@@ -241,9 +239,9 @@ static DECLCALLBACK(int) sb16AttachInternal(PPDMDEVINS pDevIns, PSB16DRIVER pDrv
              * host backend. This might change in the future.
              */
             if (pDrv->uLUN == 0)
-                pDrv->Flags |= PDMAUDIODRVFLAG_PRIMARY;
+                pDrv->fFlags |= PDMAUDIODRVFLAG_PRIMARY;
 
-            LogFunc(("LUN#%RU8: pCon=%p, drvFlags=0x%x\n", uLUN, pDrv->pConnector, pDrv->Flags));
+            LogFunc(("LUN#%RU8: pCon=%p, drvFlags=0x%x\n", uLUN, pDrv->pConnector, pDrv->fFlags));
 
             /* Attach to driver list if not attached yet. */
             if (!pDrv->fAttached)
@@ -1620,35 +1618,58 @@ static int sb16WriteAudio(PSB16STATE pThis, int nchan, uint32_t dma_pos,
 
     while (cbToWrite)
     {
-        uint32_t cbToRead;
-        uint32_t cbRead;
-
-        cbToRead = RT_MIN(dma_len - dma_pos, cbToWrite);
+        uint32_t cbToRead = RT_MIN(dma_len - dma_pos, cbToWrite);
         if (cbToRead > sizeof(tmpbuf))
             cbToRead = sizeof(tmpbuf);
 
-        int rc = PDMDevHlpDMAReadMemory(pThis->pDevInsR3, nchan, tmpbuf, dma_pos, cbToRead, &cbRead);
-        AssertMsgRC(rc, ("DMAReadMemory -> %Rrc\n", rc));
+        uint32_t cbRead;
+        int rc2 = PDMDevHlpDMAReadMemory(pThis->pDevInsR3, nchan, tmpbuf, dma_pos, cbToRead, &cbRead);
+        AssertMsgRC(rc2, (" from DMA failed: %Rrc\n", rc2));
 
-        uint32_t cbWritten;
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+        if (cbRead)
+        {
+            RTFILE fh;
+            RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "sb16WriteAudio.pcm",
+                       RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            RTFileWrite(fh, tmpbuf, cbRead, NULL);
+            RTFileClose(fh);
+        }
+#endif
+        uint32_t cbWritten = 0;
 
         /* Just multiplex the output to the connected backends.
          * No need to utilize the virtual mixer here (yet). */
         PSB16DRIVER pDrv;
         RTListForEach(&pThis->lstDrv, pDrv, SB16DRIVER, Node)
         {
-            int rc2 = pDrv->pConnector->pfnWrite(pDrv->pConnector, pDrv->Out.pStrmOut,
-                                                 tmpbuf, cbToRead, &cbWritten);
-            RT_NOREF(rc2);
-            LogFlowFunc(("\tLUN#%RU8: rc=%Rrc, cbWritten=%RU32\n", pDrv->uLUN, rc2, cbWritten));
+            if (pDrv->pConnector->pfnIsActiveOut(pDrv->pConnector, pDrv->Out.pStrmOut))
+            {
+                uint32_t cbWrittenToStream = 0;
+                rc2 = pDrv->pConnector->pfnWrite(pDrv->pConnector, pDrv->Out.pStrmOut,
+                                                 tmpbuf, cbRead, &cbWrittenToStream);
+                if (rc2 == VERR_NOT_AVAILABLE)
+                    continue;
+
+                LogFlowFunc(("\tLUN#%RU8: rc=%Rrc, cbWrittenToStream=%RU32\n", pDrv->uLUN, rc2, cbWrittenToStream));
+
+                /* The primary driver sets the overall pace. */
+                if (pDrv->fFlags & PDMAUDIODRVFLAG_PRIMARY)
+                {
+                    cbWritten = cbWrittenToStream;
+
+                    if (RT_FAILURE(rc2))
+                        break;
+                }
+            }
         }
 
-        Assert(cbToWrite >= cbToRead);
-        cbToWrite      -= cbToRead;
-        dma_pos         = (dma_pos + cbToRead) % dma_len;
-        cbWrittenTotal += cbToRead;
+        Assert(cbToWrite >= cbWritten);
+        cbToWrite      -= cbWritten;
+        dma_pos         = (dma_pos + cbWritten) % dma_len;
+        cbWrittenTotal += cbWritten;
 
-        if (!cbRead)
+        if (!cbWritten)
             break;
     }
 
@@ -1769,7 +1790,7 @@ static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
     int rc = AudioMixerGetDeviceFormat(pThis->pMixer, &mixerStrmCfg);
     AssertRC(rc);
 
-    PDMPCMPROPS mixerStrmProps;
+    PDMAUDIOPCMPROPS mixerStrmProps;
     rc = DrvAudioStreamCfgToProps(&mixerStrmCfg, &mixerStrmProps);
     AssertRC(rc);
 
@@ -1786,9 +1807,8 @@ static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
         if (RT_SUCCESS(rc))
             rc = pDrv->pConnector->pfnPlayOut(pDrv->pConnector, NULL /* cSamplesPlayed */);
 
-#ifdef DEBUG_TIMER
-        LogFlowFunc(("LUN#%RU8: rc=%Rrc, cbIn=%RU32, cbOut=%RU32\n", pDrv->uLUN, rc, cbIn, cbOut));
-#endif
+        Log3Func(("LUN#%RU8: rc=%Rrc, cbIn=%RU32, cbOut=%RU32\n", pDrv->uLUN, rc, cbIn, cbOut));
+
         /* If we there was an error handling (available) output or there simply is no output available,
          * then calculate the minimum data rate which must be processed by the device emulation in order
          * to function correctly.
@@ -1802,23 +1822,11 @@ static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
             continue;
         }
 
-        const bool fIsActiveOut = pDrv->pConnector->pfnIsActiveOut(pDrv->pConnector, pDrv->Out.pStrmOut);
-        if (   RT_FAILURE(rc)
-            || !fIsActiveOut)
-        {
-            uint32_t cSamplesMin  = (int)((2 * cTicksElapsed * pDrv->Out.pStrmOut->Props.uHz + cTicksPerSec) / cTicksPerSec / 2);
-            uint32_t cbSamplesMin = AUDIOMIXBUF_S2B(&pDrv->Out.pStrmOut->MixBuf, cSamplesMin);
-
-            Log2Func(("\trc=%Rrc, cSamplesMin=%RU32, cbSamplesMin=%RU32\n", rc, cSamplesMin, cbSamplesMin));
-
-            cbOut = RT_MAX(cbOut, cbSamplesMin);
-        }
-
         cbOutMin = RT_MIN(cbOutMin, cbOut);
         cbInMax  = RT_MAX(cbInMax, cbIn);
     }
 
-    Log2Func(("cbInMax=%RU32, cbOutMin=%RU32\n", cbInMax, cbOutMin));
+    Log3Func(("cbInMax=%RU32, cbOutMin=%RU32\n", cbInMax, cbOutMin));
 
     if (cbOutMin == UINT32_MAX)
         cbOutMin = 0;
@@ -1952,18 +1960,6 @@ static int sb16Load(PSSMHANDLE pSSM, PSB16STATE pThis, int version_id)
     SSMR3GetS32(pSSM, &pThis->mixer_nreg);
     SSMR3GetMem(pSSM, pThis->mixer_regs, 256);
 
-#if 0
-    PSB16DRIVER pDrv;
-    RTListForEach(&pThis->lstDrv, pDrv, SB16DRIVER, Node)
-    {
-        if (pDrv->Out.pStrmOut)
-        {
-            pDrv->pConnector->pfnCloseOut(pThis->pDrv, pDrv->Out.pStrmOut);
-            pDrv->Out.pStrmOut = NULL;
-        }
-    }
-#endif
-
     if (pThis->dma_running)
     {
         if (pThis->freq)
@@ -2075,6 +2071,13 @@ static int sb16OpenOut(PSB16STATE pThis, PPDMAUDIOSTREAMCFG pCfg)
             break;
         }
 
+        if (pDrv->Out.pStrmOut)
+        {
+            pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
+            LogFlowFunc(("LUN#%RU8: Destroyed output\n", pDrv->uLUN));
+            pDrv->Out.pStrmOut = NULL;
+        }
+
         int rc2 = pDrv->pConnector->pfnCreateOut(pDrv->pConnector, pszDesc, pCfg, &pDrv->Out.pStrmOut);
         LogFlowFunc(("LUN#%RU8: Created output with rc=%Rrc\n", uLUN, rc));
         if (rc2 == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
@@ -2157,11 +2160,6 @@ static DECLCALLBACK(int) sb16Destruct(PPDMDEVINS pDevIns)
     PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
     PSB16STATE pThis = PDMINS_2_DATA(pDevIns, PSB16STATE);
 
-    PSB16DRIVER pDrv;
-
-    RTListForEach(&pThis->lstDrv, pDrv, SB16DRIVER, Node)
-        pDrv->Out.phStrmOut = NULL;
-
     pThis->pSinkOutput = NULL;
 
     if (pThis->pMixer)
@@ -2171,6 +2169,30 @@ static DECLCALLBACK(int) sb16Destruct(PPDMDEVINS pDevIns)
     }
 
     return VINF_SUCCESS;
+}
+
+/**
+ * @interface_method_impl{PDMDEVREG,pfnPowerOff}
+ */
+static DECLCALLBACK(void) sb16PowerOff(PPDMDEVINS pDevIns)
+{
+    PSB16STATE pThis = PDMINS_2_DATA(pDevIns, PSB16STATE);
+
+    PSB16DRIVER pDrv;
+    while (!RTListIsEmpty(&pThis->lstDrv))
+    {
+        pDrv = RTListGetFirst(&pThis->lstDrv, SB16DRIVER, Node);
+
+        if (pDrv->Out.pStrmOut)
+        {
+            pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
+            LogFlowFunc(("LUN#%RU8: Destroyed output\n", pDrv->uLUN));
+            pDrv->Out.pStrmOut = NULL;
+        }
+
+        RTListNodeRemove(&pDrv->Node);
+        RTMemFree(pDrv);
+    }
 }
 
 static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
@@ -2323,7 +2345,7 @@ static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
          * Only primary drivers are critical for the VM to run. Everything else
          * might not worth showing an own error message box in the GUI.
          */
-        if (!(pDrv->Flags & PDMAUDIODRVFLAG_PRIMARY))
+        if (!(pDrv->fFlags & PDMAUDIODRVFLAG_PRIMARY))
             continue;
 
         PPDMIAUDIOCONNECTOR pCon = pDrv->pConnector;
@@ -2371,7 +2393,7 @@ static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         {
             /* Only register primary driver.
              * The device emulation does the output multiplexing then. */
-            if (pDrv->Flags != PDMAUDIODRVFLAG_PRIMARY)
+            if (pDrv->fFlags != PDMAUDIODRVFLAG_PRIMARY)
                 continue;
 
             PDMAUDIOCALLBACK AudioCallbacks[2];
@@ -2443,7 +2465,7 @@ const PDMDEVREG g_DeviceSB16 =
     /* pfnInitComplete */
     NULL,
     /* pfnPowerOff */
-    NULL,
+    sb16PowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32VersionEnd */

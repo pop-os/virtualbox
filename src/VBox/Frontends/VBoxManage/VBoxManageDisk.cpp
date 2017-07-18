@@ -506,7 +506,7 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
     bool fModifyLocation = false;
     uint64_t cbResize = 0;
     const char *pszFilenameOrUuid = NULL;
-    const char *pszNewLocation = NULL;
+    char *pszNewLocation = NULL;
 
     int c;
     RTGETOPTUNION ValueUnion;
@@ -599,7 +599,7 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
 
             case 'm':   // --move
                 /* Get a new location  */
-                pszNewLocation = RTStrDup(ValueUnion.psz);
+                pszNewLocation = RTPathAbsDup(ValueUnion.psz);
                 fModifyLocation = true;
                 break;
 
@@ -745,7 +745,8 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
         {
             ComPtr<IProgress> pProgress;
             Utf8Str strLocation(pszNewLocation);
-            CHECK_ERROR(pMedium, SetLocation(Bstr(pszNewLocation).raw(), pProgress.asOutParam()));
+            RTStrFree(pszNewLocation);
+            CHECK_ERROR(pMedium, SetLocation(Bstr(strLocation).raw(), pProgress.asOutParam()));
 
             if (SUCCEEDED(rc) && !pProgress.isNull())
             {

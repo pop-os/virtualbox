@@ -3441,7 +3441,7 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
         <translation>Adresă IPv6</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Lungime mască rețea IPv6</translation>
     </message>
     <message>
@@ -3679,7 +3679,7 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3726,11 +3726,11 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
         <translation type="obsolete">Afișează adresa IPv6 pentru această placă de rețea, dacă IPv6 este suportat.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">&amp;Lungime mască rețea IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Afișează lungimea prefixului măștii de rețea IPv6 pentru această placă de rețea, dacă IPv6 este suportat.</translation>
     </message>
     <message>
@@ -3801,11 +3801,11 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
         <translation type="unfinished">Afișează adresa IPv6 pentru această placă de rețea, dacă IPv6 este suportat.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="unfinished">&amp;Lungime mască rețea IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="unfinished">Afișează lungimea prefixului măștii de rețea IPv6 pentru această placă de rețea, dacă IPv6 este suportat.</translation>
     </message>
     <message>

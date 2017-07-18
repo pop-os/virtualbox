@@ -3787,7 +3787,7 @@
         <translation>IPv6-adres</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Lengte IPv6-netmasker</translation>
     </message>
     <message>
@@ -4032,7 +4032,7 @@
         <translation>Bewerkt geselecteerd host only netwerk.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>Hostinterface &lt;b&gt;%1&lt;/b&gt; heeft op dit moment geen geldige IPv4-netwerkmaskerprefixlengte.</translation>
     </message>
 </context>
@@ -4079,11 +4079,11 @@
         <translation type="obsolete">Toont het host-IPv6-adres voor deze adapter indien IPv6 ondersteund wordt.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">&amp;Lengte IPv6-netmasker:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Toont de prefixlengte van het host-IPv6-netmasker voor deze adapter indien IPv6 ondersteund wordt.</translation>
     </message>
     <message>
@@ -4174,11 +4174,11 @@
         <translation>Toont het host-IPv6-adres voor deze adapter indien IPv6 ondersteund wordt.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>&amp;Lengte IPv6-netwerkmasker:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Toont de prefixlengte van het host-IPv6-netwerkmasker voor deze adapter indien IPv6 ondersteund wordt.</translation>
     </message>
     <message>

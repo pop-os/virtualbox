@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 111712 $)
+# Linux Additions X11 setup init script ($Revision: 116807 $)
 #
 
 #
@@ -65,6 +65,8 @@ x_version=`echo "$xver" | sed -n 's/^X Window System Version \([0-9.]\+\)/\1/p'`
 x_version_short=`echo "${x_version}" | sed 's/\([0-9]*\.[0-9]*\)\..*/\1/'`
 # Version of Redhat or Fedora installed.  Needed for setting up selinux policy.
 redhat_release=`cat /etc/redhat-release 2> /dev/null`
+# Version of OL installed.  Needed for blacklisting vboxvideo.
+oracle_release=`cat /etc/oracle-release 2> /dev/null`
 # All the different possible locations for XFree86/X.Org configuration files
 # - how many of these have ever been used?
 x11conf_files="/etc/X11/xorg.conf /etc/X11/xorg.conf-4 /etc/X11/.xorg.conf \
@@ -375,18 +377,24 @@ setup()
     esac
     case "${x_version}" in
     4.* | 6.* | 7.* | 1.?.* | 1.1[0-6].* )
-        echo "blacklist vboxvideo" > /etc/modprobe.d/blacklist-vboxvideo.conf
-        ;;
-    *)
-        if test -f /etc/modprobe.d/blacklist-vboxvideo.conf; then
-            rm -f /etc/modprobe.d/blacklist-vboxvideo.conf
-            # We do not want to load the driver if X.Org Server is already
-            # running, as without a driver the server will touch the hardware
-            # directly, causing problems.
-            ps -Af | grep -q '[X]org' || ${MODPROBE} vboxvideo
-        fi
+        blacklist_vboxvideo="yes"
         ;;
     esac
+    case "$oracle_release" in
+        Oracle*release\ 6.* )
+            # relevant for OL6/UEK4 but cannot hurt for other kernels
+            blacklist_vboxvideo="yes"
+    esac
+    if test -n "${blacklist_vboxvideo}"; then
+        echo "blacklist vboxvideo" > /etc/modprobe.d/blacklist-vboxvideo.conf
+    else
+        test -f /etc/modprobe.d/blacklist-vboxvideo.conf &&
+            rm -f /etc/modprobe.d/blacklist-vboxvideo.conf
+        # We do not want to load the driver if X.Org Server is already
+        # running, as without a driver the server will touch the hardware
+        # directly, causing problems.
+        ps -Af | grep -q '[X]org' || ${MODPROBE} vboxvideo
+    fi
     test -n "${dox11config}" &&
         begin "Installing $xserver_version modules"
     case "$vboxvideo_src" in

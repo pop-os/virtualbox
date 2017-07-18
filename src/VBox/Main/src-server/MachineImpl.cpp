@@ -5341,9 +5341,9 @@ void Machine::i_deleteConfigHandler(DeleteConfigTask &task)
                 AutoCaller mac(pMedium);
                 if (FAILED(mac.rc())) throw mac.rc();
                 Utf8Str strLocation = pMedium->i_getLocationFull();
+                LogFunc(("Deleting file %s\n", strLocation.c_str()));
                 rc = task.m_pProgress->SetNextOperation(BstrFmt(tr("Deleting '%s'"), strLocation.c_str()).raw(), 1);
                 if (FAILED(rc)) throw rc;
-                LogFunc(("Deleting file %s\n", strLocation.c_str()));
             }
             if (pMedium->i_isMediumFormatFile())
             {
@@ -5514,8 +5514,8 @@ HRESULT Machine::deleteConfig(const std::vector<ComPtr<IMedium> > &aMedia, ComPt
                          static_cast<IMachine*>(this) /* aInitiator */,
                          Bstr(tr("Deleting files")).raw(),
                          true /* fCancellable */,
-                         (ULONG)(llFilesToDelete.size() + llMediums.size() + 1),   // cOperations
-                         BstrFmt(tr("Deleting '%s'"), llFilesToDelete.front().c_str()).raw());
+                         (ULONG)(1 + llMediums.size() + llFilesToDelete.size() + 1),    // cOperations
+                         Bstr(tr("Collecting file inventory")).raw());
     if (FAILED(rc))
         return rc;
 
@@ -9049,7 +9049,10 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
             if (FAILED(rc)) return rc;
         }
 
-        // serial ports
+        // serial ports (establish defaults first, to ensure reading the same
+        // settings as we saved, since the list skips ports having defaults)
+        for (unsigned i = 0; i < RT_ELEMENTS(mSerialPorts); i++)
+            mSerialPorts[i]->i_applyDefaults(NULL);
         for (settings::SerialPortsList::const_iterator it = data.llSerialPorts.begin();
             it != data.llSerialPorts.end();
             ++it)
@@ -9061,7 +9064,10 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
             if (FAILED(rc)) return rc;
         }
 
-        // parallel ports (optional)
+        // parallel ports (establish defaults first, to ensure reading the same
+        // settings as we saved, since the list skips ports having defaults)
+        for (unsigned i = 0; i < RT_ELEMENTS(mParallelPorts); i++)
+            mParallelPorts[i]->i_applyDefaults();
         for (settings::ParallelPortsList::const_iterator it = data.llParallelPorts.begin();
             it != data.llParallelPorts.end();
             ++it)
@@ -9849,7 +9855,10 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
 
             // in the saved state file path, replace the old directory with the new directory
             if (RTPathStartsWith(mSSData->strStateFilePath.c_str(), configDir.c_str()))
-                mSSData->strStateFilePath = newConfigDir.append(mSSData->strStateFilePath.c_str() + configDir.length());
+            {
+                Utf8Str strStateFileName = mSSData->strStateFilePath.c_str() + configDir.length();
+                mSSData->strStateFilePath = newConfigDir + strStateFileName;
+            }
 
             // and do the same thing for the saved state file paths of all the online snapshots
             if (mData->mFirstSnapshot)

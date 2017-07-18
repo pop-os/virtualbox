@@ -158,9 +158,9 @@ RTDECL(int) RTNetMaskToPrefixIPv4(PCRTNETADDRIPV4 pMask, int *piPrefix)
 
     if (pMask->u == 0)
     {
-	if (piPrefix != NULL)
-	    *piPrefix = 0;
-	return VINF_SUCCESS;
+        if (piPrefix != NULL)
+            *piPrefix = 0;
+        return VINF_SUCCESS;
     }
 
     const uint32_t uMask = RT_N2H_U32(pMask->u);
@@ -168,16 +168,17 @@ RTDECL(int) RTNetMaskToPrefixIPv4(PCRTNETADDRIPV4 pMask, int *piPrefix)
     uint32_t uPrefixMask = UINT32_C(0xffffffff);
     int iPrefixLen = 32;
 
-    while (iPrefixLen > 0) { 
-	if (uMask == uPrefixMask)
-	{
-	    if (piPrefix != NULL)
-		*piPrefix = iPrefixLen;
-	    return VINF_SUCCESS;
-	}
+    while (iPrefixLen > 0)
+    {
+        if (uMask == uPrefixMask)
+        {
+            if (piPrefix != NULL)
+                *piPrefix = iPrefixLen;
+            return VINF_SUCCESS;
+        }
 
-	--iPrefixLen;
-	uPrefixMask <<= 1;
+        --iPrefixLen;
+        uPrefixMask <<= 1;
     }
 
     return VERR_INVALID_PARAMETER;
@@ -190,12 +191,12 @@ RTDECL(int) RTNetPrefixToMaskIPv4(int iPrefix, PRTNETADDRIPV4 pMask)
     AssertReturn(pMask != NULL, VERR_INVALID_PARAMETER);
 
     if (RT_UNLIKELY(iPrefix < 0 || 32 < iPrefix))
-	return VERR_INVALID_PARAMETER;
+        return VERR_INVALID_PARAMETER;
 
     if (RT_LIKELY(iPrefix != 0))
-	pMask->u = RT_H2N_U32(UINT32_C(0xffffffff) << (32 - iPrefix));
+        pMask->u = RT_H2N_U32(UINT32_C(0xffffffff) << (32 - iPrefix));
     else /* avoid UB in the shift */
-	pMask->u = 0;
+        pMask->u = 0;
 
     return VINF_SUCCESS;
 }
@@ -254,7 +255,7 @@ DECLHIDDEN(int) rtNetStrToIPv6AddrBase(const char *pcszAddr, PRTNETADDRIPV6 pAdd
     uint16_t u16;
     int rc;
 
-    memset(&ipv6, 0, sizeof(ipv6));
+    RT_ZERO(ipv6);
 
     pcszPos = pcszAddr;
 
@@ -325,7 +326,7 @@ DECLHIDDEN(int) rtNetStrToIPv6AddrBase(const char *pcszAddr, PRTNETADDRIPV6 pAdd
         const int iMaybeStart = iGroup;
         int j;
 
-        memset(&ipv6Tail, 0, sizeof(ipv6Tail));
+        RT_ZERO(ipv6Tail);
 
         /*
          * We try to accept longest match; we'll shift if necessary.
@@ -509,3 +510,74 @@ RTDECL(bool) RTNetStrIsIPv6AddrAny(const char *pcszAddr)
     return true;
 }
 RT_EXPORT_SYMBOL(RTNetStrIsIPv6AddrAny);
+
+
+RTDECL(int) RTNetMaskToPrefixIPv6(PCRTNETADDRIPV6 pMask, int *piPrefix)
+{
+    AssertReturn(pMask != NULL, VERR_INVALID_PARAMETER);
+
+    int iPrefix = 0;
+    unsigned int i;
+
+    for (i = 0; i < RT_ELEMENTS(pMask->au8); ++i)
+    {
+        int iBits;
+        switch (pMask->au8[i])
+        {
+            case 0x00: iBits = 0; break;
+            case 0x80: iBits = 1; break;
+            case 0xc0: iBits = 2; break;
+            case 0xe0: iBits = 3; break;
+            case 0xf0: iBits = 4; break;
+            case 0xf8: iBits = 5; break;
+            case 0xfc: iBits = 6; break;
+            case 0xfe: iBits = 7; break;
+            case 0xff: iBits = 8; break;
+            default:                /* non-contiguous mask */
+                return VERR_INVALID_PARAMETER;
+        }
+
+        iPrefix += iBits;
+        if (iBits != 8)
+            break;
+    }
+
+    for (++i; i < RT_ELEMENTS(pMask->au8); ++i)
+        if (pMask->au8[i] != 0)
+            return VERR_INVALID_PARAMETER;
+
+    if (piPrefix != NULL)
+        *piPrefix = iPrefix;
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTNetMaskToPrefixIPv6);
+
+
+RTDECL(int) RTNetPrefixToMaskIPv6(int iPrefix, PRTNETADDRIPV6 pMask)
+{
+    AssertReturn(pMask != NULL, VERR_INVALID_PARAMETER);
+
+    if (RT_UNLIKELY(iPrefix < 0 || 128 < iPrefix))
+        return VERR_INVALID_PARAMETER;
+
+    for (unsigned int i = 0; i < RT_ELEMENTS(pMask->au32); ++i)
+    {
+        if (iPrefix == 0)
+        {
+            pMask->au32[i] = 0;
+        }
+        else if (iPrefix >= 32)
+        {
+            pMask->au32[i] = UINT32_C(0xffffffff);
+            iPrefix -= 32;
+        }
+        else
+        {
+            pMask->au32[i] = RT_H2N_U32(UINT32_C(0xffffffff) << (32 - iPrefix));
+            iPrefix = 0;
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTNetPrefixToMaskIPv6);

@@ -139,6 +139,23 @@ AssertCompileSize(IEMBRANCH, 4);
 
 
 /**
+ * INT instruction types.
+ */
+typedef enum IEMINT
+{
+    /** INT n instruction (opcode 0xcd imm). */
+    IEMINT_INTN  = 0,
+    /** Single byte INT3 instruction (opcode 0xcc). */
+    IEMINT_INT3  = IEM_XCPT_FLAGS_BP_INSTR,
+    /** Single byte INTO instruction (opcode 0xce). */
+    IEMINT_INTO  = IEM_XCPT_FLAGS_OF_INSTR,
+    /** Single byte INT1 (ICEBP) instruction (opcode 0xf1). */
+    IEMINT_INT1 = IEM_XCPT_FLAGS_ICEBP_INSTR
+} IEMINT;
+AssertCompileSize(IEMINT, 4);
+
+
+/**
  * A FPU result.
  */
 typedef struct IEMFPURESULT
@@ -532,7 +549,8 @@ typedef struct IEMCPU
 
     /** Prefix index (VEX.pp) for two byte and three byte tables. */
     uint8_t                 idxPrefix;                                                                      /* 0x30, 0x16 */
-    /** 3rd VEX/EVEX/XOP register. */
+    /** 3rd VEX/EVEX/XOP register.
+     * Please use IEM_GET_EFFECTIVE_VVVV to access.  */
     uint8_t                 uVex3rdReg;                                                                     /* 0x31, 0x17 */
     /** The VEX/EVEX/XOP length field. */
     uint8_t                 uVexLength;                                                                     /* 0x32, 0x18 */
@@ -892,27 +910,36 @@ typedef IEMCPU const *PCIEMCPU;
 /** VEX+ModR/M: reg, r/m */
 #define IEMOPFORM_VEX_RM        4
 /** VEX+ModR/M: reg, r/m (register) */
-#define IEMOPFORM_VEX_RM_REG        (IEMOPFORM_VEX_RM | IEMOPFORM_MOD3)
+#define IEMOPFORM_VEX_RM_REG    (IEMOPFORM_VEX_RM | IEMOPFORM_MOD3)
 /** VEX+ModR/M: reg, r/m (memory)   */
-#define IEMOPFORM_VEX_RM_MEM        (IEMOPFORM_VEX_RM | IEMOPFORM_NOT_MOD3)
+#define IEMOPFORM_VEX_RM_MEM    (IEMOPFORM_VEX_RM | IEMOPFORM_NOT_MOD3)
+#define IEMOPFORM_VEX_XM        IEMOPFORM_VEX_RM_MEM
 /** VEX+ModR/M: r/m, reg */
 #define IEMOPFORM_VEX_MR        5
 /** VEX+ModR/M: r/m (register), reg */
-#define IEMOPFORM_VEX_MR_REG        (IEMOPFORM_VEX_MR | IEMOPFORM_MOD3)
+#define IEMOPFORM_VEX_MR_REG    (IEMOPFORM_VEX_MR | IEMOPFORM_MOD3)
 /** VEX+ModR/M: r/m (memory), reg */
-#define IEMOPFORM_VEX_MR_MEM        (IEMOPFORM_VEX_MR | IEMOPFORM_NOT_MOD3)
+#define IEMOPFORM_VEX_MR_MEM    (IEMOPFORM_VEX_MR | IEMOPFORM_NOT_MOD3)
 /** VEX+ModR/M: r/m only */
 #define IEMOPFORM_VEX_M         6
 /** VEX+ModR/M: r/m only (register). */
-#define IEMOPFORM_VEX_M_REG         (IEMOPFORM_VEX_M | IEMOPFORM_MOD3)
+#define IEMOPFORM_VEX_M_REG     (IEMOPFORM_VEX_M | IEMOPFORM_MOD3)
 /** VEX+ModR/M: r/m only (memory). */
-#define IEMOPFORM_VEX_M_MEM         (IEMOPFORM_VEX_M | IEMOPFORM_NOT_MOD3)
+#define IEMOPFORM_VEX_M_MEM     (IEMOPFORM_VEX_M | IEMOPFORM_NOT_MOD3)
 /** VEX+ModR/M: reg only */
 #define IEMOPFORM_VEX_R         7
 /** VEX+ModR/M: reg, vvvv, r/m */
 #define IEMOPFORM_VEX_RVM       8
+/** VEX+ModR/M: reg, vvvv, r/m (register). */
+#define IEMOPFORM_VEX_RVM_REG   (IEMOPFORM_VEX_RVM | IEMOPFORM_MOD3)
+/** VEX+ModR/M: reg, vvvv, r/m (memory). */
+#define IEMOPFORM_VEX_RVM_MEM   (IEMOPFORM_VEX_RVM | IEMOPFORM_NOT_MOD3)
 /** VEX+ModR/M: r/m, vvvv, reg */
 #define IEMOPFORM_VEX_MVR       9
+/** VEX+ModR/M: r/m, vvvv, reg (register) */
+#define IEMOPFORM_VEX_MVR_REG   (IEMOPFORM_VEX_MVR | IEMOPFORM_MOD3)
+/** VEX+ModR/M: r/m, vvvv, reg (memory) */
+#define IEMOPFORM_VEX_MVR_MEM   (IEMOPFORM_VEX_MVR | IEMOPFORM_NOT_MOD3)
 
 /** Fixed register instruction, no R/M. */
 #define IEMOPFORM_FIXED         16
@@ -926,10 +953,19 @@ typedef IEMCPU const *PCIEMCPU;
 /** @name IEMOPHINT_XXX - Additional Opcode Hints
  * @note These are ORed together with IEMOPFORM_XXX.
  * @{ */
-/** Both the operand size prefixes are ignored. */
-#define IEMOPHINT_IGNORES_OP_SIZE   RT_BIT_32(10)
+/** Ignores the operand size prefix (66h). */
+#define IEMOPHINT_IGNORES_OZ_PFX    RT_BIT_32(10)
+/** Ignores REX.W. */
+#define IEMOPHINT_IGNORES_REXW      RT_BIT_32(11)
+/** Both the operand size prefixes (66h + REX.W) are ignored. */
+#define IEMOPHINT_IGNORES_OP_SIZES  (IEMOPHINT_IGNORES_OZ_PFX | IEMOPHINT_IGNORES_REXW)
 /** Allowed with the lock prefix. */
 #define IEMOPHINT_LOCK_ALLOWED      RT_BIT_32(11)
+/** The VEX.L value is ignored (aka LIG). */
+#define IEMOPHINT_IGNORES_VEX_L     RT_BIT_32(12)
+/** The VEX.L value must be zero (i.e. 128-bit width). */
+#define IEMOPHINT_VEX_L_ZERO        RT_BIT_32(13)
+
 /** Hint to IEMAllInstructionPython.py that this macro should be skipped.  */
 #define IEMOPHINT_SKIP_PYTHON       RT_BIT_32(31)
 /** @} */
@@ -1607,7 +1643,14 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_pmovmskb_u128,(PCX86FXSTATE pFpuState, uint64_t
 /** @name Media (SSE/MMX/AVX) operation: Sort this later
  * @{ */
 IEM_DECL_IMPL_DEF(void, iemAImpl_movsldup,(PCX86FXSTATE pFpuState, PRTUINT128U puDst, PCRTUINT128U puSrc));
+IEM_DECL_IMPL_DEF(void, iemAImpl_movshdup,(PCX86FXSTATE pFpuState, PRTUINT128U puDst, PCRTUINT128U puSrc));
 IEM_DECL_IMPL_DEF(void, iemAImpl_movddup,(PCX86FXSTATE pFpuState, PRTUINT128U puDst, uint64_t uSrc));
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_vmovsldup_256_rr,(PX86XSAVEAREA pXState, uint8_t iYRegDst, uint8_t iYRegSrc));
+IEM_DECL_IMPL_DEF(void, iemAImpl_vmovsldup_256_rm,(PX86XSAVEAREA pXState, uint8_t iYRegDst, PCRTUINT256U pSrc));
+IEM_DECL_IMPL_DEF(void, iemAImpl_vmovddup_256_rr,(PX86XSAVEAREA pXState, uint8_t iYRegDst, uint8_t iYRegSrc));
+IEM_DECL_IMPL_DEF(void, iemAImpl_vmovddup_256_rm,(PX86XSAVEAREA pXState, uint8_t iYRegDst, PCRTUINT256U pSrc));
+
 /** @} */
 
 

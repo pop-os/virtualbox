@@ -508,11 +508,9 @@ int VideoRecStrmInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen, const char *pszFil
     com::Utf8Str options(pszOptions);
     size_t pos = 0;
 
-    do {
-
-        com::Utf8Str key, value;
-        pos = options.parseKeyValue(key, value, pos);
-
+    com::Utf8Str key, value;
+    while ((pos = options.parseKeyValue(key, value, pos)) != com::Utf8Str::npos)
+    {
         if (key == "quality")
         {
             if (value == "realtime")
@@ -533,9 +531,9 @@ int VideoRecStrmInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen, const char *pszFil
                 pStrm->uEncoderDeadline = value.toUInt32();
             }
         }
-        else LogRel(("Getting unknown option: %s=%s\n", key.c_str(), value.c_str()));
-
-    } while(pos != com::Utf8Str::npos);
+        else
+            LogRel(("VideoRec: Unknown option '%s' (value '%s'), skipping\n", key.c_str(), value.c_str()));
+    }
 
     /* target bitrate in kilobits per second */
     pStrm->VpxConfig.rc_target_bitrate = uRate;

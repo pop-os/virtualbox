@@ -2553,7 +2553,7 @@
     </message>
     <message>
         <location line="+4"/>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Dolžina maske omrežja IPv6</translation>
     </message>
     <message>
@@ -2829,7 +2829,7 @@
     </message>
     <message>
         <location line="-420"/>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>Vmesnik gostitelja &lt;b&gt;%1&lt;/b&gt; trenutno nima veljavne dolžine predpone maske omrežja IPv6.</translation>
     </message>
 </context>
@@ -2882,12 +2882,12 @@
     </message>
     <message>
         <location line="+7"/>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>&amp;Dolžina maske omrežja IPv6:</translation>
     </message>
     <message>
         <location line="+19"/>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Vsebuje dolžino predpone maske omrežja IPv6 gostitelja za ta vmesnik, če je IPv6 podprt.</translation>
     </message>
     <message>
@@ -7503,7 +7503,7 @@
 <context>
     <name>UIMiniToolBar</name>
     <message>
-        <location filename="../src/widgets/UIMiniToolBar.cpp" line="+298"/>
+        <location filename="../src/widgets/UIMiniToolBar.cpp" line="+296"/>
         <source>Always show the toolbar</source>
         <translation>Vedno prikaži orodno vrstico</translation>
     </message>

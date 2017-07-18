@@ -4314,7 +4314,7 @@ p, li { white-space: pre-wrap; }
         <translation>IPv6 주소</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>IPv6 네트워크 마스크 길이</translation>
     </message>
     <message>
@@ -4568,7 +4568,7 @@ p, li { white-space: pre-wrap; }
         <translation>선택한 호스트 전용 네트워크를 편집합니다.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>호스트 인터페이스 &lt;b&gt;%1&lt;/b&gt;에 올바른 IPv6 네트워크 마스크 접두사 길이가 없습니다.</translation>
     </message>
 </context>
@@ -4615,11 +4615,11 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">IPv6을 지원하는 경우 이 어댑터의 호스트 IPv6 주소를 표시합니다.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">IPv6 네트워크 마스크 길이(&amp;L):</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">IPv6을 지원하는 경우 이 어댑터의 호스트 IPv6 네트워크 마스크 접두사를 표시합니다.</translation>
     </message>
     <message>
@@ -4710,11 +4710,11 @@ p, li { white-space: pre-wrap; }
         <translation>IPv6을 지원하는 경우 이 어댑터의 호스트 IPv6 주소를 표시합니다.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>IPv6 네트워크 마스크 길이(&amp;L):</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>IPv6을 지원하는 경우 이 어댑터의 호스트 IPv6 네트워크 마스크 접두사를 표시합니다.</translation>
     </message>
     <message>

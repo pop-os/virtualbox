@@ -860,8 +860,9 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                     {
                         RTR0TESTR0_CHECK_MSG(RTCpuSetIsMemberByIndex(&OnlineSet, iCpu), ("%d\n", iCpu));
                         RTR0TESTR0_CHECK_MSG(paStates[iCpu].cTicks <= cMaxTicks && paStates[iCpu].cTicks >= cMinTicks,
-                                             ("min=%u, ticks=%u, avg=%u max=%u, iCpu=%u, interval=%'u, elapsed=%'llu/%'llu\n",
+                                             ("min=%u, ticks=%u, avg=%u max=%u, iCpu=%u, iCpuCurr=%u, interval=%'u, elapsed=%'llu/%'llu\n",
                                               cMinTicks, paStates[iCpu].cTicks, cAvgTicks, cMaxTicks, iCpu,
+                                              RTMpCpuIdToSetIndex(RTMpCpuId()),
                                               cNsInterval, cNsElapsed, cNsElapsedX));
                     }
                     else

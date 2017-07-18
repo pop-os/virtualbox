@@ -136,7 +136,7 @@
        <item row="4" column="1">
         <widget class="QLabel" name="m_pNMv6Label">
          <property name="text">
-          <string>IPv6 Network Mask &amp;Length:</string>
+          <string>IPv6 Prefix &amp;Length:</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -155,7 +155,7 @@
           </sizepolicy>
          </property>
          <property name="toolTip">
-          <string>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</string>
+          <string>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</string>
          </property>
         </widget>
        </item>

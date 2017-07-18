@@ -323,13 +323,12 @@ HRESULT MediumLockListMap::Clear()
     HRESULT rc = Unlock();
     for (MediumLockListMap::Base::iterator it = mMediumLocks.begin();
          it != mMediumLocks.end();
-         )
+         ++it)
     {
         MediumLockList *pMediumLockList = it->second;
-        // need an incremented iterator as otherwise erasing invalidates it
-        mMediumLocks.erase(it++);
         delete pMediumLockList;
     }
+    mMediumLocks.clear();
     return rc;
 }
 

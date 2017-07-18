@@ -4350,6 +4350,7 @@ static int atapiReadDVDStructureSS(PAHCIREQ pAhciReq, PAHCIPort pAhciPort, size_
             /** @todo BD support, fall through for now */
 
         /* Generic disk structures */
+        /* fall thru */
         case 0x80: /** @todo AACS volume identifier */
         case 0x81: /** @todo AACS media serial number */
         case 0x82: /** @todo AACS media identifier */
@@ -6435,6 +6436,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
             break;
         case ATA_READ_DMA_EXT:
             fLBA48 = true;
+            /* fall through */
         case ATA_READ_DMA:
         {
             pAhciReq->cbTransfer = ahciGetNSectors(pCmdFis, fLBA48) * pAhciPort->cbSector;
@@ -6444,6 +6446,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
         }
         case ATA_WRITE_DMA_EXT:
             fLBA48 = true;
+            /* fall through */
         case ATA_WRITE_DMA:
         {
             pAhciReq->cbTransfer = ahciGetNSectors(pCmdFis, fLBA48) * pAhciPort->cbSector;
@@ -6561,6 +6564,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
             }
             /* else: fall through and report error to the guest. */
         }
+        /* fall thru */
         /* All not implemented commands go below. */
         case ATA_SECURITY_FREEZE_LOCK:
         case ATA_SMART:
@@ -8574,8 +8578,9 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     /* Attach drivers to every available port. */
     for (i = 0; i < pThis->cPortsImpl; i++)
     {
-        char szName[24];
-        RTStrPrintf(szName, sizeof(szName), "Port%u", i);
+        char *pszName;
+        if (RTStrAPrintf(&pszName, "Port%u", i) <= 0)
+            AssertLogRelFailedReturn(VERR_NO_MEMORY);
 
         PAHCIPort pAhciPort      = &pThis->ahciPort[i];
         /*
@@ -8589,7 +8594,7 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         pAhciPort->fWrkThreadSleeping                   = true;
 
         /* Query per port configuration options if available. */
-        PCFGMNODE pCfgPort = CFGMR3GetChild(pDevIns->pCfg, szName);
+        PCFGMNODE pCfgPort = CFGMR3GetChild(pDevIns->pCfg, pszName);
         if (pCfgPort)
         {
             rc = CFGMR3QueryBoolDef(pCfgPort, "Hotpluggable", &pAhciPort->fHotpluggable, true);
@@ -8601,13 +8606,13 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         /*
          * Attach the block driver
          */
-        rc = PDMDevHlpDriverAttach(pDevIns, pAhciPort->iLUN, &pAhciPort->IBase, &pAhciPort->pDrvBase, szName);
+        rc = PDMDevHlpDriverAttach(pDevIns, pAhciPort->iLUN, &pAhciPort->IBase, &pAhciPort->pDrvBase, pszName);
         if (RT_SUCCESS(rc))
         {
             rc = ahciR3ConfigureLUN(pDevIns, pAhciPort);
             if (RT_FAILURE(rc))
             {
-                Log(("%s: Failed to configure the %s.\n", __FUNCTION__, szName));
+                Log(("%s: Failed to configure the %s.\n", __FUNCTION__, pszName));
                 return rc;
             }
 
@@ -8618,7 +8623,7 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
             /*
              * Init vendor product data.
              */
-            rc = ahciR3VpdInit(pDevIns, pAhciPort, szName);
+            rc = ahciR3VpdInit(pDevIns, pAhciPort, pszName);
             if (RT_FAILURE(rc))
                 return rc;
 
@@ -8644,20 +8649,20 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                            N_("AHCI: Failed to create SUP event semaphore"));
 
             rc = PDMDevHlpThreadCreate(pDevIns, &pAhciPort->pAsyncIOThread, pAhciPort, ahciAsyncIOLoop,
-                                       ahciAsyncIOLoopWakeUp, 0, RTTHREADTYPE_IO, szName);
+                                       ahciAsyncIOLoopWakeUp, 0, RTTHREADTYPE_IO, pszName);
             if (RT_FAILURE(rc))
                 return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
-                                           N_("AHCI: Failed to create worker thread %s"), szName);
+                                           N_("AHCI: Failed to create worker thread %s"), pszName);
         }
         else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
         {
             pAhciPort->pDrvBase = NULL;
             rc = VINF_SUCCESS;
-            LogRel(("AHCI: %s: No driver attached\n", szName));
+            LogRel(("AHCI: %s: No driver attached\n", pszName));
         }
         else
             return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
-                                       N_("AHCI: Failed to attach drive to %s"), szName);
+                                       N_("AHCI: Failed to attach drive to %s"), pszName);
     }
 
     /*

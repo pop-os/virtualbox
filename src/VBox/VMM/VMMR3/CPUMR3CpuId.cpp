@@ -27,6 +27,7 @@
 #include "CPUMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/mm.h>
+#include <VBox/sup.h>
 
 #include <VBox/err.h>
 #include <iprt/asm-amd64-x86.h>
@@ -207,10 +208,10 @@ VMMR3DECL(CPUMMICROARCH) CPUMR3CpuIdDetermineMicroarchEx(CPUMCPUVENDOR enmVendor
                  *  - 130nm:
                  *     - ClawHammer:    F7A/SH-CG, F5A/-CG, F4A/-CG, F50/-B0, F48/-C0, F58/-C0,
                  *     - SledgeHammer:  F50/SH-B0, F48/-C0, F58/-C0, F4A/-CG, F5A/-CG, F7A/-CG, F51/-B3
-                 *     - Newcastle:     FC0/DH-CG (errum #180: FE0/DH-CG), FF0/DH-CG
+                 *     - Newcastle:     FC0/DH-CG (erratum #180: FE0/DH-CG), FF0/DH-CG
                  *     - Dublin:        FC0/-CG, FF0/-CG, F82/CH-CG, F4A/-CG, F48/SH-C0,
-                 *     - Odessa:        FC0/DH-CG (errum #180: FE0/DH-CG)
-                 *     - Paris:         FF0/DH-CG, FC0/DH-CG (errum #180: FE0/DH-CG),
+                 *     - Odessa:        FC0/DH-CG (erratum #180: FE0/DH-CG)
+                 *     - Paris:         FF0/DH-CG, FC0/DH-CG (erratum #180: FE0/DH-CG),
                  *  - 90nm:
                  *     - Winchester:    10FF0/DH-D0, 20FF0/DH-E3.
                  *     - Oakville:      10FC0/DH-D0.
@@ -2236,6 +2237,7 @@ typedef struct CPUMCPUIDCONFIG
 {
     bool            fNt4LeafLimit;
     bool            fInvariantTsc;
+    bool            fForceVme;
 
     CPUMISAEXTCFG   enmCmpXchg16b;
     CPUMISAEXTCFG   enmMonitor;
@@ -2658,6 +2660,30 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
         pStdFeatureLeaf->uEdx |= X86_CPUID_FEATURE_EDX_HTT;  /* necessary for hyper-threading *or* multi-core CPUs */
     }
 #endif
+
+    uint32_t uMicrocodeRev;
+    int rc = SUPR3QueryMicrocodeRev(&uMicrocodeRev);
+    if (RT_SUCCESS(rc))
+    {
+        LogRel(("CPUM: Microcode revision 0x%08X\n", uMicrocodeRev));
+    }
+    else
+    {
+        uMicrocodeRev = 0;
+        LogRel(("CPUM: Failed to query microcode revision. rc=%Rrc\n", rc));
+    }
+
+    /* Mask out the VME capability on certain CPUs, unless overridden by fForceVme. 
+     * VME bug was fixed in AGESA 1.0.0.6, microcode patch level 8001126.
+     */
+    if ( (pVM->cpum.s.GuestFeatures.enmMicroarch == kCpumMicroarch_AMD_Zen_Ryzen)
+        && uMicrocodeRev < 0x8001126
+        && !pConfig->fForceVme)
+    {
+        /** @todo The above is a very coarse test but at the moment we don't know any better (see @bugref{8852}). */
+        LogRel(("CPUM: Zen VME workaround engaged\n"));
+        pStdFeatureLeaf->uEdx &= ~X86_CPUID_FEATURE_EDX_VME;
+    }
 
     /* Force standard feature bits. */
     if (pConfig->enmPClMul == CPUMISAEXTCFG_ENABLED_ALWAYS)
@@ -3719,6 +3745,15 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
      * virtualize performance counters.
      */
     rc = CFGMR3QueryBoolDef(pCpumCfg, "InvariantTsc", &pConfig->fInvariantTsc, false);
+    AssertLogRelRCReturn(rc, rc);
+
+    /** @cfgm{/CPUM/ForceVme, boolean, false}
+     * Always expose the VME (Virtual-8086 Mode Extensions) capability if true.
+     * By default the flag is passed thru as is from the host CPU, except
+     * on AMD Ryzen CPUs where it's masked to avoid trouble with XP/Server 2003
+     * guests and DOS boxes in general.
+     */
+    rc = CFGMR3QueryBoolDef(pCpumCfg, "ForceVme", &pConfig->fForceVme, false);
     AssertLogRelRCReturn(rc, rc);
 
     /** @cfgm{/CPUM/MaxIntelFamilyModelStep, uint32_t, UINT32_MAX}

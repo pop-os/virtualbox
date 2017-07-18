@@ -284,20 +284,30 @@ BEGINPROC VMXRestoreHostState
     mov         dx, [rsi + VMXRESTOREHOST.uHostSelTR]
     mov         ax, dx
     and         eax, X86_SEL_MASK_OFF_RPL                       ; Mask away TI and RPL bits leaving only the descriptor offset.
-    add         rax, qword [rsi + VMXRESTOREHOST.HostGdtr + 2]  ; xAX <- descriptor offset + GDTR.pGdt.
-    test        edi, VMX_RESTORE_HOST_GDT_READ_ONLY
+    test        edi, VMX_RESTORE_HOST_GDT_READ_ONLY | VMX_RESTORE_HOST_GDT_NEED_WRITABLE
     jnz         .gdt_readonly
+    add         rax, qword [rsi + VMXRESTOREHOST.HostGdtr + 2]  ; xAX <- descriptor offset + GDTR.pGdt.
     and         dword [rax + 4], ~RT_BIT(9)                     ; Clear the busy flag in TSS desc (bits 0-7=base, bit 9=busy bit).
     ltr         dx
     jmp short   .test_fs
 .gdt_readonly:
+    test        edi, VMX_RESTORE_HOST_GDT_NEED_WRITABLE
+    jnz         .gdt_readonly_need_writable
     mov         rcx, cr0
     mov         r9, rcx
+    add         rax, qword [rsi + VMXRESTOREHOST.HostGdtr + 2]  ; xAX <- descriptor offset + GDTR.pGdt.
     and         rcx, ~X86_CR0_WP
     mov         cr0, rcx
     and         dword [rax + 4], ~RT_BIT(9)                     ; Clear the busy flag in TSS desc (bits 0-7=base, bit 9=busy bit).
     ltr         dx
     mov         cr0, r9
+    jmp short   .test_fs
+.gdt_readonly_need_writable:
+    add         rax, qword [rsi + VMXRESTOREHOST.HostGdtrRw + 2]  ; xAX <- descriptor offset + GDTR.pGdtRw.
+    and         dword [rax + 4], ~RT_BIT(9)                     ; Clear the busy flag in TSS desc (bits 0-7=base, bit 9=busy bit).
+    lgdt        [rsi + VMXRESTOREHOST.HostGdtrRw]
+    ltr         dx
+    lgdt        [rsi + VMXRESTOREHOST.HostGdtr]                 ; Load the original GDT
 
 .test_fs:
     ;
@@ -807,12 +817,19 @@ ENDPROC SVMR0InvlpgA
 ;
 ; @remarks      This is essentially the same code as HMR0SVMRunWrapXMM, only the parameters differ a little bit.
 ;
+; @remarks      Drivers shouldn't use AVX registers without saving+loading:
+;                   https://msdn.microsoft.com/en-us/library/windows/hardware/ff545910%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396
+;               However the compiler docs have different idea:
+;                   https://msdn.microsoft.com/en-us/library/9z1stfyw.aspx
+;               We'll go with the former for now.
+;
 ; ASSUMING 64-bit and windows for now.
+;
 ALIGNCODE(16)
 BEGINPROC HMR0VMXStartVMWrapXMM
         push    xBP
         mov     xBP, xSP
-        sub     xSP, 0a0h + 040h        ; Don't bother optimizing the frame size.
+        sub     xSP, 0b0h + 040h ; Don't bother optimizing the frame size.
 
         ; spill input parameters.
         mov     [xBP + 010h], rcx       ; fResumeVM
@@ -852,6 +869,7 @@ ALIGNCODE(8)
         movdqa  [rsp + 040h + 070h], xmm13
         movdqa  [rsp + 040h + 080h], xmm14
         movdqa  [rsp + 040h + 090h], xmm15
+        stmxcsr [rsp + 040h + 0a0h]
 
         mov     r10, [xBP + 018h]       ; pCtx
         mov     eax, [r10 + CPUMCTX.fXStateMask]
@@ -900,6 +918,7 @@ ALIGNCODE(8)
         movdqa  xmm13, [rsp + 040h + 070h]
         movdqa  xmm14, [rsp + 040h + 080h]
         movdqa  xmm15, [rsp + 040h + 090h]
+        ldmxcsr        [rsp + 040h + 0a0h]
         leave
         ret
 
@@ -925,6 +944,7 @@ ALIGNCODE(8)
         movdqa  xmm13, [r10 + XMM_OFF_IN_X86FXSTATE + 0d0h]
         movdqa  xmm14, [r10 + XMM_OFF_IN_X86FXSTATE + 0e0h]
         movdqa  xmm15, [r10 + XMM_OFF_IN_X86FXSTATE + 0f0h]
+        ldmxcsr        [r10 + X86FXSTATE.MXCSR]
 
         ; Make the call (same as in the other case ).
         mov     r11, [xBP + 38h]        ; pfnStartVM
@@ -939,6 +959,7 @@ ALIGNCODE(8)
         ; Save the guest XMM registers.
         mov     r10, [xBP + 018h]       ; pCtx
         mov     r10, [r10 + CPUMCTX.pXStateR0]
+        stmxcsr [r10 + X86FXSTATE.MXCSR]
         movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 000h], xmm0
         movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 010h], xmm1
         movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 020h], xmm2
@@ -975,12 +996,18 @@ ENDPROC   HMR0VMXStartVMWrapXMM
 ;
 ; @remarks      This is essentially the same code as HMR0VMXStartVMWrapXMM, only the parameters differ a little bit.
 ;
+; @remarks      Drivers shouldn't use AVX registers without saving+loading:
+;                   https://msdn.microsoft.com/en-us/library/windows/hardware/ff545910%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396
+;               However the compiler docs have different idea:
+;                   https://msdn.microsoft.com/en-us/library/9z1stfyw.aspx
+;               We'll go with the former for now.
+;
 ; ASSUMING 64-bit and windows for now.
 ALIGNCODE(16)
 BEGINPROC HMR0SVMRunWrapXMM
         push    xBP
         mov     xBP, xSP
-        sub     xSP, 0a0h + 040h        ; Don't bother optimizing the frame size.
+        sub     xSP, 0b0h + 040h        ; Don't bother optimizing the frame size.
 
         ; spill input parameters.
         mov     [xBP + 010h], rcx       ; pVMCBHostPhys
@@ -1020,6 +1047,7 @@ ALIGNCODE(8)
         movdqa  [rsp + 040h + 070h], xmm13
         movdqa  [rsp + 040h + 080h], xmm14
         movdqa  [rsp + 040h + 090h], xmm15
+        stmxcsr [rsp + 040h + 0a0h]
 
         mov     r10, [xBP + 020h]       ; pCtx
         mov     eax, [r10 + CPUMCTX.fXStateMask]
@@ -1068,6 +1096,7 @@ ALIGNCODE(8)
         movdqa  xmm13, [rsp + 040h + 070h]
         movdqa  xmm14, [rsp + 040h + 080h]
         movdqa  xmm15, [rsp + 040h + 090h]
+        ldmxcsr [rsp + 040h + 0a0h]
         leave
         ret
 
@@ -1093,6 +1122,7 @@ ALIGNCODE(8)
         movdqa  xmm13, [r10 + XMM_OFF_IN_X86FXSTATE + 0d0h]
         movdqa  xmm14, [r10 + XMM_OFF_IN_X86FXSTATE + 0e0h]
         movdqa  xmm15, [r10 + XMM_OFF_IN_X86FXSTATE + 0f0h]
+        ldmxcsr        [r10 + X86FXSTATE.MXCSR]
 
         ; Make the call (same as in the other case ).
         mov     r11, [xBP + 38h]        ; pfnVMRun
@@ -1107,6 +1137,7 @@ ALIGNCODE(8)
         ; Save the guest XMM registers.
         mov     r10, [xBP + 020h]       ; pCtx
         mov     r10, [r10 + CPUMCTX.pXStateR0]
+        stmxcsr [r10 + X86FXSTATE.MXCSR]
         movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 000h], xmm0
         movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 010h], xmm1
         movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 020h], xmm2

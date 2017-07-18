@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -540,16 +540,18 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Audio/DevSB16.cpp \
  	Audio/DevHDA.cpp \
  	Audio/HDACodec.cpp \
+ 	Audio/HDAStreamPeriod.cpp \
  	Audio/AudioMixBuffer.cpp \
  	Audio/AudioMixer.cpp \
  	Audio/DrvAudio.cpp \
  	Audio/DrvAudioCommon.cpp \
  	Audio/DrvHostNullAudio.cpp
 
- ifdef VBOX_WITH_AUDIO_DEBUG
-  VBoxDD_DEFS    += VBOX_WITH_AUDIO_DEBUG
+ VBoxDD_DEFS += $(if $(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA),VBOX_AUDIO_DEBUG_DUMP_PCM_DATA,)
+ ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
+  VBoxDD_DEFS    += VBOX_WITH_AUDIO_VALIDATIONKIT
   VBoxDD_SOURCES += \
-	Audio/DrvHostDebugAudio.cpp
+	Audio/DrvHostValidationKit.cpp
  endif
 
  ifeq ($(KBUILD_TARGET),darwin)

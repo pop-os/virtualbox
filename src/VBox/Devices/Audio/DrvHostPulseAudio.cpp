@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,10 @@ RT_C_DECLS_END
 
 #include "VBoxDD.h"
 
-#define VBOX_PULSEAUDIO_MAX_LOG_REL_ERRORS 32 /** @todo Make this configurable thru driver options. */
+#define PULSEAUDIO_MAX_LOG_REL_ERRORS 32 /** @todo Make this configurable thru driver options. */
+
+/* Whether to use PulseAudio's asynchronous handling or not. */
+//#define PULSEAUDIO_ASYNC /** @todo Make this configurable thru driver options. */
 
 #ifndef PA_STREAM_NOFLAGS
 # define PA_STREAM_NOFLAGS (pa_context_flags_t)0x0000U /* since 0.9.19 */
@@ -106,6 +109,10 @@ typedef struct PULSEAUDIOSTREAM
     /** Our offset (in bytes) in peeking buffer. */
     size_t                 offPeekBuf;
     pa_operation          *pDrainOp;
+    /** Number of occurred audio data underflows. */
+    uint32_t               cUnderflows;
+    /** Current latency (in us). */
+    uint64_t               curLatencyUs;
 } PULSEAUDIOSTREAM, *PPULSEAUDIOSTREAM;
 
 /* The desired buffer length in milliseconds. Will be the target total stream
@@ -128,6 +135,11 @@ static PULSEAUDIOCFG s_pulseCfg =
     ( (PDRVHOSTPULSEAUDIO)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTPULSEAUDIO, IHostAudio)) )
 
 static int  drvHostPulseAudioError(PDRVHOSTPULSEAUDIO pThis, const char *szMsg);
+
+static void drvHostPulseAudioCbStreamUnderflow(pa_stream *pStream, void *pvContext);
+#ifdef PULSEAUDIO_ASYNC
+ static void drvHostPulseAudioCbStreamReqWrite(pa_stream *pStream, size_t cbLen, void *pvContext);
+#endif
 static void drvHostPulseAudioCbSuccess(pa_stream *pStream, int fSuccess, void *pvContext);
 
 /**
@@ -304,6 +316,60 @@ static void drvHostPulseAudioCbStreamState(pa_stream *pStream, void *pvContext)
     }
 }
 
+#ifdef PULSEAUDIO_ASYNC
+static void drvHostPulseAudioCbStreamReqWrite(pa_stream *pStream, size_t cbLen, void *pvContext)
+{
+    RT_NOREF(cbLen, pvContext);
+
+    PPULSEAUDIOSTREAM pStrm = (PPULSEAUDIOSTREAM)pvContext;
+    AssertPtrReturnVoid(pStrm);
+
+    pa_usec_t usec = 0;
+    int neg = 0;
+    pa_stream_get_latency(pStream, &usec, &neg);
+
+    Log2Func(("Requested %zu bytes -- Current latency is %RU64ms\n", cbLen, usec / 1000));
+}
+#endif /* PULSEAUDIO_ASYNC */
+
+static void drvHostPulseAudioCbStreamUnderflow(pa_stream *pStream, void *pvContext)
+{
+    PPULSEAUDIOSTREAM pStrm = (PPULSEAUDIOSTREAM)pvContext;
+    AssertPtrReturnVoid(pStrm);
+
+    pStrm->cUnderflows++;
+
+    pa_usec_t usec = 0;
+    int neg = 0;
+    pa_stream_get_latency(pStream, &usec, &neg);
+
+    Log2Func(("Warning: Hit underflow #%RU32 -- Current latency is %RU64ms\n", pStrm->cUnderflows, usec / 1000));
+
+    if (   pStrm->cUnderflows  >= 6                /** @todo Make this check configurable. */
+        && pStrm->curLatencyUs < 2000000 /* 2s */)
+    {
+        pStrm->curLatencyUs = (pStrm->curLatencyUs * 3) /2;
+        LogFunc(("Latency increased to %RU64ms\n", pStrm->curLatencyUs / 1000));
+
+        pStrm->BufAttr.maxlength = pa_usec_to_bytes(pStrm->curLatencyUs, &pStrm->SampleSpec);
+        pStrm->BufAttr.tlength   = pa_usec_to_bytes(pStrm->curLatencyUs, &pStrm->SampleSpec);
+
+        pa_stream_set_buffer_attr(pStream, &pStrm->BufAttr, NULL, NULL);
+
+        pStrm->cUnderflows = 0;
+    }
+
+#ifdef LOG_ENABLED
+    const pa_timing_info *pTInfo = pa_stream_get_timing_info(pStream);
+
+    Log2Func(("\t-> rPos=%RI64 (%RTbool), wPos=%RI64 (%RTbool) -> %RI64 bytes\n",
+              pTInfo->read_index,  RT_BOOL(pTInfo->read_index_corrupt),
+              pTInfo->write_index, RT_BOOL(pTInfo->write_index_corrupt), pTInfo->write_index - pTInfo->read_index));
+
+    Log2Func(("\t-> sourceMs=%RU64, sinkMs=%RU64\n", pTInfo->source_usec / 1000, pTInfo->sink_usec / 1000));
+#endif
+}
+
 static void drvHostPulseAudioCbSuccess(pa_stream *pStream, int fSuccess, void *pvContext)
 {
     AssertPtrReturnVoid(pStream);
@@ -319,19 +385,17 @@ static void drvHostPulseAudioCbSuccess(pa_stream *pStream, int fSuccess, void *p
         drvHostPulseAudioError(pStrm->pDrv, "Failed to finish stream operation");
 }
 
-static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
-                                 pa_sample_spec *pSampleSpec, pa_buffer_attr *pBufAttr,
-                                 pa_stream **ppStream)
+static int drvHostPulseAudioOpen(bool fIn, const char *pszName, PPULSEAUDIOSTREAM pPAStream)
 {
-    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
-    AssertPtrReturn(pSampleSpec, VERR_INVALID_POINTER);
-    AssertPtrReturn(pBufAttr, VERR_INVALID_POINTER);
-    AssertPtrReturn(ppStream, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszName,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pPAStream, VERR_INVALID_POINTER);
+
+    pa_sample_spec *pSampleSpec = &pPAStream->SampleSpec;
+    pa_buffer_attr *pBufAttr    = &pPAStream->BufAttr;
 
     if (!pa_sample_spec_valid(pSampleSpec))
     {
-        LogRel(("PulseAudio: Unsupported sample specification for stream \"%s\"\n",
-                pszName));
+        LogRel(("PulseAudio: Unsupported sample specification for stream \"%s\"\n", pszName));
         return VERR_NOT_SUPPORTED;
     }
 
@@ -356,17 +420,19 @@ static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
             break;
         }
 
-        pa_stream_set_state_callback(pStream, drvHostPulseAudioCbStreamState, NULL);
+#ifdef PULSEAUDIO_ASYNC
+        pa_stream_set_write_callback(pStream, drvHostPulseAudioCbStreamReqWrite, pPAStream);
+#endif
+        pa_stream_set_underflow_callback(pStream, drvHostPulseAudioCbStreamUnderflow, pPAStream);
+        pa_stream_set_state_callback(pStream, drvHostPulseAudioCbStreamState, pPAStream);
 
 #if PA_API_VERSION >= 12
         /* XXX */
         flags |= PA_STREAM_ADJUST_LATENCY;
 #endif
-
-#if 0
-        /* Not applicable as we don't use pa_stream_get_latency() and pa_stream_get_time(). */
+        /* For using pa_stream_get_latency() and pa_stream_get_time(). */
         flags |= PA_STREAM_INTERPOLATE_TIMING | PA_STREAM_AUTO_TIMING_UPDATE;
-#endif
+
         /* No input/output right away after the stream was started. */
         flags |= PA_STREAM_START_CORKED;
 
@@ -447,7 +513,7 @@ static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
             pa_stream_unref(pStream);
     }
     else
-        *ppStream = pStream;
+        pPAStream->pStream = pStream;
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -458,6 +524,11 @@ static DECLCALLBACK(int) drvHostPulseAudioInit(PPDMIHOSTAUDIO pInterface)
     NOREF(pInterface);
 
     LogFlowFuncEnter();
+
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "paCaptureIn.pcm");
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "paPlayOut.pcm");
+#endif
 
     int rc = audioLoadPulseLib();
     if (RT_FAILURE(rc))
@@ -577,19 +648,19 @@ static DECLCALLBACK(int) drvHostPulseAudioInitOut(PPDMIHOSTAUDIO pInterface,
     pThisStrmOut->SampleSpec.rate     = pCfgReq->uHz;
     pThisStrmOut->SampleSpec.channels = pCfgReq->cChannels;
 
+    pThisStrmOut->curLatencyUs        = 100 * 1000; /** 100ms latency by default. @todo Make this configurable. */
+
+    pThisStrmOut->BufAttr.tlength     = pa_usec_to_bytes(pThisStrmOut->curLatencyUs, &pThisStrmOut->SampleSpec);
     /* Note that setting maxlength to -1 does not work on PulseAudio servers
-     * older than 0.9.10. So use the suggested value of 3/2 of tlength */
-    pThisStrmOut->BufAttr.tlength     =   (pa_bytes_per_second(&pThisStrmOut->SampleSpec)
-                                        * s_pulseCfg.buffer_msecs_out) / 1000;
+     * older than 0.9.10. So use the suggested value of 3/2 of tlength. */
     pThisStrmOut->BufAttr.maxlength   = (pThisStrmOut->BufAttr.tlength * 3) / 2;
-    pThisStrmOut->BufAttr.prebuf      = -1; /* Same as tlength */
-    pThisStrmOut->BufAttr.minreq      = -1; /* Pulse should set something sensible for minreq on it's own */
+    pThisStrmOut->BufAttr.prebuf      = -1; /* Same as tlength. */
+    pThisStrmOut->BufAttr.minreq      = pa_usec_to_bytes(0, &pThisStrmOut->SampleSpec);
 
     /* Note that the struct BufAttr is updated to the obtained values after this call! */
     char achName[64];
     RTStrPrintf(achName, sizeof(achName), "%.32s (out)", pDrv->pszStreamName);
-    int rc = drvHostPulseAudioOpen(false /* fIn */, achName, &pThisStrmOut->SampleSpec, &pThisStrmOut->BufAttr,
-                                   &pThisStrmOut->pStream);
+    int rc = drvHostPulseAudioOpen(false /* fIn */, achName, pThisStrmOut);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -673,8 +744,7 @@ static DECLCALLBACK(int) drvHostPulseAudioInitIn(PPDMIHOSTAUDIO pInterface,
 
     char achName[64];
     RTStrPrintf(achName, sizeof(achName), "%.32s (in)", pDrv->pszStreamName);
-    int rc = drvHostPulseAudioOpen(true /* fIn */, achName, &pThisStrmIn->SampleSpec, &pThisStrmIn->BufAttr,
-                                   &pThisStrmIn->pStream);
+    int rc = drvHostPulseAudioOpen(true /* fIn */, achName, pThisStrmIn);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -742,12 +812,14 @@ static DECLCALLBACK(int) drvHostPulseAudioCaptureIn(PPDMIHOSTAUDIO pInterface, P
     }
 
     int rc = VINF_SUCCESS;
-    size_t cbToRead = RT_MIN(cbAvail, AudioMixBufFreeBytes(&pHstStrmIn->MixBuf));
 
-    LogFlowFunc(("cbToRead=%zu, cbAvail=%zu, offPeekBuf=%zu, cbPeekBuf=%zu\n",
-                 cbToRead, cbAvail, pThisStrmIn->offPeekBuf, pThisStrmIn->cbPeekBuf));
+    LogFlowFunc(("cbAvail=%zu, offPeekBuf=%zu, cbPeekBuf=%zu\n",
+                 cbAvail, pThisStrmIn->offPeekBuf, pThisStrmIn->cbPeekBuf));
 
-    uint32_t cWrittenTotal = 0;
+    uint32_t csCapturedTotal = 0;
+
+    AssertPtr(pThisStrmIn->In.pGstStrmIn);
+    size_t cbToRead = RT_MIN(cbAvail, AudioMixBufFreeBytes(&pThisStrmIn->In.pGstStrmIn->MixBuf));
 
     while (cbToRead)
     {
@@ -774,25 +846,39 @@ static DECLCALLBACK(int) drvHostPulseAudioCaptureIn(PPDMIHOSTAUDIO pInterface, P
         Assert(pThisStrmIn->cbPeekBuf >= pThisStrmIn->offPeekBuf);
         size_t cbToWrite = RT_MIN(pThisStrmIn->cbPeekBuf - pThisStrmIn->offPeekBuf, cbToRead);
 
-        LogFlowFunc(("cbToRead=%zu, cbToWrite=%zu, offPeekBuf=%zu, cbPeekBuf=%zu, pu8PeekBuf=%p\n",
-                     cbToRead, cbToWrite,
-                     pThisStrmIn->offPeekBuf, pThisStrmIn->cbPeekBuf, pThisStrmIn->pu8PeekBuf));
+        LogFlowFunc(("cbToRead=%zu, cbToWrite=%zu, offPeekBuf=%zu, cbPeekBuf=%zu\n",
+                     cbToRead, cbToWrite, pThisStrmIn->offPeekBuf, pThisStrmIn->cbPeekBuf));
 
         if (cbToWrite)
         {
-            uint32_t cWritten;
-            rc = AudioMixBufWriteCirc(&pHstStrmIn->MixBuf,
-                                      pThisStrmIn->pu8PeekBuf + pThisStrmIn->offPeekBuf,
-                                      cbToWrite, &cWritten);
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+            RTFILE fh;
+            RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "paCaptureIn.pcm",
+                       RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            RTFileWrite(fh, pThisStrmIn->pu8PeekBuf + pThisStrmIn->offPeekBuf, cbToWrite, NULL);
+            RTFileClose(fh);
+#endif
+            uint32_t csWritten;
+            rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, 0 /* Offset */,
+                                    pThisStrmIn->pu8PeekBuf + pThisStrmIn->offPeekBuf,
+                                    cbToWrite, &csWritten);
             if (RT_FAILURE(rc))
                 break;
 
-            uint32_t cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
+            uint32_t csMixed = 0;
+            rc = AudioMixBufMixToParentEx(&pHstStrmIn->MixBuf, 0 /* Offset */, csWritten, &csMixed);
+            if (RT_FAILURE(rc))
+                break;
+
+            const uint32_t cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, csWritten);
 
             Assert(cbToRead >= cbWritten);
             cbToRead -= cbWritten;
-            cWrittenTotal += cWritten;
             pThisStrmIn->offPeekBuf += cbWritten;
+
+            csCapturedTotal += csMixed;
+
+            LogFlowFunc(("csWritten=%RU32, csMixed=%RU32\n", csWritten, csMixed));
         }
 
         if (/* Nothing to write anymore? Drop the buffer. */
@@ -812,19 +898,11 @@ static DECLCALLBACK(int) drvHostPulseAudioCaptureIn(PPDMIHOSTAUDIO pInterface, P
 
     if (RT_SUCCESS(rc))
     {
-        uint32_t cProcessed = 0;
-        if (cWrittenTotal)
-            rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, cWrittenTotal,
-                                        &cProcessed);
-
         if (pcSamplesCaptured)
-            *pcSamplesCaptured = cWrittenTotal;
-
-        LogFlowFunc(("cWrittenTotal=%RU32 (%RU32 processed), rc=%Rrc\n",
-                     cWrittenTotal, cProcessed, rc));
+            *pcSamplesCaptured = csCapturedTotal;
     }
 
-    LogFlowFuncLeaveRC(rc);
+    LogFlowFunc(("csCapturedTotal=%RU32, rc=%Rrc\n", csCapturedTotal, rc));
     return rc;
 }
 
@@ -840,7 +918,7 @@ static DECLCALLBACK(int) drvHostPulseAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPD
     int rc = VINF_SUCCESS;
     uint32_t cbReadTotal = 0;
 
-    uint32_t cLive = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+    uint32_t cLive = AudioMixBufLive(&pHstStrmOut->MixBuf);
     if (!cLive)
     {
         LogFlowFunc(("%p: No live samples, skipping\n", pHstStrmOut));
@@ -872,13 +950,19 @@ static DECLCALLBACK(int) drvHostPulseAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPD
         {
             rc = AudioMixBufReadCirc(&pHstStrmOut->MixBuf, pThisStrmOut->pvPCMBuf,
                                      RT_MIN(cbToRead, pThisStrmOut->cbPCMBuf), &cRead);
-            if (   !cRead
-                || RT_FAILURE(rc))
-            {
+            if (RT_FAILURE(rc))
                 break;
-            }
 
+            AssertBreak(cRead);
             cbRead = AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cRead);
+
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+            RTFILE fh;
+            RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "paPlayOut.pcm",
+                       RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            RTFileWrite(fh, pThisStrmOut->pvPCMBuf, cbRead, NULL);
+            RTFileClose(fh);
+#endif
             if (pa_stream_write(pThisStrmOut->pStream, pThisStrmOut->pvPCMBuf, cbRead, NULL /* Cleanup callback */,
                                 0, PA_SEEK_RELATIVE) < 0)
             {
@@ -920,7 +1004,7 @@ static int drvHostPulseAudioError(PDRVHOSTPULSEAUDIO pThis, const char *szMsg)
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);
     AssertPtrReturn(szMsg, VERR_INVALID_POINTER);
 
-    if (pThis->cLogErrors++ < VBOX_PULSEAUDIO_MAX_LOG_REL_ERRORS)
+    if (pThis->cLogErrors++ < PULSEAUDIO_MAX_LOG_REL_ERRORS)
     {
         int rc2 = pa_context_errno(g_pContext);
         LogRel(("PulseAudio: %s: %s\n", szMsg, pa_strerror(rc2)));
@@ -1244,14 +1328,3 @@ const PDMDRVREG g_DrvHostPulseAudio =
     PDM_DRVREG_VERSION
 };
 
-#if 0 // unused
-static struct audio_option pulse_options[] =
-{
-    {"DAC_MS", AUD_OPT_INT, &s_pulseCfg.buffer_msecs_out,
-     "DAC period size in milliseconds", NULL, 0},
-    {"ADC_MS", AUD_OPT_INT, &s_pulseCfg.buffer_msecs_in,
-     "ADC period size in milliseconds", NULL, 0},
-
-    NULL
-};
-#endif

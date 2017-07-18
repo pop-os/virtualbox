@@ -516,6 +516,7 @@ BLDDIRS += $(foreach d,\
 	  archive/accessible),) \
 	$(if $(VBOX_WITH_QTGUI_V5),\
 	  archive/plugins/platforms \
+	  archive/plugins/xcbglintegrations \
 	  archive/legacy,) \
 	$(if $(VBOX_WITH_PYTHON),\
 	  archive/sdk/installer \

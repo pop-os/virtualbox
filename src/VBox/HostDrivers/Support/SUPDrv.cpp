@@ -198,6 +198,7 @@ static SUPFUNC g_aFunctions[] =
     { "SUPR0EnableVTx",                         (void *)(uintptr_t)SUPR0EnableVTx },
     { "SUPR0SuspendVTxOnCpu",                   (void *)(uintptr_t)SUPR0SuspendVTxOnCpu },
     { "SUPR0ResumeVTxOnCpu",                    (void *)(uintptr_t)SUPR0ResumeVTxOnCpu },
+    { "SUPR0GetCurrentGdtRw",                   (void *)(uintptr_t)SUPR0GetCurrentGdtRw },
     { "SUPR0GetKernelFeatures",                 (void *)(uintptr_t)SUPR0GetKernelFeatures },
     { "SUPR0GetPagingMode",                     (void *)(uintptr_t)SUPR0GetPagingMode },
     { "SUPR0GetSvmUsability",                   (void *)(uintptr_t)SUPR0GetSvmUsability },
@@ -216,6 +217,9 @@ static SUPFUNC g_aFunctions[] =
     { "SUPR0PageAllocEx",                       (void *)(uintptr_t)SUPR0PageAllocEx },
     { "SUPR0PageFree",                          (void *)(uintptr_t)SUPR0PageFree },
     { "SUPR0Printf",                            (void *)(uintptr_t)SUPR0Printf },
+    { "SUPR0GetSessionGVM",                     (void *)(uintptr_t)SUPR0GetSessionGVM },
+    { "SUPR0GetSessionVM",                      (void *)(uintptr_t)SUPR0GetSessionVM },
+    { "SUPR0SetSessionVM",                      (void *)(uintptr_t)SUPR0SetSessionVM },
     { "SUPR0TscDeltaMeasureBySetIndex",         (void *)(uintptr_t)SUPR0TscDeltaMeasureBySetIndex },
     { "SUPR0TracerDeregisterDrv",               (void *)(uintptr_t)SUPR0TracerDeregisterDrv },
     { "SUPR0TracerDeregisterImpl",              (void *)(uintptr_t)SUPR0TracerDeregisterImpl },
@@ -922,6 +926,18 @@ static void supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
     Log2(("release objects - done\n"));
 
     /*
+     * Make sure the associated VM pointers are NULL.
+     */
+    if (pSession->pSessionGVM || pSession->pSessionVM || pSession->pFastIoCtrlVM)
+    {
+        SUPR0Printf("supdrvCleanupSession: VM not disassociated! pSessionGVM=%p pSessionVM=%p pFastIoCtrlVM=%p\n",
+                    pSession->pSessionGVM, pSession->pSessionVM, pSession->pFastIoCtrlVM);
+        pSession->pSessionGVM   = NULL;
+        pSession->pSessionVM    = NULL;
+        pSession->pFastIoCtrlVM = NULL;
+    }
+
+    /*
      * Do tracer cleanups related to this session.
      */
     Log2(("release tracer stuff - start\n"));
@@ -1422,28 +1438,46 @@ static DECLCALLBACK(void) supdrvSessionObjHandleDelete(RTHANDLETABLE hHandleTabl
 int VBOXCALL supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
 {
     /*
-     * We check the two prereqs after doing this only to allow the compiler to optimize things better.
+     * Validate input and check that the VM has a session.
      */
-    if (RT_LIKELY(   RT_VALID_PTR(pSession)
-                  && pSession->pVM
-                  && pDevExt->pfnVMMR0EntryFast))
+    if (RT_LIKELY(RT_VALID_PTR(pSession)))
     {
-        switch (uIOCtl)
+        PVM  pVM  = pSession->pSessionVM;
+        PGVM pGVM = pSession->pSessionGVM;
+        if (RT_LIKELY(   pGVM != NULL
+                      && pVM  != NULL
+                      && pVM  == pSession->pFastIoCtrlVM))
         {
-            case SUP_IOCTL_FAST_DO_RAW_RUN:
-                pDevExt->pfnVMMR0EntryFast(pSession->pVM, idCpu, SUP_VMMR0_DO_RAW_RUN);
-                break;
-            case SUP_IOCTL_FAST_DO_HM_RUN:
-                pDevExt->pfnVMMR0EntryFast(pSession->pVM, idCpu, SUP_VMMR0_DO_HM_RUN);
-                break;
-            case SUP_IOCTL_FAST_DO_NOP:
-                pDevExt->pfnVMMR0EntryFast(pSession->pVM, idCpu, SUP_VMMR0_DO_NOP);
-                break;
-            default:
-                return VERR_INTERNAL_ERROR;
+            if (RT_LIKELY(pDevExt->pfnVMMR0EntryFast))
+            {
+                /*
+                 * Do the call.
+                 */
+                switch (uIOCtl)
+                {
+                    case SUP_IOCTL_FAST_DO_RAW_RUN:
+                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_RAW_RUN);
+                        break;
+                    case SUP_IOCTL_FAST_DO_HM_RUN:
+                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_HM_RUN);
+                        break;
+                    case SUP_IOCTL_FAST_DO_NOP:
+                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_NOP);
+                        break;
+                    default:
+                        return VERR_INTERNAL_ERROR;
+                }
+                return VINF_SUCCESS;
+            }
+
+            SUPR0Printf("supdrvIOCtlFast: pfnVMMR0EntryFast is NULL\n");
         }
-        return VINF_SUCCESS;
+        else
+            SUPR0Printf("supdrvIOCtlFast: Misconfig session: pGVM=%p pVM=%p pFastIoCtrlVM=%p\n",
+                        pGVM, pVM, pSession->pFastIoCtrlVM);
     }
+    else
+        SUPR0Printf("supdrvIOCtlFast: Bad session pointer %p\n", pSession);
     return VERR_INTERNAL_ERROR;
 }
 
@@ -1779,7 +1813,16 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
 
                 /* execute */
                 if (RT_LIKELY(pDevExt->pfnVMMR0EntryEx))
-                    pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pReq->u.In.pVMR0, pReq->u.In.idCpu, pReq->u.In.uOperation, NULL, pReq->u.In.u64Arg, pSession);
+                {
+                    if (pReq->u.In.pVMR0 == NULL)
+                        pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(NULL, NULL, pReq->u.In.idCpu,
+                                                                pReq->u.In.uOperation, NULL, pReq->u.In.u64Arg, pSession);
+                    else if (pReq->u.In.pVMR0 == pSession->pSessionVM)
+                        pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pSession->pSessionGVM, pSession->pSessionVM, pReq->u.In.idCpu,
+                                                                pReq->u.In.uOperation, NULL, pReq->u.In.u64Arg, pSession);
+                    else
+                        pReq->Hdr.rc = VERR_INVALID_VM_HANDLE;
+                }
                 else
                     pReq->Hdr.rc = VERR_WRONG_ORDER;
             }
@@ -1793,7 +1836,16 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
 
                 /* execute */
                 if (RT_LIKELY(pDevExt->pfnVMMR0EntryEx))
-                    pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pReq->u.In.pVMR0, pReq->u.In.idCpu, pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
+                {
+                    if (pReq->u.In.pVMR0 == NULL)
+                        pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(NULL, NULL, pReq->u.In.idCpu,
+                                                                pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
+                    else if (pReq->u.In.pVMR0 == pSession->pSessionVM)
+                        pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pSession->pSessionGVM, pSession->pSessionVM, pReq->u.In.idCpu,
+                                                                pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
+                    else
+                        pReq->Hdr.rc = VERR_INVALID_VM_HANDLE;
+                }
                 else
                     pReq->Hdr.rc = VERR_WRONG_ORDER;
             }
@@ -1825,7 +1877,15 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
 
             /* execute */
             if (RT_LIKELY(pDevExt->pfnVMMR0EntryEx))
-                pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pReq->u.In.pVMR0, pReq->u.In.idCpu, pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
+            {
+                if (pReq->u.In.pVMR0 == NULL)
+                    pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(NULL, NULL, pReq->u.In.idCpu, pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
+                else if (pReq->u.In.pVMR0 == pSession->pSessionVM)
+                    pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pSession->pSessionGVM, pSession->pSessionVM, pReq->u.In.idCpu,
+                                                            pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
+                else
+                    pReq->Hdr.rc = VERR_INVALID_VM_HANDLE;
+            }
             else
                 pReq->Hdr.rc = VERR_WRONG_ORDER;
 
@@ -1910,9 +1970,32 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
                                ||   (   VALID_PTR(pReq->u.In.pVMR0)
                                      && !((uintptr_t)pReq->u.In.pVMR0 & (PAGE_SIZE - 1))),
                                ("SUP_IOCTL_SET_VM_FOR_FAST: pVMR0=%p!\n", pReq->u.In.pVMR0));
+
             /* execute */
-            pSession->pVM = pReq->u.In.pVMR0;
-            pReq->Hdr.rc = VINF_SUCCESS;
+            RTSpinlockAcquire(pDevExt->Spinlock);
+            if (pSession->pSessionVM == pReq->u.In.pVMR0)
+            {
+                if (pSession->pFastIoCtrlVM == NULL)
+                {
+                    pSession->pFastIoCtrlVM = pSession->pSessionVM;
+                    RTSpinlockRelease(pDevExt->Spinlock);
+                    pReq->Hdr.rc = VINF_SUCCESS;
+                }
+                else
+                {
+                    RTSpinlockRelease(pDevExt->Spinlock);
+                    OSDBGPRINT(("SUP_IOCTL_SET_VM_FOR_FAST: pSession->pFastIoCtrlVM=%p! (pVMR0=%p)\n",
+                                pSession->pFastIoCtrlVM, pReq->u.In.pVMR0));
+                    pReq->Hdr.rc = VERR_ALREADY_EXISTS;
+                }
+            }
+            else
+            {
+                RTSpinlockRelease(pDevExt->Spinlock);
+                OSDBGPRINT(("SUP_IOCTL_SET_VM_FOR_FAST: pSession->pSessionVM=%p vs pVMR0=%p)\n",
+                            pSession->pSessionVM, pReq->u.In.pVMR0));
+                pReq->Hdr.rc = pSession->pSessionVM ? VERR_ACCESS_DENIED : VERR_WRONG_ORDER;
+            }
             return 0;
         }
 
@@ -2301,6 +2384,19 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             return 0;
         }
 
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_UCODE_REV):
+        {
+            /* validate */
+            PSUPUCODEREV pReq = (PSUPUCODEREV)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_UCODE_REV);
+    
+            /* execute */
+            pReq->Hdr.rc = SUPR0QueryUcodeRev(pSession, &pReq->u.Out.MicrocodeRev);
+            if (RT_FAILURE(pReq->Hdr.rc))
+                pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            return 0;
+        }
+    
         default:
             Log(("Unknown IOCTL %#lx\n", (long)uIOCtl));
             break;
@@ -2994,6 +3090,83 @@ SUPR0DECL(int) SUPR0ObjVerifyAccess(void *pvObj, PSUPDRVSESSION pSession, const 
     if (pObj->CreatorUid == pSession->Uid)
         return VINF_SUCCESS;
     return VERR_PERMISSION_DENIED;
+}
+
+
+/**
+ * API for the VMMR0 module to get the SUPDRVSESSION::pSessionVM member.
+ *
+ * @returns The associated VM pointer.
+ * @param   pSession    The session of the current thread.
+ */
+SUPR0DECL(PVM) SUPR0GetSessionVM(PSUPDRVSESSION pSession)
+{
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), NULL);
+    return pSession->pSessionVM;
+}
+
+
+/**
+ * API for the VMMR0 module to get the SUPDRVSESSION::pSessionGVM member.
+ *
+ * @returns The associated GVM pointer.
+ * @param   pSession    The session of the current thread.
+ */
+SUPR0DECL(PGVM) SUPR0GetSessionGVM(PSUPDRVSESSION pSession)
+{
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), NULL);
+    return pSession->pSessionGVM;
+}
+
+
+/**
+ * API for the VMMR0 module to work the SUPDRVSESSION::pSessionVM member.
+ *
+ * This will fail if there is already a VM associated with the session and pVM
+ * isn't NULL.
+ *
+ * @retval  VINF_SUCCESS
+ * @retval  VERR_ALREADY_EXISTS if there already is a VM associated with the
+ *          session.
+ * @retval  VERR_INVALID_PARAMETER if only one of the parameters are NULL or if
+ *          the session is invalid.
+ *
+ * @param   pSession    The session of the current thread.
+ * @param   pGVM        The GVM to associate with the session.  Pass NULL to
+ *                      dissassociate.
+ * @param   pVM         The VM to associate with the session.  Pass NULL to
+ *                      dissassociate.
+ */
+SUPR0DECL(int) SUPR0SetSessionVM(PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM)
+{
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    AssertReturn((pGVM != NULL) == (pVM != NULL), VERR_INVALID_PARAMETER);
+
+    RTSpinlockAcquire(pSession->pDevExt->Spinlock);
+    if (pGVM)
+    {
+        if (!pSession->pSessionGVM)
+        {
+            pSession->pSessionGVM   = pGVM;
+            pSession->pSessionVM    = pVM;
+            pSession->pFastIoCtrlVM = NULL;
+        }
+        else
+        {
+            RTSpinlockRelease(pSession->pDevExt->Spinlock);
+            SUPR0Printf("SUPR0SetSessionVM: Unable to associated GVM/VM %p/%p with session %p as it has %p/%p already!\n",
+                        pGVM, pVM, pSession, pSession->pSessionGVM, pSession->pSessionVM);
+            return VERR_ALREADY_EXISTS;
+        }
+    }
+    else
+    {
+        pSession->pSessionGVM   = NULL;
+        pSession->pSessionVM    = NULL;
+        pSession->pFastIoCtrlVM = NULL;
+    }
+    RTSpinlockRelease(pSession->pDevExt->Spinlock);
+    return VINF_SUCCESS;
 }
 
 
@@ -3876,6 +4049,17 @@ SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended)
 }
 
 
+SUPR0DECL(int) SUPR0GetCurrentGdtRw(RTHCUINTPTR *pGdtRw)
+{
+#ifdef RT_OS_LINUX
+    return supdrvOSGetCurrentGdtRw(pGdtRw);
+#else
+    NOREF(pGdtRw);
+    return VERR_NOT_IMPLEMENTED;
+#endif
+}
+
+
 /**
  * Checks if Intel VT-x feature is usable on this CPU.
  *
@@ -4188,6 +4372,97 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
      * Call common worker.
      */
     return supdrvQueryVTCapsInternal(pfCaps);
+}
+
+
+/**
+ * Queries the CPU microcode revision.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_UNSUPPORTED_CPU if not identifiable as a processor with
+ *          readable microcode rev.
+ *
+ * @param   puRevision      Where to store the microcode revision.
+ */
+int VBOXCALL supdrvQueryUcodeRev(uint32_t *puRevision)
+{
+    int  rc = VERR_UNSUPPORTED_CPU;
+    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
+
+    /*
+     * Input validation.
+     */
+    AssertPtrReturn(puRevision, VERR_INVALID_POINTER);
+
+    *puRevision = 0;
+
+    /* Disable preemption so we make sure we don't migrate CPUs, just in case. */
+    /* NB: We assume that there aren't mismatched microcode revs in the system. */
+    RTThreadPreemptDisable(&PreemptState);
+
+    if (ASMHasCpuId())
+    {
+        uint32_t uDummy, uTFMSEAX;
+        uint32_t uMaxId, uVendorEBX, uVendorECX, uVendorEDX;
+
+        ASMCpuId(0, &uMaxId, &uVendorEBX, &uVendorECX, &uVendorEDX);
+        ASMCpuId(1, &uTFMSEAX, &uDummy, &uDummy, &uDummy);
+
+        if (ASMIsValidStdRange(uMaxId))
+        {
+            uint64_t    uRevMsr;
+            if (ASMIsIntelCpuEx(uVendorEBX, uVendorECX, uVendorEDX))
+            {
+                /* Architectural MSR available on Pentium Pro and later. */
+                if (ASMGetCpuFamily(uTFMSEAX) >= 6)
+                {
+                    /* Revision is in the high dword. */
+                    uRevMsr = ASMRdMsr(MSR_IA32_BIOS_SIGN_ID);
+                    *puRevision = RT_HIDWORD(uRevMsr);
+                    rc = VINF_SUCCESS;
+                }
+            } 
+            else if (ASMIsAmdCpuEx(uVendorEBX, uVendorECX, uVendorEDX))
+            {
+                /* Not well documented, but at least all AMD64 CPUs support this. */
+                if (ASMGetCpuFamily(uTFMSEAX) >= 15)
+                {
+                    /* Revision is in the low dword. */
+                    uRevMsr = ASMRdMsr(MSR_IA32_BIOS_SIGN_ID);  /* Same MSR as Intel. */
+                    *puRevision = RT_LODWORD(uRevMsr);
+                    rc = VINF_SUCCESS;
+                }
+            }
+        }
+    }
+
+    RTThreadPreemptRestore(&PreemptState);
+
+    return rc;
+}
+
+/**
+ * Queries the CPU microcode revision.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_UNSUPPORTED_CPU if not identifiable as a processor with
+ *          readable microcode rev.
+ *
+ * @param   pSession        The session handle.
+ * @param   puRevision      Where to store the microcode revision.
+ */
+SUPR0DECL(int) SUPR0QueryUcodeRev(PSUPDRVSESSION pSession, uint32_t *puRevision)
+{
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(puRevision, VERR_INVALID_POINTER);
+
+    /*
+     * Call common worker.
+     */
+    return supdrvQueryUcodeRev(puRevision);
 }
 
 

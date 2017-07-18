@@ -54,9 +54,10 @@ endif
 #ifdef VBOX_WITH_IEM
 # VMM_COMMON_DEFS += VBOX_WITH_IEM
 #endif
-ifdef VBOX_WITH_REM
- VMM_COMMON_DEFS += VBOX_WITH_REM
-endif
+# part of global DEFS
+#ifdef VBOX_WITH_REM
+# VMM_COMMON_DEFS += VBOX_WITH_REM
+#endif
 ifdef VBOX_WITH_MULTI_CORE
  VMM_COMMON_DEFS += VBOX_WITH_MULTI_CORE
 endif
@@ -359,7 +360,12 @@ $$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h.ts \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructions.cpp.h \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsOneByte.cpp.h \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsTwoByte0f.cpp.h \
-		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsVexMap1.cpp.h
+		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsThree0f38.cpp.h \
+		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsThree0f3a.cpp.h \
+		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsVexMap1.cpp.h \
+		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsVexMap2.cpp.h \
+		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsVexMap3.cpp.h \
+		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructions3DNow.cpp.h
 	$(QUIET)$(call MSG_GENERATE,VBoxVMM,$@,$<)
 	$(QUIET)$(RM) -f -- "$@.tmp" "$@.tmp" "$@.sorted"
 	$(QUIET)$(MKDIR) -p -- "$(dir $@)"

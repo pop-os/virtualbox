@@ -1837,6 +1837,7 @@ RuntimeR3NoCRTGCC_SOURCES.x86 = \
 	common/math/gcc/subdi3.c \
 	common/math/gcc/ucmpdi2.c \
 	common/math/gcc/udivdi3.c \
+	common/math/gcc/udivmoddi4.c \
 	common/math/gcc/umoddi3.c \
 	common/math/gcc/xordi3.c
 
@@ -1929,6 +1930,7 @@ RuntimeR0_SOURCES += \
 	common/math/gcc/subdi3.c \
 	common/math/gcc/ucmpdi2.c \
 	common/math/gcc/udivdi3.c \
+	common/math/gcc/udivmoddi4.c \
 	common/math/gcc/umoddi3.c \
 	common/math/gcc/xordi3.c
 endif
@@ -2076,6 +2078,7 @@ RuntimeR0Drv_SOURCES    = \
 	common/string/RTStrNLen.cpp \
 	common/string/RTStrNLenEx.cpp \
 	common/string/RTUtf16ICmpAscii.cpp \
+	common/string/RTUtf16NICmpAscii.cpp \
 	common/string/straprintf.cpp \
 	common/string/strformat.cpp \
 	common/string/strformatnum.cpp \
@@ -2660,6 +2663,7 @@ ifdef VBOX_WITH_RAW_MODE
  	common/math/gcc/subdi3.c \
  	common/math/gcc/ucmpdi2.c \
  	common/math/gcc/udivdi3.c \
+	common/math/gcc/udivmoddi4.c \
  	common/math/gcc/umoddi3.c \
  	common/math/gcc/xordi3.c
  endif

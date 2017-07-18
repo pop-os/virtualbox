@@ -1258,6 +1258,7 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
             break;
         case DBGCVAR_TYPE_GC_PHYS:
             hDbgAs = DBGF_AS_PHYS;
+            /* fall thru */
         case DBGCVAR_TYPE_HC_FLAT:
         case DBGCVAR_TYPE_HC_PHYS:
         {

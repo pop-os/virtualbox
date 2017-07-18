@@ -1,10 +1,10 @@
-/* $Id: DevIchHdaCodec.h $ */
+/* $Id: HDACodec.h $ */
 /** @file
- * DevIchHdaCodec - VBox ICH Intel HD Audio Codec.
+ * HDACodec.h - VBox ICH Intel HD Audio Codec.
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -131,7 +131,12 @@ int hdaCodecSaveState(PHDACODEC pThis, PSSMHANDLE pSSM);
 int hdaCodecLoadState(PHDACODEC pThis, PSSMHANDLE pSSM, uint32_t uVersion);
 int hdaCodecOpenStream(PHDACODEC pThis, ENMSOUNDSOURCE enmSoundSource, PPDMAUDIOSTREAMCFG pCfg);
 
-#define HDA_SSM_VERSION   6
+/** Added (Controller): Base time stamp for correctly handling the WALCLK register on resume.
+  * Added (Streams):    Ring buffer. This is optional and can be skipped if (not) needed.
+  * Added (Streams):    Struct aSSMStreamStateFields7. */
+#define HDA_SSM_VERSION   7
+/** Saves the current BDLE state. */
+#define HDA_SSM_VERSION_6 6
 /** Introduced dynamic number of streams + stream identifiers for serialization.
  *  Bug: Did not save the BDLE states correctly.
  *  Those will be skipped on load then. */

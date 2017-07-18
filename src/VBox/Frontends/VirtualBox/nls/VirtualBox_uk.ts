@@ -3941,7 +3941,7 @@ p, li { white-space: pre-wrap; }
         <translation>Адреса IPv6</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Відрізок маски мережі IPv6</translation>
     </message>
     <message>
@@ -4183,7 +4183,7 @@ p, li { white-space: pre-wrap; }
         <translation>Змінює вибрану віртуальну мережу хосту.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4230,11 +4230,11 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Показує головну адресу IPv6 для цього адаптера, якщо IPv6 підтримується.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">&amp;Відрізок маски мережі IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Показує відрізок головної маски мережі IPv6 для цього адаптера, якщо IPv6 підтримується.</translation>
     </message>
     <message>
@@ -4325,11 +4325,11 @@ p, li { white-space: pre-wrap; }
         <translation>Показує головну адресу IPv6 для цього адаптера, якщо IPv6 підтримується.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>&amp;Відрізок маски мережі IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Показує відрізок головної маски мережі IPv6 для цього адаптера, якщо IPv6 підтримується.</translation>
     </message>
     <message>

@@ -271,7 +271,7 @@ bool UIItemNetworkHost::validate(UIValidationMessage &message)
                 || iMaskPrefixLength < 0
                 || iMaskPrefixLength > 128)
             {
-                message.second << UIGlobalSettingsNetwork::tr("Host interface <b>%1</b> does not currently have a valid IPv6 network mask prefix length.").arg(text(0));
+                message.second << UIGlobalSettingsNetwork::tr("Host interface <b>%1</b> does not currently have a valid IPv6 prefix length.").arg(text(0));
                 fPass = false;
             }
         }
@@ -339,7 +339,7 @@ void UIItemNetworkHost::updateInfo()
                                       .arg(m_data.m_interface.m_strInterfaceAddress6.isEmpty() ?
                                            UIGlobalSettingsNetwork::tr("Not set", "address") :
                                            m_data.m_interface.m_strInterfaceAddress6) +
-                          strSubHeader.arg(UIGlobalSettingsNetwork::tr("IPv6 Network Mask Length"))
+                          strSubHeader.arg(UIGlobalSettingsNetwork::tr("IPv6 Prefix Length"))
                                       .arg(m_data.m_interface.m_strInterfaceMaskLength6.isEmpty() ?
                                            UIGlobalSettingsNetwork::tr("Not set", "length") :
                                            m_data.m_interface.m_strInterfaceMaskLength6);
@@ -1134,7 +1134,7 @@ void UIGlobalSettingsNetwork::saveCacheItemNetworkHost(const UIDataSettingsGloba
             bool fIsMaskPrefixLengthNumber = false;
             const int iMaskPrefixLength = data.m_interface.m_strInterfaceMaskLength6.trimmed().toInt(&fIsMaskPrefixLengthNumber);
             AssertMsg(fIsMaskPrefixLengthNumber && iMaskPrefixLength >= 0 && iMaskPrefixLength <= 128,
-                      ("Interface IPv6 network mask prefix length must be empty or IPv6-valid!\n"));
+                      ("Interface IPv6 prefix length must be empty or IPv6-valid!\n"));
             if (   (   data.m_interface.m_strInterfaceAddress6.trimmed().isEmpty()
                     || RTNetIsIPv6AddrStr(data.m_interface.m_strInterfaceAddress6.toUtf8().constData()))
                 && (   fIsMaskPrefixLengthNumber
