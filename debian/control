@@ -90,6 +90,7 @@ Description: x86 virtualization solution - Qt based user interface
 Package: virtualbox
 Architecture: amd64 i386
 Depends: adduser,
+         iproute2,
          procps,
          virtualbox-dkms (>= ${source:Version}) | virtualbox-source (>= ${source:Version}) | virtualbox-modules,
          ${misc:Depends},
