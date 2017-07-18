@@ -1967,6 +1967,10 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
            << GUI_MachineWindowIcons << GUI_MachineWindowNamePostfix
 #endif /* !VBOX_WS_MAC */
            << GUI_LastNormalWindowPosition << GUI_LastScaleWindowPosition
+#ifndef VBOX_WS_MAC
+           << GUI_MenuBar_Enabled
+#endif
+           << GUI_MenuBar_ContextMenu_Enabled
            << GUI_RestrictedRuntimeMenus
            << GUI_RestrictedRuntimeApplicationMenuActions
            << GUI_RestrictedRuntimeMachineMenuActions
@@ -1997,7 +2001,7 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
 #ifndef VBOX_WS_MAC
            << GUI_ShowMiniToolBar << GUI_MiniToolBarAutoHide << GUI_MiniToolBarAlignment
 #endif /* !VBOX_WS_MAC */
-           << GUI_StatusBar_Enabled << GUI_RestrictedStatusBarIndicators << GUI_StatusBar_IndicatorOrder
+           << GUI_StatusBar_Enabled << GUI_StatusBar_ContextMenu_Enabled << GUI_RestrictedStatusBarIndicators << GUI_StatusBar_IndicatorOrder
 #ifdef VBOX_WS_MAC
            << GUI_RealtimeDockIconUpdateEnabled << GUI_RealtimeDockIconUpdateMonitor << GUI_DockIconDisableOverlay
 #endif /* VBOX_WS_MAC */
@@ -2771,6 +2775,18 @@ void UIExtraDataManager::setMenuBarEnabled(bool fEnabled, const QString &strID)
 }
 #endif /* !VBOX_WS_MAC */
 
+bool UIExtraDataManager::menuBarContextMenuEnabled(const QString &strID)
+{
+    /* 'True' unless feature restricted: */
+    return !isFeatureRestricted(GUI_MenuBar_ContextMenu_Enabled, strID);
+}
+
+void UIExtraDataManager::setMenuBarContextMenuEnabled(bool fEnabled, const QString &strID)
+{
+    /* 'False' if feature restricted, null-string otherwise: */
+    setExtraDataString(GUI_MenuBar_ContextMenu_Enabled, toFeatureRestricted(!fEnabled), strID);
+}
+
 UIExtraDataMetaDefs::MenuType UIExtraDataManager::restrictedRuntimeMenuTypes(const QString &strID)
 {
     /* Prepare result: */
@@ -3477,6 +3493,18 @@ void UIExtraDataManager::setStatusBarEnabled(bool fEnabled, const QString &strID
 {
     /* 'False' if feature restricted, null-string otherwise: */
     setExtraDataString(GUI_StatusBar_Enabled, toFeatureRestricted(!fEnabled), strID);
+}
+
+bool UIExtraDataManager::statusBarContextMenuEnabled(const QString &strID)
+{
+    /* 'True' unless feature restricted: */
+    return !isFeatureRestricted(GUI_StatusBar_ContextMenu_Enabled, strID);
+}
+
+void UIExtraDataManager::setStatusBarContextMenuEnabled(bool fEnabled, const QString &strID)
+{
+    /* 'False' if feature restricted, null-string otherwise: */
+    setExtraDataString(GUI_StatusBar_ContextMenu_Enabled, toFeatureRestricted(!fEnabled), strID);
 }
 
 QList<IndicatorType> UIExtraDataManager::restrictedStatusBarIndicators(const QString &strID)

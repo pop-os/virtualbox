@@ -60,7 +60,7 @@
 #include "DrvAudio.h"
 #include "AudioMixBuffer.h"
 
-bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg);
+bool drvAudioPCMPropsAreEqual(PPDMAUDIOPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg);
 
 const char *drvAudioRecSourceToString(PDMAUDIORECSOURCE enmRecSource)
 {
@@ -269,7 +269,7 @@ uint32_t drvAudioGstOutGetFreeBytes(PPDMAUDIOGSTSTRMOUT pGstStrmOut)
 }
 #endif
 
-bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
+bool drvAudioPCMPropsAreEqual(PPDMAUDIOPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
 {
     int cBits = 8;
     bool fSigned = false;
@@ -278,17 +278,20 @@ bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
     {
         case AUD_FMT_S8:
             fSigned = true;
+            /* fall thru */
         case AUD_FMT_U8:
             break;
 
         case AUD_FMT_S16:
             fSigned = true;
+            /* fall thru */
         case AUD_FMT_U16:
             cBits = 16;
             break;
 
         case AUD_FMT_S32:
             fSigned = true;
+            /* fall thru */
         case AUD_FMT_U32:
             cBits = 32;
             break;
@@ -309,13 +312,55 @@ bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
 }
 
 /**
+ * Checks whether given PCM properties are valid or not.
+ *
+ * Returns @c true if properties are valid, @c false if not.
+ * @param   pProps              PCM properties to check.
+ *
+ * @remarks Does *not* support surround (> 2 channels) yet! This is intentional, as
+ *          we consider surround support as experimental / not enabled by default for now.
+ */
+bool DrvAudioHlpPCMPropsAreValid(const PPDMAUDIOPCMPROPS pProps)
+{
+    AssertPtrReturn(pProps, false);
+
+    bool fValid = (   pProps->cChannels == 1
+                   || pProps->cChannels == 2); /* Either stereo (2) or mono (1), per stream. */
+
+    if (fValid)
+    {
+        switch (pProps->cBits)
+        {
+            case 8:
+            case 16:
+            /** @todo Do we need support for 24-bit samples? */
+            case 32:
+                break;
+            default:
+                fValid = false;
+                break;
+        }
+    }
+
+    if (!fValid)
+        return false;
+
+    fValid &= pProps->uHz > 0;
+    fValid &= pProps->cShift == PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(pProps->cBits, pProps->cChannels);
+
+    fValid &= pProps->fSwapEndian == false; /** @todo Handling Big Endian audio data is not supported yet. */
+
+    return fValid;
+}
+
+/**
  * Converts an audio stream configuration to matching PCM properties.
  *
  * @return  IPRT status code.
  * @param   pCfg                    Audio stream configuration to convert.
  * @param   pProps                  PCM properties to save result to.
  */
-int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
+int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOPCMPROPS pProps)
 {
     AssertPtrReturn(pCfg,   VERR_INVALID_POINTER);
     AssertPtrReturn(pProps, VERR_INVALID_POINTER);
@@ -329,11 +374,13 @@ int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
     {
         case AUD_FMT_S8:
             fSigned = true;
+            /* fall thru */
         case AUD_FMT_U8:
             break;
 
         case AUD_FMT_S16:
             fSigned = true;
+            /* fall thru */
         case AUD_FMT_U16:
             cBits = 16;
             cShift = 1;
@@ -341,6 +388,7 @@ int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps)
 
         case AUD_FMT_S32:
             fSigned = true;
+            /* fall thru */
         case AUD_FMT_U32:
             cBits = 32;
             cShift = 2;
@@ -410,4 +458,112 @@ void drvAudioStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg)
             LogFlow(("invalid\n"));
             break;
     }
+}
+
+/**
+* Sanitizes the file name component so that unsupported characters
+* will be replaced by an underscore ("_").
+*
+* @return  IPRT status code.
+* @param   pszPath             Path to sanitize.
+* @param   cbPath              Size (in bytes) of path to sanitize.
+*/
+int DrvAudioHlpSanitizeFileName(char *pszPath, size_t cbPath)
+{
+    RT_NOREF(cbPath);
+    int rc = VINF_SUCCESS;
+#ifdef RT_OS_WINDOWS
+    /* Filter out characters not allowed on Windows platforms, put in by
+    RTTimeSpecToString(). */
+    /** @todo Use something like RTPathSanitize() if available later some time. */
+    static RTUNICP const s_uszValidRangePairs[] =
+    {
+        ' ', ' ',
+        '(', ')',
+        '-', '.',
+        '0', '9',
+        'A', 'Z',
+        'a', 'z',
+        '_', '_',
+        0xa0, 0xd7af,
+        '\0'
+    };
+    ssize_t cReplaced = RTStrPurgeComplementSet(pszPath, s_uszValidRangePairs, '_' /* Replacement */);
+    if (cReplaced < 0)
+        rc = VERR_INVALID_UTF8_ENCODING;
+#else
+    RT_NOREF(pszPath);
+#endif
+    return rc;
+}
+
+/**
+* Constructs an unique file name, based on the given path and the audio file type.
+*
+* @returns IPRT status code.
+* @param   pszFile             Where to store the constructed file name.
+* @param   cchFile             Size (in characters) of the file name buffer.
+* @param   pszPath             Base path to use.
+* @param   pszName             A name for better identifying the file. Optional.
+*/
+int DrvAudioHlpGetFileName(char *pszFile, size_t cchFile, const char *pszPath, const char *pszName)
+{
+    AssertPtrReturn(pszFile, VERR_INVALID_POINTER);
+    AssertReturn(cchFile, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
+    int rc;
+
+    do
+    {
+        char szFilePath[RTPATH_MAX];
+        RTStrPrintf(szFilePath, sizeof(szFilePath), "%s", pszPath);
+
+        /* Create it when necessary. */
+        if (!RTDirExists(szFilePath))
+        {
+            rc = RTDirCreateFullPath(szFilePath, RTFS_UNIX_IRWXU);
+            if (RT_FAILURE(rc))
+                break;
+        }
+
+        /* The actually drop directory consist of the current time stamp and a
+        * unique number when necessary. */
+        char pszTime[64];
+        RTTIMESPEC time;
+        if (!RTTimeSpecToString(RTTimeNow(&time), pszTime, sizeof(pszTime)))
+        {
+            rc = VERR_BUFFER_OVERFLOW;
+            break;
+        }
+
+        rc = DrvAudioHlpSanitizeFileName(pszTime, sizeof(pszTime));
+        if (RT_FAILURE(rc))
+            break;
+
+        rc = RTPathAppend(szFilePath, sizeof(szFilePath), pszTime);
+        if (RT_FAILURE(rc))
+            break;
+
+        if (pszName) /* Optional name given? */
+        {
+            rc = RTStrCat(szFilePath, sizeof(szFilePath), "-");
+            if (RT_FAILURE(rc))
+                break;
+
+            rc = RTStrCat(szFilePath, sizeof(szFilePath), pszName);
+            if (RT_FAILURE(rc))
+                break;
+        }
+
+        rc = RTStrCat(szFilePath, sizeof(szFilePath), ".wav");
+
+        if (RT_FAILURE(rc))
+            break;
+
+        RTStrPrintf(pszFile, cchFile, "%s", szFilePath);
+
+    } while (0);
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
 }

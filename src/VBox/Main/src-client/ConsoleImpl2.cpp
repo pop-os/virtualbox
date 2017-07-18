@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1079,6 +1079,20 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             }
         }
 
+        /* Sanitize valid/useful APIC combinations, see @bugref{8868}. */
+        if (!fEnableAPIC)
+        {
+            if (fIsGuest64Bit)
+                return VMR3SetError(pUVM, VERR_INVALID_PARAMETER, RT_SRC_POS, N_("Cannot disable the APIC for a 64-bit guest."));
+            if (cCpus > 1)
+                return VMR3SetError(pUVM, VERR_INVALID_PARAMETER, RT_SRC_POS, N_("Cannot disable the APIC for an SMP guest."));
+            if (fIOAPIC)
+            {
+                return VMR3SetError(pUVM, VERR_INVALID_PARAMETER, RT_SRC_POS,
+                                    N_("Cannot disable the APIC when the I/O APIC is present."));
+            }
+        }
+
         BOOL fHMEnabled;
         hrc = pMachine->GetHWVirtExProperty(HWVirtExPropertyType_Enabled, &fHMEnabled);     H();
         if (cCpus > 1 && !fHMEnabled)
@@ -1788,15 +1802,17 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigNode(pDev,     "0", &pInst);
             InsertConfigInteger(pInst, "Trusted", 1); /* boolean */
             InsertConfigNode(pInst,    "Config", &pCfg);
-            InsertConfigInteger(pCfg,  "NumCPUs",          cCpus);
-            InsertConfigString(pCfg,   "EfiRom",           efiRomFile);
-            InsertConfigString(pCfg,   "BootArgs",         bootArgs);
-            InsertConfigString(pCfg,   "DeviceProps",      deviceProps);
-            InsertConfigInteger(pCfg,  "IOAPIC",           fIOAPIC);
-            InsertConfigInteger(pCfg,  "APIC",             uFwAPIC);
+            InsertConfigInteger(pCfg,  "NumCPUs",     cCpus);
+            InsertConfigInteger(pCfg,  "McfgBase",    uMcfgBase);
+            InsertConfigInteger(pCfg,  "McfgLength",  cbMcfgLength);
+            InsertConfigString(pCfg,   "EfiRom",      efiRomFile);
+            InsertConfigString(pCfg,   "BootArgs",    bootArgs);
+            InsertConfigString(pCfg,   "DeviceProps", deviceProps);
+            InsertConfigInteger(pCfg,  "IOAPIC",      fIOAPIC);
+            InsertConfigInteger(pCfg,  "APIC",        uFwAPIC);
             InsertConfigBytes(pCfg,    "UUID", &HardwareUuid,sizeof(HardwareUuid));
-            InsertConfigInteger(pCfg,  "64BitEntry", f64BitEntry); /* boolean */
-            InsertConfigInteger(pCfg,  "GopMode", u32GopMode);
+            InsertConfigInteger(pCfg,  "64BitEntry",  f64BitEntry); /* boolean */
+            InsertConfigInteger(pCfg,  "GopMode",     u32GopMode);
             InsertConfigInteger(pCfg,  "UgaHorizontalResolution", u32UgaHorizontal);
             InsertConfigInteger(pCfg,  "UgaVerticalResolution", u32UgaVertical);
 
@@ -2947,17 +2963,21 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigInteger(pCfg, "ObjectVRDPServer", (uintptr_t)mConsoleVRDPServer);
 #endif
 
-#ifdef VBOX_WITH_AUDIO_DEBUG
+#ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
+            /*
+            * The ValidationKit backend driver.
+            */
             InsertConfigNode(pInst, "LUN#2", &pLunL1);
             InsertConfigString(pLunL1, "Driver", "AUDIO");
 
             InsertConfigNode(pLunL1, "AttachedDriver", &pLunL1);
-            InsertConfigString(pLunL1, "Driver", "DebugAudio");
+            InsertConfigString(pLunL1, "Driver", "ValidationKitAudio");
 
             InsertConfigNode(pLunL1, "Config", &pCfg);
-            InsertConfigString(pCfg, "AudioDriver", "DebugAudio");
+            InsertConfigString(pCfg, "AudioDriver", "ValidationKitAudio");
             InsertConfigString(pCfg, "StreamName", bstr);
-#endif
+#endif /* VBOX_WITH_AUDIO_VALIDATIONKIT */
+
             /** @todo Add audio video recording driver here. */
         }
 
@@ -5644,7 +5664,7 @@ int Console::i_configNetwork(const char *pszDevice,
             case NetworkAttachmentType_Generic:
             case NetworkAttachmentType_NATNetwork:
             {
-                if (SUCCEEDED(hrc) && SUCCEEDED(rc))
+                if (SUCCEEDED(hrc) && RT_SUCCESS(rc))
                 {
                     if (fAttachDetach)
                     {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,10 +47,25 @@
 
 #include <iprt/circbuf.h>
 #include <iprt/critsect.h>
+#include <iprt/dir.h>
+#include <iprt/file.h>
+#include <iprt/path.h>
 
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/pdmaudioifs.h>
+
+#ifdef DEBUG_andy
+# define VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+#endif
+
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+# ifdef RT_OS_WINDOWS
+#  define VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "c:\\temp\\"
+# else
+#  define VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "/tmp/"
+# endif
+#endif /* VBOX_AUDIO_DEBUG_DUMP_PCM_DATA */
 
 typedef enum
 {
@@ -115,8 +130,10 @@ typedef struct DRVAUDIO
 const char *drvAudioHlpFormatToString(PDMAUDIOFMT enmFormat);
 const char *drvAudioRecSourceToString(PDMAUDIORECSOURCE enmRecSource);
 PDMAUDIOFMT drvAudioHlpStringToFormat(const char *pszFormat);
+int DrvAudioHlpGetFileName(char *pszFile, size_t cchFile, const char *pszPath, const char *pszName);
 
-bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS info, PPDMAUDIOSTREAMCFG pCfg);
+bool drvAudioPCMPropsAreEqual(PPDMAUDIOPCMPROPS info, PPDMAUDIOSTREAMCFG pCfg);
+bool DrvAudioHlpPCMPropsAreValid(const PPDMAUDIOPCMPROPS pProps);
 void drvAudioStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg);
 
 /* AUDIO IN function declarations. */
@@ -150,7 +167,7 @@ int drvAudioHlpPcmHwAddOut(PDRVAUDIO pDrvAudio, PPDMAUDIOSTREAMCFG pCfg, PPDMAUD
 int drvAudioHlpPcmCreateVoicePairOut(PDRVAUDIO pDrvAudio, const char *pszName, PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOGSTSTRMOUT *ppGstStrmOut);
 
 /* Common functions between DrvAudio and backends (host audio drivers). */
-void DrvAudioClearBuf(PPDMPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf, uint32_t cSamples);
-int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps);
+void DrvAudioClearBuf(PPDMAUDIOPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf, uint32_t cSamples);
+int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOPCMPROPS pProps);
 
 #endif /* DRV_AUDIO_H */

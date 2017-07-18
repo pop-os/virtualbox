@@ -1128,7 +1128,7 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
     if (mfSeamlessEnabled)
         i_handleSetVisibleRegion(mcRectVisibleRegion, mpRectVisibleRegion);
 
-#ifdef VBOX_WITH_VIDEOREC
+#ifdef VBOX_WITH_VPX
     videoCaptureScreenChanged(uScreenId);
 #endif
 

@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 1
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 22
+VBOX_VERSION_BUILD =  24
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -1135,6 +1135,10 @@ ifdef VBOX_OSE
  if1of ($(KBUILD_TARGET), solaris)
   VBOX_WITH_32_ON_64_MAIN_API=
  endif
+ if1of ($(KBUILD_TARGET), win)
+  # tar/gzip uncommon on Windows
+  VBOX_WITH_EXTPACK_VBOXDTRACE=
+ endif
  # Enable any translations in OSE, even partial ones.
  ifndef ($(VBOX_NO_DOCS_TRANSLATIONS))
   VBOX_WITH_DOCS_TRANSLATIONS = 1
@@ -1934,8 +1938,15 @@ else
  VBOX_MKISOFS  ?= mkisofs
 endif
 
-ifeq ($(KBUILD_HOST),win)
- VBOX_NM ?= $(PATH_TOOL_MINGW32)/bin/nm.exe -p
+# zip
+VBOX_ZIP ?= zip$(HOSTSUFF_EXE)
+
+ifeq ($(KBUILD_TARGET),win)
+ ifeq ($(KBUILD_TARGET_ARCH),x86) # Normally we should test for KBUILD_HOST_ARCH but we only require MINGWW64 for 64-bit _targets_
+  VBOX_NM ?= $(PATH_TOOL_MINGW32)/bin/nm.exe -p
+ else
+  VBOX_NM ?= $(PATH_TOOL_MINGWW64)/bin/nm.exe -p
+ endif
 else ifeq ($(KBUILD_HOST),darwin) # Xcode 7.3.1 nm doesn't like -t, and -x behaves very differently.  Throwing in -B (bsd) to make sure.
  VBOX_NM ?= $(TOOL_$(VBOX_GCC_TOOL)_ENV_SETUP) $(PATH_TOOL_$(VBOX_GCC_TOOL)_TOOLCHAIN_BIN_SLASH)nm -p $(if-expr \
  	$(VBOX_XCODE_VERSION_MAJOR) > 7 || ($(VBOX_XCODE_VERSION_MAJOR) == 7 && $(VBOX_XCODE_VERSION_MINOR) >= 3),-B,)
@@ -5771,7 +5782,9 @@ ifdef VBOX_WITH_QTGUI
      # legacy libraries required to be installed on EL5
      VBOX_QT_LEGACY_LIBS = \
       $(if $(VBOX_LD_HAS_LIBXCB),,libxcb.so.1 libX11.so.6 libX11-xcb.so.1)
-     VBOX_QT_PLUGINS = plugins/platforms/libqxcb.so
+     VBOX_QT_PLUGINS = \
+       plugins/platforms/libqxcb.so \
+       plugins/xcbglintegrations/libqxcb-glx-integration.so
     else ifeq ($(KBUILD_TARGET), win)
      VBOX_QT_MOD += \
       Qt5WinExtras
@@ -5885,7 +5898,6 @@ ifdef VBOX_WITH_QTGUI
   TEMPLATE_VBOXQTGUIEXE_LDFLAGS.amd64 = -m64
   TEMPLATE_VBOXQTGUIEXE_LIBS = \
 	$(VBOX_LIBS_QT) \
-	$(LIB_SDL) \
 	$(LIB_RUNTIME) \
 	$(if-expr "$(LIB_VMM)" == "$(VBOX_LIB_VMM_LAZY)",$(LIB_REM),) \
 	$(VBOX_LIB_VMM_LAZY)
@@ -6857,7 +6869,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 115126 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 117012 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -7043,4 +7055,5 @@ st stat status:
 
 quick:
 	$(MAKE) VBOX_QUICK=1
+
 

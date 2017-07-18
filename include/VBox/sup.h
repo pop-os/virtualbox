@@ -100,9 +100,11 @@ typedef enum SUPPAGINGMODE
  * @{
  */
 /** GDT is read-only. */
-#define SUPKERNELFEATURES_GDT_READ_ONLY     RT_BIT(0)
+#define SUPKERNELFEATURES_GDT_READ_ONLY       RT_BIT(0)
 /** SMAP is possibly enabled. */
-#define SUPKERNELFEATURES_SMAP              RT_BIT(1)
+#define SUPKERNELFEATURES_SMAP                RT_BIT(1)
+/** GDT is read-only but the writable GDT can be fetched by SUPR0GetCurrentGdtRw(). */
+#define SUPKERNELFEATURES_GDT_NEED_WRITABLE   RT_BIT(2)
 /** @} */
 
 
@@ -1814,6 +1816,14 @@ SUPR3DECL(int) SUPR3ReadTsc(uint64_t *puTsc, uint16_t *pidApic);
  */
 SUPR3DECL(int) SUPR3GipSetFlags(uint32_t fOrMask, uint32_t fAndMask);
 
+/**
+ * Return processor microcode revision, if applicable.
+ *
+ * @returns VINF_SUCCESS if supported, error code indicating why if not.
+ * @param   puMicrocodeRev  Pointer to microcode revision dword (out).
+ */
+SUPR3DECL(int) SUPR3QueryMicrocodeRev(uint32_t *puMicrocodeRev);
+
 /** @} */
 #endif /* IN_RING3 */
 
@@ -1877,6 +1887,10 @@ SUPR0DECL(int) SUPR0ObjAddRefEx(void *pvObj, PSUPDRVSESSION pSession, bool fNoBl
 SUPR0DECL(int) SUPR0ObjRelease(void *pvObj, PSUPDRVSESSION pSession);
 SUPR0DECL(int) SUPR0ObjVerifyAccess(void *pvObj, PSUPDRVSESSION pSession, const char *pszObjName);
 
+SUPR0DECL(PVM) SUPR0GetSessionVM(PSUPDRVSESSION pSession);
+SUPR0DECL(PGVM) SUPR0GetSessionGVM(PSUPDRVSESSION pSession);
+SUPR0DECL(int) SUPR0SetSessionVM(PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM);
+
 SUPR0DECL(int) SUPR0LockMem(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_t cPages, PRTHCPHYS paPages);
 SUPR0DECL(int) SUPR0UnlockMem(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 SUPR0DECL(int) SUPR0ContAlloc(PSUPDRVSESSION pSession, uint32_t cPages, PRTR0PTR ppvR0, PRTR3PTR ppvR3, PRTHCPHYS pHCPhys);
@@ -1893,8 +1907,10 @@ SUPR0DECL(int) SUPR0PageFree(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS pHCPhysGip);
 SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
 SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous);
+SUPR0DECL(int) SUPR0GetCurrentGdtRw(RTHCUINTPTR *pGdtRw);
 SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession);
+SUPR0DECL(int) SUPR0QueryUcodeRev(PSUPDRVSESSION pSession, uint32_t *puMicrocodeRev);
 SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void);
 SUPR0DECL(RTCCUINTREG) SUPR0ChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask);
 SUPR0DECL(int) SUPR0EnableVTx(bool fEnable);

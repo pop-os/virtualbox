@@ -1126,7 +1126,8 @@ int Console::i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const 
             LogRel(("AUTH: Delegated to guest.\n"));
 
             LogFlowFunc(("External auth asked for guest judgement\n"));
-        } /* pass through */
+        }
+        /* fall thru */
 
         case AuthType_Guest:
         {
@@ -2052,14 +2053,12 @@ HRESULT Console::setUseHostClipboard(BOOL aUseHostClipboard)
 
 HRESULT Console::powerUp(ComPtr<IProgress> &aProgress)
 {
-    i_powerUp(aProgress.asOutParam(), false /* aPaused */);
-    return S_OK;
+    return i_powerUp(aProgress.asOutParam(), false /* aPaused */);
 }
 
 HRESULT Console::powerUpPaused(ComPtr<IProgress> &aProgress)
 {
-    i_powerUp(aProgress.asOutParam(), true /* aPaused */);
-    return S_OK;
+    return i_powerUp(aProgress.asOutParam(), true /* aPaused */);
 }
 
 HRESULT Console::powerDown(ComPtr<IProgress> &aProgress)

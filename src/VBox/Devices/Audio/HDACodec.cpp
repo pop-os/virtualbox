@@ -1,6 +1,6 @@
 /* $Id: HDACodec.cpp $ */
 /** @file
- * DevIchHdaCodec - VBox ICH Intel HD Audio Codec.
+ * HDACodec.cpp - VBox ICH Intel HD Audio Codec.
  *
  * Implemented against "Intel I/O Controller Hub 6 (ICH6) High Definition
  * Audio / AC '97 - Programmer's Reference Manual (PRM)", document number
@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,7 @@
 #include <iprt/cpp/utils.h>
 
 #include "VBoxDD.h"
-#include "DevIchHdaCodec.h"
+#include "HDACodec.h"
 
 
 /*********************************************************************************************************************************
@@ -898,7 +898,7 @@ static DECLCALLBACK(int) stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCO
         case 3:
         case 4:
         case 5:
-            memset(pNode->dac.B_params, 0, AMPLIFIER_SIZE);
+            RT_ZERO(pNode->dac.B_params);
             pNode->dac.u32A_param = CODEC_MAKE_A(0, 1, CODEC_A_MULT_1X, CODEC_A_DIV_1X, CODEC_A_16_BIT, 1);//RT_BIT(14)|(0x1 << 4)|0x1; /* 44100Hz/16bit/2ch */
 
             AMPLIFIER_REGISTER(pNode->dac.B_params, AMPLIFIER_OUT, AMPLIFIER_LEFT, 0) = 0x7F | RT_BIT(7);
@@ -1129,7 +1129,7 @@ static DECLCALLBACK(int) stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCO
             pNode->node.au32F00_param[0xe] = CODEC_MAKE_F00_0E(0, 0x7);
             pNode->node.au32F00_param[0x12] = (0x27 << 16)|(0x4 << 8);
             /* STAC 9220 v10 6.21-22.{4,5} both(left and right) out amplefiers inited with 0*/
-            memset(pNode->adcmux.B_params, 0, AMPLIFIER_SIZE);
+            RT_ZERO(pNode->adcmux.B_params);
             pNode->node.au32F02_param[0] = RT_MAKE_U32_FROM_U8(0xe, 0x15, 0xf, 0xb);
             pNode->node.au32F02_param[4] = RT_MAKE_U32_FROM_U8(0xc, 0xd, 0xa, 0x0);
             break;
@@ -1139,7 +1139,7 @@ static DECLCALLBACK(int) stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCO
                                          | CODEC_F00_09_CAP_OUT_AMP_PRESENT;//(7 << 20) | RT_BIT(3) | RT_BIT(2);
             pNode->node.au32F00_param[0x12] = (0x17 << 16)|(0x3 << 8)| 0x3;
             pNode->pcbeep.u32F0a_param = 0;
-            memset(pNode->pcbeep.B_params, 0, AMPLIFIER_SIZE);
+            RT_ZERO(pNode->pcbeep.B_params);
             break;
         case 0x15:
             pNode->node.au32F00_param[0x9] = CODEC_MAKE_F00_09(CODEC_F00_09_TYPE_PIN_COMPLEX, 0, 0)
@@ -1167,7 +1167,7 @@ static DECLCALLBACK(int) stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCO
         case 0x18:
             pNode->node.au32F02_param[0] = 0x13;
         adcvol_init:
-            memset(pNode->adcvol.B_params, 0, AMPLIFIER_SIZE);
+            RT_ZERO(pNode->adcvol.B_params);
 
             pNode->node.au32F00_param[0x9] = CODEC_MAKE_F00_09(CODEC_F00_09_TYPE_AUDIO_SELECTOR, 0, 0)
                                            | CODEC_F00_09_CAP_L_R_SWAP
@@ -2670,6 +2670,7 @@ int hdaCodecLoadState(PHDACODEC pThis, PSSMHANDLE pSSM, uint32_t uVersion)
         /* Since version 4 a flexible node count is supported. */
         case HDA_SSM_VERSION_4:
         case HDA_SSM_VERSION_5:
+        case HDA_SSM_VERSION_6:
         case HDA_SSM_VERSION:
         {
             uint32_t cNodes;

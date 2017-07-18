@@ -2320,7 +2320,7 @@ bool NAT::areDefaultSettings() const
 bool NAT::operator==(const NAT &n) const
 {
    return (this == &n)
-        || (   strNetwork           == n.strNetwork
+       || (   strNetwork           == n.strNetwork
             && strBindIP           == n.strBindIP
             && u32Mtu              == n.u32Mtu
             && u32SockRcv          == n.u32SockRcv
@@ -5866,7 +5866,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
                 case PortMode_TCP:
                 case PortMode_HostPipe:
                     pelmPort->setAttribute("server", port.fServer);
-                    /* no break */
+                    /* fall thru */
                 case PortMode_HostDevice:
                 case PortMode_RawFile:
                     pelmPort->setAttribute("path", port.strPath);

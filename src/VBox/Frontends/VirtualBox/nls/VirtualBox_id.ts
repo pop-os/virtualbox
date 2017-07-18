@@ -3848,7 +3848,7 @@
         <translation>Alamat IPv6</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Panjang Mask Jaringan IPv6</translation>
     </message>
     <message>
@@ -4093,7 +4093,7 @@
         <translation>Menyunting jaringan hanya-host yang dipilih.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>Antar muka host &lt;b&gt;%1&lt;/b&gt; saat ini tidak memiliki panjang prefiks mask jaringan IPv6 yang valid.</translation>
     </message>
 </context>
@@ -4140,11 +4140,11 @@
         <translation type="obsolete">Tampilkan alamat IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">&amp;Panjang Mask Jaringan IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Tampilkan panjang prefiks mask jaringan IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
@@ -4235,11 +4235,11 @@
         <translation>Menyimpan alamat IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>&amp;Panjang Mask Jaringan IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Menyimpan panjang prefiks mask jaringan IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>

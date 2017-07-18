@@ -30,7 +30,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 114989 $"
+__version__ = "$Revision: 115692 $"
 
 # Standard python imports.
 import os;
@@ -301,11 +301,26 @@ class Bs3Cg1Instruction(object):
 
         self.asOpcodes          = oMap.asLeadOpcodes + [ '0x%02x' % (oInstr.getOpcodeByte(),) ];
         self.sEncoding          = iai.g_kdEncodings[oInstr.sEncoding][0];
+
         for oOp in oInstr.aoOperands:
             self.sEncoding     += '_' + oOp.sType;
+        if oInstr.sSubOpcode == 'rex.w=1':      self.sEncoding += '_WNZ';
+        elif oInstr.sSubOpcode == 'rex.w=0':    self.sEncoding += '_WZ';
+
         if oInstr.fUnused:
             if oInstr.sInvalidStyle == 'immediate' and oInstr.sSubOpcode:
                 self.sEncoding += '_MOD_EQ_3' if oInstr.sSubOpcode == '11 mr/reg' else '_MOD_NE_3';
+            elif oInstr.sInvalidStyle == 'intel-modrm':
+                if oInstr.sSubOpcode is None:
+                    self.sEncoding = 'BS3CG1ENC_MODRM_Gv_Ev';
+                elif oInstr.sSubOpcode == '11 mr/reg':
+                    self.sEncoding = 'BS3CG1ENC_MODRM_MOD_EQ_3';
+                elif oInstr.sSubOpcode == '!11 mr/reg':
+                    self.sEncoding = 'BS3CG1ENC_MODRM_MOD_NE_3';
+                else:
+                    raise Exception('Unhandled sSubOpcode=%s for sInvalidStyle=%s' % (oInstr.sSubOpcode, oInstr.sInvalidStyle));
+            elif oInstr.sInvalidStyle == 'vex.modrm':
+                self.sEncoding = 'BS3CG1ENC_VEX_MODRM';
 
         self.asFlags            = [];
         if 'invalid_64' in oInstr.dHints:
@@ -316,6 +331,8 @@ class Bs3Cg1Instruction(object):
             self.asFlags.append('BS3CG1INSTR_F_INVALID');
         if oInstr.sInvalidStyle and oInstr.sInvalidStyle.startswith('intel-'):
             self.asFlags.append('BS3CG1INSTR_F_INTEL_DECODES_INVALID');
+        if 'vex_l_zero' in oInstr.dHints:
+            self.asFlags.append('BS3CG1INSTR_F_VEX_L_ZERO');
 
         self.fAdvanceMnemonic   = True; ##< Set by the caller.
         if oInstr.sPrefix:
@@ -334,7 +351,7 @@ class Bs3Cg1Instruction(object):
         self.sCpu = 'BS3CG1CPU_';
         assert len(oInstr.asCpuIds) in [0, 1], str(oInstr);
         if oInstr.asCpuIds:
-            self.sCpu += oInstr.asCpuIds[0].upper();
+            self.sCpu += oInstr.asCpuIds[0].upper().replace('.', '_');
         elif oInstr.sMinCpu:
             self.sCpu += 'GE_' + oInstr.sMinCpu;
         else:

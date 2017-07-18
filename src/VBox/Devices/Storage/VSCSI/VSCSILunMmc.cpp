@@ -389,6 +389,7 @@ static DECLCALLBACK(int) vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQ
                         break;
                     }
                 }
+                /* fall thru */
                 default:
                     rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET, 0x00);
             }
@@ -445,6 +446,7 @@ static DECLCALLBACK(int) vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQ
             break;
         }
 
+        /* fall thru */
         default:
             //AssertMsgFailed(("Command %#x [%s] not implemented\n", pVScsiReq->pbCDB[0], SCSICmdText(pVScsiReq->pbCDB[0])));
             rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_ILLEGAL_OPCODE, 0x00);

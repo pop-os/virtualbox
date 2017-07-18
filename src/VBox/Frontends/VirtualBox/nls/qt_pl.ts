@@ -29,7 +29,7 @@
     </message>
     <message>
         <source>About %1</source>
-        <translation>O programie %1…</translation>
+        <translation>O programie %1</translation>
     </message>
 </context>
 <context>
@@ -104,7 +104,7 @@ zainstalowałeś libgstreamer-plugins-base.</translation>
     <message numerus="yes">
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
         <translation>
-            <numerusform>Brak wymaganego kodeka. Aby odtworzyć zawartość musisz zainstalować poniższy kodek: %0</numerusform>
+            <numerusform>Brak wymaganego kodeka. Aby odtworzyć zawartość musisz zainstalować poniższe kodeki: %0</numerusform>
             <numerusform>Brak wymaganego kodeka. Aby odtworzyć zawartość musisz zainstalować poniższe kodeki: %0</numerusform>
             <numerusform>Brak wymaganego kodeka. Aby odtworzyć zawartość musisz zainstalować poniższe kodeki: %0</numerusform>
         </translation>
@@ -4903,7 +4903,7 @@ Proszę wybrać inną nazwę pliku.</translation>
     </message>
     <message>
         <source>In the replacement string, %1 must be followed by at least one digit when not escaped.</source>
-        <translation>W ciągu zastępczym, po %1 musi następować przynajmniej jedna cyfra</translation>
+        <translation>W ciągu zastępczym, po %1 musi się znajdować przynajmniej jedna cyfra.</translation>
     </message>
     <message>
         <source>In the replacement string, %1 can only be used to escape itself or %2, not %3</source>

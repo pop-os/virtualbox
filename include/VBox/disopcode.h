@@ -182,6 +182,7 @@ enum OPCODES
     OP_MOVHLPS = OP_MOVLPS, /**< @todo OP_MOVHLPS */
     OP_UNPCKLPS,
     OP_MOVHPS,
+    OP_MOVLHPS = OP_MOVHPS, /**< @todo OP_MOVLHPS */
     OP_UNPCKHPS,
     OP_PREFETCH_GRP16,
     OP_MOV_CR,
@@ -738,11 +739,6 @@ enum OPCODES
     OP_SWAPGS,
     OP_UD1,
     OP_UD2,
-/** @name AVX instructions
- * @{ */
-    OP_VLDMXCSR,
-    OP_VSTMXCSR,
-/** @} */
 /** @name VT-x instructions
  * @{ */
     OP_VMREAD,
@@ -773,8 +769,33 @@ enum OPCODES
 /** @}  */
 /** @name 64 bits instruction
  * @{ */
-    OP_MOVSXD
+    OP_MOVSXD,
 /** @} */
+/** @name AVX instructions
+ * @{ */
+    OP_VLDMXCSR,
+    OP_VSTMXCSR,
+    OP_VMOVUPS,
+    OP_VMOVUPD,
+    OP_VMOVSS,
+    OP_VMOVSD,
+    OP_VMOVHLPS,
+    OP_VMOVLPS,
+    OP_VMOVLPD,
+    OP_VMOVSLDUP,
+    OP_VMOVDDUP,
+    OP_VMOVAPS,
+    OP_VMOVAPD,
+    OP_VMOVNTPS,
+    OP_VMOVNTPD,
+    OP_VMOVD,
+    OP_VMOVQ,
+    OP_VMOVDQA,
+    OP_VMOVDQU,
+    OP_VMOVNTDQ,
+    OP_VMOVNTDQA,
+/** @} */
+    OP_END_OF_OPCODES
 };
 AssertCompile(OP_LOCK == 7);
 /** @} */
@@ -1062,15 +1083,55 @@ enum OP_PARM
 #define OP_PARM_Lx              (OP_PARM_L+OP_PARM_x)
 
 /* For making IEM / bs3-cpu-generated-1 happy: */
+#define OP_PARM_Ed_WO           OP_PARM_Ed              /**< Annotates write only operand. */
+#define OP_PARM_Eq              (OP_PARM_E+OP_PARM_q)
+#define OP_PARM_Eq_WO           OP_PARM_Eq              /**< Annotates write only operand. */
+#define OP_PARM_Gv_RO           OP_PARM_Gv              /**< Annotates read only first operand (default is readwrite). */
+#define OP_PARM_HssHi           OP_PARM_Hx              /**< Register referenced by VEX.vvvv, bits [127:32]. */
+#define OP_PARM_HsdHi           OP_PARM_Hx              /**< Register referenced by VEX.vvvv, bits [127:64]. */
+#define OP_PARM_HqHi            OP_PARM_Hx              /**< Register referenced by VEX.vvvv, bits [127:64]. */
+#define OP_PARM_M_RO            OP_PARM_M               /**< Annotates read only memory of variable operand size (xrstor). */
+#define OP_PARM_M_RW            OP_PARM_M               /**< Annotates read-write memory of variable operand size (xsave). */
+#define OP_PARM_Mb_RO           OP_PARM_Mb              /**< Annotates read only memory byte operand. */
+#define OP_PARM_Md_RO           OP_PARM_Md              /**< Annotates read only memory operand. */
+#define OP_PARM_Md_WO           OP_PARM_Md              /**< Annotates write only memory operand. */
+#define OP_PARM_Mdq_WO          OP_PARM_Mdq             /**< Annotates write only memory operand. */
+#define OP_PARM_Mq_WO           OP_PARM_Mq              /**< Annotates write only memory quad word operand. */
+#define OP_PARM_Mps_WO          OP_PARM_Mps             /**< Annotates write only memory operand. */
+#define OP_PARM_Mpd_WO          OP_PARM_Mpd             /**< Annotates write only memory operand. */
+#define OP_PARM_Mx_WO           OP_PARM_Mx             /**< Annotates write only memory operand. */
+#define OP_PARM_PdZx_WO         OP_PARM_Pd              /**< Annotates write only operand and zero extends to 64-bit. */
+#define OP_PARM_Pq_WO           OP_PARM_Pq              /**< Annotates write only operand. */
+#define OP_PARM_Qq_WO           OP_PARM_Qq              /**< Annotates write only operand. */
+#define OP_PARM_Nq              OP_PARM_Qq              /**< Missing 'N' class (MMX reg selected by modrm.mem) in disasm. */
 #define OP_PARM_Uq              (OP_PARM_U+OP_PARM_q)
-#define OP_PARM_UqHi            OP_PARM_Uq
-#define OP_PARM_WqZxReg         OP_PARM_Wq              /**< Annotates that register targets get their upper bits cleared. */
-#define OP_PARM_VssZxReg        OP_PARM_Vss             /**< Annotates that register targets get their upper bits cleared. */
-#define OP_PARM_MbRO            OP_PARM_Mb              /**< Annotates read only memory byte operand. */
-#define OP_PARM_MdRO            OP_PARM_Md              /**< Annotates read only memory byte operand. */
-#define OP_PARM_MdWO            OP_PARM_Md              /**< Annotates write only memory byte operand. */
-#define OP_PARM_MRO             OP_PARM_M               /**< Annotates read only memory of variable operand size (xrstor). */
-#define OP_PARM_MRW             OP_PARM_M               /**< Annotates read-write memory of variable operand size (xsave). */
+#define OP_PARM_UqHi            (OP_PARM_U+OP_PARM_dq)
+#define OP_PARM_Uss             (OP_PARM_U+OP_PARM_ss)
+#define OP_PARM_Uss_WO          OP_PARM_Uss             /**< Annotates write only operand. */
+#define OP_PARM_Usd             (OP_PARM_U+OP_PARM_sd)
+#define OP_PARM_Usd_WO          OP_PARM_Usd             /**< Annotates write only operand. */
+#define OP_PARM_Vd              (OP_PARM_V+OP_PARM_d)
+#define OP_PARM_Vd_WO           OP_PARM_Vd              /**< Annotates write only operand. */
+#define OP_PARM_VdZx_WO         OP_PARM_Vd              /**< Annotates that the registers get their upper bits cleared */
+#define OP_PARM_Vdq_WO          OP_PARM_Vdq             /**< Annotates that only YMM/XMM[127:64] are accessed. */
+#define OP_PARM_Vpd_WO          OP_PARM_Vpd             /**< Annotates write only operand. */
+#define OP_PARM_Vps_WO          OP_PARM_Vps             /**< Annotates write only operand. */
+#define OP_PARM_Vq_WO           OP_PARM_Vq              /**< Annotates write only operand. */
+#define OP_PARM_VqHi            OP_PARM_Vdq             /**< Annotates that only YMM/XMM[127:64] are accessed. */
+#define OP_PARM_VqHi_WO         OP_PARM_Vdq             /**< Annotates that only YMM/XMM[127:64] are written. */
+#define OP_PARM_VqZx_WO         OP_PARM_Vq              /**< Annotates that the registers get their upper bits cleared */
+#define OP_PARM_VsdZx_WO        OP_PARM_Vsd             /**< Annotates that the registers get their upper bits cleared. */
+#define OP_PARM_VssZx_WO        OP_PARM_Vss             /**< Annotates that the registers get their upper bits cleared. */
+#define OP_PARM_Vss_WO          OP_PARM_Vss             /**< Annotates write only operand. */
+#define OP_PARM_Vsd_WO          OP_PARM_Vsd             /**< Annotates write only operand. */
+#define OP_PARM_Vx_WO           OP_PARM_Vx              /**< Annotates write only operand. */
+#define OP_PARM_Wpd_WO          OP_PARM_Wpd             /**< Annotates write only operand. */
+#define OP_PARM_Wps_WO          OP_PARM_Wps             /**< Annotates write only operand. */
+#define OP_PARM_Wq_WO           OP_PARM_Wq              /**< Annotates write only operand. */
+#define OP_PARM_WqZxReg_WO      OP_PARM_Wq              /**< Annotates that register targets get their upper bits cleared. */
+#define OP_PARM_Wss_WO          OP_PARM_Wss             /**< Annotates write only operand. */
+#define OP_PARM_Wsd_WO          OP_PARM_Wsd             /**< Annotates write only operand. */
+#define OP_PARM_Wx_WO           OP_PARM_Wx              /**< Annotates write only operand. */
 
 /** @} */
 

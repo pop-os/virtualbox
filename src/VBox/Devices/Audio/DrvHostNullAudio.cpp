@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,7 @@ typedef struct NULLAUDIOSTREAMIN
 {
     /** Note: Always must come first! */
     PDMAUDIOHSTSTRMIN  streamIn;
+    uint64_t           u64TicksLast;
 } NULLAUDIOSTREAMIN, *PNULLAUDIOSTREAMIN;
 
 /**
@@ -166,7 +167,7 @@ static DECLCALLBACK(int) drvHostNullAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
     PNULLAUDIOSTREAMOUT pNullStrmOut = (PNULLAUDIOSTREAMOUT)pHstStrmOut;
 
     /* Consume as many samples as would be played at the current frequency since last call. */
-    uint32_t csLive          = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+    uint32_t csLive          = AudioMixBufLive(&pHstStrmOut->MixBuf);
     uint64_t u64TicksNow     = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
     uint64_t u64TicksElapsed = u64TicksNow  - pNullStrmOut->u64TicksLast;
     uint64_t u64TicksFreq    = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);
@@ -200,12 +201,55 @@ static DECLCALLBACK(int) drvHostNullAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
 static DECLCALLBACK(int) drvHostNullAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn,
                                                    uint32_t *pcSamplesCaptured)
 {
-    RT_NOREF(pInterface, pHstStrmIn);
-    /* Never capture anything. */
-    if (pcSamplesCaptured)
-        *pcSamplesCaptured = 0;
+    PDRVHOSTNULLAUDIO pDrv = RT_FROM_MEMBER(pInterface, DRVHOSTNULLAUDIO, IHostAudio);
+    PNULLAUDIOSTREAMIN pNullStrmIn = (PNULLAUDIOSTREAMIN)pHstStrmIn;
 
-    return VINF_SUCCESS;
+    /* Consume as many samples as would have been captured at the current frequency since last call. */
+    uint64_t u64TicksNow     = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
+    uint64_t u64TicksElapsed = u64TicksNow  - pNullStrmIn->u64TicksLast;
+    uint64_t u64TicksFreq    = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);
+
+    /* Remember when samples were consumed. */
+    pNullStrmIn->u64TicksLast = u64TicksNow;
+
+    /*
+     * Minimize the rounding error by adding 0.5: samples = int((u64TicksElapsed * samplesFreq) / u64TicksFreq + 0.5).
+     * If rounding is not taken into account then the capturing rate will be consistently lower that expected.
+     */
+    uint64_t cbCaptured = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf,
+                                          (2 * u64TicksElapsed * pHstStrmIn->Props.uHz + u64TicksFreq) / u64TicksFreq / 2);
+    AssertPtr(pHstStrmIn->pGstStrmIn);
+    uint32_t cbFree     = AudioMixBufFreeBytes(&pHstStrmIn->pGstStrmIn->MixBuf);
+
+    /* Don't capture more than free (available). */
+    if (cbCaptured > cbFree)
+        cbCaptured = cbFree;
+
+    /* Create NULL audio input data on-the-fly. */
+    size_t   cbBuf = cbCaptured;
+    AssertReturn(cbBuf, VERR_INVALID_PARAMETER);
+    uint8_t *paBuf = (uint8_t *)RTMemAllocZ(cbBuf);
+    AssertPtrReturn(paBuf, VERR_NO_MEMORY);
+
+    uint32_t csCapturedTotal = 0;
+
+    uint32_t csWritten;
+    int rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, 0 /* Offset */, paBuf, (uint32_t)cbBuf, &csWritten);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t csMixed = 0;
+        rc = AudioMixBufMixToParentEx(&pHstStrmIn->MixBuf, 0 /* Offset */, csWritten, &csMixed);
+        if (RT_SUCCESS(rc))
+            csCapturedTotal = csMixed;
+    }
+
+    RTMemFree(paBuf);
+    paBuf = NULL;
+
+    if (pcSamplesCaptured)
+        *pcSamplesCaptured = csCapturedTotal;
+
+    return rc;
 }
 
 static DECLCALLBACK(int) drvHostNullAudioControlIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn,

@@ -1,4 +1,4 @@
-# $Revision: 114568 $
+# $Revision: 115996 $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #
@@ -100,6 +100,7 @@ MOD_OBJS += \
 	common/math/gcc/divdi3.o \
 	common/math/gcc/moddi3.o \
 	common/math/gcc/udivdi3.o \
+	common/math/gcc/udivmoddi4.o \
 	common/math/gcc/umoddi3.o \
 	common/math/gcc/qdivrem.o
 endif

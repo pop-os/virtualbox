@@ -25,8 +25,6 @@
 class QMenu;
 class QTimer;
 class QLabel;
-class QMdiArea;
-class QMdiSubWindow;
 class UIAnimation;
 class UIMiniToolBarPrivate;
 
@@ -72,11 +70,13 @@ public:
     /** Constructor, passes @a pParent to the QWidget constructor.
       * @param geometryType determines the geometry type,
       * @param alignment    determines the alignment type,
-      * @param fAutoHide    determines whether we should auto-hide. */
+      * @param fAutoHide    determines whether we should auto-hide.
+      * @param iWindowIndex determines the parent window index. */
     UIMiniToolBar(QWidget *pParent,
                   GeometryType geometryType,
                   Qt::Alignment alignment,
-                  bool fAutoHide = true);
+                  bool fAutoHide = true,
+                  int iWindowIndex = -1);
     /** Destructor. */
     ~UIMiniToolBar();
 
@@ -167,14 +167,13 @@ private:
     Qt::Alignment m_alignment;
     /** Holds whether we should auto-hide. */
     bool m_fAutoHide;
+    /** Holds the parent window index. */
+    int m_iWindowIndex;
 
-    /** Holds the MDI-area. */
-    QMdiArea *m_pMdiArea;
+    /** Holds the area. */
+    QWidget *m_pArea;
     /** Holds the internal widget. */
     UIMiniToolBarPrivate *m_pToolbar;
-    /** Holds the pointer to the wrapped
-      * internal widget inside the MDI-area. */
-    QMdiSubWindow *m_pEmbeddedToolbar;
 
     /** Holds whether we are hovered. */
     bool m_fHovered;

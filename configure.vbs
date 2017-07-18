@@ -43,7 +43,7 @@ g_strPathPSDK = ""
 g_strPathDDK = ""
 
 dim g_strTargetArch
-g_strTargetArch = "x86"
+g_strTargetArch = ""
 
 dim g_blnDisableCOM, g_strDisableCOM
 g_blnDisableCOM = False
@@ -869,14 +869,25 @@ sub CheckForkBuild(strOptkBuild)
       MsgWarning "Found unknown KBUILD_TARGET_ARCH value '" & str &"' in your environment. Setting it to 'x86'."
       str = "x86"
    end if
-   if str <> "" then
-      g_strTargetArch = str
-   elseif (EnvGet("PROCESSOR_ARCHITEW6432") = "AMD64" ) _
-       Or (EnvGet("PROCESSOR_ARCHITECTURE") = "AMD64" ) then
-      g_strTargetArch = "amd64"
+   if g_strTargetArch = "" then '' command line parameter --target-arch=x86|amd64 has priority
+      if str <> "" then
+         g_strTargetArch = str
+      elseif (EnvGet("PROCESSOR_ARCHITEW6432") = "AMD64" ) _
+          Or (EnvGet("PROCESSOR_ARCHITECTURE") = "AMD64" ) then
+         g_strTargetArch = "amd64"
+      else
+         g_strTargetArch = "x86"
+      end if
    else
-      g_strTargetArch = "x86"
+      if InStr(1, "x86|amd64", g_strTargetArch) <= 0 then
+         EnvPrint "set KBUILD_TARGET_ARCH=x86"
+         EnvSet "KBUILD_TARGET_ARCH", "x86"
+         MsgWarning "Unknown --target-arch=" & str &". Setting it to 'x86'."
+      end if
    end if
+   LogPrint " Target architecture: " & g_strTargetArch & "."
+   Wscript.Echo " Target architecture: " & g_strTargetArch & "."
+   EnvPrint "set KBUILD_TARGET_ARCH=" & g_strTargetArch
 
    str = EnvGetFirst("KBUILD_TARGET_CPU", "BUILD_TARGET_CPU")
     ' perhaps a bit pedantic this since this isn't clearly define nor used much...
@@ -896,12 +907,20 @@ sub CheckForkBuild(strOptkBuild)
    end if
 
    str = EnvGetFirst("KBUILD_HOST_ARCH", "BUILD_PLATFORM_ARCH")
-   if   (str <> "") _
-    And (InStr(1, "x86|amd64", str) <= 0) then
-      EnvPrint "set KBUILD_HOST_ARCH=x86"
-      EnvSet "KBUILD_HOST_ARCH", "x86"
-      MsgWarning "Found unknown KBUILD_HOST_ARCH value '" & str &"' in your environment. Setting it to 'x86'."
+   if str <> "" then
+      if InStr(1, "x86|amd64", str) <= 0 then
+         str = "x86"
+         MsgWarning "Found unknown KBUILD_HOST_ARCH value '" & str &"' in your environment. Setting it to 'x86'."
+      end if
+   elseif (EnvGet("PROCESSOR_ARCHITEW6432") = "AMD64" ) _
+       Or (EnvGet("PROCESSOR_ARCHITECTURE") = "AMD64" ) then
+      str = "amd64"
+   else
+      str = "x86"
    end if
+   LogPrint " Host architecture: " & str & "."
+   Wscript.Echo " Host architecture: " & str & "."
+   EnvPrint "set KBUILD_HOST_ARCH=" & str
 
    str = EnvGetFirst("KBUILD_HOST_CPU", "BUILD_PLATFORM_CPU")
     ' perhaps a bit pedantic this since this isn't clearly define nor used much...
@@ -1530,7 +1549,6 @@ end function
 
 ''
 ' Checks for a MinGW-w64 suitable for building the recompiler.
-'
 sub CheckForMinGWw64(strOptMinGWw64)
    dim strPathMingWw64, str
    PrintHdr "MinGW-w64 GCC (unprefixed)"
@@ -1813,93 +1831,15 @@ end function
 
 
 ''
-' Checks for libxslt.
-sub CheckForXslt(strOptXslt)
-   dim strPathXslt, str
-   PrintHdr "libxslt"
-
-   ' Skip if no COM/ATL.
-   if g_blnDisableCOM then
-      PrintResultMsg "libxslt", "Skipped (" & g_strDisableCOM & ")"
-      exit sub
-   end if
-
-   '
-   ' Try find some libxslt dll/lib.
-   '
-   strPathXslt = ""
-   if (strPathXslt = "") And (strOptXslt <> "") then
-      if CheckForXsltSub(strOptXslt) then strPathXslt = strOptXslt
-   end if
-
-   if strPathXslt = "" Then
-      str = Which("libxslt.lib")
-      if str <> "" Then
-         str = PathParent(PathStripFilename(str))
-         if CheckForXsltSub(str) then strPathXslt = str
-      end if
-   end if
-
-   if strPathXslt = "" Then
-      str = Which("libxslt.dll")
-      if str <> "" Then
-         str = PathParent(PathStripFilename(str))
-         if CheckForXsltSub(str) then strPathXslt = str
-      end if
-   end if
-
-   ' Ignore failure if we're in 'internal' mode.
-   if (strPathXslt = "") and g_blnInternalMode then
-      PrintResultMsg "libxslt", "ignored (internal mode)"
-      exit sub
-   end if
-
-   ' Success?
-   if strPathXslt = "" then
-      if strOptXslt = "" then
-         MsgError "Can't locate libxslt. Try specify the path with the --with-libxslt=<path> argument. " _
-                & "If still no luck, consult the configure.log and the build requirements."
-      else
-         MsgError "Can't locate libxslt. Please consult the configure.log and the build requirements."
-      end if
-      exit sub
-   end if
-
-   strPathXslt = UnixSlashes(PathAbs(strPathXslt))
-   CfgPrint "SDK_VBOX_LIBXSLT_INCS   := " & strPathXslt & "/include"
-   CfgPrint "SDK_VBOX_LIBXSLT_LIBS   := " & strPathXslt & "/lib/libxslt.lib"
-
-   PrintResult "libxslt", strPathXslt
-end sub
-
-
-''
-' Checks if the specified path points to an usable libxslt or not.
-function CheckForXsltSub(strPathXslt)
-   dim str
-
-   CheckForXsltSub = False
-   LogPrint "trying: strPathXslt=" & strPathXslt
-
-   if   LogFileExists(strPathXslt, "include/libxslt/namespaces.h") _
-    And LogFileExists(strPathXslt, "include/libxslt/xsltutils.h") _
-      then
-      str = LogFindFile(strPathXslt, "lib/libxslt.dll")
-      if str <> "" then
-         if   LogFileExists(strPathXslt, "lib/libxslt.lib") _
-            then
-            CheckForXsltSub = True
-         end if
-      end if
-   end if
-end function
-
-
-''
 ' Checks for openssl
-sub CheckForSsl(strOptSsl)
+sub CheckForSsl(strOptSsl, bln32Bit)
    dim strPathSsl, str
    PrintHdr "openssl"
+
+   strOpenssl = "openssl"
+   if bln32Bit = True then
+       strOpenssl = "openssl32"
+   end if
 
    '
    ' Try find some openssl dll/lib.
@@ -1910,7 +1850,7 @@ sub CheckForSsl(strOptSsl)
    end if
 
    if strPathSsl = "" Then
-      str = Which("ssleay32.lib")
+      str = Which("libssl.lib")
       if str <> "" Then
          str = PathParent(PathStripFilename(str))
          if CheckForSslSub(str) then strPathSsl = str
@@ -1919,27 +1859,35 @@ sub CheckForSsl(strOptSsl)
 
    ' Ignore failure if we're in 'internal' mode.
    if (strPathSsl = "") and g_blnInternalMode then
-      PrintResultMsg "openssl", "ignored (internal mode)"
+      PrintResultMsg strOpenssl, "ignored (internal mode)"
       exit sub
    end if
 
    ' Success?
    if strPathSsl = "" then
       if strOptSsl = "" then
-         MsgError "Can't locate openssl. Try specify the path with the --with-openssl=<path> argument. " _
+         MsgError "Can't locate " & strOpenssl & ". " _
+                & "Try specify the path with the --with-" & strOpenssl & "=<path> argument. " _
                 & "If still no luck, consult the configure.log and the build requirements."
       else
-         MsgError "Can't locate openssl. Please consult the configure.log and the build requirements."
+         MsgError "Can't locate " & strOpenssl & ". " _
+                & "Please consult the configure.log and the build requirements."
       end if
       exit sub
    end if
 
    strPathSsl = UnixSlashes(PathAbs(strPathSsl))
-   CfgPrint "SDK_VBOX_OPENSSL_INCS := " & strPathSsl & "/include"
-   CfgPrint "SDK_VBOX_OPENSSL_LIBS := " & strPathSsl & "/lib/ssleay32.lib" & " " & strPathSsl & "/lib/libeay32.lib"
-   CfgPrint "SDK_VBOX_BLD_OPENSSL_LIBS := " & strPathSsl & "/lib/ssleay32.lib" & " " & strPathSsl & "/lib/libeay32.lib"
+   if bln32Bit = True then
+      CfgPrint "SDK_VBOX_OPENSSL-x86_INCS := " & strPathSsl & "/include"
+      CfgPrint "SDK_VBOX_OPENSSL-x86_LIBS := " & strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
+      CfgPrint "SDK_VBOX_BLD_OPENSSL-x86_LIBS := " & strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
+   else
+      CfgPrint "SDK_VBOX_OPENSSL_INCS := " & strPathSsl & "/include"
+      CfgPrint "SDK_VBOX_OPENSSL_LIBS := " & strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
+      CfgPrint "SDK_VBOX_BLD_OPENSSL_LIBS := " & strPathSsl & "/lib/libcrypto.lib" & " " & strPathSsl & "/lib/libssl.lib"
+   end if
 
-   PrintResult "openssl", strPathSsl
+   PrintResult strOpenssl, strPathSsl
 end sub
 
 ''
@@ -1949,10 +1897,7 @@ function CheckForSslSub(strPathSsl)
    CheckForSslSub = False
    LogPrint "trying: strPathSsl=" & strPathSsl
    if   LogFileExists(strPathSsl, "include/openssl/md5.h") _
-    And LogFindFile(strPathSsl, "bin/ssleay32.dll") <> "" _
-    And LogFindFile(strPathSsl, "lib/ssleay32.lib") <> "" _
-    And LogFindFile(strPathSsl, "bin/libeay32.dll") <> "" _
-    And LogFindFile(strPathSsl, "lib/libeay32.lib") <> "" _
+    And LogFindFile(strPathSsl, "lib/libssl.lib") <> "" _
       then
          CheckForSslSub = True
       end if
@@ -1961,9 +1906,14 @@ end function
 
 ''
 ' Checks for libcurl
-sub CheckForCurl(strOptCurl)
+sub CheckForCurl(strOptCurl, bln32Bit)
    dim strPathCurl, str
    PrintHdr "libcurl"
+
+   strCurl = "libcurl"
+   if bln32Bit = True then
+       strCurl = "libcurl32"
+   end if
 
    '
    ' Try find some cURL dll/lib.
@@ -1983,26 +1933,33 @@ sub CheckForCurl(strOptCurl)
 
    ' Ignore failure if we're in 'internal' mode.
    if (strPathCurl = "") and g_blnInternalMode then
-      PrintResultMsg "curl", "ignored (internal mode)"
+      PrintResultMsg strCurl, "ignored (internal mode)"
       exit sub
    end if
 
    ' Success?
    if strPathCurl = "" then
       if strOptCurl = "" then
-         MsgError "Can't locate libcurl. Try specify the path with the --with-libcurl=<path> argument. " _
+         MsgError "Can't locate " & strCurl & ". " _
+                & "Try specify the path with the --with-" & strCurl & "=<path> argument. " _
                 & "If still no luck, consult the configure.log and the build requirements."
       else
-         MsgError "Can't locate libcurl. Please consult the configure.log and the build requirements."
+         MsgError "Can't locate " & strCurl & ". " _
+                & "Please consult the configure.log and the build requirements."
       end if
       exit sub
    end if
 
    strPathCurl = UnixSlashes(PathAbs(strPathCurl))
-   CfgPrint "SDK_VBOX_LIBCURL_INCS := " & strPathCurl & "/include"
-   CfgPrint "SDK_VBOX_LIBCURL_LIBS := " & strPathCurl & "/libcurl.lib"
+   if bln32Bit = True then
+      CfgPrint "SDK_VBOX_LIBCURL-x86_INCS := " & strPathCurl & "/include"
+      CfgPrint "SDK_VBOX_LIBCURL-x86_LIBS.x86 := " & strPathCurl & "/libcurl.lib"
+   else
+      CfgPrint "SDK_VBOX_LIBCURL_INCS := " & strPathCurl & "/include"
+      CfgPrint "SDK_VBOX_LIBCURL_LIBS := " & strPathCurl & "/libcurl.lib"
+   end if
 
-   PrintResult "libcurl", strPathCurl
+   PrintResult strCurl, strPathCurl
 end sub
 
 ''
@@ -2022,36 +1979,8 @@ end function
 
 
 ''
-' Checks for any Qt4/5 binaries.
-sub CheckForQt(strOptQt4, strOptQt5)
-   dim strPathQt4
-
-   PrintHdr "Qt4"
-
-   '
-   ' Try to find the Qt4 installation (user specified path with --with-qt4)
-   '
-   strPathQt4 = ""
-
-   LogPrint "Checking for user specified path of Qt4 ... "
-   if (strPathQt4 = "") And (strOptQt4 <> "") then
-      strOptQt4 = UnixSlashes(strOptQt4)
-      if CheckForQt4Sub(strOptQt4) then strPathQt4 = strOptQt4
-   end if
-
-   ' Check the dev tools
-   if (strPathQt4 = "") Then
-      strPathQt4 = g_strPathDev & "/win." & g_strTargetArch & "/qt/v4.7.3-vcc100"
-      if CheckForQt4Sub(strPathQt4) = False then strPathQt4 = ""
-   end if
-
-   ' Display the result.
-   if strPathQt4 = "" then
-      PrintResultMsg "Qt4", "not found"
-   else
-      PrintResult "Qt4", strPathQt4
-   end if
-
+' Checks for any Qt5 binaries.
+sub CheckForQt(strOptQt5)
    PrintHdr "Qt5"
 
    '
@@ -2082,46 +2011,14 @@ sub CheckForQt(strOptQt4, strOptQt5)
       CfgPrint "PATH_SDK_QT5          := " & strPathQt5
       CfgPrint "PATH_TOOL_QT5         := $(PATH_SDK_QT5)"
       CfgPrint "VBOX_PATH_QT          := $(PATH_SDK_QT5)"
-      if strPathQt4 <> "" then
-         MsgWarning "Have working path to both Qt4 ad Qt5, ignoring Qt4."
-      end if
-   elseif strPathQt4 <> "" then
-      CfgPrint "PATH_SDK_QT4          := " & strPathQt4
-      CfgPrint "PATH_TOOL_QT4         := $(PATH_SDK_QT4)"
-      CfgPrint "VBOX_PATH_QT          := $(PATH_SDK_QT4)"
    end if
-   if (strPathQt4 = "") And (strPathQt5 = "") then
+   if strPathQt5 = "" then
       CfgPrint "VBOX_WITH_QTGUI       :="
    end if
    if strPathQt5 = "" then
       CfgPrint "VBOX_WITH_QTGUI_V5    :="
    end if
 end sub
-
-
-''
-' Checks if the specified path points to an usable Qt4 library.
-function CheckForQt4Sub(strPathQt4)
-
-   CheckForQt4Sub = False
-   LogPrint "trying: strPathQt4=" & strPathQt4
-
-   if   LogFileExists(strPathQt4, "bin/moc.exe") _
-    And LogFileExists(strPathQt4, "bin/uic.exe") _
-    And LogFileExists(strPathQt4, "include/Qt/qwidget.h") _
-    And LogFileExists(strPathQt4, "include/QtGui/QApplication") _
-    And LogFileExists(strPathQt4, "include/QtNetwork/QHostAddress") _
-    And (   LogFileExists(strPathQt4, "lib/QtCore4.lib") _
-         Or LogFileExists(strPathQt4, "lib/VBoxQtCore4.lib") _
-         Or LogFileExists(strPathQt4, "lib/QtCoreVBox4.lib")) _
-    And (   LogFileExists(strPathQt4, "lib/QtNetwork4.lib") _
-         Or LogFileExists(strPathQt4, "lib/VBoxQtNetwork4.lib") _
-         Or LogFileExists(strPathQt4, "lib/QtNetworkVBox4.lib")) _
-      then
-         CheckForQt4Sub = True
-   end if
-
-end function
 
 
 ''
@@ -2195,29 +2092,31 @@ sub usage
    Print "  -h, --help"
    Print "  --internal"
    Print "  --internal-last"
+   Print "  --target-arch=x86|amd64"
    Print ""
    Print "Components:"
    Print "  --disable-COM"
    Print "  --disable-UDPTunnel"
    Print ""
    Print "Locations:"
-   Print "  --with-DDK=PATH       "
    Print "  --with-kBuild=PATH    "
    Print "  --with-libSDL=PATH    "
    Print "  --with-MinGW32=PATH   "
    Print "  --with-MinGW-w64=PATH "
-   Print "  --with-Qt4=PATH       "
    Print "  --with-Qt5=PATH       "
+   Print "  --with-DDK=PATH       "
    Print "  --with-SDK=PATH       "
    Print "  --with-VC=PATH        "
    Print "  --with-VC-Common=PATH "
    Print "  --with-VC-Express-Edition"
    Print "  --with-W32API=PATH    "
    Print "  --with-libxml2=PATH   "
-   Print "  --with-libxslt=PATH   "
    Print "  --with-openssl=PATH   "
+   Print "  --with-openssl32=PATH (only for 64-bit targets)"
    Print "  --with-libcurl=PATH   "
+   Print "  --with-libcurl32=PATH (only for 64-bit targets)"
    Print "  --with-python=PATH    "
+   Print "  --with-mkisofs=PATH   "
 end sub
 
 
@@ -2243,7 +2142,6 @@ Sub Main
    strOptlibSDL = ""
    strOptMinGW32 = ""
    strOptMinGWw64 = ""
-   strOptQt4 = ""
    strOptQt5 = ""
    strOptSDK = ""
    strOptVC = ""
@@ -2251,9 +2149,10 @@ Sub Main
    blnOptVCExpressEdition = False
    strOptW32API = ""
    strOptXml2 = ""
-   strOptXslt = ""
    strOptSsl = ""
+   strOptSsl32 = ""
    strOptCurl = ""
+   strOptCurl32 = ""
    strOptPython = ""
    strOptMkisofs = ""
    blnOptDisableCOM = False
@@ -2286,8 +2185,6 @@ Sub Main
             strOptMinGW32 = strPath
          case "--with-mingw-w64"
             strOptMinGWw64 = strPath
-         case "--with-qt4"
-            strOptQt4 = strPath
          case "--with-qt5"
             strOptQt5 = strPath
          case "--with-sdk"
@@ -2302,12 +2199,14 @@ Sub Main
             strOptW32API = strPath
          case "--with-libxml2"
             strOptXml2 = strPath
-         case "--with-libxslt"
-            strOptXslt = strPath
          case "--with-openssl"
             strOptSsl = strPath
+         case "--with-openssl32"
+            strOptSsl32 = strPath
          case "--with-libcurl"
             strOptCurl = strPath
+         case "--with-libcurl32"
+            strOptCurl32 = strPath
          case "--with-python"
             strOptPython = strPath
          case "--with-mkisofs"
@@ -2322,6 +2221,8 @@ Sub Main
             g_blnInternalMode = True
          case "--internal-last"
             g_blnInternalFirst = False
+         case "--target-arch"
+            g_strTargetArch = strPath
          case "-h", "--help", "-?"
             usage
             Wscript.Quit(0)
@@ -2364,7 +2265,7 @@ Sub Main
    CheckSourcePath
    CheckForkBuild strOptkBuild
    CheckForWinDDK strOptDDK
-   CfgPrint "VBOX_WITH_WDDM_W8     := " '' @todo look for WinDDKv8; Check with Misha if we _really_ need the v8 DDK...
+   CfgPrint "VBOX_WITH_WDDM_W8     := " '' @todo look for WinDDKv8
    CheckForVisualCPP strOptVC, strOptVCCommon, blnOptVCExpressEdition
    CheckForPlatformSDK strOptSDK
    CheckForMidl
@@ -2372,18 +2273,27 @@ Sub Main
    CheckForMinGWw64 strOptMinGWw64
    CfgPrint "VBOX_WITH_OPEN_WATCOM := " '' @todo look for openwatcom 1.9+
    EnvPrint "set PATH=%PATH%;" & g_strPath& "/tools/win." & g_strTargetArch & "/bin;" '' @todo look for yasm
-   CheckForlibSDL strOptlibSDL
-   ' Don't check for these libraries by default as they are part of OSE
-   ' Using external libs can add a dependency to iconv
+   if blnOptDisableSDL = True then
+      DisableSDL "--disable-sdl"
+   else
+      CheckForlibSDL strOptlibSDL
+   end if
+   ' Don't check for this library by default as it's part of the tarball
+   ' Using an external library can add a dependency to iconv
    if (strOptXml2 <> "") then
       CheckForXml2 strOptXml2
    end if
-   if (strOptXslt <> "") then
-      CheckForXslt strOptXslt
+   CheckForSsl strOptSsl, False
+   if g_strTargetArch = "amd64" then
+       ' 32-bit openssl required as well
+       CheckForSsl strOptSsl32, True
    end if
-   CheckForSsl strOptSsl
-   CheckForCurl strOptCurl
-   CheckForQt strOptQt4, strOptQt5
+   CheckForCurl strOptCurl, False
+   if g_strTargetArch = "amd64" then
+       ' 32-bit Curl required as well
+       CheckForCurl strOptCurl32, True
+   end if
+   CheckForQt strOptQt5
    if (strOptPython <> "") then
      CheckForPython strOptPython
    end if

@@ -4632,7 +4632,7 @@ p, li { white-space: pre-wrap; }
         <translation>Endereço IPv6</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Tamanho da Máscara de Rede IPv6</translation>
     </message>
     <message>
@@ -4886,7 +4886,7 @@ p, li { white-space: pre-wrap; }
         <translation>Edita a rede exclusiva de hospedeiro selecionada.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>A interface do hospedeiro &lt;b&gt;%1&lt;/b&gt; não possui uma máscara IPv6 de tamanho válido.</translation>
     </message>
 </context>
@@ -4933,11 +4933,11 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Exibe o endereço IPv6 para esta placa se IPv6 for suportado.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">Tamanho da Máscara de Rede IPv6 (&amp;L):</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Exibe o tamanho do prefixo da máscara de rede IPv6 para esta placa se IPv6 for suportado.</translation>
     </message>
     <message>
@@ -5028,11 +5028,11 @@ p, li { white-space: pre-wrap; }
         <translation>Contém o endereço IPv6 para esta placa se IPv6 for suportado.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>Tamanho da Máscara de Rede IPv6 (&amp;L):</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Contém o tamanho do prefixo da máscara de rede IPv6 para esta placa se IPv6 for suportado.</translation>
     </message>
     <message>

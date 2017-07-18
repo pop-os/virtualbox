@@ -4294,7 +4294,7 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
         <translation>IPv6 адрес</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Дължина на IPv6 мрежовата маска</translation>
     </message>
     <message>
@@ -4548,7 +4548,7 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
         <translation>Редактира избраната само-хост мрежа.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>Реалният интерфейс &lt;b&gt;%1&lt;/b&gt; текущо няма валидна дължина на префикса на IPv6 мрежова маска.</translation>
     </message>
 </context>
@@ -4595,11 +4595,11 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
         <translation type="obsolete">Показва IPv6 адреса на хоста за този адаптер, ако се поддържа IPv6.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">&amp;Дължина на IPv6 мрежовата маска:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Показва префиксната дължина на IPv6 мрежовата маска на хоста за този адаптер, ако се поддържа IPv6.</translation>
     </message>
     <message>
@@ -4690,11 +4690,11 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
         <translation>Задава IPv6 адреса на хоста за този адаптер, ако се поддържа IPv6.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>&amp;Дължина на IPv6 мрежовата маска:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Задава префиксната дължина на IPv6 мрежовата маска на хоста за този адаптер, ако се поддържа IPv6.</translation>
     </message>
     <message>

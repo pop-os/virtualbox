@@ -4320,7 +4320,7 @@ p, li { white-space: pre-wrap; }
         <translation>IPv6-adress</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Masklängd för IPv6-nätverk</translation>
     </message>
     <message>
@@ -4574,7 +4574,7 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4621,11 +4621,11 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Visar värdens IPv6-adress för detta kort om IPv6 stöds.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">Mask&amp;längd för IPv6-nätverk:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Visar prefixlängd för värdens IPv6-nätverksmask för detta kort om IPv6 stöds.</translation>
     </message>
     <message>
@@ -4716,11 +4716,11 @@ p, li { white-space: pre-wrap; }
         <translation>Innehåller värdens IPv6-adress för denna adapter om IPv6 stöds.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>Mask&amp;längd för IPv6-nätverk:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Innehåller prefixlängd för värdens IPv6-nätverksmask för denna adapter om IPv6 stöds.</translation>
     </message>
     <message>

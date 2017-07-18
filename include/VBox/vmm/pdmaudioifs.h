@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,15 +74,19 @@ typedef struct PDMAUDIOBACKENDCFG
 } PDMAUDIOBACKENDCFG, *PPDMAUDIOBACKENDCFG;
 
 /**
- * An audio sample. At the moment stereo (left + right channels) only.
- * @todo Replace this with a more generic union
- *       which then also could handle 2.1 or 5.1 sound.
+ * A single audio sample, representing left and right channels (stereo).
  */
 typedef struct PDMAUDIOSAMPLE
 {
+    /** Left channel. */
     int64_t i64LSample;
+    /** Right channel. */
     int64_t i64RSample;
-} PDMAUDIOSAMPLE, *PPDMAUDIOSAMPLE;
+} PDMAUDIOSAMPLE;
+/** Pointer to a single (stereo) audio sample.   */
+typedef PDMAUDIOSAMPLE *PPDMAUDIOSAMPLE;
+/** Pointer to a const single (stereo) audio sample.   */
+typedef PDMAUDIOSAMPLE const *PCPDMAUDIOSAMPLE;
 
 typedef enum PDMAUDIOENDIANNESS
 {
@@ -187,7 +191,7 @@ typedef enum PDMAUDIOSTREAMCMD
  * Properties of audio streams for host/guest
  * for in or out directions.
  */
-typedef struct PDMPCMPROPS
+typedef struct PDMAUDIOPCMPROPS
 {
     /** Sample width. Bits per sample. */
     uint8_t     cBits;
@@ -211,7 +215,20 @@ typedef struct PDMPCMPROPS
     uint32_t    cbPerSec;
     /** Whether the endianness is swapped or not. */
     bool        fSwapEndian;
-} PDMPCMPROPS, *PPDMPCMPROPS;
+} PDMAUDIOPCMPROPS, *PPDMAUDIOPCMPROPS;
+
+/** Calculates the cShift value of given samples bits and audio channels.
+ *  Note: Does only support mono/stereo channels for now. */
+#define PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(cBits, cChannels)     ((cChannels == 2) + (cBits / 16))
+/** Calculates the cShift value of a PDMAUDIOPCMPROPS structure.
+ *  Note: Does only support mono/stereo channels for now. */
+#define PDMAUDIOPCMPROPS_MAKE_SHIFT(pProps)                     PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS((pProps)->cChannels == 2) + (pProps)->cBits / 16)
+/** Converts (audio) samples to bytes.
+ *  Needs the cShift value set correctly, using PDMAUDIOPCMPROPS_MAKE_SHIFT. */
+#define PDMAUDIOPCMPROPS_S2B(pProps, samples)                   ((samples) << (pProps)->cShift)
+/** Converts bytes to (audio) samples.
+ *  Needs the cShift value set correctly, using PDMAUDIOPCMPROPS_MAKE_SHIFT. */
+#define PDMAUDIOPCMPROPS_B2S(pProps, cb)                        (cb >> (pProps)->cShift)
 
 /**
  * Structure keeping an audio volume level.
@@ -250,44 +267,120 @@ typedef struct PDMAUDIOSTRMRATE
 } PDMAUDIOSTRMRATE, *PPDMAUDIOSTRMRATE;
 
 /**
+ * Structure for holding mixing buffer volume parameters.
+ * The volume values are in fixed point style and must
+ * be converted to/from before using with e.g. PDMAUDIOVOLUME.
+ */
+typedef struct PDMAUDMIXBUFVOL
+{
+    /** Set to @c true if this stream is muted, @c false if not. */
+    bool    fMuted;
+    /** Left volume to apply during conversion. Pass 0
+     *  to convert the original values. May not apply to
+     *  all conversion functions. */
+    uint32_t uLeft;
+    /** Right volume to apply during conversion. Pass 0
+     *  to convert the original values. May not apply to
+     *  all conversion functions. */
+    uint32_t uRight;
+} PDMAUDMIXBUFVOL, *PPDMAUDMIXBUFVOL;
+
+/**
+ * Structure for holding sample conversion parameters for
+ * the audioMixBufConvFromXXX / audioMixBufConvToXXX macros.
+ */
+typedef struct PDMAUDMIXBUFCONVOPTS
+{
+    /** Number of audio samples to convert. */
+    uint32_t        cSamples;
+    union
+    {
+        struct
+        {
+            /** Volume to use for conversion. */
+            PDMAUDMIXBUFVOL Volume;
+        } From;
+    };
+} PDMAUDMIXBUFCONVOPTS;
+/** Pointer to conversion parameters for the audio mixer.   */
+typedef PDMAUDMIXBUFCONVOPTS *PPDMAUDMIXBUFCONVOPTS;
+/** Pointer to const conversion parameters for the audio mixer.   */
+typedef PDMAUDMIXBUFCONVOPTS const *PCPDMAUDMIXBUFCONVOPTS;
+
+/**
  * Note: All internal handling is done in samples,
  *       not in bytes!
  */
 typedef uint32_t PDMAUDIOMIXBUFFMT;
 typedef PDMAUDIOMIXBUFFMT *PPDMAUDIOMIXBUFFMT;
 
+/**
+ * Convertion-from function used by the PDM audio buffer mixer.
+ *
+ * @returns Number of samples returned.
+ * @param   paDst           Where to return the converted samples.
+ * @param   pvSrc           The source samples bytes.
+ * @param   cbSrc           Number of bytes to convert.
+ * @param   pOpts           Conversion options.
+ */
+typedef DECLCALLBACK(uint32_t) FNPDMAUDIOMIXBUFCONVFROM(PPDMAUDIOSAMPLE paDst, const void *pvSrc, uint32_t cbSrc,
+                                                        PCPDMAUDMIXBUFCONVOPTS pOpts);
+/** Pointer to a convertion-from function used by the PDM audio buffer mixer. */
+typedef FNPDMAUDIOMIXBUFCONVFROM *PFNPDMAUDIOMIXBUFCONVFROM;
+
+/**
+ * Convertion-to function used by the PDM audio buffer mixer.
+ *
+ * @param   pvDst           Output buffer.
+ * @param   paSrc           The input samples.
+ * @param   pOpts           Conversion options.
+ */
+typedef DECLCALLBACK(void) FNPDMAUDIOMIXBUFCONVTO(void *pvDst, PCPDMAUDIOSAMPLE paSrc, PCPDMAUDMIXBUFCONVOPTS pOpts);
+/** Pointer to a convertion-to function used by the PDM audio buffer mixer. */
+typedef FNPDMAUDIOMIXBUFCONVTO *PFNPDMAUDIOMIXBUFCONVTO;
+
 typedef struct PDMAUDIOMIXBUF *PPDMAUDIOMIXBUF;
 typedef struct PDMAUDIOMIXBUF
 {
-    RTLISTNODE             Node;
+    RTLISTNODE                Node;
     /** Name of the buffer. */
-    char                  *pszName;
+    char                     *pszName;
     /** Sample buffer. */
-    PPDMAUDIOSAMPLE        pSamples;
+    PPDMAUDIOSAMPLE           pSamples;
     /** Size of the sample buffer (in samples). */
-    uint32_t               cSamples;
-    /** The current read/write position (in samples)
-     *  in the samples buffer. */
-    uint32_t               offReadWrite;
+    uint32_t                  cSamples;
+    /** The current read position (in samples). */
+    uint32_t                  offRead;
+    /** The current write position (in samples). */
+    uint32_t                  offWrite;
     /**
      * Total samples already mixed down to the parent buffer (if any). Always starting at
-     * the parent's offReadWrite position.
+     * the parent's offRead position.
      *
      * Note: Count always is specified in parent samples, as the sample count can differ between parent
      *       and child.
      */
-    uint32_t               cMixed;
-    uint32_t               cProcessed;
+    uint32_t                  cMixed;
+    /** How much audio samples are currently being used
+     *  in this buffer.
+     *  Note: This also is known as the distance in ring buffer terms. */
+    uint32_t                  cUsed;
     /** Pointer to parent buffer (if any). */
-    PPDMAUDIOMIXBUF        pParent;
+    PPDMAUDIOMIXBUF           pParent;
     /** List of children mix buffers to keep in sync with (if being a parent buffer). */
-    RTLISTANCHOR           lstBuffers;
+    RTLISTANCHOR              lstChildren;
+    /** Number of children mix buffers kept in lstChildren. */
+    uint32_t                  cChildren;
     /** Intermediate structure for buffer conversion tasks. */
-    PPDMAUDIOSTRMRATE      pRate;
-    /** Current volume used for mixing. */
-    PDMAUDIOVOLUME         Volume;
+    PPDMAUDIOSTRMRATE         pRate;
+    /** Internal representation of current volume used for mixing. */
+    PDMAUDMIXBUFVOL           Volume;
     /** This buffer's audio format. */
-    PDMAUDIOMIXBUFFMT      AudioFmt;
+    PDMAUDIOMIXBUFFMT         AudioFmt;
+    /** Standard conversion-to function for set AudioFmt. */
+    PFNPDMAUDIOMIXBUFCONVTO   pfnConvTo;
+    /** Standard conversion-from function for set AudioFmt. */
+    PFNPDMAUDIOMIXBUFCONVFROM pfnConvFrom;
     /**
      * Ratio of the associated parent stream's frequency by this stream's
      * frequency (1<<32), represented as a signed 64 bit integer.
@@ -298,10 +391,9 @@ typedef struct PDMAUDIOMIXBUF
      *
      * Currently this does not get changed once assigned.
      */
-    int64_t                iFreqRatio;
-    /* For quickly converting samples <-> bytes and
-     * vice versa. */
-    uint8_t                cShift;
+    int64_t                   iFreqRatio;
+    /** For quickly converting samples <-> bytes and vice versa. */
+    uint8_t                   cShift;
 } PDMAUDIOMIXBUF;
 
 /** Stream status flag. To be used with PDMAUDIOSTRMSTS_FLAG_ flags. */
@@ -336,7 +428,7 @@ typedef struct PDMAUDIOHSTSTRMIN
     /** List node. */
     RTLISTNODE             Node;
     /** PCM properties. */
-    PDMPCMPROPS            Props;
+    PDMAUDIOPCMPROPS       Props;
     /** Stream status flag. */
     PDMAUDIOSTRMSTS        fStatus;
     /** Critical section for serializing access. */
@@ -359,7 +451,7 @@ typedef struct PDMAUDIOHSTSTRMOUT
     /** List node. */
     RTLISTNODE             Node;
     /** Stream properites. */
-    PDMPCMPROPS            Props;
+    PDMAUDIOPCMPROPS       Props;
     /** Stream status flag. */
     PDMAUDIOSTRMSTS        fStatus;
     /** Critical section for serializing access. */
@@ -368,6 +460,8 @@ typedef struct PDMAUDIOHSTSTRMOUT
     PDMAUDIOMIXBUF         MixBuf;
     /** Associated guest output streams. */
     RTLISTANCHOR           lstGstStrmOut;
+    /** Timestamp (in ns) of last audio data playback. */
+    uint64_t               tsLastPlayedNs;
 } PDMAUDIOHSTSTRMOUT, *PPDMAUDIOHSTSTRMOUT;
 
 /**
@@ -395,7 +489,7 @@ typedef struct PDMAUDIOGSTSTRMSTATE
 typedef struct PDMAUDIOGSTSTRMIN
 {
     /** Guest stream properites. */
-    PDMPCMPROPS            Props;
+    PDMAUDIOPCMPROPS       Props;
     /** Current stream state. */
     PDMAUDIOGSTSTRMSTATE   State;
     /** This stream's mixing buffer. */
@@ -415,13 +509,15 @@ typedef struct PDMAUDIOGSTSTRMOUT
     /** List node. */
     RTLISTNODE             Node;
     /** Guest output stream properites. */
-    PDMPCMPROPS            Props;
+    PDMAUDIOPCMPROPS       Props;
     /** Current stream state. */
     PDMAUDIOGSTSTRMSTATE   State;
     /** This stream's mixing buffer. */
     PDMAUDIOMIXBUF         MixBuf;
     /** Pointer to the associated host output stream. */
     PPDMAUDIOHSTSTRMOUT    pHstStrmOut;
+    /** Timestamp (in ns) of last written audio data. */
+    uint64_t               tsLastWrittenNs;
 } PDMAUDIOGSTSTRMOUT, *PPDMAUDIOGSTSTRMOUT;
 
 /** Pointer to a audio connector interface. */

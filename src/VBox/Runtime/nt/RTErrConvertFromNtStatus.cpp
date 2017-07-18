@@ -32,6 +32,10 @@
 typedef long NTSTATUS;                  /** @todo figure out which headers to include to get this one typedef... */
 
 #include <iprt/err.h>
+#ifdef VBOX
+# include <VBox/err.h>
+#endif
+#include <iprt/log.h>
 #include <iprt/assert.h>
 
 
@@ -67,6 +71,10 @@ RTDECL(int)  RTErrConvertFromNtStatus(long lNativeCode)
 
         case STATUS_UNEXPECTED_NETWORK_ERROR:
                                             return VERR_NET_IO_ERROR;
+        case STATUS_INVALID_IMAGE_HASH:     return VERR_LDR_IMAGE_HASH;
+#ifdef VBOX
+        case STATUS_TRUST_FAILURE:          return VERR_SUPLIB_NT_PROCESS_UNTRUSTED_5;
+#endif
     }
 
     /* unknown error. */

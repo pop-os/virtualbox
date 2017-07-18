@@ -41,6 +41,8 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
+#define BS3CG1_WITH_VEX
+
 #define P_CS        X86_OP_PRF_CS
 #define P_SS        X86_OP_PRF_SS
 #define P_DS        X86_OP_PRF_DS
@@ -81,6 +83,15 @@
 # define BS3CG1_DPRINTF(a_ArgList) do { } while (0)
 #endif
 
+/**
+ * Checks if this is a 64-bit test target or not.
+ * Helps avoid ifdefs or code bloat.
+ */
+#if ARCH_BITS == 64
+# define BS3CG1_IS_64BIT_TARGET(a_pThis)    BS3_MODE_IS_64BIT_CODE((a_pThis)->bMode)
+#else
+# define BS3CG1_IS_64BIT_TARGET(a_pThis)    (false)
+#endif
 
 
 /*********************************************************************************************************************************
@@ -91,11 +102,29 @@ typedef enum BS3CG1OPLOC
 {
     BS3CG1OPLOC_INVALID = 0,
     BS3CG1OPLOC_CTX,
+    BS3CG1OPLOC_CTX_ZX_VLMAX,
     BS3CG1OPLOC_IMM,
     BS3CG1OPLOC_MEM,
     BS3CG1OPLOC_MEM_RW,
+    BS3CG1OPLOC_MEM_WO,
     BS3CG1OPLOC_END
 } BS3CG1OPLOC;
+AssertCompile(BS3CG1OPLOC_END <= 16);
+
+
+/** Pointer to the generated test state. */
+typedef struct BS3CG1STATE *PBS3CG1STATE;
+
+/**
+ * Encoder callback.
+ * @returns Next encoding.  If equal or less to @a iEncoding, no
+ *          further encodings are available for testing.
+ * @param   pThis       The state.
+ * @param   iEncoding   The encoding.
+ */
+typedef unsigned BS3_NEAR_CODE FNBS3CG1ENCODER(PBS3CG1STATE pThis, unsigned iEncoding);
+/** Pointer to a encoder callback. */
+typedef FNBS3CG1ENCODER *PFNBS3CG1ENCODER;
 
 
 /**
@@ -133,6 +162,8 @@ typedef struct BS3CG1STATE
     BS3CG1OP                aenmOperands[4];
     /** Opcode bytes. */
     uint8_t                 abOpcodes[4];
+    /** The instruction encoder. */
+    PFNBS3CG1ENCODER        pfnEncoder;
 
     /** The length of the mnemonic. */
     uint8_t                 cchMnemonic;
@@ -146,6 +177,8 @@ typedef struct BS3CG1STATE
 
     /** Operand size in bytes (0 if not applicable). */
     uint8_t                 cbOperand;
+    /** Current VEX.L value (UINT8_MAX if not applicable). */
+    uint8_t                 uVexL;
     /** Current target ring (0..3). */
     uint8_t                 uCpl;
 
@@ -189,13 +222,21 @@ typedef struct BS3CG1STATE
         uint8_t             cbOp;
         /** BS3CG1OPLOC_XXX. */
         uint8_t             enmLocation;
+        /** BS3CG1OPLOC_XXX for memory encodings (MODRM.rm field). */
+        uint8_t             enmLocationMem : 4;
+        /** BS3CG1OPLOC_XXX for register encodings (MODRM.rm field). */
+        uint8_t             enmLocationReg : 4;
         /** The BS3CG1DST value for this field.
          * Set to BS3CG1DST_INVALID if memory or immediate.  */
         uint8_t             idxField;
+        /** The base BS3CG1DST value for this field.
+         * Used only by some generalized encoders when dealing with registers. */
+        uint8_t             idxFieldBase;
         /** Depends on enmLocation.
          * - BS3CG1OPLOC_IMM:       offset relative to start of the instruction.
          * - BS3CG1OPLOC_MEM:       offset should be subtracted from &pbDataPg[_4K].
          * - BS3CG1OPLOC_MEM_RW:    offset should be subtracted from &pbDataPg[_4K].
+         * - BS3CG1OPLOC_MEM_RO:    offset should be subtracted from &pbDataPg[_4K].
          * - BS3CG1OPLOC_CTX:       not used (use idxField instead).
          */
         uint8_t             off;
@@ -267,8 +308,6 @@ typedef struct BS3CG1STATE
     } aSavedSegRegs[4];
 
 } BS3CG1STATE;
-/** Pointer to the generated test state. */
-typedef BS3CG1STATE *PBS3CG1STATE;
 
 
 #define BS3CG1_PF_OZ  UINT16_C(0x0001)
@@ -432,6 +471,14 @@ static const uint8_t g_acbBs3Cg1DstFields[] =
     /* [BS3CG1DST_MM5] = */         8,
     /* [BS3CG1DST_MM6] = */         8,
     /* [BS3CG1DST_MM7] = */         8,
+    /* [BS3CG1DST_MM0_LO_ZX] = */   4,
+    /* [BS3CG1DST_MM1_LO_ZX] = */   4,
+    /* [BS3CG1DST_MM2_LO_ZX] = */   4,
+    /* [BS3CG1DST_MM3_LO_ZX] = */   4,
+    /* [BS3CG1DST_MM4_LO_ZX] = */   4,
+    /* [BS3CG1DST_MM5_LO_ZX] = */   4,
+    /* [BS3CG1DST_MM6_LO_ZX] = */   4,
+    /* [BS3CG1DST_MM7_LO_ZX] = */   4,
     /* [BS3CG1DST_XMM0] = */        16,
     /* [BS3CG1DST_XMM1] = */        16,
     /* [BS3CG1DST_XMM2] = */        16,
@@ -528,6 +575,22 @@ static const uint8_t g_acbBs3Cg1DstFields[] =
     /* [BS3CG1DST_XMM13_DW0_ZX] =*/ 4,
     /* [BS3CG1DST_XMM14_DW0_ZX] =*/ 4,
     /* [BS3CG1DST_XMM15_DW0_ZX] =*/ 4,
+    /* [BS3CG1DST_XMM0_HI96] = */   12,
+    /* [BS3CG1DST_XMM1_HI96] = */   12,
+    /* [BS3CG1DST_XMM2_HI96] = */   12,
+    /* [BS3CG1DST_XMM3_HI96] = */   12,
+    /* [BS3CG1DST_XMM4_HI96] = */   12,
+    /* [BS3CG1DST_XMM5_HI96] = */   12,
+    /* [BS3CG1DST_XMM6_HI96] = */   12,
+    /* [BS3CG1DST_XMM7_HI96] = */   12,
+    /* [BS3CG1DST_XMM8_HI96] = */   12,
+    /* [BS3CG1DST_XMM9_HI96] = */   12,
+    /* [BS3CG1DST_XMM10_HI96] =*/   12,
+    /* [BS3CG1DST_XMM11_HI96] =*/   12,
+    /* [BS3CG1DST_XMM12_HI96] =*/   12,
+    /* [BS3CG1DST_XMM13_HI96] =*/   12,
+    /* [BS3CG1DST_XMM14_HI96] =*/   12,
+    /* [BS3CG1DST_XMM15_HI96] =*/   12,
     /* [BS3CG1DST_YMM0] = */        32,
     /* [BS3CG1DST_YMM1] = */        32,
     /* [BS3CG1DST_YMM2] = */        32,
@@ -679,6 +742,14 @@ static const unsigned g_aoffBs3Cg1DstFields[] =
     /* [BS3CG1DST_MM5] = */         sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[5]),
     /* [BS3CG1DST_MM6] = */         sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[6]),
     /* [BS3CG1DST_MM7] = */         sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[7]),
+    /* [BS3CG1DST_MM0_LO_ZX] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[0]),
+    /* [BS3CG1DST_MM1_LO_ZX] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[1]),
+    /* [BS3CG1DST_MM2_LO_ZX] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[2]),
+    /* [BS3CG1DST_MM3_LO_ZX] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[3]),
+    /* [BS3CG1DST_MM4_LO_ZX] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[4]),
+    /* [BS3CG1DST_MM5_LO_ZX] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[5]),
+    /* [BS3CG1DST_MM6_LO_ZX] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[6]),
+    /* [BS3CG1DST_MM7_LO_ZX] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aRegs[7]),
 
     /* [BS3CG1DST_XMM0] = */        sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[0]),
     /* [BS3CG1DST_XMM1] = */        sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[1]),
@@ -776,6 +847,22 @@ static const unsigned g_aoffBs3Cg1DstFields[] =
     /* [BS3CG1DST_XMM13_DW0_ZX] =*/ sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[13]),
     /* [BS3CG1DST_XMM14_DW0_ZX] =*/ sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[14]),
     /* [BS3CG1DST_XMM15_DW0_ZX] =*/ sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[15]),
+    /* [BS3CG1DST_XMM0_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[0].au32[1]),
+    /* [BS3CG1DST_XMM1_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[1].au32[1]),
+    /* [BS3CG1DST_XMM2_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[2].au32[1]),
+    /* [BS3CG1DST_XMM3_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[3].au32[1]),
+    /* [BS3CG1DST_XMM4_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[4].au32[1]),
+    /* [BS3CG1DST_XMM5_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[5].au32[1]),
+    /* [BS3CG1DST_XMM6_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[6].au32[1]),
+    /* [BS3CG1DST_XMM7_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[7].au32[1]),
+    /* [BS3CG1DST_XMM8_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[8].au32[1]),
+    /* [BS3CG1DST_XMM9_HI96] = */   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[9].au32[1]),
+    /* [BS3CG1DST_XMM10_HI96] =*/   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[10].au32[1]),
+    /* [BS3CG1DST_XMM11_HI96] =*/   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[11].au32[1]),
+    /* [BS3CG1DST_XMM12_HI96] =*/   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[12].au32[1]),
+    /* [BS3CG1DST_XMM13_HI96] =*/   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[13].au32[1]),
+    /* [BS3CG1DST_XMM14_HI96] =*/   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[14].au32[1]),
+    /* [BS3CG1DST_XMM15_HI96] =*/   sizeof(BS3REGCTX) + RT_OFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[15].au32[1]),
 
     /* [BS3CG1DST_YMM0] = */        ~0U,
     /* [BS3CG1DST_YMM1] = */        ~0U,
@@ -928,6 +1015,14 @@ static const struct { char sz[12]; } g_aszBs3Cg1DstFields[] =
     { "MM5" },
     { "MM6" },
     { "MM7" },
+    { "MM0_LO_ZX" },
+    { "MM1_LO_ZX" },
+    { "MM2_LO_ZX" },
+    { "MM3_LO_ZX" },
+    { "MM4_LO_ZX" },
+    { "MM5_LO_ZX" },
+    { "MM6_LO_ZX" },
+    { "MM7_LO_ZX" },
     { "XMM0" },
     { "XMM1" },
     { "XMM2" },
@@ -1024,6 +1119,22 @@ static const struct { char sz[12]; } g_aszBs3Cg1DstFields[] =
     { "XMM13_DW0_ZX" },
     { "XMM14_DW0_ZX" },
     { "XMM15_DW0_ZX" },
+    { "XMM0_HI96" },
+    { "XMM1_HI96" },
+    { "XMM2_HI96" },
+    { "XMM3_HI96" },
+    { "XMM4_HI96" },
+    { "XMM5_HI96" },
+    { "XMM6_HI96" },
+    { "XMM7_HI96" },
+    { "XMM8_HI96" },
+    { "XMM9_HI96" },
+    { "XMM10_HI96" },
+    { "XMM11_HI96" },
+    { "XMM12_HI96" },
+    { "XMM13_HI96" },
+    { "XMM14_HI96" },
+    { "XMM15_HI96" },
     { "YMM0" },
     { "YMM1" },
     { "YMM2" },
@@ -1095,7 +1206,7 @@ static const uint16_t g_afPfxKindToIgnoredFlags[BS3CG1PFXKIND_END] =
 
 
 /**
- * Checks if >= 16 byte SSE/AVX alignment are exempted for the exception type.
+ * Checks if >= 16 byte SSE alignment are exempted for the exception type.
  *
  * @returns true / false.
  * @param   enmXcptType         The type to check.
@@ -1104,6 +1215,12 @@ static bool BS3_NEAR_CODE Bs3Cg1XcptTypeIsUnaligned(BS3CG1XCPTTYPE enmXcptType)
 {
     switch (enmXcptType)
     {
+        case BS3CG1XCPTTYPE_1:
+        case BS3CG1XCPTTYPE_2:
+        case BS3CG1XCPTTYPE_4:
+            return false;
+        case BS3CG1XCPTTYPE_NONE:
+        case BS3CG1XCPTTYPE_3:
         case BS3CG1XCPTTYPE_4UA:
         case BS3CG1XCPTTYPE_5:
             return true;
@@ -1114,78 +1231,32 @@ static bool BS3_NEAR_CODE Bs3Cg1XcptTypeIsUnaligned(BS3CG1XCPTTYPE enmXcptType)
 
 
 /**
- * Inserts a 2-byte VEX prefix.
+ * Checks if >= 16 byte AVX alignment are exempted for the exception type.
  *
- * @returns New offDst value.
- * @param   pThis       The state.
- * @param   offDst      The current instruction offset.
- * @param   uVexL       The VEX.L value.
- * @param   uVexV       The VEX.V value (caller inverted it already).
- * @param   uVexR       The VEX.R value (caller inverted it already).
+ * @returns true / false.
+ * @param   enmXcptType         The type to check.
  */
-DECLINLINE(unsigned) BS3_NEAR_CODE Bs3Cg1InsertVex2bPrefix(PBS3CG1STATE pThis, unsigned offDst,
-                                                           uint8_t uVexV, uint8_t uVexL, uint8_t uVexR)
+static bool BS3_NEAR_CODE Bs3Cg1XcptTypeIsVexUnaligned(BS3CG1XCPTTYPE enmXcptType)
 {
-    uint8_t b = uVexR << 7;
-    b        |= uVexV << 3;
-    b        |= uVexL << 2;
-    switch (pThis->enmPrefixKind)
+    switch (enmXcptType)
     {
-        case BS3CG1PFXKIND_NO_F2_F3_66:     b |= 0; break;
-        case BS3CG1PFXKIND_REQ_66:          b |= 1; break;
-        case BS3CG1PFXKIND_REQ_F3:          b |= 2; break;
-        case BS3CG1PFXKIND_REQ_F2:          b |= 3; break;
+        case BS3CG1XCPTTYPE_1:
+            return false;
+
+        case BS3CG1XCPTTYPE_NONE:
+        case BS3CG1XCPTTYPE_2:
+        case BS3CG1XCPTTYPE_3:
+        case BS3CG1XCPTTYPE_4:
+        case BS3CG1XCPTTYPE_4UA:
+        case BS3CG1XCPTTYPE_5:
+        case BS3CG1XCPTTYPE_6:
+        case BS3CG1XCPTTYPE_11:
+        case BS3CG1XCPTTYPE_12:
+            return true;
+
         default:
-            Bs3TestFailedF("enmPrefixKind=%d not supported for VEX!\n");
-            break;
+            return false;
     }
-
-    pThis->abCurInstr[offDst]     = 0xc5; /* vex2 */
-    pThis->abCurInstr[offDst + 1] = b;
-    return offDst + 2;
-}
-
-
-/**
- * Inserts a 3-byte VEX prefix.
- *
- * @returns New offDst value.
- * @param   pThis       The state.
- * @param   offDst      The current instruction offset.
- * @param   uVexL       The VEX.L value.
- * @param   uVexV       The VEX.V value (caller inverted it already).
- * @param   uVexR       The VEX.R value (caller inverted it already).
- * @param   uVexR       The VEX.X value (caller inverted it already).
- * @param   uVexR       The VEX.B value (caller inverted it already).
- * @param   uVexR       The VEX.W value (straight).
- */
-DECLINLINE(unsigned) BS3_NEAR_CODE Bs3Cg1InsertVex3bPrefix(PBS3CG1STATE pThis, unsigned offDst, uint8_t uVexV, uint8_t uVexL,
-                                                           uint8_t uVexR, uint8_t uVexX, uint8_t uVexB, uint8_t uVexW)
-{
-    uint8_t b1;
-    uint8_t b2;
-    b1        = uVexR << 7;
-    b1       |= uVexX << 6;
-    b1       |= uVexB << 5;
-    b1       |= 1; /* VEX.mmmmm = 1*/ /** @todo three byte opcode tables */
-    b2        = uVexV << 3;
-    b2       |= uVexW << 7;
-    b2       |= uVexL << 2;
-    switch (pThis->enmPrefixKind)
-    {
-        case BS3CG1PFXKIND_NO_F2_F3_66:     b2 |= 0; break;
-        case BS3CG1PFXKIND_REQ_66:          b2 |= 1; break;
-        case BS3CG1PFXKIND_REQ_F3:          b2 |= 2; break;
-        case BS3CG1PFXKIND_REQ_F2:          b2 |= 3; break;
-        default:
-            Bs3TestFailedF("enmPrefixKind=%d not supported for VEX!\n", pThis->enmPrefixKind);
-            break;
-    }
-
-    pThis->abCurInstr[offDst]     = 0xc4; /* vex3 */
-    pThis->abCurInstr[offDst + 1] = b1;
-    pThis->abCurInstr[offDst + 2] = b2;
-    return offDst + 3;
 }
 
 
@@ -1248,12 +1319,12 @@ static void BS3_NEAR_CODE Bs3Cg1EncodeCleanup(PBS3CG1STATE pThis)
 
 
 static unsigned BS3_NEAR_CODE Bs3Cfg1EncodeMemMod0Disp(PBS3CG1STATE pThis, bool fAddrOverride, unsigned off, uint8_t iReg,
-                                                       uint8_t cbOp, uint8_t cbMissalign, BS3CG1OPLOC enmLocation)
+                                                       uint8_t cbOp, uint8_t cbMisalign, BS3CG1OPLOC enmLocation)
 {
     pThis->aOperands[pThis->iRmOp].idxField     = BS3CG1DST_INVALID;
     pThis->aOperands[pThis->iRmOp].enmLocation  = enmLocation;
     pThis->aOperands[pThis->iRmOp].cbOp         = cbOp;
-    pThis->aOperands[pThis->iRmOp].off          = cbOp + cbMissalign;
+    pThis->aOperands[pThis->iRmOp].off          = cbOp + cbMisalign;
 
     if (   BS3_MODE_IS_16BIT_CODE(pThis->bMode)
         || (fAddrOverride && BS3_MODE_IS_32BIT_CODE(pThis->bMode)) )
@@ -1272,13 +1343,13 @@ static unsigned BS3_NEAR_CODE Bs3Cfg1EncodeMemMod0Disp(PBS3CG1STATE pThis, bool 
         if (!fAddrOverride || BS3_MODE_IS_32BIT_CODE(pThis->bMode))
         {
             pThis->abCurInstr[off++] = X86_MODRM_MAKE(0, iReg, 6 /*disp16*/);
-            *(uint16_t *)&pThis->abCurInstr[off] = pThis->DataPgFar.off + X86_PAGE_SIZE - cbOp - cbMissalign;
+            *(uint16_t *)&pThis->abCurInstr[off] = pThis->DataPgFar.off + X86_PAGE_SIZE - cbOp - cbMisalign;
             off += 2;
         }
         else
         {
             pThis->abCurInstr[off++] = X86_MODRM_MAKE(0, iReg, 5 /*disp32*/);
-            *(uint32_t *)&pThis->abCurInstr[off] = pThis->DataPgFar.off + X86_PAGE_SIZE - cbOp - cbMissalign;
+            *(uint32_t *)&pThis->abCurInstr[off] = pThis->DataPgFar.off + X86_PAGE_SIZE - cbOp - cbMisalign;
             off += 4;
         }
     }
@@ -1289,18 +1360,20 @@ static unsigned BS3_NEAR_CODE Bs3Cfg1EncodeMemMod0Disp(PBS3CG1STATE pThis, bool 
          * or 64-bit code doing either 64-bit or 32-bit addressing.
          */
         pThis->abCurInstr[off++] = X86_MODRM_MAKE(0, iReg, 5 /*disp32*/);
-        *(uint32_t *)&pThis->abCurInstr[off] = BS3_FP_OFF(pThis->pbDataPg) + X86_PAGE_SIZE - cbOp - cbMissalign;
+        *(uint32_t *)&pThis->abCurInstr[off] = BS3_FP_OFF(pThis->pbDataPg) + X86_PAGE_SIZE - cbOp - cbMisalign;
 
+#if ARCH_BITS == 64
         /* In 64-bit mode we always have a rip relative encoding regardless of fAddrOverride. */
-        if (BS3_MODE_IS_64BIT_CODE(pThis->bMode))
+        if (BS3CG1_IS_64BIT_TARGET(pThis))
             *(uint32_t *)&pThis->abCurInstr[off] -= BS3_FP_OFF(&pThis->pbCodePg[X86_PAGE_SIZE]);
+#endif
         off += 4;
     }
 
     /*
      * Fill the memory with 0xcc.
      */
-    switch (cbOp + cbMissalign)
+    switch (cbOp + cbMisalign)
     {
         case 8: pThis->pbDataPg[X86_PAGE_SIZE - 8] = 0xcc;  /* fall thru */
         case 7: pThis->pbDataPg[X86_PAGE_SIZE - 7] = 0xcc;  /* fall thru */
@@ -1313,8 +1386,8 @@ static unsigned BS3_NEAR_CODE Bs3Cfg1EncodeMemMod0Disp(PBS3CG1STATE pThis, bool 
         case 0: break;
         default:
         {
-            BS3CG1_DPRINTF(("Bs3MemSet(%p,%#x,%#x)\n", &pThis->pbDataPg[X86_PAGE_SIZE - cbOp - cbMissalign], 0xcc, cbOp - cbMissalign));
-            Bs3MemSet(&pThis->pbDataPg[X86_PAGE_SIZE - cbOp - cbMissalign], 0xcc, cbOp - cbMissalign);
+            BS3CG1_DPRINTF(("Bs3MemSet(%p,%#x,%#x)\n", &pThis->pbDataPg[X86_PAGE_SIZE - cbOp - cbMisalign], 0xcc, cbOp - cbMisalign));
+            Bs3MemSet(&pThis->pbDataPg[X86_PAGE_SIZE - cbOp - cbMisalign], 0xcc, cbOp - cbMisalign);
             break;
         }
     }
@@ -1323,7 +1396,30 @@ static unsigned BS3_NEAR_CODE Bs3Cfg1EncodeMemMod0Disp(PBS3CG1STATE pThis, bool 
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Eb_Gb(PBS3CG1STATE pThis, unsigned iEncoding)
+#if 0 /* unused */
+/** Also encodes idxField of the register operand using idxFieldBase.   */
+static unsigned BS3_NEAR_CODE
+Bs3Cfg1EncodeMemMod0DispWithRegField(PBS3CG1STATE pThis, bool fAddrOverride, unsigned off, uint8_t iReg,
+                                     uint8_t cbOp, uint8_t cbMisalign, BS3CG1OPLOC enmLocation)
+{
+    pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + iReg;
+    return Bs3Cfg1EncodeMemMod0Disp(pThis, fAddrOverride, off, iReg & 7, cbOp, cbMisalign, enmLocation);
+}
+#endif
+
+/** Also encodes idxField of the register operand using idxFieldBase.   */
+static unsigned BS3_NEAR_CODE
+Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(PBS3CG1STATE pThis, bool fAddrOverride, unsigned off,
+                                                uint8_t iReg, uint8_t cbMisalign)
+{
+    pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + iReg;
+    return Bs3Cfg1EncodeMemMod0Disp(pThis, fAddrOverride, off, iReg & 7, pThis->aOperands[pThis->iRmOp].cbOp, cbMisalign,
+                                    pThis->aOperands[pThis->iRmOp].enmLocation);
+}
+
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Eb_Gb(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     /* Start by reg,reg encoding. */
@@ -1354,7 +1450,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Eb_Gb(PBS3CG1STAT
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gb_Eb(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Gb_Eb(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     /* Start by reg,reg encoding. */
@@ -1385,7 +1481,8 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gb_Eb(PBS3CG1STAT
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ev__OR__BS3CG1ENC_MODRM_Ev_Gv(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Gv_Ev__OR__MODRM_Ev_Gv(PBS3CG1STATE pThis,
+                                                                                                unsigned iEncoding)
 {
     unsigned off;
     unsigned cbOp;
@@ -1403,7 +1500,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ev__OR__BS3CG1
         pThis->aOperands[pThis->iRegOp].idxField    = BS3CG1DST_OZ_RBP;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
         off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, X86_GREG_xBP, cbOp, 0,
-                                       pThis->enmEncoding == BS3CG1ENC_MODRM_Gv_Ev ? BS3CG1OPLOC_MEM : BS3CG1OPLOC_MEM_RW);
+                                       pThis->enmEncoding == BS3CG1ENC_MODRM_Gv_Ev ? BS3CG1OPLOC_MEM : BS3CG1OPLOC_MEM_WO);
     }
     else if (iEncoding == 2 && (g_uBs3CpuDetected & BS3CPU_TYPE_MASK) >= BS3CPU_80386)
     {
@@ -1422,7 +1519,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ev__OR__BS3CG1
         pThis->abCurInstr[0] = P_OZ;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 1));
         off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, X86_GREG_xSI, cbOp, 0,
-                                       pThis->enmEncoding == BS3CG1ENC_MODRM_Gv_Ev ? BS3CG1OPLOC_MEM : BS3CG1OPLOC_MEM_RW);
+                                       pThis->enmEncoding == BS3CG1ENC_MODRM_Gv_Ev ? BS3CG1OPLOC_MEM : BS3CG1OPLOC_MEM_WO);
     }
     else if (iEncoding == 4)
     {
@@ -1431,7 +1528,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ev__OR__BS3CG1
         pThis->abCurInstr[0] = P_AZ;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 1));
         off = Bs3Cfg1EncodeMemMod0Disp(pThis, true, off, X86_GREG_xDI, cbOp, 0,
-                                       pThis->enmEncoding == BS3CG1ENC_MODRM_Gv_Ev ? BS3CG1OPLOC_MEM : BS3CG1OPLOC_MEM_RW);
+                                       pThis->enmEncoding == BS3CG1ENC_MODRM_Gv_Ev ? BS3CG1OPLOC_MEM : BS3CG1OPLOC_MEM_WO);
     }
     else if (iEncoding == 5)
     {
@@ -1441,9 +1538,9 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ev__OR__BS3CG1
         pThis->abCurInstr[1] = P_AZ;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 2));
         off = Bs3Cfg1EncodeMemMod0Disp(pThis, true, off, X86_GREG_xSI, cbOp, 0,
-                                       pThis->enmEncoding == BS3CG1ENC_MODRM_Gv_Ev ? BS3CG1OPLOC_MEM : BS3CG1OPLOC_MEM_RW);
+                                       pThis->enmEncoding == BS3CG1ENC_MODRM_Gv_Ev ? BS3CG1OPLOC_MEM : BS3CG1OPLOC_MEM_WO);
     }
-    else if (iEncoding == 6 && BS3_MODE_IS_64BIT_CODE(pThis->bMode))
+    else if (iEncoding == 6 && BS3CG1_IS_64BIT_TARGET(pThis))
     {
         cbOp = 8;
         off = Bs3Cg1InsertReqPrefix(pThis, 0);
@@ -1464,7 +1561,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ev__OR__BS3CG1
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wss_Vss(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Wss_WO_Vss(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1478,13 +1575,13 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wss_Vss(PBS3CG1ST
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2_DW0;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 4, 0, BS3CG1OPLOC_MEM_RW);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 4, 0, BS3CG1OPLOC_MEM_WO);
     }
     else if (iEncoding == 2)
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_DW0;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 4, 1 /*cbMissalign*/, BS3CG1OPLOC_MEM_RW);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 4, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM_WO);
     }
     else
         return 0;
@@ -1493,7 +1590,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wss_Vss(PBS3CG1ST
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wsd_Vsd(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Wsd_WO_Vsd(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1507,13 +1604,13 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wsd_Vsd(PBS3CG1ST
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2_LO;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 8, 0, BS3CG1OPLOC_MEM_RW);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 8, 0, BS3CG1OPLOC_MEM_WO);
     }
     else if (iEncoding == 2)
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_LO;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMissalign*/, BS3CG1OPLOC_MEM_RW);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM_WO);
     }
     else
         return 0;
@@ -1522,7 +1619,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wsd_Vsd(PBS3CG1ST
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wps_Vps__OR__BS3CG1ENC_MODRM_Wpd_Vpd(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Wps_WO_Vps__OR__MODRM_Wpd_WO_Vpd(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1536,13 +1633,13 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wps_Vps__OR__BS3C
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 16, 0, BS3CG1OPLOC_MEM_RW);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 16, 0, BS3CG1OPLOC_MEM_WO);
     }
     else if (iEncoding == 2)
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 1 /*cbMissalign*/, BS3CG1OPLOC_MEM_RW);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM_WO);
         if (!Bs3Cg1XcptTypeIsUnaligned(pThis->enmXcptType))
             pThis->bAlignmentXcpt = X86_XCPT_GP;
     }
@@ -1553,7 +1650,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wps_Vps__OR__BS3C
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_WqZxReg_Vq(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_WqZxReg_WO_Vq(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1567,13 +1664,13 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_WqZxReg_Vq(PBS3CG
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2_LO;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 8, 0, BS3CG1OPLOC_MEM_RW);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 8, 0, BS3CG1OPLOC_MEM_WO);
     }
     else if (iEncoding == 2)
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_LO;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMissalign*/, BS3CG1OPLOC_MEM_RW);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM_WO);
     }
     else
         return 0;
@@ -1582,7 +1679,331 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_WqZxReg_Vq(PBS3CG
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vq_UqHi(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Pq_WO_Qq(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            break;
+        case 1:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 7);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 7;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 2:
+            off = Bs3Cg1InsertReqPrefix(pThis, 0);
+            pThis->abCurInstr[off++] = REX__RBX;
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2; /* no +8*/
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6; /* no +8*/
+            break;
+#endif
+        case 3:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+        case 4:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg*/, 1 /*cbMisalign*/);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 5:
+            off = Bs3Cg1InsertReqPrefix(pThis, 0);
+            pThis->abCurInstr[off++] = REX__RBX;
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg - no +8*/, 0 /*cbMisalign*/);
+            break;
+#endif
+
+        default:
+            return 0;
+    }
+
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Pq_WO_Uq(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding == 0)
+    {
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM0_LO;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_MM1;
+    }
+    else if (iEncoding == 1)
+    {
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM2_LO;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_MM6;
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_PdZx_WO_Ed_WZ(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            break;
+        case 1:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 2:
+            off = Bs3Cg1InsertReqPrefix(pThis, 0);
+            pThis->abCurInstr[off++] = REX__RBX;
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2 + 8;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6; /* no +8*/
+            break;
+#endif
+        case 3:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+        case 4:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg*/, 1 /*cbMisalign*/);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 5:
+            off = Bs3Cg1InsertReqPrefix(pThis, 0);
+            pThis->abCurInstr[off++] = REX__RBX;
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+#endif
+
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Pq_WO_Eq_WNZ(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+#if ARCH_BITS == 64
+    if (BS3CG1_IS_64BIT_TARGET(pThis))
+    {
+        unsigned off;
+        switch (iEncoding)
+        {
+            case 0:
+                pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_W___;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+                break;
+            case 1:
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_W___;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+                break;
+            case 2:
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_WRBX;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2 + 8;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6; /* no +8*/
+                break;
+            case 3:
+                pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_W___;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+                break;
+            case 4:
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_W___;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg*/, 1 /*cbMisalign*/);
+                break;
+            case 5:
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_WRBX;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg*/, 0 /*cbMisalign*/);
+                break;
+
+            default:
+                return 0;
+        }
+        pThis->cbCurInstr = off;
+        return iEncoding + 1;
+    }
+#endif
+    return 0;
+}
+
+
+/* Differs from Bs3Cg1EncodeNext_MODRM_PdZx_WO_Ed_WZ in that REX.R isn't ignored. */
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Vd_WO_Ed_WZ(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            break;
+        case 1:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 2:
+            off = Bs3Cg1InsertReqPrefix(pThis, 0);
+            pThis->abCurInstr[off++] = REX__RBX;
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2 + 8;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6 + 8;
+            break;
+#endif
+        case 3:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+        case 4:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg*/, 1 /*cbMisalign*/);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 5:
+            off = Bs3Cg1InsertReqPrefix(pThis, 0);
+            pThis->abCurInstr[off++] = REX__RBX;
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7+8 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+#endif
+
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/* Differs from Bs3Cg1EncodeNext_MODRM_Pq_WO_Eq_WNZ in that REX.R isn't ignored. */
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Vq_WO_Eq_WNZ(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+#if ARCH_BITS == 64
+    if (BS3CG1_IS_64BIT_TARGET(pThis))
+    {
+        unsigned off;
+        switch (iEncoding)
+        {
+            case 0:
+                pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_W___;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+                break;
+            case 1:
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_W___;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+                break;
+            case 2:
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_WRBX;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2 + 8;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6 + 8;
+                break;
+            case 4:
+                pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_W___;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+                break;
+            case 5:
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_W___;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg*/, 1 /*cbMisalign*/);
+                break;
+            case 6:
+                off = Bs3Cg1InsertReqPrefix(pThis, 0);
+                pThis->abCurInstr[off++] = REX_WRBX;
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7+8 /*iReg*/, 0 /*cbMisalign*/);
+                break;
+
+            default:
+                return 0;
+        }
+        pThis->cbCurInstr = off;
+        return iEncoding + 1;
+    }
+#endif
+    return 0;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Vq_WO_UqHi(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1606,7 +2027,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vq_UqHi(PBS3CG1ST
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vq_Mq(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Vq_WO_Mq(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1619,7 +2040,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vq_Mq(PBS3CG1STAT
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_LO;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMissalign*/, BS3CG1OPLOC_MEM);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
     }
     else
         return 0;
@@ -1628,7 +2049,53 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vq_Mq(PBS3CG1STAT
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vdq_Wdq(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_VqHi_WO_Uq(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding == 0)
+    {
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM0_LO;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM1_HI;
+    }
+    else if (iEncoding == 1)
+    {
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 2);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM2_LO;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2_HI;
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_VqHi_WO_Mq(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding == 0)
+    {
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2_HI;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 8, 0, BS3CG1OPLOC_MEM);
+    }
+    else if (iEncoding == 1)
+    {
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_HI;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Vdq_WO_Wdq(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1648,7 +2115,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vdq_Wdq(PBS3CG1ST
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 1 /*cbMissalign*/, BS3CG1OPLOC_MEM);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
         if (!Bs3Cg1XcptTypeIsUnaligned(pThis->enmXcptType))
             pThis->bAlignmentXcpt = X86_XCPT_GP;
     }
@@ -1659,7 +2126,39 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vdq_Wdq(PBS3CG1ST
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_VssZxReg_Wss(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Vps_WO_Wps__OR__MODRM_Vpd_WO_Wpd(PBS3CG1STATE pThis,
+                                                                                                          unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding == 0)
+    {
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM0;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM1;
+    }
+    else if (iEncoding == 1)
+    {
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 16, 0, BS3CG1OPLOC_MEM);
+    }
+    else if (iEncoding == 2)
+    {
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
+        if (!Bs3Cg1XcptTypeIsUnaligned(pThis->enmXcptType))
+            pThis->bAlignmentXcpt = X86_XCPT_GP;
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_VssZx_WO_Wss(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1679,7 +2178,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_VssZxReg_Wss(PBS3
     {
         pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_DW0_ZX;
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 4, 1 /*cbMissalign*/, BS3CG1OPLOC_MEM);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 4, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
     }
     else
         return 0;
@@ -1688,7 +2187,61 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_VssZxReg_Wss(PBS3
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ma(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_VsdZx_WO_Wsd__OR__MODRM_VqZx_WO_Wq(PBS3CG1STATE pThis,
+                                                                                                  unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding == 0)
+    {
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM0_LO;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM1_LO_ZX;
+    }
+    else if (iEncoding == 1)
+    {
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2_LO_ZX;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 8, 0, BS3CG1OPLOC_MEM);
+    }
+    else if (iEncoding == 2)
+    {
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_LO_ZX;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_VqZx_WO_Nq(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding == 0)
+    {
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_MM0;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM1_LO_ZX;
+    }
+    else if (iEncoding == 1)
+    {
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 7);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_MM7;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM6_LO_ZX;
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Gv_RO_Ma(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     unsigned cbOp = BS3_MODE_IS_16BIT_CODE(pThis->bMode) ? 2 : 4;
@@ -1731,7 +2284,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ma(PBS3CG1STAT
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MbRO(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Mb_RO(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1748,7 +2301,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MbRO(PBS3CG1STATE
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MdRO(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Md_RO(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1765,7 +2318,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MdRO(PBS3CG1STATE
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MdWO(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Md_WO(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1773,7 +2326,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MdWO(PBS3CG1STATE
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0)) - 1;
         off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
                                        (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
     }
     else
         return 0;
@@ -1782,99 +2335,53 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MdWO(PBS3CG1STATE
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_VEX_MODRM_MdWO(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Mq_WO_Pq(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+        case 1:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg*/, 1 /*cbMisalign*/);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 2:
+            off = Bs3Cg1InsertReqPrefix(pThis, 0);
+            pThis->abCurInstr[off++] = REX__RBX;
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 /*iReg - no +8*/, 0 /*cbMisalign*/);
+            break;
+#endif
+
+        default:
+            return 0;
+    }
+
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Mq_WO_Vq(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
     {
-        /** @todo three by opcode needs some tweaking. */
-        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
-        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2_LO;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 8, 0, BS3CG1OPLOC_MEM_WO);
     }
     else if (iEncoding == 1)
     {
-        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
-        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_LO;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM_WO);
     }
-    else if (iEncoding == 2)
-    {
-        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0x7 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
-        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
-        pThis->fInvalidEncoding = true;
-    }
-    else if (iEncoding == 3)
-    {
-        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
-        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
-        pThis->fInvalidEncoding = true;
-    }
-    else if (iEncoding == 4)
-    {
-        pThis->abCurInstr[0] = P_OZ;
-        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
-        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
-        pThis->fInvalidEncoding = true;
-    }
-    else if (iEncoding == 5)
-    {
-        pThis->abCurInstr[0] = P_RZ;
-        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
-        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
-        pThis->fInvalidEncoding = true;
-    }
-    else if (iEncoding == 6)
-    {
-        pThis->abCurInstr[0] = P_RN;
-        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
-        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
-        pThis->fInvalidEncoding = true;
-    }
-    else if (iEncoding == 7)
-    {
-        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
-        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                       4, 0, BS3CG1OPLOC_MEM_RW);
-    }
-#if ARCH_BITS == 64
-    else if (BS3_MODE_IS_64BIT_CODE(pThis->bMode))
-    {
-        if (iEncoding == 8)
-        {
-            pThis->abCurInstr[0] = REX_____;
-            off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
-            off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
-            off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
-                                           (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
-                                           4, 0, BS3CG1OPLOC_MEM_RW);
-            pThis->fInvalidEncoding = true;
-        }
-        else
-            return 0;
-    }
-#endif
     else
         return 0;
     pThis->cbCurInstr = off;
@@ -1882,14 +2389,65 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_VEX_MODRM_MdWO(PBS3CG1S
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_FIXED(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_Mq_WO_VqHi(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding == 0)
+    {
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2_HI;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 8, 0, BS3CG1OPLOC_MEM_WO);
+    }
+    else if (iEncoding == 1)
+    {
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3_HI;
+        off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 8, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM_WO);
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_MsomethingWO_Vsomething_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2 /*iReg*/, 0);
+            break;
+        case 1:
+            off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2 /*iReg*/, 1 /*cbMisalign*/ );
+            if (!Bs3Cg1XcptTypeIsUnaligned(pThis->enmXcptType))
+                pThis->bAlignmentXcpt = X86_XCPT_GP;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+        case 2:
+            off = Bs3Cg1InsertReqPrefix(pThis, 0);
+            pThis->abCurInstr[off++] = REX__R__;
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2+8 /*iReg*/, 0);
+            break;
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_FIXED(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
     {
         off = Bs3Cg1InsertOpcodes(pThis, Bs3Cg1InsertReqPrefix(pThis, 0));
         pThis->cbCurInstr = off;
-        iEncoding++;
     }
     else
         return 0;
@@ -1897,7 +2455,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_FIXED(PBS3CG1STATE pThi
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_FIXED_AL_Ib(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_FIXED_AL_Ib(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1913,7 +2471,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_FIXED_AL_Ib(PBS3CG1STAT
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_FIXED_rAX_Iz(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_FIXED_rAX_Iz(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding == 0)
@@ -1959,7 +2517,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_FIXED_rAX_Iz(PBS3CG1STA
             pThis->cbOperand         = 4;
         }
     }
-    else if (iEncoding == 2 && BS3_MODE_IS_64BIT_CODE(pThis->bMode))
+    else if (iEncoding == 2 && BS3CG1_IS_64BIT_TARGET(pThis))
     {
         off = Bs3Cg1InsertReqPrefix(pThis, 0);
         pThis->abCurInstr[off++] = REX_W___;
@@ -1978,7 +2536,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_FIXED_rAX_Iz(PBS3CG1STA
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MOD_EQ_3(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_MOD_EQ_3(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding < 8)
@@ -1991,7 +2549,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MOD_EQ_3(PBS3CG1S
     {
         off = Bs3Cg1InsertReqPrefix(pThis, 0);
         off = Bs3Cg1InsertOpcodes(pThis, off);
-        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 0, iEncoding);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 0, iEncoding & 7);
     }
     else
         return 0;
@@ -2001,7 +2559,7 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MOD_EQ_3(PBS3CG1S
 }
 
 
-static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MOD_NE_3(PBS3CG1STATE pThis, unsigned iEncoding)
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_MODRM_MOD_NE_3(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     unsigned off;
     if (iEncoding < 3)
@@ -2028,6 +2586,1563 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MOD_NE_3(PBS3CG1S
 }
 
 
+/*
+ *
+ * VEX
+ * VEX
+ * VEX
+ *
+ */
+#ifdef BS3CG1_WITH_VEX
+
+/**
+ * Inserts a 2-byte VEX prefix.
+ *
+ * @returns New offDst value.
+ * @param   pThis       The state.
+ * @param   offDst      The current instruction offset.
+ * @param   uVexL       The VEX.L value.
+ * @param   uVexV       The VEX.V value (caller inverted it already).
+ * @param   uVexR       The VEX.R value (caller inverted it already).
+ */
+DECLINLINE(unsigned) BS3_NEAR_CODE Bs3Cg1InsertVex2bPrefix(PBS3CG1STATE pThis, unsigned offDst,
+                                                           uint8_t uVexV, uint8_t uVexL, uint8_t uVexR)
+{
+    uint8_t b = uVexR << 7;
+    b        |= uVexV << 3;
+    b        |= uVexL << 2;
+    switch (pThis->enmPrefixKind)
+    {
+        case BS3CG1PFXKIND_NO_F2_F3_66:     b |= 0; break;
+        case BS3CG1PFXKIND_REQ_66:          b |= 1; break;
+        case BS3CG1PFXKIND_REQ_F3:          b |= 2; break;
+        case BS3CG1PFXKIND_REQ_F2:          b |= 3; break;
+        default:
+            Bs3TestFailedF("enmPrefixKind=%d not supported for VEX!\n");
+            break;
+    }
+
+    pThis->abCurInstr[offDst]     = 0xc5; /* vex2 */
+    pThis->abCurInstr[offDst + 1] = b;
+    pThis->uVexL                  = uVexL;
+    return offDst + 2;
+}
+
+
+/**
+ * Inserts a 3-byte VEX prefix.
+ *
+ * @returns New offDst value.
+ * @param   pThis       The state.
+ * @param   offDst      The current instruction offset.
+ * @param   uVexL       The VEX.L value.
+ * @param   uVexV       The VEX.V value (caller inverted it already).
+ * @param   uVexR       The VEX.R value (caller inverted it already).
+ * @param   uVexR       The VEX.X value (caller inverted it already).
+ * @param   uVexR       The VEX.B value (caller inverted it already).
+ * @param   uVexR       The VEX.W value (straight).
+ */
+DECLINLINE(unsigned) BS3_NEAR_CODE Bs3Cg1InsertVex3bPrefix(PBS3CG1STATE pThis, unsigned offDst, uint8_t uVexV, uint8_t uVexL,
+                                                           uint8_t uVexR, uint8_t uVexX, uint8_t uVexB, uint8_t uVexW)
+{
+    uint8_t b1;
+    uint8_t b2;
+    b1        = uVexR << 7;
+    b1       |= uVexX << 6;
+    b1       |= uVexB << 5;
+    b1       |= 1; /* VEX.mmmmm = 1*/ /** @todo three byte opcode tables */
+    b2        = uVexV << 3;
+    b2       |= uVexW << 7;
+    b2       |= uVexL << 2;
+    switch (pThis->enmPrefixKind)
+    {
+        case BS3CG1PFXKIND_NO_F2_F3_66:     b2 |= 0; break;
+        case BS3CG1PFXKIND_REQ_66:          b2 |= 1; break;
+        case BS3CG1PFXKIND_REQ_F3:          b2 |= 2; break;
+        case BS3CG1PFXKIND_REQ_F2:          b2 |= 3; break;
+        default:
+            Bs3TestFailedF("enmPrefixKind=%d not supported for VEX!\n", pThis->enmPrefixKind);
+            break;
+    }
+
+    pThis->abCurInstr[offDst]     = 0xc4; /* vex3 */
+    pThis->abCurInstr[offDst + 1] = b1;
+    pThis->abCurInstr[offDst + 2] = b2;
+    pThis->uVexL                  = uVexL;
+    return offDst + 3;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_VEX_MODRM_Vd_WO_Ed_WZ(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            break;
+        case 1:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+            break;
+        case 2:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L-invalid*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 3:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xe /*~V-invalid*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+            pThis->fInvalidEncoding = true;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 4:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/, 1 /*~X*/, 0 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2 + 8;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6 + 8;
+            break;
+#endif
+        case 5:
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+        case 6:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+        case 7:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 1 /*cbMisalign*/);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 2 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 8:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4+8 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+        case 9:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5+8 /*iReg*/, 0 /*cbMisalign*/);
+            iEncoding += 2;
+            break;
+#endif
+        case 10: /* VEX.W is ignored in 32-bit mode. flag? */
+            BS3_ASSERT(!BS3CG1_IS_64BIT_TARGET(pThis));
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+            break;
+
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/* Differs from Bs3Cg1EncodeNext_MODRM_Pq_WO_Eq_WNZ in that REX.R isn't ignored. */
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_VEX_MODRM_Vq_WO_Eq_WNZ(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+#if ARCH_BITS == 64
+    if (BS3CG1_IS_64BIT_TARGET(pThis))
+    {
+        unsigned off;
+        switch (iEncoding)
+        {
+            case 0:
+                pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+                off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+                break;
+            case 1:
+                off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L-invalid*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+                pThis->fInvalidEncoding = true;
+                break;
+            case 2:
+                off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xe /*~V-invalid*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6;
+                pThis->fInvalidEncoding = true;
+                break;
+            case 3:
+                off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/, 1 /*~X*/, 0 /*~B*/, 1 /*W*/);
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 6, 2);
+                pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2 + 8;
+                pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 6 + 8;
+                break;
+            case 4:
+                pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+                off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 0 /*cbMisalign*/);
+                break;
+            case 5:
+                off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4 /*iReg*/, 1 /*cbMisalign*/);
+                iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 2 : 0;
+                break;
+            case 6:
+                off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
+                off = Bs3Cg1InsertOpcodes(pThis, off);
+                off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 4+8 /*iReg*/, 0 /*cbMisalign*/);
+                break;
+
+            default:
+                return 0;
+        }
+        pThis->cbCurInstr = off;
+        return iEncoding + 1;
+    }
+#endif
+    return 0;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_VEX_MODRM_Vps_WO_Wps__OR__VEX_MODRM_Vpd_WO_Wpd(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    /* 128-bit wide stuff goes first, then we'll update the operand widths afterwards. */
+    if (iEncoding == 0)
+    {
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM0;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM1;
+    }
+    else if (iEncoding == 1)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM5;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM4;
+    }
+    else if (iEncoding == 2)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 5, 4);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM4;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM5;
+    }
+    else if (iEncoding == 3)
+    {
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 16, 0, BS3CG1OPLOC_MEM);
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM2;
+    }
+    else if (iEncoding == 4)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 0, BS3CG1OPLOC_MEM);
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3;
+    }
+    else if (iEncoding == 5)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored */);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 0, BS3CG1OPLOC_MEM);
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3;
+    }
+    else if (iEncoding == 6)
+    {
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
+        if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+            pThis->bAlignmentXcpt = X86_XCPT_GP;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3;
+    }
+    else if (iEncoding == 7)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 16, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
+        if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+            pThis->bAlignmentXcpt = X86_XCPT_GP;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM3;
+    }
+    /* 128-bit invalid encodings: */
+    else if (iEncoding == 8)
+    {
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V*/, 0 /*L*/, 1 /*~R*/); /* Bad V value */
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM0;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM1;
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 9)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_XMM5;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_XMM4;
+        pThis->fInvalidEncoding = true;
+    }
+    /* 256-bit encodings: */
+    else if (iEncoding == 10)
+    {
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp].cbOp      = 32;
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM0;
+        pThis->aOperands[pThis->iRegOp].cbOp     = 32;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM1;
+    }
+    else if (iEncoding == 11)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM5;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM4;
+    }
+    else if (iEncoding == 12)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 5, 4);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM4;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM5;
+    }
+    else if (iEncoding == 13)
+    {
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 2 /*iReg*/, 32, 0, BS3CG1OPLOC_MEM);
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM2;
+    }
+    else if (iEncoding == 14)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 32, 0, BS3CG1OPLOC_MEM);
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM3;
+    }
+    else if (iEncoding == 15)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored */);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 32, 0, BS3CG1OPLOC_MEM);
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM3;
+    }
+    else if (iEncoding == 16)
+    {
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 32, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
+        if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+            pThis->bAlignmentXcpt = X86_XCPT_GP;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM3;
+    }
+    else if (iEncoding == 17)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off, 3 /*iReg*/, 32, 1 /*cbMisalign*/, BS3CG1OPLOC_MEM);
+        if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+            pThis->bAlignmentXcpt = X86_XCPT_GP;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM3;
+    }
+    /* 256-bit invalid encodings: */
+    else if (iEncoding == 18)
+    {
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V - invalid */, 1 /*L*/, 1 /*~R*/); /* Bad V value */
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM0;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM1;
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 19)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V - invalid */, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM5;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM4;
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 20)
+    {
+        pThis->abCurInstr[0] = P_RN;
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM5;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM4;
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 21)
+    {
+        pThis->abCurInstr[0] = P_RZ;
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM5;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM4;
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 22)
+    {
+        pThis->abCurInstr[0] = P_OZ;
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM5;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM4;
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 23)
+    {
+        pThis->abCurInstr[0] = P_LK;
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+        pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM5;
+        pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM4;
+        pThis->fInvalidEncoding = true;
+    }
+#if ARCH_BITS == 64
+    /* 64-bit mode registers */
+    else if (BS3CG1_IS_64BIT_TARGET(pThis))
+    {
+        if (iEncoding == 24)
+        {
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 3, 4);
+            pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM4;
+            pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM11;
+        }
+        else if (iEncoding == 25)
+        {
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 0 /*~R*/, 1 /*~X*/, 0 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 4);
+            pThis->aOperands[pThis->iRmOp ].idxField = BS3CG1DST_YMM12;
+            pThis->aOperands[pThis->iRegOp].idxField = BS3CG1DST_YMM9;
+        }
+        else
+            return 0;
+    }
+#endif
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/**
+ * Wip - VEX.W ignored.
+ * Lig - VEX.L ignored.
+ */
+static unsigned BS3_NEAR_CODE
+Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Hsomething_Usomething_Lip_Wip_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 1:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0x8 /*~V*/, 1 /*L-ignored*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 3, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 3;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 7;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+        case 2:
+#if ARCH_BITS == 64
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 3, 2);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 11;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 15;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+            break;
+#endif
+        case 3:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 4:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L - ignored*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 5:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xc /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W-ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 3;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 6:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W-ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + (BS3CG1_IS_64BIT_TARGET(pThis) ? 15 : 7);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 7:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + (BS3CG1_IS_64BIT_TARGET(pThis) ? 15 : 7);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/**
+ * Wip - VEX.W ignored.
+ */
+static unsigned BS3_NEAR_CODE
+Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_HdqCsomething_Usomething_Wip_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 1:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0x8 /*~V*/, 1 /*L-ignored*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 3, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 3;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 7;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            pThis->fInvalidEncoding = true;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+        case 2:
+#if ARCH_BITS == 64
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 3, 2);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 11;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 15;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 2;
+            break;
+#endif
+        case 3:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 4:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L - ignored*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 5:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xc /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W-ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + 3;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 6:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W-ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + (BS3CG1_IS_64BIT_TARGET(pThis) ? 15 : 7);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        case 7:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 2, 1);
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 2;
+            pThis->aOperands[1            ].idxField = pThis->aOperands[1            ].idxFieldBase + (BS3CG1_IS_64BIT_TARGET(pThis) ? 15 : 7);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 1;
+            break;
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/**
+ * Wip - VEX.W ignored.
+ */
+static unsigned BS3_NEAR_CODE
+Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 20: /* Switch to 256-bit operands. */
+            pThis->aOperands[pThis->iRegOp].idxFieldBase = BS3CG1DST_YMM0;
+            pThis->aOperands[pThis->iRegOp].cbOp = 32;
+            pThis->aOperands[pThis->iRmOp ].cbOp = 32;
+            /* fall thru */
+        case 0:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, iEncoding >= 20 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 0, 0);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 1:
+        case 21:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, iEncoding >= 20 /*L*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 + 8, 0);
+            break;
+#endif
+        case 2:
+        case 22:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V*/, iEncoding >= 20 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 0, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        case 3:
+        case 23:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, iEncoding >= 20 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            break;
+        case 4:
+        case 24:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, iEncoding >= 20 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W-ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5, 0);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 3 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 5:
+        case 25:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, iEncoding >= 20 /*L*/, 0 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5+8, 0);
+            break;
+        case 6:
+        case 26:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, iEncoding >= 20 /*L*/, 1 /*~R*/, 1 /*~X*/, 0 /*~B-ignored*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            break;
+        case 7:
+        case 27:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, iEncoding >= 20 /*L*/, 1 /*~R*/, 0 /*~X-ignored*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2, 0);
+            break;
+#endif
+        case 8:
+        case 28:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, iEncoding >= 20 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        case 9:
+        case 29:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 7 /*~V*/, iEncoding >= 20 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2, 0);
+            pThis->fInvalidEncoding = true;
+            iEncoding += 10;
+            break;
+
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+
+/**
+ * Wip - VEX.W ignored.
+ * Lig - VEX.L ignored.
+ */
+static unsigned BS3_NEAR_CODE
+Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_Lig_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 0, 0);
+            break;
+        case 1:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L - ignored*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7, 0);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 2:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L - ignored*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 + 8, 0);
+            break;
+#endif
+        case 3:
+            iEncoding = 3;
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 0, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        case 4:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            break;
+        case 5:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L-ignored*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            break;
+        case 6:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W-ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5, 0);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 3 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 7:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5+8, 0);
+            break;
+        case 8:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 0 /*~B-ignored*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            break;
+        case 9:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 0 /*~X-ignored*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2, 0);
+            break;
+#endif
+        case 10:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        case 11:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 7 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/**
+ * Wip - VEX.W ignored.
+ * L0 - VEX.L must be zero.
+ */
+static unsigned BS3_NEAR_CODE
+Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_L0_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 0, 0);
+            break;
+        case 1:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L - invalid*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7, 0);
+            pThis->fInvalidEncoding = true;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 2 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 2:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 + 8, 0);
+            break;
+        case 3:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L - invalid*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5 + 8, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+#endif
+        case 4:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 0, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        case 5:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            break;
+        case 6:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L - invalid*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        case 7:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W-ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5, 0);
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 3 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 8:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5+8, 0);
+            break;
+        case 9:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 0 /*~B-ignored*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            break;
+        case 10:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 0 /*~X-ignored*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2, 0);
+            break;
+#endif
+        case 11:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        case 12:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 7 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2, 0);
+            pThis->fInvalidEncoding = true;
+            break;
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/**
+ * Wip - VEX.W ignored.
+ */
+static unsigned BS3_NEAR_CODE
+Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Hsomething_Msomething_Wip_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        case 0:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xc /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 0, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 3;
+            break;
+        case 1:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 0;
+            pThis->fInvalidEncoding = true;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 1 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 2:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0x1 /*~V*/, 0 /*L*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 7 + 8, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 14;
+            break;
+#endif
+        case 3:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 0, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 1;
+            break;
+        case 4:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 0;
+            break;
+        case 5:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L-ignored*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 0;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 6:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W-ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 0;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 3 : 0;
+            break;
+#if ARCH_BITS == 64
+        case 7:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 0 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5+8, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 0;
+            break;
+        case 8:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 0 /*~B-ignored*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 1, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 0;
+            break;
+        case 9:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 0 /*~X-ignored*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + 0;
+            break;
+#endif
+        case 10:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 5, 0);
+            pThis->aOperands[1].idxField = pThis->aOperands[1].idxFieldBase + (BS3CG1_IS_64BIT_TARGET(pThis) ? 15 : 7);
+            pThis->fInvalidEncoding = true;
+            break;
+        default:
+            return 0;
+    }
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_VEX_MODRM_Md_WO(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding == 0)
+    {
+        /** @todo three by opcode needs some tweaking. */
+        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
+    }
+    else if (iEncoding == 1)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
+    }
+    else if (iEncoding == 2)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0x7 /*~V-invalid*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 3)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 4)
+    {
+        pThis->abCurInstr[0] = P_OZ;
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 5)
+    {
+        pThis->abCurInstr[0] = P_RZ;
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 6)
+    {
+        pThis->abCurInstr[0] = P_RN;
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
+        pThis->fInvalidEncoding = true;
+    }
+    else if (iEncoding == 7)
+    {
+        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+        off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                       (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                       4, 0, BS3CG1OPLOC_MEM_WO);
+    }
+#if ARCH_BITS == 64
+    else if (BS3CG1_IS_64BIT_TARGET(pThis))
+    {
+        if (iEncoding == 8)
+        {
+            pThis->abCurInstr[0] = REX_____;
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off) - 1;
+            off = Bs3Cfg1EncodeMemMod0Disp(pThis, false, off,
+                                           (pThis->abCurInstr[off] & X86_MODRM_REG_MASK) >> X86_MODRM_REG_SHIFT,
+                                           4, 0, BS3CG1OPLOC_MEM_WO);
+            pThis->fInvalidEncoding = true;
+        }
+        else
+            return 0;
+    }
+#endif
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/**
+ * Wip = VEX.W ignored.
+ * L0 = VEX.L must be zero.
+ */
+static unsigned BS3_NEAR_CODE
+Bs3Cg1EncodeNext_VEX_MODRM_WsomethingWO_Vsomething_Wip_L0_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        /* 128-bit wide stuff goes first, then we'll update the operand widths afterwards. */
+        case 0:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            break;
+
+        case 1:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            break;
+        case 2:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 5, 4);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 4;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 5;
+            break;
+        case 3:
+            pThis->aOperands[pThis->iRmOp].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2 /*iReg*/, 0);
+            break;
+        case 4:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 0);
+            break;
+        case 5:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored */);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 0);
+            break;
+        case 6:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 1 /*cbMisalign*/);
+            if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+                pThis->bAlignmentXcpt = X86_XCPT_GP;
+            break;
+        case 7:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 1 /*cbMisalign*/);
+            if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+                pThis->bAlignmentXcpt = X86_XCPT_GP;
+            break;
+        /* 128-bit invalid encodings: */
+        case 8:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V*/, 0 /*L*/, 1 /*~R*/); /* Bad V value */
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 9:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            pThis->fInvalidEncoding = true;
+            iEncoding = 20-1;
+            break;
+
+        default:
+            return 0;
+    }
+
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+/**
+ * Wip = VEX.W ignored.
+ */
+static unsigned BS3_NEAR_CODE
+Bs3Cg1EncodeNext_VEX_MODRM_WsomethingWO_Vsomething_Wip_OR_ViceVersa(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    switch (iEncoding)
+    {
+        /* 128-bit wide stuff goes first, then we'll update the operand widths afterwards. */
+        case 0:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            break;
+
+        case 1:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            break;
+        case 2:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 5, 4);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 4;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 5;
+            break;
+        case 3:
+            pThis->aOperands[pThis->iRmOp].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2 /*iReg*/, 0);
+            break;
+        case 4:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 0);
+            break;
+        case 5:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored */);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 0);
+            break;
+        case 6:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 1 /*cbMisalign*/);
+            if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+                pThis->bAlignmentXcpt = X86_XCPT_GP;
+            break;
+        case 7:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 1 /*cbMisalign*/);
+            if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+                pThis->bAlignmentXcpt = X86_XCPT_GP;
+            break;
+        /* 128-bit invalid encodings: */
+        case 8:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V*/, 0 /*L*/, 1 /*~R*/); /* Bad V value */
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 9:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            pThis->fInvalidEncoding = true;
+            iEncoding = 20-1;
+            break;
+
+        case 10: case 11: case 12: case 13: case 14: case 15: case 16: case 17: case 18: case 19:
+            /* fall thru */
+
+            /* 256-bit encodings: */
+        case 20:
+            iEncoding = 20;
+            pThis->aOperands[pThis->iRmOp ].cbOp         = 32;
+            pThis->aOperands[pThis->iRmOp ].idxFieldBase = BS3CG1DST_YMM0;
+            pThis->aOperands[pThis->iRmOp ].enmLocation  = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            pThis->aOperands[pThis->iRegOp].cbOp         = 32;
+            pThis->aOperands[pThis->iRegOp].idxFieldBase = BS3CG1DST_YMM0;
+
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            break;
+        case 21:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            break;
+        case 22:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 5, 4);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 4;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 5;
+            break;
+        case 23:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationMem;
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 2 /*iReg*/, 0);
+            break;
+        case 24:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 0);
+            break;
+        case 25:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 1 /*W - ignored */);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 0);
+            break;
+        case 26:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 1 /*cbMisalign*/);
+            if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+                pThis->bAlignmentXcpt = X86_XCPT_GP;
+            break;
+        case 27:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            off = Bs3Cfg1EncodeMemMod0DispWithRegFieldAndDefaults(pThis, false, off, 3 /*iReg*/, 1 /*cbMisalign*/);
+            if (!Bs3Cg1XcptTypeIsVexUnaligned(pThis->enmXcptType))
+                pThis->bAlignmentXcpt = X86_XCPT_GP;
+            break;
+        /* 256-bit invalid encodings: */
+        case 28:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xe /*~V - invalid */, 1 /*L*/, 1 /*~R*/); /* Bad V value */
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 0);
+            pThis->aOperands[pThis->iRmOp ].enmLocation = pThis->aOperands[pThis->iRmOp].enmLocationReg;
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 0;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 1;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 29:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0 /*~V - invalid */, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 30:
+            pThis->abCurInstr[0] = P_RN;
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 31:
+            pThis->abCurInstr[0] = P_RZ;
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 32:
+            pThis->abCurInstr[0] = P_OZ;
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            pThis->fInvalidEncoding = true;
+            break;
+        case 33:
+            pThis->abCurInstr[0] = P_LK;
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 1 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 4, 5);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 5;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 4;
+            pThis->fInvalidEncoding = true;
+            iEncoding += !BS3CG1_IS_64BIT_TARGET(pThis) ? 2 : 0;
+            break;
+
+#if ARCH_BITS == 64
+        /* 64-bit mode registers */
+        case 34:
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 0 /*~R*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 3, 4);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 4;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 11;
+            break;
+        case 35:
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 0 /*~R*/, 1 /*~X*/, 0 /*~B*/, 0 /*W*/);
+            off = Bs3Cg1InsertOpcodes(pThis, off);
+            pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 1, 4);
+            pThis->aOperands[pThis->iRmOp ].idxField = pThis->aOperands[pThis->iRmOp ].idxFieldBase + 12;
+            pThis->aOperands[pThis->iRegOp].idxField = pThis->aOperands[pThis->iRegOp].idxFieldBase + 9;
+            break;
+#endif
+        default:
+            return 0;
+    }
+
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+//static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_VEX_FIXED(PBS3CG1STATE pThis, unsigned iEncoding)
+//{
+//    unsigned off;
+//    if (iEncoding == 0)
+//        off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+//    else if (iEncoding == 0)
+//        off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+//    else
+//        return 0;
+//    pThis->cbCurInstr = off;
+//    return iEncoding + 1;
+//}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_VEX_MODRM_MOD_EQ_3(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding < 8)
+    {
+        if (iEncoding & 1)
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+        else
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, iEncoding, 1);
+    }
+    else if (iEncoding < 16)
+    {
+        if (iEncoding & 1)
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/);
+        else
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 1 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, iEncoding & 7, 1);
+    }
+    else if (iEncoding < 24)
+    {
+        if (iEncoding & 1)
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/);
+        else
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, 0 /*L*/, 1 /*~R*/, 1 /*~X*/, 1 /*~B*/, 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 0, iEncoding & 7);
+    }
+    else if (iEncoding < 32)
+    {
+        if (iEncoding & 1)
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, (iEncoding & 3) != 0 /*L*/, 1 /*~R*/);
+        else
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, (iEncoding & 2) != 0 /*L*/, 1 /*~R*/, 1 /*~X*/,
+                                          1 /*~B*/, (iEncoding & 4) != 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(3, 0, iEncoding & 7);
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_VEX_MODRM_MOD_NE_3(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    unsigned off;
+    if (iEncoding < 8)
+    {
+        unsigned iMod = iEncoding % 3;
+        if (iEncoding & 1)
+            off = Bs3Cg1InsertVex2bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, (iEncoding & 2) != 0 /*L*/, 1 /*~R*/);
+        else
+            off = Bs3Cg1InsertVex3bPrefix(pThis, 0 /*offDst*/, 0xf /*~V*/, (iEncoding & 2) != 0 /*L*/, 1 /*~R*/,
+                                          1 /*~X*/, 1 /*~B*/, (iEncoding & 4) != 0 /*W*/);
+        off = Bs3Cg1InsertOpcodes(pThis, off);
+        pThis->abCurInstr[off++] = X86_MODRM_MAKE(iMod, 0, 1);
+        if (iMod >= 1)
+            pThis->abCurInstr[off++] = 0x7f;
+        if (iMod == 2)
+        {
+            pThis->abCurInstr[off++] = 0x5f;
+            if (!BS3_MODE_IS_16BIT_CODE(pThis->bMode))
+            {
+                pThis->abCurInstr[off++] = 0x3f;
+                pThis->abCurInstr[off++] = 0x1f;
+            }
+        }
+    }
+    else
+        return 0;
+    pThis->cbCurInstr = off;
+    return iEncoding + 1;
+}
+
+
+static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_VEX_MODRM(PBS3CG1STATE pThis, unsigned iEncoding)
+{
+    const unsigned cFirstEncodings = 32;
+    if (iEncoding < cFirstEncodings)
+    {
+        unsigned iRet = Bs3Cg1EncodeNext_VEX_MODRM_MOD_EQ_3(pThis, iEncoding);
+        BS3_ASSERT(iRet > iEncoding);
+        return iRet;
+    }
+    return Bs3Cg1EncodeNext_VEX_MODRM_MOD_NE_3(pThis, iEncoding - cFirstEncodings) + cFirstEncodings;
+}
+
+#endif /* BS3CG1_WITH_VEX */
+
+
 /**
  * Encodes the next instruction.
  *
@@ -2041,59 +4156,78 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MOD_NE_3(PBS3CG1S
 static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext(PBS3CG1STATE pThis, unsigned iEncoding)
 {
     pThis->bAlignmentXcpt = UINT8_MAX;
+    pThis->uVexL = UINT8_MAX;
+    if (pThis->pfnEncoder)
+        return pThis->pfnEncoder(pThis, iEncoding);
 
     switch (pThis->enmEncoding)
     {
         case BS3CG1ENC_MODRM_Eb_Gb:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Eb_Gb(pThis, iEncoding);
+            return Bs3Cg1EncodeNext_MODRM_Eb_Gb(pThis, iEncoding);
         case BS3CG1ENC_MODRM_Gb_Eb:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gb_Eb(pThis, iEncoding);
+            return Bs3Cg1EncodeNext_MODRM_Gb_Eb(pThis, iEncoding);
         case BS3CG1ENC_MODRM_Gv_Ev:
         case BS3CG1ENC_MODRM_Ev_Gv:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ev__OR__BS3CG1ENC_MODRM_Ev_Gv(pThis, iEncoding);
+            return Bs3Cg1EncodeNext_MODRM_Gv_Ev__OR__MODRM_Ev_Gv(pThis, iEncoding);
 
-        case BS3CG1ENC_MODRM_Wss_Vss:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wss_Vss(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_Wsd_Vsd:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wsd_Vsd(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_Wps_Vps:
-        case BS3CG1ENC_MODRM_Wpd_Vpd:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Wps_Vps__OR__BS3CG1ENC_MODRM_Wpd_Vpd(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_WqZxReg_Vq:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_WqZxReg_Vq(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Wss_WO_Vss:
+            return Bs3Cg1EncodeNext_MODRM_Wss_WO_Vss(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Wsd_WO_Vsd:
+            return Bs3Cg1EncodeNext_MODRM_Wsd_WO_Vsd(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Wps_WO_Vps:
+        case BS3CG1ENC_MODRM_Wpd_WO_Vpd:
+            return Bs3Cg1EncodeNext_MODRM_Wps_WO_Vps__OR__MODRM_Wpd_WO_Vpd(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_WqZxReg_WO_Vq:
+            return Bs3Cg1EncodeNext_MODRM_WqZxReg_WO_Vq(pThis, iEncoding);
 
-        case BS3CG1ENC_MODRM_Vq_UqHi:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vq_UqHi(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_Vq_Mq:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vq_Mq(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_Vdq_Wdq:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Vdq_Wdq(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_VssZxReg_Wss:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_VssZxReg_Wss(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Vq_WO_UqHi:
+            return Bs3Cg1EncodeNext_MODRM_Vq_WO_UqHi(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Vq_WO_Mq:
+            return Bs3Cg1EncodeNext_MODRM_Vq_WO_Mq(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_VqHi_WO_Uq:
+            return Bs3Cg1EncodeNext_MODRM_VqHi_WO_Uq(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_VqHi_WO_Mq:
+            return Bs3Cg1EncodeNext_MODRM_VqHi_WO_Mq(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Vpd_WO_Wpd:
+        case BS3CG1ENC_MODRM_Vps_WO_Wps:
+            return Bs3Cg1EncodeNext_MODRM_Vps_WO_Wps__OR__MODRM_Vpd_WO_Wpd(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_VssZx_WO_Wss:
+            return Bs3Cg1EncodeNext_MODRM_VssZx_WO_Wss(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_VsdZx_WO_Wsd:
+        case BS3CG1ENC_MODRM_VqZx_WO_Wq:
+            return Bs3Cg1EncodeNext_MODRM_VsdZx_WO_Wsd__OR__MODRM_VqZx_WO_Wq(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_VqZx_WO_Nq:
+            return Bs3Cg1EncodeNext_MODRM_VqZx_WO_Nq(pThis, iEncoding);
 
-        case BS3CG1ENC_MODRM_Gv_Ma:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_Gv_Ma(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Gv_RO_Ma:
+            return Bs3Cg1EncodeNext_MODRM_Gv_RO_Ma(pThis, iEncoding);
 
-        case BS3CG1ENC_MODRM_MbRO:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MbRO(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_MdRO:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MdRO(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_MdWO:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MdWO(pThis, iEncoding);
-        case BS3CG1ENC_VEX_MODRM_MdWO:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_VEX_MODRM_MdWO(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Mb_RO:
+            return Bs3Cg1EncodeNext_MODRM_Mb_RO(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Md_RO:
+            return Bs3Cg1EncodeNext_MODRM_Md_RO(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Md_WO:
+            return Bs3Cg1EncodeNext_MODRM_Md_WO(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Mq_WO_Vq:
+            return Bs3Cg1EncodeNext_MODRM_Mq_WO_Vq(pThis, iEncoding);
+        case BS3CG1ENC_MODRM_Mq_WO_VqHi:
+            return Bs3Cg1EncodeNext_MODRM_Mq_WO_VqHi(pThis, iEncoding);
 
         case BS3CG1ENC_FIXED:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_FIXED(pThis, iEncoding);
+            return Bs3Cg1EncodeNext_FIXED(pThis, iEncoding);
         case BS3CG1ENC_FIXED_AL_Ib:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_FIXED_AL_Ib(pThis, iEncoding);
+            return Bs3Cg1EncodeNext_FIXED_AL_Ib(pThis, iEncoding);
         case BS3CG1ENC_FIXED_rAX_Iz:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_FIXED_rAX_Iz(pThis, iEncoding);
+            return Bs3Cg1EncodeNext_FIXED_rAX_Iz(pThis, iEncoding);
 
-        case BS3CG1ENC_MODRM_MOD_EQ_3:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MOD_EQ_3(pThis, iEncoding);
-        case BS3CG1ENC_MODRM_MOD_NE_3:
-            return Bs3Cg1EncodeNext_BS3CG1ENC_MODRM_MOD_NE_3(pThis, iEncoding);
+        /*
+         * VEX stuff
+         */
+#ifdef BS3CG1_WITH_VEX
+        case BS3CG1ENC_VEX_MODRM_VssZx_WO_Md:
+            return Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_Lig_OR_ViceVersa(pThis, iEncoding);
+
+#endif /* BS3CG1_WITH_VEX */
 
         default:
             Bs3TestFailedF("Internal error! BS3CG1ENC_XXX = %u not implemented", pThis->enmEncoding);
@@ -2118,14 +4252,23 @@ static unsigned BS3_NEAR_CODE Bs3Cg1EncodeNext(PBS3CG1STATE pThis, unsigned iEnc
 #define Bs3Cg1EncodePrep BS3_CMN_NM(Bs3Cg1EncodePrep)
 bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
 {
-    unsigned iRing = 4;
-    while (iRing-- > 0)
-        pThis->aSavedSegRegs[iRing].ds = pThis->aInitialCtxs[iRing].ds;
+    unsigned i = 4;
+    while (i-- > 0)
+        pThis->aSavedSegRegs[i].ds = pThis->aInitialCtxs[i].ds;
+
+    i = RT_ELEMENTS(pThis->aOperands);
+    while (i-- > 0)
+    {
+        pThis->aOperands[i].enmLocationReg  = BS3CG1OPLOC_INVALID;
+        pThis->aOperands[i].enmLocationMem  = BS3CG1OPLOC_INVALID;
+        pThis->aOperands[i].idxFieldBase    = BS3CG1DST_INVALID;
+    }
 
     pThis->iRmOp            = RT_ELEMENTS(pThis->aOperands) - 1;
     pThis->iRegOp           = RT_ELEMENTS(pThis->aOperands) - 1;
     pThis->fSameRingNotOkay = false;
     pThis->cbOperand        = 0;
+    pThis->pfnEncoder       = NULL;
 
     switch (pThis->enmEncoding)
     {
@@ -2148,6 +4291,62 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
             break;
 
+        case BS3CG1ENC_MODRM_Ed_WO_Pd_WZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_PdZx_WO_Ed_WZ;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[1].cbOp = 4;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_EAX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_MM0;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationMem = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_MODRM_Eq_WO_Pq_WNZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Pq_WO_Eq_WNZ;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_RAX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_MM0;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationMem = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_MODRM_Ed_WO_Vd_WZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Vd_WO_Ed_WZ;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[1].cbOp = 4;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_EAX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_XMM0;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationMem = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_MODRM_Eq_WO_Vq_WNZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Vq_WO_Eq_WNZ;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_RAX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_XMM0;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationMem = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            break;
+
         case BS3CG1ENC_MODRM_Gb_Eb:
             pThis->iRmOp             = 1;
             pThis->iRegOp            = 0;
@@ -2167,7 +4366,7 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
             break;
 
-        case BS3CG1ENC_MODRM_Gv_Ma:
+        case BS3CG1ENC_MODRM_Gv_RO_Ma:
             pThis->iRmOp             = 1;
             pThis->iRegOp            = 0;
             pThis->cbOperand         = 2;
@@ -2178,7 +4377,7 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].idxField    = BS3CG1DST_INVALID;
             break;
 
-        case BS3CG1ENC_MODRM_Wss_Vss:
+        case BS3CG1ENC_MODRM_Wss_WO_Vss:
             pThis->iRmOp             = 0;
             pThis->iRegOp            = 1;
             pThis->aOperands[0].cbOp = 4;
@@ -2187,8 +4386,8 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
             break;
 
-        case BS3CG1ENC_MODRM_Wsd_Vsd:
-        case BS3CG1ENC_MODRM_WqZxReg_Vq:
+        case BS3CG1ENC_MODRM_Wsd_WO_Vsd:
+        case BS3CG1ENC_MODRM_WqZxReg_WO_Vq:
             pThis->iRmOp             = 0;
             pThis->iRegOp            = 1;
             pThis->aOperands[0].cbOp = 8;
@@ -2197,8 +4396,8 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
             break;
 
-        case BS3CG1ENC_MODRM_Wps_Vps:
-        case BS3CG1ENC_MODRM_Wpd_Vpd:
+        case BS3CG1ENC_MODRM_Wps_WO_Vps:
+        case BS3CG1ENC_MODRM_Wpd_WO_Vpd:
             pThis->iRmOp             = 0;
             pThis->iRegOp            = 1;
             pThis->aOperands[0].cbOp = 16;
@@ -2207,7 +4406,19 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
             break;
 
-        case BS3CG1ENC_MODRM_Vdq_Wdq:
+        case BS3CG1ENC_MODRM_Vdq_WO_Mdq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_MsomethingWO_Vsomething_OR_ViceVersa;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_MEM;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0;
+            break;
+
+        case BS3CG1ENC_MODRM_Vdq_WO_Wdq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Vdq_WO_Wdq;
             pThis->iRmOp             = 1;
             pThis->iRegOp            = 0;
             pThis->aOperands[0].cbOp = 16;
@@ -2216,7 +4427,32 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
             break;
 
-        case BS3CG1ENC_MODRM_Vq_UqHi:
+        case BS3CG1ENC_MODRM_Vpd_WO_Wpd:
+        case BS3CG1ENC_MODRM_Vps_WO_Wps:
+            pThis->iRmOp             = 1;
+            pThis->iRegOp            = 0;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_MODRM_Pq_WO_Qq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Pq_WO_Qq;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_MM0;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_MM0;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem = BS3CG1OPLOC_MEM;
+            break;
+
+        case BS3CG1ENC_MODRM_Pq_WO_Uq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Pq_WO_Uq;
             pThis->iRmOp             = 1;
             pThis->iRegOp            = 0;
             pThis->aOperands[0].cbOp = 8;
@@ -2225,7 +4461,74 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
             break;
 
-        case BS3CG1ENC_MODRM_Vq_Mq:
+        case BS3CG1ENC_MODRM_PdZx_WO_Ed_WZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_PdZx_WO_Ed_WZ;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[1].cbOp = 4;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_MM0_LO_ZX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_EAX;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem = BS3CG1OPLOC_MEM;
+            break;
+
+        case BS3CG1ENC_MODRM_Pq_WO_Eq_WNZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Pq_WO_Eq_WNZ;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_MM0;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_RAX;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem = BS3CG1OPLOC_MEM;
+            break;
+
+        case BS3CG1ENC_MODRM_VdZx_WO_Ed_WZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Vd_WO_Ed_WZ;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[1].cbOp = 4;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_XMM0_DW0_ZX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_EAX;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem = BS3CG1OPLOC_MEM;
+            break;
+
+        case BS3CG1ENC_MODRM_VqZx_WO_Eq_WNZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Vq_WO_Eq_WNZ;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_XMM0_LO_ZX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_RAX;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem = BS3CG1OPLOC_MEM;
+            break;
+
+        case BS3CG1ENC_MODRM_Vq_WO_UqHi:
+        case BS3CG1ENC_MODRM_VqHi_WO_Uq:
+            pThis->iRmOp             = 1;
+            pThis->iRegOp            = 0;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].enmLocation = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_MODRM_Vq_WO_Mq:
+        case BS3CG1ENC_MODRM_VqHi_WO_Mq:
             pThis->iRmOp             = 1;
             pThis->iRegOp            = 0;
             pThis->aOperands[0].cbOp = 8;
@@ -2234,7 +4537,7 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_MEM;
             break;
 
-        case BS3CG1ENC_MODRM_VssZxReg_Wss:
+        case BS3CG1ENC_MODRM_VssZx_WO_Wss:
             pThis->iRmOp             = 1;
             pThis->iRegOp            = 0;
             pThis->aOperands[0].cbOp = 4;
@@ -2243,23 +4546,77 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
             break;
 
-        case BS3CG1ENC_MODRM_MbRO:
+        case BS3CG1ENC_MODRM_VsdZx_WO_Wsd:
+        case BS3CG1ENC_MODRM_VqZx_WO_Wq:
+        case BS3CG1ENC_MODRM_VqZx_WO_Nq:
+            pThis->iRmOp             = 1;
+            pThis->iRegOp            = 0;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].enmLocation = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_MODRM_Mb_RO:
             pThis->iRmOp             = 0;
             pThis->aOperands[0].cbOp = 1;
             pThis->aOperands[0].enmLocation = BS3CG1OPLOC_MEM;
             break;
 
-        case BS3CG1ENC_MODRM_MdRO:
+        case BS3CG1ENC_MODRM_Md_RO:
             pThis->iRmOp             = 0;
             pThis->aOperands[0].cbOp = 4;
             pThis->aOperands[0].enmLocation = BS3CG1OPLOC_MEM;
             break;
 
-        case BS3CG1ENC_MODRM_MdWO:
-        case BS3CG1ENC_VEX_MODRM_MdWO:
+        case BS3CG1ENC_MODRM_Md_WO:
             pThis->iRmOp             = 0;
             pThis->aOperands[0].cbOp = 4;
-            pThis->aOperands[0].enmLocation = BS3CG1OPLOC_MEM_RW;
+            pThis->aOperands[0].enmLocation = BS3CG1OPLOC_MEM_WO;
+            break;
+
+        case BS3CG1ENC_MODRM_Mdq_WO_Vdq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_MsomethingWO_Vsomething_OR_ViceVersa;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0;
+            break;
+
+        case BS3CG1ENC_MODRM_Mq_WO_Pq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_Mq_WO_Pq;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_MM0;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_MODRM_Mq_WO_Vq:
+        case BS3CG1ENC_MODRM_Mq_WO_VqHi:
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].enmLocation = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_MODRM_Mps_WO_Vps:
+        case BS3CG1ENC_MODRM_Mpd_WO_Vpd:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_MODRM_MsomethingWO_Vsomething_OR_ViceVersa;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0;
             break;
 
         case BS3CG1ENC_FIXED:
@@ -2284,10 +4641,341 @@ bool BS3_NEAR_CODE Bs3Cg1EncodePrep(PBS3CG1STATE pThis)
             pThis->aOperands[1].idxField    = BS3CG1DST_INVALID;
             break;
 
-        case BS3CG1ENC_MODRM_MOD_EQ_3:
-        case BS3CG1ENC_MODRM_MOD_NE_3:
             /* Unused or invalid instructions mostly. */
+        case BS3CG1ENC_MODRM_MOD_EQ_3:
+            pThis->pfnEncoder = Bs3Cg1EncodeNext_MODRM_MOD_EQ_3;
             break;
+        case BS3CG1ENC_MODRM_MOD_NE_3:
+            pThis->pfnEncoder = Bs3Cg1EncodeNext_MODRM_MOD_NE_3;
+            break;
+
+#ifdef BS3CG1_WITH_VEX
+
+        case BS3CG1ENC_VEX_MODRM_Vd_WO_Ed_WZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_Vd_WO_Ed_WZ;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[1].cbOp = 4;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_XMM0_DW0_ZX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_EAX;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem = BS3CG1OPLOC_MEM;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Vq_WO_Eq_WNZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_Vq_WO_Eq_WNZ;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_XMM0_LO_ZX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_RAX;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem = BS3CG1OPLOC_MEM;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Vps_WO_Wps:
+        case BS3CG1ENC_VEX_MODRM_Vpd_WO_Wpd:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_Vps_WO_Wps__OR__VEX_MODRM_Vpd_WO_Wpd;
+            pThis->iRmOp             = 1;
+            pThis->iRegOp            = 0;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_VssZx_WO_Md:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_Lig_OR_ViceVersa;
+            pThis->iRmOp             = 1;
+            pThis->iRegOp            = 0;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[1].cbOp = 4;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_MEM;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0_DW0;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_INVALID;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Vss_WO_HssHi_Uss:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Hsomething_Usomething_Lip_Wip_OR_ViceVersa;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 2;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 12;
+            pThis->aOperands[2].cbOp = 4;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[2].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_HI96;
+            pThis->aOperands[2].idxFieldBase = BS3CG1DST_XMM0_DW0;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_VsdZx_WO_Mq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_Lig_OR_ViceVersa;
+            pThis->iRmOp             = 1;
+            pThis->iRegOp            = 0;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_MEM;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0_LO;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_INVALID;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Vsd_WO_HsdHi_Usd:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Hsomething_Usomething_Lip_Wip_OR_ViceVersa;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 2;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[2].cbOp = 8;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[2].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_HI;
+            pThis->aOperands[2].idxFieldBase = BS3CG1DST_XMM0_LO;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Vq_WO_HqHi_UqHi:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_HdqCsomething_Usomething_Wip_OR_ViceVersa;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 2;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[2].cbOp = 8;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[2].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_HI;
+            pThis->aOperands[2].idxFieldBase = BS3CG1DST_XMM0_HI;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Vq_WO_HqHi_Mq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Hsomething_Msomething_Wip_OR_ViceVersa;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 2;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[2].cbOp = 8;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[2].enmLocation  = BS3CG1OPLOC_MEM;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_HI;
+            pThis->aOperands[2].idxFieldBase = BS3CG1DST_INVALID;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Vq_WO_Wq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_WsomethingWO_Vsomething_Wip_L0_OR_ViceVersa;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].enmLocation     = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation     = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem  = BS3CG1OPLOC_MEM;
+            pThis->aOperands[0].idxFieldBase    = BS3CG1DST_XMM0_LO;
+            pThis->aOperands[1].idxFieldBase    = BS3CG1DST_XMM0_LO;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Vx_WO_Wx:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_WsomethingWO_Vsomething_Wip_OR_ViceVersa;
+            pThis->iRegOp            = 0;
+            pThis->iRmOp             = 1;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation     = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation     = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationReg  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].enmLocationMem  = BS3CG1OPLOC_MEM;
+            pThis->aOperands[0].idxFieldBase    = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase    = BS3CG1DST_XMM0;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Ed_WO_Vd_WZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_Vd_WO_Ed_WZ;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[1].cbOp = 4;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_EAX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_XMM0_DW0_ZX;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationMem = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Eq_WO_Vq_WNZ:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_Vq_WO_Eq_WNZ;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].idxFieldBase   = BS3CG1DST_RAX;
+            pThis->aOperands[1].idxFieldBase   = BS3CG1DST_XMM0_LO_ZX;
+            pThis->aOperands[0].enmLocation    = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationReg = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].enmLocationMem = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation    = BS3CG1OPLOC_CTX;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Md_WO:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_Md_WO;
+            pThis->iRmOp             = 0;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[0].enmLocation = BS3CG1OPLOC_MEM_WO;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Md_WO_Vss:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_Lig_OR_ViceVersa;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 4;
+            pThis->aOperands[1].cbOp = 4;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_INVALID;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_DW0;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Mq_WO_Vq:
+            pThis->pfnEncoder        = pThis->fFlags & BS3CG1INSTR_F_VEX_L_ZERO
+                                     ? Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_L0_OR_ViceVersa
+                                     : Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_Lig_OR_ViceVersa;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_LO;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Mq_WO_Vsd:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_Lig_OR_ViceVersa;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_INVALID;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_LO;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Mps_WO_Vps:
+        case BS3CG1ENC_VEX_MODRM_Mpd_WO_Vpd:
+        case BS3CG1ENC_VEX_MODRM_Mx_WO_Vx:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Msomething_Wip_OR_ViceVersa;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Uss_WO_HssHi_Vss:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Hsomething_Usomething_Lip_Wip_OR_ViceVersa;
+            pThis->iRegOp            = 2;
+            pThis->iRmOp             = 0;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 96;
+            pThis->aOperands[2].cbOp = 4;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[2].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_HI96;
+            pThis->aOperands[2].idxFieldBase = BS3CG1DST_XMM0_DW0;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Usd_WO_HsdHi_Vsd:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_VsomethingWO_Hsomething_Usomething_Lip_Wip_OR_ViceVersa;
+            pThis->iRegOp            = 2;
+            pThis->iRmOp             = 0;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[2].cbOp = 8;
+            pThis->aOperands[0].enmLocation  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[1].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[2].enmLocation  = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase = BS3CG1DST_XMM0_HI;
+            pThis->aOperands[2].idxFieldBase = BS3CG1DST_XMM0_LO;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Wps_WO_Vps:
+        case BS3CG1ENC_VEX_MODRM_Wpd_WO_Vpd:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_WsomethingWO_Vsomething_Wip_OR_ViceVersa;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation     = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[0].enmLocationReg  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[0].enmLocationMem  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation     = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase    = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase    = BS3CG1DST_XMM0;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Wq_WO_Vq:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_WsomethingWO_Vsomething_Wip_L0_OR_ViceVersa;
+            pThis->iRegOp            = 1;
+            pThis->iRmOp             = 0;
+            pThis->aOperands[0].cbOp = 8;
+            pThis->aOperands[1].cbOp = 8;
+            pThis->aOperands[0].enmLocation     = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[0].enmLocationReg  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[0].enmLocationMem  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation     = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase    = BS3CG1DST_XMM0_LO;
+            pThis->aOperands[1].idxFieldBase    = BS3CG1DST_XMM0_LO;
+            break;
+
+        case BS3CG1ENC_VEX_MODRM_Wx_WO_Vx:
+            pThis->pfnEncoder        = Bs3Cg1EncodeNext_VEX_MODRM_WsomethingWO_Vsomething_Wip_OR_ViceVersa;
+            pThis->iRmOp             = 0;
+            pThis->iRegOp            = 1;
+            pThis->aOperands[0].cbOp = 16;
+            pThis->aOperands[1].cbOp = 16;
+            pThis->aOperands[0].enmLocation     = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[0].enmLocationReg  = BS3CG1OPLOC_CTX_ZX_VLMAX;
+            pThis->aOperands[0].enmLocationMem  = BS3CG1OPLOC_MEM_WO;
+            pThis->aOperands[1].enmLocation     = BS3CG1OPLOC_CTX;
+            pThis->aOperands[0].idxFieldBase    = BS3CG1DST_XMM0;
+            pThis->aOperands[1].idxFieldBase    = BS3CG1DST_XMM0;
+            break;
+
+
+            /* Unused or invalid instructions mostly. */
+        //case BS3CG1ENC_VEX_FIXED:
+        //    pThis->pfnEncoder = Bs3Cg1EncodeNext_VEX_FIXED;
+        //    break;
+        case BS3CG1ENC_VEX_MODRM_MOD_EQ_3:
+            pThis->pfnEncoder = Bs3Cg1EncodeNext_VEX_MODRM_MOD_EQ_3;
+            break;
+        case BS3CG1ENC_VEX_MODRM_MOD_NE_3:
+            pThis->pfnEncoder = Bs3Cg1EncodeNext_VEX_MODRM_MOD_NE_3;
+            break;
+        case BS3CG1ENC_VEX_MODRM:
+            pThis->pfnEncoder = Bs3Cg1EncodeNext_VEX_MODRM;
+            break;
+
+#endif /* BS3CG1_WITH_VEX */
 
         default:
             Bs3TestFailedF("Invalid/unimplemented enmEncoding for instruction #%RU32 (%.*s): %d",
@@ -2309,7 +4997,7 @@ static BS3CG1ENC Bs3Cg1CalcNoneIntelInvalidEncoding(BS3CG1ENC enmEncoding)
     switch (enmEncoding)
     {
         case BS3CG1ENC_MODRM_Gb_Eb:
-        case BS3CG1ENC_MODRM_Gv_Ma:
+        case BS3CG1ENC_MODRM_Gv_RO_Ma:
         case BS3CG1ENC_FIXED:
             return BS3CG1ENC_FIXED;
         default:
@@ -2380,7 +5068,7 @@ static bool BS3_NEAR_CODE Bs3Cg3SetupSseAndAvx(PBS3CG1STATE pThis)
 static bool BS3_NEAR_CODE Bs3Cg1CpuSetupNext(PBS3CG1STATE pThis, unsigned iCpuSetup, bool BS3_FAR *pfInvalidInstr)
 {
     if (   (pThis->fFlags & BS3CG1INSTR_F_INVALID_64BIT)
-        && BS3_MODE_IS_64BIT_CODE(pThis->bMode))
+        && BS3CG1_IS_64BIT_TARGET(pThis))
         return false;
 
     switch (pThis->enmCpuTest)
@@ -2395,9 +5083,13 @@ static bool BS3_NEAR_CODE Bs3Cg1CpuSetupNext(PBS3CG1STATE pThis, unsigned iCpuSe
         case BS3CG1CPU_CLFLUSHOPT:
             return false;
 
+        case BS3CG1CPU_MMX:
+            return false;
+
         case BS3CG1CPU_SSE:
         case BS3CG1CPU_SSE2:
         case BS3CG1CPU_SSE3:
+        case BS3CG1CPU_SSE4_1:
         case BS3CG1CPU_AVX:
         case BS3CG1CPU_AVX2:
             if (iCpuSetup > 0 || *pfInvalidInstr)
@@ -2432,7 +5124,7 @@ static bool BS3_NEAR_CODE Bs3Cg1CpuSetupFirst(PBS3CG1STATE pThis)
     uint32_t fEdx;
 
     if (   (pThis->fFlags & BS3CG1INSTR_F_INVALID_64BIT)
-        && BS3_MODE_IS_64BIT_CODE(pThis->bMode))
+        && BS3CG1_IS_64BIT_TARGET(pThis))
         return false;
 
     switch (pThis->enmCpuTest)
@@ -2465,9 +5157,19 @@ static bool BS3_NEAR_CODE Bs3Cg1CpuSetupFirst(PBS3CG1STATE pThis)
                 return true;
             return false;
 
+        case BS3CG1CPU_MMX:
+            if (g_uBs3CpuDetected & BS3CPU_F_CPUID)
+            {
+                ASMCpuIdExSlow(1, 0, 0, 0, NULL, NULL, NULL, &fEdx);
+                if (fEdx & X86_CPUID_FEATURE_EDX_MMX)
+                    return Bs3Cg3SetupSseAndAvx(pThis); /** @todo only do FNSAVE/FXSAVE here? */
+            }
+            return false;
+
         case BS3CG1CPU_SSE:
         case BS3CG1CPU_SSE2:
         case BS3CG1CPU_SSE3:
+        case BS3CG1CPU_SSE4_1:
         case BS3CG1CPU_AVX:
             if (g_uBs3CpuDetected & BS3CPU_F_CPUID)
             {
@@ -2484,6 +5186,10 @@ static bool BS3_NEAR_CODE Bs3Cg1CpuSetupFirst(PBS3CG1STATE pThis)
                         return false;
                     case BS3CG1CPU_SSE3:
                         if (fEcx & X86_CPUID_FEATURE_ECX_SSE3)
+                            return Bs3Cg3SetupSseAndAvx(pThis);
+                        return false;
+                    case BS3CG1CPU_SSE4_1:
+                        if (fEcx & X86_CPUID_FEATURE_ECX_SSE4_1)
                             return Bs3Cg3SetupSseAndAvx(pThis);
                         return false;
                     case BS3CG1CPU_AVX:
@@ -2562,13 +5268,15 @@ static bool BS3_NEAR_CODE Bs3Cg1RunSelector(PBS3CG1STATE pThis, PCBS3CG1TESTHDR 
             CASE_PRED(BS3CG1PRED_SIZE_O16, pThis->cbOperand == 2);
             CASE_PRED(BS3CG1PRED_SIZE_O32, pThis->cbOperand == 4);
             CASE_PRED(BS3CG1PRED_SIZE_O64, pThis->cbOperand == 8);
+            CASE_PRED(BS3CG1PRED_VEXL_0, pThis->uVexL == 0);
+            CASE_PRED(BS3CG1PRED_VEXL_1, pThis->uVexL == 1);
             CASE_PRED(BS3CG1PRED_RING_0, pThis->uCpl == 0);
             CASE_PRED(BS3CG1PRED_RING_1, pThis->uCpl == 1);
             CASE_PRED(BS3CG1PRED_RING_2, pThis->uCpl == 2);
             CASE_PRED(BS3CG1PRED_RING_3, pThis->uCpl == 3);
             CASE_PRED(BS3CG1PRED_RING_0_THRU_2, pThis->uCpl <= 2);
             CASE_PRED(BS3CG1PRED_RING_1_THRU_3, pThis->uCpl >= 1);
-            CASE_PRED(BS3CG1PRED_CODE_64BIT, BS3_MODE_IS_64BIT_CODE(pThis->bMode));
+            CASE_PRED(BS3CG1PRED_CODE_64BIT, BS3CG1_IS_64BIT_TARGET(pThis));
             CASE_PRED(BS3CG1PRED_CODE_32BIT, BS3_MODE_IS_32BIT_CODE(pThis->bMode));
             CASE_PRED(BS3CG1PRED_CODE_16BIT, BS3_MODE_IS_16BIT_CODE(pThis->bMode));
             CASE_PRED(BS3CG1PRED_MODE_REAL,  BS3_MODE_IS_RM_SYS(pThis->bMode));
@@ -2640,29 +5348,34 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
         /*
          * Decode the instruction.
          */
-        uint8_t const   bOpcode = *pbCode++;
-        unsigned        cbValue;
-        unsigned        cbDst;
-        BS3CG1DST       idxField;
-        BS3PTRUNION     PtrField;
+        uint8_t const       bOpcode = *pbCode++;
+        unsigned            cbValue;
+        unsigned            cbDst;
+        BS3CG1DST           idxField;
+        BS3PTRUNION         PtrField;
+        uint8_t BS3_FAR    *pbMemCopy = NULL;
+        bool                fZxVlMax;
 
-        /* Expand the destiation field (can be escaped). */
+        /* Expand the destiation field (can be escaped). Set fZxVlMax. */
         switch (bOpcode & BS3CG1_CTXOP_DST_MASK)
         {
             case BS3CG1_CTXOP_OP1:
                 idxField = pThis->aOperands[0].idxField;
                 if (idxField == BS3CG1DST_INVALID)
                     idxField = BS3CG1DST_OP1;
+                fZxVlMax = pEflCtx != NULL && pThis->aOperands[0].enmLocation == BS3CG1OPLOC_CTX_ZX_VLMAX;
                 break;
 
             case BS3CG1_CTXOP_OP2:
                 idxField = pThis->aOperands[1].idxField;
                 if (idxField == BS3CG1DST_INVALID)
                     idxField = BS3CG1DST_OP2;
+                fZxVlMax = pEflCtx != NULL && pThis->aOperands[1].enmLocation == BS3CG1OPLOC_CTX_ZX_VLMAX;
                 break;
 
             case BS3CG1_CTXOP_EFL:
                 idxField = BS3CG1DST_EFL;
+                fZxVlMax = false;
                 break;
 
             case BS3CG1_CTXOP_DST_ESC:
@@ -2673,21 +5386,25 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
                     {
                         if (idxField > BS3CG1DST_INVALID)
                         {
-                            uint8_t idxField2 = pThis->aOperands[idxField - BS3CG1DST_OP1].idxField;
+                            unsigned idxOp     = idxField - BS3CG1DST_OP1;
+                            uint8_t  idxField2 = pThis->aOperands[idxOp].idxField;
                             if (idxField2 != BS3CG1DST_INVALID)
                                 idxField = idxField2;
+                            fZxVlMax = pEflCtx != NULL && pThis->aOperands[idxOp].enmLocation == BS3CG1OPLOC_CTX_ZX_VLMAX;
                             break;
                         }
                     }
                     else if (idxField < BS3CG1DST_END)
+                    {
+                        fZxVlMax = false;
                         break;
+                    }
                     return Bs3TestFailedF("Malformed context instruction: idxField=%d", idxField);
                 }
                 /* fall thru */
             default:
                 return Bs3TestFailed("Malformed context instruction: Destination");
         }
-
 
         /* Expand value size (can be escaped). */
         switch (bOpcode & BS3CG1_CTXOP_SIZE_MASK)
@@ -2732,6 +5449,7 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
             /*
              * Deal with fields up to 8-byte wide.
              */
+
             /* Get the value. */
             uint64_t uValue;
             if ((bOpcode & BS3CG1_CTXOP_SIGN_EXT))
@@ -2787,8 +5505,12 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
                         break;
 
                     case BS3CG1OPLOC_MEM_RW:
+                    case BS3CG1OPLOC_MEM_WO:
                         if (pbInstr)
+                        {
                             PtrField.pu8 = &pThis->pbDataPg[X86_PAGE_SIZE - pThis->aOperands[idxOp].off];
+                            pbMemCopy    = pThis->MemOp.ab;
+                        }
                         else
                             PtrField.pu8 = pThis->MemOp.ab;
                         break;
@@ -2818,7 +5540,7 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
             }
             /* FPU and FXSAVE format. */
             else if (   pThis->pExtCtx->enmMethod != BS3EXTCTXMETHOD_ANCIENT
-                     && offField - sizeof(BS3REGCTX) <= RT_UOFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[15]) )
+                     && offField - sizeof(BS3REGCTX) < RT_UOFFSET_AFTER(BS3EXTCTX, Ctx.x87.aXMM[15]))
             {
                 if (!pThis->fWorkExtCtx)
                     return Bs3TestFailedF("Extended context disabled: Field %d @ %#x LB %u\n", idxField, offField, cbDst);
@@ -2826,7 +5548,7 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
             }
             /** @todo other FPU fields and FPU state formats. */
             else
-                return Bs3TestFailedF("Todo implement me: cbDst=%u idxField=%d offField=%#x", cbDst, idxField, offField);
+                return Bs3TestFailedF("Todo implement me: cbDst=%u idxField=%d offField=%#x (<= 8)", cbDst, idxField, offField);
 
 #ifdef BS3CG1_DEBUG_CTX_MOD
             switch (cbDst)
@@ -2874,13 +5596,19 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
                     break;
 
                 case 4:
-                    if ((unsigned)(idxField - BS3CG1DST_XMM0_DW0_ZX) <= (unsigned)(BS3CG1DST_XMM15_DW0_ZX - BS3CG1DST_XMM0_DW0_ZX))
+                    if (   (unsigned)(idxField - BS3CG1DST_XMM0_DW0_ZX) <= (unsigned)(BS3CG1DST_XMM15_DW0_ZX - BS3CG1DST_XMM0_DW0_ZX)
+                        || fZxVlMax)
                     {
                         PtrField.pu32[1] = 0;
                         PtrField.pu64[1] = 0;
                     }
-                    else if (offField <= RT_OFFSETOF(BS3REGCTX, r15)) /* Clear the top dword. */
+                    else if (offField <= RT_OFFSETOF(BS3REGCTX, r15) /* Clear the top dword. */)
                         PtrField.pu32[1] = 0;
+                    else if ((unsigned)(idxField - BS3CG1DST_MM0_LO_ZX) <= (unsigned)(BS3CG1DST_MM7_LO_ZX - BS3CG1DST_MM0_LO_ZX))
+                    {
+                        PtrField.pu32[1] = 0;
+                        PtrField.pu32[2] = 0xffff; /* observed on skylake */
+                    }
                     switch (bOpcode & BS3CG1_CTXOP_OPERATOR_MASK)
                     {
                         case BS3CG1_CTXOP_ASSIGN:   *PtrField.pu32  =  (uint32_t)uValue; break;
@@ -2891,8 +5619,12 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
                     break;
 
                 case 8:
-                    if ((unsigned)(idxField - BS3CG1DST_XMM0_LO_ZX) <= (unsigned)(BS3CG1DST_XMM15_LO_ZX - BS3CG1DST_XMM0_LO_ZX))
+                    if (   (unsigned)(idxField - BS3CG1DST_XMM0_LO_ZX) <= (unsigned)(BS3CG1DST_XMM15_LO_ZX - BS3CG1DST_XMM0_LO_ZX)
+                        || fZxVlMax)
                         PtrField.pu64[1] = 0;
+                    else if ((unsigned)(idxField - BS3CG1DST_MM0) <= (unsigned)(BS3CG1DST_MM7 - BS3CG1DST_MM0))
+                        PtrField.pu32[2] = 0xffff; /* observed on skylake */
+
                     switch (bOpcode & BS3CG1_CTXOP_OPERATOR_MASK)
                     {
                         case BS3CG1_CTXOP_ASSIGN:   *PtrField.pu64  =  (uint64_t)uValue; break;
@@ -2915,7 +5647,16 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
                 default: BS3CG1_DPRINTF(("dbg:    --> %s: %#018RX64\n", g_aszBs3Cg1DstFields[idxField].sz, *PtrField.pu64)); break;
             }
 #endif
-
+            if (fZxVlMax)
+            {
+                uintptr_t iReg = ((uintptr_t)PtrField.pu8 - (uintptr_t)&pThis->pExtCtx->Ctx.x87.aXMM[0])
+                               / sizeof(pThis->pExtCtx->Ctx.x87.aXMM[0]);
+                pThis->pExtCtx->Ctx.x.u.YmmHi.aYmmHi[iReg].au64[0] = 0;
+                pThis->pExtCtx->Ctx.x.u.YmmHi.aYmmHi[iReg].au64[1] = 0;
+#ifdef BS3CG1_DEBUG_CTX_MOD
+                BS3CG1_DPRINTF(("dbg:    --> cleared YMM%u_HI\n", iReg));
+#endif
+            }
         }
         /*
          * Deal with larger field (FPU, SSE, AVX, ...).
@@ -2930,8 +5671,10 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
                 X86ZMMREG   ZmmReg;
                 uint8_t     ab[sizeof(X86ZMMREG)];
                 uint32_t    au32[sizeof(X86ZMMREG) / sizeof(uint32_t)];
+                uint64_t    au64[sizeof(X86ZMMREG) / sizeof(uint64_t)];
             } Value;
-            unsigned const offField = g_aoffBs3Cg1DstFields[idxField];
+            unsigned const  offField = g_aoffBs3Cg1DstFields[idxField];
+            unsigned        iReg;
 
             if (!pThis->fWorkExtCtx)
                 return Bs3TestFailedF("Extended context disabled: Field %d @ %#x LB %u\n", idxField, offField, cbDst);
@@ -2948,7 +5691,7 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
 
             /* Optimized access to XMM and STx registers. */
             if (   pThis->pExtCtx->enmMethod != BS3EXTCTXMETHOD_ANCIENT
-                && offField - sizeof(BS3REGCTX) <= RT_UOFFSETOF(BS3EXTCTX, Ctx.x87.aXMM[15]) )
+                && offField - sizeof(BS3REGCTX) < RT_UOFFSET_AFTER(BS3EXTCTX, Ctx.x87.aXMM[15]) )
                 PtrField.pb = (uint8_t *)pThis->pExtCtx + offField - sizeof(BS3REGCTX);
             /* Non-register operands: */
             else if ((unsigned)(idxField - BS3CG1DST_OP1) < 4U)
@@ -2963,8 +5706,12 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
                         break;
 
                     case BS3CG1OPLOC_MEM_RW:
+                    case BS3CG1OPLOC_MEM_WO:
                         if (pbInstr)
+                        {
                             PtrField.pu8 = &pThis->pbDataPg[X86_PAGE_SIZE - pThis->aOperands[idxOp].off];
+                            pbMemCopy    = pThis->MemOp.ab;
+                        }
                         else
                             PtrField.pu8 = pThis->MemOp.ab;
                         break;
@@ -2975,12 +5722,57 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
                                               pThis->aOperands[idxOp].off, pThis->aOperands[idxOp].idxField);
                 }
             }
-            /* The YMM (AVX) and the first 16 ZMM (AVX512) registers have split storage in
-               the state, so they need special handling.  */
-            else
+            /* The YMM (AVX) registers have split storage in the state, so they need special handling. */
+            else if ((iReg = idxField - BS3CG1DST_YMM0) < 16U)
             {
-                return Bs3TestFailedF("TODO: implement me: cbDst=%d idxField=%d (AVX and other weird state)", cbDst, idxField);
+                /* The first 128-bits in XMM land. */
+                PtrField.pu64 = &pThis->pExtCtx->Ctx.x87.aXMM[iReg].au64[0];
+                switch (bOpcode & BS3CG1_CTXOP_OPERATOR_MASK)
+                {
+                    case BS3CG1_CTXOP_ASSIGN:
+                        PtrField.pu64[0]  =  Value.au64[0];
+                        PtrField.pu64[1]  =  Value.au64[1];
+                        break;
+                    case BS3CG1_CTXOP_OR:
+                        PtrField.pu64[0] |=  Value.au64[0];
+                        PtrField.pu64[1] |=  Value.au64[1];
+                        break;
+                    case BS3CG1_CTXOP_AND:
+                        PtrField.pu64[0] &=  Value.au64[0];
+                        PtrField.pu64[1] &=  Value.au64[1];
+                        break;
+                    case BS3CG1_CTXOP_AND_INV:
+                        PtrField.pu64[0] &= ~Value.au64[0];
+                        PtrField.pu64[1] &= ~Value.au64[1];
+                        break;
+                }
+
+                /* The second 128-bit in YMM_HI land. */
+                PtrField.pu64 = &pThis->pExtCtx->Ctx.x.u.YmmHi.aYmmHi[iReg].au64[0];
+                switch (bOpcode & BS3CG1_CTXOP_OPERATOR_MASK)
+                {
+                    case BS3CG1_CTXOP_ASSIGN:
+                        PtrField.pu64[0]  =  Value.au64[2];
+                        PtrField.pu64[1]  =  Value.au64[3];
+                        break;
+                    case BS3CG1_CTXOP_OR:
+                        PtrField.pu64[0] |=  Value.au64[2];
+                        PtrField.pu64[1] |=  Value.au64[3];
+                        break;
+                    case BS3CG1_CTXOP_AND:
+                        PtrField.pu64[0] &=  Value.au64[2];
+                        PtrField.pu64[1] &=  Value.au64[3];
+                        break;
+                    case BS3CG1_CTXOP_AND_INV:
+                        PtrField.pu64[0] &= ~Value.au64[2];
+                        PtrField.pu64[1] &= ~Value.au64[3];
+                        break;
+                }
+                PtrField.pb = NULL;
             }
+            /* AVX512 needs handling like above, but more complicated. */
+            else
+                return Bs3TestFailedF("TODO: implement me: cbDst=%d idxField=%d (AVX and other weird state)", cbDst, idxField);
 
             if (PtrField.pb)
             {
@@ -3009,7 +5801,33 @@ static bool BS3_NEAR_CODE Bs3Cg1RunContextModifier(PBS3CG1STATE pThis, PBS3REGCT
 #ifdef BS3CG1_DEBUG_CTX_MOD
                 BS3CG1_DPRINTF(("dbg:    --> %s: %.*Rhxs\n", g_aszBs3Cg1DstFields[idxField].sz, cbDst, PtrField.pb));
 #endif
+
+                if (fZxVlMax)
+                {
+                    uintptr_t iReg = ((uintptr_t)PtrField.pu8 - (uintptr_t)&pThis->pExtCtx->Ctx.x87.aXMM[0])
+                                   / sizeof(pThis->pExtCtx->Ctx.x87.aXMM[0]);
+                    if (cbDst < 16)
+                    {
+                        for (i = cbDst / 4; i < 4; i++)
+                            PtrField.pu32[i++] = 0;
+#ifdef BS3CG1_DEBUG_CTX_MOD
+                        BS3CG1_DPRINTF(("dbg:    --> cleared high %u bytes of XMM%u\n", 16 - cbDst, iReg));
+#endif
+                    }
+                    pThis->pExtCtx->Ctx.x.u.YmmHi.aYmmHi[iReg].au64[0] = 0;
+                    pThis->pExtCtx->Ctx.x.u.YmmHi.aYmmHi[iReg].au64[1] = 0;
+#ifdef BS3CG1_DEBUG_CTX_MOD
+                    BS3CG1_DPRINTF(("dbg:    --> cleared YMM%u_HI\n", iReg));
+#endif
+                }
             }
+
+            /*
+             * Hack! Update pThis->MemOp when setting up the inputs so we can
+             *       correctly validate value and alignment exceptions.
+             */
+            if (pbMemCopy && PtrField.pv)
+                Bs3MemCpy(pbMemCopy, PtrField.pv, cbDst);
         }
 
         /*
@@ -3090,7 +5908,8 @@ static bool BS3_NEAR_CODE Bs3Cg1CheckResult(PBS3CG1STATE pThis, uint8_t bTestXcp
         {
             iOperand = pThis->cOperands;
             while (iOperand-- > 0)
-                if (pThis->aOperands[iOperand].enmLocation == BS3CG1OPLOC_MEM_RW)
+                if (   pThis->aOperands[iOperand].enmLocation == BS3CG1OPLOC_MEM_RW
+                    || pThis->aOperands[iOperand].enmLocation == BS3CG1OPLOC_MEM_WO)
                 {
                     if (pThis->aOperands[iOperand].off)
                     {
@@ -3182,6 +6001,15 @@ static bool BS3_NEAR_CODE Bs3Cg1CheckResult(PBS3CG1STATE pThis, uint8_t bTestXcp
                                                pResult->Ctx.x87.aXMM[i].au64[0],
                                                pExpect->Ctx.x87.aXMM[i].au64[1],
                                                pExpect->Ctx.x87.aXMM[i].au64[0]);
+                if (pExpect->fXcr0Saved & XSAVE_C_YMM)
+                    for (i = 0; i < (ARCH_BITS == 64 ? 16 : 8); i++)
+                        if (   pResult->Ctx.x.u.YmmHi.aYmmHi[i].au64[0] != pExpect->Ctx.x.u.YmmHi.aYmmHi[i].au64[0]
+                            || pResult->Ctx.x.u.YmmHi.aYmmHi[i].au64[1] != pExpect->Ctx.x.u.YmmHi.aYmmHi[i].au64[1])
+                            fOkay = Bs3TestFailedF("YMM%u_HI: %#010RX64'%016RX64, expected %#010RX64'%08RX64", i,
+                                                   pResult->Ctx.x.u.YmmHi.aYmmHi[i].au64[1],
+                                                   pResult->Ctx.x.u.YmmHi.aYmmHi[i].au64[0],
+                                                   pExpect->Ctx.x.u.YmmHi.aYmmHi[i].au64[1],
+                                                   pExpect->Ctx.x.u.YmmHi.aYmmHi[i].au64[0]);
             }
             else
                 fOkay = Bs3TestFailedF("Unsupported extended CPU context method: %d", pExpect->enmMethod);
@@ -3258,6 +6086,7 @@ static bool BS3_NEAR_CODE Bs3Cg1CheckResult(PBS3CG1STATE pThis, uint8_t bTestXcp
 
             case BS3CG1OPLOC_MEM:
             case BS3CG1OPLOC_MEM_RW:
+            case BS3CG1OPLOC_MEM_WO:
                 if (pThis->aOperands[iOperand].off)
                 {
                     PtrUnion.pb = &pThis->pbDataPg[X86_PAGE_SIZE - pThis->aOperands[iOperand].off];
@@ -3272,7 +6101,8 @@ static bool BS3_NEAR_CODE Bs3Cg1CheckResult(PBS3CG1STATE pThis, uint8_t bTestXcp
                                           pThis->aOperands[iOperand].cbOp, PtrUnion.pb);
                             break;
                     }
-                    if (pThis->aOperands[iOperand].enmLocation == BS3CG1OPLOC_MEM_RW)
+                    if (   pThis->aOperands[iOperand].enmLocation == BS3CG1OPLOC_MEM_WO
+                        || pThis->aOperands[iOperand].enmLocation == BS3CG1OPLOC_MEM_RW)
                     {
                         PtrUnion.pb = pThis->MemOp.ab;
                         switch (pThis->aOperands[iOperand].cbOp)
@@ -3306,6 +6136,7 @@ static bool BS3_NEAR_CODE Bs3Cg1CheckResult(PBS3CG1STATE pThis, uint8_t bTestXcp
     if (pThis->fWorkExtCtx)
         Bs3TestPrintf("xcr0=%RX64\n", pThis->pResultExtCtx->fXcr0Saved);
     Bs3TestPrintf("\n");
+ASMHalt();
     return false;
 }
 
@@ -3542,26 +6373,26 @@ bool BS3_NEAR_CODE BS3_CMN_NM(Bs3Cg1Init)(PBS3CG1STATE pThis, uint8_t bMode)
         }
         for (i = 0; i < RT_ELEMENTS(pExtCtx->Ctx.x87.aXMM); i++)
         {
-            pExtCtx->Ctx.x87.aXMM[i].au16[0] = i;
-            pExtCtx->Ctx.x87.aXMM[i].au16[1] = i;
-            pExtCtx->Ctx.x87.aXMM[i].au16[2] = i;
-            pExtCtx->Ctx.x87.aXMM[i].au16[3] = i;
-            pExtCtx->Ctx.x87.aXMM[i].au16[4] = i;
-            pExtCtx->Ctx.x87.aXMM[i].au16[5] = i;
-            pExtCtx->Ctx.x87.aXMM[i].au16[6] = i;
-            pExtCtx->Ctx.x87.aXMM[i].au16[7] = i;
+            pExtCtx->Ctx.x87.aXMM[i].au16[0] = i | UINT16_C(0x8f00);
+            pExtCtx->Ctx.x87.aXMM[i].au16[1] = i | UINT16_C(0x8e00);
+            pExtCtx->Ctx.x87.aXMM[i].au16[2] = i | UINT16_C(0x8d00);
+            pExtCtx->Ctx.x87.aXMM[i].au16[3] = i | UINT16_C(0x8c00);
+            pExtCtx->Ctx.x87.aXMM[i].au16[4] = i | UINT16_C(0x8b00);
+            pExtCtx->Ctx.x87.aXMM[i].au16[5] = i | UINT16_C(0x8a00);
+            pExtCtx->Ctx.x87.aXMM[i].au16[6] = i | UINT16_C(0x8900);
+            pExtCtx->Ctx.x87.aXMM[i].au16[7] = i | UINT16_C(0x8800);
         }
         if (pExtCtx->fXcr0Nominal & XSAVE_C_YMM)
-            for (i = 0; i < RT_ELEMENTS(pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi); i++)
+            for (i = 0; i < RT_ELEMENTS(pExtCtx->Ctx.x.u.YmmHi.aYmmHi); i++)
             {
-                pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi[i].au16[0] = i << 8;
-                pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi[i].au16[1] = i << 8;
-                pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi[i].au16[2] = i << 8;
-                pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi[i].au16[3] = i << 8;
-                pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi[i].au16[4] = i << 8;
-                pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi[i].au16[5] = i << 8;
-                pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi[i].au16[6] = i << 8;
-                pExtCtx->Ctx.x.u.Intel.YmmHi.aYmmHi[i].au16[7] = i << 8;
+                pExtCtx->Ctx.x.u.YmmHi.aYmmHi[i].au16[0] = (i << 8) | (i << 12) | 0xff;
+                pExtCtx->Ctx.x.u.YmmHi.aYmmHi[i].au16[1] = (i << 8) | (i << 12) | 0xfe;
+                pExtCtx->Ctx.x.u.YmmHi.aYmmHi[i].au16[2] = (i << 8) | (i << 12) | 0xfd;
+                pExtCtx->Ctx.x.u.YmmHi.aYmmHi[i].au16[3] = (i << 8) | (i << 12) | 0xfc;
+                pExtCtx->Ctx.x.u.YmmHi.aYmmHi[i].au16[4] = (i << 8) | (i << 12) | 0xfb;
+                pExtCtx->Ctx.x.u.YmmHi.aYmmHi[i].au16[5] = (i << 8) | (i << 12) | 0xfa;
+                pExtCtx->Ctx.x.u.YmmHi.aYmmHi[i].au16[6] = (i << 8) | (i << 12) | 0xf9;
+                pExtCtx->Ctx.x.u.YmmHi.aYmmHi[i].au16[7] = (i << 8) | (i << 12) | 0xf8;
             }
 
     }
@@ -3636,7 +6467,7 @@ static uint8_t BS3_NEAR_CODE BS3_CMN_NM(Bs3Cg1WorkerInner)(PBS3CG1STATE pThis)
         if (   (pThis->fFlags & BS3CG1INSTR_F_INTEL_DECODES_INVALID)
             && pThis->bCpuVendor != BS3CPUVENDOR_INTEL
             && (   (pThis->fFlags & (BS3CG1INSTR_F_UNUSED | BS3CG1INSTR_F_INVALID))
-                || (BS3_MODE_IS_64BIT_CODE(pThis->bMode) && (pThis->fFlags & BS3CG1INSTR_F_INVALID_64BIT))
+                || (BS3CG1_IS_64BIT_TARGET(pThis) && (pThis->fFlags & BS3CG1INSTR_F_INVALID_64BIT))
                 || fOuterInvalidInstr ) )
             pThis->enmEncoding = Bs3Cg1CalcNoneIntelInvalidEncoding(pThis->enmEncoding);
 
@@ -3732,8 +6563,11 @@ static uint8_t BS3_NEAR_CODE BS3_CMN_NM(Bs3Cg1WorkerInner)(PBS3CG1STATE pThis)
                                     || Bs3Cg1RunContextModifier(pThis, &pThis->Ctx, pHdr,
                                                                 pHdr->cbSelector + pHdr->cbInput, pHdr->cbOutput,
                                                                 &pThis->TrapFrame.Ctx, NULL /*pbCode*/))
-                                {
                                     Bs3Cg1CheckResult(pThis, bTestXcptExpected, false /*fInvalidEncodingPgFault*/, iEncoding);
+                                else
+                                {
+                                    Bs3TestPrintf("Bs3Cg1RunContextModifier(out): iEncoding=%u iTest=%u\n", iEncoding, pThis->iTest);
+                                    ASMHalt();
                                 }
 
                                 /*
@@ -3767,6 +6601,11 @@ static uint8_t BS3_NEAR_CODE BS3_CMN_NM(Bs3Cg1WorkerInner)(PBS3CG1STATE pThis)
                                     pThis->Ctx.rflags.u32 |= pThis->TrapFrame.Ctx.rflags.u32 & X86_EFL_RF;
                                     Bs3Cg1CheckResult(pThis, X86_XCPT_PF, true /*fInvalidEncodingPgFault*/, iEncoding);
                                 }
+                            }
+                            else
+                            {
+                                Bs3TestPrintf("Bs3Cg1RunContextModifier(in): iEncoding=%u iTest=%u\n", iEncoding, pThis->iTest);
+                                ASMHalt();
                             }
                         }
                         else
@@ -3818,7 +6657,7 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_NM(Bs3Cg1Worker)(uint8_t bMode)
 
 #if 0
     /* (for debugging) */
-    //if (bMode == BS3_MODE_PP32)
+    if (bMode == BS3_MODE_PPV86)
     {
         Bs3TestTerm();
         Bs3Shutdown();

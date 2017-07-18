@@ -217,7 +217,10 @@ int SecretKeyStore::deleteAllSecretKeys(bool fSuspend, bool fForce)
         {
             AssertMsg(!pKey->refCount(), ("No one should access the stored key at this point anymore!\n"));
             delete pKey;
-            m_mapSecretKeys.erase(it++);
+            SecretKeyMap::iterator itNext = it;
+            ++itNext;
+            m_mapSecretKeys.erase(it);
+            it = itNext;
         }
         else
             ++it;

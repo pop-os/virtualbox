@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,16 +40,6 @@
 #define AQ_BUF_TOTAL    (AQ_BUF_COUNT * AQ_BUF_SIZE)
 #define AQ_BUF_SAMPLES  (AQ_BUF_TOTAL / 4)  /* Hardcoded 4 bytes per sample! */
 
-#if 0
-# include <iprt/file.h>
-# define DEBUG_DUMP_PCM_DATA
-# ifdef RT_OS_WINDOWS
-#  define DEBUG_DUMP_PCM_DATA_PATH "c:\\temp\\"
-# else
-#  define DEBUG_DUMP_PCM_DATA_PATH "/tmp/"
-# endif
-#endif
-
 /* Enables utilizing the Core Audio converter unit for converting
  * input / output from/to our requested formats. That might be more
  * performant than using our own routines later down the road. */
@@ -57,8 +47,8 @@
 //# define VBOX_WITH_AUDIO_CA_CONVERTER
 
 #ifdef DEBUG_andy
-# undef  DEBUG_DUMP_PCM_DATA_PATH
-# define DEBUG_DUMP_PCM_DATA_PATH "/Users/anloeffl/Documents/"
+# undef  VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH
+# define VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "/Users/anloeffl/Documents/"
 # undef  VBOX_WITH_AUDIO_CA_CONVERTER
 #endif
 
@@ -126,7 +116,7 @@ static void drvHostCoreAudioPrintASBD(const char *pszDesc, const AudioStreamBasi
     LogRel2(("CoreAudio:\tBytesPerPacket  : %RU32\n", pASBD->mBytesPerPacket));
 }
 
-static int drvHostCoreAudioPCMPropsToASBD(PPDMPCMPROPS pPCMProps, AudioStreamBasicDescription *pASBD)
+static int drvHostCoreAudioPCMPropsToASBD(PPDMAUDIOPCMPROPS pPCMProps, AudioStreamBasicDescription *pASBD)
 {
     AssertPtrReturn(pPCMProps, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pASBD,     VERR_INVALID_PARAMETER);
@@ -152,7 +142,7 @@ static int drvHostCoreAudioStreamCfgToASBD(PPDMAUDIOSTREAMCFG pCfg, AudioStreamB
     AssertPtrReturn(pCfg,  VERR_INVALID_PARAMETER);
     AssertPtrReturn(pASBD, VERR_INVALID_PARAMETER);
 
-    PDMPCMPROPS Props;
+    PDMAUDIOPCMPROPS Props;
     int rc = DrvAudioStreamCfgToProps(pCfg, &Props);
     if (RT_SUCCESS(rc))
         rc = drvHostCoreAudioPCMPropsToASBD(&Props, pASBD);
@@ -754,7 +744,7 @@ static DECLCALLBACK(int) coreAudioQueueThread(RTTHREAD hThreadSelf, void *pvUser
 
     ///@todo: The following code may cause subsequent AudioQueueStart to fail
     // with !dev error (560227702). If we skip it entirely, we end up using the
-    // default device, which is what we're doing anyway. 
+    // default device, which is what we're doing anyway.
 #if 0
     /*
      * Assign device to queue.
@@ -846,14 +836,17 @@ int coreAudioInputQueueProcBuffer(PCOREAUDIOSTREAM pCAStream, AudioQueueBufferRe
         /* Try to acquire the necessary block from the ring buffer. */
         RTCircBufAcquireWriteBlock(pCircBuf, cbLeft, (void **)&pvDst, &cbToWrite);
 
-        if (!cbToWrite)
-            break;
-
-        /* Copy the data from our ring buffer to the core audio buffer. */
-        memcpy((UInt8 *)pvDst, pvSrc + cbWritten, cbToWrite);
+        if (cbToWrite)
+        {
+            /* Copy the data from our ring buffer to the core audio buffer. */
+            memcpy((UInt8 *)pvDst, pvSrc + cbWritten, cbToWrite);
+        }
 
         /* Release the read buffer, so it could be used for new data. */
         RTCircBufReleaseWriteBlock(pCircBuf, cbToWrite);
+
+        if (!cbToWrite)
+            break;
 
         cbWritten += cbToWrite;
 
@@ -1180,7 +1173,7 @@ static int drvHostCoreAudioReinitInput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTST
             int rc2;
             rc2 = RTCritSectInit(&pStreamIn->cbCtx.pStream->CritSect);
             AssertRC(rc2);
-                   
+
             rc = coreAudioStreamInitQueue(pStreamIn->cbCtx.pStream, true /* fInput */, &CfgAcq /* pCfgReq */, NULL /* pCfgAcq */);
             if (RT_SUCCESS(rc))
             {
@@ -1299,9 +1292,9 @@ static DECLCALLBACK(OSStatus) drvHostCoreAudioConverterCb(AudioConverterRef     
             ioData->mBuffers[0].mDataByteSize   = cbAvail;
             ioData->mBuffers[0].mData           = pvAvail;
 
-#ifdef DEBUG_DUMP_PCM_DATA
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
             RTFILE fh;
-            int rc = RTFileOpen(&fh, DEBUG_DUMP_PCM_DATA_PATH "ca-converter-cb-input.pcm",
+            int rc = RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "caCaptureConverterCb.pcm",
                                 RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
             if (RT_SUCCESS(rc))
             {
@@ -1400,6 +1393,12 @@ static DECLCALLBACK(int) drvHostCoreAudioInit(PPDMIHOSTAUDIO pInterface)
 
     LogFlowFuncEnter();
 
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "caCaptureConverterCb.pcm");
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "caCaptureIn.pcm");
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "caPlayOut.pcm");
+#endif
+
     return VINF_SUCCESS;
 }
 
@@ -1424,18 +1423,20 @@ static DECLCALLBACK(int) drvHostCoreAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
     AssertPtr(pCircBuf);
 
     int rc = VINF_SUCCESS;
-    uint32_t cbWrittenTotal = 0;
+    uint32_t cMixedTotal = 0;
 
     do
     {
-        size_t cbBuf     = AudioMixBufSizeBytes(&pHstStrmIn->MixBuf);
-        size_t cbToWrite = RT_MIN(cbBuf, RTCircBufUsed(pCircBuf));
+        /* As we mix the captured data to the guest mixing buffer (parent) immediately,
+         * determine how much space there currently is for capturing. */
+        AssertPtr(pHstStrmIn->pGstStrmIn);
+        size_t cbFree    = AudioMixBufFreeBytes(&pHstStrmIn->pGstStrmIn->MixBuf);
+        size_t cbToWrite = RT_MIN(cbFree, RTCircBufUsed(pCircBuf));
 
-        uint32_t cWritten, cbWritten;
         uint8_t *puBuf;
         size_t   cbToRead;
 
-        Log3Func(("cbBuf=%zu, cbToWrite=%zu/%zu\n", cbBuf, cbToWrite, RTCircBufSize(pCircBuf)));
+        Log3Func(("cbFree=%zu, cbToWrite=%zu/%zu\n", cbFree, cbToWrite, RTCircBufSize(pCircBuf)));
 
         while (cbToWrite)
         {
@@ -1444,60 +1445,58 @@ static DECLCALLBACK(int) drvHostCoreAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
 
             if (cbToRead)
             {
-#ifdef DEBUG_DUMP_PCM_DATA
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
                 RTFILE fh;
-                rc = RTFileOpen(&fh, DEBUG_DUMP_PCM_DATA_PATH "ca-capture.pcm",
-                                RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
-                if (RT_SUCCESS(rc))
+                int rc2 = RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "caCaptureIn.pcm",
+                                     RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+                if (RT_SUCCESS(rc2))
                 {
-                    RTFileWrite(fh, puBuf + cbWrittenTotal, cbToRead, NULL);
+                    RTFileWrite(fh, puBuf, cbToRead, NULL);
                     RTFileClose(fh);
                 }
                 else
                     AssertFailed();
 #endif
-                rc = AudioMixBufWriteCirc(&pHstStrmIn->MixBuf, puBuf, cbToRead, &cWritten);
+                uint32_t cWritten;
+                rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, 0 /* Offset */, puBuf, cbToRead, &cWritten);
+                if (RT_FAILURE(rc))
+                    break;
+
+                uint32_t cMixed = 0;
+                rc = AudioMixBufMixToParentEx(&pHstStrmIn->MixBuf, 0 /* Offset */, cWritten, &cMixed);
+                if (RT_FAILURE(rc))
+                    break;
+
+                const uint32_t cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
+
+                Assert(cbToWrite >= cbWritten);
+                cbToWrite      -= cbWritten;
+
+                cMixedTotal    += cMixed;
+
+                Log3Func(("cbWritten=%RU32, cbToWrite=%RU32, cWritten=%RU32, cMixed=%RU32 -> cMixedTotal=%RU32\n",
+                          cbWritten, cbToWrite, cWritten, cMixed, cMixedTotal));
             }
 
             /* Release the read buffer, so it could be used for new data. */
             RTCircBufReleaseReadBlock(pCircBuf, cbToRead);
 
             if (   RT_FAILURE(rc)
-                || !cWritten)
+                || !cbToRead)
             {
                 break;
             }
-
-            cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
-
-            Assert(cbToWrite >= cbWritten);
-            cbToWrite      -= cbWritten;
-            cbWrittenTotal += cbWritten;
         }
-
-        Log3Func(("cbToWrite=%zu, cbToRead=%zu, cbWrittenTotal=%RU32, rc=%Rrc\n", cbToWrite, cbToRead, cbWrittenTotal, rc));
     }
     while (0);
 
     if (RT_SUCCESS(rc))
     {
-        uint32_t cCaptured     = 0;
-        uint32_t cWrittenTotal = AUDIOMIXBUF_B2S(&pHstStrmIn->MixBuf, cbWrittenTotal);
-        if (cWrittenTotal)
-            rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, cWrittenTotal, &cCaptured);
-
-        Log3Func(("cWrittenTotal=%RU32 (%RU32 bytes), cCaptured=%RU32, rc=%Rrc\n", cWrittenTotal, cbWrittenTotal, cCaptured, rc));
-
-        if (cCaptured)
-            LogFlowFunc(("%RU32 samples captured\n", cCaptured));
-
         if (pcSamplesCaptured)
-            *pcSamplesCaptured = cCaptured;
+            *pcSamplesCaptured = cMixedTotal;
     }
 
-    if (RT_FAILURE(rc))
-        LogFunc(("Failed with rc=%Rrc\n", rc));
-
+    LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
@@ -1516,7 +1515,7 @@ static DECLCALLBACK(int) drvHostCoreAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
             return rc;
     }
 
-    uint32_t cLive = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+    uint32_t cLive = AudioMixBufLive(&pHstStrmOut->MixBuf);
     if (!cLive) /* Not samples to play? Bail out. */
     {
         if (pcSamplesPlayed)
@@ -2081,7 +2080,7 @@ static DECLCALLBACK(int) drvHostCoreAudioInitOut(PPDMIHOSTAUDIO pInterface,
     pStreamOut->cbCtx.pStream = &pStreamOut->Stream;
 
     PCOREAUDIOSTREAM pCAStream = pStreamOut->cbCtx.pStream;
-    
+
     int rc = RTCritSectInit(&pCAStream->CritSect);
     if (RT_FAILURE(rc))
         return rc;

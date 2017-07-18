@@ -1145,7 +1145,102 @@ DECLINLINE(uint16_t) vnetCSum16(const void *pvBuf, size_t cb)
 
 DECLINLINE(void) vnetCompleteChecksum(uint8_t *pBuf, size_t cbSize, uint16_t uStart, uint16_t uOffset)
 {
+    AssertReturnVoid(uStart < cbSize);
+    AssertReturnVoid(uStart + uOffset + sizeof(uint16_t) <= cbSize);
     *(uint16_t*)(pBuf + uStart + uOffset) = vnetCSum16(pBuf + uStart, cbSize - uStart);
+}
+
+static bool vnetReadHeader(PVNETSTATE pThis, RTGCPHYS GCPhys, PVNETHDR pHdr, uint32_t cbMax)
+{
+    int rc = PDMDevHlpPhysRead(pThis->VPCI.CTX_SUFF(pDevIns), GCPhys, pHdr, sizeof(*pHdr));
+    if (RT_FAILURE(rc))
+        return false;
+
+    Log4(("virtio-net: header flags=%x gso-type=%x len=%x gso-size=%x csum-start=%x csum-offset=%x cb=%x\n",
+          pHdr->u8Flags, pHdr->u8GSOType, pHdr->u16HdrLen, pHdr->u16GSOSize, pHdr->u16CSumStart, pHdr->u16CSumOffset, cbMax));
+
+    if (pHdr->u8GSOType)
+    {
+        uint32_t u32MinHdrSize;
+
+        /* Segmentation offloading cannot be done without checksumming. */
+        if (RT_UNLIKELY(!(pHdr->u8Flags & VNETHDR_F_NEEDS_CSUM)))
+            return false;
+        /* We do not support ECN. */
+        if (RT_UNLIKELY(pHdr->u8GSOType & VNETHDR_GSO_ECN))
+            return false;
+        switch (pHdr->u8GSOType)
+        {
+            case VNETHDR_GSO_TCPV4:
+            case VNETHDR_GSO_TCPV6:
+                u32MinHdrSize = sizeof(RTNETTCP);
+                break;
+            case VNETHDR_GSO_UDP:
+                u32MinHdrSize = 0;
+                break;
+            default:
+                return false;
+        }
+        /* Header+MSS must not exceed the packet size. */
+        if (RT_UNLIKELY(u32MinHdrSize + pHdr->u16CSumStart + pHdr->u16GSOSize > cbMax))
+            return false;
+    }
+    /* Checksum must fit into the frame (validating both checksum fields). */
+    if (   (pHdr->u8Flags & VNETHDR_F_NEEDS_CSUM)
+        && sizeof(uint16_t) + pHdr->u16CSumStart + pHdr->u16CSumOffset > cbMax)
+        return false;
+    Log4(("virtio-net: return true\n"));
+    return true;
+}
+
+static int vnetTransmitFrame(PVNETSTATE pThis, PPDMSCATTERGATHER pSgBuf, PPDMNETWORKGSO pGso, PVNETHDR pHdr)
+{
+    vnetPacketDump(pThis, (uint8_t *)pSgBuf->aSegs[0].pvSeg, pSgBuf->cbUsed, "--> Outgoing");
+    if (pGso)
+    {
+        /* Some guests (RHEL) may report HdrLen excluding transport layer header! */
+        /*
+         * We cannot use cdHdrs provided by the guest because of different ways
+         * it gets filled out by different versions of kernels.
+         */
+        //if (pGso->cbHdrs < pHdr->u16CSumStart + pHdr->u16CSumOffset + 2)
+        {
+            Log4(("%s vnetTransmitPendingPackets: HdrLen before adjustment %d.\n",
+                  INSTANCE(pThis), pGso->cbHdrsTotal));
+            switch (pGso->u8Type)
+            {
+                case PDMNETWORKGSOTYPE_IPV4_TCP:
+                case PDMNETWORKGSOTYPE_IPV6_TCP:
+                    pGso->cbHdrsTotal = pHdr->u16CSumStart +
+                        ((PRTNETTCP)(((uint8_t*)pSgBuf->aSegs[0].pvSeg) + pHdr->u16CSumStart))->th_off * 4;
+                    pGso->cbHdrsSeg   = pGso->cbHdrsTotal;
+                    break;
+                case PDMNETWORKGSOTYPE_IPV4_UDP:
+                    pGso->cbHdrsTotal = (uint8_t)(pHdr->u16CSumStart + sizeof(RTNETUDP));
+                    pGso->cbHdrsSeg   = pHdr->u16CSumStart;
+                    break;
+            }
+            /* Update GSO structure embedded into the frame */
+            ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsTotal = pGso->cbHdrsTotal;
+            ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsSeg   = pGso->cbHdrsSeg;
+            Log4(("%s vnetTransmitPendingPackets: adjusted HdrLen to %d.\n",
+                  INSTANCE(pThis), pGso->cbHdrsTotal));
+        }
+        Log2(("%s vnetTransmitPendingPackets: gso type=%x cbHdrsTotal=%u cbHdrsSeg=%u mss=%u off1=0x%x off2=0x%x\n",
+              INSTANCE(pThis), pGso->u8Type, pGso->cbHdrsTotal, pGso->cbHdrsSeg, pGso->cbMaxSeg, pGso->offHdr1, pGso->offHdr2));
+        STAM_REL_COUNTER_INC(&pThis->StatTransmitGSO);
+    }
+    else if (pHdr->u8Flags & VNETHDR_F_NEEDS_CSUM)
+    {
+        STAM_REL_COUNTER_INC(&pThis->StatTransmitCSum);
+        /*
+         * This is not GSO frame but checksum offloading is requested.
+         */
+        vnetCompleteChecksum((uint8_t*)pSgBuf->aSegs[0].pvSeg, pSgBuf->cbUsed,
+                             pHdr->u16CSumStart, pHdr->u16CSumOffset);
+    }
+
+    return pThis->pDrv->pfnSendBuf(pThis->pDrv, pSgBuf, false);
 }
 
 static void vnetTransmitPendingPackets(PVNETSTATE pThis, PVQUEUE pQueue, bool fOnWorkerThread)
@@ -1203,6 +1298,7 @@ static void vnetTransmitPendingPackets(PVNETSTATE pThis, PVQUEUE pQueue, bool fO
         }
         else
         {
+            VNETHDR Hdr;
             unsigned int uSize = 0;
             STAM_PROFILE_ADV_START(&pThis->StatTransmit, a);
             /* Compute total frame size. */
@@ -1213,13 +1309,9 @@ static void vnetTransmitPendingPackets(PVNETSTATE pThis, PVQUEUE pQueue, bool fO
             /* Truncate oversized frames. */
             if (uSize > VNET_MAX_FRAME_SIZE)
                 uSize = VNET_MAX_FRAME_SIZE;
-            if (pThis->pDrv)
+            if (pThis->pDrv && vnetReadHeader(pThis, elem.aSegsOut[0].addr, &Hdr, uSize))
             {
-                VNETHDR Hdr;
                 PDMNETWORKGSO Gso, *pGso;
-
-                PDMDevHlpPhysRead(pThis->VPCI.CTX_SUFF(pDevIns), elem.aSegsOut[0].addr,
-                                  &Hdr, sizeof(Hdr));
 
                 STAM_REL_COUNTER_INC(&pThis->StatTransmitPackets);
 
@@ -1243,52 +1335,7 @@ static void vnetTransmitPendingPackets(PVNETSTATE pThis, PVQUEUE pQueue, bool fO
                         uOffset += cbSegment;
                         uSize -= cbSegment;
                     }
-                    vnetPacketDump(pThis, (uint8_t *)pSgBuf->aSegs[0].pvSeg, pSgBuf->cbUsed, "--> Outgoing");
-                    if (pGso)
-                    {
-                        /* Some guests (RHEL) may report HdrLen excluding transport layer header! */
-                        /*
-                         * We cannot use cdHdrs provided by the guest because of different ways
-                         * it gets filled out by different versions of kernels.
-                         */
-                        //if (pGso->cbHdrs < Hdr.u16CSumStart + Hdr.u16CSumOffset + 2)
-                        {
-                            Log4(("%s vnetTransmitPendingPackets: HdrLen before adjustment %d.\n",
-                                  INSTANCE(pThis), pGso->cbHdrsTotal));
-                            switch (pGso->u8Type)
-                            {
-                                case PDMNETWORKGSOTYPE_IPV4_TCP:
-                                case PDMNETWORKGSOTYPE_IPV6_TCP:
-                                    pGso->cbHdrsTotal = Hdr.u16CSumStart +
-                                        ((PRTNETTCP)(((uint8_t*)pSgBuf->aSegs[0].pvSeg) + Hdr.u16CSumStart))->th_off * 4;
-                                    pGso->cbHdrsSeg   = pGso->cbHdrsTotal;
-                                    break;
-                                case PDMNETWORKGSOTYPE_IPV4_UDP:
-                                    pGso->cbHdrsTotal = (uint8_t)(Hdr.u16CSumStart + sizeof(RTNETUDP));
-                                    pGso->cbHdrsSeg   = Hdr.u16CSumStart;
-                                    break;
-                            }
-                            /* Update GSO structure embedded into the frame */
-                            ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsTotal = pGso->cbHdrsTotal;
-                            ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsSeg   = pGso->cbHdrsSeg;
-                            Log4(("%s vnetTransmitPendingPackets: adjusted HdrLen to %d.\n",
-                                  INSTANCE(pThis), pGso->cbHdrsTotal));
-                        }
-                        Log2(("%s vnetTransmitPendingPackets: gso type=%x cbHdrsTotal=%u cbHdrsSeg=%u mss=%u off1=0x%x off2=0x%x\n",
-                              INSTANCE(pThis), pGso->u8Type, pGso->cbHdrsTotal, pGso->cbHdrsSeg, pGso->cbMaxSeg, pGso->offHdr1, pGso->offHdr2));
-                        STAM_REL_COUNTER_INC(&pThis->StatTransmitGSO);
-                    }
-                    else if (Hdr.u8Flags & VNETHDR_F_NEEDS_CSUM)
-                    {
-                        STAM_REL_COUNTER_INC(&pThis->StatTransmitCSum);
-                        /*
-                         * This is not GSO frame but checksum offloading is requested.
-                         */
-                        vnetCompleteChecksum((uint8_t*)pSgBuf->aSegs[0].pvSeg, pSgBuf->cbUsed,
-                                             Hdr.u16CSumStart, Hdr.u16CSumOffset);
-                    }
-
-                    rc = pThis->pDrv->pfnSendBuf(pThis->pDrv, pSgBuf, false);
+                    rc = vnetTransmitFrame(pThis, pSgBuf, pGso, &Hdr);
                 }
                 else
                 {

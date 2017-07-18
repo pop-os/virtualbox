@@ -1673,6 +1673,7 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t *
 #endif
             }
         }
+        /* fall thru */
         case LSILOGIC_REG_DIAG_RW_ADDRESS:
         {
             if (pThis->fDiagRegsEnabled)
@@ -1684,6 +1685,7 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t *
 #endif
             }
         }
+        /* fall thru */
         case LSILOGIC_REG_TEST_BASE_ADDRESS: /* The spec doesn't say anything about these registers, so we just ignore them */
         default: /* Ignore. */
         {
@@ -5546,7 +5548,6 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
 
     for (unsigned i = 0; i < pThis->cDeviceStates; i++)
     {
-        char szName[24];
         PLSILOGICDEVICE pDevice = &pThis->paDeviceStates[i];
 
         /* Initialize static parts of the device. */
@@ -5558,10 +5559,12 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
         pDevice->ISCSIPort.pfnQueryDeviceLocation  = lsilogicR3QueryDeviceLocation;
         pDevice->ILed.pfnQueryStatusLed            = lsilogicR3DeviceQueryStatusLed;
 
-        RTStrPrintf(szName, sizeof(szName), "Device%u", i);
+        char *pszName;
+        if (RTStrAPrintf(&pszName, "Device%u", i) <= 0)
+            AssertLogRelFailedReturn(VERR_NO_MEMORY);
 
         /* Attach SCSI driver. */
-        rc = PDMDevHlpDriverAttach(pDevIns, pDevice->iLUN, &pDevice->IBase, &pDevice->pDrvBase, szName);
+        rc = PDMDevHlpDriverAttach(pDevIns, pDevice->iLUN, &pDevice->IBase, &pDevice->pDrvBase, pszName);
         if (RT_SUCCESS(rc))
         {
             /* Get SCSI connector interface. */
@@ -5572,11 +5575,11 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
         {
             pDevice->pDrvBase = NULL;
             rc = VINF_SUCCESS;
-            Log(("LsiLogic: no driver attached to device %s\n", szName));
+            Log(("LsiLogic: no driver attached to device %s\n", pszName));
         }
         else
         {
-            AssertLogRelMsgFailed(("LsiLogic: Failed to attach %s\n", szName));
+            AssertLogRelMsgFailed(("LsiLogic: Failed to attach %s\n", pszName));
             return rc;
         }
     }

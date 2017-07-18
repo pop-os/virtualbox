@@ -99,53 +99,25 @@ int NetIfAdpCtlOut(const char *pszName, const char *pszCmd, char *pszBuffer, siz
 
 DECLINLINE(Bstr) composeIPv6Address(PRTNETADDRIPV6 aAddrPtr)
 {
-    char szTmp[8*5] = "";
-
-    if (aAddrPtr->s.Lo || aAddrPtr->s.Hi)
-        RTStrPrintf(szTmp, sizeof(szTmp),
-                    "%02x%02x:%02x%02x:%02x%02x:%02x%02x:"
-                    "%02x%02x:%02x%02x:%02x%02x:%02x%02x",
-                    aAddrPtr->au8[0], aAddrPtr->au8[1],
-                    aAddrPtr->au8[2], aAddrPtr->au8[3],
-                    aAddrPtr->au8[4], aAddrPtr->au8[5],
-                    aAddrPtr->au8[6], aAddrPtr->au8[7],
-                    aAddrPtr->au8[8], aAddrPtr->au8[9],
-                    aAddrPtr->au8[10], aAddrPtr->au8[11],
-                    aAddrPtr->au8[12], aAddrPtr->au8[13],
-                    aAddrPtr->au8[14], aAddrPtr->au8[15]);
-    return Bstr(szTmp);
-}
-
-DECLINLINE(ULONG) composeIPv6PrefixLenghFromAddress(PRTNETADDRIPV6 aAddrPtr)
-{
-    int res = ASMBitFirstClear(aAddrPtr, sizeof(RTNETADDRIPV6)*8);
-    return res != -1 ? res : 128;
-}
-
-DECLINLINE(int) prefixLength2IPv6Address(ULONG cPrefix, PRTNETADDRIPV6 aAddrPtr)
-{
-    if (cPrefix > 128)
-        return VERR_INVALID_PARAMETER;
-    if (!aAddrPtr)
-        return VERR_INVALID_PARAMETER;
-
-    RT_ZERO(*aAddrPtr);
-
-    ASMBitSetRange(aAddrPtr, 0, cPrefix);
-
-    return VINF_SUCCESS;
+    /* We can't use %RTnaipv6 because that function is too clever, i.e. it
+     * shows abbreviations which the GUI isn't able to parse. */
+    return aAddrPtr->s.Lo || aAddrPtr->s.Hi
+        ? Bstr(Utf8StrFmt("%02x%02x:%02x%02x:%02x%02x:%02x%02x:"
+                          "%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+                          aAddrPtr->au8[0], aAddrPtr->au8[1],
+                          aAddrPtr->au8[2], aAddrPtr->au8[3],
+                          aAddrPtr->au8[4], aAddrPtr->au8[5],
+                          aAddrPtr->au8[6], aAddrPtr->au8[7],
+                          aAddrPtr->au8[8], aAddrPtr->au8[9],
+                          aAddrPtr->au8[10], aAddrPtr->au8[11],
+                          aAddrPtr->au8[12], aAddrPtr->au8[13],
+                          aAddrPtr->au8[14], aAddrPtr->au8[15]))
+        : Bstr("");
 }
 
 DECLINLINE(Bstr) composeHardwareAddress(PRTMAC aMacPtr)
 {
-    char szTmp[6*3];
-
-    RTStrPrintf(szTmp, sizeof(szTmp),
-                "%02x:%02x:%02x:%02x:%02x:%02x",
-                aMacPtr->au8[0], aMacPtr->au8[1],
-                aMacPtr->au8[2], aMacPtr->au8[3],
-                aMacPtr->au8[4], aMacPtr->au8[5]);
-    return Bstr(szTmp);
+    return Bstr(Utf8StrFmt("%RTmac", aMacPtr));
 }
 
 DECLINLINE(Bstr) getDefaultIPv4Address(Bstr bstrIfName)

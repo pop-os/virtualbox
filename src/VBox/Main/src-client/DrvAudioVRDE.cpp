@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -211,7 +211,7 @@ static DECLCALLBACK(int) drvAudioVRDEPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDI
     PVRDESTREAMOUT pVRDEStrmOut = (PVRDESTREAMOUT)pHstStrmOut;
     AssertPtrReturn(pVRDEStrmOut, VERR_INVALID_POINTER);
 
-    uint32_t live = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+    uint32_t live = AudioMixBufLive(&pHstStrmOut->MixBuf);
     uint64_t now = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
     uint64_t ticks = now  - pVRDEStrmOut->old_ticks;
     uint64_t ticks_per_second = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);
@@ -238,30 +238,31 @@ static DECLCALLBACK(int) drvAudioVRDEPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDI
                  pHstStrmOut->Props.cBits, pHstStrmOut->Props.fSigned,
                  format, cSamplesToSend));
 
+    int rc = VINF_SUCCESS;
+
     /*
      * Call the VRDP server with the data.
      */
     uint32_t cReadTotal = 0;
 
-    PPDMAUDIOSAMPLE pSamples;
-    uint32_t cRead;
-    int rc = AudioMixBufAcquire(&pHstStrmOut->MixBuf, cSamplesToSend,
-                                &pSamples, &cRead);
-    if (   RT_SUCCESS(rc)
-        && cRead)
+    PDMAUDIOSAMPLE aSamples[64];
+    while (cSamplesPlayed)
     {
-        cReadTotal = cRead;
-        pDrv->pConsoleVRDPServer->SendAudioSamples(pSamples, cRead, format);
-
-        if (rc == VINF_TRY_AGAIN)
+        uint32_t cRead;
+        rc = AudioMixBufPeek(&pHstStrmOut->MixBuf, cSamplesToSend,
+                            aSamples, RT_ELEMENTS(aSamples), &cRead);
+        if (   RT_SUCCESS(rc)
+            && cRead)
         {
-            rc = AudioMixBufAcquire(&pHstStrmOut->MixBuf, cSamplesToSend - cRead,
-                                    &pSamples, &cRead);
-            if (RT_SUCCESS(rc))
-                pDrv->pConsoleVRDPServer->SendAudioSamples(pSamples, cRead, format);
-
+            pDrv->pConsoleVRDPServer->SendAudioSamples(aSamples, cRead, format);
             cReadTotal += cRead;
         }
+
+        if (RT_FAILURE(rc))
+            break;
+
+        Assert(cSamplesPlayed >= cRead);
+        cSamplesPlayed -= cRead;
     }
 
     AudioMixBufFinish(&pHstStrmOut->MixBuf, cSamplesToSend);

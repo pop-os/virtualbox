@@ -2984,9 +2984,9 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
 
         /* play with locations */
         {
-            /*get source path and filename */
-            Utf8Str sourceMediumPath = i_getLocationFull();
-            Utf8Str sourceMediumFileName = i_getName();
+            /* get source path and filename */
+            Utf8Str sourcePath = i_getLocationFull();
+            Utf8Str sourceFName = i_getName();
 
             if (aLocation.isEmpty())
             {
@@ -2996,63 +2996,57 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
                 throw rc;
             }
 
-            /*extract destination path and filename */
-            Utf8Str destMediumPath(aLocation);
-            Utf8Str destMediumFileName(destMediumPath);
-            destMediumFileName.stripPath();
+            /* extract destination path and filename */
+            Utf8Str destPath(aLocation);
+            Utf8Str destFName(destPath);
+            destFName.stripPath();
 
-            Utf8Str suffix(destMediumFileName);
-            suffix.stripSuffix();//for small trick, see next condition
+            Utf8Str suffix(destFName);
+            suffix.stripSuffix();
 
-            if(suffix.equals(destMediumFileName) && !destMediumFileName.isEmpty())
+            if (suffix.equals(destFName) && !destFName.isEmpty())
             {
                 /*
-                 * small trick. This case means target path has no filename at the end.
-                 * it will look like "/path/to/new/location" or just "newname"
-                 * there is no backslash in the end
-                 * or there is no filename with extension(suffix) in the end
+                 * The target path has no filename: Either "/path/to/new/location" or
+                 * just "newname" (no trailing backslash or there is no filename with
+                 * extension(suffix)).
                  */
-
-                /* case when new path contains only "newname", no path, no extension */
-                if (destMediumPath.equals(destMediumFileName))
+                if (destPath.equals(destFName))
                 {
-                    Utf8Str localSuffix = RTPathSuffix(sourceMediumFileName.c_str());
-                    destMediumFileName.append(localSuffix);
-                    destMediumPath = destMediumFileName;
+                    /* new path contains only "newname", no path, no extension */
+                    destFName.append(RTPathSuffix(sourceFName.c_str()));
+                    destPath = destFName;
                 }
-                /* case when new path looks like "/path/to/new/location"
-                 * In this case just set destMediumFileName to NULL and
-                 * and add '/' in the end of path.destMediumPath
-                 */
                 else
                 {
-                    destMediumFileName.setNull();
-                    destMediumPath.append(RTPATH_SLASH);
+                    /* new path looks like "/path/to/new/location" */
+                    destFName.setNull();
+                    destPath.append(RTPATH_SLASH);
                 }
             }
 
-            if (destMediumFileName.isEmpty())
+            if (destFName.isEmpty())
             {
-                /* case when a target name is absent */
-                destMediumPath.append(sourceMediumFileName);
+                /* No target name */
+                destPath.append(sourceFName);
             }
             else
             {
-                if (destMediumPath.equals(destMediumFileName))
+                if (destPath.equals(destFName))
                 {
-                    /* the passed target path consist of only a filename without directory
-                     * next move medium within the source directory with the passed new name
+                    /*
+                     * The target path contains of only a filename without a directory.
+                     * Move the medium within the source directory to the new name
+                     * (actually rename operation).
+                     * Scratches sourcePath!
                      */
-                    destMediumPath = sourceMediumPath.stripFilename().append(RTPATH_SLASH).append(destMediumFileName);
+                    destPath = sourcePath.stripFilename().append(RTPATH_SLASH).append(destFName);
                 }
                 suffix = i_getFormat();
-
                 if (suffix.compare("RAW", Utf8Str::CaseInsensitive) == 0)
                 {
-                    if(i_getDeviceType() == DeviceType_DVD)
-                    {
+                    if (i_getDeviceType() == DeviceType_DVD)
                         suffix = "iso";
-                    }
                     else
                     {
                         rc = setError(VERR_NOT_A_FILE,
@@ -3061,28 +3055,33 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
                         throw rc;
                     }
                 }
-                /* set the target extension like on the source. Any conversions are prohibited */
+                /* Set the target extension like on the source. Any conversions are prohibited */
                 suffix.toLower();
-                destMediumPath.stripSuffix().append('.').append(suffix);
+                destPath.stripSuffix().append('.').append(suffix);
             }
 
-            if (i_isMediumFormatFile())
-            {
-                /* Check path for a new file object */
-                rc = VirtualBox::i_ensureFilePathExists(destMediumPath, true);
-                if (FAILED(rc))
-                    throw rc;
-            }
-            else
+            if (!i_isMediumFormatFile())
             {
                 rc = setError(VERR_NOT_A_FILE,
-                           tr("Medium '%s' isn't a file object. \"Move\" operation isn't supported."),
-                           i_getLocationFull().c_str());
+                              tr("Medium '%s' isn't a file object. \"Move\" operation isn't supported."),
+                              i_getLocationFull().c_str());
                 throw rc;
             }
+            /* Path must be absolute */
+            if (!RTPathStartsWithRoot(destPath.c_str()))
+            {
+                rc = setError(VBOX_E_FILE_ERROR,
+                              tr("The given path '%s' is not fully qualified"),
+                              destPath.c_str());
+                throw rc;
+            }
+            /* Check path for a new file object */
+            rc = VirtualBox::i_ensureFilePathExists(destPath, true);
+            if (FAILED(rc))
+                throw rc;
 
             /* Set needed variables for "moving" procedure. It'll be used later in separate thread task */
-            rc = i_preparationForMoving(destMediumPath);
+            rc = i_preparationForMoving(destPath);
             if (FAILED(rc))
             {
                 rc = setError(VERR_NO_CHANGE,
@@ -3119,8 +3118,7 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
                 if (ses)
                 {
                     rc = setError(VERR_VM_UNEXPECTED_VM_STATE,
-                                  tr("At least VM '%s' to whom this medium '%s' attached has the opened session now. "
-                                     "Stop all needed VM before set a new location."),
+                                  tr("At least the VM '%s' to whom this medium '%s' attached has currently an opened session. Stop all VMs before relocating this medium"),
                                   id.toString().c_str(),
                                   i_getLocationFull().c_str());
                     throw rc;
@@ -3189,7 +3187,7 @@ HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aP
     }
     else
     {
-        if (pTask != NULL)
+        if (pTask)
             delete pTask;
     }
 
@@ -6431,7 +6429,7 @@ bool Medium::i_resetMoveOperationData()
 
 Utf8Str Medium::i_getNewLocationForMoving() const
 {
-    if(m->fMoveThisMedium == true)
+    if (m->fMoveThisMedium == true)
         return m->strNewLocationFull;
     else
         return Utf8Str();
@@ -8046,7 +8044,7 @@ HRESULT Medium::i_taskCreateDiffHandler(Medium::CreateDiffTask &task)
             vrc = VDCreateDiff(hdd,
                                targetFormat.c_str(),
                                targetLocation.c_str(),
-                               (task.mVariant & ~MediumVariant_NoCreateDir) | VD_IMAGE_FLAGS_DIFF,
+                               (task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_VmdkESX)) | VD_IMAGE_FLAGS_DIFF,
                                NULL,
                                targetId.raw(),
                                id.raw(),

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -754,6 +754,11 @@ static DECLCALLBACK(int) drvHostALSAAudioInit(PPDMIHOSTAUDIO pInterface)
 
     LogFlowFuncEnter();
 
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "alsaCaptureIn.pcm");
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "alsaPlayOut.pcm");
+#endif
+
     int rc = audioLoadAlsaLib();
     if (RT_FAILURE(rc))
         LogRel(("ALSA: Failed to load the ALSA shared library, rc=%Rrc\n", rc));
@@ -815,26 +820,14 @@ static DECLCALLBACK(int) drvHostALSAAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
         }
     }
 
-    /*
-     * Check how much we can read from the capture device without overflowing
-     * the mixer buffer.
-     */
-    Assert(cAvail);
-    size_t cbMixFree = AudioMixBufFreeBytes(&pHstStrmIn->MixBuf);
-    size_t cbToRead = RT_MIN((size_t)AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cAvail), cbMixFree);
+    uint32_t cMixedTotal = 0;
 
-    LogFlowFunc(("cbToRead=%zu, cAvail=%RI32\n", cbToRead, cAvail));
-
-    uint32_t cWrittenTotal = 0;
-    snd_pcm_uframes_t cToRead;
+    snd_pcm_uframes_t cToRead = cAvail;
     snd_pcm_sframes_t cRead;
 
-    while (   cbToRead
+    while (   cToRead
            && RT_SUCCESS(rc))
     {
-        cToRead = RT_MIN(AUDIOMIXBUF_B2S(&pHstStrmIn->MixBuf, cbToRead),
-                         AUDIOMIXBUF_B2S(&pHstStrmIn->MixBuf, pThisStrmIn->cbBuf));
-        AssertBreakStmt(cToRead, rc = VERR_NO_DATA);
         cRead = snd_pcm_readi(pThisStrmIn->phPCM, pThisStrmIn->pvBuf, cToRead);
         if (cRead <= 0)
         {
@@ -854,7 +847,7 @@ static DECLCALLBACK(int) drvHostALSAAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
                      * available at the moment, try later. As we might have read some frames
                      * already these need to be processed instead.
                      */
-                    cbToRead = 0;
+                    cToRead = 0;
                     break;
                 }
 
@@ -878,40 +871,36 @@ static DECLCALLBACK(int) drvHostALSAAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
         }
         else
         {
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+            RTFILE fh;
+            RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "alsaCaptureIn.pcm",
+                       RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            RTFileWrite(fh, pThisStrmIn->pvBuf, AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cRead), NULL);
+            RTFileClose(fh);
+#endif
             uint32_t cWritten;
-            rc = AudioMixBufWriteCirc(&pHstStrmIn->MixBuf,
-                                      pThisStrmIn->pvBuf, AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cRead),
-                                      &cWritten);
+            rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, 0 /* Offset */,
+                                    pThisStrmIn->pvBuf, AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cRead),
+                                    &cWritten);
             if (RT_FAILURE(rc))
                 break;
 
-            /*
-             * We should not run into a full mixer buffer or we loose samples and
-             * run into an endless loop if ALSA keeps producing samples ("null"
-             * capture device for example).
-             */
-            AssertLogRelMsgBreakStmt(cWritten > 0, ("Mixer buffer shouldn't be full at this point!\n"),
-                                     rc = VERR_INTERNAL_ERROR);
-            uint32_t cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
+            uint32_t cMixed = 0;
+            rc = AudioMixBufMixToParentEx(&pHstStrmIn->MixBuf, 0 /* Offset */, cWritten, &cMixed);
+            if (RT_FAILURE(rc))
+                break;
 
-            Assert(cbToRead >= cbWritten);
-            cbToRead -= cbWritten;
-            cWrittenTotal += cWritten;
+            Assert(cToRead >= cWritten);
+            cToRead -= cWritten;
+
+            cMixedTotal += cMixed;
         }
     }
 
     if (RT_SUCCESS(rc))
     {
-        uint32_t cProcessed = 0;
-        if (cWrittenTotal)
-            rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, cWrittenTotal,
-                                        &cProcessed);
-
         if (pcSamplesCaptured)
-            *pcSamplesCaptured = cWrittenTotal;
-
-        LogFlowFunc(("cWrittenTotal=%RU32 (%RU32 processed), rc=%Rrc\n",
-                     cWrittenTotal, cProcessed, rc));
+            *pcSamplesCaptured = cMixedTotal;
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -942,21 +931,29 @@ static DECLCALLBACK(int) drvHostALSAAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
         size_t cbToRead = RT_MIN(AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf,
                                                  (uint32_t)cAvail), /* cAvail is always >= 0 */
                                  AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf,
-                                                 AudioMixBufAvail(&pHstStrmOut->MixBuf)));
-        LogFlowFunc(("cbToRead=%zu, cbAvail=%zu\n",
-                     cbToRead, AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cAvail)));
+                                                 AudioMixBufLive(&pHstStrmOut->MixBuf)));
+
+        Log2Func(("cLive=%zu, cAvail=%zu\n", AudioMixBufLive(&pHstStrmOut->MixBuf), cAvail));
 
         uint32_t cRead, cbRead;
         snd_pcm_sframes_t cWritten;
         while (cbToRead)
         {
-            rc = AudioMixBufReadCirc(&pHstStrmOut->MixBuf, pThisStrmOut->pvBuf, cbToRead, &cRead);
+            rc = AudioMixBufReadCirc(&pHstStrmOut->MixBuf, pThisStrmOut->pvBuf, RT_MIN(pThisStrmOut->cbBuf, cbToRead), &cRead);
             if (RT_FAILURE(rc))
                 break;
 
+            AssertBreak(cRead);
             cbRead = AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cRead);
             AssertBreak(cbRead);
 
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+            RTFILE fh;
+            RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "alsaPlayOut.pcm",
+                       RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            RTFileWrite(fh, pThisStrmOut->pvBuf, cbRead, NULL);
+            RTFileClose(fh);
+#endif
             /* Don't try infinitely on recoverable errors. */
             unsigned iTry;
             for (iTry = 0; iTry < ALSA_RECOVERY_TRIES_MAX; iTry++)
@@ -964,6 +961,8 @@ static DECLCALLBACK(int) drvHostALSAAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
                 cWritten = snd_pcm_writei(pThisStrmOut->phPCM, pThisStrmOut->pvBuf, cRead);
                 if (cWritten <= 0)
                 {
+                    LogRel2(("ALSA: Write #%u failed with: %s\n",  iTry, snd_strerror(cWritten)));
+
                     switch (cWritten)
                     {
                         case 0:
@@ -979,7 +978,7 @@ static DECLCALLBACK(int) drvHostALSAAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
                             if (RT_FAILURE(rc))
                                 break;
 
-                            LogFlowFunc(("Recovered from playback\n"));
+                            LogFunc(("Recovered from playback\n"));
                             continue;
                         }
 
@@ -993,15 +992,16 @@ static DECLCALLBACK(int) drvHostALSAAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
                                 break;
                             }
 
-                            LogFlowFunc(("Resumed suspended output stream\n"));
+                            LogFunc(("Resumed suspended output stream\n"));
                             continue;
                         }
 
-                        default:
-                            LogFlowFunc(("Failed to write %RI32 output frames, rc=%Rrc\n",
-                                         cRead, rc));
+                       default:
+                       {
                             rc = VERR_GENERAL_FAILURE; /** @todo */
+                            LogFunc(("Failed to write %RI32 output frames, rc=%Rrc\n", cRead, rc));
                             break;
+                       }
                     }
                 }
                 else
@@ -1022,18 +1022,15 @@ static DECLCALLBACK(int) drvHostALSAAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
     }
     while (0);
 
-    if (RT_SUCCESS(rc))
-    {
-        uint32_t cReadTotal = AUDIOMIXBUF_B2S(&pHstStrmOut->MixBuf, cbReadTotal);
-        if (cReadTotal)
-            AudioMixBufFinish(&pHstStrmOut->MixBuf, cReadTotal);
+    uint32_t cReadTotal = AUDIOMIXBUF_B2S(&pHstStrmOut->MixBuf, cbReadTotal);
 
-        if (pcSamplesPlayed)
-            *pcSamplesPlayed = cReadTotal;
+    if (cReadTotal)
+        AudioMixBufFinish(&pHstStrmOut->MixBuf, cReadTotal);
 
-        LogFlowFunc(("cReadTotal=%RU32 (%RU32 bytes), rc=%Rrc\n",
-                     cReadTotal, cbReadTotal, rc));
-    }
+    if (pcSamplesPlayed)
+        *pcSamplesPlayed = cReadTotal;
+
+    Log2Func(("cReadTotal=%RU32 (%RU32 bytes), rc=%Rrc\n", cReadTotal, cbReadTotal, rc));
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -1394,32 +1391,3 @@ const PDMDRVREG g_DrvHostALSAAudio =
     PDM_DRVREG_VERSION
 };
 
-#if 0 // unused
-static struct audio_option alsa_options[] =
-{
-    {"DACSizeInUsec", AUD_OPT_BOOL, &s_ALSAConf.size_in_usec_out,
-     "DAC period/buffer size in microseconds (otherwise in frames)", NULL, 0},
-    {"DACPeriodSize", AUD_OPT_INT, &s_ALSAConf.period_size_out,
-     "DAC period size", &s_ALSAConf.period_size_out_overriden, 0},
-    {"DACBufferSize", AUD_OPT_INT, &s_ALSAConf.buffer_size_out,
-     "DAC buffer size", &s_ALSAConf.buffer_size_out_overriden, 0},
-
-    {"ADCSizeInUsec", AUD_OPT_BOOL, &s_ALSAConf.size_in_usec_in,
-     "ADC period/buffer size in microseconds (otherwise in frames)", NULL, 0},
-    {"ADCPeriodSize", AUD_OPT_INT, &s_ALSAConf.period_size_in,
-     "ADC period size", &s_ALSAConf.period_size_in_overriden, 0},
-    {"ADCBufferSize", AUD_OPT_INT, &s_ALSAConf.buffer_size_in,
-     "ADC buffer size", &s_ALSAConf.buffer_size_in_overriden, 0},
-
-    {"Threshold", AUD_OPT_INT, &s_ALSAConf.threshold,
-     "(undocumented)", NULL, 0},
-
-    {"DACDev", AUD_OPT_STR, &s_ALSAConf.pcm_name_out,
-     "DAC device name (for instance dmix)", NULL, 0},
-
-    {"ADCDev", AUD_OPT_STR, &s_ALSAConf.pcm_name_in,
-     "ADC device name", NULL, 0},
-
-    NULL
-};
-#endif

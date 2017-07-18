@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -366,7 +366,7 @@ static HRESULT directSoundCaptureUnlock(LPDIRECTSOUNDCAPTUREBUFFER8 pDSCB,
 }
 
 static HRESULT directSoundPlayLock(PDRVHOSTDSOUND pThis,
-                                   LPDIRECTSOUNDBUFFER8 pDSB, PDMPCMPROPS *pProps,
+                                   LPDIRECTSOUNDBUFFER8 pDSB, PDMAUDIOPCMPROPS *pProps,
                                    DWORD dwOffset, DWORD dwBytes,
                                    LPVOID *ppv1, LPVOID *ppv2,
                                    DWORD *pcb1, DWORD *pcb2,
@@ -414,7 +414,7 @@ static HRESULT directSoundPlayLock(PDRVHOSTDSOUND pThis,
     return S_OK;
 }
 
-static HRESULT directSoundCaptureLock(LPDIRECTSOUNDCAPTUREBUFFER8 pDSCB, PPDMPCMPROPS pProps,
+static HRESULT directSoundCaptureLock(LPDIRECTSOUNDCAPTUREBUFFER8 pDSCB, PPDMAUDIOPCMPROPS pProps,
                                       DWORD dwOffset, DWORD dwBytes,
                                       LPVOID *ppv1, LPVOID *ppv2,
                                       DWORD *pcb1, DWORD *pcb2,
@@ -1526,7 +1526,7 @@ static DECLCALLBACK(int) drvHostDSoundPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUD
             break;
         cbFree     -= cbSample;
 
-        uint32_t csLive = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+        uint32_t csLive = AudioMixBufLive(&pHstStrmOut->MixBuf);
         uint32_t cbLive = AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, csLive);
 
         /* Do not write more than available space in the DirectSound playback buffer. */
@@ -1773,7 +1773,7 @@ static DECLCALLBACK(int) drvHostDSoundCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMA
 
     int rc = VINF_SUCCESS;
 
-    uint32_t cCaptured = 0;
+    uint32_t csCapturedTotal = 0;
 
     do
     {
@@ -1807,33 +1807,34 @@ static DECLCALLBACK(int) drvHostDSoundCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMA
         DWORD csReadPos = cbReadPos >> pHstStrmIn->Props.cShift;
 
         /* Number of samples available in the DirectSound capture buffer. */
-        DWORD csCaptured = dsoundRingDistance(csReadPos, pDSoundStrmIn->csCaptureReadPos, pDSoundStrmIn->csCaptureBufferSize);
-        if (csCaptured == 0)
+        DWORD csToCapture = dsoundRingDistance(csReadPos, pDSoundStrmIn->csCaptureReadPos, pDSoundStrmIn->csCaptureBufferSize);
+        if (csToCapture == 0)
             break;
 
         /* Using as an intermediate not circular buffer. */
         AudioMixBufReset(&pHstStrmIn->MixBuf);
 
         /* Get number of free samples in the mix buffer and check that is has free space */
-        uint32_t csMixFree = AudioMixBufFree(&pHstStrmIn->MixBuf);
-        if (csMixFree == 0)
+        AssertPtr(pHstStrmIn->pGstStrmIn);
+        uint32_t csFree = AudioMixBufFree(&pHstStrmIn->pGstStrmIn->MixBuf);
+        if (csFree == 0)
         {
             DSLOGF(("DSound: Capture buffer full\n"));
             break;
         }
 
-        DSLOGF(("DSound: Capture csMixFree=%RU32, csReadPos=%ld, csCaptureReadPos=%ld, csCaptured=%ld\n",
-                csMixFree, csReadPos, pDSoundStrmIn->csCaptureReadPos, csCaptured));
+        DSLOGF(("DSound: Capture csFree=%RU32, csReadPos=%ld, csCaptureReadPos=%ld, csCaptured=%ld\n",
+                csFree, csReadPos, pDSoundStrmIn->csCaptureReadPos, csToCapture));
 
         /* No need to fetch more samples than mix buffer can receive. */
-        csCaptured = RT_MIN(csCaptured, csMixFree);
+        csToCapture = RT_MIN(csToCapture, csFree);
 
         /* Lock relevant range in the DirectSound capture buffer. */
         LPVOID pv1, pv2;
         DWORD cb1, cb2;
         hr = directSoundCaptureLock(pDSCB, &pHstStrmIn->Props,
                                     AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, pDSoundStrmIn->csCaptureReadPos), /* dwOffset */
-                                    AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, csCaptured),                      /* dwBytes */
+                                    AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, csToCapture),                     /* dwBytes */
                                     &pv1, &pv2, &cb1, &cb2,
                                     0 /* dwFlags */);
         if (FAILED(hr))
@@ -1845,36 +1846,77 @@ static DECLCALLBACK(int) drvHostDSoundCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMA
         DWORD len1 = AUDIOMIXBUF_B2S(&pHstStrmIn->MixBuf, cb1);
         DWORD len2 = AUDIOMIXBUF_B2S(&pHstStrmIn->MixBuf, cb2);
 
+        LogFlowFunc(("csMixFree=%RU32, csLen1=%ld, csLen2=%ld\n", csFree, len1, len2));
+
         uint32_t csWrittenTotal = 0;
+
         uint32_t csWritten;
         if (pv1 && len1)
         {
-            rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, 0 /* offWrite */,
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+            RTFILE fh;
+            int rc2 = RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "dsoundCaptureIn.pcm",
+                                 RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            if (RT_SUCCESS(rc2))
+            {
+                RTFileWrite(fh, pv1, cb1, NULL);
+                RTFileClose(fh);
+            }
+            else
+                AssertFailed();
+#endif
+            rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, 0 /* offSamples */,
                                     pv1, cb1, &csWritten);
-            if (RT_SUCCESS(rc))
+            if (   RT_SUCCESS(rc)
+                && csWritten)
+            {
                 csWrittenTotal += csWritten;
+
+                uint32_t csCaptured = 0;
+                rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, csWritten, &csCaptured);
+                if (RT_SUCCESS(rc))
+                    csCapturedTotal += csCaptured;
+            }
         }
 
         if (   RT_SUCCESS(rc)
             && csWrittenTotal == len1
             && pv2 && len2)
         {
-            rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, csWrittenTotal,
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+            RTFILE fh;
+            int rc2 = RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "dsoundCaptureIn.pcm",
+                                 RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            if (RT_SUCCESS(rc2))
+            {
+                RTFileWrite(fh, pv2, cb2, NULL);
+                RTFileClose(fh);
+            }
+            else
+                AssertFailed();
+#endif
+            csWritten = 0;
+            rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, 0 /* offSamples */,
                                     pv2, cb2, &csWritten);
-            if (RT_SUCCESS(rc))
+            if (   RT_SUCCESS(rc)
+                || csWritten)
+            {
                 csWrittenTotal += csWritten;
+
+                uint32_t csCaptured = 0;
+                rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, csWritten, &csCaptured);
+                if (RT_SUCCESS(rc))
+                    csCapturedTotal += csCaptured;
+            }
         }
 
         directSoundCaptureUnlock(pDSCB, pv1, pv2, cb1, cb2);
 
-        if (csWrittenTotal) /* Captured something? */
-            rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, csWrittenTotal, &cCaptured);
-
         if (RT_SUCCESS(rc))
         {
-            pDSoundStrmIn->csCaptureReadPos = (pDSoundStrmIn->csCaptureReadPos + cCaptured) % pDSoundStrmIn->csCaptureBufferSize;
+            pDSoundStrmIn->csCaptureReadPos = (pDSoundStrmIn->csCaptureReadPos + csCapturedTotal) % pDSoundStrmIn->csCaptureBufferSize;
             DSLOGF(("DSound: Capture %ld (%ld+%ld), processed %RU32/%RU32\n",
-                    csCaptured, len1, len2, cCaptured, csWrittenTotal));
+                    csToCapture, len1, len2, csCapturedTotal, csWrittenTotal));
         }
 
     } while (0);
@@ -1886,10 +1928,10 @@ static DECLCALLBACK(int) drvHostDSoundCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMA
     else
     {
         if (pcSamplesCaptured)
-            *pcSamplesCaptured = cCaptured;
+            *pcSamplesCaptured = csCapturedTotal;
     }
 
-    LogFlowFuncLeaveRC(rc);
+    LogFlowFunc(("csCapturedTotal=%RU32, rc=%Rrc\n", csCapturedTotal, rc));
     return rc;
 }
 
@@ -2119,6 +2161,11 @@ static DECLCALLBACK(int) drvHostDSoundInit(PPDMIHOSTAUDIO pInterface)
         DSLOGREL(("DSound: DirectSound not available: %Rhrc\n", hr));
         rc = VERR_NOT_SUPPORTED;
     }
+
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "dsoundCaptureIn.pcm");
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "dsoundPlayOut.pcm");
+#endif
 
     LogFlowFuncLeaveRC(rc);
     return rc;

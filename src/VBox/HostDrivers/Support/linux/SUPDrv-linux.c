@@ -1,4 +1,4 @@
-/* $Rev: 109268 $ */
+/* $Rev: 115966 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -60,6 +60,8 @@
 # define SUPDRV_LINUX_HAS_SAFE_MSR_API
 # include <asm/msr.h>
 #endif
+
+#include <asm/desc.h>
 
 #include <iprt/asm-amd64-x86.h>
 
@@ -1400,6 +1402,9 @@ SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
 #ifdef CONFIG_PAX_KERNEXEC
     fFlags |= SUPKERNELFEATURES_GDT_READ_ONLY;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+    fFlags |= SUPKERNELFEATURES_GDT_NEED_WRITABLE;
+#endif
 #if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
     fFlags |= SUPKERNELFEATURES_SMAP;
 #elif defined(CONFIG_X86_SMAP)
@@ -1407,6 +1412,17 @@ SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
         fFlags |= SUPKERNELFEATURES_SMAP;
 #endif
     return fFlags;
+}
+
+
+int VBOXCALL    supdrvOSGetCurrentGdtRw(RTHCUINTPTR *pGdtRw)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+    *pGdtRw = (RTHCUINTPTR)get_current_gdt_rw();
+    return VINF_SUCCESS;
+#else
+    return VERR_NOT_IMPLEMENTED;
+#endif
 }
 
 

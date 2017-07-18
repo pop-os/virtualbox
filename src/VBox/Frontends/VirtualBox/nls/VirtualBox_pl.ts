@@ -2056,7 +2056,7 @@
     </message>
     <message>
         <source>Verifying %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>Weryfikowanie %1...</translation>
     </message>
 </context>
 <context>
@@ -3683,7 +3683,7 @@ p, li { white-space: pre-wrap; }
         <translation>Adres IPv6</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Długość maski sieci IPv6</translation>
     </message>
     <message>
@@ -3921,7 +3921,7 @@ p, li { white-space: pre-wrap; }
         <translation>Edytuje wybraną sieć izolowaną.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>Interfejs gospodarza &lt;b&gt;%1&lt;/b&gt; nie posiada obecnie ważnego prefiksu maski sieci IPv6.</translation>
     </message>
 </context>
@@ -3968,11 +3968,11 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Przechowuje adres IPv6 gospodarza dla tej karty, jeśli IPv6 jest dostępne.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation type="obsolete">Dł&amp;ugość maski sieci IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Przechowuje długość prefiksu maski sieci IPv6 gospodarza dla tej karty, jeśli IPv6 jest dostępne.</translation>
     </message>
     <message>
@@ -4063,11 +4063,11 @@ p, li { white-space: pre-wrap; }
         <translation>Przechowuje adres IPv6 gospodarza dla tej karty, jeśli IPv6 jest dostępne.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>Dł&amp;ugość maski sieci IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Przechowuje długość prefiksu maski sieci IPv6 gospodarza dla tej karty, jeśli IPv6 jest obsługiwane.</translation>
     </message>
     <message>
@@ -6734,11 +6734,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked, the virtual machine will assume that the pipe or socket specified in the &lt;b&gt;Path/Address&lt;/b&gt; field exists and try to use it. Otherwise, the pipe or socket will be created by the virtual machine when it starts.</source>
-        <translation>Po zaznaczeniu tej opcji, maszyna wirtualna będzie zakładać, że rura lub gniazdo określone w  &lt;b&gt;Ścieżka/Adres&lt;/b&gt; istnieje i spróbuje je użyć. W przeciwnym wypadku, rura lub gniazdo zostanie utworzone przez wirtualną maszynę, gdy wystartuje.</translation>
+        <translation>Po zaznaczeniu tej opcji, maszyna wirtualna będzie zakładać, że łącze komunikacyjne lub gniazdo określone w  &lt;b&gt;Ścieżka/Adres&lt;/b&gt; istnieje i spróbuje je użyć. W przeciwnym wypadku, łącze komunikacyjne lub gniazdo zostanie utworzone przez wirtualną maszynę, gdy wystartuje.</translation>
     </message>
     <message>
         <source>&amp;Connect to existing pipe/socket</source>
-        <translation>&amp;Podłącz do istniejącej rury/gniazda</translation>
+        <translation>&amp;Podłącz do istniejącego łącza komunikacyjnego/gniazda</translation>
     </message>
     <message>
         <source>&amp;Path/Address:</source>
@@ -6746,7 +6746,8 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;In &lt;b&gt;Host Pipe&lt;/b&gt; mode: Holds the path to the serial port&apos;s pipe on the host. Examples: &quot;\\.\pipe\myvbox&quot; or &quot;/tmp/myvbox&quot;, for Windows and UNIX-like systems respectively.&lt;/p&gt;&lt;p&gt;In &lt;b&gt;Host Device&lt;/b&gt; mode: Holds the host serial device name. Examples: &quot;COM1&quot; or &quot;/dev/ttyS0&quot;.&lt;/p&gt;&lt;p&gt;In &lt;b&gt;Raw File&lt;/b&gt; mode: Holds the file-path on the host system, where the serial output will be dumped.&lt;/p&gt;&lt;p&gt;In &lt;b&gt;TCP&lt;/b&gt; mode: Holds the TCP &quot;port&quot; when in server mode, or &quot;hostname:port&quot; when in client mode.</source>
-        <translation>&lt;p&gt;W &lt;b&gt;trybie Host Pipe&lt;/b&gt;: przechowuje ścieżkę do portu szeregowego rury na hoście. Przykładowo: &quot;\\.\pipe\myvbox&quot; lub &quot;/tmp/myvbox&quot;, odpowiednio dla systemów Windows i UNIX.&lt;/p&gt;&lt;p&gt;W &lt;b&gt;trybie urządzenia gospodarza&lt;/b&gt;: przechowuje seryjną nazwę gospodarza. Przykładowo: &quot;COM1&quot; lub &quot;/dev/ttyS0&quot;.&lt;/p&gt;&lt;p&gt;W &lt;b&gt;trybie plików RAW&lt;/b&gt;: przechowuje ścieżkę do pliku w systemie gospodarza, gdzie wyjście szeregowe będzie zrzucane.&lt;/p&gt;&lt;p&gt;W &lt;b&gt;trybie TCP&lt;/b&gt;: przechowuje &quot;port&quot; TCP kiedy jest w trybie serwera lub &quot;nazwa hosta:port&quot; w trybie klienta.</translation>
+        <translatorcomment>pipe - łącze komunikacyjne</translatorcomment>
+        <translation>&lt;p&gt;W &lt;b&gt;trybie Łącze komunikacyjne gospodarza&lt;/b&gt;: przechowuje ścieżkę do portu szeregowego łącza komunikacyjnego na hoście. Przykładowo: &quot;\\.\pipe\myvbox&quot; lub &quot;/tmp/myvbox&quot;, odpowiednio dla systemów Windows i UNIX.&lt;/p&gt;&lt;p&gt;W &lt;b&gt;trybie urządzenia gospodarza&lt;/b&gt;: przechowuje seryjną nazwę gospodarza. Przykładowo: &quot;COM1&quot; lub &quot;/dev/ttyS0&quot;.&lt;/p&gt;&lt;p&gt;W &lt;b&gt;trybie plików RAW&lt;/b&gt;: przechowuje ścieżkę do pliku w systemie gospodarza, gdzie wyjście szeregowe będzie zrzucane.&lt;/p&gt;&lt;p&gt;W &lt;b&gt;trybie TCP&lt;/b&gt;: przechowuje &quot;port&quot; TCP kiedy jest w trybie serwera lub &quot;nazwa hosta:port&quot; w trybie klienta.</translation>
     </message>
     <message>
         <source>No IRQ is currently specified.</source>
@@ -9744,27 +9745,27 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Delete</source>
         <comment>extension pack</comment>
-        <translation type="unfinished"></translation>
+        <translation>Usuń</translation>
     </message>
     <message>
         <source>Do you want to delete the downloaded file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Czy chcesz usunąć pobrany plik &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</translation>
     </message>
     <message>
         <source>Do you want to delete following list of files &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Czy chcesz usunąć następującą listę plików &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?</translation>
     </message>
     <message>
         <source>&lt;p&gt;The reason for this error are most likely wrong permissions of the IPC daemon socket due to an installation problem. Please check the permissions of &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; and &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Przyczyną tego błędu najprawdopodobniej są złe uprawnienia gniazda demona IPC z powodu problemów z instalacją. Proszę sprawdzić uprawnienia &lt;font color=blue&gt;&apos;/tmp&apos;&lt;/font&gt; i &lt;font color=blue&gt;&apos;/tmp/.vbox-*-ipc/&apos;&lt;/font&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Plik obrazu dysku&lt;b&gt;Dodatki gościa VirtualBox&lt;/b&gt; został pomyślnie pobrany z &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; i zapisany lokalnie jako &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;ale nie powiodła się weryfikacja sum kontrolnych SHA-256.&lt;/p&gt;&lt;p&gt;Proszę ręcznie pobrać, zainstalować i zweryfikować.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; został pomyślnie pobrany z &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; i zapisany lokalnie jako &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;ale nie powiodła się weryfikacja sum kontrolnych SHA-256.&lt;/p&gt;&lt;p&gt;Proszę ręcznie pobrać, zainstalować i zweryfikować.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -13982,7 +13983,8 @@ Wersja %1</translation>
     <message>
         <source>Host Pipe</source>
         <comment>PortMode</comment>
-        <translation>Host Pipe</translation>
+        <translatorcomment>Pipe - łącze komunikacyjne</translatorcomment>
+        <translation>Łącze komunikacyjne gospodarza</translation>
     </message>
     <message>
         <source>Host Device</source>

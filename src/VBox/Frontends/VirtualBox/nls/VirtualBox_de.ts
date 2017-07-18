@@ -2014,8 +2014,8 @@
         <translation>IPv6-Adresse</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
-        <translation>IPv6 Netzmasken-Länge</translation>
+        <source>IPv6 Prefix Length</source>
+        <translation>IPv6-Präfixlänge</translation>
     </message>
     <message>
         <source>Not set</source>
@@ -2231,8 +2231,8 @@
         <translation>Ändert das ausgewählte Host-only Netzwerk.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
-        <translation></translation>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
+        <translation>Das Host-Netzinterface &lt;b&gt;%1&lt;/b&gt; hat keine gültige IPv6-Präfixlänge.</translation>
     </message>
 </context>
 <context>
@@ -2274,12 +2274,12 @@
         <translation>Zeigt die IPv6-Adresse für diesen Adapter falls IPv6 unterstützt wird.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
-        <translation>IPv6 Netzmasken-&amp;Länge:</translation>
+        <source>IPv6 Prefix &amp;Length:</source>
+        <translation>IPv6-Präfix&amp;länge:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
-        <translation>Zeigt die IPv6 Netzmasken-Prefixlänge für diesen Adapter falls IPv6 unterstützt wird.</translation>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
+        <translation>Zeigt die IPv6-Präfixlänge für diesen Adapter falls IPv6 unterstützt wird.</translation>
     </message>
     <message>
         <source>&amp;DHCP Server</source>
@@ -7296,11 +7296,11 @@
     </message>
     <message>
         <source>Storage on physical hard disk</source>
-        <translation></translation>
+        <translation>Art der Speicherung</translation>
     </message>
     <message>
         <source>Please choose whether the new virtual hard disk file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation></translation>
+        <translation>Bitte wählen Sie, ob die neue virtuelle Festplatte erst nach und nach zur Laufzeit (dynamisch) alloziert werden soll oder ob die Platte jetzt sofort vollständig alloziert werden soll (feste Größe).</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard disk file will only use space on your physical hard disk as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>

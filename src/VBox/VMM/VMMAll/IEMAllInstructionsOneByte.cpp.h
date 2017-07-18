@@ -56,7 +56,7 @@ extern const PFNIEMOP g_apfnOneByteMap[256]; /* not static since we need to forw
  * @opmaps      one
  * @openc       ModR/M
  * @opflmodify  cf,pf,af,zf,sf,of
- * @ophints     harmless ignores_op_size
+ * @ophints     harmless ignores_op_sizes
  * @opstats     add_Eb_Gb
  * @opgroup     og_gen_arith_bin
  * @optest              op1=1   op2=1   -> op1=2   efl&|=nc,pe,na,nz,pl,nv
@@ -66,7 +66,7 @@ extern const PFNIEMOP g_apfnOneByteMap[256]; /* not static since we need to forw
  */
 FNIEMOP_DEF(iemOp_add_Eb_Gb)
 {
-    IEMOP_MNEMONIC2(MR, ADD, add, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE | IEMOPHINT_LOCK_ALLOWED);
+    IEMOP_MNEMONIC2(MR, ADD, add, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES | IEMOPHINT_LOCK_ALLOWED);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_rm_r8, &g_iemAImpl_add);
 }
 
@@ -95,7 +95,7 @@ FNIEMOP_DEF(iemOp_add_Ev_Gv)
  */
 FNIEMOP_DEF(iemOp_add_Gb_Eb)
 {
-    IEMOP_MNEMONIC2(RM, ADD, add, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(RM, ADD, add, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_r8_rm, &g_iemAImpl_add);
 }
 
@@ -121,7 +121,7 @@ FNIEMOP_DEF(iemOp_add_Gv_Ev)
  */
 FNIEMOP_DEF(iemOp_add_Al_Ib)
 {
-    IEMOP_MNEMONIC2(FIXED, ADD, add, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(FIXED, ADD, add, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_AL_Ib, &g_iemAImpl_add);
 }
 
@@ -180,7 +180,7 @@ FNIEMOP_DEF(iemOp_pop_ES)
  */
 FNIEMOP_DEF(iemOp_or_Eb_Gb)
 {
-    IEMOP_MNEMONIC2(MR, OR, or, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE | IEMOPHINT_LOCK_ALLOWED);
+    IEMOP_MNEMONIC2(MR, OR, or, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES | IEMOPHINT_LOCK_ALLOWED);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_rm_r8, &g_iemAImpl_or);
 }
@@ -217,7 +217,7 @@ FNIEMOP_DEF(iemOp_or_Ev_Gv)
  */
 FNIEMOP_DEF(iemOp_or_Gb_Eb)
 {
-    IEMOP_MNEMONIC2(RM, OR, or, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE | IEMOPHINT_LOCK_ALLOWED);
+    IEMOP_MNEMONIC2(RM, OR, or, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES | IEMOPHINT_LOCK_ALLOWED);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_r8_rm, &g_iemAImpl_or);
 }
@@ -249,7 +249,7 @@ FNIEMOP_DEF(iemOp_or_Gv_Ev)
  */
 FNIEMOP_DEF(iemOp_or_Al_Ib)
 {
-    IEMOP_MNEMONIC2(FIXED, OR, or, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(FIXED, OR, or, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_AL_Ib, &g_iemAImpl_or);
 }
@@ -344,7 +344,7 @@ FNIEMOP_DEF(iemOp_2byteEscape)
  */
 FNIEMOP_DEF(iemOp_adc_Eb_Gb)
 {
-    IEMOP_MNEMONIC2(MR, ADC, adc, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE | IEMOPHINT_LOCK_ALLOWED);
+    IEMOP_MNEMONIC2(MR, ADC, adc, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES | IEMOPHINT_LOCK_ALLOWED);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_rm_r8, &g_iemAImpl_adc);
 }
 
@@ -376,7 +376,7 @@ FNIEMOP_DEF(iemOp_adc_Ev_Gv)
  */
 FNIEMOP_DEF(iemOp_adc_Gb_Eb)
 {
-    IEMOP_MNEMONIC2(RM, ADC, adc, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(RM, ADC, adc, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_r8_rm, &g_iemAImpl_adc);
 }
 
@@ -404,7 +404,7 @@ FNIEMOP_DEF(iemOp_adc_Gv_Ev)
  */
 FNIEMOP_DEF(iemOp_adc_Al_Ib)
 {
-    IEMOP_MNEMONIC2(FIXED, ADC, adc, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(FIXED, ADC, adc, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_AL_Ib, &g_iemAImpl_adc);
 }
 
@@ -457,7 +457,7 @@ FNIEMOP_DEF(iemOp_pop_SS)
  */
 FNIEMOP_DEF(iemOp_sbb_Eb_Gb)
 {
-    IEMOP_MNEMONIC2(MR, SBB, sbb, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE | IEMOPHINT_LOCK_ALLOWED);
+    IEMOP_MNEMONIC2(MR, SBB, sbb, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES | IEMOPHINT_LOCK_ALLOWED);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_rm_r8, &g_iemAImpl_sbb);
 }
 
@@ -483,7 +483,7 @@ FNIEMOP_DEF(iemOp_sbb_Ev_Gv)
  */
 FNIEMOP_DEF(iemOp_sbb_Gb_Eb)
 {
-    IEMOP_MNEMONIC2(RM, SBB, sbb, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(RM, SBB, sbb, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_r8_rm, &g_iemAImpl_sbb);
 }
 
@@ -509,7 +509,7 @@ FNIEMOP_DEF(iemOp_sbb_Gv_Ev)
  */
 FNIEMOP_DEF(iemOp_sbb_Al_Ib)
 {
-    IEMOP_MNEMONIC2(FIXED, SBB, sbb, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(FIXED, SBB, sbb, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_AL_Ib, &g_iemAImpl_sbb);
 }
 
@@ -561,7 +561,7 @@ FNIEMOP_DEF(iemOp_pop_DS)
  */
 FNIEMOP_DEF(iemOp_and_Eb_Gb)
 {
-    IEMOP_MNEMONIC2(MR, AND, and, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE | IEMOPHINT_LOCK_ALLOWED);
+    IEMOP_MNEMONIC2(MR, AND, and, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES | IEMOPHINT_LOCK_ALLOWED);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_rm_r8, &g_iemAImpl_and);
 }
@@ -591,7 +591,7 @@ FNIEMOP_DEF(iemOp_and_Ev_Gv)
  */
 FNIEMOP_DEF(iemOp_and_Gb_Eb)
 {
-    IEMOP_MNEMONIC2(RM, AND, and, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(RM, AND, and, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_r8_rm, &g_iemAImpl_and);
 }
@@ -685,7 +685,7 @@ FNIEMOP_DEF(iemOp_daa)
  */
 FNIEMOP_DEF(iemOp_sub_Eb_Gb)
 {
-    IEMOP_MNEMONIC2(MR, SUB, sub, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE | IEMOPHINT_LOCK_ALLOWED);
+    IEMOP_MNEMONIC2(MR, SUB, sub, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES | IEMOPHINT_LOCK_ALLOWED);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_rm_r8, &g_iemAImpl_sub);
 }
 
@@ -709,7 +709,7 @@ FNIEMOP_DEF(iemOp_sub_Ev_Gv)
  */
 FNIEMOP_DEF(iemOp_sub_Gb_Eb)
 {
-    IEMOP_MNEMONIC2(RM, SUB, sub, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(RM, SUB, sub, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_r8_rm, &g_iemAImpl_sub);
 }
 
@@ -733,7 +733,7 @@ FNIEMOP_DEF(iemOp_sub_Gv_Ev)
  */
 FNIEMOP_DEF(iemOp_sub_Al_Ib)
 {
-    IEMOP_MNEMONIC2(FIXED, SUB, sub, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(FIXED, SUB, sub, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_AL_Ib, &g_iemAImpl_sub);
 }
 
@@ -795,7 +795,7 @@ FNIEMOP_DEF(iemOp_das)
  */
 FNIEMOP_DEF(iemOp_xor_Eb_Gb)
 {
-    IEMOP_MNEMONIC2(MR, XOR, xor, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE | IEMOPHINT_LOCK_ALLOWED);
+    IEMOP_MNEMONIC2(MR, XOR, xor, Eb, Gb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES | IEMOPHINT_LOCK_ALLOWED);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_rm_r8, &g_iemAImpl_xor);
 }
@@ -825,7 +825,7 @@ FNIEMOP_DEF(iemOp_xor_Ev_Gv)
  */
 FNIEMOP_DEF(iemOp_xor_Gb_Eb)
 {
-    IEMOP_MNEMONIC2(RM, XOR, xor, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(RM, XOR, xor, Gb, Eb, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_r8_rm, &g_iemAImpl_xor);
 }
@@ -855,7 +855,7 @@ FNIEMOP_DEF(iemOp_xor_Gv_Ev)
  */
 FNIEMOP_DEF(iemOp_xor_Al_Ib)
 {
-    IEMOP_MNEMONIC2(FIXED, XOR, xor, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(FIXED, XOR, xor, AL, Ib, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_AL_Ib, &g_iemAImpl_xor);
 }
@@ -870,7 +870,7 @@ FNIEMOP_DEF(iemOp_xor_Al_Ib)
  */
 FNIEMOP_DEF(iemOp_xor_eAX_Iz)
 {
-    IEMOP_MNEMONIC2(FIXED, XOR, xor, rAX, Iz, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+    IEMOP_MNEMONIC2(FIXED, XOR, xor, rAX, Iz, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
     IEMOP_VERIFICATION_UNDEFINED_EFLAGS(X86_EFL_AF);
     return FNIEMOP_CALL_1(iemOpHlpBinaryOperator_rAX_Iz, &g_iemAImpl_xor);
 }
@@ -1848,7 +1848,7 @@ FNIEMOP_DEF(iemOp_popa__mvex)
 /**
  * @opcode      0x62
  * @opmnemonic  bound
- * @op1         Gv
+ * @op1         Gv_RO
  * @op2         Ma
  * @opmincpu    80186
  * @ophints     harmless invalid_64
@@ -1910,7 +1910,7 @@ FNIEMOP_DEF(iemOp_bound_Gv_Ma__evex)
     uint8_t bRm;
     if (pVCpu->iem.s.enmCpuMode != IEMMODE_64BIT)
     {
-        IEMOP_MNEMONIC2(RM_MEM, BOUND, bound, Gv, Ma, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZE);
+        IEMOP_MNEMONIC2(RM_MEM, BOUND, bound, Gv_RO, Ma, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
         IEMOP_HLP_MIN_186();
         IEM_OPCODE_GET_NEXT_U8(&bRm);
         if ((bRm & X86_MODRM_MOD_MASK) != (3 << X86_MODRM_MOD_SHIFT))
@@ -4351,11 +4351,11 @@ FNIEMOP_DEF(iemOp_Grp1A__xop)
             == 0)
         {
             pVCpu->iem.s.fPrefixes |= IEM_OP_PRF_XOP;
-            if (bXop2 & 0x80 /* XOP.W */)
+            if ((bXop2 & 0x80 /* XOP.W */) && pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT)
                 pVCpu->iem.s.fPrefixes |= IEM_OP_PRF_SIZE_REX_W;
-            pVCpu->iem.s.uRexReg    = ~bRm >> (7 - 3);
-            pVCpu->iem.s.uRexIndex  = ~bRm >> (6 - 3);
-            pVCpu->iem.s.uRexB      = ~bRm >> (5 - 3);
+            pVCpu->iem.s.uRexReg    = (~bRm >> (7 - 3)) & 0x8;
+            pVCpu->iem.s.uRexIndex  = (~bRm >> (6 - 3)) & 0x8;
+            pVCpu->iem.s.uRexB      = (~bRm >> (5 - 3)) & 0x8;
             pVCpu->iem.s.uVex3rdReg = (~bXop2 >> 3) & 0xf;
             pVCpu->iem.s.uVexLength = (bXop2 >> 2) & 1;
             pVCpu->iem.s.idxPrefix  = bXop2 & 0x3;
@@ -6221,16 +6221,16 @@ FNIEMOP_DEF(iemOp_les_Gv_Mp__vex3)
         IEMOP_MNEMONIC(vex3_prefix, "vex3");
         if (IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fAvx)
         {
-            /* Note! The real mode, v8086 mode and invalid prefix checks are
-                     done once the instruction is fully decoded. */
+            /* Note! The real mode, v8086 mode and invalid prefix checks are done once
+                     the instruction is fully decoded.  Even when XCR0=3 and CR4.OSXSAVE=0. */
             uint8_t bVex2;   IEM_OPCODE_GET_NEXT_U8(&bVex2);
             uint8_t bOpcode; IEM_OPCODE_GET_NEXT_U8(&bOpcode);
             pVCpu->iem.s.fPrefixes |= IEM_OP_PRF_VEX;
-            if (bVex2 & 0x80 /* VEX.W */)
+            if ((bVex2 & 0x80 /* VEX.W */) && pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT)
                 pVCpu->iem.s.fPrefixes |= IEM_OP_PRF_SIZE_REX_W;
-            pVCpu->iem.s.uRexReg    = ~bRm >> (7 - 3);
-            pVCpu->iem.s.uRexIndex  = ~bRm >> (6 - 3);
-            pVCpu->iem.s.uRexB      = ~bRm >> (5 - 3);
+            pVCpu->iem.s.uRexReg    = (~bRm >> (7 - 3)) & 0x8;
+            pVCpu->iem.s.uRexIndex  = (~bRm >> (6 - 3)) & 0x8;
+            pVCpu->iem.s.uRexB      = (~bRm >> (5 - 3)) & 0x8;
             pVCpu->iem.s.uVex3rdReg = (~bVex2 >> 3) & 0xf;
             pVCpu->iem.s.uVexLength = (bVex2 >> 2) & 1;
             pVCpu->iem.s.idxPrefix  = bVex2 & 0x3;
@@ -6293,11 +6293,11 @@ FNIEMOP_DEF(iemOp_lds_Gv_Mp__vex2)
         IEMOP_MNEMONIC(vex2_prefix, "vex2");
         if (IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fAvx)
         {
-            /* Note! The real mode, v8086 mode and invalid prefix checks are
-                     done once the instruction is fully decoded. */
+            /* Note! The real mode, v8086 mode and invalid prefix checks are done once
+                     the instruction is fully decoded.  Even when XCR0=3 and CR4.OSXSAVE=0. */
             uint8_t bOpcode; IEM_OPCODE_GET_NEXT_U8(&bOpcode);
             pVCpu->iem.s.fPrefixes |= IEM_OP_PRF_VEX;
-            pVCpu->iem.s.uRexReg    = ~bRm >> (7 - 3);
+            pVCpu->iem.s.uRexReg    = (~bRm >> (7 - 3)) & 0x8;
             pVCpu->iem.s.uVex3rdReg = (~bRm >> 3) & 0xf;
             pVCpu->iem.s.uVexLength = (bRm >> 2) & 1;
             pVCpu->iem.s.idxPrefix  = bRm & 0x3;
@@ -6506,7 +6506,7 @@ FNIEMOP_DEF(iemOp_retf)
 FNIEMOP_DEF(iemOp_int3)
 {
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
-    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, X86_XCPT_BP, true /*fIsBpInstr*/);
+    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, X86_XCPT_BP, IEMINT_INT3);
 }
 
 
@@ -6517,7 +6517,7 @@ FNIEMOP_DEF(iemOp_int_Ib)
 {
     uint8_t u8Int; IEM_OPCODE_GET_NEXT_U8(&u8Int);
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
-    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, u8Int, false /*fIsBpInstr*/);
+    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, u8Int, IEMINT_INTN);
 }
 
 
@@ -6530,9 +6530,9 @@ FNIEMOP_DEF(iemOp_into)
     IEMOP_HLP_NO_64BIT();
 
     IEM_MC_BEGIN(2, 0);
-    IEM_MC_ARG_CONST(uint8_t,   u8Int,      /*=*/ X86_XCPT_OF, 0);
-    IEM_MC_ARG_CONST(bool,      fIsBpInstr, /*=*/ false, 1);
-    IEM_MC_CALL_CIMPL_2(iemCImpl_int, u8Int, fIsBpInstr);
+    IEM_MC_ARG_CONST(uint8_t,   u8Int,  /*=*/ X86_XCPT_OF, 0);
+    IEM_MC_ARG_CONST(IEMINT,    enmInt, /*=*/ IEMINT_INTO, 1);
+    IEM_MC_CALL_CIMPL_2(iemCImpl_int, u8Int, enmInt);
     IEM_MC_END();
     return VINF_SUCCESS;
 }
@@ -10589,8 +10589,7 @@ FNIEMOP_DEF(iemOp_int1)
     IEMOP_MNEMONIC(int1, "int1"); /* icebp */
     IEMOP_HLP_MIN_386(); /** @todo does not generate #UD on 286, or so they say... */
     /** @todo testcase! */
-    IEMOP_HLP_SVM_CTRL_INTERCEPT(pVCpu, SVM_CTRL_INTERCEPT_ICEBP, SVM_EXIT_ICEBP, 0, 0);
-    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, X86_XCPT_DB, false /*fIsBpInstr*/);
+    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, X86_XCPT_DB, IEMINT_INT1);
 }
 
 

@@ -6,7 +6,7 @@
     <message>
         <source>English</source>
         <comment>Native language name</comment>
-        <translatorcomment>2017-03-13</translatorcomment>
+        <translatorcomment>2017-05-04</translatorcomment>
         <translation>Ελληνικά</translation>
     </message>
     <message>
@@ -196,7 +196,7 @@
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
-        <translation>Πάρτε ένα στιγμιότυπο της εικονικής μηχανής</translation>
+        <translation>Λήψη ενός στιγμιοτύπου της εικονικής μηχανής</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -659,7 +659,7 @@
     </message>
     <message>
         <source>Automatically resize the guest display when the window is resized</source>
-        <translation>Αυτόματα αλλάζει η ανάλυση του επισκέπτη όταν το αλλάζει το παράθυρο</translation>
+        <translation>Αυτόματα αλλάζει την ανάλυση οθόνης επισκέπτη όταν αλλάζει το παράθυρο</translation>
     </message>
     <message>
         <source>Take guest display screenshot</source>
@@ -1110,11 +1110,11 @@
     <name>UIApplianceImportEditorWidget</name>
     <message>
         <source>Importing Appliance ...</source>
-        <translation>Εισάγεται η Συσκευή ...</translation>
+        <translation>Εισαγωγή Συσκευής ...</translation>
     </message>
     <message>
         <source>Reading Appliance ...</source>
-        <translation>Διαβάζεται η Συσκευή ...</translation>
+        <translation>Ανάγνωση Συσκευής ...</translation>
     </message>
 </context>
 <context>
@@ -2039,7 +2039,7 @@
         <translation>Διεύθυνση IPv6</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask Length</source>
+        <source>IPv6 Prefix Length</source>
         <translation>Μήκος Μάσκας Δικτύου IPv6</translation>
     </message>
     <message>
@@ -2256,7 +2256,7 @@
         <translation>Επεξεργασία του επιλεγμένου μόνο-με-οικοδεσπότη δίκτυο.</translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρο μήκος προθέματος της μάσκας δικτύου IPv6.</translation>
     </message>
 </context>
@@ -2299,11 +2299,11 @@
         <translation>Δείχνει τη διεύθυνση IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
     </message>
     <message>
-        <source>IPv6 Network Mask &amp;Length:</source>
+        <source>IPv6 Prefix &amp;Length:</source>
         <translation>Μήκος Μάσκας Δικτύου IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Δείχνει το μήκος προθέματος της μάσκας δικτύου IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
     </message>
     <message>
@@ -6114,11 +6114,11 @@
     </message>
     <message>
         <source>SSL authentication failed</source>
-        <translation>Απέτυχε η πιστοποίηση SSL</translation>
+        <translation>Αποτυχία πιστοποίησης SSL</translation>
     </message>
     <message>
         <source>Unknown reason</source>
-        <translation>Άγνωστος λόγος</translation>
+        <translation>Άγνωστη αιτία</translation>
     </message>
     <message>
         <source>%1: %2</source>
@@ -6139,7 +6139,7 @@
     </message>
     <message>
         <source>Proxy not found</source>
-        <translation>Δεν βρέθεκε διαμεσολαβητής</translation>
+        <translation>Δεν βρέθηκε διαμεσολαβητής</translation>
     </message>
     <message>
         <source>Url not found on the server</source>
@@ -6154,7 +6154,7 @@
     </message>
     <message>
         <source>During certificate downloading</source>
-        <translation>Κατά τη διάρκεια του κατεβάσματος του πιστοποιητικού</translation>
+        <translation>Κατά τη διάρκεια της λήψης πιστοποιητικού</translation>
     </message>
     <message>
         <source>During network request</source>
@@ -6227,7 +6227,7 @@
     <name>UIProgressDialog</name>
     <message>
         <source>A few seconds remaining</source>
-        <translation>Λίγα δευτερόλεπτα παραμένουν</translation>
+        <translation>Λίγα δευτερόλεπτα απομένουν</translation>
     </message>
     <message>
         <source>Canceling...</source>
@@ -6239,17 +6239,17 @@
     </message>
     <message>
         <source>Cancel the current operation</source>
-        <translation>Ακύρωση της διαδικασίας δικτύου</translation>
+        <translation>Ακύρωση της τρέχουσας διαδικασίας</translation>
     </message>
     <message>
         <source>%1, %2 remaining</source>
         <comment>You may wish to translate this more like &quot;Time remaining: %1, %2&quot;</comment>
-        <translation>%1, %2 παραμένουν</translation>
+        <translation>%1, %2 απομένουν</translation>
     </message>
     <message>
         <source>%1 remaining</source>
         <comment>You may wish to translate this more like &quot;Time remaining: %1&quot;</comment>
-        <translation>%1 παραμένουν</translation>
+        <translation>%1 απομένουν</translation>
     </message>
 </context>
 <context>
@@ -6798,11 +6798,11 @@
     </message>
     <message>
         <source>&amp;Guided Mode</source>
-        <translation>Καθοδηγημένη Λειτουργία</translation>
+        <translation>Καθοδηγούμενη Λειτουργία</translation>
     </message>
     <message>
         <source>Switch to &lt;nobr&gt;&lt;b&gt;Guided Mode&lt;/b&gt;&lt;/nobr&gt;, a step-by-step dialog with detailed explanations.</source>
-        <translation>Εναλλαγή σε &lt;nobr&gt;&lt;b&gt;Καθοδηγημένη Λειτουργία&lt;/b&gt;&lt;/nobr&gt;, βήμα προς βήμα ρυθμίσεις με λεπτομερείς εξηγήσεις.</translation>
+        <translation>Εναλλαγή σε &lt;nobr&gt;&lt;b&gt;Καθοδηγούμενη Λειτουργία&lt;/b&gt;&lt;/nobr&gt;, βήμα προς βήμα ρυθμίσεις με λεπτομερείς εξηγήσεις.</translation>
     </message>
 </context>
 <context>
@@ -6878,11 +6878,11 @@
     </message>
     <message>
         <source>New hard disk to create</source>
-        <translation>Νέος σκληρός δίσκος για δημιουργία</translation>
+        <translation>Δημιουργία νέου σκληρού δίσκου</translation>
     </message>
     <message>
         <source>Please type the name of the new virtual hard disk file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation>Συμπληρώστε το όνομα του αρχείου του νέου εικονικού σκληρού δίσκου στο κουτί παρακάτω ή κάντε κλικ στο εικονίδιο φακέλου για να επιλέξετε ένα φάκελο στον οποίο θα δημιουργηθεί το αρχείο.</translation>
+        <translation>Παρακαλώ συμπληρώστε το όνομα του αρχείου του νέου εικονικού σκληρού δίσκου στο κουτί παρακάτω ή κάντε κλικ στο εικονίδιο φακέλου για να επιλέξετε ένα φάκελο στον οποίο θα δημιουργηθεί το αρχείο.</translation>
     </message>
     <message>
         <source>Choose a location for new virtual hard disk file...</source>
@@ -6929,7 +6929,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Please choose a name for the new virtual machine. The new machine will be a clone of the machine &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Επιλέξτε ένα όνομα για τη νέα εικονική μηχανή. Η νέα μηχανή θα είναι κλώνος της μηχανής  &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Παρακαλώ επιλέξτε ένα όνομα για τη νέα εικονική μηχανή. Η νέα μηχανή θα είναι κλώνος της μηχανής  &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
@@ -6949,7 +6949,7 @@
     </message>
     <message>
         <source>&amp;Full clone</source>
-        <translation>Πλήρες κλώνος</translation>
+        <translation>Πλήρης κλώνος</translation>
     </message>
     <message>
         <source>&amp;Linked clone</source>
@@ -6985,7 +6985,7 @@
     </message>
     <message>
         <source>&amp;Everything</source>
-        <translation>Τα πάντα</translation>
+        <translation>Όλα</translation>
     </message>
     <message>
         <source>New machine &amp;name</source>
@@ -7016,11 +7016,11 @@
     </message>
     <message>
         <source>Exporting Appliance ...</source>
-        <translation>Εξάγεται η Συσκευή ...</translation>
+        <translation>Εξαγωγή Συσκευής ...</translation>
     </message>
     <message>
         <source>Export Virtual Appliance</source>
-        <translation>Εξάγετε Εικονική Συσκευή</translation>
+        <translation>Εξαγωγή Εικονικής Συσκευής</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
@@ -7032,11 +7032,11 @@
     </message>
     <message>
         <source>Virtual machines to export</source>
-        <translation>Εικονικές μηχανές για εξαγωγή</translation>
+        <translation>Εικονικές μηχανές προς εξαγωγή</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select the virtual machines that should be added to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Επιλέξτε τις εικονικές μηχανές που θα προστεθούν στη συσκευή. Μπορείτε να επιλέξετε παραπάνω από μία. Σημειώστε οτι αυτές οι μηχανές πρέπει να έχουν τερματίσει τη λειτουργία τους πριν να τις εξάγετε.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Παρακαλώ επιλέξτε τις εικονικές μηχανές που θα προστεθούν στη συσκευή. Μπορείτε να επιλέξετε παραπάνω από μία. Σημειώστε οτι αυτές οι μηχανές πρέπει να έχουν τερματίσει τη λειτουργία τους πριν να μπορούν να εξαχθούν.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Appliance settings</source>
@@ -7044,11 +7044,11 @@
     </message>
     <message>
         <source>Please choose where to create the virtual appliance. You can create it on your own computer, on the Sun Cloud service or on an S3 storage server.</source>
-        <translation>Επιλέξτε πού θα δημιουργήσετε την εικονική συσκευή. Μπορείτε να τις δημιουργήσετε στον υπολογιστή σας, στις υπηρεσίες Sun Cloud ή σε διακομιστή αποθήκευσης S3.</translation>
+        <translation>Παρακαλώ επιλέξτε πού θα δημιουργήσετε την εικονική συσκευή. Μπορείτε να τις δημιουργήσετε στον υπολογιστή σας, στις υπηρεσίες Sun Cloud ή σε διακομιστή αποθήκευσης S3.</translation>
     </message>
     <message>
         <source>Create on</source>
-        <translation>Δημιουργήστε στο</translation>
+        <translation>Δημιουργία στο</translation>
     </message>
     <message>
         <source>&amp;This computer</source>
@@ -7060,7 +7060,7 @@
     </message>
     <message>
         <source>&amp;Simple Storage System (S3)</source>
-        <translation>Απλό σύστημα αποθήκευσης (Amazon S3)</translation>
+        <translation>Απλό Σύστημα Αποθήκευσης (Amazon S3)</translation>
     </message>
     <message>
         <source>Appliance</source>
@@ -7068,7 +7068,7 @@
     </message>
     <message>
         <source>&amp;Username:</source>
-        <translation>Όνομα:</translation>
+        <translation>Όνομα χρήστη:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
@@ -7171,11 +7171,11 @@
     </message>
     <message>
         <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Συμπληρώστε τα πρόσθετα πεδία όπως το όνομα χρήστη, τον κωδικό και το δοχείο, και επιλέξτε το όνομα για το αρχείο OVF.</translation>
+        <translation>Παρακαλώ συμπληρώστε τα πρόσθετα πεδία όπως το όνομα χρήστη, τον κωδικό και το δοχείο, και επιλέξτε ένα όνομα για το αρχείο OVF.</translation>
     </message>
     <message>
         <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Συμπληρώστε τα πρόσθετα πεδία όπως το όνομα χρήστη, τον κωδικό, το όνομα του οικοδεσπότη και το δοχείο, και επιλέξτε το όνομα για το αρχείο OVF.</translation>
+        <translation>Παρακαλώ συμπληρώστε τα πρόσθετα πεδία όπως το όνομα χρήστη, τον κωδικό, το όνομα του οικοδεσπότη και το δοχείο, και επιλέξτε ένα όνομα για το αρχείο OVF.</translation>
     </message>
     <message>
         <source>Choose a file to export the virtual appliance to...</source>
@@ -7186,14 +7186,14 @@
     <name>UIWizardExportAppPageExpert</name>
     <message>
         <source>Choose a file to export the virtual appliance to...</source>
-        <translation>Επιλέξτε ένα αρχείο στο οποίο θα εξάγετε την εικονική μηχανή...</translation>
+        <translation>Επιλογή ενός αρχείου στο οποίο θα εξαχθεί η εικονική μηχανή...</translation>
     </message>
 </context>
 <context>
     <name>UIWizardFirstRun</name>
     <message>
         <source>Select start-up disk</source>
-        <translation>Διαλέξτε δίσκο εκκίνησης</translation>
+        <translation>Επιλογή δίσκου εκκίνησης</translation>
     </message>
     <message>
         <source>Start</source>
@@ -7205,11 +7205,11 @@
     </message>
     <message>
         <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from. As this virtual machine has no hard drive you will not be able to install an operating system on it at the moment.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Παρακαλώ επιλέξτε ένα αρχείο εικονικού οπτικού δίσκου ή μία φυσική μονάδα οπτικού δίσκου που περιέχει ένα δίσκο από τον οποίο θα ξεκινήσει η νέα εικονική μηχανή.&lt;/p&gt;&lt;p&gt;Ο δίσκος θα πρέπει να είναι κατάλληλος να ξεκινήσει ένας υπολογιστής. Μιας και αυτή η εικονική μηχανή δεν έχει σκληρό δίσκο δεν θα μπορέσετε να εγκαταστήσετε ένα λειτουργικό σύστημα τώρα.&lt;p&gt;</translation>
+        <translation>&lt;p&gt;Παρακαλώ επιλέξτε ένα αρχείο εικονικού οπτικού δίσκου ή μία φυσική μονάδα οπτικού δίσκου που περιέχει ένα δίσκο από τον οποίο θα ξεκινήσει η νέα εικονική μηχανή.&lt;/p&gt;&lt;p&gt;Ο δίσκος θα πρέπει να είναι κατάλληλος να ξεκινήσει ένας υπολογιστής. Επειδή αυτή η εικονική μηχανή δεν έχει σκληρό δίσκο δεν θα μπορέσετε να εγκαταστήσετε ένα λειτουργικό σύστημα τώρα.&lt;p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual optical disk file...</source>
-        <translation>Επιλέξτε έναν εικονικό οπτικό δίσκο...</translation>
+        <translation>Επιλογή ενός εικονικού οπτικού δίσκου...</translation>
     </message>
 </context>
 <context>
@@ -7374,11 +7374,11 @@
     <name>UIWizardNewVM</name>
     <message>
         <source>Create Virtual Machine</source>
-        <translation>Δημιουργήστε Εικονική Μηχανή</translation>
+        <translation>Δημιουργία Εικονικής Μηχανής</translation>
     </message>
     <message>
         <source>Create</source>
-        <translation>Δημιουργήστε</translation>
+        <translation>Δημιουργία</translation>
     </message>
     <message>
         <source>Name and operating system</source>
@@ -7452,7 +7452,7 @@
     <name>VBoxEmptyFileSelector</name>
     <message>
         <source>Choose...</source>
-        <translation type="vanished">Επιλέξτε...</translation>
+        <translation type="vanished">Επιλογή...</translation>
     </message>
 </context>
 <context>
@@ -7650,7 +7650,7 @@
     <message>
         <source>Running</source>
         <comment>MachineState</comment>
-        <translation>Τρέχει</translation>
+        <translation>Σε λειτουργία</translation>
     </message>
     <message>
         <source>Paused</source>
@@ -7670,7 +7670,7 @@
     <message>
         <source>Saving</source>
         <comment>MachineState</comment>
-        <translation>Σώζεται</translation>
+        <translation>Αποθηκεύεται</translation>
     </message>
     <message>
         <source>Restoring</source>
@@ -8010,7 +8010,7 @@
     <message>
         <source>Checking...</source>
         <comment>medium</comment>
-        <translation>Ελέγχω...</translation>
+        <translation>Έλεγχος...</translation>
     </message>
     <message>
         <source>Inaccessible</source>
@@ -8210,7 +8210,7 @@
     <message>
         <source>Deleting Snapshot</source>
         <comment>MachineState</comment>
-        <translation>Σβήνεται Στιγμιότυπο</translation>
+        <translation>Διαγράφεται Στιγμιότυπο</translation>
     </message>
     <message>
         <source>Floppy</source>
@@ -8274,7 +8274,7 @@
     </message>
     <message>
         <source>You can also change this while the machine is running.</source>
-        <translation>Μπορείτε να το αλλάξετε ενώ η μηχανή τρέχει.</translation>
+        <translation>Αυτό μπορεί επίσης να αλλαχθεί ενώ η μηχανή είναι σε λειτουργία.</translation>
     </message>
     <message>
         <source>&lt;b&gt;No disk image files available&lt;/b&gt;</source>
@@ -8508,7 +8508,7 @@
     <message>
         <source>Shareable</source>
         <comment>MediumType</comment>
-        <translation>Διαμοιρασμένο</translation>
+        <translation>Διαμοιράσιμο</translation>
     </message>
     <message>
         <source>Readonly</source>
@@ -8533,7 +8533,7 @@
     <message>
         <source>Fixed size storage</source>
         <comment>MediumVariant</comment>
-        <translation>Πάγια αποθήκευση</translation>
+        <translation>Πάγιο μέγεθος αποθήκευσης</translation>
     </message>
     <message>
         <source>Dynamically allocated storage split into files of less than 2GB</source>
@@ -8563,12 +8563,12 @@
     <message>
         <source>Fixed size ESX storage</source>
         <comment>MediumVariant</comment>
-        <translation>Πάγια αποθήκευση ESX</translation>
+        <translation>Πάγιο μέγεθος αποθήκευσης ESX</translation>
     </message>
     <message>
         <source>Fixed size storage on raw disk</source>
         <comment>MediumVariant</comment>
-        <translation>Πάγια αποθήκευση σε πηγαίο δίσκο</translation>
+        <translation>Πάγιο μέγεθος αποθήκευσης σε πηγαίο δίσκο</translation>
     </message>
     <message>
         <source>Deny</source>
@@ -8588,12 +8588,12 @@
     <message>
         <source>Ignore</source>
         <comment>USBDeviceFilterAction</comment>
-        <translation>Αγνοήστε</translation>
+        <translation>Αγνόηση</translation>
     </message>
     <message>
         <source>Hold</source>
         <comment>USBDeviceFilterAction</comment>
-        <translation>Κρατήστε</translation>
+        <translation>Κράτηση</translation>
     </message>
     <message>
         <source>UDP</source>
@@ -8707,7 +8707,7 @@
     </message>
     <message>
         <source>Please choose a virtual optical disk file</source>
-        <translation>Παρακαλώ επιλέξτε έναν εικονικό οπτικό δίσκο</translation>
+        <translation>Παρακαλώ επιλέξτε ένα αρχείο εικονικού οπτικού δίσκου</translation>
     </message>
     <message>
         <source>All virtual optical disk files (%1)</source>
@@ -8929,7 +8929,7 @@
     </message>
     <message>
         <source>Please choose a virtual hard disk file</source>
-        <translation>Παρακαλώ επιλέξτε έναν εικονικό σκληρό δίσκο</translation>
+        <translation>Παρακαλώ επιλέξτε ένα αρχείο εικονικού σκληρού δίσκου</translation>
     </message>
     <message>
         <source>All virtual hard disk files (%1)</source>
@@ -8938,7 +8938,7 @@
     <message>
         <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
         <comment>medium</comment>
-        <translation>Προσαρτώντας αυτόν το σκληρό δίσκο θα γίνει έμμεσα χρησιμοποιώντας ένα καινούριο διαφορικό σκληρό δίσκο.</translation>
+        <translation>Η προσάρτησηση αυτού του σκληρού δίσκου θα γίνει έμμεσα χρησιμοποιώντας έναν καινούριο διαφορικό σκληρό δίσκο.</translation>
     </message>
     <message>
         <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Medium Manager to inspect these files.</source>
@@ -9052,7 +9052,7 @@
     <message>
         <source>Storage statistics</source>
         <comment>InformationElementType</comment>
-        <translation>Στατιστικά αποθήκευσης</translation>
+        <translation>Στατιστικά μέσων αποθήκευσης</translation>
     </message>
     <message>
         <source>Network statistics</source>
@@ -9094,7 +9094,7 @@
     <name>VBoxMediaManagerDlg</name>
     <message>
         <source>&amp;Actions</source>
-        <translation>Δράσεις</translation>
+        <translation>Ενέργειες</translation>
     </message>
     <message>
         <source>R&amp;emove</source>
@@ -9122,7 +9122,7 @@
     </message>
     <message>
         <source>Checking accessibility</source>
-        <translation>Checking accessibility</translation>
+        <translation>Έλεγχος προσβασιμότητας</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
@@ -9225,7 +9225,7 @@
     </message>
     <message>
         <source>Click to enlarge the screenshot.</source>
-        <translation>Κλικ για μεγένθυση του στιγμιότυπου οθόνης.</translation>
+        <translation>Κλικ για μεγέθυνση του στιγμιότυπου οθόνης.</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
@@ -9233,7 +9233,7 @@
     </message>
     <message>
         <source>Taken:</source>
-        <translation>Πιασμένο:</translation>
+        <translation>Λήψη:</translation>
     </message>
     <message>
         <source>&amp;Description:</source>
@@ -9253,7 +9253,7 @@
     <message>
         <source>Current State (changed)</source>
         <comment>Current State (Modified)</comment>
-        <translation>Τρέχουσα κατάσταση (άλλαξε)</translation>
+        <translation>Τρέχουσα κατάσταση (αλλαγμένη)</translation>
     </message>
     <message>
         <source>Current State</source>
@@ -9266,32 +9266,32 @@
     </message>
     <message>
         <source>The current state is identical to the state stored in the current snapshot</source>
-        <translation>Η τρέχουσα κατάσταση είναι πανομοιότυπη με την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
+        <translation>Η τρέχουσα κατάσταση είναι ίδια με την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
     </message>
     <message>
         <source> (current, </source>
         <comment>Snapshot details</comment>
-        <translation> (τρέχουσα, </translation>
+        <translation> (τρέχον, </translation>
     </message>
     <message>
         <source>online)</source>
         <comment>Snapshot details</comment>
-        <translation>συνδεδεμένη)</translation>
+        <translation>συνδεδεμένο)</translation>
     </message>
     <message>
         <source>offline)</source>
         <comment>Snapshot details</comment>
-        <translation>αποσυνδεδεμένη)</translation>
+        <translation>αποσυνδεδεμένο)</translation>
     </message>
     <message>
         <source>Taken at %1</source>
         <comment>Snapshot (time)</comment>
-        <translation>Πάρθηκε στις %1</translation>
+        <translation>Λήψη στις %1</translation>
     </message>
     <message>
         <source>Taken on %1</source>
         <comment>Snapshot (date + time)</comment>
-        <translation>Πάρθηκε την %1</translation>
+        <translation>Λήψη την %1</translation>
     </message>
     <message>
         <source>%1 since %2</source>
@@ -9312,7 +9312,7 @@
     </message>
     <message>
         <source>Take a snapshot of the current virtual machine state</source>
-        <translation>Πάρτε ένα στιγμιότυπο της τρέχουσας εικονικής μηχανής</translation>
+        <translation>Λήψη ενός στιγμιοτύπου της τρέχουσας κατάστασης της εικονικής μηχανής</translation>
     </message>
     <message>
         <source> (%1)</source>
@@ -9348,14 +9348,14 @@
     </message>
     <message>
         <source>Clone selected virtual machine</source>
-        <translation>Κλωνοποιήστε την επιλεγμένη εικονική μηχανή</translation>
+        <translation>Κλωνοποίηση της επιλεγμένης εικονικής μηχανής</translation>
     </message>
 </context>
 <context>
     <name>VBoxTakeSnapshotDlg</name>
     <message>
         <source>Take Snapshot of Virtual Machine</source>
-        <translation>Πάρτε Στιγμιότυπο της Εικονικής Μηχανής</translation>
+        <translation>Λήψη Στιγμιοτύπου Εικονικής Μηχανής</translation>
     </message>
     <message>
         <source>Snapshot &amp;Name</source>
@@ -9368,8 +9368,8 @@
     <message numerus="yes">
         <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
         <translation>
-            <numerusform>Προειδοποίηση: Παίρνετε ένα στιγμιότυπο μίας εικονικής μηχανής που τρέχει και έχει %n αμετάβλητη εικόνα προσαρτημένη. Όσο δουλεύετε με αυτό το στιγμιότυπο η αμετάβλητη εικόνα δεν θα επαναφερθεί για να αποφευχθεί το χάσιμο δεδομένων.</numerusform>
-            <numerusform>Προειδοποίηση: Παίρνετε ένα στιγμιότυπο μίας εικονικής μηχανής που τρέχει και έχει %n αμετάβλητες εικόνες προσαρτημένες. Όσο δουλεύετε με αυτό το στιγμιότυπο οι αμετάβλητες εικόνες δεν θα επαναφερθούν για να αποφευχθεί το χάσιμο δεδομένων.</numerusform>
+            <numerusform>Προειδοποίηση: Παίρνετε ένα στιγμιότυπο μίας εικονικής μηχανής σε λειτουργία που έχει %n αμετάβλητη εικόνα προσαρτημένη σε αυτό. Όσο δουλεύετε με αυτό το στιγμιότυπο η αμετάβλητη εικόνα δεν θα επαναφερθεί για να αποφευχθεί η απώλεια δεδομένων.</numerusform>
+            <numerusform>Προειδοποίηση: Παίρνετε ένα στιγμιότυπο μίας εικονικής μηχανής σε λειτουργία που έχει %n αμετάβλητες εικόνες προσαρτημένες σε αυτό. Όσο δουλεύετε με αυτό το στιγμιότυπο οι αμετάβλητες εικόνες δεν θα επαναφερθούν για να αποφευχθεί η απώλεια δεδομένων.</numerusform>
         </translation>
     </message>
     <message>
@@ -9387,7 +9387,7 @@
     <message>
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
-        <translation>Καμία συνδεδεμένη υποστηριζόμενη συσκευή στον οικοδεσπότη</translation>
+        <translation>Καμία υποστηριζόμενη συνδεδεμένη συσκευή στον οικοδεσπότη</translation>
     </message>
 </context>
 </TS>

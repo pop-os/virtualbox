@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -207,7 +207,7 @@ static int drvHostOSSAudioOSSToFmt(int fmt,
 
 static int drvHostOSSAudioClose(int *phFile)
 {
-    if (!phFile || !*phFile)
+    if (!phFile || *phFile < 1)
         return VINF_SUCCESS;
 
     int rc;
@@ -235,7 +235,7 @@ static int drvHostOSSAudioOpen(bool fIn,
     AssertPtrReturn(phFile, VERR_INVALID_POINTER);
 
     int rc;
-    int hFile;
+    int hFile = -1;
 
     do
     {
@@ -251,7 +251,8 @@ static int drvHostOSSAudioOpen(bool fIn,
         hFile = open(pszDev, (fIn ? O_RDONLY : O_WRONLY) | O_NONBLOCK);
         if (hFile == -1)
         {
-            LogRel(("OSS: Failed to open %s: %s(%d)\n", pszDev, strerror(errno), errno));
+            LogRel(("OSS: Failed to open %s for %s: %s(%d)\n",
+                    pszDev, fIn ? "input" : "output", strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
@@ -259,7 +260,7 @@ static int drvHostOSSAudioOpen(bool fIn,
         int iFormat = drvHostOSSAudioFmtToOSS(pReq->enmFormat);
         if (ioctl(hFile, SNDCTL_DSP_SAMPLESIZE, &iFormat))
         {
-            LogRel(("OSS: Failed to set audio format to %ld errno=%s(%d)\n", iFormat, strerror(errno), errno));
+            LogRel(("OSS: Failed to set audio format to %d errno=%s(%d)\n", iFormat, strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
@@ -402,6 +403,11 @@ static DECLCALLBACK(int) drvHostOSSAudioInit(PPDMIHOSTAUDIO pInterface)
 
     LogFlowFuncEnter();
 
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "ossCaptureIn.pcm");
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "ossPlayOut.pcm");
+#endif
+
     return VINF_SUCCESS;
 }
 
@@ -414,24 +420,22 @@ static DECLCALLBACK(int) drvHostOSSAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PPD
     POSSAUDIOSTREAMIN pThisStrmIn = (POSSAUDIOSTREAMIN)pHstStrmIn;
 
     int rc = VINF_SUCCESS;
-    size_t cbToRead = RT_MIN(pThisStrmIn->cbPCMBuf,
-                             AudioMixBufFreeBytes(&pHstStrmIn->MixBuf));
 
-    LogFlowFunc(("cbToRead=%zu\n", cbToRead));
+    AssertPtr(pHstStrmIn->pGstStrmIn);
+    size_t cbToRead = RT_MIN(pThisStrmIn->cbPCMBuf, AudioMixBufFreeBytes(&pHstStrmIn->pGstStrmIn->MixBuf));
 
-    uint32_t cWrittenTotal = 0;
-    uint32_t cbTemp;
-    ssize_t  cbRead;
+    uint32_t csCapturedTotal = 0;
     size_t   offWrite = 0;
+
+    /* Using the host side buffer as an intermediate (and not circular) buffer. */
+    AudioMixBufReset(&pHstStrmIn->MixBuf);
 
     while (cbToRead)
     {
-        cbTemp = RT_MIN(cbToRead, pThisStrmIn->cbPCMBuf);
-        AssertBreakStmt(cbTemp, rc = VERR_NO_DATA);
-        cbRead = read(pThisStrmIn->hFile, (uint8_t *)pThisStrmIn->pvPCMBuf + offWrite, cbTemp);
+        uint32_t cbChunk = RT_MIN(cbToRead, AudioMixBufFreeBytes(&pHstStrmIn->pGstStrmIn->MixBuf));
+        ssize_t  cbRead  = read(pThisStrmIn->hFile, (uint8_t *)pThisStrmIn->pvPCMBuf + offWrite, cbChunk);
 
-        LogFlowFunc(("cbRead=%zi, cbTemp=%RU32, cbToRead=%zu\n",
-                     cbRead, cbTemp, cbToRead));
+        LogFlowFunc(("cbRead=%zi, cbChunk=%RU32, cbToRead=%zu\n", cbRead, cbChunk, cbToRead));
 
         if (cbRead < 0)
         {
@@ -451,7 +455,7 @@ static DECLCALLBACK(int) drvHostOSSAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PPD
 
                 default:
                     LogFlowFunc(("Failed to read %zu input frames, rc=%Rrc\n",
-                                 cbTemp, rc));
+                                 cbChunk, rc));
                     rc = VERR_GENERAL_FAILURE; /** @todo */
                     break;
             }
@@ -461,19 +465,33 @@ static DECLCALLBACK(int) drvHostOSSAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PPD
         }
         else if (cbRead)
         {
-            uint32_t cWritten;
-            rc = AudioMixBufWriteCirc(&pHstStrmIn->MixBuf,
-                                      pThisStrmIn->pvPCMBuf, cbRead,
-                                      &cWritten);
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+            RTFILE fh;
+            RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "ossCaptureIn.pcm",
+                       RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            RTFileWrite(fh, (uint8_t *)pThisStrmIn->pvPCMBuf + offWrite, cbRead, NULL);
+            RTFileClose(fh);
+#endif
+            uint32_t csWritten = 0;
+            rc = AudioMixBufWriteAt(&pHstStrmIn->MixBuf, 0 /* Offset */,
+                                    (uint8_t *)pThisStrmIn->pvPCMBuf + offWrite, cbRead,
+                                    &csWritten);
             if (RT_FAILURE(rc))
                 break;
 
-            uint32_t cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
+            uint32_t csMixed = 0;
+            rc = AudioMixBufMixToParentEx(&pHstStrmIn->MixBuf, 0 /* Offset */, csWritten, &csMixed);
+            if (RT_FAILURE(rc))
+                break;
+
+            const uint32_t cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, csWritten);
 
             Assert(cbToRead >= cbWritten);
-            cbToRead      -= cbWritten;
-            offWrite      += cbWritten;
-            cWrittenTotal += cWritten;
+            cbToRead        -= cbWritten;
+            offWrite        += cbWritten;
+            Assert(offWrite <= pThisStrmIn->cbPCMBuf);
+
+            csCapturedTotal += csMixed;
         }
         else /* No more data, try next round. */
             break;
@@ -484,16 +502,8 @@ static DECLCALLBACK(int) drvHostOSSAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PPD
 
     if (RT_SUCCESS(rc))
     {
-        uint32_t cProcessed = 0;
-        if (cWrittenTotal)
-            rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, cWrittenTotal,
-                                        &cProcessed);
-
         if (pcSamplesCaptured)
-            *pcSamplesCaptured = cWrittenTotal;
-
-        LogFlowFunc(("cWrittenTotal=%RU32 (%RU32 processed), rc=%Rrc\n",
-                     cWrittenTotal, cProcessed, rc));
+            *pcSamplesCaptured = csCapturedTotal;
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -796,7 +806,7 @@ static DECLCALLBACK(int) drvHostOSSAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDMA
     {
         size_t cbBuf = AudioMixBufSizeBytes(&pHstStrmOut->MixBuf);
 
-        uint32_t cLive = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+        uint32_t cLive = AudioMixBufLive(&pHstStrmOut->MixBuf);
         uint32_t cToRead;
 
 #ifndef RT_OS_L4
@@ -878,11 +888,24 @@ static DECLCALLBACK(int) drvHostOSSAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDMA
                                       cbRead);
             if (cbWritten == -1)
             {
-                LogRel(("OSS: Failed writing output data: %s\n", strerror(errno)));
                 rc = RTErrConvertFromErrno(errno);
+                if (rc == VERR_TRY_AGAIN) /* OSS is busy -- do not report this back as error. */
+                {
+                    rc = VINF_SUCCESS;
+                    break;
+                }
+
+                LogRel(("OSS: Failed writing output data: %s\n", strerror(errno)));
                 break;
             }
 
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+            RTFILE fh;
+            RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "ossPlayOut.pcm",
+                       RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+            RTFileWrite(fh, pThisStrmOut->pvPCMBuf, cbRead, NULL);
+            RTFileClose(fh);
+#endif
             Assert(cbToRead >= cbRead);
             cbToRead -= cbRead;
             cbReadTotal += cbRead;

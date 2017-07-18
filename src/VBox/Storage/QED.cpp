@@ -1472,8 +1472,8 @@ static DECLCALLBACK(int) qedAsyncClusterAllocUpdate(void *pBackendData, PVDIOCTX
                 qedAsyncClusterAllocRollback(pImage, pIoCtx, pClusterAlloc);
                 break;
             }
-            /* Success, fall through. */
         }
+        /* fall thru */
         case QEDCLUSTERASYNCALLOCSTATE_L2_LINK:
         {
             /* L2 link updated in L1 , save L2 entry in cache and allocate new user data cluster. */
@@ -1500,6 +1500,7 @@ static DECLCALLBACK(int) qedAsyncClusterAllocUpdate(void *pBackendData, PVDIOCTX
                 break;
             }
         }
+        /* fall thru */
         case QEDCLUSTERASYNCALLOCSTATE_USER_ALLOC:
         {
             uint64_t offUpdateLe = RT_H2LE_U64(pClusterAlloc->offClusterNew);
@@ -1520,6 +1521,7 @@ static DECLCALLBACK(int) qedAsyncClusterAllocUpdate(void *pBackendData, PVDIOCTX
                 break;
             }
         }
+        /* fall thru */
         case QEDCLUSTERASYNCALLOCSTATE_USER_LINK:
         {
             /* Everything done without errors, signal completion. */

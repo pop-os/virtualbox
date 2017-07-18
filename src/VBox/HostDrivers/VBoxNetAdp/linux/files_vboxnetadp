@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Revision: 106719 $
+# $Revision: 115996 $
 ## @files
 # Shared file between Makefile.kmk and export_modules
 #
@@ -49,6 +49,7 @@ VBOX_VBOXNETADP_SOURCES=" \
     ${PATH_ROOT}/include/iprt/time.h=>include/iprt/time.h \
     ${PATH_ROOT}/include/iprt/timer.h=>include/iprt/timer.h \
     ${PATH_ROOT}/include/iprt/types.h=>include/iprt/types.h \
+    ${PATH_ROOT}/include/iprt/uint64.h=>include/iprt/uint64.h \
     ${PATH_ROOT}/include/iprt/uni.h=>include/iprt/uni.h \
     ${PATH_ROOT}/include/iprt/utf16.h=>include/iprt/utf16.h \
     ${PATH_ROOT}/include/iprt/uuid.h=>include/iprt/uuid.h \
@@ -70,6 +71,7 @@ VBOX_VBOXNETADP_SOURCES=" \
     ${PATH_ROOT}/src/VBox/Runtime/common/math/gcc/qdivrem.c=>math/gcc/qdivrem.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/math/gcc/quad.h=>math/gcc/quad.h \
     ${PATH_ROOT}/src/VBox/Runtime/common/math/gcc/udivdi3.c=>math/gcc/udivdi3.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/math/gcc/udivmoddi4.c=>math/gcc/udivmoddi4.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/math/gcc/umoddi3.c=>math/gcc/umoddi3.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strformat.cpp=>common/string/strformat.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strformatrt.cpp=>common/string/strformatrt.c \

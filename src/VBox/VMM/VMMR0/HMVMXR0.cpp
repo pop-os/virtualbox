@@ -3038,11 +3038,7 @@ DECLINLINE(int) hmR0VmxSaveHostSegmentRegs(PVM pVM, PVMCPU pVCpu)
      * maximum limit (0xffff) on every VM-exit.
      */
     if (Gdtr.cbGdt != 0xffff)
-    {
         pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_GDTR;
-        AssertCompile(sizeof(Gdtr) == sizeof(X86XDTR64));
-        memcpy(&pVCpu->hm.s.vmx.RestoreHost.HostGdtr, &Gdtr, sizeof(X86XDTR64));
-    }
 
     /*
      * IDT limit is effectively capped at 0xfff. (See Intel spec. 6.14.1 "64-Bit Mode IDT"
@@ -3094,9 +3090,23 @@ DECLINLINE(int) hmR0VmxSaveHostSegmentRegs(PVM pVM, PVMCPU pVCpu)
         if (pVM->hm.s.fHostKernelFeatures & SUPKERNELFEATURES_GDT_READ_ONLY)
             pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_GDT_READ_ONLY;
         pVCpu->hm.s.vmx.RestoreHost.uHostSelTR = uSelTR;
+    }
 
-        /* Store the GDTR here as we need it while restoring TR. */
+    /*
+     * Store the GDTR as we need it when restoring the GDT and while restoring the TR.
+     */
+    if (pVCpu->hm.s.vmx.fRestoreHostFlags & (VMX_RESTORE_HOST_GDTR | VMX_RESTORE_HOST_SEL_TR))
+    {
+        AssertCompile(sizeof(Gdtr) == sizeof(X86XDTR64));
         memcpy(&pVCpu->hm.s.vmx.RestoreHost.HostGdtr, &Gdtr, sizeof(X86XDTR64));
+        if (pVM->hm.s.fHostKernelFeatures & SUPKERNELFEATURES_GDT_NEED_WRITABLE)
+        {
+            /* The GDT is read-only but the writable GDT is available. */
+            pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_GDT_NEED_WRITABLE;
+            pVCpu->hm.s.vmx.RestoreHost.HostGdtrRw.cb = Gdtr.cbGdt;
+            rc = SUPR0GetCurrentGdtRw(&pVCpu->hm.s.vmx.RestoreHost.HostGdtrRw.uAddr);
+            AssertRCReturn(rc, rc);
+        }
     }
 #else
     NOREF(pVM);
@@ -5396,10 +5406,10 @@ DECLASM(int) VMXR0SwitcherStartVM64(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE 
 #endif
 
     uint32_t aParam[10];
-    aParam[0] = (uint32_t)(HCPhysCpuPage);                              /* Param 1: VMXON physical address - Lo. */
-    aParam[1] = (uint32_t)(HCPhysCpuPage >> 32);                        /* Param 1: VMXON physical address - Hi. */
-    aParam[2] = (uint32_t)(pVCpu->hm.s.vmx.HCPhysVmcs);                 /* Param 2: VMCS physical address - Lo. */
-    aParam[3] = (uint32_t)(pVCpu->hm.s.vmx.HCPhysVmcs >> 32);           /* Param 2: VMCS physical address - Hi. */
+    aParam[0] = RT_LO_U32(HCPhysCpuPage);                               /* Param 1: VMXON physical address - Lo. */
+    aParam[1] = RT_HI_U32(HCPhysCpuPage);                               /* Param 1: VMXON physical address - Hi. */
+    aParam[2] = RT_LO_U32(pVCpu->hm.s.vmx.HCPhysVmcs);                  /* Param 2: VMCS physical address - Lo. */
+    aParam[3] = RT_HI_U32(pVCpu->hm.s.vmx.HCPhysVmcs);                  /* Param 2: VMCS physical address - Hi. */
     aParam[4] = VM_RC_ADDR(pVM, &pVM->aCpus[pVCpu->idCpu].hm.s.vmx.VMCSCache);
     aParam[5] = 0;
     aParam[6] = VM_RC_ADDR(pVM, pVM);
@@ -5580,8 +5590,8 @@ VMMR0DECL(int) VMXWriteVmcs64Ex(PVMCPU pVCpu, uint32_t idxField, uint64_t u64Val
         case VMX_VMCS64_HOST_EFER_FULL:
         case VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_FULL:
         {
-            rc  = VMXWriteVmcs32(idxField, u64Val);
-            rc |= VMXWriteVmcs32(idxField + 1, (uint32_t)(u64Val >> 32));
+            rc  = VMXWriteVmcs32(idxField,     RT_LO_U32(u64Val));
+            rc |= VMXWriteVmcs32(idxField + 1, RT_HI_U32(u64Val));
             break;
         }
 
@@ -5606,10 +5616,10 @@ VMMR0DECL(int) VMXWriteVmcs64Ex(PVMCPU pVCpu, uint32_t idxField, uint64_t u64Val
         case VMX_VMCS_GUEST_SYSENTER_ESP:
         case VMX_VMCS_GUEST_SYSENTER_EIP:
         {
-            if (!(u64Val >> 32))
+            if (!(RT_HI_U32(u64Val)))
             {
                 /* If this field is 64-bit, VT-x will zero out the top bits. */
-                rc = VMXWriteVmcs32(idxField, (uint32_t)u64Val);
+                rc = VMXWriteVmcs32(idxField, RT_LO_U32(u64Val));
             }
             else
             {
@@ -7982,8 +7992,12 @@ static VBOXSTRICTRC hmR0VmxInjectEventVmcs(PVMCPU pVCpu, PCPUMCTX pMixedCtx, uin
     uint32_t const uIntType = VMX_EXIT_INTERRUPTION_INFO_TYPE(u32IntInfo);
 
 #ifdef VBOX_STRICT
-    /* Validate the error-code-valid bit for hardware exceptions. */
-    if (uIntType == VMX_EXIT_INTERRUPTION_INFO_TYPE_HW_XCPT)
+    /*
+     * Validate the error-code-valid bit for hardware exceptions.
+     * No error codes for exceptions in real-mode. See Intel spec. 20.1.4 "Interrupt and Exception Handling"
+     */
+    if (   uIntType == VMX_EXIT_INTERRUPTION_INFO_TYPE_HW_XCPT
+        && !CPUMIsGuestInRealModeEx(pMixedCtx))
     {
         switch (uVector)
         {
@@ -7996,7 +8010,7 @@ static VBOXSTRICTRC hmR0VmxInjectEventVmcs(PVMCPU pVCpu, PCPUMCTX pMixedCtx, uin
             case X86_XCPT_AC:
                 AssertMsg(VMX_EXIT_INTERRUPTION_INFO_ERROR_CODE_IS_VALID(u32IntInfo),
                           ("Error-code-valid bit not set for exception that has an error code uVector=%#x\n", uVector));
-                /* fallthru */
+                /* fall thru */
             default:
                 break;
         }
@@ -11306,10 +11320,10 @@ HMVMX_EXIT_DECL hmR0VmxExitXcptOrNmi(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANS
     {
         case VMX_EXIT_INTERRUPTION_INFO_TYPE_PRIV_SW_XCPT:  /* Privileged software exception. (#DB from ICEBP) */
             Assert(uVector == X86_XCPT_DB);
-            /* no break */
+            /* fall thru */
         case VMX_EXIT_INTERRUPTION_INFO_TYPE_SW_XCPT:       /* Software exception. (#BP or #OF) */
             Assert(uVector == X86_XCPT_BP || uVector == X86_XCPT_OF || uIntType == VMX_EXIT_INTERRUPTION_INFO_TYPE_PRIV_SW_XCPT);
-            /* no break */
+            /* fall thru */
         case VMX_EXIT_INTERRUPTION_INFO_TYPE_HW_XCPT:
         {
             /*
@@ -12157,7 +12171,7 @@ HMVMX_EXIT_DECL hmR0VmxExitWrmsr(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT
                     HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SYSENTER_ESP_MSR);
                     HMVMXCPU_GST_SET_UPDATED(pVCpu, HMVMX_UPDATED_GUEST_SYSENTER_ESP_MSR);
                     break;
-                case MSR_K8_FS_BASE:        /* no break */
+                case MSR_K8_FS_BASE:        /* fall thru */
                 case MSR_K8_GS_BASE:        HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SEGMENT_REGS);     break;
                 case MSR_K6_EFER:           /* already handled above */                             break;
                 default:

@@ -227,6 +227,10 @@ typedef struct DEVEFI
     uint32_t                cxUgaResolution;
     /** Uga mode vertical resolution. */
     uint32_t                cyUgaResolution;
+    /** Physical address of PCI config space MMIO region */
+    uint64_t                u64McfgBase;
+    /** Length of PCI config space MMIO region */
+    uint64_t                cbMcfgLength;
 
 
     /** NVRAM state variables. */
@@ -1111,6 +1115,8 @@ static uint32_t efiInfoSize(PDEVEFI pThis)
         case EFI_INFO_INDEX_FSB_FREQUENCY:
         case EFI_INFO_INDEX_CPU_FREQUENCY:
         case EFI_INFO_INDEX_TSC_FREQUENCY:
+        case EFI_INFO_INDEX_MCFG_BASE:
+        case EFI_INFO_INDEX_MCFG_SIZE:
             return 8;
     }
     return UINT32_MAX;
@@ -1190,6 +1196,8 @@ static uint8_t efiInfoNextByte(PDEVEFI pThis)
         /* Keep in sync with value in EfiThunk.asm */
         case EFI_INFO_INDEX_STACK_BASE:         return efiInfoNextByteU32(pThis,  VBOX_EFI_TOP_OF_STACK - _128K); /* 2M - 128 K */
         case EFI_INFO_INDEX_STACK_SIZE:         return efiInfoNextByteU32(pThis, _128K);
+        case EFI_INFO_INDEX_MCFG_BASE:          return efiInfoNextByteU64(pThis, pThis->u64McfgBase);
+        case EFI_INFO_INDEX_MCFG_SIZE:          return efiInfoNextByteU64(pThis, pThis->cbMcfgLength);
 
         default:
             PDMDevHlpDBGFStop(pThis->pDevIns, RT_SRC_POS, "%#x", pThis->iInfoSelector);
@@ -2139,6 +2147,8 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (!CFGMR3AreValuesValid(pCfg,
                               "EfiRom\0"
                               "NumCPUs\0"
+                              "McfgBase\0"
+                              "McfgLength\0"
                               "UUID\0"
                               "IOAPIC\0"
                               "APIC\0"
@@ -2187,6 +2197,15 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /* CPU count (optional). */
     rc = CFGMR3QueryU32Def(pCfg, "NumCPUs", &pThis->cCpus, 1);
     AssertLogRelRCReturn(rc, rc);
+
+    rc = CFGMR3QueryU64Def(pCfg, "McfgBase", &pThis->u64McfgBase, 0);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Querying \"\" as integer failed"));
+    rc = CFGMR3QueryU64Def(pCfg, "McfgLength", &pThis->cbMcfgLength, 0);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Querying \"McfgLength\" as integer failed"));
 
     rc = CFGMR3QueryU8Def(pCfg, "IOAPIC", &pThis->u8IOAPIC, 1);
     if (RT_FAILURE (rc))
