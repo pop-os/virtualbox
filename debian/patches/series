@@ -16,3 +16,4 @@
 36-fix-vnc-version-string.patch
 new-xorg-1.19.patch
 37-python-3.6-support.patch
+vboxxpcom.py.patch
