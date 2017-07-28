@@ -248,24 +248,33 @@ static DECLCALLBACK(int) drvAudioVRDEPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDI
     PDMAUDIOSAMPLE aSamples[64];
     while (cSamplesPlayed)
     {
-        uint32_t cRead;
+        uint32_t cRead = 0;
         rc = AudioMixBufPeek(&pHstStrmOut->MixBuf, cSamplesToSend,
-                            aSamples, RT_ELEMENTS(aSamples), &cRead);
-        if (   RT_SUCCESS(rc)
-            && cRead)
+                            aSamples, RT_MIN(cSamplesPlayed, RT_ELEMENTS(aSamples)), &cRead);
+
+        if (RT_SUCCESS(rc))
         {
-            pDrv->pConsoleVRDPServer->SendAudioSamples(aSamples, cRead, format);
-            cReadTotal += cRead;
+            if (cRead)
+            {
+                pDrv->pConsoleVRDPServer->SendAudioSamples(aSamples, cRead, format);
+                cReadTotal += cRead;
+
+                Assert(cSamplesPlayed >= cRead);
+                cSamplesPlayed -= cRead;
+            }
+            else
+            {
+                if (rc == VINF_AUDIO_MORE_DATA_AVAILABLE) /* Do another peeking round if there is more data available. */
+                    continue;
+
+                break;
+            }
         }
-
-        if (RT_FAILURE(rc))
+        else
             break;
-
-        Assert(cSamplesPlayed >= cRead);
-        cSamplesPlayed -= cRead;
     }
 
-    AudioMixBufFinish(&pHstStrmOut->MixBuf, cSamplesToSend);
+    AudioMixBufFinish(&pHstStrmOut->MixBuf, cReadTotal);
 
     /*
      * Always report back all samples acquired, regardless of whether the

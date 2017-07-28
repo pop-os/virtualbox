@@ -1,4 +1,4 @@
-/* $Id: USBIdDatabaseGenerator.cpp $ */
+/* $Id: USBIdDatabaseGenerator.cpp 105633 2016-02-20 16:51:52Z fmehnert $ */
 /** @file
  * USB device vendor and product ID database - generator.
  */

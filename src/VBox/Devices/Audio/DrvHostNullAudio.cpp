@@ -286,6 +286,7 @@ static DECLCALLBACK(int) drvHostNullAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDM
         && pNullStrmOut->pu8PlayBuffer)
     {
         RTMemFree(pNullStrmOut->pu8PlayBuffer);
+        pNullStrmOut->pu8PlayBuffer = NULL;
     }
     return VINF_SUCCESS;
 }

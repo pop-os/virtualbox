@@ -2341,7 +2341,7 @@
     </message>
     <message>
         <source>Verifying %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>Verifikasi %1...</translation>
     </message>
 </context>
 <context>
@@ -3848,8 +3848,8 @@
         <translation>Alamat IPv6</translation>
     </message>
     <message>
-        <source>IPv6 Prefix Length</source>
-        <translation>Panjang Mask Jaringan IPv6</translation>
+        <source>IPv6 Network Mask Length</source>
+        <translation type="vanished">Panjang Mask Jaringan IPv6</translation>
     </message>
     <message>
         <source>Not set</source>
@@ -4093,8 +4093,16 @@
         <translation>Menyunting jaringan hanya-host yang dipilih.</translation>
     </message>
     <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <translation type="vanished">Antar muka host &lt;b&gt;%1&lt;/b&gt; saat ini tidak memiliki panjang prefiks mask jaringan IPv6 yang valid.</translation>
+    </message>
+    <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
-        <translation>Antar muka host &lt;b&gt;%1&lt;/b&gt; saat ini tidak memiliki panjang prefiks mask jaringan IPv6 yang valid.</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix Length</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4140,11 +4148,11 @@
         <translation type="obsolete">Tampilkan alamat IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
-        <source>IPv6 Prefix &amp;Length:</source>
+        <source>IPv6 Network Mask &amp;Length:</source>
         <translation type="obsolete">&amp;Panjang Mask Jaringan IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Tampilkan panjang prefiks mask jaringan IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
@@ -4235,12 +4243,12 @@
         <translation>Menyimpan alamat IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
-        <source>IPv6 Prefix &amp;Length:</source>
-        <translation>&amp;Panjang Mask Jaringan IPv6:</translation>
+        <source>IPv6 Network Mask &amp;Length:</source>
+        <translation type="vanished">&amp;Panjang Mask Jaringan IPv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
-        <translation>Menyimpan panjang prefiks mask jaringan IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
+        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <translation type="vanished">Menyimpan panjang prefiks mask jaringan IPv6 host bagi adaptor ini bila IPv6 didukung.</translation>
     </message>
     <message>
         <source>&amp;DHCP Server</source>
@@ -4293,6 +4301,14 @@
     <message>
         <source>When checked, the DHCP Server will be enabled for this network on machine start-up.</source>
         <translation>Saat dicontreng, Server DHCP akan difungsikan bagi jaringan ini saat startup mesin.</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix &amp;Length:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -9926,11 +9942,11 @@
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Berkas image disk &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; telah sukses diunduh dari &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; dan disimpan secara lokal sebagai &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;, &lt;/nobr&gt;tapi verifikasi checksum SHA-256 gagal.&lt;/p&gt;&lt;p&gt;Harap lakukan pengunduhan, pemasangan, dan verifikasi secara manual.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; telah sukses diunduh dari &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; dan disimpan secara lokal sebagai &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;tapi verifikasi checksum SHA-256 gagal.&lt;/p&gt;&lt;p&gt;Harap lakukan pengunduhan, pemasangan, dan verifikasi secara manual.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
