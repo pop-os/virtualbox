@@ -598,15 +598,33 @@ static DECLCALLBACK(void) ichac97CloseIn(PAC97STATE pThis, PDMAUDIORECSOURCE enm
     PAC97DRIVER pDrv;
     RTListForEach(&pThis->lstDrv, pDrv, AC97DRIVER, Node)
     {
-        PAC97INPUTSTREAM pStrmIn;
-        if (enmRecSource == PDMAUDIORECSOURCE_MIC) /** @todo Refine this once we have more streams. */
+        PAUDMIXSINK      pSink   = NULL;
+        PAC97INPUTSTREAM pStrmIn = NULL;
+        if (enmRecSource == PDMAUDIORECSOURCE_MIC)
+        {
+            pSink   = pThis->pSinkMicIn;
             pStrmIn = &pDrv->MicIn;
-        else
+        }
+        else if (enmRecSource == PDMAUDIORECSOURCE_LINE_IN)
+        {
+            pSink   = pThis->pSinkLineIn;
             pStrmIn = &pDrv->LineIn;
+        }
+        else
+            AssertMsgFailed(("Audio source %ld not supported\n", enmRecSource));
 
-        pDrv->pConnector->pfnDestroyIn(pDrv->pConnector, pStrmIn->pStrmIn);
-        LogFlowFunc(("LUN#%RU8: Destroyed input\n", pDrv->uLUN));
-        pStrmIn = NULL;
+        if (pSink)
+            AudioMixerRemoveStream(pSink, pStrmIn->phStrmIn);
+
+        pStrmIn->phStrmIn = NULL;
+
+        if (pStrmIn->pStrmIn)
+        {
+            pDrv->pConnector->pfnDestroyIn(pDrv->pConnector, pStrmIn->pStrmIn);
+            LogFlowFunc(("LUN#%RU8: Destroyed input\n", pDrv->uLUN));
+        }
+
+        pStrmIn->pStrmIn = NULL;
     }
 }
 
@@ -617,6 +635,11 @@ static DECLCALLBACK(void) ichac97CloseOut(PAC97STATE pThis)
     PAC97DRIVER pDrv;
     RTListForEach(&pThis->lstDrv, pDrv, AC97DRIVER, Node)
     {
+        if (pThis->pSinkOutput)
+            AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
+
+        pDrv->Out.phStrmOut = NULL;
+
         if (pDrv->Out.pStrmOut)
         {
             pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
@@ -666,6 +689,9 @@ static int ichac97OpenIn(PAC97STATE pThis,
         else
             pStrmIn = &pDrv->LineIn;
 
+        AudioMixerRemoveStream(pSink, pStrmIn->phStrmIn);
+        pStrmIn->phStrmIn = NULL;
+
         if (pStrmIn->pStrmIn)
         {
             pDrv->pConnector->pfnDestroyIn(pDrv->pConnector, pStrmIn->pStrmIn);
@@ -673,11 +699,9 @@ static int ichac97OpenIn(PAC97STATE pThis,
         }
 
         rc = pDrv->pConnector->pfnCreateIn(pDrv->pConnector, pszDesc, enmRecSource, pCfg, &pStrmIn->pStrmIn);
-
         LogFlowFunc(("LUN#%RU8: Created input \"%s\", with rc=%Rrc\n", pDrv->uLUN, pszDesc, rc));
         if (rc == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
         {
-            AudioMixerRemoveStream(pSink, pStrmIn->phStrmIn);
             rc = AudioMixerAddStreamIn(pSink,
                                        pDrv->pConnector, pStrmIn->pStrmIn,
                                        0 /* uFlags */, &pStrmIn->phStrmIn);
@@ -709,6 +733,9 @@ static int ichac97OpenOut(PAC97STATE pThis, const char *pszName, PPDMAUDIOSTREAM
             break;
         }
 
+        AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
+        pDrv->Out.phStrmOut = NULL;
+
         if (pDrv->Out.pStrmOut)
         {
             pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
@@ -717,9 +744,9 @@ static int ichac97OpenOut(PAC97STATE pThis, const char *pszName, PPDMAUDIOSTREAM
 
         rc = pDrv->pConnector->pfnCreateOut(pDrv->pConnector, pszDesc, pCfg, &pDrv->Out.pStrmOut);
         LogFlowFunc(("LUN#%RU8: Created output \"%s\", with rc=%Rrc\n", pDrv->uLUN, pszDesc, rc));
+
         if (rc == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
         {
-            AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
             rc = AudioMixerAddStreamOut(pThis->pSinkOutput,
                                         pDrv->pConnector, pDrv->Out.pStrmOut,
                                         0 /* uFlags */, &pDrv->Out.phStrmOut);
@@ -1894,6 +1921,15 @@ static DECLCALLBACK(int) ichac97IOPortNAMWrite(PPDMDEVINS pDevIns,
                     break;
                 case AC97_Record_Select:
                     ichac97RecordSelect(pThis, u32Val);
+                    break;
+                case AC97_Record_Gain_Mute:
+                    /* Newer Ubuntu guests rely on that when controlling gain and muting
+                     * the recording (capturing) levels. */
+                    ichac97MixerSetVolume(pThis, index, PDMAUDIOMIXERCTL_LINE_IN, u32Val);
+                    break;
+                case AC97_Record_Gain_Mic_Mute:
+                    /* Ditto; see note above. */
+                    ichac97MixerSetVolume(pThis, index, PDMAUDIOMIXERCTL_MIC_IN,  u32Val);
                     break;
                 case AC97_Vendor_ID1:
                 case AC97_Vendor_ID2:

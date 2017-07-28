@@ -1025,11 +1025,13 @@ static DECLCALLBACK(int) drvHostPulseAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDM
     if (pThisStrmIn->pStream)
     {
         pa_threaded_mainloop_lock(g_pMainLoop);
+
         pa_stream_disconnect(pThisStrmIn->pStream);
         pa_stream_unref(pThisStrmIn->pStream);
-        pa_threaded_mainloop_unlock(g_pMainLoop);
 
         pThisStrmIn->pStream = NULL;
+
+        pa_threaded_mainloop_unlock(g_pMainLoop);
     }
 
     return VINF_SUCCESS;
@@ -1046,11 +1048,20 @@ static DECLCALLBACK(int) drvHostPulseAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPD
     if (pThisStrmOut->pStream)
     {
         pa_threaded_mainloop_lock(g_pMainLoop);
+
+        /* Make sure to cancel a pending draining operation, if any. */
+        if (pThisStrmOut->pDrainOp)
+        {
+            pa_operation_cancel(pThisStrmOut->pDrainOp);
+            pThisStrmOut->pDrainOp = NULL;
+        }
+
         pa_stream_disconnect(pThisStrmOut->pStream);
         pa_stream_unref(pThisStrmOut->pStream);
-        pa_threaded_mainloop_unlock(g_pMainLoop);
 
         pThisStrmOut->pStream = NULL;
+
+        pa_threaded_mainloop_unlock(g_pMainLoop);
     }
 
     if (pThisStrmOut->pvPCMBuf)

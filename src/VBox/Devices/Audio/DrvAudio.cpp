@@ -689,7 +689,10 @@ int drvAudioDestroyGstOut(PDRVAUDIO pThis, PPDMAUDIOGSTSTRMOUT pGstStrmOut)
         return VINF_SUCCESS;
 
     if (pGstStrmOut->State.cRefs > 1) /* Do other objects still have a reference to it? Bail out. */
+    {
+        AssertMsgFailed(("Stream %p still being used (cRefs=%RU8)\n", pGstStrmOut, pGstStrmOut->State.cRefs));
         return VERR_WRONG_ORDER;
+    }
 
     drvAudioGstOutFreeRes(pGstStrmOut);
 
@@ -1386,7 +1389,10 @@ static int drvAudioDestroyGstIn(PDRVAUDIO pThis, PPDMAUDIOGSTSTRMIN pGstStrmIn)
         return VINF_SUCCESS;
 
     if (pGstStrmIn->State.cRefs > 1) /* Do other objects still have a reference to it? Bail out. */
+    {
+        AssertMsgFailed(("Stream %p still being used (cRefs=%RU8)\n", pGstStrmIn, pGstStrmIn->State.cRefs));
         return VERR_WRONG_ORDER;
+    }
 
     drvAudioGstInFreeRes(pGstStrmIn);
 

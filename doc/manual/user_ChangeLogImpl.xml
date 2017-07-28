@@ -3,6 +3,67 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.26 (2017-07-27)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: reset the TSC on VM reset to work around a Windows bug
+          (bug #16643)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed memory leak when enabled with VRDP connections
+          (5.1.24 regression; bug #16928)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed creation of too many sound sinks on Linux hosts when
+          using the PulseAudio backend (bug #16938)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: implemented record gain registers for AC'97 emulation; 
+          those are needed for newer Ubuntu guests which rely on those when controlling
+          gain and muting the recording (capturing) levels</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed hang when using the emulated NVMe controller with the
+          SPDK (bug #16945)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mouse: double click was not working with a precision touchpad
+          (bug #14632)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: properly bring up host-only network interfaces with
+          <emphasis>iproute</emphasis> (5.1.24 regression; bug #16911)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: provide Python 3 libraries for deb/rpm packages</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: make it possible to use host-only networking
+          without having bridged networking installed</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed automatic logons for Vista and newer
+          Windows guests (5.1.24 regression; bug #16921)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.24 (2017-07-18)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -58,7 +119,7 @@
       <listitem>
         <para>API: use the correct file name of the VM machine state if the
           VM settings directory is renamed, for example during grouping /
-          ungrouping a VM (bugs #16075 and #16745)</para>
+          ungrouping a VM (bugs #16074 and #16745)</para>
       </listitem>
 
       <listitem>
@@ -93,6 +154,11 @@
       <listitem>
         <para>VBoxManage: fixed <emphasis>controlvm videocapfile</emphasis>
           (bug #16779)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: another fix for Windows insider builds
+          (bug #16892)</para>
       </listitem>
 
       <listitem>

@@ -3705,6 +3705,9 @@ static DECLCALLBACK(void) hdaCloseIn(PHDASTATE pThis, PDMAUDIORECSOURCE enmRecSo
     PHDADRIVER pDrv;
     RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
     {
+        AudioMixerRemoveStream(pThis->pSinkLineIn, pDrv->LineIn.phStrmIn);
+        pDrv->LineIn.phStrmIn = NULL;
+
         if (pDrv->LineIn.pStrmIn)
         {
             pDrv->pConnector->pfnDestroyIn(pDrv->pConnector, pDrv->LineIn.pStrmIn);
@@ -3721,6 +3724,9 @@ static DECLCALLBACK(void) hdaCloseOut(PHDASTATE pThis)
     PHDADRIVER pDrv;
     RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
     {
+        AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
+        pDrv->Out.phStrmOut = NULL;
+
         if (pDrv->Out.pStrmOut)
         {
             pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
@@ -3757,6 +3763,9 @@ static DECLCALLBACK(int) hdaOpenIn(PHDASTATE pThis,
     PHDADRIVER pDrv;
     RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
     {
+        AudioMixerRemoveStream(pSink, pDrv->LineIn.phStrmIn);
+        pDrv->LineIn.phStrmIn = NULL;
+
         if (pDrv->LineIn.pStrmIn)
         {
             pDrv->pConnector->pfnDestroyIn(pDrv->pConnector, pDrv->LineIn.pStrmIn);
@@ -3774,7 +3783,6 @@ static DECLCALLBACK(int) hdaOpenIn(PHDASTATE pThis,
         LogFlowFunc(("LUN#%RU8: Created input \"%s\", with rc=%Rrc\n", pDrv->uLUN, pszDesc, rc));
         if (rc == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
         {
-            AudioMixerRemoveStream(pSink, pDrv->LineIn.phStrmIn);
             rc = AudioMixerAddStreamIn(pSink,
                                        pDrv->pConnector, pDrv->LineIn.pStrmIn,
                                        0 /* uFlags */, &pDrv->LineIn.phStrmIn);
@@ -3796,6 +3804,9 @@ static DECLCALLBACK(int) hdaOpenOut(PHDASTATE pThis,
     PHDADRIVER pDrv;
     RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
     {
+        AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
+        pDrv->Out.phStrmOut = NULL;
+
         if (pDrv->Out.pStrmOut)
         {
             pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
@@ -3814,7 +3825,6 @@ static DECLCALLBACK(int) hdaOpenOut(PHDASTATE pThis,
         LogFlowFunc(("LUN#%RU8: Created output \"%s\", with rc=%Rrc\n", pDrv->uLUN, pszDesc, rc));
         if (rc == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
         {
-            AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
             rc = AudioMixerAddStreamOut(pThis->pSinkOutput,
                                         pDrv->pConnector, pDrv->Out.pStrmOut,
                                         0 /* uFlags */, &pDrv->Out.phStrmOut);
@@ -4107,7 +4117,12 @@ static void hdaStreamTransfer(PHDASTATE pThis, PHDASTREAM pStream, uint32_t cbTo
     Assert(cbPeriodRemaining); /* Paranoia. */
 
     const uint32_t cbElapsed         = hdaStreamTransferGetElapsed(pThis, pStream);
-    Assert(cbElapsed);         /* Paranoia. */
+
+    if (!cbElapsed)
+    {
+        hdaStreamPeriodUnlock(pPeriod);
+        return;
+    }
 
     /* Limit the data to read, as this routine could be delayed and therefore
      * report wrong (e.g. too much) cbElapsed bytes. */
@@ -5178,8 +5193,10 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 
     /*
      * Load controller-specifc internals.
+     * Don't annoy other team mates (forgot this for state v7).
      */
-    if (SSMR3HandleRevision(pSSM) >= 116273) /* Don't annoy other team mates (forgot this for state v7). */
+    if (   SSMR3HandleRevision(pSSM) >= 116273
+        || SSMR3HandleVersion(pSSM)  >= VBOX_FULL_VERSION_MAKE(5, 1, 24))
     {
         rc = SSMR3GetU64(pSSM, &pThis->u64WalClk);
         AssertRC(rc);
@@ -5241,11 +5258,13 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 
         /*
          * Load period state.
+         * Don't annoy other team mates (forgot this for state v7).
          */
         hdaStreamPeriodInit(&pStrm->State.Period,
                             pStrm->u8SD, pStrm->u16LVI, pStrm->u32CBL, &pStrm->State.strmCfg);
 
-        if (SSMR3HandleRevision(pSSM) >= 116273) /* Don't annoy other team mates (forgot this for state v7). */
+        if (   SSMR3HandleRevision(pSSM) >= 116273
+            || SSMR3HandleVersion(pSSM)  >= VBOX_FULL_VERSION_MAKE(5, 1, 24))
         {
             rc = SSMR3GetStructEx(pSSM, &pStrm->State.Period, sizeof(HDASTREAMPERIOD),
                                   0 /* fFlags */, g_aSSMStreamPeriodFields7, NULL);
