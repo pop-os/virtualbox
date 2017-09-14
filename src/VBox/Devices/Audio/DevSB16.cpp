@@ -2060,29 +2060,29 @@ static int sb16OpenOut(PSB16STATE pThis, PPDMAUDIOSTREAMCFG pCfg)
     int rc = VINF_SUCCESS;
 
     PSB16DRIVER pDrv;
-    uint8_t uLUN = 0;
-
     RTListForEach(&pThis->lstDrv, pDrv, SB16DRIVER, Node)
     {
         char *pszDesc;
-        if (RTStrAPrintf(&pszDesc, "[LUN#%RU8] sb16.po", uLUN) <= 0)
+        if (RTStrAPrintf(&pszDesc, "[LUN#%RU8] sb16.po", pDrv->uLUN) <= 0)
         {
             rc = VERR_NO_MEMORY;
             break;
         }
 
+        AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
+        pDrv->Out.phStrmOut = NULL;
+
         if (pDrv->Out.pStrmOut)
         {
             pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
-            LogFlowFunc(("LUN#%RU8: Destroyed output\n", pDrv->uLUN));
             pDrv->Out.pStrmOut = NULL;
         }
 
         int rc2 = pDrv->pConnector->pfnCreateOut(pDrv->pConnector, pszDesc, pCfg, &pDrv->Out.pStrmOut);
-        LogFlowFunc(("LUN#%RU8: Created output with rc=%Rrc\n", uLUN, rc));
+        LogFlowFunc(("LUN#%RU8: Created output with rc=%Rrc\n", pDrv->uLUN, rc));
+
         if (rc2 == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
         {
-            AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
             rc = AudioMixerAddStreamOut(pThis->pSinkOutput,
                                         pDrv->pConnector, pDrv->Out.pStrmOut,
                                         0 /* uFlags */,
@@ -2097,8 +2097,6 @@ static int sb16OpenOut(PSB16STATE pThis, PPDMAUDIOSTREAMCFG pCfg)
                 rc = rc2;
             break;
         }
-
-        uLUN++;
     }
 
     /* Ensure volume gets propagated. */
@@ -2178,10 +2176,15 @@ static DECLCALLBACK(void) sb16PowerOff(PPDMDEVINS pDevIns)
 {
     PSB16STATE pThis = PDMINS_2_DATA(pDevIns, PSB16STATE);
 
-    PSB16DRIVER pDrv;
-    while (!RTListIsEmpty(&pThis->lstDrv))
+    PSB16DRIVER pDrv, pDrvNext;
+    RTListForEachSafe(&pThis->lstDrv, pDrv, pDrvNext, SB16DRIVER, Node)
     {
         pDrv = RTListGetFirst(&pThis->lstDrv, SB16DRIVER, Node);
+
+        if (pThis->pSinkOutput)
+            AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
+
+        pDrv->Out.phStrmOut = NULL;
 
         if (pDrv->Out.pStrmOut)
         {
@@ -2191,8 +2194,12 @@ static DECLCALLBACK(void) sb16PowerOff(PPDMDEVINS pDevIns)
         }
 
         RTListNodeRemove(&pDrv->Node);
+
         RTMemFree(pDrv);
+        pDrv = NULL;
     }
+
+    Assert(RTListIsEmpty(&pThis->lstDrv));
 }
 
 static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)

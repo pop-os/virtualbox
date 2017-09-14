@@ -529,6 +529,8 @@ static DECLCALLBACK(int) drvHostOSSAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMAU
 
     pThisStrmIn->cbPCMBuf = 0;
 
+    drvHostOSSAudioClose(&pThisStrmIn->hFile);
+
     return VINF_SUCCESS;
 }
 
@@ -555,6 +557,8 @@ static DECLCALLBACK(int) drvHostOSSAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDMA
         pThisStrmOut->cbPCMBuf = 0;
     }
 #endif
+
+    drvHostOSSAudioClose(&pThisStrmOut->hFile);
 
     return VINF_SUCCESS;
 }

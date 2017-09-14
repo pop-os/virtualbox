@@ -53,13 +53,6 @@ using namespace DragAndDropSvc;
 
 
 /*********************************************************************************************************************************
-*   Forward declarations                                                                                                         *
-*********************************************************************************************************************************/
-
-VBGLR3DECL(int) VbglR3DnDHGSendProgress(PVBGLR3GUESTDNDCMDCTX pCtx, uint32_t uStatus, uint8_t uPercent, int rcErr);
-
-
-/*********************************************************************************************************************************
 *   Private internal functions                                                                                                   *
 *********************************************************************************************************************************/
 
@@ -1684,7 +1677,7 @@ VBGLR3DECL(int) VbglR3DnDHGSendProgress(PVBGLR3GUESTDNDCMDCTX pCtx, uint32_t uSt
     RT_ZERO(Msg);
     Msg.hdr.result      = VERR_WRONG_ORDER;
     Msg.hdr.u32ClientID = pCtx->uClientID;
-    Msg.hdr.u32Function = uStatus;
+    Msg.hdr.u32Function = GUEST_DND_HG_EVT_PROGRESS;
 
     if (pCtx->uProtocol < 3)
     {

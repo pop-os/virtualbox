@@ -214,6 +214,34 @@
     </message>
 </context>
 <context>
+    <name>QObject</name>
+    <message>
+        <source>Result&amp;nbsp;Code: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Koda&amp;nbsp;rezultata: </translation>
+    </message>
+    <message>
+        <source>Component: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Sestavni del: </translation>
+    </message>
+    <message>
+        <source>Interface: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Vmesnik: </translation>
+    </message>
+    <message>
+        <source>Callee: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Klicalec: </translation>
+    </message>
+    <message>
+        <source>Callee&amp;nbsp;RC: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Klicalec&amp;nbsp;RC: </translation>
+    </message>
+</context>
+<context>
     <name>UIActionPool</name>
     <message>
         <location filename="../src/runtime/UIActionPoolRuntime.cpp" line="+64"/>
@@ -1147,6 +1175,14 @@
         <translation>Razvrsti skupino prvo izbranega navideznega računalnika po abecedi</translation>
     </message>
     <message>
+        <source>&amp;Details</source>
+        <translation type="obsolete">&amp;Podrobnosti</translation>
+    </message>
+    <message>
+        <source>&amp;Snapshots</source>
+        <translation type="obsolete">&amp;Posnetki stanja</translation>
+    </message>
+    <message>
         <location line="+69"/>
         <source>Save state of selected virtual machines</source>
         <translation>Shrani stanje izbranih navideznih računalnikov</translation>
@@ -1406,6 +1442,19 @@
         <location line="-80"/>
         <source>Reading Appliance ...</source>
         <translation>Branje namenske naprave …</translation>
+    </message>
+</context>
+<context>
+    <name>UIApplianceModelItem</name>
+    <message>
+        <source>%1</source>
+        <comment>col.1 text</comment>
+        <translation type="obsolete">%1% {1?}</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>col.1 text: col.2 text</comment>
+        <translation type="obsolete">%1: %2</translation>
     </message>
 </context>
 <context>
@@ -1825,6 +1874,26 @@
         <translation>Krmilnik</translation>
     </message>
     <message>
+        <source>Enabled</source>
+        <comment>details (audio/output)</comment>
+        <translation type="obsolete">Omogočeno</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (audio/output)</comment>
+        <translation type="obsolete">Onemogočeno</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (audio/input)</comment>
+        <translation type="obsolete">Omogočeno</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (audio/input)</comment>
+        <translation type="obsolete">Onemogočeno</translation>
+    </message>
+    <message>
         <location line="+4"/>
         <source>Disabled</source>
         <comment>details (audio)</comment>
@@ -1932,6 +2001,16 @@
         <translation>Vrstni red zagona</translation>
     </message>
     <message>
+        <source>Enabled</source>
+        <comment>details (system/EFI)</comment>
+        <translation type="obsolete">Omogočeno</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (system/EFI)</comment>
+        <translation type="obsolete">Onemogočeno</translation>
+    </message>
+    <message>
         <location line="+12"/>
         <source>Nested Paging</source>
         <comment>details (system)</comment>
@@ -1942,6 +2021,11 @@
         <source>Video Memory</source>
         <comment>details (display)</comment>
         <translation>Grafični pomnilnik</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (display/Unscaled HiDPI Video Output)</comment>
+        <translation type="obsolete">Onemogočeno</translation>
     </message>
     <message>
         <location line="+44"/>
@@ -2552,12 +2636,11 @@
         <translation>Naslov IPv6</translation>
     </message>
     <message>
-        <location line="+4"/>
-        <source>IPv6 Prefix Length</source>
-        <translation>Dolžina maske omrežja IPv6</translation>
+        <source>IPv6 Network Mask Length</source>
+        <translation type="vanished">Dolžina maske omrežja IPv6</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="+6"/>
         <source>Not set</source>
         <comment>length</comment>
         <translation>Ni nastavljeno</translation>
@@ -2737,7 +2820,12 @@
         <translation>Vmesnik gostitelja &lt;b&gt;%1&lt;/b&gt; trenutno nima veljavnega naslova IPv6.</translation>
     </message>
     <message>
-        <location line="+21"/>
+        <location line="+9"/>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
+        <translation>Vmesnik gostitelja &lt;b&gt;%1&lt;/b&gt; trenutno nima veljavne dolžine predpone maske omrežja IPv6.</translation>
+    </message>
+    <message>
+        <location line="+12"/>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server address.</source>
         <translation>Vmesnik gostitelja &lt;b&gt;%1&lt;/b&gt; trenutno nima veljavnega naslova strežnika DHCP.</translation>
     </message>
@@ -2762,7 +2850,12 @@
         <translation>Ime &lt;b&gt;%1&lt;/b&gt; se uporablja za več omrežij NAT.</translation>
     </message>
     <message>
-        <location line="+50"/>
+        <location line="-276"/>
+        <source>IPv6 Prefix Length</source>
+        <translation>Dolžina maske omrežja IPv6</translation>
+    </message>
+    <message>
+        <location line="+326"/>
         <source>Active</source>
         <comment>NAT network</comment>
         <translation>Dejavno</translation>
@@ -2828,9 +2921,8 @@
         <translation>Uredi izbrano omrežje samo za gostitelja.</translation>
     </message>
     <message>
-        <location line="-420"/>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
-        <translation>Vmesnik gostitelja &lt;b&gt;%1&lt;/b&gt; trenutno nima veljavne dolžine predpone maske omrežja IPv6.</translation>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 network mask prefix length.</source>
+        <translation type="vanished">Vmesnik gostitelja &lt;b&gt;%1&lt;/b&gt; trenutno nima veljavne dolžine predpone maske omrežja IPv6.</translation>
     </message>
 </context>
 <context>
@@ -2889,6 +2981,14 @@
         <location line="+19"/>
         <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
         <translation>Vsebuje dolžino predpone maske omrežja IPv6 gostitelja za ta vmesnik, če je IPv6 podprt.</translation>
+    </message>
+    <message>
+        <source>IPv6 Network Mask &amp;Length:</source>
+        <translation type="vanished">&amp;Dolžina maske omrežja IPv6:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <translation type="vanished">Vsebuje dolžino predpone maske omrežja IPv6 gostitelja za ta vmesnik, če je IPv6 podprt.</translation>
     </message>
     <message>
         <location line="+21"/>
@@ -3187,6 +3287,14 @@
     </message>
 </context>
 <context>
+    <name>UIGraphicsTextPane</name>
+    <message>
+        <source>%1: %2</source>
+        <comment>&apos;key: value&apos;, like &apos;Name: MyVM&apos;</comment>
+        <translation type="obsolete">%1: %2</translation>
+    </message>
+</context>
+<context>
     <name>UIHelpButton</name>
     <message>
         <location filename="../src/widgets/UISpecialControls.cpp" line="+180"/>
@@ -3282,6 +3390,188 @@
         <location line="+638"/>
         <source>None</source>
         <translation>Brez</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkDetailsWidget</name>
+    <message>
+        <source>&amp;Adapter</source>
+        <translation type="obsolete">&amp;Vmesnik</translation>
+    </message>
+    <message>
+        <source>&amp;DHCP Server</source>
+        <translation type="obsolete">Strežnik &amp;DHCP</translation>
+    </message>
+    <message>
+        <source>&amp;IPv4 Address:</source>
+        <translation type="obsolete">Naslov IPv&amp;4:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 address for this adapter.</source>
+        <translation type="obsolete">Vsebuje naslov IPv4 gostitelja za ta vmesnik.</translation>
+    </message>
+    <message>
+        <source>IPv4 Network &amp;Mask:</source>
+        <translation type="obsolete">&amp;Maska omrežja IPv4:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
+        <translation type="obsolete">Vsebuje masko omrežja IPv4 gostitelja za ta vmesnik.</translation>
+    </message>
+    <message>
+        <source>I&amp;Pv6 Address:</source>
+        <translation type="obsolete">Naslov IPv&amp;6:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <translation type="obsolete">Vsebuje naslov IPv6 gostitelja za ta vmesnik, če je podprt.</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Server</source>
+        <translation type="obsolete">&amp;Omogoči strežnik</translation>
+    </message>
+    <message>
+        <source>When checked, the DHCP Server will be enabled for this network on machine start-up.</source>
+        <translation type="obsolete">Ko je označeno, bo ob zagonu računalnika za to omrežje omogočen strežnik DHCP.</translation>
+    </message>
+    <message>
+        <source>Server Add&amp;ress:</source>
+        <translation type="obsolete">&amp;Naslov strežnika:</translation>
+    </message>
+    <message>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">Vsebuje naslov strežnika DHCP, ki je povezan s tem vmesnikom samo za gostitelja.</translation>
+    </message>
+    <message>
+        <source>Server &amp;Mask:</source>
+        <translation type="obsolete">&amp;Maska strežnika:</translation>
+    </message>
+    <message>
+        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">Vsebuje masko omrežja strežnika DHCP, ki je povezan s tem vmesnikom samo za gostitelja.</translation>
+    </message>
+    <message>
+        <source>&amp;Lower Address Bound:</source>
+        <translation type="obsolete">&amp;Spodnja omejitev naslovov:</translation>
+    </message>
+    <message>
+        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">Vsebuje spodnjo omejitev naslovov strežnika DHCP, ki je povezan s tem vmesnikom samo za gostitelja.</translation>
+    </message>
+    <message>
+        <source>&amp;Upper Address Bound:</source>
+        <translation type="obsolete">&amp;Zgornja omejitev naslovov:</translation>
+    </message>
+    <message>
+        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">Vsebuje zgornjo omejitev naslovov strežnika DHCP, ki je povezan s tem vmesnikom samo za gostitelja.</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkManager</name>
+    <message>
+        <source>Enable</source>
+        <comment>DHCP Server</comment>
+        <translation type="obsolete">Omogoči</translation>
+    </message>
+    <message>
+        <source>Adapter</source>
+        <translation type="obsolete">Vmesnik</translation>
+    </message>
+    <message>
+        <source>Automatically configured</source>
+        <comment>interface</comment>
+        <translation type="obsolete">Samodejno nastavljeno</translation>
+    </message>
+    <message>
+        <source>Manually configured</source>
+        <comment>interface</comment>
+        <translation type="obsolete">Ročno nastavljeno</translation>
+    </message>
+    <message>
+        <source>IPv4 Address</source>
+        <translation type="obsolete">Naslov IPv4</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>address</comment>
+        <translation type="obsolete">Ni nastavljeno</translation>
+    </message>
+    <message>
+        <source>IPv4 Network Mask</source>
+        <translation type="obsolete">Maska omrežja IPv4</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>mask</comment>
+        <translation type="obsolete">Ni nastavljeno</translation>
+    </message>
+    <message>
+        <source>IPv6 Address</source>
+        <translation type="obsolete">Naslov IPv6</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>length</comment>
+        <translation type="obsolete">Ni nastavljeno</translation>
+    </message>
+    <message>
+        <source>DHCP Server</source>
+        <translation type="obsolete">Strežnik DHCP</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>server</comment>
+        <translation type="obsolete">Omogočeno</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>server</comment>
+        <translation type="obsolete">Onemogočeno</translation>
+    </message>
+    <message>
+        <source>Address</source>
+        <translation type="obsolete">Naslov</translation>
+    </message>
+    <message>
+        <source>Network Mask</source>
+        <translation type="obsolete">Maska omrežja</translation>
+    </message>
+    <message>
+        <source>Lower Bound</source>
+        <translation type="obsolete">Spodnja omejitev</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>bound</comment>
+        <translation type="obsolete">Ni nastavljeno</translation>
+    </message>
+    <message>
+        <source>Upper Bound</source>
+        <translation type="obsolete">Zgornja omejitev</translation>
+    </message>
+    <message>
+        <source>&amp;Network</source>
+        <translation type="obsolete">&amp;Omrežje</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation type="obsolete">&amp;Odstrani …</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="obsolete">Ime</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="obsolete">Zapri</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkManagerWidget</name>
+    <message>
+        <source>Networking</source>
+        <translation type="obsolete">Omreženje</translation>
     </message>
 </context>
 <context>
@@ -3470,6 +3760,16 @@
         <location line="+856"/>
         <source>Indicates whether the host keyboard is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is captured&lt;/nobr&gt;</source>
         <translation>Nakazuje, ali je gostujoči operacijski sistem zajel tipkovnico gostitelja:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;Tipkovnica ni zajeta&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;Tipkovnica je zajeta&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Disconnected</source>
+        <comment>cable (Network tooltip)</comment>
+        <translation type="obsolete">Prekinjen</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>Display tooltip</comment>
+        <translation type="obsolete">Zasloni</translation>
     </message>
 </context>
 <context>
@@ -3984,6 +4284,19 @@
     </message>
 </context>
 <context>
+    <name>UIItemNetworkNAT</name>
+    <message>
+        <source>%1, %2</source>
+        <comment>col.2 text, col.1 name</comment>
+        <translation type="obsolete">%1: %2 {1,?}</translation>
+    </message>
+    <message>
+        <source>%1</source>
+        <comment>col.2 text</comment>
+        <translation type="obsolete">%1% {1?}</translation>
+    </message>
+</context>
+<context>
     <name>UILineTextEdit</name>
     <message>
         <location filename="../src/widgets/UILineTextEdit.cpp" line="+118"/>
@@ -4025,6 +4338,10 @@
         <location line="+19"/>
         <source>Selects the type of the virtual sound card. Depending on this value, VirtualBox will provide different audio hardware to the virtual machine.</source>
         <translation>Izbere vrsto navidezne zvočne kartice. Odvisno od te vrednosti bo VirtualBox dobavil različno zvočno strojno opremo v navdezni računalnik.</translation>
+    </message>
+    <message>
+        <source>Extended Features:</source>
+        <translation type="obsolete">Razširjene značilnosti:</translation>
     </message>
     <message>
         <location line="-26"/>
@@ -6011,6 +6328,17 @@
     </message>
 </context>
 <context>
+    <name>UIMediumDetailsWidget</name>
+    <message>
+        <source>&amp;Type:</source>
+        <translation type="obsolete">&amp;Vrsta:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="obsolete">&amp;Opis:</translation>
+    </message>
+</context>
+<context>
     <name>UIMediumManager</name>
     <message>
         <location filename="../src/medium/UIMediumManager.cpp" line="+1792"/>
@@ -6028,9 +6356,85 @@
         <translation>Odstranjevanje nosilca …</translation>
     </message>
     <message>
+        <source>Format:</source>
+        <translation type="obsolete">Oblika:</translation>
+    </message>
+    <message>
+        <source>Storage details:</source>
+        <translation type="obsolete">Podrobnosti pomnilniške naprave:</translation>
+    </message>
+    <message>
+        <source>Attached to:</source>
+        <translation type="obsolete">Priklopljen v:</translation>
+    </message>
+    <message>
+        <source>UUID:</source>
+        <translation type="obsolete">UUID:</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
+        <translation type="obsolete">&lt;i&gt;Ni&amp;nbsp;priklopljen&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
+        <translation type="obsolete">&lt;i&gt;Ni&amp;nbsp;šifriran&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>--</source>
+        <comment>no info</comment>
+        <translation type="obsolete">--</translation>
+    </message>
+    <message>
+        <source>&amp;Copy...</source>
+        <translation type="obsolete">&amp;Kopiraj …</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation type="obsolete">&amp;Odstrani …</translation>
+    </message>
+    <message>
+        <source>Refresh the list of disk image files</source>
+        <translation type="obsolete">Osveži seznam datotek odtisa diska</translation>
+    </message>
+    <message>
         <location line="+1408"/>
         <source>&amp;Hard disks</source>
         <translation>&amp;Trdi diski</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="obsolete">Ime</translation>
+    </message>
+    <message>
+        <source>Virtual Size</source>
+        <translation type="obsolete">Navidezna velikost</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation type="obsolete">Dejanska velikost</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation type="obsolete">Velikost</translation>
+    </message>
+    <message>
+        <source>Checking accessibility</source>
+        <translation type="obsolete">Preverjanje dostopnosti</translation>
+    </message>
+    <message>
+        <source>Virtual Media Manager</source>
+        <translation type="obsolete">Upravljalnik navideznih nosilcev</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="obsolete">Zapri</translation>
+    </message>
+</context>
+<context>
+    <name>UIMediumSizeEditor</name>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -6714,6 +7118,22 @@
         <location line="+782"/>
         <source>Failed to update Guest Additions. The Guest Additions disk image file will be inserted for user installation.</source>
         <translation>Posodobitev Dodatkov za gosta je spodletela. Datoteka odtisa diska Dodatkov za gosta bo vstavljena za uporabniško namestitev.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ste pred namestitvijo paketa razširitev VirtualBox. Paketi razširitev dopolnijo delovanje VirtualBoxa in lahko vsebujejo programsko opremo na ravni sistema, ki mu je lahko škodljiva. Preglejte spodnji opis in nadaljujte samo, če ste paket razširitev pridobili iz zaupanja vrednega vira.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ime:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Različica:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Opis:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt; {0 ?} {5&gt;?} {1&lt;?} {2&lt;?} {3&lt;?}</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nameščena je že starejša različica paketa razširitev, ali želite nadgraditi?&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ime:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Nova različica:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Trenutna različica:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Opis:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt; {1&lt;?} {0 ?} {5&gt;?} {2&lt;?} {3&lt;?} {4&lt;?} {5&lt;?}</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nameščena je že novejša različica paketa razširitev, ali želite podgraditi?&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ime:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Nova različica:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Trenutna različica:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Opis:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt; {1&lt;?} {0 ?} {5&gt;?} {2&lt;?} {3&lt;?} {4&lt;?} {5&lt;?}</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nameščena je že enaka različica paketa razširitev, ali jo želite ponovno namestiti?&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Ime:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Različica:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Opis:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt; {1&lt;?} {0 ?} {5&gt;?} {2&lt;?} {3&lt;?} {4&lt;?}</translation>
     </message>
     <message>
         <location line="+221"/>
@@ -7839,6 +8259,21 @@
     </message>
 </context>
 <context>
+    <name>UIScreenshotViewer</name>
+    <message>
+        <source>Screenshot of %1 (%2)</source>
+        <translation type="obsolete">Posnetek stanja %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Click to view non-scaled screenshot.</source>
+        <translation type="obsolete">Kliknite za ogled neumerjenega posnetka stanja.</translation>
+    </message>
+    <message>
+        <source>Click to view scaled screenshot.</source>
+        <translation type="obsolete">Kliknite za ogled umerjenega posnetka stanja.</translation>
+    </message>
+</context>
+<context>
     <name>UISelectorWindow</name>
     <message>
         <location filename="../src/selector/UISelectorWindow.cpp" line="+161"/>
@@ -8043,6 +8478,86 @@
     </message>
 </context>
 <context>
+    <name>UISnapshotDetailsWidget</name>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="obsolete">I&amp;me:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="obsolete">&amp;Opis:</translation>
+    </message>
+    <message>
+        <source>Click to enlarge the screenshot.</source>
+        <translation type="obsolete">Kliknite za povečavo posnetka stanja.</translation>
+    </message>
+</context>
+<context>
+    <name>UISnapshotPane</name>
+    <message>
+        <source>Current State (changed)</source>
+        <comment>Current State (Modified)</comment>
+        <translation type="obsolete">Trenutno stanje (spremenjeno)</translation>
+    </message>
+    <message>
+        <source>Current State</source>
+        <comment>Current State (Unmodified)</comment>
+        <translation type="obsolete">Trenutno stanje</translation>
+    </message>
+    <message>
+        <source>The current state differs from the state stored in the current snapshot</source>
+        <translation type="obsolete">Trenutno stanje se razlikuje od stanja shranjenega v trenutnem posnetku</translation>
+    </message>
+    <message>
+        <source>The current state is identical to the state stored in the current snapshot</source>
+        <translation type="obsolete">Trenutno stanje je enako stanju, shranjenemu v trenutnem posnetku</translation>
+    </message>
+    <message>
+        <source>%1 since %2</source>
+        <comment>Current State (time or date + time)</comment>
+        <translation type="obsolete">%1 od %2</translation>
+    </message>
+    <message>
+        <source>Taken at %1</source>
+        <comment>Snapshot (time)</comment>
+        <translation type="obsolete">Zajeto ob %1</translation>
+    </message>
+    <message>
+        <source>Taken on %1</source>
+        <comment>Snapshot (date + time)</comment>
+        <translation type="obsolete">Zajeto %1</translation>
+    </message>
+    <message>
+        <source>&amp;Clone...</source>
+        <translation type="obsolete">&amp;Kloniraj …</translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the current virtual machine state</source>
+        <translation type="obsolete">Zajemi posnetek stanja trenutnega navideznega računalnika</translation>
+    </message>
+    <message>
+        <source>Delete selected snapshot of the virtual machine</source>
+        <translation type="obsolete">Izbriši izban posnetek stanja navideznega računalnika</translation>
+    </message>
+    <message>
+        <source>Restore selected snapshot of the virtual machine</source>
+        <translation type="obsolete">Obnovi izbran posnetek stanja navideznega računalnika</translation>
+    </message>
+    <message>
+        <source>Clone selected virtual machine</source>
+        <translation type="obsolete">Kloniraj izbran navidezni računalnik</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>snapshot</comment>
+        <translation type="obsolete">Ime</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="obsolete">Posnetek stanja %1</translation>
+    </message>
+</context>
+<context>
     <name>UIStatusBarEditorWidget</name>
     <message>
         <location filename="../src/runtime/UIStatusBarEditorWindow.cpp" line="+517"/>
@@ -8058,6 +8573,34 @@
         <location line="-367"/>
         <source>&lt;nobr&gt;&lt;b&gt;Click&lt;/b&gt; to toggle indicator presence.&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Drag&amp;Drop&lt;/b&gt; to change indicator position.&lt;/nobr&gt;</source>
         <translation>&lt;nobr&gt;&lt;b&gt;&amp;Kliknite&lt;/b&gt;, da preklopite prisotnost kazalnika.&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Povlecite in spustite&lt;/b&gt;, da spremenite položaj kazalnika.&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UITakeSnapshotDialog</name>
+    <message>
+        <source>Take Snapshot of Virtual Machine</source>
+        <translation type="obsolete">Zajemi ponetek stanja navideznega računalnika</translation>
+    </message>
+    <message>
+        <source>Snapshot &amp;Name</source>
+        <translation type="obsolete">I&amp;me posnetka stanja</translation>
+    </message>
+    <message>
+        <source>Snapshot &amp;Description</source>
+        <translation type="obsolete">&amp;Opis posnetka stanja</translation>
+    </message>
+    <message numerus="yes">
+        <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
+        <translation type="obsolete">
+            <numerusform>Opozorilo: zajemate posnetek stanja računalnika v izvajanju, ki ima nase priklopljen %n nespremenljiv odtis. Dokler delate iz tega posnetka stanja, nespremenljivi odtisi ne bodo ponastavljeni, da se prepreči izguba podatkov.</numerusform>
+            <numerusform>Opozorilo: zajemate posnetek stanja računalnika v izvajanju, ki ima nase priklopljena %n nespremenljiva odtisa. Dokler delate iz tega posnetka stanja, nespremenljivi odtisi ne bodo ponastavljeni, da se prepreči izguba podatkov.</numerusform>
+            <numerusform>Opozorilo: zajemate posnetek stanja računalnika v izvajanju, ki ima nase priklopljene %n nespremenljive odtise. Dokler delate iz tega posnetka stanja, nespremenljivi odtisi ne bodo ponastavljeni, da se prepreči izguba podatkov.</numerusform>
+            <numerusform>Opozorilo: zajemate posnetek stanja računalnika v izvajanju, ki ima nase priklopljenih %n nespremenljivih odtisov. Dokler delate iz tega posnetka stanja, nespremenljivi odtisi ne bodo ponastavljeni, da se prepreči izguba podatkov.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="obsolete">Posnetek stanja %1</translation>
     </message>
 </context>
 <context>
@@ -8086,6 +8629,14 @@
         <location line="+0"/>
         <source>Select a file to open...</source>
         <translation>Izberi datoteko za odpiranje …</translation>
+    </message>
+</context>
+<context>
+    <name>UIUSBFilterItem</name>
+    <message>
+        <source>%1</source>
+        <comment>col.1 text</comment>
+        <translation type="obsolete">%1% {1?}</translation>
     </message>
 </context>
 <context>
@@ -9277,7 +9828,7 @@
         <translation>Ustvari</translation>
     </message>
     <message>
-        <location filename="../src/wizards/newvm/UIWizardNewVMPageBasic1.cpp" line="+309"/>
+        <location filename="../src/wizards/newvm/UIWizardNewVMPageBasic1.cpp" line="+311"/>
         <location filename="../src/wizards/newvm/UIWizardNewVMPageExpert.cpp" line="+227"/>
         <source>Name and operating system</source>
         <translation>Ime in operacijski sistem</translation>
@@ -10388,6 +10939,11 @@
         <comment>medium</comment>
         <translation>&lt;b&gt;Nobena datoteka odtisa diska ni na voljo&lt;/b&gt;</translation>
     </message>
+    <message>
+        <source>Differencing</source>
+        <comment>MediumType</comment>
+        <translation type="obsolete">Razlikovalen</translation>
+    </message>
     <message numerus="yes">
         <location filename="../src/globals/VBoxGlobal.h" line="+242"/>
         <source>%n year(s)</source>
@@ -11308,6 +11864,31 @@
         <source>NVMe Port %1</source>
         <comment>StorageSlot</comment>
         <translation>Vrata NVMe %1</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">Zvok</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">Omrežje</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">USB</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">Zaslon</translation>
+    </message>
+    <message>
+        <source>Video Capture</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">Zajem videoposnetka</translation>
     </message>
     <message>
         <location line="+1362"/>
