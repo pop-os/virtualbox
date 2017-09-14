@@ -3815,6 +3815,15 @@ uint64_t Medium::i_getSize() const
 }
 
 /**
+ * Internal method to return the medium's size. Must have caller + locking!
+ * @return
+ */
+uint64_t Medium::i_getLogicalSize() const
+{
+    return m->logicalSize;
+}
+
+/**
  * Returns the medium device type. Must have caller + locking!
  * @return
  */

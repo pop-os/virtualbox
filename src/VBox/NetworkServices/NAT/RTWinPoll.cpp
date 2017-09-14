@@ -40,9 +40,6 @@ RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready)
     {
         g_hNetworkEvent = WSACreateEvent();
         AssertReturn(g_hNetworkEvent != WSA_INVALID_EVENT, VERR_INTERNAL_ERROR);
-
-        /* XXX: provide feedback that env vars are set correctly */
-        LogRel2(("NAT_SERVICE LogRel2 enabled\n"));
     }
 
     for (unsigned int i = 0; i < nfds; ++i)

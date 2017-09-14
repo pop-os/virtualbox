@@ -89,16 +89,16 @@
         <translation type="vanished">De VirtualBox Linux-kerneldriver (vboxdrv) is niet geladen of er is een permissie-probleem met /dev/vboxdrv. Herinstalleer de kernelmodule door &lt;br/&gt;&lt;/br&gt;..&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos; &lt;/font&gt;&lt;br/&gt;&lt;br/&gt;als root uit te voeren. Indien in uw distributie aanwezig, installeer dan eerst het DKMS pakket. Dit pakket houdt Linux kernelveranderingen bij en hercompileert indien nodig de vboxdrv-kernelmodule.</translation>
     </message>
     <message>
-        <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
-        <translation type="obsolete">Framegrootte: %1x%2, Framerate: %3fps, Bitrate: %4kbps</translation>
-    </message>
-    <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
         <translation>De VirtualBox kerneldriver (vboxdrv) is niet geladen of er is een probleem met permissies op /dev/vboxdrv. Herinstalleer de kernelmodule als root met het commando &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
         <translation>De VirtualBox kernelmodules passen niet bij deze versie van VirtualBox. De installatie van VirtualBox is kennelijk niet goed gelukt. Uitvoeren van &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; zou dit kunnen corrigeren. Controleer of u de OSE versie en de PUEL versie van VirtualBox niet hebt vermengd.</translation>
+    </message>
+    <message>
+        <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
+        <translation type="obsolete">Framegrootte: %1x%2, Framerate: %3fps, Bitrate: %4kbps</translation>
     </message>
 </context>
 <context>
@@ -182,10 +182,6 @@
         <translation>Annuleren</translation>
     </message>
     <message>
-        <source>Ignore</source>
-        <translation type="obsolete">Negeren</translation>
-    </message>
-    <message>
         <source>&amp;Details</source>
         <translation type="vanished">&amp;Details</translation>
     </message>
@@ -200,6 +196,10 @@
     <message>
         <source>Copy</source>
         <translation>Kopieer</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <translation type="obsolete">Negeren</translation>
     </message>
 </context>
 <context>
@@ -231,15 +231,46 @@
     </message>
 </context>
 <context>
+    <name>QObject</name>
+    <message>
+        <source>Result&amp;nbsp;Code: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Resultaatcode:</translation>
+    </message>
+    <message>
+        <source>Component: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Component:</translation>
+    </message>
+    <message>
+        <source>Interface: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Interface:</translation>
+    </message>
+    <message>
+        <source>Callee: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Callee:</translation>
+    </message>
+    <message>
+        <source>Callee&amp;nbsp;RC: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Callee&amp;nbsp;RC: </translation>
+    </message>
+</context>
+<context>
+    <name>SFTreeViewItem</name>
+    <message>
+        <source>%1, %2: %3, %4: %5, %6: %7</source>
+        <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text, col.4 name: col.4 text</comment>
+        <translation type="vanished">%1, %2: %3, %4: %5, %6: %7</translation>
+    </message>
+</context>
+<context>
     <name>UIActionPool</name>
     <message>
         <source>&amp;Machine</source>
         <translation>&amp;Machine</translation>
-    </message>
-    <message>
-        <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
-        <translatorcomment>Guest Additions als naam laten staan</translatorcomment>
-        <translation type="obsolete">Pas de grootte van het gastscherm automatisch aan wanneer het venster van grootte veranderd (vereist Guest Additions)</translation>
     </message>
     <message>
         <source>&amp;Adjust Window Size</source>
@@ -250,40 +281,8 @@
         <translation>Pas de venstergrootte aan en plaats het gastscherm op de meest geschikte plek</translation>
     </message>
     <message>
-        <source>Disable &amp;Mouse Integration</source>
-        <translation type="obsolete">&amp;Muis-integratie uitschakelen</translation>
-    </message>
-    <message>
-        <source>Temporarily disable host mouse pointer integration</source>
-        <translation type="obsolete">Tijdelijk de integratie van muis met host uitschakelen</translation>
-    </message>
-    <message>
-        <source>&amp;Insert Ctrl-Alt-Del</source>
-        <translation type="obsolete">&amp;Invoegen Ctrl+Alt+Del</translation>
-    </message>
-    <message>
-        <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
-        <translation type="obsolete">Stuur Ctrl+Alt+Del-combinatie naar de virtuele machine</translation>
-    </message>
-    <message>
-        <source>&amp;Insert Ctrl-Alt-Backspace</source>
-        <translation type="obsolete">&amp;Invoegen van Ctrl-Alt-Backspace</translation>
-    </message>
-    <message>
-        <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
-        <translation type="obsolete">Stuur Ctrl+Alt+Backspace-combinatie naar de virtuele machine</translation>
-    </message>
-    <message>
-        <source>Take &amp;Snapshot...</source>
-        <translation type="obsolete">Maak een &amp;momentopname...</translation>
-    </message>
-    <message>
         <source>Take a snapshot of the virtual machine</source>
         <translation>Maak een snapshot van de virtuele machine</translation>
-    </message>
-    <message>
-        <source>Show Session Information Dialog</source>
-        <translation type="obsolete">Toon sessie-informatiedialoog</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -307,10 +306,6 @@
         <translation>&amp;Uitzetten via ACPI</translation>
     </message>
     <message>
-        <source>Send the ACPI Power Button press event to the virtual machine</source>
-        <translation type="obsolete">Stuur ACPI-aan/uitknop-schakelen naar de virtuele machine</translation>
-    </message>
-    <message>
         <source>&amp;Close...</source>
         <translation>&amp;Sluiten...</translation>
     </message>
@@ -325,43 +320,6 @@
     <message>
         <source>&amp;Devices</source>
         <translation>&amp;Apparaten</translation>
-    </message>
-    <message>
-        <source>&amp;CD/DVD Devices</source>
-        <translation type="obsolete">&amp;CD/DVD-apparaten</translation>
-    </message>
-    <message>
-        <source>&amp;Floppy Devices</source>
-        <translation type="obsolete">&amp;Diskette-apparaten</translation>
-    </message>
-    <message>
-        <source>&amp;USB Devices</source>
-        <translation type="obsolete">&amp;USB-apparaten</translation>
-    </message>
-    <message>
-        <source>&amp;Network Adapters...</source>
-        <translation type="obsolete">&amp;Netwerkadapters...</translation>
-    </message>
-    <message>
-        <source>Change the settings of network adapters</source>
-        <translation type="obsolete">Instellingen van netwerkadapters aanpassen</translation>
-    </message>
-    <message>
-        <source>&amp;Shared Folders...</source>
-        <translation type="obsolete">&amp;Gedeelde mappen...</translation>
-    </message>
-    <message>
-        <source>Create or modify shared folders</source>
-        <translation type="obsolete">Aanmaken/bewerken gedeelde mappen</translation>
-    </message>
-    <message>
-        <source>&amp;Install Guest Additions...</source>
-        <translatorcomment>Guest Additions als naam laten staan</translatorcomment>
-        <translation type="obsolete">&amp;Installeren Guest Additions...</translation>
-    </message>
-    <message>
-        <source>Mount the Guest Additions installation image</source>
-        <translation type="obsolete">Koppel Guest Additions installatie-image aan</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
@@ -394,33 +352,8 @@
         <translation>Toon applicatie-icoon</translation>
     </message>
     <message>
-        <source>Enable remote desktop (RDP) connections to this machine</source>
-        <translation type="obsolete">Sta Beeldscherm-op-Afstand (remote desktop protocol, RDP) verbindingen naar deze machine toe</translation>
-    </message>
-    <message>
-        <source>Enable &amp;Logging...</source>
-        <comment>debug action</comment>
-        <translation type="obsolete">Activeer &amp;loggen...</translation>
-    </message>
-    <message>
-        <source>Switch to &amp;Fullscreen</source>
-        <translation type="obsolete">Schakel over op Scherm&amp;vullend</translation>
-    </message>
-    <message>
-        <source>Switch between normal and fullscreen mode</source>
-        <translation type="obsolete">Schakel tussen Normale en Schermvullende modus</translation>
-    </message>
-    <message>
-        <source>Switch to Seam&amp;less Mode</source>
-        <translation type="obsolete">Schakel over op Naad&amp;loze modus</translation>
-    </message>
-    <message>
         <source>Switch between normal and seamless desktop integration mode</source>
         <translation>Schakel tussen Normale en Naadloze modus (scherm van gast wordt naadloos in hostbureaublad geïntegreerd)</translation>
-    </message>
-    <message>
-        <source>Switch to &amp;Scaled Mode</source>
-        <translation type="obsolete">Schakel over op &amp;Schaalmodus</translation>
     </message>
     <message>
         <source>Switch between normal and scaled mode</source>
@@ -431,24 +364,12 @@
         <translation>Autoschalen &amp;Gastscherm</translation>
     </message>
     <message>
-        <source>Enable R&amp;emote Display</source>
-        <translation type="obsolete">B&amp;eeldscherm op Afstand inschakelen</translation>
-    </message>
-    <message>
         <source>&amp;Settings...</source>
         <translation>In&amp;stellingen...</translation>
     </message>
     <message>
-        <source>Manage the virtual machine settings</source>
-        <translation type="obsolete">Beheer de instellingen van de virtuele machine</translation>
-    </message>
-    <message>
         <source>Session I&amp;nformation...</source>
         <translation>Sessie-i&amp;nformatie...</translation>
-    </message>
-    <message>
-        <source>Show the log files of the selected virtual machine</source>
-        <translation type="obsolete">Toon de logbestanden van de geselecteerde virtuele machine</translation>
     </message>
     <message>
         <source>&amp;Contents...</source>
@@ -471,10 +392,6 @@
         <translation>Manager &amp;Netwerkoperaties...</translation>
     </message>
     <message>
-        <source>Show Network Operations Manager</source>
-        <translation type="obsolete">Toon Manager Netwerkoperaties</translation>
-    </message>
-    <message>
         <source>Check for a new VirtualBox version</source>
         <translation>Controleer of een nieuwe versie van VirtualBox beschikbaar is</translation>
     </message>
@@ -483,24 +400,12 @@
         <translation>Over Virtu&amp;alBox...</translation>
     </message>
     <message>
-        <source>Show a window with product information</source>
-        <translation type="obsolete">Toon produktinformatie</translation>
-    </message>
-    <message>
         <source>Take Sn&amp;apshot...</source>
         <translation>Maak sn&amp;apshot...</translation>
     </message>
     <message>
         <source>Take Screensh&amp;ot...</source>
         <translation>Maak schermafdr&amp;uk...</translation>
-    </message>
-    <message>
-        <source>Take a screenshot of the virtual machine</source>
-        <translation type="obsolete">Maak schermafdruk van de virtuele machine</translation>
-    </message>
-    <message>
-        <source>Ins&amp;ert Ctrl-Alt-Backspace</source>
-        <translation type="obsolete">Invo&amp;egen Ctrl+Alt+Backspace</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -537,15 +442,6 @@
         <translation>Exporteer één of meerdere VirtualBox virtuele machines als een appliance</translation>
     </message>
     <message>
-        <source>&amp;Preferences...</source>
-        <comment>global settings</comment>
-        <translation type="obsolete">&amp;Voorkeuren...</translation>
-    </message>
-    <message>
-        <source>Display the global settings window</source>
-        <translation type="obsolete">Toon dialoog Algemene Instellingen</translation>
-    </message>
-    <message>
         <source>E&amp;xit</source>
         <translation>&amp;Afsluiten</translation>
     </message>
@@ -558,65 +454,13 @@
         <translation>&amp;Groep</translation>
     </message>
     <message>
-        <source>Create a new virtual machine</source>
-        <translation type="obsolete">Maak een nieuwe virtuele machine aan</translation>
-    </message>
-    <message>
-        <source>Add an existing virtual machine</source>
-        <translation type="obsolete">Toevoegen bestaande virtuele machine</translation>
-    </message>
-    <message>
-        <source>Rename the selected virtual machine group</source>
-        <translation type="obsolete">Hernoem de geselecteerde virtuelemachinegroep</translation>
-    </message>
-    <message>
         <source>S&amp;tart</source>
         <translatorcomment>werkwoord, geen zelfstandig naamwoord</translatorcomment>
         <translation>S&amp;tarten</translation>
     </message>
     <message>
-        <source>Start the selected virtual machine</source>
-        <translation type="obsolete">Start de geselecteerde virtuele machine</translation>
-    </message>
-    <message>
         <source>S&amp;how</source>
         <translation>T&amp;onen</translation>
-    </message>
-    <message>
-        <source>Switch to the window of the selected virtual machine</source>
-        <translation type="obsolete">Schakel over naar het venster van de geselecteerde virtuele machine</translation>
-    </message>
-    <message>
-        <source>Re&amp;fresh...</source>
-        <translation type="obsolete">&amp;Verversen...</translation>
-    </message>
-    <message>
-        <source>Refresh the accessibility state of the selected virtual machine</source>
-        <translation type="obsolete">Actualiseer de toegankelijkheidsstatus van de geselecteerde virtuele machine</translation>
-    </message>
-    <message>
-        <source>Show in Finder</source>
-        <translation type="obsolete">Toon in zoekscherm</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in Finder.</source>
-        <translation type="obsolete">Toon het VirtualBox Machine Definitiebestand in het zoekscherm.</translation>
-    </message>
-    <message>
-        <source>Show in Explorer</source>
-        <translation type="obsolete">Toon in Explorer</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in Explorer.</source>
-        <translation type="obsolete">Toon het VirtualBox Machine Definitiebestand in Explorer.</translation>
-    </message>
-    <message>
-        <source>Show in File Manager</source>
-        <translation type="obsolete">Toon in bestandsmanager</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in the File Manager</source>
-        <translation type="obsolete">Toon het VirtualBox-machinedefinitiebestand in bestandsmanager</translation>
     </message>
     <message>
         <source>&amp;New...</source>
@@ -627,52 +471,16 @@
         <translation>&amp;Toevoegen...</translation>
     </message>
     <message>
-        <source>Add a new group based on the items selected</source>
-        <translation type="obsolete">Toevoegen nieuwe groep op basis van geselecteerde items</translation>
-    </message>
-    <message>
         <source>Cl&amp;one...</source>
         <translation>Kl&amp;onen...</translation>
-    </message>
-    <message>
-        <source>Clone the selected virtual machine</source>
-        <translation type="obsolete">Kloon de geselecteerde virtuele machine</translation>
     </message>
     <message>
         <source>&amp;Remove...</source>
         <translation>Ve&amp;rwijderen...</translation>
     </message>
     <message>
-        <source>Remove the selected virtual machine</source>
-        <translation type="obsolete">Verwijder de geselecteerde virtuele machine</translation>
-    </message>
-    <message>
         <source>Discard</source>
         <translation>Verwerpen</translation>
-    </message>
-    <message>
-        <source>D&amp;iscard saved state...</source>
-        <translation type="obsolete">Ver&amp;werp opgeslagen staat...</translation>
-    </message>
-    <message>
-        <source>Discard the saved state of the selected virtual machine</source>
-        <translation type="obsolete">Verwerp de opgeslagen staat van de geselecteerde virtuele machine</translation>
-    </message>
-    <message>
-        <source>Create Alias on Desktop</source>
-        <translation type="obsolete">Maak alias op bureaublad</translation>
-    </message>
-    <message>
-        <source>Creates an Alias file to the VirtualBox Machine Definition file on your Desktop.</source>
-        <translation type="obsolete">Maakt een aliasbestand naar het VirtualBox Machine Definitiebestand op uw bureaublad.</translation>
-    </message>
-    <message>
-        <source>Create Shortcut on Desktop</source>
-        <translation type="obsolete">Maak een snelkoppeling op bureaublad</translation>
-    </message>
-    <message>
-        <source>Creates an Shortcut file to the VirtualBox Machine Definition file on your Desktop.</source>
-        <translation type="obsolete">Maakt een snelkoppeling naar het VirtualBox Machine Definitiebestand op het bureaublad.</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -699,70 +507,6 @@
         <translation>Hernoe&amp;men groep...</translation>
     </message>
     <message>
-        <source>Sort the items of the selected virtual machine group alphabetically</source>
-        <translation type="obsolete">Sorteer de items van de geselecteerde virtuelemachinegroep alfabetisch</translation>
-    </message>
-    <message>
-        <source>Remove the selected virtual machines</source>
-        <translation type="obsolete">Verwijder de geselecteerde virtuele machines</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machines</source>
-        <translation type="obsolete">Start de geselecteerde virtuele machines</translation>
-    </message>
-    <message>
-        <source>Switch to the windows of the selected virtual machines</source>
-        <translation type="obsolete">Schakel over naar de vensters van de geselecteerde virtuele machines</translation>
-    </message>
-    <message>
-        <source>Suspend the execution of the selected virtual machines</source>
-        <translation type="obsolete">Onderbreek tijdelijk de uitvoering van de geselecteerde virtuele machines</translation>
-    </message>
-    <message>
-        <source>Reset the selected virtual machines</source>
-        <translation type="obsolete">Reset de geselecteerde virtuele machines</translation>
-    </message>
-    <message>
-        <source>Discard the saved state of the selected virtual machines</source>
-        <translation type="obsolete">Verwerp de opgeslagen staat van de geselecteerde virtuele machines</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in Finder</source>
-        <translation type="obsolete">Toon het VirtualBox-machinedefinitiebestand in het zoekscherm</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in Explorer</source>
-        <translation type="obsolete">Toon het VirtualBox-machinedefinitiebestand in Explorer</translation>
-    </message>
-    <message>
-        <source>Creates an alias file to the VirtualBox Machine Definition file on your desktop</source>
-        <translation type="obsolete">Maakt een aliasbestand naar het VirtualBox-machinedefinitiebestand op uw bureaublad</translation>
-    </message>
-    <message>
-        <source>Creates an shortcut file to the VirtualBox Machine Definition file on your desktop</source>
-        <translation type="obsolete">Maakt een snelkoppeling naar het VirtualBox-machinedefinitiebestand op het bureaublad</translation>
-    </message>
-    <message>
-        <source>Save State</source>
-        <translation type="obsolete">Staat opslaan</translation>
-    </message>
-    <message>
-        <source>Save the machine state of the selected virtual machines</source>
-        <translation type="obsolete">Sla de machinestaat van de geselecteerde virtuele machines op</translation>
-    </message>
-    <message>
-        <source>Send the ACPI Power Button press event to the selected virtual machines</source>
-        <translation type="obsolete">Stuur ACPI-aan/uitknop-schakelen naar de geselecteerde virtuele machines</translation>
-    </message>
-    <message>
-        <source>Po&amp;wer Off</source>
-        <translation>Uit&amp;zetten</translation>
-    </message>
-    <message>
-        <source>Power off the selected virtual machines</source>
-        <translation type="obsolete">Zet de geselecteerde virtuele machines uit</translation>
-    </message>
-    <message>
         <source>&amp;New Machine...</source>
         <translation>&amp;Nieuwe Machine...</translation>
     </message>
@@ -771,39 +515,13 @@
         <translation>Toevoegen M&amp;achine...</translation>
     </message>
     <message>
-        <source>&amp;Ungroup...</source>
-        <translatorcomment>ontgroepen kennen wij niet</translatorcomment>
-        <translation type="obsolete">Groep ophe&amp;ffen...</translation>
-    </message>
-    <message>
-        <source>Ungroup items of the selected virtual machine group</source>
-        <translation type="obsolete">Hef de geselecteerde virtuelemachinegroep op</translation>
-    </message>
-    <message>
-        <source>Sort</source>
-        <translation type="obsolete">Sorteren</translation>
-    </message>
-    <message>
         <source>Gro&amp;up</source>
         <translatorcomment>werkwoord, geen zelfstandig naamwoord</translatorcomment>
         <translation>Gro&amp;eperen</translation>
     </message>
     <message>
-        <source>Sort the group of the first selected machine alphabetically</source>
-        <translation type="obsolete">Sorteer de groep van de eerst geselecteerde machine alfabetisch</translation>
-    </message>
-    <message>
         <source>Shared &amp;Clipboard</source>
         <translation>&amp;Gedeeld klembord</translation>
-    </message>
-    <message>
-        <source>Drag&apos;n&apos;Drop</source>
-        <translatorcomment>Zoals bij Mozillavertalingen</translatorcomment>
-        <translation type="obsolete">Slepen naar</translation>
-    </message>
-    <message>
-        <source>Save the machine state of the virtual machine</source>
-        <translation type="obsolete">Sla de machinestaat van de geselecteerde virtuele machine op</translation>
     </message>
     <message>
         <source>Power off the virtual machine</source>
@@ -822,37 +540,16 @@
         <translation>B&amp;eeldscherm op Afstand</translation>
     </message>
     <message>
-        <source>Toggle remote desktop (RDP) connections to this machine</source>
-        <translation type="obsolete">Aan/uit Beeldscherm-op-Afstand(remote desktop protocol, RDP)verbindingen naar deze machine</translation>
-    </message>
-    <message>
         <source>&amp;Video Capture</source>
         <translation>&amp;Videocapture</translation>
-    </message>
-    <message>
-        <source>Toggle video capture</source>
-        <translation type="obsolete">Videocapture aan/uit</translation>
     </message>
     <message>
         <source>&amp;Video Capture Settings...</source>
         <translation>Instellingen &amp;videocapture...</translation>
     </message>
     <message>
-        <source>Configure video capture settings</source>
-        <translation type="obsolete">Videocapture instellen</translation>
-    </message>
-    <message>
-        <source>&amp;Logging...</source>
-        <comment>debug action</comment>
-        <translation type="obsolete">&amp;Loggen...</translation>
-    </message>
-    <message>
         <source>Popup Menu</source>
         <translation>Popupmenu</translation>
-    </message>
-    <message>
-        <source>Show Session Information Window</source>
-        <translation type="obsolete">Toon sessie-informatievenster</translation>
     </message>
     <message>
         <source>&amp;Webcams</source>
@@ -861,10 +558,6 @@
     <message>
         <source>&amp;Insert Guest Additions CD image...</source>
         <translation>&amp;Invoegen Guest Additions CD-image...</translation>
-    </message>
-    <message>
-        <source>Insert the Guest Additions disk file into the virtual drive</source>
-        <translation type="obsolete">Doe het Guest Additions-schijfbestand in het virtuele station</translation>
     </message>
     <message>
         <source>&amp;VirtualBox</source>
@@ -879,16 +572,8 @@
         <translation>Instellingen &amp;menubalk...</translation>
     </message>
     <message>
-        <source>Opens window to configure menu-bar</source>
-        <translation type="obsolete">Opent een venster om de menubalk in te stellen</translation>
-    </message>
-    <message>
         <source>Show Menu &amp;Bar</source>
         <translation>Toon menu&amp;balk</translation>
-    </message>
-    <message>
-        <source>Toggle menu-bar visibility for this machine</source>
-        <translation type="obsolete">Menubalk zichtbaar/niet zichtbaar op deze machine</translation>
     </message>
     <message>
         <source>&amp;Status Bar</source>
@@ -899,16 +584,8 @@
         <translation>Instellingen &amp;statusbalk...</translation>
     </message>
     <message>
-        <source>Opens window to configure status-bar</source>
-        <translation type="obsolete">Opent een venster om de statusbalk in te stellen</translation>
-    </message>
-    <message>
         <source>Show Status &amp;Bar</source>
         <translation>Toon status&amp;balk</translation>
-    </message>
-    <message>
-        <source>Toggle status-bar visibility for this machine</source>
-        <translation type="obsolete">Statusbalk zichtbaar/niet zichtbaar op deze machine</translation>
     </message>
     <message>
         <source>&amp;Input</source>
@@ -923,36 +600,12 @@
         <translation>Instellingen &amp;toetsenbord...</translation>
     </message>
     <message>
-        <source>Display the global settings window to configure shortcuts</source>
-        <translation type="obsolete">Toon venster algemene instellingen om sneltoetsen in te stellen</translation>
-    </message>
-    <message>
         <source>&amp;Mouse</source>
         <translation>&amp;Muis</translation>
     </message>
     <message>
-        <source>&amp;Hard Drives</source>
-        <translation type="obsolete">&amp;Harde schijven</translation>
-    </message>
-    <message>
-        <source>&amp;Hard Drive Settings...</source>
-        <translation type="obsolete">Instellingen &amp;harde schijven...</translation>
-    </message>
-    <message>
-        <source>Change the settings of hard drives</source>
-        <translation type="obsolete">Instellingen van harde schijven aanpassen</translation>
-    </message>
-    <message>
-        <source>Network</source>
-        <translation type="obsolete">Netwerk</translation>
-    </message>
-    <message>
         <source>&amp;USB Settings...</source>
         <translation>Instellingen &amp;USB...</translation>
-    </message>
-    <message>
-        <source>Change the settings of USB devices</source>
-        <translation type="obsolete">Instellingen van USB-apparaten aanpassen</translation>
     </message>
     <message>
         <source>&amp;Shared Folders</source>
@@ -984,10 +637,6 @@
         <translation>&amp;Minimaliseren</translation>
     </message>
     <message>
-        <source>Minimize active machine-window</source>
-        <translation type="obsolete">Minimaliseren actieve machinevenster</translation>
-    </message>
-    <message>
         <source>&amp;Full-screen Mode</source>
         <translation>&amp;Schermvullende modus</translation>
     </message>
@@ -1006,10 +655,6 @@
     <message>
         <source>S&amp;cale Factor</source>
         <translation>S&amp;chaalfactor</translation>
-    </message>
-    <message>
-        <source>&amp;Insert %1</source>
-        <translation type="obsolete">&amp;Invoeren %1</translation>
     </message>
     <message>
         <source>Send the %1 sequence to the virtual machine</source>
@@ -1036,10 +681,6 @@
         <translation>&amp;USB</translation>
     </message>
     <message>
-        <source>Drag and Drop</source>
-        <translation type="obsolete">Drag-and-drop</translation>
-    </message>
-    <message>
         <source>&amp;Logging</source>
         <comment>debug action</comment>
         <translation>&amp;Loggen</translation>
@@ -1054,17 +695,9 @@
         <translation>&amp;Headless start</translation>
     </message>
     <message>
-        <source>Start the selected virtual machines in the background</source>
-        <translation type="obsolete">Start de geselecteerde virtuele machines op de achtergrond</translation>
-    </message>
-    <message>
         <source>&amp;Detachable Start</source>
         <translatorcomment>VB term</translatorcomment>
         <translation>&amp;Detachable Start</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machines with the option of continuing them in the background</source>
-        <translation type="obsolete">Start de geselecteerde virtuele machines met de optie deze op de achtergrond te laten doorgaan</translation>
     </message>
     <message>
         <source>Minimize active window</source>
@@ -1413,6 +1046,502 @@
         <source>Disable Dock Icon Overlay</source>
         <translation>Uitschakelen dockpictogramoverschrijving</translation>
     </message>
+    <message>
+        <source>&amp;Host Network Manager...</source>
+        <translation type="vanished">&amp;Host Network Manager...</translation>
+    </message>
+    <message>
+        <source>Display the Host Network Manager window</source>
+        <translation type="vanished">Toon venster Host Network Manager</translation>
+    </message>
+    <message>
+        <source>&amp;Machine Tools</source>
+        <translation type="vanished">&amp;Machinegereedschappen</translation>
+    </message>
+    <message>
+        <source>Switch to machine tools</source>
+        <translation type="vanished">Switchen naar machinegereedschappen</translation>
+    </message>
+    <message>
+        <source>&amp;Machine Tools Menu</source>
+        <translation type="vanished">&amp;Machinegereedschapsmenu</translation>
+    </message>
+    <message>
+        <source>Open the machine tools menu</source>
+        <translation type="vanished">Openen Machinegereedschapsmenu</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation type="vanished">&amp;Details</translation>
+    </message>
+    <message>
+        <source>Open the machine details pane</source>
+        <translatorcomment>paneel, of deelvenster - whatever - RL</translatorcomment>
+        <translation type="vanished">Openen machine-detailspaneel</translation>
+    </message>
+    <message>
+        <source>&amp;Snapshots</source>
+        <translation type="vanished">&amp;Snapshots</translation>
+    </message>
+    <message>
+        <source>Open the machine snapshots pane</source>
+        <translation type="vanished">Openen machine-snapshotpaneel</translation>
+    </message>
+    <message>
+        <source>&amp;Global Tools</source>
+        <translation type="vanished">Al&amp;gemene gereedschappen</translation>
+    </message>
+    <message>
+        <source>Switch to global tools</source>
+        <translation type="vanished">Switchen naar algemene gereedschappen</translation>
+    </message>
+    <message>
+        <source>&amp;Global Tools Menu</source>
+        <translation type="vanished">Al&amp;gemene gereedschappen-menu</translation>
+    </message>
+    <message>
+        <source>Open the global tools menu</source>
+        <translation type="vanished">Openen algemene gereedschappen-menu</translation>
+    </message>
+    <message>
+        <source>&amp;Virtual Media Manager</source>
+        <translation type="vanished">&amp;Virtual Media Manager</translation>
+    </message>
+    <message>
+        <source>Open the Virtual Media Manager</source>
+        <translation type="vanished">Openen Virtual Media Manager</translation>
+    </message>
+    <message>
+        <source>&amp;Host Network Manager</source>
+        <translation type="vanished">&amp;Host Network Manager</translation>
+    </message>
+    <message>
+        <source>Open the Host Network Manager</source>
+        <translation type="vanished">Openen Host Netwerk Manager</translation>
+    </message>
+    <message>
+        <source>&amp;Audio</source>
+        <translation type="vanished">&amp;Audio</translation>
+    </message>
+    <message>
+        <source>Audio Output</source>
+        <translation type="vanished">Audio Output</translation>
+    </message>
+    <message>
+        <source>Enable audio output</source>
+        <translation type="vanished">Inschakelen Audio Output</translation>
+    </message>
+    <message>
+        <source>Audio Input</source>
+        <translation type="vanished">Audio Input</translation>
+    </message>
+    <message>
+        <source>Enable audio input</source>
+        <translation type="vanished">Inschakelen Audio Input</translation>
+    </message>
+    <message>
+        <source>Po&amp;wer Off</source>
+        <translation>Uit&amp;zetten</translation>
+    </message>
+    <message>
+        <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
+        <translatorcomment>Guest Additions als naam laten staan</translatorcomment>
+        <translation type="obsolete">Pas de grootte van het gastscherm automatisch aan wanneer het venster van grootte veranderd (vereist Guest Additions)</translation>
+    </message>
+    <message>
+        <source>Disable &amp;Mouse Integration</source>
+        <translation type="obsolete">&amp;Muis-integratie uitschakelen</translation>
+    </message>
+    <message>
+        <source>Temporarily disable host mouse pointer integration</source>
+        <translation type="obsolete">Tijdelijk de integratie van muis met host uitschakelen</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Del</source>
+        <translation type="obsolete">&amp;Invoegen Ctrl+Alt+Del</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
+        <translation type="obsolete">Stuur Ctrl+Alt+Del-combinatie naar de virtuele machine</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Backspace</source>
+        <translation type="obsolete">&amp;Invoegen van Ctrl-Alt-Backspace</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
+        <translation type="obsolete">Stuur Ctrl+Alt+Backspace-combinatie naar de virtuele machine</translation>
+    </message>
+    <message>
+        <source>Take &amp;Snapshot...</source>
+        <translation type="obsolete">Maak een &amp;momentopname...</translation>
+    </message>
+    <message>
+        <source>Show Session Information Dialog</source>
+        <translation type="obsolete">Toon sessie-informatiedialoog</translation>
+    </message>
+    <message>
+        <source>Send the ACPI Power Button press event to the virtual machine</source>
+        <translation type="obsolete">Stuur ACPI-aan/uitknop-schakelen naar de virtuele machine</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Devices</source>
+        <translation type="obsolete">&amp;CD/DVD-apparaten</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Devices</source>
+        <translation type="obsolete">&amp;Diskette-apparaten</translation>
+    </message>
+    <message>
+        <source>&amp;USB Devices</source>
+        <translation type="obsolete">&amp;USB-apparaten</translation>
+    </message>
+    <message>
+        <source>&amp;Network Adapters...</source>
+        <translation type="obsolete">&amp;Netwerkadapters...</translation>
+    </message>
+    <message>
+        <source>Change the settings of network adapters</source>
+        <translation type="obsolete">Instellingen van netwerkadapters aanpassen</translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders...</source>
+        <translation type="obsolete">&amp;Gedeelde mappen...</translation>
+    </message>
+    <message>
+        <source>Create or modify shared folders</source>
+        <translation type="obsolete">Aanmaken/bewerken gedeelde mappen</translation>
+    </message>
+    <message>
+        <source>&amp;Install Guest Additions...</source>
+        <translatorcomment>Guest Additions als naam laten staan</translatorcomment>
+        <translation type="obsolete">&amp;Installeren Guest Additions...</translation>
+    </message>
+    <message>
+        <source>Mount the Guest Additions installation image</source>
+        <translation type="obsolete">Koppel Guest Additions installatie-image aan</translation>
+    </message>
+    <message>
+        <source>Enable remote desktop (RDP) connections to this machine</source>
+        <translation type="obsolete">Sta Beeldscherm-op-Afstand (remote desktop protocol, RDP) verbindingen naar deze machine toe</translation>
+    </message>
+    <message>
+        <source>Enable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="obsolete">Activeer &amp;loggen...</translation>
+    </message>
+    <message>
+        <source>Switch to &amp;Fullscreen</source>
+        <translation type="obsolete">Schakel over op Scherm&amp;vullend</translation>
+    </message>
+    <message>
+        <source>Switch between normal and fullscreen mode</source>
+        <translation type="obsolete">Schakel tussen Normale en Schermvullende modus</translation>
+    </message>
+    <message>
+        <source>Switch to Seam&amp;less Mode</source>
+        <translation type="obsolete">Schakel over op Naad&amp;loze modus</translation>
+    </message>
+    <message>
+        <source>Switch to &amp;Scaled Mode</source>
+        <translation type="obsolete">Schakel over op &amp;Schaalmodus</translation>
+    </message>
+    <message>
+        <source>Enable R&amp;emote Display</source>
+        <translation type="obsolete">B&amp;eeldscherm op Afstand inschakelen</translation>
+    </message>
+    <message>
+        <source>Manage the virtual machine settings</source>
+        <translation type="obsolete">Beheer de instellingen van de virtuele machine</translation>
+    </message>
+    <message>
+        <source>Show the log files of the selected virtual machine</source>
+        <translation type="obsolete">Toon de logbestanden van de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>Show Network Operations Manager</source>
+        <translation type="obsolete">Toon Manager Netwerkoperaties</translation>
+    </message>
+    <message>
+        <source>Show a window with product information</source>
+        <translation type="obsolete">Toon produktinformatie</translation>
+    </message>
+    <message>
+        <source>Take a screenshot of the virtual machine</source>
+        <translation type="obsolete">Maak schermafdruk van de virtuele machine</translation>
+    </message>
+    <message>
+        <source>Ins&amp;ert Ctrl-Alt-Backspace</source>
+        <translation type="obsolete">Invo&amp;egen Ctrl+Alt+Backspace</translation>
+    </message>
+    <message>
+        <source>&amp;Preferences...</source>
+        <comment>global settings</comment>
+        <translation type="obsolete">&amp;Voorkeuren...</translation>
+    </message>
+    <message>
+        <source>Display the global settings window</source>
+        <translation type="obsolete">Toon dialoog Algemene Instellingen</translation>
+    </message>
+    <message>
+        <source>Create a new virtual machine</source>
+        <translation type="obsolete">Maak een nieuwe virtuele machine aan</translation>
+    </message>
+    <message>
+        <source>Add an existing virtual machine</source>
+        <translation type="obsolete">Toevoegen bestaande virtuele machine</translation>
+    </message>
+    <message>
+        <source>Rename the selected virtual machine group</source>
+        <translation type="obsolete">Hernoem de geselecteerde virtuelemachinegroep</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machine</source>
+        <translation type="obsolete">Start de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>Switch to the window of the selected virtual machine</source>
+        <translation type="obsolete">Schakel over naar het venster van de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh...</source>
+        <translation type="obsolete">&amp;Verversen...</translation>
+    </message>
+    <message>
+        <source>Refresh the accessibility state of the selected virtual machine</source>
+        <translation type="obsolete">Actualiseer de toegankelijkheidsstatus van de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>Show in Finder</source>
+        <translation type="obsolete">Toon in zoekscherm</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Finder.</source>
+        <translation type="obsolete">Toon het VirtualBox Machine Definitiebestand in het zoekscherm.</translation>
+    </message>
+    <message>
+        <source>Show in Explorer</source>
+        <translation type="obsolete">Toon in Explorer</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Explorer.</source>
+        <translation type="obsolete">Toon het VirtualBox Machine Definitiebestand in Explorer.</translation>
+    </message>
+    <message>
+        <source>Show in File Manager</source>
+        <translation type="obsolete">Toon in bestandsmanager</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in the File Manager</source>
+        <translation type="obsolete">Toon het VirtualBox-machinedefinitiebestand in bestandsmanager</translation>
+    </message>
+    <message>
+        <source>Add a new group based on the items selected</source>
+        <translation type="obsolete">Toevoegen nieuwe groep op basis van geselecteerde items</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation type="obsolete">Kloon de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>Remove the selected virtual machine</source>
+        <translation type="obsolete">Verwijder de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>D&amp;iscard saved state...</source>
+        <translation type="obsolete">Ver&amp;werp opgeslagen staat...</translation>
+    </message>
+    <message>
+        <source>Discard the saved state of the selected virtual machine</source>
+        <translation type="obsolete">Verwerp de opgeslagen staat van de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>Create Alias on Desktop</source>
+        <translation type="obsolete">Maak alias op bureaublad</translation>
+    </message>
+    <message>
+        <source>Creates an Alias file to the VirtualBox Machine Definition file on your Desktop.</source>
+        <translation type="obsolete">Maakt een aliasbestand naar het VirtualBox Machine Definitiebestand op uw bureaublad.</translation>
+    </message>
+    <message>
+        <source>Create Shortcut on Desktop</source>
+        <translation type="obsolete">Maak een snelkoppeling op bureaublad</translation>
+    </message>
+    <message>
+        <source>Creates an Shortcut file to the VirtualBox Machine Definition file on your Desktop.</source>
+        <translation type="obsolete">Maakt een snelkoppeling naar het VirtualBox Machine Definitiebestand op het bureaublad.</translation>
+    </message>
+    <message>
+        <source>Sort the items of the selected virtual machine group alphabetically</source>
+        <translation type="obsolete">Sorteer de items van de geselecteerde virtuelemachinegroep alfabetisch</translation>
+    </message>
+    <message>
+        <source>Remove the selected virtual machines</source>
+        <translation type="obsolete">Verwijder de geselecteerde virtuele machines</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machines</source>
+        <translation type="obsolete">Start de geselecteerde virtuele machines</translation>
+    </message>
+    <message>
+        <source>Switch to the windows of the selected virtual machines</source>
+        <translation type="obsolete">Schakel over naar de vensters van de geselecteerde virtuele machines</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the selected virtual machines</source>
+        <translation type="obsolete">Onderbreek tijdelijk de uitvoering van de geselecteerde virtuele machines</translation>
+    </message>
+    <message>
+        <source>Reset the selected virtual machines</source>
+        <translation type="obsolete">Reset de geselecteerde virtuele machines</translation>
+    </message>
+    <message>
+        <source>Discard the saved state of the selected virtual machines</source>
+        <translation type="obsolete">Verwerp de opgeslagen staat van de geselecteerde virtuele machines</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Finder</source>
+        <translation type="obsolete">Toon het VirtualBox-machinedefinitiebestand in het zoekscherm</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Explorer</source>
+        <translation type="obsolete">Toon het VirtualBox-machinedefinitiebestand in Explorer</translation>
+    </message>
+    <message>
+        <source>Creates an alias file to the VirtualBox Machine Definition file on your desktop</source>
+        <translation type="obsolete">Maakt een aliasbestand naar het VirtualBox-machinedefinitiebestand op uw bureaublad</translation>
+    </message>
+    <message>
+        <source>Creates an shortcut file to the VirtualBox Machine Definition file on your desktop</source>
+        <translation type="obsolete">Maakt een snelkoppeling naar het VirtualBox-machinedefinitiebestand op het bureaublad</translation>
+    </message>
+    <message>
+        <source>Save State</source>
+        <translation type="obsolete">Staat opslaan</translation>
+    </message>
+    <message>
+        <source>Save the machine state of the selected virtual machines</source>
+        <translation type="obsolete">Sla de machinestaat van de geselecteerde virtuele machines op</translation>
+    </message>
+    <message>
+        <source>Send the ACPI Power Button press event to the selected virtual machines</source>
+        <translation type="obsolete">Stuur ACPI-aan/uitknop-schakelen naar de geselecteerde virtuele machines</translation>
+    </message>
+    <message>
+        <source>Power off the selected virtual machines</source>
+        <translation type="obsolete">Zet de geselecteerde virtuele machines uit</translation>
+    </message>
+    <message>
+        <source>&amp;Ungroup...</source>
+        <translatorcomment>ontgroepen kennen wij niet</translatorcomment>
+        <translation type="obsolete">Groep ophe&amp;ffen...</translation>
+    </message>
+    <message>
+        <source>Ungroup items of the selected virtual machine group</source>
+        <translation type="obsolete">Hef de geselecteerde virtuelemachinegroep op</translation>
+    </message>
+    <message>
+        <source>Sort</source>
+        <translation type="obsolete">Sorteren</translation>
+    </message>
+    <message>
+        <source>Sort the group of the first selected machine alphabetically</source>
+        <translation type="obsolete">Sorteer de groep van de eerst geselecteerde machine alfabetisch</translation>
+    </message>
+    <message>
+        <source>Drag&apos;n&apos;Drop</source>
+        <translatorcomment>Zoals bij Mozillavertalingen</translatorcomment>
+        <translation type="obsolete">Slepen naar</translation>
+    </message>
+    <message>
+        <source>Save the machine state of the virtual machine</source>
+        <translation type="obsolete">Sla de machinestaat van de geselecteerde virtuele machine op</translation>
+    </message>
+    <message>
+        <source>Toggle remote desktop (RDP) connections to this machine</source>
+        <translation type="obsolete">Aan/uit Beeldscherm-op-Afstand(remote desktop protocol, RDP)verbindingen naar deze machine</translation>
+    </message>
+    <message>
+        <source>Toggle video capture</source>
+        <translation type="obsolete">Videocapture aan/uit</translation>
+    </message>
+    <message>
+        <source>Configure video capture settings</source>
+        <translation type="obsolete">Videocapture instellen</translation>
+    </message>
+    <message>
+        <source>&amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="obsolete">&amp;Loggen...</translation>
+    </message>
+    <message>
+        <source>Show Session Information Window</source>
+        <translation type="obsolete">Toon sessie-informatievenster</translation>
+    </message>
+    <message>
+        <source>Insert the Guest Additions disk file into the virtual drive</source>
+        <translation type="obsolete">Doe het Guest Additions-schijfbestand in het virtuele station</translation>
+    </message>
+    <message>
+        <source>Opens window to configure menu-bar</source>
+        <translation type="obsolete">Opent een venster om de menubalk in te stellen</translation>
+    </message>
+    <message>
+        <source>Toggle menu-bar visibility for this machine</source>
+        <translation type="obsolete">Menubalk zichtbaar/niet zichtbaar op deze machine</translation>
+    </message>
+    <message>
+        <source>Opens window to configure status-bar</source>
+        <translation type="obsolete">Opent een venster om de statusbalk in te stellen</translation>
+    </message>
+    <message>
+        <source>Toggle status-bar visibility for this machine</source>
+        <translation type="obsolete">Statusbalk zichtbaar/niet zichtbaar op deze machine</translation>
+    </message>
+    <message>
+        <source>Display the global settings window to configure shortcuts</source>
+        <translation type="obsolete">Toon venster algemene instellingen om sneltoetsen in te stellen</translation>
+    </message>
+    <message>
+        <source>&amp;Hard Drives</source>
+        <translation type="obsolete">&amp;Harde schijven</translation>
+    </message>
+    <message>
+        <source>&amp;Hard Drive Settings...</source>
+        <translation type="obsolete">Instellingen &amp;harde schijven...</translation>
+    </message>
+    <message>
+        <source>Change the settings of hard drives</source>
+        <translation type="obsolete">Instellingen van harde schijven aanpassen</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation type="obsolete">Netwerk</translation>
+    </message>
+    <message>
+        <source>Change the settings of USB devices</source>
+        <translation type="obsolete">Instellingen van USB-apparaten aanpassen</translation>
+    </message>
+    <message>
+        <source>Minimize active machine-window</source>
+        <translation type="obsolete">Minimaliseren actieve machinevenster</translation>
+    </message>
+    <message>
+        <source>&amp;Insert %1</source>
+        <translation type="obsolete">&amp;Invoeren %1</translation>
+    </message>
+    <message>
+        <source>Drag and Drop</source>
+        <translation type="obsolete">Drag-and-drop</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machines in the background</source>
+        <translation type="obsolete">Start de geselecteerde virtuele machines op de achtergrond</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machines with the option of continuing them in the background</source>
+        <translation type="obsolete">Start de geselecteerde virtuele machines met de optie deze op de achtergrond te laten doorgaan</translation>
+    </message>
 </context>
 <context>
     <name>UIActionPoolRuntime</name>
@@ -1454,11 +1583,6 @@
         </translation>
     </message>
     <message>
-        <source>Status</source>
-        <comment>password table field</comment>
-        <translation type="obsolete">Status</translation>
-    </message>
-    <message>
         <source>ID</source>
         <comment>password table field</comment>
         <translation>ID</translation>
@@ -1475,6 +1599,11 @@
             <numerusform>&lt;nobr&gt;Gebruikt door de volgende %n harde schijf:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
             <numerusform>&lt;nobr&gt;Gebruikt door de volgende %n harde schijven:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <comment>password table field</comment>
+        <translation type="obsolete">Status</translation>
     </message>
 </context>
 <context>
@@ -1528,18 +1657,6 @@
         <translation>RAM</translation>
     </message>
     <message>
-        <source>Hard Disk Controller (IDE)</source>
-        <translation type="obsolete">Harde schijf controller (IDE)</translation>
-    </message>
-    <message>
-        <source>Hard Disk Controller (SATA)</source>
-        <translation type="obsolete">Harde schijf controller (SATA)</translation>
-    </message>
-    <message>
-        <source>Hard Disk Controller (SCSI)</source>
-        <translation type="obsolete">Harde schijf controller (SCSI)</translation>
-    </message>
-    <message>
         <source>DVD</source>
         <translation>DVD</translation>
     </message>
@@ -1581,10 +1698,6 @@
         <translation>Waarschuwingen:</translation>
     </message>
     <message>
-        <source>Hard Disk Controller (SAS)</source>
-        <translation type="obsolete">Harde schijf controller (SAS)</translation>
-    </message>
-    <message>
         <source>When checked a new unique MAC address will assigned to all configured network cards.</source>
         <translation>Als dit is ingesteld zal een nieuw, uniek MAC-adres worden toegewezen aan alle geconfigureerde netwerkkaarten.</translation>
     </message>
@@ -1608,6 +1721,26 @@
         <source>Storage Controller (SAS)</source>
         <translation>Opslagcontroller (SAS)</translation>
     </message>
+    <message>
+        <source>Detailed list of all components of all virtual machines of the current appliance</source>
+        <translation type="vanished">Gedetailleerde lijst van alle componenten van alle virtuele machines van de huidige appliance</translation>
+    </message>
+    <message>
+        <source>Hard Disk Controller (IDE)</source>
+        <translation type="obsolete">Harde schijf controller (IDE)</translation>
+    </message>
+    <message>
+        <source>Hard Disk Controller (SATA)</source>
+        <translation type="obsolete">Harde schijf controller (SATA)</translation>
+    </message>
+    <message>
+        <source>Hard Disk Controller (SCSI)</source>
+        <translation type="obsolete">Harde schijf controller (SCSI)</translation>
+    </message>
+    <message>
+        <source>Hard Disk Controller (SAS)</source>
+        <translation type="obsolete">Harde schijf controller (SAS)</translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -1619,6 +1752,19 @@
     <message>
         <source>Reading Appliance ...</source>
         <translation>Appliance lezen ...</translation>
+    </message>
+</context>
+<context>
+    <name>UIApplianceModelItem</name>
+    <message>
+        <source>%1</source>
+        <comment>col.1 text</comment>
+        <translation type="vanished">%1</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>col.1 text: col.2 text</comment>
+        <translation type="vanished">%1: %2</translation>
     </message>
 </context>
 <context>
@@ -2045,6 +2191,10 @@
 <context>
     <name>UIDetailsPagePrivate</name>
     <message>
+        <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
+        <translation>De geselecteerde virtuele machine is &lt;i&gt;niet te benaderen&lt;/i&gt;. Onderzoek de foutboodschap hieronder en druk op de knop &lt;b&gt;Verversen&lt;/b&gt; als u de benaderbaarheidscontrole wilt herhalen:</translation>
+    </message>
+    <message>
         <source>Name</source>
         <comment>details report</comment>
         <translation type="obsolete">Naam</translation>
@@ -2232,10 +2382,6 @@
         <source>None</source>
         <comment>details report (description)</comment>
         <translation type="obsolete">Geen</translation>
-    </message>
-    <message>
-        <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation>De geselecteerde virtuele machine is &lt;i&gt;niet te benaderen&lt;/i&gt;. Onderzoek de foutboodschap hieronder en druk op de knop &lt;b&gt;Verversen&lt;/b&gt; als u de benaderbaarheidscontrole wilt herhalen:</translation>
     </message>
     <message>
         <source>General</source>
@@ -2587,6 +2733,19 @@
     </message>
 </context>
 <context>
+    <name>UIExtensionPackageItem</name>
+    <message>
+        <source>%1, %2: %3, %4</source>
+        <comment>col.2 text, col.3 name: col.3 text, col.1 name</comment>
+        <translation type="vanished">%1, %2: %3, %4</translation>
+    </message>
+    <message>
+        <source>%1, %2: %3</source>
+        <comment>col.2 text, col.3 name: col.3 text</comment>
+        <translation type="vanished">%1, %2: %3</translation>
+    </message>
+</context>
+<context>
     <name>UIFilePathSelector</name>
     <message>
         <source>&amp;Copy</source>
@@ -2785,12 +2944,30 @@
         <source>Exit group</source>
         <translation>Groep verlaten</translation>
     </message>
+    <message>
+        <source>Virtual Machine group</source>
+        <translation type="vanished">Virtuele Machine-groep</translation>
+    </message>
+</context>
+<context>
+    <name>UIGChooserItemMachine</name>
+    <message>
+        <source>Virtual Machine</source>
+        <translation type="vanished">Virtual Machine</translation>
+    </message>
 </context>
 <context>
     <name>UIGChooserModel</name>
     <message>
         <source>New group</source>
         <translation>Nieuwe groep</translation>
+    </message>
+</context>
+<context>
+    <name>UIGChooserView</name>
+    <message>
+        <source>Contains a tree of Virtual Machines and their groups</source>
+        <translation type="vanished">Boomweergave van Virtuele Machines en hun groep</translation>
     </message>
 </context>
 <context>
@@ -2856,16 +3033,6 @@
         <translation>Uitgeschakeld</translation>
     </message>
     <message>
-        <source>[CD/DVD]</source>
-        <comment>details (storage)</comment>
-        <translation type="obsolete">[CD/DVD]</translation>
-    </message>
-    <message>
-        <source>Not attached</source>
-        <comment>details (storage)</comment>
-        <translation type="obsolete">Niet aangesloten</translation>
-    </message>
-    <message>
         <source>Controller</source>
         <comment>details (audio)</comment>
         <translation>Controller</translation>
@@ -2874,26 +3041,6 @@
         <source>Disabled</source>
         <comment>details (audio)</comment>
         <translation>Uitgeschakeld</translation>
-    </message>
-    <message>
-        <source>Internal network, &apos;%1&apos;</source>
-        <comment>details (network)</comment>
-        <translation type="obsolete">Intern netwerk, &apos;%1&apos;</translation>
-    </message>
-    <message>
-        <source>Host-only adapter, &apos;%1&apos;</source>
-        <comment>details (network)</comment>
-        <translation type="obsolete">Host-only adapter, &apos;%1&apos;</translation>
-    </message>
-    <message>
-        <source>Generic driver, &apos;%1&apos;</source>
-        <comment>details (network)</comment>
-        <translation type="obsolete">Generiek Stuurprogramma, &apos;%1&apos;</translation>
-    </message>
-    <message>
-        <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
-        <comment>details (network)</comment>
-        <translation type="obsolete">Generiek Stuurprogramma, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
     </message>
     <message>
         <source>Adapter %1</source>
@@ -3100,11 +3247,6 @@
         <translation>USB-controller</translation>
     </message>
     <message>
-        <source>Enabled</source>
-        <comment>details (user interface/Unscaled HiDPI Video Output)</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
-    </message>
-    <message>
         <source>Mini-toolbar Position</source>
         <comment>details (user interface)</comment>
         <translation>Positie miniwerkbalk</translation>
@@ -3173,6 +3315,111 @@
         <source>Disabled</source>
         <comment>details (user interface/status-bar)</comment>
         <translation>Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Chipset Type</source>
+        <comment>details (system)</comment>
+        <translation type="vanished">Chipset-type</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (system/EFI)</comment>
+        <translation type="vanished">Ingeschakeld</translation>
+    </message>
+    <message>
+        <source>EFI</source>
+        <comment>details (system)</comment>
+        <translation type="vanished">EFI</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (system/EFI)</comment>
+        <translation type="vanished">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (display/Unscaled HiDPI Video Output)</comment>
+        <translation type="vanished">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Audio Output</source>
+        <comment>details (audio)</comment>
+        <translation type="vanished">Audio Output</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (audio/output)</comment>
+        <translation type="vanished">Ingeschakeld</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (audio/output)</comment>
+        <translation type="vanished">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Audio Input</source>
+        <comment>details (audio)</comment>
+        <translation type="vanished">Audio Input</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (audio/input)</comment>
+        <translation type="vanished">Ingeschakeld</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (audio/input)</comment>
+        <translation type="vanished">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>[CD/DVD]</source>
+        <comment>details (storage)</comment>
+        <translation type="obsolete">[CD/DVD]</translation>
+    </message>
+    <message>
+        <source>Not attached</source>
+        <comment>details (storage)</comment>
+        <translation type="obsolete">Niet aangesloten</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Intern netwerk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Host-only adapter, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Generiek Stuurprogramma, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Generiek Stuurprogramma, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (user interface/Unscaled HiDPI Video Output)</comment>
+        <translation type="obsolete">Ingeschakeld</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsElement</name>
+    <message>
+        <source>%1 details</source>
+        <comment>like &apos;General details&apos; or &apos;Storage details&apos;</comment>
+        <translation type="vanished">%1 details</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsSet</name>
+    <message>
+        <source>Contains the details of virtual machine &apos;%1&apos;</source>
+        <translation type="vanished">Details van virtual machine &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -3354,11 +3601,14 @@
     </message>
 </context>
 <context>
-    <name>UIGMachinePreview</name>
+    <name>UIGDetailsView</name>
     <message>
-        <source>Update Disabled</source>
-        <translation type="obsolete">Update uitgeschakeld</translation>
+        <source>Contains a list of Virtual Machine details</source>
+        <translation type="vanished">Lijst van Virtuele Machine-details</translation>
     </message>
+</context>
+<context>
+    <name>UIGMachinePreview</name>
     <message>
         <source>Every 0.5 s</source>
         <translation>Elke 0,5 s</translation>
@@ -3380,16 +3630,20 @@
         <translation>Elke 10 s</translation>
     </message>
     <message>
-        <source>No Preview</source>
-        <translation type="obsolete">Geen Preview</translation>
-    </message>
-    <message>
         <source>Update disabled</source>
         <translation>Update uitgeschakeld</translation>
     </message>
     <message>
         <source>No preview</source>
         <translation>Geen preview</translation>
+    </message>
+    <message>
+        <source>Update Disabled</source>
+        <translation type="obsolete">Update uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>No Preview</source>
+        <translation type="obsolete">Geen Preview</translation>
     </message>
 </context>
 <context>
@@ -3403,16 +3657,8 @@
         <translation>&amp;Breedte:</translation>
     </message>
     <message>
-        <source>Specifies the maximum width which we would like the guest to use.</source>
-        <translation type="obsolete">Geeft de maximum breedte die de gast mag gebruiken aan.</translation>
-    </message>
-    <message>
         <source>&amp;Height:</source>
         <translation>&amp;Hoogte:</translation>
-    </message>
-    <message>
-        <source>Specifies the maximum height which we would like the guest to use.</source>
-        <translation type="obsolete">Geeft de maximum hoogte die de gast mag gebruiken aan.</translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -3448,10 +3694,6 @@
         <translation>Machine-vensters:</translation>
     </message>
     <message>
-        <source>If checked, machine windows will be raised when the mouse pointer moves over them.</source>
-        <translation type="obsolete">Als dit is ingesteld zullen machine-vensters omhoog komen wanneer de muis er overheen gaat.</translation>
-    </message>
-    <message>
         <source>&amp;Raise Window Under Mouse</source>
         <translation>Laat venste&amp;r onder muis omhoog komen</translation>
     </message>
@@ -3467,13 +3709,21 @@
         <source>When checked, machine windows will be raised when the mouse pointer moves over them.</source>
         <translation>Als dit is ingesteld zullen machine-vensters omhoog komen wanneer de muis er overheen gaat.</translation>
     </message>
+    <message>
+        <source>Specifies the maximum width which we would like the guest to use.</source>
+        <translation type="obsolete">Geeft de maximum breedte die de gast mag gebruiken aan.</translation>
+    </message>
+    <message>
+        <source>Specifies the maximum height which we would like the guest to use.</source>
+        <translation type="obsolete">Geeft de maximum hoogte die de gast mag gebruiken aan.</translation>
+    </message>
+    <message>
+        <source>If checked, machine windows will be raised when the mouse pointer moves over them.</source>
+        <translation type="obsolete">Als dit is ingesteld zullen machine-vensters omhoog komen wanneer de muis er overheen gaat.</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsExtension</name>
-    <message>
-        <source>&amp;Extension Packages:</source>
-        <translation type="obsolete">&amp;Extensiepakketten:</translation>
-    </message>
     <message>
         <source>Lists all installed packages.</source>
         <translation>Toont alle geïnstalleerde pakketten.</translation>
@@ -3489,14 +3739,6 @@
     <message>
         <source>Version</source>
         <translation>Versie</translation>
-    </message>
-    <message>
-        <source>Add package</source>
-        <translation type="obsolete">Toevoegen pakket</translation>
-    </message>
-    <message>
-        <source>Remove package</source>
-        <translation type="obsolete">Verwijder pakket</translation>
     </message>
     <message>
         <source>Select an extension package file</source>
@@ -3530,6 +3772,18 @@
         <source>Removes selected package.</source>
         <translation>Verwijdert geselecteerd pakket.</translation>
     </message>
+    <message>
+        <source>&amp;Extension Packages:</source>
+        <translation type="obsolete">&amp;Extensiepakketten:</translation>
+    </message>
+    <message>
+        <source>Add package</source>
+        <translation type="obsolete">Toevoegen pakket</translation>
+    </message>
+    <message>
+        <source>Remove package</source>
+        <translation type="obsolete">Verwijder pakket</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsGeneral</name>
@@ -3548,6 +3802,18 @@
     <message>
         <source>V&amp;RDP Authentication Library:</source>
         <translation>V&amp;RDP-Authenticatiebibliotheek:</translation>
+    </message>
+    <message>
+        <source>When checked, the host screensaver will be disabled whenever a virtual machine is running.</source>
+        <translation>Als dit is ingesteld wordt de hostscreensaver uitgeschakeld wanneer er een virtuele machine draait.</translation>
+    </message>
+    <message>
+        <source>Host Screensaver:</source>
+        <translation>Screensaver host:</translation>
+    </message>
+    <message>
+        <source>&amp;Disable When Running Virtual Machines</source>
+        <translation>Uitschakelen wanneer Virtuele Machines &amp;draaien</translation>
     </message>
     <message>
         <source>When checked, the application will provide an icon with the context menu in the system tray.</source>
@@ -3586,32 +3852,12 @@
         <translation type="obsolete">Screensaver &amp;host:</translation>
     </message>
     <message>
-        <source>When checked, the host screensaver will be disabled whenever a virtual machine is running.</source>
-        <translation>Als dit is ingesteld wordt de hostscreensaver uitgeschakeld wanneer er een virtuele machine draait.</translation>
-    </message>
-    <message>
         <source>Disable When Running Virtual Machines</source>
         <translation type="obsolete">Uitschakelen wanneer Virtuele Machines draaien</translation>
-    </message>
-    <message>
-        <source>Host Screensaver:</source>
-        <translation>Screensaver host:</translation>
-    </message>
-    <message>
-        <source>&amp;Disable When Running Virtual Machines</source>
-        <translation>Uitschakelen wanneer Virtuele Machines &amp;draaien</translation>
     </message>
 </context>
 <context>
     <name>UIGlobalSettingsInput</name>
-    <message>
-        <source>Host &amp;Key:</source>
-        <translation type="obsolete">&amp;Hosttoets:</translation>
-    </message>
-    <message>
-        <source>Holds the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
-        <translation type="obsolete">Toont de toets die als Hosttoets wordt gebruikt in het VM-scherm. Activeer het invoerveld en druk op een nieuwe Hosttoets. Let op dat alfanumerieke toetsen, cursortoetsen en bewerkingstoetsen niet gebruikt kunnen worden als Hosttoets.</translation>
-    </message>
     <message>
         <source>When checked, the keyboard is automatically captured every time the VM window is activated. When the keyboard is captured, all keystrokes (including system ones like Alt-Tab) are directed to the VM.</source>
         <translation>Als dit is ingesteld wordt het toetsenbord automatisch afgevangen zodra het VM-venster is geactiveerd. Wanneer het toetsenbord is afgevangen worden alle toetsaanslagen (inclusief systeemeigen zoals Alt-Tab) doorgeleid naar de virtuele machine.</translation>
@@ -3619,14 +3865,6 @@
     <message>
         <source>&amp;Auto Capture Keyboard</source>
         <translation>&amp;Automatisch toetsenbord afvangen</translation>
-    </message>
-    <message>
-        <source>Reset host combination</source>
-        <translation type="obsolete">Reset hostcombinatie</translation>
-    </message>
-    <message>
-        <source>Resets the key combination used as the host combination in the VM window.</source>
-        <translation type="obsolete">Reset de toetscombinatie die als hostcombinatie wordt gebruikt in het VM-scherm.</translation>
     </message>
     <message>
         <source>Host Key Combination</source>
@@ -3645,20 +3883,36 @@
         <translation>Virtuele &amp;Machine</translation>
     </message>
     <message>
-        <source>Lists all the available shortcuts which can be configured.</source>
-        <translation type="obsolete">Toon alle beschikbare shortcuts die kunnen worden ingesteld.</translation>
-    </message>
-    <message>
-        <source>Enter a sequence to filter the shortcut list.</source>
-        <translation type="obsolete">Geef een combinatie om de shortcutlijst te filteren.</translation>
-    </message>
-    <message>
         <source>Lists all available shortcuts which can be configured.</source>
         <translation>Toont alle beschikbare shortcuts die kunnen worden ingesteld.</translation>
     </message>
     <message>
         <source>Holds a sequence to filter the shortcut list.</source>
         <translation>Ruimte voor een combinatie waarmee shortcutlijst zal worden gefilterd.</translation>
+    </message>
+    <message>
+        <source>Host &amp;Key:</source>
+        <translation type="obsolete">&amp;Hosttoets:</translation>
+    </message>
+    <message>
+        <source>Holds the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
+        <translation type="obsolete">Toont de toets die als Hosttoets wordt gebruikt in het VM-scherm. Activeer het invoerveld en druk op een nieuwe Hosttoets. Let op dat alfanumerieke toetsen, cursortoetsen en bewerkingstoetsen niet gebruikt kunnen worden als Hosttoets.</translation>
+    </message>
+    <message>
+        <source>Reset host combination</source>
+        <translation type="obsolete">Reset hostcombinatie</translation>
+    </message>
+    <message>
+        <source>Resets the key combination used as the host combination in the VM window.</source>
+        <translation type="obsolete">Reset de toetscombinatie die als hostcombinatie wordt gebruikt in het VM-scherm.</translation>
+    </message>
+    <message>
+        <source>Lists all the available shortcuts which can be configured.</source>
+        <translation type="obsolete">Toon alle beschikbare shortcuts die kunnen worden ingesteld.</translation>
+    </message>
+    <message>
+        <source>Enter a sequence to filter the shortcut list.</source>
+        <translation type="obsolete">Geef een combinatie om de shortcutlijst te filteren.</translation>
     </message>
 </context>
 <context>
@@ -3688,10 +3942,6 @@
         <translation>Taal:</translation>
     </message>
     <message>
-        <source>&amp;Interface Language:</source>
-        <translation type="obsolete">&amp;Taal Interface:</translation>
-    </message>
-    <message>
         <source>Lists all available user interface languages. The effective language is written in &lt;b&gt;bold&lt;/b&gt;. Select &lt;i&gt;Default&lt;/i&gt; to reset to the system default language.</source>
         <translation>Geeft alle beschikbare gebruikerstalen weer. De actuele taal is &lt;b&gt;vetgedrukt&lt;/b&gt; weergegeven. Selecteer &lt;i&gt;Standaard&lt;/i&gt; om naar de standaardtaal van het systeem terug te keren.</translation>
     </message>
@@ -3719,37 +3969,13 @@
         <source>&amp;Interface Languages</source>
         <translation>&amp;Interfacetalen</translation>
     </message>
+    <message>
+        <source>&amp;Interface Language:</source>
+        <translation type="obsolete">&amp;Taal Interface:</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetwork</name>
-    <message>
-        <source>host IPv4 address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation type="obsolete">host-IPv4-adres van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
-    </message>
-    <message>
-        <source>host IPv4 network mask of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation type="obsolete">host-IPv4-netmasker van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
-    </message>
-    <message>
-        <source>host IPv6 address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation type="obsolete">host-IPv6-adres van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
-    </message>
-    <message>
-        <source>DHCP server address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation type="obsolete">DHCP-serveradres van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
-    </message>
-    <message>
-        <source>DHCP server network mask of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation type="obsolete">DHCP-server netmasker van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
-    </message>
-    <message>
-        <source>DHCP lower address bound of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation type="obsolete">Grens laagste IP-adres voor de DHCP-server van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
-    </message>
-    <message>
-        <source>DHCP upper address bound of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation type="obsolete">Grens hoogste IP-adres voor de DHCP-server van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
-    </message>
     <message>
         <source>Adapter</source>
         <translation>Adapter</translation>
@@ -3829,22 +4055,6 @@
     <message>
         <source>Upper Bound</source>
         <translation>Hoogste adres</translation>
-    </message>
-    <message>
-        <source>&amp;Add host-only network</source>
-        <translation type="obsolete">Toe&amp;voegen host-only netwerk</translation>
-    </message>
-    <message>
-        <source>&amp;Remove host-only network</source>
-        <translation type="obsolete">&amp;Verwijderen host-only netwerk</translation>
-    </message>
-    <message>
-        <source>&amp;Edit host-only network</source>
-        <translation type="obsolete">&amp;Wijzigen host-only netwerk</translation>
-    </message>
-    <message>
-        <source>&amp;Host-only Networks:</source>
-        <translation type="obsolete">&amp;Host-only netwerken:</translation>
     </message>
     <message>
         <source>Lists all available host-only networks.</source>
@@ -3972,18 +4182,6 @@
         <translation>Actief</translation>
     </message>
     <message>
-        <source>&amp;Add NAT network</source>
-        <translation type="obsolete">N&amp;AT-netwerk toevoegen</translation>
-    </message>
-    <message>
-        <source>&amp;Remove NAT network</source>
-        <translation type="obsolete">NAT-netwe&amp;rk verwijderen</translation>
-    </message>
-    <message>
-        <source>&amp;Edit NAT network</source>
-        <translation type="obsolete">NAT-n&amp;etwerk bewerken</translation>
-    </message>
-    <message>
         <source>Add NAT Network</source>
         <translation>NAT-netwerk toevoegen</translation>
     </message>
@@ -4034,6 +4232,62 @@
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
         <translation>Hostinterface &lt;b&gt;%1&lt;/b&gt; heeft op dit moment geen geldige IPv4-netwerkmaskerprefixlengte.</translation>
+    </message>
+    <message>
+        <source>host IPv4 address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
+        <translation type="obsolete">host-IPv4-adres van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
+    </message>
+    <message>
+        <source>host IPv4 network mask of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
+        <translation type="obsolete">host-IPv4-netmasker van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
+    </message>
+    <message>
+        <source>host IPv6 address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
+        <translation type="obsolete">host-IPv6-adres van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
+    </message>
+    <message>
+        <source>DHCP server address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
+        <translation type="obsolete">DHCP-serveradres van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
+    </message>
+    <message>
+        <source>DHCP server network mask of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
+        <translation type="obsolete">DHCP-server netmasker van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
+    </message>
+    <message>
+        <source>DHCP lower address bound of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
+        <translation type="obsolete">Grens laagste IP-adres voor de DHCP-server van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
+    </message>
+    <message>
+        <source>DHCP upper address bound of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
+        <translation type="obsolete">Grens hoogste IP-adres voor de DHCP-server van &lt;b&gt;%1&lt;/b&gt; is foutief</translation>
+    </message>
+    <message>
+        <source>&amp;Add host-only network</source>
+        <translation type="obsolete">Toe&amp;voegen host-only netwerk</translation>
+    </message>
+    <message>
+        <source>&amp;Remove host-only network</source>
+        <translation type="obsolete">&amp;Verwijderen host-only netwerk</translation>
+    </message>
+    <message>
+        <source>&amp;Edit host-only network</source>
+        <translation type="obsolete">&amp;Wijzigen host-only netwerk</translation>
+    </message>
+    <message>
+        <source>&amp;Host-only Networks:</source>
+        <translation type="obsolete">&amp;Host-only netwerken:</translation>
+    </message>
+    <message>
+        <source>&amp;Add NAT network</source>
+        <translation type="obsolete">N&amp;AT-netwerk toevoegen</translation>
+    </message>
+    <message>
+        <source>&amp;Remove NAT network</source>
+        <translation type="obsolete">NAT-netwe&amp;rk verwijderen</translation>
+    </message>
+    <message>
+        <source>&amp;Edit NAT network</source>
+        <translation type="obsolete">NAT-n&amp;etwerk bewerken</translation>
     </message>
 </context>
 <context>
@@ -4146,10 +4400,6 @@
         <translation>Handmatige &amp;configuratie</translation>
     </message>
     <message>
-        <source>Use manual configuration for this host-only network adapter.</source>
-        <translation type="obsolete">Gebruik handmatige configuratie voor deze host-only netwerkadapter.</translation>
-    </message>
-    <message>
         <source>&amp;IPv4 Address:</source>
         <translation>&amp;IPv4-adres:</translation>
     </message>
@@ -4188,10 +4438,6 @@
     <message>
         <source>&amp;Enable Server</source>
         <translation>Server insch&amp;akelen</translation>
-    </message>
-    <message>
-        <source>Indicates whether the DHCP Server is enabled on machine startup or not.</source>
-        <translation type="obsolete">Geeft aan of de DHCP-server wordt ingeschakeld bij het opstarten van de machine of niet.</translation>
     </message>
     <message>
         <source>Server Add&amp;ress:</source>
@@ -4233,6 +4479,14 @@
         <source>When checked, the DHCP Server will be enabled for this network on machine start-up.</source>
         <translation>Als dit is ingesteld zal voor dit netwerk de DHCP-server tijdens de machinestart worden ingeschakeld.</translation>
     </message>
+    <message>
+        <source>Use manual configuration for this host-only network adapter.</source>
+        <translation type="obsolete">Gebruik handmatige configuratie voor deze host-only netwerkadapter.</translation>
+    </message>
+    <message>
+        <source>Indicates whether the DHCP Server is enabled on machine startup or not.</source>
+        <translation type="obsolete">Geeft aan of de DHCP-server wordt ingeschakeld bij het opstarten van de machine of niet.</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetworkDetailsNAT</name>
@@ -4243,10 +4497,6 @@
     <message>
         <source>&amp;Enable Network</source>
         <translation>Insch&amp;akelen netwerk</translation>
-    </message>
-    <message>
-        <source>Enable this NAT network.</source>
-        <translation type="obsolete">Schakel dit NAT-netwerk in.</translation>
     </message>
     <message>
         <source>Network &amp;Name:</source>
@@ -4273,28 +4523,12 @@
         <translation>Ondersteund &amp;DCPH</translation>
     </message>
     <message>
-        <source>Determines whether this network supports DHCP.</source>
-        <translation type="obsolete">Bepaald of dit netwerk DHCP ondersteund.</translation>
-    </message>
-    <message>
         <source>Supports &amp;IPv6</source>
         <translation>Ondersteund &amp;IPv6</translation>
     </message>
     <message>
-        <source>Determines whether this network supports IPv6.</source>
-        <translation type="obsolete">Bepaald of dit netwerk IPv6 ondersteund.</translation>
-    </message>
-    <message>
         <source>Advertise Default IPv6 &amp;Route</source>
         <translation>Maak als default IPv6-&amp;route bekend (advertise)</translation>
-    </message>
-    <message>
-        <source>Determines whether this network should be advertised as the default IPv6 route.</source>
-        <translation type="obsolete">Bepaald of dit netwerk als de default IPv6-route bekend moet staan.</translation>
-    </message>
-    <message>
-        <source>Opens a window to manage port forwarding rules.</source>
-        <translation type="obsolete">Opent een venster waarin doorverwijsregels van poorten kunnen worden beheerd.</translation>
     </message>
     <message>
         <source>&amp;Port Forwarding</source>
@@ -4320,6 +4554,26 @@
         <source>Displays a window to configure port forwarding rules.</source>
         <translation>Toont een venster waarin de port-forwardingregels geconfigureerd kunnen worden.</translation>
     </message>
+    <message>
+        <source>Enable this NAT network.</source>
+        <translation type="obsolete">Schakel dit NAT-netwerk in.</translation>
+    </message>
+    <message>
+        <source>Determines whether this network supports DHCP.</source>
+        <translation type="obsolete">Bepaald of dit netwerk DHCP ondersteund.</translation>
+    </message>
+    <message>
+        <source>Determines whether this network supports IPv6.</source>
+        <translation type="obsolete">Bepaald of dit netwerk IPv6 ondersteund.</translation>
+    </message>
+    <message>
+        <source>Determines whether this network should be advertised as the default IPv6 route.</source>
+        <translation type="obsolete">Bepaald of dit netwerk als de default IPv6-route bekend moet staan.</translation>
+    </message>
+    <message>
+        <source>Opens a window to manage port forwarding rules.</source>
+        <translation type="obsolete">Opent een venster waarin doorverwijsregels van poorten kunnen worden beheerd.</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsPortForwardingDlg</name>
@@ -4339,52 +4593,12 @@
 <context>
     <name>UIGlobalSettingsProxy</name>
     <message>
-        <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="obsolete">Als dit is ingesteld zal VirtualBox de proxy-instellingen gebruiken voor taken als downloaden van Guest Additions van het netwerk of controleren op updates.</translation>
-    </message>
-    <message>
-        <source>&amp;Enable Proxy</source>
-        <translation type="obsolete">Proxy insch&amp;akelen</translation>
-    </message>
-    <message>
         <source>Ho&amp;st:</source>
         <translation>Ho&amp;st:</translation>
     </message>
     <message>
-        <source>Changes the proxy host.</source>
-        <translation type="obsolete">Verandert de proxyhost.</translation>
-    </message>
-    <message>
         <source>&amp;Port:</source>
         <translation>&amp;Poort:</translation>
-    </message>
-    <message>
-        <source>Changes the proxy port.</source>
-        <translation type="obsolete">Verandert de proxypoort.</translation>
-    </message>
-    <message>
-        <source>When checked the authentication supplied will be used with the proxy server.</source>
-        <translation type="obsolete">Als dit is ingesteld zal de opgegeven authenticatie gebruikt worden met de proxyserver.</translation>
-    </message>
-    <message>
-        <source>&amp;Use authentication</source>
-        <translation type="obsolete">Gebruik a&amp;uthenticatie</translation>
-    </message>
-    <message>
-        <source>User &amp;name:</source>
-        <translation type="obsolete">Gebruikers&amp;naam:</translation>
-    </message>
-    <message>
-        <source>Changes the user name used for authentication.</source>
-        <translation type="obsolete">Verandert de gebruikersnaam voor authenticatie.</translation>
-    </message>
-    <message>
-        <source>Pass&amp;word:</source>
-        <translation type="obsolete">Wacht&amp;woord:</translation>
-    </message>
-    <message>
-        <source>Changes the password used for authentication.</source>
-        <translation type="obsolete">Verandert het wachtwoord gebruikt bij authenticatie.</translation>
     </message>
     <message>
         <source>No proxy host is currently specified.</source>
@@ -4426,6 +4640,46 @@
         <source>&amp;Manual Proxy Configuration</source>
         <translation>Hand&amp;matige proxyconfiguratie</translation>
     </message>
+    <message>
+        <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="obsolete">Als dit is ingesteld zal VirtualBox de proxy-instellingen gebruiken voor taken als downloaden van Guest Additions van het netwerk of controleren op updates.</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Proxy</source>
+        <translation type="obsolete">Proxy insch&amp;akelen</translation>
+    </message>
+    <message>
+        <source>Changes the proxy host.</source>
+        <translation type="obsolete">Verandert de proxyhost.</translation>
+    </message>
+    <message>
+        <source>Changes the proxy port.</source>
+        <translation type="obsolete">Verandert de proxypoort.</translation>
+    </message>
+    <message>
+        <source>When checked the authentication supplied will be used with the proxy server.</source>
+        <translation type="obsolete">Als dit is ingesteld zal de opgegeven authenticatie gebruikt worden met de proxyserver.</translation>
+    </message>
+    <message>
+        <source>&amp;Use authentication</source>
+        <translation type="obsolete">Gebruik a&amp;uthenticatie</translation>
+    </message>
+    <message>
+        <source>User &amp;name:</source>
+        <translation type="obsolete">Gebruikers&amp;naam:</translation>
+    </message>
+    <message>
+        <source>Changes the user name used for authentication.</source>
+        <translation type="obsolete">Verandert de gebruikersnaam voor authenticatie.</translation>
+    </message>
+    <message>
+        <source>Pass&amp;word:</source>
+        <translation type="obsolete">Wacht&amp;woord:</translation>
+    </message>
+    <message>
+        <source>Changes the password used for authentication.</source>
+        <translation type="obsolete">Verandert het wachtwoord gebruikt bij authenticatie.</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsUpdate</name>
@@ -4440,10 +4694,6 @@
     <message>
         <source>&amp;Once per:</source>
         <translation>&amp;Eenmaal per:</translation>
-    </message>
-    <message>
-        <source>Specifies how often the new version check should be performed. Note that if you want to completely disable this check, just clear the above check box.</source>
-        <translation type="obsolete">Geeft aan hoe vaak de controle op nieuwe versies moet plaatsvinden. Wilt u deze controle helemaal niet, verwijdert u eenvoudigweg het vinkje in het keuzevakje.</translation>
     </message>
     <message>
         <source>Next Check:</source>
@@ -4481,6 +4731,18 @@
     <message>
         <source>Selects how often the new version check should be performed. Note that if you want to completely disable this check, just clear the above check box.</source>
         <translation>Geeft aan hoe vaak de controle op nieuwe versies moet plaatsvinden. Wilt u deze controle helemaal niet, verwijdert u eenvoudigweg het vinkje in het keuzevak.</translation>
+    </message>
+    <message>
+        <source>Specifies how often the new version check should be performed. Note that if you want to completely disable this check, just clear the above check box.</source>
+        <translation type="obsolete">Geeft aan hoe vaak de controle op nieuwe versies moet plaatsvinden. Wilt u deze controle helemaal niet, verwijdert u eenvoudigweg het vinkje in het keuzevakje.</translation>
+    </message>
+</context>
+<context>
+    <name>UIGraphicsTextPane</name>
+    <message>
+        <source>%1: %2</source>
+        <comment>&apos;key: value&apos;, like &apos;Name: MyVM&apos;</comment>
+        <translation type="vanished">%1: %2</translation>
     </message>
 </context>
 <context>
@@ -4560,9 +4822,383 @@
         <source>None</source>
         <translation>Geen</translation>
     </message>
+    <message>
+        <source>Left %1</source>
+        <translation type="vanished">Links %1</translation>
+    </message>
+    <message>
+        <source>Right %1</source>
+        <translation type="vanished">Rechts %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkDetailsWidget</name>
+    <message>
+        <source>&amp;Adapter</source>
+        <translation type="vanished">&amp;Adapter</translation>
+    </message>
+    <message>
+        <source>&amp;DHCP Server</source>
+        <translation type="vanished">&amp;DHCP-server</translation>
+    </message>
+    <message>
+        <source>Configure Adapter &amp;Automatically</source>
+        <translation type="vanished">&amp;Automatisch adapter instellen</translation>
+    </message>
+    <message>
+        <source>Configure Adapter &amp;Manually</source>
+        <translation type="vanished">&amp;Handmatig adapter instellen</translation>
+    </message>
+    <message>
+        <source>&amp;IPv4 Address:</source>
+        <translation type="vanished">&amp;IPv4-adres:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 address for this adapter.</source>
+        <translation type="vanished">Toont het host-IPv4-adres voor deze adapter.</translation>
+    </message>
+    <message>
+        <source>IPv4 Network &amp;Mask:</source>
+        <translation type="vanished">IPv4-netwerk&amp;masker:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
+        <translation type="vanished">Toont het host-IPv4-netwerkmasker voor deze adapter.</translation>
+    </message>
+    <message>
+        <source>I&amp;Pv6 Address:</source>
+        <translation type="vanished">I&amp;Pv6-adres:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <translation type="vanished">Toont het host-IPv6-adres voor deze adapter indien IPv6 ondersteund wordt.</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix &amp;Length:</source>
+        <translation type="vanished">&amp;Lengte IPv6-prefix:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
+        <translation type="vanished">Toont de host-IPv6-prefixlengte van het voor deze adapter indien IPv6 ondersteund wordt.</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="vanished">Reset</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation type="vanished">Toepassen</translation>
+    </message>
+    <message>
+        <source>Reset changes in current interface details</source>
+        <translation type="vanished">Reset veranderingen in huidige interfacedetails</translation>
+    </message>
+    <message>
+        <source>Apply changes in current interface details</source>
+        <translation type="vanished">Toepassen veranderingen in huidige interfacedetails</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="vanished">Reset veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Apply Changes (%1)</source>
+        <translation type="vanished">Toepassen veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Server</source>
+        <translation type="vanished">Server insch&amp;akelen</translation>
+    </message>
+    <message>
+        <source>When checked, the DHCP Server will be enabled for this network on machine start-up.</source>
+        <translation type="vanished">Als dit is ingesteld zal voor dit netwerk de DHCP-server tijdens de machinestart worden ingeschakeld.</translation>
+    </message>
+    <message>
+        <source>Server Add&amp;ress:</source>
+        <translation type="vanished">Servera&amp;dres:</translation>
+    </message>
+    <message>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="vanished">Toont het adres van de DHCP-server die het netwerk van deze host-only adapter bedient.</translation>
+    </message>
+    <message>
+        <source>Server &amp;Mask:</source>
+        <translation type="vanished">Server&amp;masker:</translation>
+    </message>
+    <message>
+        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="vanished">Toont het netwerkmasker van de DHCP-server die het netwerk van deze host-only adapter bedient.</translation>
+    </message>
+    <message>
+        <source>&amp;Lower Address Bound:</source>
+        <translation type="vanished">&amp;Laagste adres:</translation>
+    </message>
+    <message>
+        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="vanished">Toont het laagste IP-adres dat kan worden aangeboden door de DHCP-server geassocieerd met het netwerk van deze host-only adapter.</translation>
+    </message>
+    <message>
+        <source>&amp;Upper Address Bound:</source>
+        <translation type="vanished">&amp;Hoogste adres:</translation>
+    </message>
+    <message>
+        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="vanished">Toont het hoogste IP-adres dat kan worden aangeboden door de DHCP-server geassocieerd met het netwerk van deze host-only adapter.</translation>
+    </message>
+    <message>
+        <source>Reset changes in current DHCP server details</source>
+        <translation type="vanished">Reset veranderingen in huidige DHCP-serverdetails</translation>
+    </message>
+    <message>
+        <source>Apply changes in current DHCP server details</source>
+        <translation type="vanished">Toepassen veranderingen in huidige DHCP-serverdetails</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; is set to obtain the address automatically but the corresponding DHCP server is not enabled.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; is ingesteld op automatisch adres-verkrijgen, maar de corresponderende DHCP-server is niet ingeschakeld.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv4 address.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; heeft op dit moment geen geldig IPv4-adres.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv4 network mask.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; heeft op dit moment geen geldig IPv4-netwerkmasker.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv6 address.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; heeft op dit moment geen geldig IPv6-adres.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv6 prefix length.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; heeft op dit moment geen geldig IPv6-prefixlengte.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server address.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; heeft op dit moment geen geldig DHCP-serveradres.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server mask.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; heeft op dit moment geen geldig DHCP-servermasker.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server lower address bound.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; heeft op dit moment geen geldig DHCP-server laagste adresgrens.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server upper address bound.</source>
+        <translation type="vanished">Hostinterface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; heeft op dit moment geen geldig DHCP-server hoogste adresgrens.</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkManager</name>
+    <message>
+        <source>Enable</source>
+        <comment>DHCP Server</comment>
+        <translation type="vanished">Ingeschakelen</translation>
+    </message>
+    <message>
+        <source>Adapter</source>
+        <translation type="vanished">Adapter</translation>
+    </message>
+    <message>
+        <source>Automatically configured</source>
+        <comment>interface</comment>
+        <translation type="vanished">Automatisch geconfigureerd</translation>
+    </message>
+    <message>
+        <source>Manually configured</source>
+        <comment>interface</comment>
+        <translation type="vanished">Handmatig geconfigureerd</translation>
+    </message>
+    <message>
+        <source>IPv4 Address</source>
+        <translation type="vanished">IPv4-adres</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>address</comment>
+        <translation type="vanished">Niet ingesteld</translation>
+    </message>
+    <message>
+        <source>IPv4 Network Mask</source>
+        <translation type="vanished">IPv4-netmasker</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>mask</comment>
+        <translation type="vanished">Niet ingesteld</translation>
+    </message>
+    <message>
+        <source>IPv6 Address</source>
+        <translation type="vanished">IPv6-adres</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix Length</source>
+        <translation type="vanished">Lengte IPv6-netmasker</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>length</comment>
+        <translation type="vanished">Niet ingesteld</translation>
+    </message>
+    <message>
+        <source>DHCP Server</source>
+        <translation type="vanished">DHCP-server</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>server</comment>
+        <translation type="vanished">Ingeschakeld</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>server</comment>
+        <translation type="vanished">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Address</source>
+        <translation type="vanished">Adres</translation>
+    </message>
+    <message>
+        <source>Network Mask</source>
+        <translation type="vanished">Netwerkmasker</translation>
+    </message>
+    <message>
+        <source>Lower Bound</source>
+        <translation type="vanished">Laagste adres</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>bound</comment>
+        <translation type="vanished">Niet ingesteld</translation>
+    </message>
+    <message>
+        <source>Upper Bound</source>
+        <translation type="vanished">Hoogste adres</translation>
+    </message>
+    <message>
+        <source>&amp;Network</source>
+        <translation type="vanished">&amp;Netwerk</translation>
+    </message>
+    <message>
+        <source>&amp;Create</source>
+        <translation type="vanished">&amp;Aanmaken</translation>
+    </message>
+    <message>
+        <source>Create Host-only Network (%1)</source>
+        <translation type="vanished">Host-only netwerk aanmaken (%1)</translation>
+    </message>
+    <message>
+        <source>Create new host-only network</source>
+        <translation type="vanished">Host-only netwerk aanmaken</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation type="vanished">Ve&amp;rwijderen...</translation>
+    </message>
+    <message>
+        <source>Remove Host-only Network (%1)</source>
+        <translation type="vanished">Host-only netwerk verwijderen (%1)</translation>
+    </message>
+    <message>
+        <source>Remove selected host-only network</source>
+        <translation type="vanished">Verwijderen geselecteerd host-only-netwerk</translation>
+    </message>
+    <message>
+        <source>&amp;Properties...</source>
+        <translation type="vanished">&amp;Eigenschappen...</translation>
+    </message>
+    <message>
+        <source>Open Host-only Network Properties (%1)</source>
+        <translation type="vanished">Open Host-only netwerkeigenschappen (%1)</translation>
+    </message>
+    <message>
+        <source>Open pane with selected host-only network properties</source>
+        <translation type="vanished">Open deelvenster met geselecteerde host-only netwerkeigenschappen</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh...</source>
+        <translation type="vanished">&amp;Verversen...</translation>
+    </message>
+    <message>
+        <source>Refresh Host-only Networks (%1)</source>
+        <translation type="vanished">Host-only netwerk verversen (%1)</translation>
+    </message>
+    <message>
+        <source>Refresh the list of host-only networks</source>
+        <translation type="vanished">Host-only netwerklijst verversen</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="vanished">Naam</translation>
+    </message>
+    <message>
+        <source>IPv4 Address/Mask</source>
+        <translation type="vanished">IPv4-adres/masker</translation>
+    </message>
+    <message>
+        <source>IPv6 Address/Mask</source>
+        <translation type="vanished">IPv6-adres/masker</translation>
+    </message>
+    <message>
+        <source>Host Network Manager</source>
+        <translation type="vanished">Host Network Manager</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="vanished">Reset</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation type="vanished">Toepassen</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="vanished">Sluiten</translation>
+    </message>
+    <message>
+        <source>Reset changes in current host network details</source>
+        <translation type="vanished">Reset veranderingen in host-netwerk-serverdetails</translation>
+    </message>
+    <message>
+        <source>Apply changes in current host network details</source>
+        <translation type="vanished">Toepassen veranderingen in host-netwerk-serverdetails</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="vanished">Sluit dialoog af zonder opslaan</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="vanished">Reset veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Apply Changes (%1)</source>
+        <translation type="vanished">Toepassen veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Close Window (%1)</source>
+        <translation type="vanished">Afsluiten scherm (%1)</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkManagerWidget</name>
+    <message>
+        <source>Networking</source>
+        <translation type="vanished">Netwerken</translation>
+    </message>
 </context>
 <context>
     <name>UIHotKeyEditor</name>
+    <message>
+        <source>Reset shortcut to default</source>
+        <translation>Reset shortcut naar default</translation>
+    </message>
+    <message>
+        <source>Unset shortcut</source>
+        <translation>Shortcut leegmaken</translation>
+    </message>
     <message>
         <source>&lt;key_%1&gt;</source>
         <translation type="obsolete">&lt;Toets_%1&gt;</translation>
@@ -4626,14 +5262,6 @@
     <message>
         <source>Left Alt</source>
         <translation type="obsolete">Alt Links</translation>
-    </message>
-    <message>
-        <source>Reset shortcut to default</source>
-        <translation>Reset shortcut naar default</translation>
-    </message>
-    <message>
-        <source>Unset shortcut</source>
-        <translation>Shortcut leegmaken</translation>
     </message>
 </context>
 <context>
@@ -4730,21 +5358,6 @@
 <context>
     <name>UIIndicatorsPool</name>
     <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>HDD tooltip</comment>
-        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft activiteit van virtuele harde schijven weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>CD/DVD tooltip</comment>
-        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft activiteit van CD/DVD-apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>FD tooltip</comment>
-        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft activiteit van diskette-apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Network adapters tooltip</comment>
         <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft activiteit van netwerkinterfaces weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
@@ -4780,11 +5393,6 @@
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen USB-apparaten aangesloten&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
-        <comment>USB device tooltip</comment>
-        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-controller is uitgeschakeld&lt;/b&gt;&lt;/nobr&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Shared folders tooltip</comment>
         <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft activiteit van gedeelde mappen weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
@@ -4803,23 +5411,6 @@
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
         <translatorcomment>tja, muis is gevangen....arm dier ;)</translatorcomment>
         <translation>Geeft aan of de muis van de host wordt gebruikt door het gastbesturingssysteem:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis is niet afgevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis is afgevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis integratie (MI) staat aan&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI staat uit, muis is afgevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI staat uit, muis is niet afgevangen&lt;/nobr&gt;&lt;br&gt;Let op Muis Integratie werkt alleen als Guest Additions op het gastbesturingssysteem is geïnstalleerd.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation type="obsolete">Geeft aan of het toetsenbord van de host door het gastbesturingssysteem is afgevangen (&lt;img src=:/hostkey_captured_16px.png/&gt;) of niet (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
-    </message>
-    <message>
-        <source>Indicates whether the Remote Desktop Server is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Geeft aan of de Remote Desktop Server is ingeschakeld (&lt;img src=:/vrdp_16px.png/&gt;) of niet (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
-    </message>
-    <message>
-        <source>&lt;hr&gt;The Remote Desktop Server is listening on port %1</source>
-        <translation type="obsolete">&lt;hr&gt;De Remote Desktop Server luistert op poort %1</translation>
-    </message>
-    <message>
-        <source>Additional feature status:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</source>
-        <comment>Virtualization Stuff LED</comment>
-        <translation type="obsolete">Toont de status van verscheidene features die door deze virtuele machine worden gebruikt:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates video capturing activity:&lt;/nobr&gt;&lt;br&gt;%1</source>
@@ -4861,13 +5452,206 @@
         <source>Indicates whether the host keyboard is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is captured&lt;/nobr&gt;</source>
         <translation>Geeft aan of het toetsenbord van de host door het gastbesturingssysteem is afgevangen:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is captured&lt;/nobr&gt;</translation>
     </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the hard disks:&lt;/nobr&gt;%1</source>
+        <comment>HD tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van de harde schijven weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the optical drives:&lt;/nobr&gt;%1</source>
+        <comment>CD tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van de optische schijven weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the floppy drives:&lt;/nobr&gt;%1</source>
+        <comment>FD tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van de floppies weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1</source>
+        <comment>Network tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van de netwerkinterfaces weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>Adapter %1 (%2)</source>
+        <comment>Network tooltip</comment>
+        <translation type="vanished">Adapter %1 (%2)</translation>
+    </message>
+    <message>
+        <source>IP</source>
+        <comment>Network tooltip</comment>
+        <translation type="vanished">IP</translation>
+    </message>
+    <message>
+        <source>Cable</source>
+        <comment>Network tooltip</comment>
+        <translation type="vanished">Kabel</translation>
+    </message>
+    <message>
+        <source>Connected</source>
+        <comment>cable (Network tooltip)</comment>
+        <translation type="vanished">Verbonden</translation>
+    </message>
+    <message>
+        <source>Disconnected</source>
+        <comment>cable (Network tooltip)</comment>
+        <translation type="vanished">Niet verbonden</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1</source>
+        <comment>USB tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van de aangesloten usb-apparaten weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>No USB devices attached</source>
+        <comment>USB tooltip</comment>
+        <translation type="vanished">Geen USB-aparaten aangesloten</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1</source>
+        <comment>Shared folders tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van de gedeelde mappen weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>No shared folders</source>
+        <comment>Shared folders tooltip</comment>
+        <translation type="vanished">Geen gedeelde mappen</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the display:&lt;/nobr&gt;%1</source>
+        <comment>Display tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van het beeldscherm weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>Video memory</source>
+        <comment>Display tooltip</comment>
+        <translation type="vanished">Videogeheugen</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>Display tooltip</comment>
+        <translation type="vanished">Beeldschermen</translation>
+    </message>
+    <message>
+        <source>3D acceleration</source>
+        <comment>Display tooltip</comment>
+        <translation type="vanished">3D-acceleratie</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates video capturing activity:&lt;/nobr&gt;%1</source>
+        <comment>Video capture tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van videocapturing weer:&lt;/nobr&gt;&lt;br&gt;%1</translation>
+    </message>
+    <message>
+        <source>Video capture disabled</source>
+        <comment>Video capture tooltip</comment>
+        <translation type="vanished">Videocapture uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Video capture file</source>
+        <comment>Video capture tooltip</comment>
+        <translation type="vanished">Videocapture-bestand</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the additional features:&lt;/nobr&gt;%1</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van additione mogelijkheden weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>Indicates whether the host mouse pointer is captured by the guest OS:%1</source>
+        <comment>Mouse tooltip</comment>
+        <translation type="vanished">Geeft aan of de muiscursor door gastsysteem is afgevangen of niet:%1</translation>
+    </message>
+    <message>
+        <source>pointer is not captured</source>
+        <comment>Mouse tooltip</comment>
+        <translation type="vanished">Cursor is niet afgevangen</translation>
+    </message>
+    <message>
+        <source>pointer is captured</source>
+        <comment>Mouse tooltip</comment>
+        <translation type="vanished">Cursor is afgevangen</translation>
+    </message>
+    <message>
+        <source>mouse integration (MI) is On</source>
+        <comment>Mouse tooltip</comment>
+        <translation type="vanished">Muis-Intergratie (MI) is aan</translation>
+    </message>
+    <message>
+        <source>MI is Off, pointer is captured</source>
+        <comment>Mouse tooltip</comment>
+        <translation type="vanished">MI is uit; cursor is afgevangen</translation>
+    </message>
+    <message>
+        <source>MI is Off, pointer is not captured</source>
+        <comment>Mouse tooltip</comment>
+        <translation type="vanished">MI is uit; cursor is niet afgevangen</translation>
+    </message>
+    <message>
+        <source>Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
+        <comment>Mouse tooltip</comment>
+        <translation type="vanished">Let op dat voor &apos;muisintergratie&apos; de Guest Additions op het *gast*-OS moet zijn geïnstalleerd.</translation>
+    </message>
+    <message>
+        <source>Indicates whether the host keyboard is captured by the guest OS:%1</source>
+        <comment>Keyboard tooltip</comment>
+        <translation type="vanished">Geeft aan of het host-toetsenbord door gastsysteem is afgevangen of niet:%1</translation>
+    </message>
+    <message>
+        <source>keyboard is not captured</source>
+        <comment>Keyboard tooltip</comment>
+        <translation type="vanished">Toetsenbord is niet afgevangen</translation>
+    </message>
+    <message>
+        <source>keyboard is captured</source>
+        <comment>Keyboard tooltip</comment>
+        <translation type="vanished">Toetsenbord is afgevangen</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates the activity of the audio device:&lt;/nobr&gt;%1</source>
+        <comment>Audio tooltip</comment>
+        <translation type="vanished">&lt;nobr&gt;Geeft activiteit van geluidskaart weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>HDD tooltip</comment>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft activiteit van virtuele harde schijven weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft activiteit van CD/DVD-apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft activiteit van diskette-apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-controller is uitgeschakeld&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
+        <translation type="obsolete">Geeft aan of het toetsenbord van de host door het gastbesturingssysteem is afgevangen (&lt;img src=:/hostkey_captured_16px.png/&gt;) of niet (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+    </message>
+    <message>
+        <source>Indicates whether the Remote Desktop Server is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
+        <translation type="obsolete">Geeft aan of de Remote Desktop Server is ingeschakeld (&lt;img src=:/vrdp_16px.png/&gt;) of niet (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+    </message>
+    <message>
+        <source>&lt;hr&gt;The Remote Desktop Server is listening on port %1</source>
+        <translation type="obsolete">&lt;hr&gt;De Remote Desktop Server luistert op poort %1</translation>
+    </message>
+    <message>
+        <source>Additional feature status:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation type="obsolete">Toont de status van verscheidene features die door deze virtuele machine worden gebruikt:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</translation>
+    </message>
 </context>
 <context>
     <name>UIInformationDataAudio</name>
-    <message>
-        <source>Audio</source>
-        <translation type="obsolete">Audio</translation>
-    </message>
     <message>
         <source>Host Driver</source>
         <comment>details report (audio)</comment>
@@ -4878,14 +5662,13 @@
         <comment>details report (audio)</comment>
         <translation>Controller</translation>
     </message>
+    <message>
+        <source>Audio</source>
+        <translation type="obsolete">Audio</translation>
+    </message>
 </context>
 <context>
     <name>UIInformationDataDisplay</name>
-    <message>
-        <source>Display</source>
-        <comment>details report</comment>
-        <translation type="obsolete">Beeldscherm</translation>
-    </message>
     <message>
         <source>Video Memory</source>
         <comment>details report</comment>
@@ -4941,14 +5724,14 @@
         <comment>details report (VRDE Server)</comment>
         <translation>Uitgeschakeld</translation>
     </message>
+    <message>
+        <source>Display</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Beeldscherm</translation>
+    </message>
 </context>
 <context>
     <name>UIInformationDataGeneral</name>
-    <message>
-        <source>General</source>
-        <comment>details report</comment>
-        <translation type="obsolete">Algemeen</translation>
-    </message>
     <message>
         <source>Name</source>
         <comment>details report</comment>
@@ -4959,13 +5742,14 @@
         <comment>details report</comment>
         <translation>OS-type</translation>
     </message>
+    <message>
+        <source>General</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Algemeen</translation>
+    </message>
 </context>
 <context>
     <name>UIInformationDataNetwork</name>
-    <message>
-        <source>Network</source>
-        <translation type="obsolete">Netwerk</translation>
-    </message>
     <message>
         <source>Bridged adapter, %1</source>
         <comment>details report (network)</comment>
@@ -4995,6 +5779,10 @@
         <source>Adapter %1</source>
         <comment>details report (network)</comment>
         <translation>Adapter %1</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation type="obsolete">Netwerk</translation>
     </message>
 </context>
 <context>
@@ -5028,11 +5816,6 @@
 </context>
 <context>
     <name>UIInformationDataRuntimeAttributes</name>
-    <message>
-        <source>Runtime Attributes</source>
-        <comment>details report</comment>
-        <translation type="obsolete">Runtime attributen</translation>
-    </message>
     <message>
         <source>Not Detected</source>
         <comment>guest additions</comment>
@@ -5098,41 +5881,46 @@
         <comment>details report (VRDE Server)</comment>
         <translation>Remote Desktop Serverpoort</translation>
     </message>
+    <message>
+        <source>Runtime Attributes</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Runtime attributen</translation>
+    </message>
 </context>
 <context>
     <name>UIInformationDataSerialPorts</name>
     <message>
-        <source>Serial Ports</source>
-        <translation type="obsolete">Seriële poorten</translation>
-    </message>
-    <message>
         <source>Port %1</source>
         <comment>details report (serial ports)</comment>
         <translation>Poort %1</translation>
+    </message>
+    <message>
+        <source>Serial Ports</source>
+        <translation type="obsolete">Seriële poorten</translation>
     </message>
 </context>
 <context>
     <name>UIInformationDataSharedFolders</name>
     <message>
         <source>Shared Folders</source>
-        <comment>details report</comment>
-        <translation type="obsolete">Gedeelde mappen</translation>
+        <comment>details report (shared folders)</comment>
+        <translation>Gedeelde mappen</translation>
     </message>
     <message>
         <source>Shared Folders</source>
-        <comment>details report (shared folders)</comment>
-        <translation>Gedeelde mappen</translation>
+        <comment>details report</comment>
+        <translation type="obsolete">Gedeelde mappen</translation>
     </message>
 </context>
 <context>
     <name>UIInformationDataStorage</name>
     <message>
-        <source>Storage</source>
-        <translation type="obsolete">Opslag</translation>
-    </message>
-    <message>
         <source>(Optical Drive)</source>
         <translation>(Optisch station)</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <translation type="obsolete">Opslag</translation>
     </message>
 </context>
 <context>
@@ -5154,6 +5942,10 @@
         <translation>Geschreven data</translation>
     </message>
     <message>
+        <source>Requests</source>
+        <translation type="vanished">Verzoeken</translation>
+    </message>
+    <message>
         <source>Storage Statistics</source>
         <comment>details report</comment>
         <translation type="obsolete">Opslagstatistieken</translation>
@@ -5161,11 +5953,6 @@
 </context>
 <context>
     <name>UIInformationDataSystem</name>
-    <message>
-        <source>System</source>
-        <comment>details report</comment>
-        <translation type="obsolete">Systeem</translation>
-    </message>
     <message>
         <source>Enabled</source>
         <comment>details report (ACPI)</comment>
@@ -5266,14 +6053,14 @@
         <comment>details report</comment>
         <translation>Paravirtualisatie-interface</translation>
     </message>
+    <message>
+        <source>System</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Systeem</translation>
+    </message>
 </context>
 <context>
     <name>UIInformationDataUSB</name>
-    <message>
-        <source>USB</source>
-        <comment>details report</comment>
-        <translation type="obsolete">USB</translation>
-    </message>
     <message>
         <source>Disabled</source>
         <comment>details report (USB)</comment>
@@ -5289,6 +6076,24 @@
         <comment>details report (USB)</comment>
         <translation>%1 (%2 actief)</translation>
     </message>
+    <message>
+        <source>USB</source>
+        <comment>details report</comment>
+        <translation type="obsolete">USB</translation>
+    </message>
+</context>
+<context>
+    <name>UIItemNetworkNAT</name>
+    <message>
+        <source>%1, %2</source>
+        <comment>col.2 text, col.1 name</comment>
+        <translation type="vanished">%1, %2</translation>
+    </message>
+    <message>
+        <source>%1</source>
+        <comment>col.2 text</comment>
+        <translation type="vanished">%1</translation>
+    </message>
 </context>
 <context>
     <name>UILineTextEdit</name>
@@ -5299,6 +6104,10 @@
 </context>
 <context>
     <name>UIMachineLogic</name>
+    <message>
+        <source>Select a filename for the screenshot ...</source>
+        <translation>Geef een bestandsnaam op voor deze schermafdruk ...</translation>
+    </message>
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation type="obsolete"> EXPERIMENTELE build %1r%2 - %3</translation>
@@ -5336,10 +6145,6 @@
         <translation type="obsolete">Er zijn geen ondersteunde apparaten aan de host-PC verbonden</translation>
     </message>
     <message>
-        <source>Select a filename for the screenshot ...</source>
-        <translation>Geef een bestandsnaam op voor deze schermafdruk ...</translation>
-    </message>
-    <message>
         <source>No Webcams Connected</source>
         <translation type="obsolete">Er zijn geen webcams gekoppeld</translation>
     </message>
@@ -5371,10 +6176,6 @@
         <translation>Host audio&amp;stuurprogramma:</translation>
     </message>
     <message>
-        <source>Controls the audio output driver. The &lt;b&gt;Null Audio Driver&lt;/b&gt; makes the guest see an audio card, however every access to it will be ignored.</source>
-        <translation type="obsolete">Stelt het audiostuurprogramma voor uitvoer in. Het &lt;b&gt;Null-audiostuurprogramma&lt;/b&gt; zorgt dat de gast de audiokaart wel ziet, maar daar geen toegang tot zal hebben.</translation>
-    </message>
-    <message>
         <source>Audio &amp;Controller:</source>
         <translation>Audio&amp;controller:</translation>
     </message>
@@ -5386,21 +6187,33 @@
         <source>Selects the audio output driver. The &lt;b&gt;Null Audio Driver&lt;/b&gt; makes the guest see an audio card, however every access to it will be ignored.</source>
         <translation>Selecteert het audiostuurprogramma voor uitvoer. Het &lt;b&gt;Null-audiostuurprogramma&lt;/b&gt; zorgt dat de gast de audiokaart wel ziet, maar daar geen toegang tot zal hebben.</translation>
     </message>
+    <message>
+        <source>Extended Features:</source>
+        <translation type="vanished">Extra mogelijkheden:</translation>
+    </message>
+    <message>
+        <source>When checked, output to the virtual audio device will reach the host. Otherwise the guest is muted.</source>
+        <translation type="vanished">Als dit is ingesteld zal output van het virtuele audio-apparaat de host bereiken; anders is de gast muted.</translation>
+    </message>
+    <message>
+        <source>Enable Audio &amp;Output</source>
+        <translation type="vanished">Inschakelen Audio &amp;Output</translation>
+    </message>
+    <message>
+        <source>When checked, the guest will be able to capture audio input from the host. Otherwise the guest will capture only silence.</source>
+        <translation type="vanished">Als dit is ingesteld zal de gast in staat zijn audio-input van de host op te vangen; anders zal de gast alleen stilte opvangen.</translation>
+    </message>
+    <message>
+        <source>Enable Audio &amp;Input</source>
+        <translation type="vanished">Inschakelen Audio &amp;Input</translation>
+    </message>
+    <message>
+        <source>Controls the audio output driver. The &lt;b&gt;Null Audio Driver&lt;/b&gt; makes the guest see an audio card, however every access to it will be ignored.</source>
+        <translation type="obsolete">Stelt het audiostuurprogramma voor uitvoer in. Het &lt;b&gt;Null-audiostuurprogramma&lt;/b&gt; zorgt dat de gast de audiokaart wel ziet, maar daar geen toegang tot zal hebben.</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsDisplay</name>
-    <message>
-        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
-        <translation type="obsolete">u hebt minder dan &lt;b&gt;%1&lt;/b&gt; aan videogeheugen toegewezen, deze hoeveelheid is echter het minimum dat nodig is om de virtuele machine over te kunnen laten schakelen op schermvullende of naadloze modus.</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</source>
-        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Video</source>
-        <translation type="obsolete">&amp;Video</translation>
-    </message>
     <message>
         <source>Video &amp;Memory:</source>
         <translation>Video&amp;geheugen:</translation>
@@ -5446,20 +6259,8 @@
         <translation>Authenticatie&amp;methode:</translation>
     </message>
     <message>
-        <source>Defines the VRDP authentication method.</source>
-        <translation type="obsolete">Definieert de VRDP-authenticatiemethode.</translation>
-    </message>
-    <message>
         <source>Authentication &amp;Timeout:</source>
         <translation>Authenticatie&amp;timeout:</translation>
-    </message>
-    <message>
-        <source>Specifies the timeout for guest authentication, in milliseconds.</source>
-        <translation type="obsolete">Geeft de tijdslimiet voor authenticatie van de gast aan, in milliseconden.</translation>
-    </message>
-    <message>
-        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for HD Video to be played efficiently.</source>
-        <translation type="obsolete">u hebt minder dan &lt;b&gt;%1&lt;/b&gt; videogeheugen toegewezen, deze hoeveelheid is echter het minimum dat nodig is om HD-Video efficient af te spelen.</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will be given access to the Video Acceleration capabilities available on the host.</source>
@@ -5470,10 +6271,6 @@
         <translation>&amp;2D-videoversnelling inschakelen</translation>
     </message>
     <message>
-        <source>The VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero), to select port 3389, the standard port for RDP.</source>
-        <translation type="obsolete">Het VRDP-serverpoortnummer. U mag &lt;tt&gt;0&lt;/tt&gt; (nul) opgeven om poort 3389 te selecteren, de standaardpoort voor RDP.</translation>
-    </message>
-    <message>
         <source>Mo&amp;nitor Count:</source>
         <translation>Aantal mo&amp;nitoren:</translation>
     </message>
@@ -5482,28 +6279,8 @@
         <translation>Regelt het aantal virtuele monitoren van deze virtuele machine.</translation>
     </message>
     <message>
-        <source>&lt;qt&gt;%1&lt;/qt&gt;</source>
-        <translation type="obsolete">&lt;qt&gt;%1&lt;/qt&gt;</translation>
-    </message>
-    <message>
-        <source>Specifies whether multiple simultaneous connections to the VM are permitted.</source>
-        <translation type="obsolete">Bepaalt of meerdere gelijktijdige verbindingen met de VM zijn toegestaan.</translation>
-    </message>
-    <message>
         <source>&amp;Allow Multiple Connections</source>
         <translation>St&amp;a meerdere verbindingen toe</translation>
-    </message>
-    <message>
-        <source>you have 3D Acceleration enabled for a operation system which uses the WDDM video driver. For maximal performance set the guest VRAM to at least &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">U hebt 3D-acceleratie ingeschakeld voor een besturingssysteem dat de WDDM-videodriver gebruikt. Zet voor maximale prestaties het gast-VRAM op minstens &lt;b&gt;%1&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
-        <translation type="obsolete">U hebt 2D-videoversnelling ingeschakeld. Omdat 2D-videoversnelling alleen voor Windowsgasten wordt ondersteund, zal deze mogelijkheid worden uitgeschakeld.</translation>
-    </message>
-    <message>
-        <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
-        <translation type="obsolete">U hebt 3D-acceleratie ingeschakeld bij de gast,.maar 3D-acceleratie werkt momenteel niet op de host. Het zal daarom niet mogelijk zijn de VM te starten.</translation>
     </message>
     <message>
         <source>Video &amp;Capture</source>
@@ -5522,44 +6299,16 @@
         <translation>Bestands&amp;pad:</translation>
     </message>
     <message>
-        <source>This setting determines the filename VirtualBox uses to save the recorded content.</source>
-        <translation type="obsolete">Geef hier de bestandsnaam op waaronder VirtalBox de opname moet opslaan.</translation>
-    </message>
-    <message>
         <source>Frame &amp;Size:</source>
         <translation>Frame&amp;grootte:</translation>
-    </message>
-    <message>
-        <source>This setting determines the resolution (frame size) of the recorded video.</source>
-        <translation type="obsolete">Deze instelling bepaalt de resolutie (beeldgrootte) van de opname.</translation>
-    </message>
-    <message>
-        <source>This setting determines the &lt;b&gt;horizontal&lt;/b&gt; resolution (frame width) of the recorded video.</source>
-        <translation type="obsolete">Deze instelling bepaalt de &lt;b&gt;horizontale&lt;/b&gt; resolutie (beeldbreedte) van de opname.</translation>
-    </message>
-    <message>
-        <source>This setting determines the &lt;b&gt;vertical&lt;/b&gt; resolution (frame height) of the recorded video.</source>
-        <translation type="obsolete">Deze instelling bepaalt de &lt;b&gt;verticale&lt;/b&gt; resolutie (beeldhoogte) van de opname.</translation>
     </message>
     <message>
         <source>&amp;Frame Rate:</source>
         <translation>&amp;Framerate:</translation>
     </message>
     <message>
-        <source>This setting determines the maximum number of &lt;b&gt;frames per second&lt;/b&gt;. Additional frames will be skipped. Reducing this value will increase the number of skipped frames and reduce the file size.</source>
-        <translation type="obsolete">Deze instelling bepaalt het maximale aantal &lt;b&gt;beelden per seconde&lt;/b&gt;. De rest wordt overgeslagen. Deze hoeveelheid verlagen zal het aantal overgeslagen beelden verhogen en daarmee de bestandsgrootte verkleinen.</translation>
-    </message>
-    <message>
         <source>&amp;Quality:</source>
         <translation>&amp;Kwaliteit:</translation>
-    </message>
-    <message>
-        <source>This setting determines the &lt;b&gt;quality&lt;/b&gt;. Increasing this value will make the video look better at the cost of an increased file size.</source>
-        <translation type="obsolete">Deze instelling bepaalt de &lt;b&gt;kwaliteit&lt;/b&gt;. Een hogere waarde geeft een betere videokwaliteit, maar ook een groter bestand.</translation>
-    </message>
-    <message>
-        <source>This setting determines the bitrate in &lt;b&gt;kilobits per second&lt;/b&gt;. Increasing this value will make the video look better at the cost of an increased file size.</source>
-        <translation type="obsolete">Deze instelling bepaalt de bitrate in &lt;b&gt;kilobits per seconde&lt;/b&gt;. Een hogere waarde geeft een betere videokwaliteit, maar ook een groter bestand.</translation>
     </message>
     <message>
         <source>&amp;Screens:</source>
@@ -5570,16 +6319,8 @@
         <translation>De virtuele machine is ingesteld om hardwarematige grafische accelleratie te gebruiken. De machine zal niet kunnen opstarten, omdat deze machine deze instelling momenteel niet ondersteund.</translation>
     </message>
     <message>
-        <source>The virtual machine is currently assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch to fullscreen or seamless mode.</source>
-        <translation type="obsolete">U hebt minder dan &lt;b&gt;%1&lt;/b&gt; aan videogeheugen toegewezen; genoemde hoeveelheid is het minimum dat nodig is om de virtuele machine over te kunnen laten schakelen op schermvullende of naadloze modus.</translation>
-    </message>
-    <message>
         <source>The virtual machine is currently assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for High Definition Video to be played efficiently.</source>
         <translation>U hebt minder dan &lt;b&gt;%1&lt;/b&gt; aan videogeheugen toegewezen; genoemde hoeveelheid is het minimum dat nodig is om High Definition Video goed te kunnen afspelen.</translation>
-    </message>
-    <message>
-        <source>The virtual machine is set up to use hardware graphics acceleration and the operating system hint is set to Windows Vista or later. For best performance you should set the machine&apos;s video memory to at least b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">De virtuele machine is ingesteld om hardwarematige grafische accelleratie te gebruiken en os-hint staat op Windows Vista of later. Voor de beste prestaties moet u het videogeheugen van de machine op ten minste &lt;b&gt;%1&lt;/b&gt; zetten.</translation>
     </message>
     <message>
         <source>The virtual machine is set up to use Video Stream Acceleration. As this feature only works with Windows guest systems it will be disabled.</source>
@@ -5629,30 +6370,6 @@
         <translation>Scherm %1</translation>
     </message>
     <message>
-        <source>Enable video recording for screen %1.</source>
-        <translation type="obsolete">Schakel video-opname in voor scherm %1.</translation>
-    </message>
-    <message>
-        <source>Mini ToolBar:</source>
-        <translation type="obsolete">Miniwerkbalk:</translation>
-    </message>
-    <message>
-        <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
-        <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk getoont in schermvullende en naadloze modi.</translation>
-    </message>
-    <message>
-        <source>Show in &amp;Fullscreen/Seamless</source>
-        <translation type="obsolete">Toon in &amp;Schermvullend/Naadloos</translation>
-    </message>
-    <message>
-        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk boven in het scherm weergegeven in plaats van de standaardpositie onder aan het scherm.</translation>
-    </message>
-    <message>
-        <source>Show at &amp;Top of Screen</source>
-        <translation type="obsolete">Geef &amp;boven in het scherm weer</translation>
-    </message>
-    <message>
         <source>&lt;i&gt;About %1MB per 5 minute video&lt;/i&gt;</source>
         <translation>&lt;i&gt;Ongeveer %1MB per 5 minuten video&lt;/i&gt;</translation>
     </message>
@@ -5677,20 +6394,8 @@
         <translation>Regelt de gastschermschaalfactor.</translation>
     </message>
     <message>
-        <source>100%</source>
-        <translation type="obsolete">100%</translation>
-    </message>
-    <message>
-        <source>200%</source>
-        <translation type="obsolete">200%</translation>
-    </message>
-    <message>
         <source>%</source>
         <translation>%</translation>
-    </message>
-    <message>
-        <source>HiDPI:</source>
-        <translation type="obsolete">HiDPI:</translation>
     </message>
     <message>
         <source>When checked, guest screen contents will not be scaled up to compensate for high host screen resolutions.</source>
@@ -5768,24 +6473,132 @@
         <source>When checked, enables video recording for screen %1.</source>
         <translation>Als dit is ingesteld wordt video-opnemen voor scherm %1 ingeschakeld.</translation>
     </message>
+    <message>
+        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
+        <translation type="obsolete">u hebt minder dan &lt;b&gt;%1&lt;/b&gt; aan videogeheugen toegewezen, deze hoeveelheid is echter het minimum dat nodig is om de virtuele machine over te kunnen laten schakelen op schermvullende of naadloze modus.</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</source>
+        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Video</source>
+        <translation type="obsolete">&amp;Video</translation>
+    </message>
+    <message>
+        <source>Defines the VRDP authentication method.</source>
+        <translation type="obsolete">Definieert de VRDP-authenticatiemethode.</translation>
+    </message>
+    <message>
+        <source>Specifies the timeout for guest authentication, in milliseconds.</source>
+        <translation type="obsolete">Geeft de tijdslimiet voor authenticatie van de gast aan, in milliseconden.</translation>
+    </message>
+    <message>
+        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for HD Video to be played efficiently.</source>
+        <translation type="obsolete">u hebt minder dan &lt;b&gt;%1&lt;/b&gt; videogeheugen toegewezen, deze hoeveelheid is echter het minimum dat nodig is om HD-Video efficient af te spelen.</translation>
+    </message>
+    <message>
+        <source>The VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero), to select port 3389, the standard port for RDP.</source>
+        <translation type="obsolete">Het VRDP-serverpoortnummer. U mag &lt;tt&gt;0&lt;/tt&gt; (nul) opgeven om poort 3389 te selecteren, de standaardpoort voor RDP.</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&lt;/qt&gt;</source>
+        <translation type="obsolete">&lt;qt&gt;%1&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>Specifies whether multiple simultaneous connections to the VM are permitted.</source>
+        <translation type="obsolete">Bepaalt of meerdere gelijktijdige verbindingen met de VM zijn toegestaan.</translation>
+    </message>
+    <message>
+        <source>you have 3D Acceleration enabled for a operation system which uses the WDDM video driver. For maximal performance set the guest VRAM to at least &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="obsolete">U hebt 3D-acceleratie ingeschakeld voor een besturingssysteem dat de WDDM-videodriver gebruikt. Zet voor maximale prestaties het gast-VRAM op minstens &lt;b&gt;%1&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
+        <translation type="obsolete">U hebt 2D-videoversnelling ingeschakeld. Omdat 2D-videoversnelling alleen voor Windowsgasten wordt ondersteund, zal deze mogelijkheid worden uitgeschakeld.</translation>
+    </message>
+    <message>
+        <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
+        <translation type="obsolete">U hebt 3D-acceleratie ingeschakeld bij de gast,.maar 3D-acceleratie werkt momenteel niet op de host. Het zal daarom niet mogelijk zijn de VM te starten.</translation>
+    </message>
+    <message>
+        <source>This setting determines the filename VirtualBox uses to save the recorded content.</source>
+        <translation type="obsolete">Geef hier de bestandsnaam op waaronder VirtalBox de opname moet opslaan.</translation>
+    </message>
+    <message>
+        <source>This setting determines the resolution (frame size) of the recorded video.</source>
+        <translation type="obsolete">Deze instelling bepaalt de resolutie (beeldgrootte) van de opname.</translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;horizontal&lt;/b&gt; resolution (frame width) of the recorded video.</source>
+        <translation type="obsolete">Deze instelling bepaalt de &lt;b&gt;horizontale&lt;/b&gt; resolutie (beeldbreedte) van de opname.</translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;vertical&lt;/b&gt; resolution (frame height) of the recorded video.</source>
+        <translation type="obsolete">Deze instelling bepaalt de &lt;b&gt;verticale&lt;/b&gt; resolutie (beeldhoogte) van de opname.</translation>
+    </message>
+    <message>
+        <source>This setting determines the maximum number of &lt;b&gt;frames per second&lt;/b&gt;. Additional frames will be skipped. Reducing this value will increase the number of skipped frames and reduce the file size.</source>
+        <translation type="obsolete">Deze instelling bepaalt het maximale aantal &lt;b&gt;beelden per seconde&lt;/b&gt;. De rest wordt overgeslagen. Deze hoeveelheid verlagen zal het aantal overgeslagen beelden verhogen en daarmee de bestandsgrootte verkleinen.</translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;quality&lt;/b&gt;. Increasing this value will make the video look better at the cost of an increased file size.</source>
+        <translation type="obsolete">Deze instelling bepaalt de &lt;b&gt;kwaliteit&lt;/b&gt;. Een hogere waarde geeft een betere videokwaliteit, maar ook een groter bestand.</translation>
+    </message>
+    <message>
+        <source>This setting determines the bitrate in &lt;b&gt;kilobits per second&lt;/b&gt;. Increasing this value will make the video look better at the cost of an increased file size.</source>
+        <translation type="obsolete">Deze instelling bepaalt de bitrate in &lt;b&gt;kilobits per seconde&lt;/b&gt;. Een hogere waarde geeft een betere videokwaliteit, maar ook een groter bestand.</translation>
+    </message>
+    <message>
+        <source>The virtual machine is currently assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch to fullscreen or seamless mode.</source>
+        <translation type="obsolete">U hebt minder dan &lt;b&gt;%1&lt;/b&gt; aan videogeheugen toegewezen; genoemde hoeveelheid is het minimum dat nodig is om de virtuele machine over te kunnen laten schakelen op schermvullende of naadloze modus.</translation>
+    </message>
+    <message>
+        <source>The virtual machine is set up to use hardware graphics acceleration and the operating system hint is set to Windows Vista or later. For best performance you should set the machine&apos;s video memory to at least b&gt;%1&lt;/b&gt;.</source>
+        <translation type="obsolete">De virtuele machine is ingesteld om hardwarematige grafische accelleratie te gebruiken en os-hint staat op Windows Vista of later. Voor de beste prestaties moet u het videogeheugen van de machine op ten minste &lt;b&gt;%1&lt;/b&gt; zetten.</translation>
+    </message>
+    <message>
+        <source>Enable video recording for screen %1.</source>
+        <translation type="obsolete">Schakel video-opname in voor scherm %1.</translation>
+    </message>
+    <message>
+        <source>Mini ToolBar:</source>
+        <translation type="obsolete">Miniwerkbalk:</translation>
+    </message>
+    <message>
+        <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
+        <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk getoont in schermvullende en naadloze modi.</translation>
+    </message>
+    <message>
+        <source>Show in &amp;Fullscreen/Seamless</source>
+        <translation type="obsolete">Toon in &amp;Schermvullend/Naadloos</translation>
+    </message>
+    <message>
+        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
+        <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk boven in het scherm weergegeven in plaats van de standaardpositie onder aan het scherm.</translation>
+    </message>
+    <message>
+        <source>Show at &amp;Top of Screen</source>
+        <translation type="obsolete">Geef &amp;boven in het scherm weer</translation>
+    </message>
+    <message>
+        <source>100%</source>
+        <translation type="obsolete">100%</translation>
+    </message>
+    <message>
+        <source>200%</source>
+        <translation type="obsolete">200%</translation>
+    </message>
+    <message>
+        <source>HiDPI:</source>
+        <translation type="obsolete">HiDPI:</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsGeneral</name>
     <message>
-        <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
-        <translation type="obsolete">Geeft het pad weer waar snapshots van deze virtuele machine worden opgeslagen. Wees ervan bewust dat snapshots erg veel ruimte op de harde schijf kunnen innemen.</translation>
-    </message>
-    <message>
         <source>Basi&amp;c</source>
         <translation>&amp;Basis</translation>
-    </message>
-    <message>
-        <source>&amp;Name:</source>
-        <translation type="obsolete">&amp;Naam:</translation>
-    </message>
-    <message>
-        <source>Holds the name of the virtual machine.</source>
-        <translation type="obsolete">Toont de naam van de virtuele machine.</translation>
     </message>
     <message>
         <source>A&amp;dvanced</source>
@@ -5810,42 +6623,6 @@
     <message>
         <source>Holds the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
         <translation>Toont de beschrijving van de virtuele machine. Het veld voor beschrijving is handig voor opmerkingen over de configuratie van het geïnstalleerde besturingssysteem.</translation>
-    </message>
-    <message>
-        <source>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</source>
-        <translation type="obsolete">Als dit is ingesteld wordt iedere verandering bij aangekoppelde CD/DVD/diskette-media aangebracht tijdens het draaien van de virtuele machine opgeslagen in het instellingenbestand. Zo wordt tussen runs de configuratie van aangekoppelde media behouden.</translation>
-    </message>
-    <message>
-        <source>Removable Media:</source>
-        <translation type="obsolete">Verwijderbare media:</translation>
-    </message>
-    <message>
-        <source>&amp;Remember Runtime Changes</source>
-        <translation type="obsolete">&amp;Onthoud runtime wijzigingen</translation>
-    </message>
-    <message>
-        <source>Mini ToolBar:</source>
-        <translation type="obsolete">Miniwerkbalk:</translation>
-    </message>
-    <message>
-        <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
-        <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk getoont in schermvullende en naadloze modi.</translation>
-    </message>
-    <message>
-        <source>Show in &amp;Fullscreen/Seamless</source>
-        <translation type="obsolete">Toon in &amp;Schermvullend/Naadloos</translation>
-    </message>
-    <message>
-        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk boven in het scherm weergegeven in plaats van de standaardpositie onder aan het scherm.</translation>
-    </message>
-    <message>
-        <source>Show at &amp;Top of Screen</source>
-        <translation type="obsolete">Geef &amp;boven in het scherm weer</translation>
-    </message>
-    <message>
-        <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
-        <translation type="obsolete">U hebt een 64-Bit gastbesturingssysteem voor deze VM geselecteerd. Daardoor is hardware-virtualisering (VT-x/AMD-V) voor de gast vereist, deze optie wordt automatisch ingeschakeld.</translation>
     </message>
     <message>
         <source>D&amp;rag&apos;n&apos;Drop:</source>
@@ -5878,10 +6655,6 @@
     <message>
         <source>Encryption C&amp;ipher:</source>
         <translation>Versleutelingscoder&amp;ing:</translation>
-    </message>
-    <message>
-        <source>Holds the cipher to be used for encrypting the virtual machine disks.</source>
-        <translation type="obsolete">Bevat de codering -cipher- die bij de versleuteling van de virtuele machineschijven is gebruikt.</translation>
     </message>
     <message>
         <source>E&amp;nter New Password:</source>
@@ -5928,24 +6701,33 @@
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of storage space.</source>
         <translation>Bevat het pad waar snapshots van deze virtuele machine worden opgeslagen. Wees er wel van bewust dat snapshots erg veel ruimte op de harde schijf kunnen innemen.</translation>
     </message>
-</context>
-<context>
-    <name>UIMachineSettingsInterface</name>
     <message>
-        <source>Allows to modify VM menu-bar contents.</source>
-        <translation>Biedt de mogelijkheid om de inhoud van de VM-menubalk aan te passen.</translation>
+        <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
+        <translation type="obsolete">Geeft het pad weer waar snapshots van deze virtuele machine worden opgeslagen. Wees ervan bewust dat snapshots erg veel ruimte op de harde schijf kunnen innemen.</translation>
     </message>
     <message>
-        <source>100%</source>
-        <translation type="obsolete">3D {100%?}</translation>
+        <source>&amp;Name:</source>
+        <translation type="obsolete">&amp;Naam:</translation>
     </message>
     <message>
-        <source>200%</source>
-        <translation type="obsolete">3D {200%?}</translation>
+        <source>Holds the name of the virtual machine.</source>
+        <translation type="obsolete">Toont de naam van de virtuele machine.</translation>
+    </message>
+    <message>
+        <source>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</source>
+        <translation type="obsolete">Als dit is ingesteld wordt iedere verandering bij aangekoppelde CD/DVD/diskette-media aangebracht tijdens het draaien van de virtuele machine opgeslagen in het instellingenbestand. Zo wordt tussen runs de configuratie van aangekoppelde media behouden.</translation>
+    </message>
+    <message>
+        <source>Removable Media:</source>
+        <translation type="obsolete">Verwijderbare media:</translation>
+    </message>
+    <message>
+        <source>&amp;Remember Runtime Changes</source>
+        <translation type="obsolete">&amp;Onthoud runtime wijzigingen</translation>
     </message>
     <message>
         <source>Mini ToolBar:</source>
-        <translation>Miniwerkbalk:</translation>
+        <translation type="obsolete">Miniwerkbalk:</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
@@ -5958,6 +6740,29 @@
     <message>
         <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
         <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk boven in het scherm weergegeven in plaats van de standaardpositie onder aan het scherm.</translation>
+    </message>
+    <message>
+        <source>Show at &amp;Top of Screen</source>
+        <translation type="obsolete">Geef &amp;boven in het scherm weer</translation>
+    </message>
+    <message>
+        <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
+        <translation type="obsolete">U hebt een 64-Bit gastbesturingssysteem voor deze VM geselecteerd. Daardoor is hardware-virtualisering (VT-x/AMD-V) voor de gast vereist, deze optie wordt automatisch ingeschakeld.</translation>
+    </message>
+    <message>
+        <source>Holds the cipher to be used for encrypting the virtual machine disks.</source>
+        <translation type="obsolete">Bevat de codering -cipher- die bij de versleuteling van de virtuele machineschijven is gebruikt.</translation>
+    </message>
+</context>
+<context>
+    <name>UIMachineSettingsInterface</name>
+    <message>
+        <source>Allows to modify VM menu-bar contents.</source>
+        <translation>Biedt de mogelijkheid om de inhoud van de VM-menubalk aan te passen.</translation>
+    </message>
+    <message>
+        <source>Mini ToolBar:</source>
+        <translation>Miniwerkbalk:</translation>
     </message>
     <message>
         <source>Show at &amp;Top of Screen</source>
@@ -5979,21 +6784,29 @@
         <source>When checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
         <translation>Als dit is ingesteld wordt de miniwerkbalk boven in het scherm weergegeven in plaats van de standaardpositie onder aan het scherm.</translation>
     </message>
+    <message>
+        <source>100%</source>
+        <translation type="obsolete">3D {100%?}</translation>
+    </message>
+    <message>
+        <source>200%</source>
+        <translation type="obsolete">3D {200%?}</translation>
+    </message>
+    <message>
+        <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
+        <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk getoont in schermvullende en naadloze modi.</translation>
+    </message>
+    <message>
+        <source>Show in &amp;Fullscreen/Seamless</source>
+        <translation type="obsolete">Toon in &amp;Schermvullend/Naadloos</translation>
+    </message>
+    <message>
+        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
+        <translation type="obsolete">Als dit is ingesteld wordt de miniwerkbalk boven in het scherm weergegeven in plaats van de standaardpositie onder aan het scherm.</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsNetwork</name>
-    <message>
-        <source>no bridged network adapter is selected</source>
-        <translation type="obsolete">Er is geen bridged netwerkadapter geselecteerd</translation>
-    </message>
-    <message>
-        <source>no internal network name is specified</source>
-        <translation type="obsolete">Geen interne netwerknaam gespecificeerd</translation>
-    </message>
-    <message>
-        <source>no host-only network adapter is selected</source>
-        <translation type="obsolete">Geen host-only netwerk adapter geselecteerd</translation>
-    </message>
     <message>
         <source>Not selected</source>
         <comment>network adapter name</comment>
@@ -6016,10 +6829,6 @@
         <translation>&amp;Gekoppeld aan:</translation>
     </message>
     <message>
-        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
-        <translation type="obsolete">Stelt in hoe deze virtuele adapter is gekoppeld aan het werkelijke netwerk van het host-OS.</translation>
-    </message>
-    <message>
         <source>&amp;Name:</source>
         <translation>&amp;Naam:</translation>
     </message>
@@ -6032,14 +6841,6 @@
         <translation>Geavanceer&amp;d</translation>
     </message>
     <message>
-        <source>Shows or hides additional network adapter options.</source>
-        <translation type="obsolete">Toont of verbergt extra opties voor de netwerkadapter.</translation>
-    </message>
-    <message>
-        <source>&amp;Mac Address:</source>
-        <translation type="obsolete">&amp;Mac adres:</translation>
-    </message>
-    <message>
         <source>Holds the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
         <translation>Toont het MAC-adres van deze adapter. Deze bevat precies 12 tekens van {0-9,A-F}. Let op: het tweede teken moet een even getal zijn.</translation>
     </message>
@@ -6048,16 +6849,8 @@
         <translation>Genereert een nieuw, willekeurig MAC-adres.</translation>
     </message>
     <message>
-        <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
-        <translation type="obsolete">Regelt of de kabel van het virtuele netwerk tijdens het opstarten van de machine is aangesloten of niet.</translation>
-    </message>
-    <message>
         <source>&amp;Cable Connected</source>
         <translation>&amp;Kabel aangesloten</translation>
-    </message>
-    <message>
-        <source>Opens a window to manage port forwarding rules.</source>
-        <translation type="obsolete">Opent een venster waarin doorverwijsregels van poorten kunnen worden beheerd.</translation>
     </message>
     <message>
         <source>&amp;Port Forwarding</source>
@@ -6074,14 +6867,6 @@
     <message>
         <source>Generic Properties:</source>
         <translation>Generieke eigenschappen:</translation>
-    </message>
-    <message>
-        <source>Enter any configuration settings here for the network attachment driver you will be using. The settings should be of the form &lt;b&gt;name=value&lt;/b&gt; and will depend on the driver. Use &lt;b&gt;shift-enter&lt;/b&gt; to add a new entry.</source>
-        <translation type="obsolete">Vul hier configuratie-instellingen in voor de netwerkkoppelingsdriver die u zal gebruiken. De instellingen moeten in de vorm zijn &lt;b&gt;naam=waarde&lt;/b&gt; en zijn driver afhankelijk. Gebruik &lt;b&gt;shift-enter&lt;/b&gt; voor een nieuwe toevoeging.</translation>
-    </message>
-    <message>
-        <source>no generic driver is selected</source>
-        <translation type="obsolete">er is geen generieke driver geselecteerd</translation>
     </message>
     <message>
         <source>Selects the network adapter on the host system that traffic to and from this network card will go through.</source>
@@ -6102,14 +6887,6 @@
     <message>
         <source>&amp;MAC Address:</source>
         <translation>&amp;MAC-adres:</translation>
-    </message>
-    <message>
-        <source>the MAC address must be 12 hexadecimal digits long.</source>
-        <translation type="obsolete">Het MAC-adres moet 12 hexadecimale getallen lang zijn.</translation>
-    </message>
-    <message>
-        <source>the second digit in the MAC address may not be odd as only unicast addresses are allowed.</source>
-        <translation type="obsolete">het tweede getal in het MAC-adres mag niet oneven zijn omdat enkel unicast-adressen toegestaan zijn.</translation>
     </message>
     <message>
         <source>No bridged network adapter is currently selected.</source>
@@ -6162,6 +6939,54 @@
     <message>
         <source>Displays a window to configure port forwarding rules.</source>
         <translation>Toont een venster waarin de port-forwardingregels geconfigureerd kunnen worden.</translation>
+    </message>
+    <message>
+        <source>no bridged network adapter is selected</source>
+        <translation type="obsolete">Er is geen bridged netwerkadapter geselecteerd</translation>
+    </message>
+    <message>
+        <source>no internal network name is specified</source>
+        <translation type="obsolete">Geen interne netwerknaam gespecificeerd</translation>
+    </message>
+    <message>
+        <source>no host-only network adapter is selected</source>
+        <translation type="obsolete">Geen host-only netwerk adapter geselecteerd</translation>
+    </message>
+    <message>
+        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
+        <translation type="obsolete">Stelt in hoe deze virtuele adapter is gekoppeld aan het werkelijke netwerk van het host-OS.</translation>
+    </message>
+    <message>
+        <source>Shows or hides additional network adapter options.</source>
+        <translation type="obsolete">Toont of verbergt extra opties voor de netwerkadapter.</translation>
+    </message>
+    <message>
+        <source>&amp;Mac Address:</source>
+        <translation type="obsolete">&amp;Mac adres:</translation>
+    </message>
+    <message>
+        <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
+        <translation type="obsolete">Regelt of de kabel van het virtuele netwerk tijdens het opstarten van de machine is aangesloten of niet.</translation>
+    </message>
+    <message>
+        <source>Opens a window to manage port forwarding rules.</source>
+        <translation type="obsolete">Opent een venster waarin doorverwijsregels van poorten kunnen worden beheerd.</translation>
+    </message>
+    <message>
+        <source>Enter any configuration settings here for the network attachment driver you will be using. The settings should be of the form &lt;b&gt;name=value&lt;/b&gt; and will depend on the driver. Use &lt;b&gt;shift-enter&lt;/b&gt; to add a new entry.</source>
+        <translation type="obsolete">Vul hier configuratie-instellingen in voor de netwerkkoppelingsdriver die u zal gebruiken. De instellingen moeten in de vorm zijn &lt;b&gt;naam=waarde&lt;/b&gt; en zijn driver afhankelijk. Gebruik &lt;b&gt;shift-enter&lt;/b&gt; voor een nieuwe toevoeging.</translation>
+    </message>
+    <message>
+        <source>no generic driver is selected</source>
+        <translation type="obsolete">er is geen generieke driver geselecteerd</translation>
+    </message>
+    <message>
+        <source>the MAC address must be 12 hexadecimal digits long.</source>
+        <translation type="obsolete">Het MAC-adres moet 12 hexadecimale getallen lang zijn.</translation>
+    </message>
+    <message>
+        <source>the second digit in the MAC address may not be odd as only unicast addresses are allowed.</source>
+        <translation type="obsolete">het tweede getal in het MAC-adres mag niet oneven zijn omdat enkel unicast-adressen toegestaan zijn.</translation>
     </message>
 </context>
 <context>
@@ -6301,18 +7126,6 @@
 <context>
     <name>UIMachineSettingsSF</name>
     <message>
-        <source>Adds a new shared folder definition.</source>
-        <translation type="obsolete">Voegt een nieuwe definitie van een gedeelde map toe.</translation>
-    </message>
-    <message>
-        <source>Edits the selected shared folder definition.</source>
-        <translation type="obsolete">Wijzigt de definitie van een gedeelde map.</translation>
-    </message>
-    <message>
-        <source>Removes the selected shared folder definition.</source>
-        <translation type="obsolete">Verwijdert de definitie van een gedeelde map.</translation>
-    </message>
-    <message>
         <source> Machine Folders</source>
         <translation> Machinemappen</translation>
     </message>
@@ -6343,18 +7156,6 @@
     <message>
         <source>Access</source>
         <translation>Toegang</translation>
-    </message>
-    <message>
-        <source>&amp;Add Shared Folder</source>
-        <translation type="obsolete">Toe&amp;voegen gedeelde map</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Shared Folder</source>
-        <translation type="obsolete">&amp;Wijzigen gedeelde map</translation>
-    </message>
-    <message>
-        <source>&amp;Remove Shared Folder</source>
-        <translation type="obsolete">&amp;Verwijderen gedeelde map</translation>
     </message>
     <message>
         <source>&amp;Folders List</source>
@@ -6392,6 +7193,34 @@
         <source>Removes selected shared folder.</source>
         <translation>Verwijdert gedeelde map.</translation>
     </message>
+    <message>
+        <source>Shared &amp;Folders</source>
+        <translation type="vanished">&amp;Gedeelde mappen</translation>
+    </message>
+    <message>
+        <source>Adds a new shared folder definition.</source>
+        <translation type="obsolete">Voegt een nieuwe definitie van een gedeelde map toe.</translation>
+    </message>
+    <message>
+        <source>Edits the selected shared folder definition.</source>
+        <translation type="obsolete">Wijzigt de definitie van een gedeelde map.</translation>
+    </message>
+    <message>
+        <source>Removes the selected shared folder definition.</source>
+        <translation type="obsolete">Verwijdert de definitie van een gedeelde map.</translation>
+    </message>
+    <message>
+        <source>&amp;Add Shared Folder</source>
+        <translation type="obsolete">Toe&amp;voegen gedeelde map</translation>
+    </message>
+    <message>
+        <source>&amp;Edit Shared Folder</source>
+        <translation type="obsolete">&amp;Wijzigen gedeelde map</translation>
+    </message>
+    <message>
+        <source>&amp;Remove Shared Folder</source>
+        <translation type="obsolete">&amp;Verwijderen gedeelde map</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSFDetails</name>
@@ -6402,10 +7231,6 @@
     <message>
         <source>Edit Share</source>
         <translation>Gedeelde map wijzigen</translation>
-    </message>
-    <message>
-        <source>Dialog</source>
-        <translation type="obsolete">Dialoog</translation>
     </message>
     <message>
         <source>Folder Path:</source>
@@ -6440,12 +7265,16 @@
         <translation>&amp;Automatisch koppelen</translation>
     </message>
     <message>
-        <source>If checked, this shared folder will be permanent.</source>
-        <translation type="obsolete">Als dit is ingesteld zal deze gedeelde map permanent worden.</translation>
-    </message>
-    <message>
         <source>When checked, this shared folder will be permanent.</source>
         <translation>Als dit is ingesteld zal deze gedeelde map permanent worden.</translation>
+    </message>
+    <message>
+        <source>Dialog</source>
+        <translation type="obsolete">Dialoog</translation>
+    </message>
+    <message>
+        <source>If checked, this shared folder will be permanent.</source>
+        <translation type="obsolete">Als dit is ingesteld zal deze gedeelde map permanent worden.</translation>
     </message>
 </context>
 <context>
@@ -6485,36 +7314,12 @@
         <translation>Poort&amp;modus:</translation>
     </message>
     <message>
-        <source>Controls the working mode of this serial port. If you select &lt;b&gt;Disconnected&lt;/b&gt;, the guest OS will detect the serial port but will not be able to operate it.</source>
-        <translation type="obsolete">Stelt de status van deze seriële poort in. Selecteert u &lt;b&gt;Niet verbonden&lt;/b&gt; dan zal het gastbesturingssysteem de seriële poort wel detecteren maar zal niet in staat zijn ermee te werken.</translation>
-    </message>
-    <message>
-        <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will assume that the pipe exists and try to use it.</source>
-        <translation type="obsolete">Als dit is ingesteld zal de pijp gespecificeerd in het &lt;b&gt;Poort/bestandspad&lt;/b&gt;-veld door de virtuele machine worden aangemaakt zodra deze opstart. Niet aangevinkt zal de virtuele machine een bestaande pijp proberen te gebruiken.</translation>
-    </message>
-    <message>
-        <source>&amp;Create Pipe</source>
-        <translation type="obsolete">Maak &amp;pijp aan</translation>
-    </message>
-    <message>
-        <source>Holds the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
-        <translation type="obsolete">Toont het pad naar de seriële poort op de host indien de poort in &lt;b&gt;Host pijp&lt;/b&gt;-modus werkt; en de naam van het host seriële-apparaat als de poort in &lt;b&gt;Host apparaat&lt;/b&gt;-modus werkt.</translation>
-    </message>
-    <message>
-        <source>Port/File &amp;Path:</source>
-        <translation type="obsolete">&amp;Poort/bestandspad:</translation>
-    </message>
-    <message>
         <source>Holds the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
         <translation>Toont het IRQ-nummer van deze seriële poort. Dit nummer moet een geheel getal zijn tussen &lt;tt&gt;0&lt;/tt&gt; en &lt;tt&gt;255&lt;/tt&gt;. Waarden groter dan &lt;tt&gt;15&lt;/tt&gt; mogen alleen worden gebruikt als de &lt;b&gt;I/O APIC&lt;/b&gt; instelling voor deze virtuele machine aan staat.</translation>
     </message>
     <message>
         <source>Holds the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation>Geeft het basis I/O poortadres van deze seriële poort weer. Geldige waarden zijn gehele getallen in de reeks van &lt;tt&gt;0&lt;/tt&gt; tot &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
-    </message>
-    <message>
-        <source>If checked, the virtual machine will assume that the pipe or socket specified in the &lt;b&gt;Path/Address&lt;/b&gt; field exists and try to use it. Otherwise, the pipe or socket will be created by the virtual machine when it starts.</source>
-        <translation type="obsolete">Als dit is ingesteld zal de virtuele machine aannemen dat de pipe of socket gespecificeerd in het &lt;b&gt;Pad/Adres&lt;/b&gt;-veld bestaat en proberenhet te gebruiken. Niet aangevinkt zal de pipe of socket door de virtuele machine tijdends het opstarten worden aangemaakt.</translation>
     </message>
     <message>
         <source>&amp;Connect to existing pipe/socket</source>
@@ -6555,6 +7360,30 @@
     <message>
         <source>There are currently duplicate port paths specified.</source>
         <translation>Op dit moment zijn gelijke poortpaden opgegeven.</translation>
+    </message>
+    <message>
+        <source>Controls the working mode of this serial port. If you select &lt;b&gt;Disconnected&lt;/b&gt;, the guest OS will detect the serial port but will not be able to operate it.</source>
+        <translation type="obsolete">Stelt de status van deze seriële poort in. Selecteert u &lt;b&gt;Niet verbonden&lt;/b&gt; dan zal het gastbesturingssysteem de seriële poort wel detecteren maar zal niet in staat zijn ermee te werken.</translation>
+    </message>
+    <message>
+        <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will assume that the pipe exists and try to use it.</source>
+        <translation type="obsolete">Als dit is ingesteld zal de pijp gespecificeerd in het &lt;b&gt;Poort/bestandspad&lt;/b&gt;-veld door de virtuele machine worden aangemaakt zodra deze opstart. Niet aangevinkt zal de virtuele machine een bestaande pijp proberen te gebruiken.</translation>
+    </message>
+    <message>
+        <source>&amp;Create Pipe</source>
+        <translation type="obsolete">Maak &amp;pijp aan</translation>
+    </message>
+    <message>
+        <source>Holds the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
+        <translation type="obsolete">Toont het pad naar de seriële poort op de host indien de poort in &lt;b&gt;Host pijp&lt;/b&gt;-modus werkt; en de naam van het host seriële-apparaat als de poort in &lt;b&gt;Host apparaat&lt;/b&gt;-modus werkt.</translation>
+    </message>
+    <message>
+        <source>Port/File &amp;Path:</source>
+        <translation type="obsolete">&amp;Poort/bestandspad:</translation>
+    </message>
+    <message>
+        <source>If checked, the virtual machine will assume that the pipe or socket specified in the &lt;b&gt;Path/Address&lt;/b&gt; field exists and try to use it. Otherwise, the pipe or socket will be created by the virtual machine when it starts.</source>
+        <translation type="obsolete">Als dit is ingesteld zal de virtuele machine aannemen dat de pipe of socket gespecificeerd in het &lt;b&gt;Pad/Adres&lt;/b&gt;-veld bestaat en proberenhet te gebruiken. Niet aangevinkt zal de pipe of socket door de virtuele machine tijdends het opstarten worden aangemaakt.</translation>
     </message>
 </context>
 <context>
@@ -6599,26 +7428,6 @@
         <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Type:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>&lt;nobr&gt;Expand/Collapse&amp;nbsp;Item&lt;/nobr&gt;</source>
-        <translation type="obsolete">&lt;nobr&gt;Item&amp;nbsp;Uitklappen/Inklappen&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;Add&amp;nbsp;Hard&amp;nbsp;Disk&lt;/nobr&gt;</source>
-        <translation type="obsolete">&lt;nobr&gt;Toevoegen&amp;nbsp;harde&amp;nbsp;schijf&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;Add&amp;nbsp;CD/DVD&amp;nbsp;Device&lt;/nobr&gt;</source>
-        <translation type="obsolete">&lt;nobr&gt;Voeg&amp;nbsp;CD/DVD-speler&amp;nbsp;toe&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Device&lt;/nobr&gt;</source>
-        <translation type="obsolete">&lt;nobr&gt;Voeg&amp;nbsp;diskettestation&amp;nbsp;toe&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;i&gt;%1&lt;/i&gt; uses a medium that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
-        <translation type="obsolete">&lt;i&gt;%1&lt;/i&gt; gebruikt een medium dat al is gekoppeld aan &lt;i&gt;%2&lt;/i&gt;.</translation>
-    </message>
-    <message>
         <source>Add Controller</source>
         <translation>Toevoegen controller</translation>
     </message>
@@ -6651,48 +7460,8 @@
         <translation>Toevoegen harde schijf</translation>
     </message>
     <message>
-        <source>Add CD/DVD Device</source>
-        <translation type="obsolete">Voeg CD/DVD-speler toe</translation>
-    </message>
-    <message>
-        <source>Add Floppy Device</source>
-        <translation type="obsolete">Voeg diskettestation toe</translation>
-    </message>
-    <message>
         <source>Remove Attachment</source>
         <translation>Verwijderen aansluiting</translation>
-    </message>
-    <message>
-        <source>Adds a new controller to the end of the Storage Tree.</source>
-        <translation type="obsolete">Voegt een nieuwe controller toe aan einde van Opslagstructuur.</translation>
-    </message>
-    <message>
-        <source>Removes the controller highlighted in the Storage Tree.</source>
-        <translation type="obsolete">Verwijdert de controller die geselecteerd is in Opslagstructuur.</translation>
-    </message>
-    <message>
-        <source>Adds a new attachment to the Storage Tree using currently selected controller as parent.</source>
-        <translation type="obsolete">Voegt een nieuwe aansluiting toe aan Opslagstructuur en gebruikt de geselecteerde controller als ouder (parent).</translation>
-    </message>
-    <message>
-        <source>Removes the attachment highlighted in the Storage Tree.</source>
-        <translation type="obsolete">Verwijdert de aansluiting die geselecteerd is in Opslagstructuur.</translation>
-    </message>
-    <message>
-        <source>IDE Controller</source>
-        <translation type="obsolete">IDE controller</translation>
-    </message>
-    <message>
-        <source>SATA Controller</source>
-        <translation type="obsolete">SATA controller</translation>
-    </message>
-    <message>
-        <source>SCSI Controller</source>
-        <translation type="obsolete">SCSI controller</translation>
-    </message>
-    <message>
-        <source>Floppy Controller</source>
-        <translation type="obsolete">Diskette controller</translation>
     </message>
     <message>
         <source>Hard &amp;Disk:</source>
@@ -6702,10 +7471,6 @@
         <source>&amp;Storage Tree</source>
         <translatorcomment>Opslagboom wordt niet gebruikt in nl, wel opslag structuur (met spatie, maar dat is MicroSoft)</translatorcomment>
         <translation>&amp;Opslagstructuur</translation>
-    </message>
-    <message>
-        <source>Contains all storage controllers for this machine and the virtual images and host drives attached to them.</source>
-        <translation type="obsolete">Bevat alle opslagcontrollers voor deze machine, de virtuele images en de hoststations die aangesloten zijn.</translation>
     </message>
     <message>
         <source>Information</source>
@@ -6722,10 +7487,6 @@
     <message>
         <source>&amp;Name:</source>
         <translation>&amp;Naam:</translation>
-    </message>
-    <message>
-        <source>Changes the name of the storage controller currently selected in the Storage Tree.</source>
-        <translation type="obsolete">Wijzigt de naam van de opslagcontroller die momenteel geselecteerd is in Opslagstructuur.</translation>
     </message>
     <message>
         <source>&amp;Type:</source>
@@ -6774,20 +7535,12 @@
         <translation>Aangesloten aan:</translation>
     </message>
     <message>
-        <source>Allows to use host I/O caching capabilities.</source>
-        <translation type="obsolete">Staat toe host I/O-cachingsmogelijkheden te gebruiken.</translation>
-    </message>
-    <message>
         <source>Use Host I/O Cache</source>
         <translation>Gebruik host I/O-cache</translation>
     </message>
     <message>
         <source>Add SAS Controller</source>
         <translation>Toevoegen SAS-controller</translation>
-    </message>
-    <message>
-        <source>SAS Controller</source>
-        <translation type="obsolete">SAS controller</translation>
     </message>
     <message>
         <source>Type:</source>
@@ -6798,28 +7551,8 @@
         <translation>Hoststation</translation>
     </message>
     <message>
-        <source>Image</source>
-        <translation type="obsolete">Image</translation>
-    </message>
-    <message>
         <source>Choose or create a virtual hard disk file. The virtual machine will see the data in the file as the contents of the virtual hard disk.</source>
         <translation>Kies of maak een virtuele harde schijf bestand aan. De virtuele machine zal de gegevens in het bestand beschouwen als inhoud van de virtuele harde schijf.</translation>
-    </message>
-    <message>
-        <source>Set up the virtual hard disk</source>
-        <translation type="obsolete">Zet een virtuele harde schijf op</translation>
-    </message>
-    <message>
-        <source>CD/DVD &amp;Drive:</source>
-        <translation type="obsolete">CD/DVD-&amp;station:</translation>
-    </message>
-    <message>
-        <source>Choose a virtual CD/DVD disk or a physical drive to use with the virtual drive. The virtual machine will see a disk inserted into the drive with the data in the file or on the disk in the physical drive as its contents.</source>
-        <translation type="obsolete">Kies een virtuele CD/DVD-schijf of een fysiek station om met het virtuele station te gebruiken. De virtuele machine zal een schijf ingebracht in het station, met de gegevens in het bestand of op de schijf in het fysieke station, beschouwen als haar inhoud.</translation>
-    </message>
-    <message>
-        <source>Set up the virtual CD/DVD drive</source>
-        <translation type="obsolete">Zet een virtuele CD/DVD-station op</translation>
     </message>
     <message>
         <source>Floppy &amp;Drive:</source>
@@ -6830,41 +7563,13 @@
         <translation>Kies een virtuele diskette of een fysiek station om te gebruiken met het virtuele station. De virtuele machine zal een in het station ingebrachte diskette, met de gegevens in dat bestand of op de echte diskette in het fysieke station, als haar eigen inhoud beschouwen.</translation>
     </message>
     <message>
-        <source>Set up the virtual floppy drive</source>
-        <translation type="obsolete">Zet een virtuele diskette-station op</translation>
-    </message>
-    <message>
-        <source>Create a new hard disk...</source>
-        <translation type="obsolete">Maak een nieuwe harde schijf aan...</translation>
-    </message>
-    <message>
-        <source>Choose a virtual hard disk file...</source>
-        <translation type="obsolete">Kies een virtuele harde schijf bestand...</translation>
-    </message>
-    <message>
-        <source>Choose a virtual CD/DVD disk file...</source>
-        <translation type="obsolete">Kies een virtuele CD/DVD-schijfbestand...</translation>
-    </message>
-    <message>
         <source>Remove disk from virtual drive</source>
         <translatorcomment>zonder &apos;het&apos; ervoor is het &apos;virtueel station&apos; en niet &apos;virtuele station&apos;</translatorcomment>
         <translation>Schijf van virtueel station verwijderen</translation>
     </message>
     <message>
-        <source>Choose a virtual floppy disk file...</source>
-        <translation type="obsolete">Kies een virtuele diskette bestand...</translation>
-    </message>
-    <message>
-        <source>When checked the virtual disk will not be removed when the guest system ejects it.</source>
-        <translation type="obsolete">Als dit is ingesteld zal de virtuele disk niet worden verwijderd wanneer het gastsysteem het uitwerpt.</translation>
-    </message>
-    <message>
         <source>&amp;Live CD/DVD</source>
         <translation>&amp;Live CD/DVD</translation>
-    </message>
-    <message>
-        <source>When checked the guest system will see the virtual disk as a solid state device.</source>
-        <translation type="obsolete">Als dit is ingesteld zal het gastsysteem de virtuele disk beschouwen als een solid-stateapparaat.</translation>
     </message>
     <message>
         <source>&amp;Solid-state Drive</source>
@@ -6875,18 +7580,6 @@
         <translation>Details:</translation>
     </message>
     <message>
-        <source>no name specified for controller at position &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">geen naam opgegeven voor controller op positie &lt;b&gt;%1&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source>controller at position &lt;b&gt;%1&lt;/b&gt; uses the name that is already used by controller at position &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation type="obsolete">controller op positie &lt;b&gt;%1&lt;/b&gt; gebruikt een naam die al wordt gebruikt door controller op positie &lt;b&gt;%2&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source>no hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
-        <translation type="obsolete">er is geen harde schijf geselecteerd voor &lt;i&gt;%1&lt;/i&gt;.</translation>
-    </message>
-    <message>
         <source>at most one supported</source>
         <comment>controller</comment>
         <translation>op zijn minst één ondersteund</translation>
@@ -6895,10 +7588,6 @@
         <source>up to %1 supported</source>
         <comment>controllers</comment>
         <translation>tot %1 ondersteund</translation>
-    </message>
-    <message>
-        <source>you are currently using more storage controllers than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2.</source>
-        <translation type="obsolete">u gebruikt nu meer opslagcontrolers dan een %1-chipset ondersteunt. Wijzig aub het type chipset bij pagina Systeeminstellingen of verminder het aantal van de volgende opslagcontrolers op de pagina Opslaginstellingen: %2.</translation>
     </message>
     <message>
         <source>&amp;Port Count:</source>
@@ -6938,24 +7627,8 @@
         <translation>Toevoegen USB-controller</translation>
     </message>
     <message>
-        <source>When checked the guest system will see the virtual disk as a hot-pluggable device.</source>
-        <translation type="obsolete">Als dit is ingesteld zal het gastsysteem de virtuele disk beschouwen als een &apos;hot-pluggable&apos;-apparaat.</translation>
-    </message>
-    <message>
         <source>&amp;Hot-pluggable</source>
         <translation>&amp;Hot-pluggable</translation>
-    </message>
-    <message>
-        <source>Choose a virtual optical disk file...</source>
-        <translation type="obsolete">Kies een virtuele optische schijfbestand...</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;Add&amp;nbsp;Optical&amp;nbsp;Drive&lt;/nobr&gt;</source>
-        <translation type="obsolete">&lt;nobr&gt;Toevoegen&amp;nbsp;optisch&amp;nbsp;station&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Drive&lt;/nobr&gt;</source>
-        <translation type="obsolete">&lt;nobr&gt;Toevoegen&amp;nbsp;diskettestation&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Add Optical Drive</source>
@@ -6972,10 +7645,6 @@
     <message>
         <source>Choose a virtual optical disk or a physical drive to use with the virtual drive. The virtual machine will see a disk inserted into the drive with the data in the file or on the disk in the physical drive as its contents.</source>
         <translation>Kies een virtuele optische schijf of een fysiek station dat met het virtuele station zal worden gebruikt. De virtuele machine zal een in het station ingebrachte schijf, met de gegevens in dat bestand of op de echte schijf in het fysieke station, als haar eigen inhoud beschouwen.</translation>
-    </message>
-    <message>
-        <source>Set up the virtual optical drive</source>
-        <translation type="obsolete">Zet een virtuele optisch-station op</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
@@ -7071,42 +7740,173 @@
         <source>Add NVMe Controller</source>
         <translation>Toevoegen NVMe-controller</translation>
     </message>
+    <message>
+        <source>&amp;Storage Devices</source>
+        <translation type="vanished">Op&amp;slagapparaten</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Expand/Collapse&amp;nbsp;Item&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;Item&amp;nbsp;Uitklappen/Inklappen&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;Hard&amp;nbsp;Disk&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;Toevoegen&amp;nbsp;harde&amp;nbsp;schijf&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;CD/DVD&amp;nbsp;Device&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;Voeg&amp;nbsp;CD/DVD-speler&amp;nbsp;toe&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Device&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;Voeg&amp;nbsp;diskettestation&amp;nbsp;toe&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;%1&lt;/i&gt; uses a medium that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
+        <translation type="obsolete">&lt;i&gt;%1&lt;/i&gt; gebruikt een medium dat al is gekoppeld aan &lt;i&gt;%2&lt;/i&gt;.</translation>
+    </message>
+    <message>
+        <source>Add CD/DVD Device</source>
+        <translation type="obsolete">Voeg CD/DVD-speler toe</translation>
+    </message>
+    <message>
+        <source>Add Floppy Device</source>
+        <translation type="obsolete">Voeg diskettestation toe</translation>
+    </message>
+    <message>
+        <source>Adds a new controller to the end of the Storage Tree.</source>
+        <translation type="obsolete">Voegt een nieuwe controller toe aan einde van Opslagstructuur.</translation>
+    </message>
+    <message>
+        <source>Removes the controller highlighted in the Storage Tree.</source>
+        <translation type="obsolete">Verwijdert de controller die geselecteerd is in Opslagstructuur.</translation>
+    </message>
+    <message>
+        <source>Adds a new attachment to the Storage Tree using currently selected controller as parent.</source>
+        <translation type="obsolete">Voegt een nieuwe aansluiting toe aan Opslagstructuur en gebruikt de geselecteerde controller als ouder (parent).</translation>
+    </message>
+    <message>
+        <source>Removes the attachment highlighted in the Storage Tree.</source>
+        <translation type="obsolete">Verwijdert de aansluiting die geselecteerd is in Opslagstructuur.</translation>
+    </message>
+    <message>
+        <source>IDE Controller</source>
+        <translation type="obsolete">IDE controller</translation>
+    </message>
+    <message>
+        <source>SATA Controller</source>
+        <translation type="obsolete">SATA controller</translation>
+    </message>
+    <message>
+        <source>SCSI Controller</source>
+        <translation type="obsolete">SCSI controller</translation>
+    </message>
+    <message>
+        <source>Floppy Controller</source>
+        <translation type="obsolete">Diskette controller</translation>
+    </message>
+    <message>
+        <source>Contains all storage controllers for this machine and the virtual images and host drives attached to them.</source>
+        <translation type="obsolete">Bevat alle opslagcontrollers voor deze machine, de virtuele images en de hoststations die aangesloten zijn.</translation>
+    </message>
+    <message>
+        <source>Changes the name of the storage controller currently selected in the Storage Tree.</source>
+        <translation type="obsolete">Wijzigt de naam van de opslagcontroller die momenteel geselecteerd is in Opslagstructuur.</translation>
+    </message>
+    <message>
+        <source>Allows to use host I/O caching capabilities.</source>
+        <translation type="obsolete">Staat toe host I/O-cachingsmogelijkheden te gebruiken.</translation>
+    </message>
+    <message>
+        <source>SAS Controller</source>
+        <translation type="obsolete">SAS controller</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation type="obsolete">Image</translation>
+    </message>
+    <message>
+        <source>Set up the virtual hard disk</source>
+        <translation type="obsolete">Zet een virtuele harde schijf op</translation>
+    </message>
+    <message>
+        <source>CD/DVD &amp;Drive:</source>
+        <translation type="obsolete">CD/DVD-&amp;station:</translation>
+    </message>
+    <message>
+        <source>Choose a virtual CD/DVD disk or a physical drive to use with the virtual drive. The virtual machine will see a disk inserted into the drive with the data in the file or on the disk in the physical drive as its contents.</source>
+        <translation type="obsolete">Kies een virtuele CD/DVD-schijf of een fysiek station om met het virtuele station te gebruiken. De virtuele machine zal een schijf ingebracht in het station, met de gegevens in het bestand of op de schijf in het fysieke station, beschouwen als haar inhoud.</translation>
+    </message>
+    <message>
+        <source>Set up the virtual CD/DVD drive</source>
+        <translation type="obsolete">Zet een virtuele CD/DVD-station op</translation>
+    </message>
+    <message>
+        <source>Set up the virtual floppy drive</source>
+        <translation type="obsolete">Zet een virtuele diskette-station op</translation>
+    </message>
+    <message>
+        <source>Create a new hard disk...</source>
+        <translation type="obsolete">Maak een nieuwe harde schijf aan...</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard disk file...</source>
+        <translation type="obsolete">Kies een virtuele harde schijf bestand...</translation>
+    </message>
+    <message>
+        <source>Choose a virtual CD/DVD disk file...</source>
+        <translation type="obsolete">Kies een virtuele CD/DVD-schijfbestand...</translation>
+    </message>
+    <message>
+        <source>Choose a virtual floppy disk file...</source>
+        <translation type="obsolete">Kies een virtuele diskette bestand...</translation>
+    </message>
+    <message>
+        <source>When checked the virtual disk will not be removed when the guest system ejects it.</source>
+        <translation type="obsolete">Als dit is ingesteld zal de virtuele disk niet worden verwijderd wanneer het gastsysteem het uitwerpt.</translation>
+    </message>
+    <message>
+        <source>When checked the guest system will see the virtual disk as a solid state device.</source>
+        <translation type="obsolete">Als dit is ingesteld zal het gastsysteem de virtuele disk beschouwen als een solid-stateapparaat.</translation>
+    </message>
+    <message>
+        <source>no name specified for controller at position &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="obsolete">geen naam opgegeven voor controller op positie &lt;b&gt;%1&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>controller at position &lt;b&gt;%1&lt;/b&gt; uses the name that is already used by controller at position &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="obsolete">controller op positie &lt;b&gt;%1&lt;/b&gt; gebruikt een naam die al wordt gebruikt door controller op positie &lt;b&gt;%2&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>no hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
+        <translation type="obsolete">er is geen harde schijf geselecteerd voor &lt;i&gt;%1&lt;/i&gt;.</translation>
+    </message>
+    <message>
+        <source>you are currently using more storage controllers than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2.</source>
+        <translation type="obsolete">u gebruikt nu meer opslagcontrolers dan een %1-chipset ondersteunt. Wijzig aub het type chipset bij pagina Systeeminstellingen of verminder het aantal van de volgende opslagcontrolers op de pagina Opslaginstellingen: %2.</translation>
+    </message>
+    <message>
+        <source>When checked the guest system will see the virtual disk as a hot-pluggable device.</source>
+        <translation type="obsolete">Als dit is ingesteld zal het gastsysteem de virtuele disk beschouwen als een &apos;hot-pluggable&apos;-apparaat.</translation>
+    </message>
+    <message>
+        <source>Choose a virtual optical disk file...</source>
+        <translation type="obsolete">Kies een virtuele optische schijfbestand...</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;Optical&amp;nbsp;Drive&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;Toevoegen&amp;nbsp;optisch&amp;nbsp;station&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Drive&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;Toevoegen&amp;nbsp;diskettestation&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Set up the virtual optical drive</source>
+        <translation type="obsolete">Zet een virtuele optisch-station op</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
-    <message>
-        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. Not enough memory is left for your host operating system. Please select a smaller amount.</source>
-        <translation type="obsolete">U hebt meer dan &lt;b&gt;%1%&lt;/b&gt; van het geheugen van uw fysieke computer (&lt;b&gt;%2&lt;/b&gt;) aan de virtuele machine toegewezen. Er blijft zo onvoldoende geheugen voor uw hostbesturingssysteem over. Kies alstublieft een lagere hoeveelheid.</translation>
-    </message>
-    <message>
-        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
-        <translation type="obsolete">U hebt meer dan &lt;b&gt;%1%&lt;/b&gt; van het geheugen van uw fysieke computer (&lt;b&gt;%2&lt;/b&gt;) aan de virtuele machine toegewezen. Er blijft zo onvoldoende geheugen over voor uw hostbesturingssysteem. Doorgaan is geheel op eigen risico.</translation>
-    </message>
-    <message>
-        <source>for performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
-        <translation type="obsolete">Voor een goede prestatatie mag het aantal virtuele CPU&apos;s gekoppeld aan de virtuele machine niet groter zijn dan twee keer het aantal fysieke CPU&apos;s van de host (&lt;b&gt;%1&lt;/b&gt;). Verlaag alstublieft het aantal virtuele CPU&apos;s.</translation>
-    </message>
-    <message>
-        <source>you have assigned more virtual CPUs to the virtual machine than the number of physical CPUs on your host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
-        <translation type="obsolete">U hebt meer virtuele CPU&apos;s toegewezen aan de virtuele machine dan het aantal fysieke CPU&apos;s in uw hostcomputer (&lt;b&gt;%1&lt;/b&gt;). Dit verlaagt de prestaties van uw virtuele machine. Overweeg het aantal virtuele CPU&apos;s te verlagen.</translation>
-    </message>
-    <message>
-        <source>you have assigned more than one virtual CPU to this VM. This will not work unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation type="obsolete">U hebt meer dan één virtuele CPU toegewezen aan deze virtuele machine. Dit zal niet eerder werken totdat de IO-APIC optie ook is ingeschakeld. Dit gebeurt automatisch als u de VM instellingen accepteert door op de OK-knop te klikken.</translation>
-    </message>
-    <message>
-        <source>you have assigned more than one virtual CPU to this VM. This will not work unless hardware virtualization (VT-x/AMD-V) is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation type="obsolete">U hebt meer dan één virtuele CPU toegewezen aan deze virtuele machine. Dit zal niet eerder werken totdat de hardware-virtualisering (VT-x/AMD-V) ook is ingeschakeld. Dit gebeurt automatisch als u de VM instellingen accepteert door op de OK-knop te klikken.</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</source>
-        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;%1&amp;nbsp;CPU&lt;/qt&gt;</source>
-        <comment>%1 is 1 for now</comment>
-        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;CPU&lt;/qt&gt;</translation>
-    </message>
     <message>
         <source>&amp;Motherboard</source>
         <translation>&amp;Moederbord</translation>
@@ -7132,16 +7932,8 @@
         <translation>Definieert de opstartvolgorde. Gebruik de keuzevakjes aan de linker zijde om individuele opstartapparaten te activeren of te deactiveren. Verplaats items naar boven of beneden om de opstartvolgorde te wijzigen.</translation>
     </message>
     <message>
-        <source>Move Down (Ctrl-Down)</source>
-        <translation type="obsolete">Naar beneden (Ctrl+Down)</translation>
-    </message>
-    <message>
         <source>Moves the selected boot device down.</source>
         <translation>Verplaats het geselecteerde opstartapparaat naar beneden.</translation>
-    </message>
-    <message>
-        <source>Move Up (Ctrl-Up)</source>
-        <translation type="obsolete">Naar boven (Ctrl+Up)</translation>
     </message>
     <message>
         <source>Moves the selected boot device up.</source>
@@ -7200,11 +7992,6 @@
         <translation>&amp;Geneste Paging inschakelen</translation>
     </message>
     <message>
-        <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
-        <comment>%1 is host cpu count * 2 for now</comment>
-        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;CPU&apos;s&lt;/qt&gt;</translation>
-    </message>
-    <message>
         <source>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</source>
         <translation>Als dit is ingesteld zal de gast de Extended Firmware Interface (EFI) ondersteunen. Deze is verplicht om bepaalde gastbesturingssystemen te kunnen opstarten. Besturingssystemen die EFI niet ondersteunen kunnen niet opstarten als deze optie aan staat.</translation>
     </message>
@@ -7213,24 +8000,12 @@
         <translation>Zet &amp;EFI (alleen voor speciale besturingssystemen) aan</translation>
     </message>
     <message>
-        <source>If checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
-        <translation type="obsolete">Als dit is ingesteld zal het RTC-apparaat de tijd in UTC-formaat rapporteren; anders in locale (host) tijd. Unix verwacht normaal gesproken dat de klok op UTC staat.</translation>
-    </message>
-    <message>
         <source>Hardware Clock in &amp;UTC Time</source>
         <translation>Hardwareklok in &amp;UTC tijd</translation>
     </message>
     <message>
         <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Stelt het aantal virtuele CPUs in de virtuele machine in. U hebt hardware-virtualisatie-ondersteuning op uw hostsysteem nodig om meer dan één virtuele CPU te kunnen gebruiken.</translation>
-    </message>
-    <message>
-        <source>If checked, an absolute pointing device (a USB tablet) will be supported. Otherwise, only a standard PS/2 mouse will be emulated.</source>
-        <translation type="obsolete">Als dit is ingesteld wordt een USB-tablet ondersteund. Anders wordt alleen een standaard PS/2-muis geëmuleerd.</translation>
-    </message>
-    <message>
-        <source>Enable &amp;absolute pointing device</source>
-        <translation type="obsolete">Activeer een T&amp;ablet</translation>
     </message>
     <message>
         <source>&amp;Chipset:</source>
@@ -7251,32 +8026,6 @@
         <translation>Beperkt de tijdsduur waarbinnen instructies door elke virtuele CPU kunnen worden uitgevoerd. Elke virtuele CPU zal dit percentage van de beschikbare processortijd worden toegestaan op één fysieke CPU. De execution-cap kan worden uitgeschakeld door deze in te stellen op 100%. De cap te laag zetten kan de indruk wekken dat de machine langzaam reageert.</translation>
     </message>
     <message>
-        <source>you have set the processor execution cap to a low value. This can make the machine feel slow to respond.</source>
-        <translation type="obsolete">U hebt de processor-execution-cap op een lage waarde ingesteld. Dit kan de indruk wekken dat de machine langzaam reageert.</translation>
-    </message>
-    <message>
-        <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation type="obsolete">U hebt een USB-HID (Human Interface Device) ingeschakeld. Deze zal niet werken zolang USB-emulatie niet is ingeschakeld. Dit wordt automatisch gedaan wanneer u de VM instellingen accepteert door op de OK-knop te klikken.</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;%1%&lt;/qt&gt;</source>
-        <comment>Min CPU execution cap in %</comment>
-        <translation type="obsolete">&lt;qt&gt;%1%&lt;/qt&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;%1%&lt;/qt&gt;</source>
-        <comment>Max CPU execution cap in %</comment>
-        <translation type="obsolete">&lt;qt&gt;%1%&lt;/qt&gt;</translation>
-    </message>
-    <message>
-        <source>you have assigned ICH9 chipset type to this VM. It will not work properly unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation type="obsolete">U hebt het ICH9-chipsettype aan deze VM toegewezen. Dit zal niet eerder naar behoren werken totdat IO-APIC eveneens is ingeschakeld.  Dit gebeurt automatisch wanneer u de VM instellingen accepteert door op de OK knop te klikken.</translation>
-    </message>
-    <message>
-        <source>you have hardware virtualization (VT-x/AMD-V) enabled. Your host configuration does not support hardware virtualization, so it will be disabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation type="obsolete">U hebt hardwarevirtualisatie (VT-x/AMD-V) ingeschakeld. Echter, aangezien uw hostconfiguratie geen hardwarevirtualisatie ondersteunt, zal deze optie weer worden uitgezet. Dit uitzetten wordt automatisch gedaan als u de VM instellingen accepteert door op de OK-knop te klikken.</translation>
-    </message>
-    <message>
         <source>&amp;Pointing Device:</source>
         <translation>Aanwijs&amp;apparaat:</translation>
     </message>
@@ -7293,28 +8042,12 @@
         <translation>Er is meer dan &lt;b&gt;%1%&lt;/b&gt; van het geheugen van uw fysieke computer (&lt;b&gt;%2&lt;/b&gt;) aan de virtuele machine toegewezen. Er blijft zo weinig geheugen over voor uw hostbesturingssysteem. Overweeg een lagere hoeveelheid.</translation>
     </message>
     <message>
-        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9. It will be done automatically if you confirm your changes.</source>
-        <translation type="obsolete">De I/O-APIC-eigenschap is momenteel niet ingeschakeld bij de sectie Moederbord op de pagina Systeem. Dit is echter nodig om een chipset van het type ICH9 te kunnen ondersteunen. De inschakeling zal automatisch gebeuren op het moment dat u uw keuze bevestigt.</translation>
-    </message>
-    <message>
-        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device. It will be done automatically if you confirm your changes.</source>
-        <translation type="obsolete">USB-controlleremulatie is momenteel op de USB-pagina niet ingeschakeld. Dit is echter nodig om een USB-inputapparaat te kunnen ondersteunen. De inschakeling zal automatisch gebeuren op het moment dat u uw keuze voor een USB-inputapparaat bevestigt.</translation>
-    </message>
-    <message>
         <source>For performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
         <translation>Voor een goede prestatatie mag het aantal virtuele CPU&apos;s gekoppeld aan de virtuele machine niet groter zijn dan twee keer het aantal fysieke CPU&apos;s van de host (&lt;b&gt;%1&lt;/b&gt;). Verlaag het aantal virtuele CPU&apos;s.</translation>
     </message>
     <message>
         <source>More virtual CPUs are assigned to the virtual machine than the number of physical CPUs on the host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
         <translation>U hebt meer virtuele CPU&apos;s toegewezen aan de virtuele machine dan het aantal fysieke CPU&apos;s in uw hostcomputer (&lt;b&gt;%1&lt;/b&gt;). Dit verlaagt zeer waarschijnlijk de prestaties van uw virtuele machine. Overweeg het aantal virtuele CPU&apos;s te verlagen.</translation>
-    </message>
-    <message>
-        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
-        <translation type="obsolete">De I/O-APIC-eigenschap is momenteel niet ingeschakeld bij de sectie Moederbord op de pagina Systeem. Dit is echter nodig om meer dan één virtuele processor te kunnen ondersteunen. De inschakeling zal automatisch gebeuren op het moment dat u uw keuze voor meer dan één virtuele processor bevestigt.</translation>
-    </message>
-    <message>
-        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
-        <translation type="obsolete">Hardwarevirtualisatie is momenteel niet ingeschakeld bij de sectie Acceleratie op de pagina Systeem. Dit is echter nodig om meer dan één virtuele processor te kunnen ondersteunen. De inschakeling zal automatisch gebeuren op het moment dat u uw keuze voor meer dan één virtuele processor bevestigt.</translation>
     </message>
     <message>
         <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
@@ -7370,57 +8103,125 @@
         <source>%1%</source>
         <translation>%1%</translation>
     </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed to support a chipset of type ICH9. It will be enabled automatically if you confirm your changes.</source>
+        <translation type="vanished">De I/O-APIC-eigenschap is momenteel niet ingeschakeld bij de sectie Moederbord op pagina Systeem. Dit is echter nodig om een chipset van het type ICH9 te kunnen ondersteunen. Inschakelen zal automatisch plaatsvinden op het moment dat u uw keuze bevestigt.</translation>
+    </message>
+    <message>
+        <source>The USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB pointing device. It will be enabled automatically if you confirm your changes.</source>
+        <translation type="vanished">USB-controlleremulatie is momenteel op de USB-pagina niet ingeschakeld. Dit is echter nodig om een geëmuleerd USB-inputapparaat te kunnen ondersteunen. Inschakelen zal automatisch plaatsvinden op het moment dat u uw keuze voor een USB-inputapparaat bevestigt.</translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed to support more than one virtual processor. It will be enabled automatically if you confirm your changes.</source>
+        <translation type="vanished">De I/O-APIC-eigenschap is momenteel niet ingeschakeld bij de sectie Moederbord op pagina Systeem. Dit is echter nodig om meer dan één virtuele processor te kunnen ondersteunen. Inschakelen zal automatisch plaatsvinden op het moment dat u uw keuze bevestigt.</translation>
+    </message>
+    <message>
+        <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support more than one virtual processor. It will be enabled automatically if you confirm your changes.</source>
+        <translation type="vanished">Hardwarevirtualisatie is momenteel niet ingeschakeld bij de sectie Acceleratie op pagina Systeem. Dit is echter nodig om meer dan één virtuele processor te kunnen ondersteunen. Inschakelen zal automatisch plaatsvinden op het moment dat u uw keuze voor meer dan één virtuele processor bevestigt.</translation>
+    </message>
+    <message>
+        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. Not enough memory is left for your host operating system. Please select a smaller amount.</source>
+        <translation type="obsolete">U hebt meer dan &lt;b&gt;%1%&lt;/b&gt; van het geheugen van uw fysieke computer (&lt;b&gt;%2&lt;/b&gt;) aan de virtuele machine toegewezen. Er blijft zo onvoldoende geheugen voor uw hostbesturingssysteem over. Kies alstublieft een lagere hoeveelheid.</translation>
+    </message>
+    <message>
+        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
+        <translation type="obsolete">U hebt meer dan &lt;b&gt;%1%&lt;/b&gt; van het geheugen van uw fysieke computer (&lt;b&gt;%2&lt;/b&gt;) aan de virtuele machine toegewezen. Er blijft zo onvoldoende geheugen over voor uw hostbesturingssysteem. Doorgaan is geheel op eigen risico.</translation>
+    </message>
+    <message>
+        <source>for performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
+        <translation type="obsolete">Voor een goede prestatatie mag het aantal virtuele CPU&apos;s gekoppeld aan de virtuele machine niet groter zijn dan twee keer het aantal fysieke CPU&apos;s van de host (&lt;b&gt;%1&lt;/b&gt;). Verlaag alstublieft het aantal virtuele CPU&apos;s.</translation>
+    </message>
+    <message>
+        <source>you have assigned more virtual CPUs to the virtual machine than the number of physical CPUs on your host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
+        <translation type="obsolete">U hebt meer virtuele CPU&apos;s toegewezen aan de virtuele machine dan het aantal fysieke CPU&apos;s in uw hostcomputer (&lt;b&gt;%1&lt;/b&gt;). Dit verlaagt de prestaties van uw virtuele machine. Overweeg het aantal virtuele CPU&apos;s te verlagen.</translation>
+    </message>
+    <message>
+        <source>you have assigned more than one virtual CPU to this VM. This will not work unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation type="obsolete">U hebt meer dan één virtuele CPU toegewezen aan deze virtuele machine. Dit zal niet eerder werken totdat de IO-APIC optie ook is ingeschakeld. Dit gebeurt automatisch als u de VM instellingen accepteert door op de OK-knop te klikken.</translation>
+    </message>
+    <message>
+        <source>you have assigned more than one virtual CPU to this VM. This will not work unless hardware virtualization (VT-x/AMD-V) is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation type="obsolete">U hebt meer dan één virtuele CPU toegewezen aan deze virtuele machine. Dit zal niet eerder werken totdat de hardware-virtualisering (VT-x/AMD-V) ook is ingeschakeld. Dit gebeurt automatisch als u de VM instellingen accepteert door op de OK-knop te klikken.</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</source>
+        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&amp;nbsp;CPU&lt;/qt&gt;</source>
+        <comment>%1 is 1 for now</comment>
+        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;CPU&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>Move Down (Ctrl-Down)</source>
+        <translation type="obsolete">Naar beneden (Ctrl+Down)</translation>
+    </message>
+    <message>
+        <source>Move Up (Ctrl-Up)</source>
+        <translation type="obsolete">Naar boven (Ctrl+Up)</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
+        <comment>%1 is host cpu count * 2 for now</comment>
+        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;CPU&apos;s&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>If checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
+        <translation type="obsolete">Als dit is ingesteld zal het RTC-apparaat de tijd in UTC-formaat rapporteren; anders in locale (host) tijd. Unix verwacht normaal gesproken dat de klok op UTC staat.</translation>
+    </message>
+    <message>
+        <source>If checked, an absolute pointing device (a USB tablet) will be supported. Otherwise, only a standard PS/2 mouse will be emulated.</source>
+        <translation type="obsolete">Als dit is ingesteld wordt een USB-tablet ondersteund. Anders wordt alleen een standaard PS/2-muis geëmuleerd.</translation>
+    </message>
+    <message>
+        <source>Enable &amp;absolute pointing device</source>
+        <translation type="obsolete">Activeer een T&amp;ablet</translation>
+    </message>
+    <message>
+        <source>you have set the processor execution cap to a low value. This can make the machine feel slow to respond.</source>
+        <translation type="obsolete">U hebt de processor-execution-cap op een lage waarde ingesteld. Dit kan de indruk wekken dat de machine langzaam reageert.</translation>
+    </message>
+    <message>
+        <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation type="obsolete">U hebt een USB-HID (Human Interface Device) ingeschakeld. Deze zal niet werken zolang USB-emulatie niet is ingeschakeld. Dit wordt automatisch gedaan wanneer u de VM instellingen accepteert door op de OK-knop te klikken.</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1%&lt;/qt&gt;</source>
+        <comment>Min CPU execution cap in %</comment>
+        <translation type="obsolete">&lt;qt&gt;%1%&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1%&lt;/qt&gt;</source>
+        <comment>Max CPU execution cap in %</comment>
+        <translation type="obsolete">&lt;qt&gt;%1%&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>you have assigned ICH9 chipset type to this VM. It will not work properly unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation type="obsolete">U hebt het ICH9-chipsettype aan deze VM toegewezen. Dit zal niet eerder naar behoren werken totdat IO-APIC eveneens is ingeschakeld.  Dit gebeurt automatisch wanneer u de VM instellingen accepteert door op de OK knop te klikken.</translation>
+    </message>
+    <message>
+        <source>you have hardware virtualization (VT-x/AMD-V) enabled. Your host configuration does not support hardware virtualization, so it will be disabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation type="obsolete">U hebt hardwarevirtualisatie (VT-x/AMD-V) ingeschakeld. Echter, aangezien uw hostconfiguratie geen hardwarevirtualisatie ondersteunt, zal deze optie weer worden uitgezet. Dit uitzetten wordt automatisch gedaan als u de VM instellingen accepteert door op de OK-knop te klikken.</translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9. It will be done automatically if you confirm your changes.</source>
+        <translation type="obsolete">De I/O-APIC-eigenschap is momenteel niet ingeschakeld bij de sectie Moederbord op de pagina Systeem. Dit is echter nodig om een chipset van het type ICH9 te kunnen ondersteunen. De inschakeling zal automatisch gebeuren op het moment dat u uw keuze bevestigt.</translation>
+    </message>
+    <message>
+        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device. It will be done automatically if you confirm your changes.</source>
+        <translation type="obsolete">USB-controlleremulatie is momenteel op de USB-pagina niet ingeschakeld. Dit is echter nodig om een USB-inputapparaat te kunnen ondersteunen. De inschakeling zal automatisch gebeuren op het moment dat u uw keuze voor een USB-inputapparaat bevestigt.</translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
+        <translation type="obsolete">De I/O-APIC-eigenschap is momenteel niet ingeschakeld bij de sectie Moederbord op de pagina Systeem. Dit is echter nodig om meer dan één virtuele processor te kunnen ondersteunen. De inschakeling zal automatisch gebeuren op het moment dat u uw keuze voor meer dan één virtuele processor bevestigt.</translation>
+    </message>
+    <message>
+        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
+        <translation type="obsolete">Hardwarevirtualisatie is momenteel niet ingeschakeld bij de sectie Acceleratie op de pagina Systeem. Dit is echter nodig om meer dan één virtuele processor te kunnen ondersteunen. De inschakeling zal automatisch gebeuren op het moment dat u uw keuze voor meer dan één virtuele processor bevestigt.</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsUSB</name>
-    <message>
-        <source>&amp;Add Empty Filter</source>
-        <translation type="obsolete">Toe&amp;voegen leeg filter</translation>
-    </message>
-    <message>
-        <source>A&amp;dd Filter From Device</source>
-        <translation type="obsolete">&amp;Toevoegen filter vanuit een appartaat </translation>
-    </message>
-    <message>
-        <source>&amp;Edit Filter</source>
-        <translation type="obsolete">&amp;Wijzigen filter</translation>
-    </message>
-    <message>
-        <source>&amp;Remove Filter</source>
-        <translation type="obsolete">&amp;Verwijderen filter</translation>
-    </message>
-    <message>
-        <source>&amp;Move Filter Up</source>
-        <translation type="obsolete">Verplaats filter o&amp;mhoog</translation>
-    </message>
-    <message>
-        <source>M&amp;ove Filter Down</source>
-        <translation type="obsolete">Verplaats filter &amp;naar beneden</translation>
-    </message>
-    <message>
-        <source>Adds a new USB filter with all fields initially set to empty strings. Note that such a filter will match any attached USB device.</source>
-        <translation type="obsolete">Voegt een nieuw USB-filter toe waarbij alle velden in het begin leeg zijn. Let op: een dergelijke filter zal met elk aangesloten USB-apparaat overeenkomen.</translation>
-    </message>
-    <message>
-        <source>Adds a new USB filter with all fields set to the values of the selected USB device attached to the host PC.</source>
-        <translation type="obsolete">Voegt een nieuw USB-filter toe waarbij de velden de waarden van het geselecteerde USB-apparaat aangesloten op de fysieke PC overnemen.</translation>
-    </message>
-    <message>
-        <source>Edits the selected USB filter.</source>
-        <translation type="obsolete">Wijzigt geselecteerd USB-filter.</translation>
-    </message>
-    <message>
-        <source>Removes the selected USB filter.</source>
-        <translation type="obsolete">Verwijdert geselecteerd USB filter.</translation>
-    </message>
-    <message>
-        <source>Moves the selected USB filter up.</source>
-        <translation type="obsolete">Verplaatst geselecteerd USB filter omhoog.</translation>
-    </message>
-    <message>
-        <source>Moves the selected USB filter down.</source>
-        <translation type="obsolete">Verplaatst geselecteerd USB filter naar beneden.</translation>
-    </message>
     <message>
         <source>New Filter %1</source>
         <comment>usb</comment>
@@ -7433,14 +8234,6 @@
     <message>
         <source>Enable &amp;USB Controller</source>
         <translation>&amp;USB-controller inschakelen</translation>
-    </message>
-    <message>
-        <source>When checked, enables the virtual USB EHCI controller of this machine. The USB EHCI controller provides USB 2.0 support.</source>
-        <translation type="obsolete">Als dit is ingesteld zal de virtuele USB-EHCI-controller van deze machine worden ingeschakeld. De USB-EHCI-controller levert ondersteuning voor USB 2.0.</translation>
-    </message>
-    <message>
-        <source>Enable USB 2.0 (E&amp;HCI) Controller</source>
-        <translation type="obsolete">USB &amp;2.0-controller inschakelen</translation>
     </message>
     <message>
         <source>USB Device &amp;Filters</source>
@@ -7495,29 +8288,12 @@
         <translation>&lt;nobr&gt;Staat: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.</source>
-        <translatorcomment>laatste voor de duidelijkheid er zelf bij gezet, dichtersvrijheid ;)</translatorcomment>
-        <translation type="obsolete">USB 2.0 is voor deze virtuele machine momenteel ingeschakeld. Dit vereist echter dat &lt;b&gt;%1&lt;/b&gt; wordt geïnstalleerd. Installeer het Extention Pack van de VirtualBox-downloadsite. Na installatie zult u in staat zijn USB 2.0 weer in te schakelen. In de tussentijd zal USB 2.0 zijn uitgeschakeld, tenzij u de verandering van deze instelling annuleert (en daarmee dus niet kiest voor USB 2.0).</translation>
-    </message>
-    <message>
-        <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0 to be able to start the machine.</source>
-        <translation type="obsolete">USB 2.0 is momenteel voor deze virtuele machine ingeschakeld. Dit vereist echter dat &lt;b&gt;%1&lt;/b&gt; is geïnstalleerd. Installeer het Extention Pack van de VirtualBox-downloadsite of schakel USB 2.0 uit waardoor de machine kan opstarten.</translation>
-    </message>
-    <message>
-        <source>When checked, enables the virtual USB OHCI controller of this machine. The USB OHCI controller provides USB 1.0 support.</source>
-        <translation type="obsolete">Als dit is ingesteld zal de virtuele USB-OHCI-controller van deze machine worden ingeschakeld. De USB-OHCI-controller levert ondersteuning voor USB 1.0.</translation>
-    </message>
-    <message>
         <source>USB &amp;1.1 (OHCI) Controller</source>
         <translation>USB &amp;1.1 (OHCI) Controller</translation>
     </message>
     <message>
         <source>USB &amp;2.0 (EHCI) Controller</source>
         <translation>USB &amp;2.0 (EHCI) Controller</translation>
-    </message>
-    <message>
-        <source>When checked, enables the virtual USB xHCI controller of this machine. The USB xHCI controller provides USB 3.0 support.</source>
-        <translation type="obsolete">Als dit is ingesteld zal de virtuele USB-xHCI-controller van deze machine worden ingeschakeld. De USB-xHCI-controller levert ondersteuning voor USB 3.0.</translation>
     </message>
     <message>
         <source>USB &amp;3.0 (xHCI) Controller</source>
@@ -7587,6 +8363,79 @@
         <source>Moves selected USB filter down.</source>
         <translation>Verplaatst geselecteerd USB filter naar beneden.</translation>
     </message>
+    <message>
+        <source>&amp;Add Empty Filter</source>
+        <translation type="obsolete">Toe&amp;voegen leeg filter</translation>
+    </message>
+    <message>
+        <source>A&amp;dd Filter From Device</source>
+        <translation type="obsolete">&amp;Toevoegen filter vanuit een appartaat </translation>
+    </message>
+    <message>
+        <source>&amp;Edit Filter</source>
+        <translation type="obsolete">&amp;Wijzigen filter</translation>
+    </message>
+    <message>
+        <source>&amp;Remove Filter</source>
+        <translation type="obsolete">&amp;Verwijderen filter</translation>
+    </message>
+    <message>
+        <source>&amp;Move Filter Up</source>
+        <translation type="obsolete">Verplaats filter o&amp;mhoog</translation>
+    </message>
+    <message>
+        <source>M&amp;ove Filter Down</source>
+        <translation type="obsolete">Verplaats filter &amp;naar beneden</translation>
+    </message>
+    <message>
+        <source>Adds a new USB filter with all fields initially set to empty strings. Note that such a filter will match any attached USB device.</source>
+        <translation type="obsolete">Voegt een nieuw USB-filter toe waarbij alle velden in het begin leeg zijn. Let op: een dergelijke filter zal met elk aangesloten USB-apparaat overeenkomen.</translation>
+    </message>
+    <message>
+        <source>Adds a new USB filter with all fields set to the values of the selected USB device attached to the host PC.</source>
+        <translation type="obsolete">Voegt een nieuw USB-filter toe waarbij de velden de waarden van het geselecteerde USB-apparaat aangesloten op de fysieke PC overnemen.</translation>
+    </message>
+    <message>
+        <source>Edits the selected USB filter.</source>
+        <translation type="obsolete">Wijzigt geselecteerd USB-filter.</translation>
+    </message>
+    <message>
+        <source>Removes the selected USB filter.</source>
+        <translation type="obsolete">Verwijdert geselecteerd USB filter.</translation>
+    </message>
+    <message>
+        <source>Moves the selected USB filter up.</source>
+        <translation type="obsolete">Verplaatst geselecteerd USB filter omhoog.</translation>
+    </message>
+    <message>
+        <source>Moves the selected USB filter down.</source>
+        <translation type="obsolete">Verplaatst geselecteerd USB filter naar beneden.</translation>
+    </message>
+    <message>
+        <source>When checked, enables the virtual USB EHCI controller of this machine. The USB EHCI controller provides USB 2.0 support.</source>
+        <translation type="obsolete">Als dit is ingesteld zal de virtuele USB-EHCI-controller van deze machine worden ingeschakeld. De USB-EHCI-controller levert ondersteuning voor USB 2.0.</translation>
+    </message>
+    <message>
+        <source>Enable USB 2.0 (E&amp;HCI) Controller</source>
+        <translation type="obsolete">USB &amp;2.0-controller inschakelen</translation>
+    </message>
+    <message>
+        <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.</source>
+        <translatorcomment>laatste voor de duidelijkheid er zelf bij gezet, dichtersvrijheid ;)</translatorcomment>
+        <translation type="obsolete">USB 2.0 is voor deze virtuele machine momenteel ingeschakeld. Dit vereist echter dat &lt;b&gt;%1&lt;/b&gt; wordt geïnstalleerd. Installeer het Extention Pack van de VirtualBox-downloadsite. Na installatie zult u in staat zijn USB 2.0 weer in te schakelen. In de tussentijd zal USB 2.0 zijn uitgeschakeld, tenzij u de verandering van deze instelling annuleert (en daarmee dus niet kiest voor USB 2.0).</translation>
+    </message>
+    <message>
+        <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0 to be able to start the machine.</source>
+        <translation type="obsolete">USB 2.0 is momenteel voor deze virtuele machine ingeschakeld. Dit vereist echter dat &lt;b&gt;%1&lt;/b&gt; is geïnstalleerd. Installeer het Extention Pack van de VirtualBox-downloadsite of schakel USB 2.0 uit waardoor de machine kan opstarten.</translation>
+    </message>
+    <message>
+        <source>When checked, enables the virtual USB OHCI controller of this machine. The USB OHCI controller provides USB 1.0 support.</source>
+        <translation type="obsolete">Als dit is ingesteld zal de virtuele USB-OHCI-controller van deze machine worden ingeschakeld. De USB-OHCI-controller levert ondersteuning voor USB 1.0.</translation>
+    </message>
+    <message>
+        <source>When checked, enables the virtual USB xHCI controller of this machine. The USB xHCI controller provides USB 3.0 support.</source>
+        <translation type="obsolete">Als dit is ingesteld zal de virtuele USB-xHCI-controller van deze machine worden ingeschakeld. De USB-xHCI-controller levert ondersteuning voor USB 3.0.</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsUSBFilterDetails</name>
@@ -7619,72 +8468,32 @@
         <translation>&amp;Leveranciers-ID:</translation>
     </message>
     <message>
-        <source>Defines the vendor ID filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;XXXX&lt;/tt&gt; where &lt;tt&gt;X&lt;/tt&gt; is a hexadecimal digit. An empty string will match any value.</source>
-        <translation type="obsolete">Bepaalt het filter voor het ID van de leverancier. Het &lt;i&gt;precieze&lt;/i&gt; formaat is&lt;tt&gt;XXXX&lt;/tt&gt; waarbij &lt;tt&gt;X&lt;/tt&gt; een hexadecimaal getal is. Een leeg veld zal met elke waarde overeenkomen.</translation>
-    </message>
-    <message>
         <source>&amp;Product ID:</source>
         <translation>&amp;Produkt ID:</translation>
-    </message>
-    <message>
-        <source>Defines the product ID filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;XXXX&lt;/tt&gt; where &lt;tt&gt;X&lt;/tt&gt; is a hexadecimal digit. An empty string will match any value.</source>
-        <translation type="obsolete">Bepaalt het filter voor het ID van het product. Het &lt;i&gt;precieze&lt;/i&gt; formaat is&lt;tt&gt;XXXX&lt;/tt&gt; waarbij &lt;tt&gt;X&lt;/tt&gt; een hexadecimaal getal is. Een leeg veld zal met elke waarde overeenkomen.</translation>
     </message>
     <message>
         <source>&amp;Revision:</source>
         <translation>&amp;Revisie-nr:</translation>
     </message>
     <message>
-        <source>Defines the revision number filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;IIFF&lt;/tt&gt; where &lt;tt&gt;I&lt;/tt&gt; is a decimal digit of the integer part and &lt;tt&gt;F&lt;/tt&gt; is a decimal digit of the fractional part. An empty string will match any value.</source>
-        <translation type="obsolete">Bepaalt het filter voor het revisienummer. Het &lt;i&gt;precieze&lt;/i&gt; formaat is&lt;tt&gt;IIFF&lt;/&lt;/tt&gt; waarbij &lt;tt&gt;I&lt;/tt&gt; een geheel getal is en &lt;tt&gt;F&lt;/tt&gt; een getal achter de komma. Een leeg veld zal met elke waarde overeenkomen.</translation>
-    </message>
-    <message>
         <source>&amp;Manufacturer:</source>
         <translation>&amp;Fabrikant:</translation>
-    </message>
-    <message>
-        <source>Defines the manufacturer filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
-        <translation type="obsolete">Bepaalt het filter voor de fabrikant als een &lt;i&gt;exacte overeenkomst&lt;/i&gt;. Een leeg veld zal met elke waarde overeenkomen.</translation>
     </message>
     <message>
         <source>Pro&amp;duct:</source>
         <translation>&amp;Produkt:</translation>
     </message>
     <message>
-        <source>Defines the product name filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
-        <translation type="obsolete">Bepaalt het filter voor de productnaam als een &lt;i&gt;exacte overeenkomst&lt;/i&gt;. Een leeg veld zal met elke waarde overeenkomen.</translation>
-    </message>
-    <message>
         <source>&amp;Serial No.:</source>
         <translation>&amp;Serienr.:</translation>
-    </message>
-    <message>
-        <source>Defines the serial number filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
-        <translation type="obsolete">Bepaalt het filter voor het serienummer als een &lt;i&gt;exacte overeenkomst&lt;/i&gt;. Een leeg veld zal met elke waarde overeenkomen.</translation>
     </message>
     <message>
         <source>Por&amp;t:</source>
         <translation>&amp;Poort:</translation>
     </message>
     <message>
-        <source>Defines the host USB port filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
-        <translation type="obsolete">Bepaalt het filter voor de fysieke USB-poort als een &lt;i&gt;exacte overeenkomst&lt;/i&gt;. Een leeg veld zal met elke waarde overeenkomen.</translation>
-    </message>
-    <message>
         <source>R&amp;emote:</source>
         <translation>&amp;Op afstand:</translation>
-    </message>
-    <message>
-        <source>Defines whether this filter applies to USB devices attached locally to the host computer (&lt;i&gt;No&lt;/i&gt;), to a VRDP client&apos;s computer (&lt;i&gt;Yes&lt;/i&gt;), or both (&lt;i&gt;Any&lt;/i&gt;).</source>
-        <translation type="obsolete">Bepaalt of dit filter werkt voor USB-apparaten die lokaal gekoppeld zijn aan: de fysieke computer. (&lt;i&gt;Nee&lt;/i&gt;), een VRDP computer (&lt;i&gt;Ja&lt;/i&gt;) of beide (&lt;i&gt;Beide&lt;/i&gt;).</translation>
-    </message>
-    <message>
-        <source>&amp;Action:</source>
-        <translation type="obsolete">&amp;Aktie:</translation>
-    </message>
-    <message>
-        <source>Defines an action performed by the host computer when a matching device is attached: give it up to the host OS (&lt;i&gt;Ignore&lt;/i&gt;) or grab it for later usage by virtual machines (&lt;i&gt;Hold&lt;/i&gt;).</source>
-        <translation type="obsolete">Bepaalt de actie die de hostcomputer uitvoert als een passend apparaat wordt aangesloten: geef het door aan het hostbesturingssysteem (&lt;i&gt;Negeren&lt;/i&gt;) of pak het op voor eventueel later gebruik door virtuele machines (&lt;i&gt;Vasthouden&lt;/i&gt;).</translation>
     </message>
     <message>
         <source>USB Filter Details</source>
@@ -7722,6 +8531,46 @@
         <source>Holds whether this filter applies to USB devices attached locally to the host computer (&lt;i&gt;No&lt;/i&gt;), to a VRDP client&apos;s computer (&lt;i&gt;Yes&lt;/i&gt;), or both (&lt;i&gt;Any&lt;/i&gt;).</source>
         <translation>Bepaalt of dit filter werkt voor USB-apparaten die lokaal gekoppeld zijn aan: de fysieke computer. (&lt;i&gt;Nee&lt;/i&gt;), een VRDP computer (&lt;i&gt;Ja&lt;/i&gt;) of beide (&lt;i&gt;Beide&lt;/i&gt;).</translation>
     </message>
+    <message>
+        <source>Defines the vendor ID filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;XXXX&lt;/tt&gt; where &lt;tt&gt;X&lt;/tt&gt; is a hexadecimal digit. An empty string will match any value.</source>
+        <translation type="obsolete">Bepaalt het filter voor het ID van de leverancier. Het &lt;i&gt;precieze&lt;/i&gt; formaat is&lt;tt&gt;XXXX&lt;/tt&gt; waarbij &lt;tt&gt;X&lt;/tt&gt; een hexadecimaal getal is. Een leeg veld zal met elke waarde overeenkomen.</translation>
+    </message>
+    <message>
+        <source>Defines the product ID filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;XXXX&lt;/tt&gt; where &lt;tt&gt;X&lt;/tt&gt; is a hexadecimal digit. An empty string will match any value.</source>
+        <translation type="obsolete">Bepaalt het filter voor het ID van het product. Het &lt;i&gt;precieze&lt;/i&gt; formaat is&lt;tt&gt;XXXX&lt;/tt&gt; waarbij &lt;tt&gt;X&lt;/tt&gt; een hexadecimaal getal is. Een leeg veld zal met elke waarde overeenkomen.</translation>
+    </message>
+    <message>
+        <source>Defines the revision number filter. The &lt;i&gt;exact match&lt;/i&gt; string format is &lt;tt&gt;IIFF&lt;/tt&gt; where &lt;tt&gt;I&lt;/tt&gt; is a decimal digit of the integer part and &lt;tt&gt;F&lt;/tt&gt; is a decimal digit of the fractional part. An empty string will match any value.</source>
+        <translation type="obsolete">Bepaalt het filter voor het revisienummer. Het &lt;i&gt;precieze&lt;/i&gt; formaat is&lt;tt&gt;IIFF&lt;/&lt;/tt&gt; waarbij &lt;tt&gt;I&lt;/tt&gt; een geheel getal is en &lt;tt&gt;F&lt;/tt&gt; een getal achter de komma. Een leeg veld zal met elke waarde overeenkomen.</translation>
+    </message>
+    <message>
+        <source>Defines the manufacturer filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
+        <translation type="obsolete">Bepaalt het filter voor de fabrikant als een &lt;i&gt;exacte overeenkomst&lt;/i&gt;. Een leeg veld zal met elke waarde overeenkomen.</translation>
+    </message>
+    <message>
+        <source>Defines the product name filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
+        <translation type="obsolete">Bepaalt het filter voor de productnaam als een &lt;i&gt;exacte overeenkomst&lt;/i&gt;. Een leeg veld zal met elke waarde overeenkomen.</translation>
+    </message>
+    <message>
+        <source>Defines the serial number filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
+        <translation type="obsolete">Bepaalt het filter voor het serienummer als een &lt;i&gt;exacte overeenkomst&lt;/i&gt;. Een leeg veld zal met elke waarde overeenkomen.</translation>
+    </message>
+    <message>
+        <source>Defines the host USB port filter as an &lt;i&gt;exact match&lt;/i&gt; string. An empty string will match any value.</source>
+        <translation type="obsolete">Bepaalt het filter voor de fysieke USB-poort als een &lt;i&gt;exacte overeenkomst&lt;/i&gt;. Een leeg veld zal met elke waarde overeenkomen.</translation>
+    </message>
+    <message>
+        <source>Defines whether this filter applies to USB devices attached locally to the host computer (&lt;i&gt;No&lt;/i&gt;), to a VRDP client&apos;s computer (&lt;i&gt;Yes&lt;/i&gt;), or both (&lt;i&gt;Any&lt;/i&gt;).</source>
+        <translation type="obsolete">Bepaalt of dit filter werkt voor USB-apparaten die lokaal gekoppeld zijn aan: de fysieke computer. (&lt;i&gt;Nee&lt;/i&gt;), een VRDP computer (&lt;i&gt;Ja&lt;/i&gt;) of beide (&lt;i&gt;Beide&lt;/i&gt;).</translation>
+    </message>
+    <message>
+        <source>&amp;Action:</source>
+        <translation type="obsolete">&amp;Aktie:</translation>
+    </message>
+    <message>
+        <source>Defines an action performed by the host computer when a matching device is attached: give it up to the host OS (&lt;i&gt;Ignore&lt;/i&gt;) or grab it for later usage by virtual machines (&lt;i&gt;Hold&lt;/i&gt;).</source>
+        <translation type="obsolete">Bepaalt de actie die de hostcomputer uitvoert als een passend apparaat wordt aangesloten: geef het door aan het hostbesturingssysteem (&lt;i&gt;Negeren&lt;/i&gt;) of pak het op voor eventueel later gebruik door virtuele machines (&lt;i&gt;Vasthouden&lt;/i&gt;).</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineWindow</name>
@@ -7738,11 +8587,78 @@
     </message>
 </context>
 <context>
-    <name>UIMediumManager</name>
+    <name>UIMediumDetailsWidget</name>
     <message>
-        <source>&amp;Hard drives</source>
-        <translation type="obsolete">&amp;Harde schijven</translation>
+        <source>&amp;Attributes</source>
+        <translation type="vanished">&amp;Attributen</translation>
     </message>
+    <message>
+        <source>&amp;Information</source>
+        <translation type="vanished">&amp;Informatie</translation>
+    </message>
+    <message>
+        <source>&amp;Type:</source>
+        <translation type="vanished">&amp;Type:</translation>
+    </message>
+    <message>
+        <source>&amp;Location:</source>
+        <translation type="vanished">&amp;Locatie:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="vanished">&amp;Beschrijving:</translation>
+    </message>
+    <message>
+        <source>&amp;Size:</source>
+        <translation type="vanished">&amp;Grootte:</translation>
+    </message>
+    <message>
+        <source>Holds the type of this medium.</source>
+        <translation type="vanished">Toont het type van dit medium.</translation>
+    </message>
+    <message>
+        <source>Holds the location of this medium.</source>
+        <translation type="vanished">Toont de locatie van dit medium.</translation>
+    </message>
+    <message>
+        <source>Holds the description of this medium.</source>
+        <translation type="vanished">Toont de beschrijving van dit medium.</translation>
+    </message>
+    <message>
+        <source>Holds the size of this medium.</source>
+        <translation type="vanished">Toont de grootte van dit medium.</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="vanished">Reset</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation type="vanished">Toepassen</translation>
+    </message>
+    <message>
+        <source>Reset changes in current medium details</source>
+        <translation type="vanished">Reset veranderingen in huidige mediumdetails</translation>
+    </message>
+    <message>
+        <source>Apply changes in current medium details</source>
+        <translation type="vanished">Toepassen veranderingen in huidige mediumdetails</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="vanished">Reset veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Apply Changes (%1)</source>
+        <translation type="vanished">Toepassen veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Cannot change medium size from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt; as storage shrinking is currently not implemented.</source>
+        <translation type="vanished">Kan mediumgrootte niet veranderen van &lt;b&gt;%1&lt;/b&gt; naar &lt;b&gt;%2&lt;/b&gt; aangezien opslagverkleining momenteel niet geïmplementeerd is.</translation>
+    </message>
+</context>
+<context>
+    <name>UIMediumManager</name>
     <message>
         <source>&amp;Optical disks</source>
         <translation>&amp;Optische schijven</translation>
@@ -7752,6 +8668,164 @@
         <translation>&amp;Diskettes</translation>
     </message>
     <message>
+        <source>Removing medium...</source>
+        <translation>Verwijderen medium...</translation>
+    </message>
+    <message>
+        <source>&amp;Hard disks</source>
+        <translation>&amp;Harde schijven</translation>
+    </message>
+    <message>
+        <source>%1, %2: %3, %4: %5</source>
+        <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text</comment>
+        <translation type="vanished">%1, %2: %3, %4: %5</translation>
+    </message>
+    <message>
+        <source>Format:</source>
+        <translation type="vanished">Formaat:</translation>
+    </message>
+    <message>
+        <source>Storage details:</source>
+        <translation type="vanished">Opslagdetails:</translation>
+    </message>
+    <message>
+        <source>Attached to:</source>
+        <translation type="vanished">Aangesloten aan:</translation>
+    </message>
+    <message>
+        <source>Encrypted with key:</source>
+        <translation type="vanished">Versleuteld met sleutel:</translation>
+    </message>
+    <message>
+        <source>UUID:</source>
+        <translation type="vanished">UUID:</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
+        <translation type="vanished">&lt;i&gt;Niet&amp;nbsp;aangesloten&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
+        <translation type="vanished">&lt;i&gt;Niet&amp;nbsp;Versleuteld&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>--</source>
+        <comment>no info</comment>
+        <translation type="vanished">--</translation>
+    </message>
+    <message>
+        <source>&amp;Medium</source>
+        <translation type="vanished">&amp;Medium</translation>
+    </message>
+    <message>
+        <source>&amp;Copy...</source>
+        <translation type="vanished">&amp;Kopiëren...</translation>
+    </message>
+    <message>
+        <source>Copy selected disk image file</source>
+        <translation type="vanished">Kopiëer geselecteerd disk-imagebestand</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation type="vanished">Ve&amp;rwijderen...</translation>
+    </message>
+    <message>
+        <source>Remove selected disk image file</source>
+        <translation type="vanished">Verwijderen disk-imagebestand</translation>
+    </message>
+    <message>
+        <source>Re&amp;lease...</source>
+        <translation type="vanished">Re&amp;lease...</translation>
+    </message>
+    <message>
+        <source>Release selected disk image file by detaching it from machines</source>
+        <translation type="vanished">Geeft het geselecteerde disk-imagebestand vrij door deze te ontkoppelen van de machines</translation>
+    </message>
+    <message>
+        <source>&amp;Properties...</source>
+        <translation type="vanished">&amp;Eigenschappen...</translation>
+    </message>
+    <message>
+        <source>Open pane with selected disk image file properties</source>
+        <translation type="vanished">Open deelvenster met geselecteerde disk-image-eigenschappen</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh</source>
+        <translation type="vanished">&amp;Verversen</translation>
+    </message>
+    <message>
+        <source>Refresh the list of disk image files</source>
+        <translation type="vanished">Ververs de lijst met disk-image-bestanden</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="vanished">Naam</translation>
+    </message>
+    <message>
+        <source>Virtual Size</source>
+        <translation type="vanished">Virtuele grootte</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation type="vanished">Ware grootte</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation type="vanished">Grootte</translation>
+    </message>
+    <message>
+        <source>Checking accessibility</source>
+        <translation type="vanished">Controleren toegankelijkheid</translation>
+    </message>
+    <message>
+        <source>Moving medium...</source>
+        <translation type="vanished">Verplaatsen medium...</translation>
+    </message>
+    <message>
+        <source>Virtual Media Manager</source>
+        <translation type="vanished">Virtuele Media Manager</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="vanished">Reset</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation type="vanished">Toepassen</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="vanished">Sluiten</translation>
+    </message>
+    <message>
+        <source>Reset changes in current medium details</source>
+        <translation type="vanished">Reset veranderingen in huidige mediumdetails</translation>
+    </message>
+    <message>
+        <source>Apply changes in current medium details</source>
+        <translation type="vanished">Toepassen veranderingen in huidige mediumdetails</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="vanished">Sluit dialoog af zonder opslaan</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="vanished">Reset veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Apply Changes (%1)</source>
+        <translation type="vanished">Toepassen veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Close Window (%1)</source>
+        <translation type="vanished">Afsluiten scherm (%1)</translation>
+    </message>
+    <message>
+        <source>&amp;Hard drives</source>
+        <translation type="obsolete">&amp;Harde schijven</translation>
+    </message>
+    <message>
         <source>&amp;Select</source>
         <translation type="obsolete">&amp;Selecteer</translation>
     </message>
@@ -7759,13 +8833,39 @@
         <source>C&amp;lose</source>
         <translation type="obsolete">S&amp;luiten</translation>
     </message>
+</context>
+<context>
+    <name>UIMediumManagerWidget</name>
     <message>
-        <source>Removing medium...</source>
-        <translation>Verwijderen medium...</translation>
+        <source>Copy Disk Image File (%1)</source>
+        <translation type="vanished">Kopiëer disk-imagebestand (%1)</translation>
     </message>
     <message>
-        <source>&amp;Hard disks</source>
-        <translation>&amp;Harde schijven</translation>
+        <source>Remove Disk Image File (%1)</source>
+        <translation type="vanished">Verwijderen disk-imagebestand (%1)</translation>
+    </message>
+    <message>
+        <source>Release Disk Image File (%1)</source>
+        <translation type="vanished">Vrijgeven disk-imagebestand (%1)</translation>
+    </message>
+    <message>
+        <source>Open Disk Image File Properties (%1)</source>
+        <translation type="vanished">Openen disk-imagebestand-eigenschappen(%1)</translation>
+    </message>
+    <message>
+        <source>Refresh Disk Image Files (%1)</source>
+        <translation type="vanished">Verversen disk-imagebestanden (%1)</translation>
+    </message>
+</context>
+<context>
+    <name>UIMediumSizeEditor</name>
+    <message>
+        <source>Holds the size of this medium.</source>
+        <translation type="vanished">Toont de grootte van dit medium.</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation type="vanished">&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -7830,6 +8930,14 @@
         <source>Enable Menu Bar</source>
         <translation>Inschakelen menubalk</translation>
     </message>
+    <message>
+        <source>Toggle menu %1</source>
+        <translation type="vanished">Toggle-menu %1</translation>
+    </message>
+    <message>
+        <source>Popup menu %1</source>
+        <translation type="vanished">Popup-menu %1</translation>
+    </message>
 </context>
 <context>
     <name>UIMessageCenter</name>
@@ -7880,10 +8988,6 @@
         <translation>&lt;p&gt;Het is niet gelukt COM te initialiseren of de VirtualBox COM-server is niet gevonden. Waarschijnlijk draait de VirtualBox-server niet of lukt het niet deze op te starten.&lt;/p&gt;&lt;p&gt;Het programma wordt nu afgesloten.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Failed to create the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het is niet gelukt het VirtualBox COM-object aan te maken.&lt;/p&gt;&lt;p&gt;Het programma wordt nu afgesloten.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Failed to set global VirtualBox properties.</source>
         <translation>Het is niet gelukt de algemene VirtualBox-eigenschappen in te stellen.</translation>
     </message>
@@ -7894,14 +8998,6 @@
     <message>
         <source>Failed to create a new virtual machine.</source>
         <translation>Het is niet gelukt een nieuwe virtuele machine aan te maken.</translation>
-    </message>
-    <message>
-        <source>Failed to create a new virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt de nieuwe virtuele machine &lt;b&gt;%1&lt;/b&gt; aan te maken.</translation>
-    </message>
-    <message>
-        <source>Failed to apply the settings to the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt de instellingen aan virtuele machine &lt;b&gt;%1&lt;/b&gt; toe te kennen.</translation>
     </message>
     <message>
         <source>Failed to start the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -7944,10 +9040,6 @@
         <translation>Een virtuele machine met de naam &lt;b&gt;%1&lt;/b&gt; bestaat niet.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de opgeslagen staat van virtuele machine &lt;b&gt;%1&lt;/b&gt; wilt weggooien?&lt;/p&gt;&lt;p&gt;Deze actie staat gelijk aan het uitzetten van de machine zonder het gastbesturingssysteem netjes af te sluiten.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Failed to create a new session.</source>
         <translation>Het is niet gelukt een nieuwe sessie aan te maken.</translation>
     </message>
@@ -7976,24 +9068,12 @@
         <translation>Het is niet gelukt om gedeelde map &lt;b&gt;%1&lt;/b&gt; (verwijzend naar &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) aan te maken voor virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt om gedeelde map &lt;b&gt;%1&lt;/b&gt; (verwijzend naar &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) te verwijderen van virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;De virtuele machine rapporteert dat het gastbesturingssysteem geen &lt;b&gt;muisintegratie&lt;/b&gt; ondersteunt in de huidige videomodus. U moet de muis afvangen door te klikken in het venster van de virtuele machine of door te drukken op de Hosttoets om de muis te kunnen gebruiken in het gastbesturingssysteem.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine is currently in the &lt;b&gt;Paused&lt;/b&gt; state and not able to see any keyboard or mouse input. If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
         <translation>&lt;p&gt;De virtuele machine is nu in &lt;b&gt;Pauze&lt;/b&gt; stand en accepteert daarom geen invoer van toetsenbord of muis. Indien u wilt doorgaan met werken binnen deze virtuele machine moet u deze machine activeren via de checkbox menu-optie hiervoor in de menubalk.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Cannot run VirtualBox in &lt;i&gt;VM Selector&lt;/i&gt; mode due to local restrictions.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;VirtualBox kan niet draaien in &lt;i&gt;VM Selector modus&lt;/i&gt; door lokale restricties.&lt;/p&gt;&lt;p&gt;Het programma sluit zich nu af.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to create appliance.</source>
-        <translation type="obsolete">Appliance aanmaken mislukt.</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Fatal Error&lt;/nobr&gt;</source>
@@ -8060,44 +9140,8 @@
         <translation>Callee&amp;nbsp;RC: </translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kan geen taalbestand vinden voor de taal &lt;b&gt;%1&lt;/b&gt; in de map &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;De taal wordt tijdelijk teruggezet op de systeemstandaard. Ga naar &lt;b&gt;Voorkeuren&lt;/b&gt; dialoog, deze is te bereiken via het menu in het VirtualBox hoofdscherm. Selecteer één van de aanwezige talen op de pagina &lt;b&gt;Talen&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not load the language file &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;The language will be temporarily reset to English (built-in). Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kan het taalbestand &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; niet laden.&lt;p&gt;De taal wordt tijdelijk teruggezet naar Engels (ingebouwd). Ga naar &lt;b&gt;Voorkeuren&lt;/b&gt; dialoog, deze is te bereiken via het menu in het VirtualBox hoofdscherm. Selecteer een van de aanwezige talen op de pagina &lt;b&gt;Talen&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please close all programs in the guest OS that may be using this shared folder and try again.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Het is niet gelukt om de gedeeld map &lt;b&gt;%1&lt;/b&gt; (die verwijst naar &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) te verwijderen van virtuele machine &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Sluit alle programma&apos;s af in het gastbesturingssysteem die deze map mogen gebruiken en probeer het opnieuw.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions disk image file file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het VirtualBox Guest Additions disk image file bestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; of &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; is niet te vinden.&lt;/p&gt;&lt;p&gt;Wilt u deze downloaden van het internet?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to download the VirtualBox Guest Additions disk image file from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het is niet gelukt het VirtualBox Guest Additions CD-image van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; te downloaden.&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to download the VirtualBox Guest Additions disk image file from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u het zeker dat u het VirtualBox Guest Additions disk image file bestand van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (omvang %3 bytes) wil downladen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual CD/DVD drive?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het VirtualBox Guest Additions disk image file bestand is met succes gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; en lokaal opgeslagen als &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;wilt u het disk image file registreren en koppelen aan het virtuele CD/DVD station?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het venster van de virtuele machine is geöptimaliseerd om te werken in &lt;b&gt;%1 bits&lt;/b&gt; kleurenmodus, echter de kleurkwaliteit van het virtuele beeldscherm staat op &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Open de beeldscherm-eigenschappen in het gastbesturingssysteem en selecteer indien beschikbaar &lt;b&gt;%3 bits&lt;/b&gt;kleurenmodus voor de beste prestatie van het video-subsysteem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Let op:&lt;/b&gt; Sommige besturingssystemen (zoals OS/2 en soms XP) werken in 32 bits kleurenmodus maar melden dit als 24 bits kleurenmodus (16 miljoen kleuren).U kunt proberen een andere kleurkwaliteit te selecteren om deze boodschap weg te krijgen of u kunt de boodschap gewoon nu uitzetten indien u zeker weet dat de vereiste kleurkwaliteit (%4&amp;nbsp; bit) niet beschikbaar is op het gastbesturingssysteem.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;U hebt geen harde schijf aan de nieuwe virtuele machine gekoppeld. De machine kan niet eerder opstarten dan nadat u eerst een harde schijf met een gastbesturingssysteem of een andere opstartbaar medium hebt aangekoppeld. U kunt dit doen via het dialoog Machine-instellingen of door de Start Assistent op te starten.&lt;/p&gt;&lt;p&gt;Wilt u doorgaan?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to find license files in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt het licentiebestand in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te vinden.</translation>
     </message>
     <message>
         <source>Failed to open the license file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
@@ -8108,23 +9152,9 @@
         <translation>Het is niet gelukt de ACPI-aan/uitknop-gebeurtenis naar virtuele machine &lt;b&gt;%1&lt;/b&gt; te sturen.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Congratulations! You have been successfully registered as a user of VirtualBox.&lt;/p&gt;&lt;p&gt;Thank you for finding time to fill out the registration form!&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Gefeliciteerd! U bent met succes geregistreerd als gebuiker van VirtualBox.&lt;/p&gt;&lt;p&gt;Bedankt dat u de moeite nam om het registratieformulier in te vullen!&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Discard</source>
         <comment>saved state</comment>
         <translation>Verwerp</translation>
-    </message>
-    <message>
-        <source>Download</source>
-        <comment>additions</comment>
-        <translation type="obsolete">Download</translation>
-    </message>
-    <message>
-        <source>Mount</source>
-        <comment>additions</comment>
-        <translation type="obsolete">Aankoppelen</translation>
     </message>
     <message>
         <source>&lt;p&gt;The host key is currently defined as &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
@@ -8141,20 +9171,6 @@
         <source>Check</source>
         <comment>inaccessible media message box</comment>
         <translation>Controleer</translation>
-    </message>
-    <message>
-        <source>Switch</source>
-        <comment>fullscreen</comment>
-        <translation type="obsolete">Switchen</translation>
-    </message>
-    <message>
-        <source>Switch</source>
-        <comment>seamless</comment>
-        <translation type="obsolete">Switchen</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Do you really want to reset the virtual machine?&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de virtuele machine wilt resetten?&lt;/p&gt;&lt;p&gt;Wordt de machine gereset dan gaan alle niet opgeslagen gegevens van alle draaiende programma&apos;s verloren.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -8184,16 +9200,8 @@
         <translation>Het is niet gelukt de instellingen van virtuele machine &lt;b&gt;%1&lt;/b&gt; op te slaan in &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Failed to load the settings of the virtual machine &lt;b&gt;%1&lt;/b&gt; from &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt de instellingen van virtuele machine &lt;b&gt;%1&lt;/b&gt; vanuit &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; te laden.</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Could not enter seamless mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Kan niet op naadloze modus overgaan omdat de gast onvoldoende videogeheugen heeft.&lt;/p&gt;&lt;p&gt;U moet bij de configuratie de virtuele machine minimaal &lt;b&gt;%1&lt;/b&gt; videogeheugen meegeven.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not switch the guest display to fullscreen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to fullscreen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kan het gastscherm niet laten overschakelen op schermvullend omdat de gast te weinig videogeheugen heeft.&lt;/p&gt;&lt;p&gt;U moet bij de configuratie de virtuele machine minimaal &lt;b&gt;%1&lt;/b&gt; videogeheugen meegeven.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;Negeren&lt;/b&gt; om toch op volledig beeld over te schakelen of klik op&lt;b&gt;Annuleren&lt;/b&gt; om niets te doen.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>You are already running the most recent version of VirtualBox.</source>
@@ -8213,77 +9221,9 @@
         <translation>&lt;p&gt;De virtuele machine meldt dat het gastbesturingssysteem &lt;b&gt;muisintegratie&lt;/b&gt; ondersteunt. Dit betekent dat u niet de muis hoeft &lt;i&gt;af te vangen&lt;/i&gt; om deze binnen het gastbesturingssysteem te kunnen gebruiken. Bevindt de muis zich op het venster van de virtuele machine dan zullen alle acties naar het gastbesturingssysteem worden gestuurd. Is de muis op dat moment afgevangen dan wordt deze automatisch vrijgegeven.&lt;/p&gt;&lt;p&gt;Het icoon van de muis op statusbalk lijkt op:&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp; dit maakt duidelijk dat muisintegratie wordt ondersteund en momenteel geactiveerd is.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Let op:&lt;/b&gt; bepaalde applicaties kunnen zich vreemd gedragen in deze modus. U kunt muisintegratie altijd deactiveren voor de huidige sessie (en later weer activeren) door de overeenkomstige actie in de menubalk te selecteren.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Contents...</source>
-        <translation type="obsolete">&amp;Inhoud...</translation>
-    </message>
-    <message>
-        <source>Show the online help contents</source>
-        <translation type="obsolete">Toon inhoud online hulp</translation>
-    </message>
-    <message>
-        <source>&amp;VirtualBox Web Site...</source>
-        <translation type="obsolete">&amp;VirtualBox website...</translation>
-    </message>
-    <message>
-        <source>Open the browser and go to the VirtualBox product web site</source>
-        <translation type="obsolete">Open de browser en ga naar de website van VirtualBox</translation>
-    </message>
-    <message>
-        <source>&amp;Reset All Warnings</source>
-        <translation type="obsolete">Alle waarschuwingen &amp;terugzetten</translation>
-    </message>
-    <message>
-        <source>Go back to showing all suppressed warnings and messages</source>
-        <translation type="obsolete">Hierdoor worden alle onderdrukte waarschuwingen en berichten weer zichtbaar</translation>
-    </message>
-    <message>
-        <source>R&amp;egister VirtualBox...</source>
-        <translation type="obsolete">VirtualBox r&amp;egistreren...</translation>
-    </message>
-    <message>
-        <source>Open VirtualBox registration form</source>
-        <translation type="obsolete">Open het registratieformulier van VirtualBox</translation>
-    </message>
-    <message>
-        <source>C&amp;heck for Updates...</source>
-        <translation type="obsolete">&amp;Controleer op updates...</translation>
-    </message>
-    <message>
-        <source>Check for a new VirtualBox version</source>
-        <translation type="obsolete">Controleer of een nieuwe versie van VirtualBox beschikbaar is</translation>
-    </message>
-    <message>
-        <source>&amp;About VirtualBox...</source>
-        <translation type="obsolete">VirtualBox i&amp;nfo...</translation>
-    </message>
-    <message>
-        <source>Show a window with product information</source>
-        <translation type="obsolete">Toon produktinformatie</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Er is een nieuwe versie van VirtualBox vrijgegeven! Versie &lt;b&gt;%1&lt;/b&gt; is beschikbaar bij &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;U kunt deze versie direct downloaden via deze link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to release the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; wilt vrijgeven?&lt;/p&gt;&lt;p&gt;Hierdoor wordt deze ontkoppeld van de volgende virtuele machines: &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Release</source>
         <comment>detach medium</comment>
         <translation>Release</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to remove the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; wilt verwijderen uit de lijst met bekende media?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>As this hard disk is inaccessible its image file can not be deleted.</source>
-        <translation type="obsolete">Let op: deze harde schijf is niet te benaderen, dus zijn opslageenheid kan nu niet verwijderd worden.</translation>
-    </message>
-    <message>
-        <source>The next dialog will let you choose whether you also want to delete the storage unit of this hard disk or keep it for later usage.</source>
-        <translation type="obsolete">Volgend dialoog laat u kiezen of u ook de opslageenheid wilt verwijderen of dat u deze harde schijf wilt bewaren voor later gebruik.</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -8293,10 +9233,6 @@
     <message>
         <source>&lt;p&gt;The hard disk storage unit at location &lt;b&gt;%1&lt;/b&gt; already exists. You cannot create a new virtual hard disk that uses this location because it can be already used by another virtual hard disk.&lt;/p&gt;&lt;p&gt;Please specify a different location.&lt;/p&gt;</source>
         <translation>&lt;p&gt;De opslageenheid van de harde schijf op locatie &lt;b&gt;%1&lt;/b&gt; bestaat al. U kunt geen nieuwe virtuele harde schijf aanmaken op deze locatie omdat deze mogelijk door een andere virtuele harde schijf wordt gebruikt.&lt;/p&gt;&lt;p&gt;Geef een andere locatie op.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Do you want to delete the storage unit of the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;If you select &lt;b&gt;Delete&lt;/b&gt; then the specified storage unit will be permanently deleted. This operation &lt;b&gt;cannot be undone&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;If you select &lt;b&gt;Keep&lt;/b&gt; then the hard disk will be only removed from the list of known hard disks, but the storage unit will be left untouched which makes it possible to add this hard disk to the list later again.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Wilt u de opslageenheid van harde schijf &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; verwijderen?&lt;/p&gt;&lt;p&gt;Selecteert u &lt;b&gt;Verwijderen&lt;/b&gt; dan wordt de opslageenheid permanent verwijderd.Deze actie &lt;b&gt;kan niet&lt;/b&gt; teruggedraaid worden.&lt;p&gt;&lt;p&gt;Selecteert u &lt;b&gt;Behouden&lt;/b&gt; dan wordt de harde schijf alleen uit de lijst met bekende harde schijven gehaald maar de opslageendheid blijft onaangetast, waardoor het mogelijk is om de harde schijf op een later moment weer op de lijst te zetten.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -8317,32 +9253,8 @@
         <translation>Het is niet gelukt de harde schijf opslag &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; aan te maken</translation>
     </message>
     <message>
-        <source>Failed to open the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
-    </message>
-    <message>
-        <source>Failed to close the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te sluiten.</translation>
-    </message>
-    <message>
         <source>Failed to access the disk image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
         <translation>Het is niet gelukt medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te benaderen.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to connect to the VirtualBox online registration service due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het is niet gelukt verbinding te krijgen met de VirtualBox online registratie service vanwege de volgende fout:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het is niet gelukt om infomatie over de nieuwe versie op te halen vanwege de volgende fout:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Eén of meer virtuele harde schijven, cd/dvd&apos;s of diskettes zijn nu niet te benaderen. U kunt niet met de virtuele machines die deze media gebruiken werken, totdat dit medium of deze media weer benaderbaar zijn.&lt;/p&gt;&lt;p&gt;Druk op de knop &lt;b&gt;Controleren&lt;/b&gt; om de Virtuele Media Manager te openen om na te gaan welk medium niet te benaderen is, of druk op de knop &lt;b&gt;Negeren&lt;/b&gt; om dit bericht te negeren.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Een fatale fout is opgetreden terwijl de virtuele machine draaide. De machine is nu gestopt.&lt;/p&gt;&lt;p&gt;Kijk voor ondersteuning op de community sectie van &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; of raadpleeg uw eigen ondersteuningscontact. Stel alstublieft de inhoud van het logbestand &lt;tt&gt;VBox.log&lt;/tt&gt; en het imagebestand &lt;tt&gt;VBox.png&lt;/tt&gt; ter beschikking. Deze kunt u terugvinden in de &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; map, en geef daarbij een beschrijving van wat u deed op het moment dat de fout optrad. Let op: u kunt genoemde bestanden ook benaderen via &lt;b&gt;Toon Log&lt;/b&gt; in het &lt;b&gt;Machine&lt;/b&gt; menu van het hoofdvenster van VirtualBox.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;OK&lt;/b&gt; als u de machine wilt uitzetten of klik op &lt;b&gt;Negeren&lt;/b&gt; als u alles zo wilt laten staan voor nader onderzoek. Let nogmaals op: nader onderzoek vereist specifieke kennis en hulpmiddelen, het wordt aangeraden om op &lt;b&gt;OK&lt;/b&gt; te klikken.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>You are trying to shut down the guest with the ACPI power button. This is currently not possible because the guest does not support software shutdown.</source>
@@ -8357,24 +9269,12 @@
         <translation>Doorgaan</translation>
     </message>
     <message>
-        <source>Failed to create the host-only network interface.</source>
-        <translation type="obsolete">Het is niet gelukt de host-only interface aan te maken.</translation>
-    </message>
-    <message>
-        <source>Failed to open appliance.</source>
-        <translation type="obsolete">Het is niet gelukt de appliance te openen.</translation>
-    </message>
-    <message>
         <source>Failed to open/interpret appliance &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Het is niet gelukt appliance &lt;b&gt;%1&lt;/b&gt; te openen of te interpreteren.</translation>
     </message>
     <message>
         <source>Failed to import appliance &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Het is niet gelukt appliance &lt;b&gt;%1&lt;/b&gt; te importeren.</translation>
-    </message>
-    <message>
-        <source>Failed to create an appliance.</source>
-        <translation type="obsolete">Het is niet gelukt een appliance aan te maken.</translation>
     </message>
     <message>
         <source>Failed to prepare the export of the appliance &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -8389,24 +9289,12 @@
         <translation>Annuleren</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Your existing VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;De bestaande bestanden met VirtualBox-instellingen zijn automatisch van het oude formaat in het nieuwe formaat omgezet, hetgeen nodig was voor deze nieuwe versie van VirtualBox.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;OK&lt;/b&gt; om VirtualBox nu te starten of op &lt;b&gt;Afsluiten&lt;/b&gt; om VirtualBox zonder verdere acties af te sluiten.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>A file named &lt;b&gt;%1&lt;/b&gt; already exists. Are you sure you want to replace it?&lt;br /&gt;&lt;br /&gt;Replacing it will overwrite its contents.</source>
         <translation>Een bestand met de naam &lt;b&gt;%1&lt;/b&gt; bestaat al. Weet u het zeker dat deze wilt vervangen?&lt;br/&gt;&lt;br/&gt;Vervangen betekent overschrijven van de inhoud.</translation>
     </message>
     <message>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration has been enabled, but is not operational. Certain guests (e.g. OS/2 and QNX) require this feature.&lt;/p&gt;&lt;p&gt;Please ensure that you have enabled VT-x/AMD-V properly in the BIOS of your host computer.&lt;/p&gt;</source>
         <translation>&lt;p&gt;De hardwareversnelling VT-X/AMD-V is ingeschakeld maar is niet operationeel. Bepaalde gasten (zoals OS/2 en QNX) hebben deze functie nodig.&lt;/p&gt;&lt;p&gt;Controleer of de VT-x/AMD-V in de BIOS van uw fysieke computer correct is geconfigureerd.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Invalid e-mail address or password specified.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Ongeldig emailadres of wachtwoord opgegeven.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to register the VirtualBox product.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het is niet gelukt VirtualBox te registreren.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to check files.</source>
@@ -8429,10 +9317,6 @@
         <translation>Terugzetten</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Deleting the snapshot will cause the state information saved in it to be lost, and disk data spread over several image files that VirtualBox has created together with the snapshot will be merged into one file. This can be a lengthy process, and the information in the snapshot cannot be recovered.&lt;/p&gt;&lt;/p&gt;Are you sure you want to delete the selected snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Door het verwijderen van een snapshot wordt ook de informatie over de staat -opgeslagen in het snapshot- weggegooid. De schijfgegevens die VirtualBox heeft aangemaakt -en verspreid zijn over verschillende bestanden- worden met het snapshot samengevoegd in één bestand. Dit kan een langdurig proces zijn. De informatie in het snapshot kan niet worden hersteld.&lt;/p&gt;&lt;/p&gt;Bent u er zeker van dat u het geselecteerde snapshot &lt;b&gt;%1&lt;/b&gt; wilt verwijderen?&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Delete</source>
         <translation>Verwijderen</translation>
     </message>
@@ -8445,67 +9329,9 @@
         <translation>Kan snapshot &lt;b&gt;%1&lt;/b&gt; van virtuele machine &lt;b&gt;%2&lt;/b&gt;.niet verwijderen.</translation>
     </message>
     <message>
-        <source>Unable to insert the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; into the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">Kan %1 niet kopppelen aan &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; op machine &lt;b&gt;%3&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source> Would you like to force mounting of this medium?</source>
-        <translation type="obsolete"> Wilt u de koppeling van dit medium forceren?</translation>
-    </message>
-    <message>
-        <source>Unable to unmount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">Kan %1 niet afkopppelen van &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; op machine &lt;b&gt;%3&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source> Would you like to force unmounting of this medium?</source>
-        <translation type="obsolete"> Wilt u de afkoppeling van dit medium forceren?</translation>
-    </message>
-    <message>
         <source>Force Unmount</source>
         <translatorcomment>knoptekst (?)</translatorcomment>
         <translation>Forceer afkoppeling</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not insert the VirtualBox Guest Additions installer disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kon VirtualBox Guest Additions installatie-disk image file niet aan de virtuele machine &lt;b&gt;%1&lt;/b&gt; koppelen, omdat de machine geen cd/dvd-station heeft. Voeg een station toe via de Opslagpagina bij de instellingen van de virtuele machine.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>E&amp;xit</source>
-        <comment>warnAboutSettingsAutoConversion message box</comment>
-        <translation type="obsolete">&amp;Afsluiten</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The following VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;De volgende bestanden met VirtualBox-instellingen zullen automatisch worden omgezet van het oude formaat naar het nieuwe formaat, hetgeen nodig is voor deze nieuwe versie van VirtualBox.&lt;/p&gt;&lt;p&gt;Druk op &lt;b&gt;OK&lt;/b&gt; om VirtualBox nu te starten of druk op &lt;b&gt;Afsluiten&lt;/b&gt; als u de VirtualBox-applicatie wilt beëindigen zonder verdere acties.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>hard disk</source>
-        <comment>failed to mount ...</comment>
-        <translation type="obsolete">harde schijf</translation>
-    </message>
-    <message>
-        <source>CD/DVD</source>
-        <comment>failed to mount ... host-drive</comment>
-        <translation type="obsolete">CD/DVD</translation>
-    </message>
-    <message>
-        <source>CD/DVD image</source>
-        <comment>failed to mount ...</comment>
-        <translation type="obsolete">CD/DVD image</translation>
-    </message>
-    <message>
-        <source>floppy</source>
-        <comment>failed to mount ... host-drive</comment>
-        <translation type="obsolete">diskette</translation>
-    </message>
-    <message>
-        <source>floppy image</source>
-        <comment>failed to mount ...</comment>
-        <translation type="obsolete">diskette image</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD device?&lt;/p&gt;&lt;p&gt;You will not be able to insert any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u het cd/dvd-apparaat wilt verwijderen?&lt;/p&gt;&lt;p&gt;Het is daarna niet meer mogelijk om CD&apos;s of ISO-images te koppelen of de Guest Additions te installeren.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
@@ -8521,44 +9347,12 @@
         <translation>&lt;p&gt;VT-x/AMD-V hardwareversnelling is niet beschikbaar op uw systeem. Bepaalde gastsystemen (bv. OS/2 en QNX) hebben deze mogelijkheid nodig en kunnen zonder niet opstarten.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Deleting the snapshot %1 will temporarily need more disk space. In the worst case the size of image %2 will grow by %3, however on this filesystem there is only %4 free.&lt;/p&gt;&lt;p&gt;Running out of disk space during the merge operation can result in corruption of the image and the VM configuration, i.e. loss of the VM and its data.&lt;/p&gt;&lt;p&gt;You may continue with deleting the snapshot at your own risk.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het verwijderen van snapshot %1 kost tijdelijk meer schijfruimte. In het ergste geval zal de omvang van image %2 groeien met %3, er is echter maar %4 vrij.&lt;/p&gt;&lt;p&gt;Geen schijfruimte meer hebben tijdens de samenvoegoperatie kan als gevolg hebben, dat de image en de VM-configuratie corrupt raken. Dit betekent onherstelbaar verlies van deze VM en haar gegevens.&lt;/p&gt;&lt;p&gt;U mag natuurlijk op eigen risico doorgaan met het verwijderen van het snapshot.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Could not change the guest screen to this host screen due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Kan het gastscherm niet wisselen naar het hostscherm wegens onvoldoende gastvideogeheugen.&lt;/p&gt;&lt;p&gt;U moet de virtuele machine zo configureren dat deze tenminste &lt;b&gt;%1&lt;/b&gt; aan videomemory heeft.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not change the guest screen to this host screen due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch the screen anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Kan het gastscherm niet wisselen naar het hostscherm wegens onvoldoende gastvideogeheugen.&lt;/p&gt;&lt;p&gt;U moet de virtuele machine zo configureren dat deze tenminste &lt;b&gt;%1&lt;/b&gt; aan videomemory heeft.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;Negeren&lt;/b&gt; om toch te wisselen of klik op &lt;b&gt;Annuleren&lt;/b&gt; om de operatie te stoppen.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Can not switch the guest display to fullscreen mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kan het gastscherm niet omzetten naar volledig scherm. U hebt meer virtuele schermen geconfigureerd dan dat er fysieke schermen zijn aangesloten.&lt;/p&gt;&lt;p&gt;Verminder het aantal virtuele schermen in uw VM configuratie of sluit meer schermen aan.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Can not switch the guest display to seamless mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kan het gastscherm niet omzetten naar naadloze modus. U hebt meer virtuele schermen geconfigureerd dan dat er fysieke schermen zijn aangesloten.&lt;/p&gt;&lt;p&gt;Verminder het aantal virtuele schermen in uw VM configuratie of sluit meer schermen aan.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not find the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kan de gebruikershandleiding &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; van VirtualBox niet vinden.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Wilt u deze van het internet downloaden?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u het zeker dat u de gebruikershandleiding van VirtualBox wilt downloaden van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (omvang %3 bytes)?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het downloaden van de gebruikershandleiding van VirtualBox is mislukt bij &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;De gebruikershandleiding van VirtualBox is succesvol gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; en lokaal opgeslagen als &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;De gebruikershandleiding van VirtualBox is met succes gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; maar kan lokaal niet worden opgeslagen als &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Kies aub een andere locatie voor dit bestand.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to open virtual machine located in %1.</source>
@@ -8569,24 +9363,12 @@
         <translation>Het is niet gelukt virtuele machine &lt;b&gt;%1&lt;b&gt; aanwezig in &lt;i&gt;%2&lt;/i&gt; toe te voegen, omdat deze al toegevoegd is.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;U staat op het punt om de virtuele machine &lt;b&gt;%1&lt;/b&gt; uit de lijst met machines te verwijderen.&lt;/p&gt;&lt;p&gt;Moeten de bestanden, die de virtuele machine bevatten, ook verwijderd worden van u harde schijf?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;U staat op het punt om de virtuele machine &lt;b&gt;%1&lt;/b&gt; uit de lijst met machines te verwijderen.&lt;/p&gt;&lt;p&gt;Moeten de bestanden, die de virtuele machine bevatten, ook verwijderd worden van u harde schijf? Hiermee worden ook de bestanden verwijderd die de virtuele harde schijven van de machine bevatten, tenzij ze ingebruik zijn door een andere machine.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Delete all files</source>
         <translation>Wis alle bestanden</translation>
     </message>
     <message>
         <source>Remove only</source>
         <translation>Verwijder slechts</translation>
-    </message>
-    <message>
-        <source>You are about to remove the inaccessible virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list. Do you wish to proceed?</source>
-        <translation type="obsolete">U staat op het punt om de virtuele machine &lt;b&gt;%1&lt;/b&gt;, die niet te benaderen is, uit de lijst met machines te verwijderen. Wilt u doorgaan?</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -8597,52 +9379,12 @@
         <translation>&lt;p&gt;U staat op het punt een virtuele harde schijf aan controller &lt;b&gt;%1&lt;/b&gt; toe te voegen.&lt;/p&gt;&lt;p&gt;Wilt u een nieuw, leeg bestand aanmaken voor de schijfinhoud, of een bestaande selecteren?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Create &amp;new disk</source>
-        <comment>add attachment routine</comment>
-        <translation type="obsolete">Maak een &amp;nieuwe schijf aan</translation>
-    </message>
-    <message>
-        <source>&amp;Choose existing disk</source>
-        <comment>add attachment routine</comment>
-        <translation type="obsolete">&amp;Kies een bestaande schijf</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You are about to add a new CD/DVD drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual CD/DVD disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;U staat op het punt een nieuw CD/DVD-station aan controller &lt;b&gt;%1&lt;/b&gt; toe te voegen.&lt;/p&gt;&lt;p&gt;Wilt u een virtuele CD/DVD-schijf in het station plaatsen of voorlopig leeg laten?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Choose disk</source>
-        <comment>add attachment routine</comment>
-        <translation type="obsolete">&amp;Kies een schijf</translation>
-    </message>
-    <message>
-        <source>Leave &amp;empty</source>
-        <comment>add attachment routine</comment>
-        <translation type="obsolete">Laat &amp;leeg</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;You are about to add a new floppy drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual floppy disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
         <translation>&lt;p&gt;U staat op het punt een nieuw diskettestation aan controller &lt;b&gt;%1&lt;/b&gt; toe te voegen.&lt;/p&gt;&lt;p&gt;Wilt u een virtuele diskette in het station plaatsen of voorlopig leeg laten?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to detach the hard disk (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
         <translation>Het is niet gelukt harde schijf &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; los te koppelen van het slot &lt;i&gt;%2&lt;/i&gt; van virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source>Failed to detach the CD/DVD device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt CD/DVD-station &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; los te koppelen van het slot &lt;i&gt;%2&lt;/i&gt; van virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source>Failed to detach the floppy device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt diskettestation &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; los te koppelen van het slot &lt;i&gt;%2&lt;/i&gt; van virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
-    </message>
-    <message numerus="yes">
-        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
-        <translatorcomment>RL - Noodzakelijke %n place marker ontbreekt, old format - Bij ticket #10400 virtualbox.org gezet, afwachten (02.04.2012)</translatorcomment>
-        <translation type="obsolete">
-            <numerusform>&lt;p&gt;De virtuele machine &lt;b&gt;%1&lt;/b&gt; bevindt zich momenteel in opgeslagen staat.&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machine weggegooid. Weet dat de bestaande machine niet worden veranderd.&lt;/p&gt;</numerusform>
-            <numerusform>&lt;p&gt;De virtuele machines &lt;b&gt;%1&lt;/b&gt; bevinden zich momenteel in opgeslagen staat.&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machines weggegooid. Weet dat de bestaande machines niet worden veranderd.&lt;/p&gt;</numerusform>
-        </translation>
     </message>
     <message>
         <source>Failed to update Guest Additions. The Guest Additions disk image file will be inserted for user installation.</source>
@@ -8670,32 +9412,12 @@
         <translation>&lt;p&gt;De poortdoorverwijzingsconfiguratie heeft nog niet-opgeslagen wijzigingen.&lt;/p&gt;&lt;p&gt;Doorgaan betekent dat deze wijzigingen verloren gaan.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Sorry, some generic error happens.</source>
-        <translation type="obsolete">Excuses, een algemene fout is opgetreden.</translation>
-    </message>
-    <message>
         <source>Failed to attach the hard disk (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
         <translation>Het is niet gelukt harde schijf&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te koppelen aan het slot &lt;i&gt;%2&lt;/i&gt; van de machine &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Failed to attach the CD/DVD device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt CD/DVD-station &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te koppelen aan het slot &lt;i&gt;%2&lt;/i&gt; van de machine &lt;b&gt;%3&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source>Failed to attach the floppy device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt diskettestation &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te koppelen aan het slot &lt;i&gt;%2&lt;/i&gt; van de machine &lt;b&gt;%3&lt;/b&gt;.</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Note that the storage unit of this medium will not be deleted and that it will be possible to use it later again.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Weet dat de opslageenheid van dit medium niet wordt verwijderd en het dus mogelijk is deze later opnieuw te gebruiken.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;De VirtualBox Guest Additions lijken niet beschikbaar op deze virtuele machine. Gedeelde mappen kunnen dan niet worden gebruikt. Om gedeelde mappen te kunnen gebruiken binnen de virtuele machine installeert u de Guest Additions indien deze nog niet zijn geïnstalleerd. Indien wel, moet u deze herinstalleren. Selecteer &lt;b&gt;Installeer Guest Additions&lt;/b&gt; uit het menu &lt;b&gt;Machine&lt;/b&gt;. Zijn de Guest Additions wel goed geïnstalleerd maar is de machine nog niet helemaal gestart dan komen de gedeelde mappen waarschijnlijk beschikbaar zodra de machine wel volledig is opgestart.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;De virtuele machine schakelt nu over op de &lt;b&gt;schermvullende&lt;/b&gt; modus. U kunt ieder moment terugkeren door op &lt;b&gt;%1&lt;/b&gt; te drukken. Let op: de &lt;i&gt;Hosttoets&lt;/i&gt; is op dit moment &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Besef dat het hoofdmenu verborgen is bij volledig scherm. U kunt dit menu benaderen door op de &lt;b&gt;Hosttoets+Home&lt;/b&gt; te drukken.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;Seamless&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in seamless mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -8706,21 +9428,12 @@
         <translation>&lt;p&gt;De virtuele machine schakelt nu over op de &lt;b&gt;schaalbare&lt;/b&gt; modus. U kunt ieder moment terugkeren door op &lt;b&gt;%1&lt;/b&gt; te drukken. Let op: de &lt;i&gt;Hosttoets&lt;/i&gt; is op dit moment &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Besef dat het hoofdmenu in schaalbare modus niet zichtbaar is. U kunt het hoofdmenuin deze modus benaderen door op de &lt;b&gt;Hosttoets+Home&lt;/b&gt; te drukken.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Switch</source>
-        <comment>scale</comment>
-        <translation type="obsolete">Overschakelen</translation>
-    </message>
-    <message>
         <source>Failed to open the Extension Pack &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Het is niet gelukt het Extention Pack &lt;b&gt;%1&lt;/b&gt; te installeren.</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
         <translation>&lt;p&gt;U staat op het punt een Extention Pack voor VirtualBox te installeren. Uitbreidingspakketten vullen de functionaliteit van VirtualBox aan en kan software op systeemniveau bevatten dat mogelijk schadelijk is voor uw systeem. Bekijk de beschrijving hieronder en ga alleen verder als u een uitbreidingspakket van een betrouwbare bron hebt ontvangen.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Naam:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Versie:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Beschrijving:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Install</source>
-        <translation type="obsolete">&amp;Installeer</translation>
     </message>
     <message>
         <source>Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.</source>
@@ -8787,24 +9500,12 @@
         <translation>Het is niet gelukt virtuele machine &lt;b&gt;%1&lt;b/&gt; te klonen.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to restore snapshot &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;U staat op het punt momentopname &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt; te herstellen. U kunt eerst een momentopname aanmaken van de huidige staat van de virtuele machine door het hokje beneden aan te vinken; indien u dit niet doet zal de huidige staat permanent verloren gaan. Wilt u doorgaan?&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Create a snapshot of the current machine state</source>
         <translation>Maak een snapshot van de huidige machinestaat</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u momentopname &lt;b&gt;%1&lt;/b&gt; wilt terugzetten?&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Error changing disk image mode from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Fout bij veranderen van mediumtype van &lt;b&gt;%1&lt;/b&gt; in &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; to be installed.&lt;/p&gt;&lt;p&gt;Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;USB 2.0 staat momenteel aan voor deze virtuele machine. Echter, dit vereist dat &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is geïnstalleerd.&lt;/p&gt;&lt;p&gt;Installeer het Extension Pack van de VirtualBox downloadsite. Na installatie kunt u USB 2.0 weer inschakelen. In de tussentijd zal USB 2.0 worden uitgeschakeld, tenzij u de huidige verandering van instelling annuleert.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Could not load the Host USB Proxy Service (VERR_FILE_NOT_FOUND). The service might not be installed on the host computer</source>
@@ -8831,17 +9532,8 @@
         <translation>Kan snapshot met de naam &lt;b&gt;%1&lt;/b&gt; niet vinden.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het is niet gelukt het gedownloade bestand als &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; op te slaan.&lt;/nobr&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
         <translation>&lt;p&gt;U hebt een oude versie (%1) van &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; geïnstalleerd staan.&lt;/p&gt;&lt;p&gt;Wilt u de nieuwste versie downloaden van het internet?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Download</source>
-        <comment>extension pack</comment>
-        <translation type="obsolete">Download</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
@@ -8867,25 +9559,8 @@
         <translation>&lt;p&gt;U hebt versie %1 van &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; geïnstalleerd staan.&lt;/p&gt;&lt;p&gt;U zou versie %3 van dit uitbreidingspakket van Oracle moeten downloaden en installeren.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Ok</source>
-        <comment>extension pack</comment>
-        <translation type="obsolete">OK</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;b&gt; kon niet van &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; worden gedownload&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Failed to initialize COM because the VirtualBox global configuration directory &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is not accessible. Please check the permissions of this directory and of its parent directory.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Initialisatie COM is mislukt omdat de VirtualBox algemene configuratiemap &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; niet toegankelijk is. Controleer de rechten op deze map en op die van bovenliggende mappen.&lt;/p&gt;&lt;p&gt;Het programma zal nu afsluiten.&lt;/p&gt;</translation>
-    </message>
-    <message numerus="yes">
-        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
-        <comment>This text is never used with n == 0.  Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
-        <translation type="obsolete">
-            <numerusform>&lt;p&gt;De volgende virtuele machine bevindt zich momenteel in opgeslagen staat: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machine weggegooid. Weet dat de bestaande machine niet wordt veranderd.&lt;/p&gt;</numerusform>
-            <numerusform>&lt;p&gt;De volgende virtuele machines bevinden zich momenteel in opgeslagen staat: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machines weggegooid. Weet dat de bestaande machines niet worden veranderd.&lt;/p&gt;</numerusform>
-        </translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove following virtual machine items from the machine list:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
@@ -8924,18 +9599,6 @@
     <message>
         <source>&lt;p&gt;Cannot create the machine folder &lt;b&gt;%1&lt;/b&gt; in the parent folder &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;This folder already exists and possibly belongs to another machine.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Kan de map &lt;b&gt;%1&lt;/b&gt; voor de machine niet aanmaken in de bovenliggende map &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Deze map bestaat al en behoort mogelijk toe aan een andere machine.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>You are about to create a new virtual machine without a hard drive. You will not be able to install an operating system on the machine until you add one. In the mean time you will only be able to start the machine using a virtual optical disk or from the network.</source>
-        <translation type="obsolete">U staat op het punt een nieuwe virtuele machine zonder harde schijf aan te maken. U zult niet in staat zijn een besturingssysteem te instaleren voordat u een schijf hebt toegevoegd. Tot die tijd kunt u alleen de machine starten met gebruikmaking van een virtuele optische schijf of vanaf het netwerk.</translation>
-    </message>
-    <message>
-        <source>Failed to drop data.</source>
-        <translation type="obsolete">Data droppen is niet gelukt.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions disk image file file.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kan het VirtualBox Guest Additions CD-imagebestand niet vinden.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Wilt u dit CD-image van het internet downloaden?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to discard the saved state of the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
@@ -8984,10 +9647,6 @@
     <message>
         <source>Change Network Settings</source>
         <translation>Aanpassen netwerkinstellingen</translation>
-    </message>
-    <message>
-        <source>Close Virtual Machine</source>
-        <translation type="obsolete">Sluit virtuele machine af</translation>
     </message>
     <message>
         <source>&lt;p&gt;Cannot start the VirtualBox Manager due to local restrictions.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
@@ -9048,18 +9707,6 @@
         <translation>Kies een s&amp;chijf</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to release the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de virtuele harde schijf &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wilt losmaken?&lt;/p&gt;&lt;p&gt;Hierdoor wordt deze ontkoppeld van de volgende virtuele machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to release the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de virtuele optische schijf &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wilt losmaken?&lt;/p&gt;&lt;p&gt;Hierdoor wordt deze ontkoppeld van de volgende virtuele machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to release the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de virtuele floppydisk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wilt losmaken?&lt;/p&gt;&lt;p&gt;Hierdoor wordt deze ontkoppeld van de volgende virtuele machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Are you sure you want to remove the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
         <translation>&lt;p&gt;Weet u zeker dat u de virtuele harde schijf &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wilt verwijderen uit de lijst met bekende schijfimagebestanden?&lt;/p&gt;</translation>
     </message>
@@ -9099,31 +9746,6 @@
     <message>
         <source>&lt;p&gt;Unable to eject the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Niet in staat virtuele floppydisk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; uit machine &lt;b&gt;%2&lt;/b&gt; te werpen.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to open the hard disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt harde schijf bestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
-    </message>
-    <message>
-        <source>Failed to open the optical disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translatorcomment>&quot;optische&quot; -&gt; de schijf is optisch, niet het bestand (dus niet: &quot;optisch schijf bestand&quot;)</translatorcomment>
-        <translation type="obsolete">Het is niet gelukt optische schijf bestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
-    </message>
-    <message>
-        <source>Failed to open the floppy disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt floppydiskbestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
-    </message>
-    <message>
-        <source>Failed to close the hard disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt harde schijf bestand &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te sluiten.</translation>
-    </message>
-    <message>
-        <source>Failed to close the optical disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt optische schijf bestand &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te sluiten.</translation>
-    </message>
-    <message>
-        <source>Failed to close the floppy disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="obsolete">Het is niet gelukt floppydiskbestand &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te sluiten.</translation>
     </message>
     <message numerus="yes">
         <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
@@ -9168,14 +9790,6 @@
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Het &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt;-schijfimagebestand is met succes gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; maar kan niet lokaal opgeslagen worden als &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Kies een andere lokatie voor het bestand.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual CD/DVD drive?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Het &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt;-schijfimagebestand is met succes gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; en lokaal opgeslagen als &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Wilt u het schijfimagebestand registreren en in het virtuele cd/dvd-station doen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kon het &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt;-schijfimagebestand niet in de virtuele machine &lt;b&gt;%1&lt;/b&gt; doen, omdat de machine geen cd/dvd-station heeft. Voeg een station toe via de pagina Opslag bij Instellingen van de virtuele machine.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
@@ -9249,10 +9863,6 @@
     <message>
         <source>Failed to set the extra data for key &lt;i&gt;%1&lt;/i&gt; of machine &lt;i&gt;%2&lt;/i&gt; to value &lt;i&gt;{%3}&lt;/i&gt;.</source>
         <translation>Het is niet gelukt de extra data in te stellen om voor sleutel &lt;b&gt;%1&lt;/b&gt; van machine &lt;i&gt;%2&lt;/i&gt; &lt;i&gt;{%3}&lt;/i&gt; te valideren.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;One or more virtual hard disks, optical or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Eén of meer virtuele harde schijven, optische bestanden of schijfimagebestanden zijn nu niet te benaderen. U kunt niet met de virtuele machines die deze media gebruiken werken, totdat dit medium of deze media weer benaderbaar zijn.&lt;/p&gt;&lt;p&gt;Druk op de knop &lt;b&gt;Controleren&lt;/b&gt; om de Virtuele Media Manager te openen om na te gaan welk medium niet te benaderen is, of druk op de knop &lt;b&gt;Negeren&lt;/b&gt; om dit bericht te negeren.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to save the settings.</source>
@@ -9408,6 +10018,596 @@
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Het &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is met succes gedownload van &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; en lokaal opgeslagen als &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt; maar de SHA-256 checksumverificatie mislukte.&lt;/p&gt;&lt;p&gt; Download, installeer en verifiëer handmatig.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;You are about to start all of the following virtual machines:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This could take some time and consume a lot of host system resources. Do you wish to proceed?&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;U staat op het punt alle volgende virtuele machines op te starten:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Dit kan aardig lang gaan duren en vreet hostsysteembronnen. Wilt u doorgaan?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Can&apos;t find snapshot with ID=&lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">Kan snapshot met ID=&lt;b&gt;%1&lt;/b&gt; niet vinden.</translation>
+    </message>
+    <message>
+        <source>Can&apos;t acquire snapshot attributes.</source>
+        <translation type="vanished">Kan de snapshot-attributen niet verkrijgen.</translation>
+    </message>
+    <message>
+        <source>Failed to move the storage unit of the disk image &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt de opslagunit van disk-image &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt; te verplaatsen.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Error changing the description of the disk image &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;Fout bij veranderen van de beschrijving van disk-image &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to resize the storage unit of the hard disk &lt;b&gt;%1&lt;/b&gt; from &lt;b&gt;%2&lt;/b&gt; to &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt de opslagunit van harde schijf &lt;b&gt;%1&lt;/b&gt; te herschalen van &lt;b&gt;%2&lt;/b&gt; naar &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Failed to acquire host network interfaces.</source>
+        <translation type="vanished">Het is niet gelukt de hostnetwerkinterfaces te verkrijgen.</translation>
+    </message>
+    <message>
+        <source>Unable to find the host network interface &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt hostnetwerkinterface &lt;b&gt;%1&lt;/b&gt; te vinden.</translation>
+    </message>
+    <message>
+        <source>Failed to create a host network interface.</source>
+        <translation type="vanished">Het is niet gelukt een hostnetwerkinterface aan te maken.</translation>
+    </message>
+    <message>
+        <source>Failed to acquire host network interface parameter.</source>
+        <translation type="vanished">Het is niet gelukt de hostnetwerkinterfaceparameters te verkrijgen.</translation>
+    </message>
+    <message>
+        <source>Failed to save host network interface parameter.</source>
+        <translation type="vanished">Het is niet gelukt de hostnetwerkinterfaceparameters op te slaan.</translation>
+    </message>
+    <message>
+        <source>Failed to create a DHCP server for the network interface &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt een DHCP-server voor netwerkinterface &lt;b&gt;%1&lt;/b&gt; aan te maken.</translation>
+    </message>
+    <message>
+        <source>Failed to remove the DHCP server for the network interface &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt de DHCP-server voor netwerkinterface &lt;b&gt;%1&lt;/b&gt; te verwijderen.</translation>
+    </message>
+    <message>
+        <source>Failed to acquire DHCP server parameter.</source>
+        <translation type="vanished">Het is niet gelukt DHCP-serverparameter te verkrijgen.</translation>
+    </message>
+    <message>
+        <source>Failed to save DHCP server parameter.</source>
+        <translation type="vanished">Het is niet gelukt DHCP-serverparameter op te slaan.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;U staat op het punt een Extention Pack voor VirtualBox te installeren. Uitbreidingspakketten vullen de functionaliteit van VirtualBox aan en kan software op systeemniveau bevatten dat mogelijk schadelijk is voor uw systeem. Bekijk de beschrijving hieronder en ga alleen verder als u een uitbreidingspakket van een betrouwbare bron hebt ontvangen.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Naam:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Versie:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Beschrijving:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;Een oudere versie van het uitbreidingspakket is al geïnstalleerd, wilt u deze upgraden? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Naam:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Nieuwe Versie:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Huidige Versie:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Beschrijving:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;Een nieuwere versie van het uitbreidingspakket is al geïnstalleerd, wilt u naar de lagere versie? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Naam:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Nieuwe Versie:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Huidige Versie:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Beschrijving:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;Er is al een uitbreidingspakket geïnstalleerd met dezelfde versie, wilt u deze opnieuw installeren? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Naame:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Versie:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Beschrijving:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to enable the audio adapter output for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt de audio-adapter-output voor virtuele machine &lt;b&gt;%1&lt;/b&gt; in te schakelen.</translation>
+    </message>
+    <message>
+        <source>Failed to disable the audio adapter output for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt de audio-adapter-output voor virtuele machine &lt;b&gt;%1&lt;/b&gt; uit te schakelen.</translation>
+    </message>
+    <message>
+        <source>Failed to enable the audio adapter input for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt de audio-adapter-input voor virtuele machine &lt;b&gt;%1&lt;/b&gt; in te schakelen.</translation>
+    </message>
+    <message>
+        <source>Failed to disable the audio adapter input for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">Het is niet gelukt de audio-adapter-input voor virtuele machine &lt;b&gt;%1&lt;/b&gt; uit te schakelen.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to create the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het is niet gelukt het VirtualBox COM-object aan te maken.&lt;/p&gt;&lt;p&gt;Het programma wordt nu afgesloten.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to create a new virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt de nieuwe virtuele machine &lt;b&gt;%1&lt;/b&gt; aan te maken.</translation>
+    </message>
+    <message>
+        <source>Failed to apply the settings to the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt de instellingen aan virtuele machine &lt;b&gt;%1&lt;/b&gt; toe te kennen.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de opgeslagen staat van virtuele machine &lt;b&gt;%1&lt;/b&gt; wilt weggooien?&lt;/p&gt;&lt;p&gt;Deze actie staat gelijk aan het uitzetten van de machine zonder het gastbesturingssysteem netjes af te sluiten.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt om gedeelde map &lt;b&gt;%1&lt;/b&gt; (verwijzend naar &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) te verwijderen van virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot run VirtualBox in &lt;i&gt;VM Selector&lt;/i&gt; mode due to local restrictions.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;VirtualBox kan niet draaien in &lt;i&gt;VM Selector modus&lt;/i&gt; door lokale restricties.&lt;/p&gt;&lt;p&gt;Het programma sluit zich nu af.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to create appliance.</source>
+        <translation type="obsolete">Appliance aanmaken mislukt.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kan geen taalbestand vinden voor de taal &lt;b&gt;%1&lt;/b&gt; in de map &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;De taal wordt tijdelijk teruggezet op de systeemstandaard. Ga naar &lt;b&gt;Voorkeuren&lt;/b&gt; dialoog, deze is te bereiken via het menu in het VirtualBox hoofdscherm. Selecteer één van de aanwezige talen op de pagina &lt;b&gt;Talen&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not load the language file &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;The language will be temporarily reset to English (built-in). Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kan het taalbestand &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; niet laden.&lt;p&gt;De taal wordt tijdelijk teruggezet naar Engels (ingebouwd). Ga naar &lt;b&gt;Voorkeuren&lt;/b&gt; dialoog, deze is te bereiken via het menu in het VirtualBox hoofdscherm. Selecteer een van de aanwezige talen op de pagina &lt;b&gt;Talen&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions disk image file file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het VirtualBox Guest Additions disk image file bestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; of &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; is niet te vinden.&lt;/p&gt;&lt;p&gt;Wilt u deze downloaden van het internet?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the VirtualBox Guest Additions disk image file from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het is niet gelukt het VirtualBox Guest Additions CD-image van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; te downloaden.&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the VirtualBox Guest Additions disk image file from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u het zeker dat u het VirtualBox Guest Additions disk image file bestand van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (omvang %3 bytes) wil downladen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox Guest Additions disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual CD/DVD drive?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het VirtualBox Guest Additions disk image file bestand is met succes gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; en lokaal opgeslagen als &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;wilt u het disk image file registreren en koppelen aan het virtuele CD/DVD station?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het venster van de virtuele machine is geöptimaliseerd om te werken in &lt;b&gt;%1 bits&lt;/b&gt; kleurenmodus, echter de kleurkwaliteit van het virtuele beeldscherm staat op &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Open de beeldscherm-eigenschappen in het gastbesturingssysteem en selecteer indien beschikbaar &lt;b&gt;%3 bits&lt;/b&gt;kleurenmodus voor de beste prestatie van het video-subsysteem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Let op:&lt;/b&gt; Sommige besturingssystemen (zoals OS/2 en soms XP) werken in 32 bits kleurenmodus maar melden dit als 24 bits kleurenmodus (16 miljoen kleuren).U kunt proberen een andere kleurkwaliteit te selecteren om deze boodschap weg te krijgen of u kunt de boodschap gewoon nu uitzetten indien u zeker weet dat de vereiste kleurkwaliteit (%4&amp;nbsp; bit) niet beschikbaar is op het gastbesturingssysteem.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;U hebt geen harde schijf aan de nieuwe virtuele machine gekoppeld. De machine kan niet eerder opstarten dan nadat u eerst een harde schijf met een gastbesturingssysteem of een andere opstartbaar medium hebt aangekoppeld. U kunt dit doen via het dialoog Machine-instellingen of door de Start Assistent op te starten.&lt;/p&gt;&lt;p&gt;Wilt u doorgaan?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to find license files in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt het licentiebestand in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te vinden.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Congratulations! You have been successfully registered as a user of VirtualBox.&lt;/p&gt;&lt;p&gt;Thank you for finding time to fill out the registration form!&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Gefeliciteerd! U bent met succes geregistreerd als gebuiker van VirtualBox.&lt;/p&gt;&lt;p&gt;Bedankt dat u de moeite nam om het registratieformulier in te vullen!&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>additions</comment>
+        <translation type="obsolete">Download</translation>
+    </message>
+    <message>
+        <source>Mount</source>
+        <comment>additions</comment>
+        <translation type="obsolete">Aankoppelen</translation>
+    </message>
+    <message>
+        <source>Switch</source>
+        <comment>fullscreen</comment>
+        <translation type="obsolete">Switchen</translation>
+    </message>
+    <message>
+        <source>Switch</source>
+        <comment>seamless</comment>
+        <translation type="obsolete">Switchen</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to reset the virtual machine?&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de virtuele machine wilt resetten?&lt;/p&gt;&lt;p&gt;Wordt de machine gereset dan gaan alle niet opgeslagen gegevens van alle draaiende programma&apos;s verloren.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to load the settings of the virtual machine &lt;b&gt;%1&lt;/b&gt; from &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt de instellingen van virtuele machine &lt;b&gt;%1&lt;/b&gt; vanuit &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; te laden.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not switch the guest display to fullscreen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to fullscreen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kan het gastscherm niet laten overschakelen op schermvullend omdat de gast te weinig videogeheugen heeft.&lt;/p&gt;&lt;p&gt;U moet bij de configuratie de virtuele machine minimaal &lt;b&gt;%1&lt;/b&gt; videogeheugen meegeven.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;Negeren&lt;/b&gt; om toch op volledig beeld over te schakelen of klik op&lt;b&gt;Annuleren&lt;/b&gt; om niets te doen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Contents...</source>
+        <translation type="obsolete">&amp;Inhoud...</translation>
+    </message>
+    <message>
+        <source>Show the online help contents</source>
+        <translation type="obsolete">Toon inhoud online hulp</translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Web Site...</source>
+        <translation type="obsolete">&amp;VirtualBox website...</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product web site</source>
+        <translation type="obsolete">Open de browser en ga naar de website van VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Reset All Warnings</source>
+        <translation type="obsolete">Alle waarschuwingen &amp;terugzetten</translation>
+    </message>
+    <message>
+        <source>Go back to showing all suppressed warnings and messages</source>
+        <translation type="obsolete">Hierdoor worden alle onderdrukte waarschuwingen en berichten weer zichtbaar</translation>
+    </message>
+    <message>
+        <source>R&amp;egister VirtualBox...</source>
+        <translation type="obsolete">VirtualBox r&amp;egistreren...</translation>
+    </message>
+    <message>
+        <source>Open VirtualBox registration form</source>
+        <translation type="obsolete">Open het registratieformulier van VirtualBox</translation>
+    </message>
+    <message>
+        <source>C&amp;heck for Updates...</source>
+        <translation type="obsolete">&amp;Controleer op updates...</translation>
+    </message>
+    <message>
+        <source>Check for a new VirtualBox version</source>
+        <translation type="obsolete">Controleer of een nieuwe versie van VirtualBox beschikbaar is</translation>
+    </message>
+    <message>
+        <source>&amp;About VirtualBox...</source>
+        <translation type="obsolete">VirtualBox i&amp;nfo...</translation>
+    </message>
+    <message>
+        <source>Show a window with product information</source>
+        <translation type="obsolete">Toon produktinformatie</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Er is een nieuwe versie van VirtualBox vrijgegeven! Versie &lt;b&gt;%1&lt;/b&gt; is beschikbaar bij &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;U kunt deze versie direct downloaden via deze link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; wilt vrijgeven?&lt;/p&gt;&lt;p&gt;Hierdoor wordt deze ontkoppeld van de volgende virtuele machines: &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to remove the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; wilt verwijderen uit de lijst met bekende media?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>As this hard disk is inaccessible its image file can not be deleted.</source>
+        <translation type="obsolete">Let op: deze harde schijf is niet te benaderen, dus zijn opslageenheid kan nu niet verwijderd worden.</translation>
+    </message>
+    <message>
+        <source>The next dialog will let you choose whether you also want to delete the storage unit of this hard disk or keep it for later usage.</source>
+        <translation type="obsolete">Volgend dialoog laat u kiezen of u ook de opslageenheid wilt verwijderen of dat u deze harde schijf wilt bewaren voor later gebruik.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you want to delete the storage unit of the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;If you select &lt;b&gt;Delete&lt;/b&gt; then the specified storage unit will be permanently deleted. This operation &lt;b&gt;cannot be undone&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;If you select &lt;b&gt;Keep&lt;/b&gt; then the hard disk will be only removed from the list of known hard disks, but the storage unit will be left untouched which makes it possible to add this hard disk to the list later again.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Wilt u de opslageenheid van harde schijf &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; verwijderen?&lt;/p&gt;&lt;p&gt;Selecteert u &lt;b&gt;Verwijderen&lt;/b&gt; dan wordt de opslageenheid permanent verwijderd.Deze actie &lt;b&gt;kan niet&lt;/b&gt; teruggedraaid worden.&lt;p&gt;&lt;p&gt;Selecteert u &lt;b&gt;Behouden&lt;/b&gt; dan wordt de harde schijf alleen uit de lijst met bekende harde schijven gehaald maar de opslageendheid blijft onaangetast, waardoor het mogelijk is om de harde schijf op een later moment weer op de lijst te zetten.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to open the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
+    </message>
+    <message>
+        <source>Failed to close the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te sluiten.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to connect to the VirtualBox online registration service due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het is niet gelukt verbinding te krijgen met de VirtualBox online registratie service vanwege de volgende fout:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to obtain the new version information due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het is niet gelukt om infomatie over de nieuwe versie op te halen vanwege de volgende fout:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Eén of meer virtuele harde schijven, cd/dvd&apos;s of diskettes zijn nu niet te benaderen. U kunt niet met de virtuele machines die deze media gebruiken werken, totdat dit medium of deze media weer benaderbaar zijn.&lt;/p&gt;&lt;p&gt;Druk op de knop &lt;b&gt;Controleren&lt;/b&gt; om de Virtuele Media Manager te openen om na te gaan welk medium niet te benaderen is, of druk op de knop &lt;b&gt;Negeren&lt;/b&gt; om dit bericht te negeren.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Een fatale fout is opgetreden terwijl de virtuele machine draaide. De machine is nu gestopt.&lt;/p&gt;&lt;p&gt;Kijk voor ondersteuning op de community sectie van &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; of raadpleeg uw eigen ondersteuningscontact. Stel alstublieft de inhoud van het logbestand &lt;tt&gt;VBox.log&lt;/tt&gt; en het imagebestand &lt;tt&gt;VBox.png&lt;/tt&gt; ter beschikking. Deze kunt u terugvinden in de &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; map, en geef daarbij een beschrijving van wat u deed op het moment dat de fout optrad. Let op: u kunt genoemde bestanden ook benaderen via &lt;b&gt;Toon Log&lt;/b&gt; in het &lt;b&gt;Machine&lt;/b&gt; menu van het hoofdvenster van VirtualBox.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;OK&lt;/b&gt; als u de machine wilt uitzetten of klik op &lt;b&gt;Negeren&lt;/b&gt; als u alles zo wilt laten staan voor nader onderzoek. Let nogmaals op: nader onderzoek vereist specifieke kennis en hulpmiddelen, het wordt aangeraden om op &lt;b&gt;OK&lt;/b&gt; te klikken.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to create the host-only network interface.</source>
+        <translation type="obsolete">Het is niet gelukt de host-only interface aan te maken.</translation>
+    </message>
+    <message>
+        <source>Failed to open appliance.</source>
+        <translation type="obsolete">Het is niet gelukt de appliance te openen.</translation>
+    </message>
+    <message>
+        <source>Failed to create an appliance.</source>
+        <translation type="obsolete">Het is niet gelukt een appliance aan te maken.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Your existing VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;De bestaande bestanden met VirtualBox-instellingen zijn automatisch van het oude formaat in het nieuwe formaat omgezet, hetgeen nodig was voor deze nieuwe versie van VirtualBox.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;OK&lt;/b&gt; om VirtualBox nu te starten of op &lt;b&gt;Afsluiten&lt;/b&gt; om VirtualBox zonder verdere acties af te sluiten.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Invalid e-mail address or password specified.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ongeldig emailadres of wachtwoord opgegeven.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to register the VirtualBox product.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het is niet gelukt VirtualBox te registreren.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting the snapshot will cause the state information saved in it to be lost, and disk data spread over several image files that VirtualBox has created together with the snapshot will be merged into one file. This can be a lengthy process, and the information in the snapshot cannot be recovered.&lt;/p&gt;&lt;/p&gt;Are you sure you want to delete the selected snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Door het verwijderen van een snapshot wordt ook de informatie over de staat -opgeslagen in het snapshot- weggegooid. De schijfgegevens die VirtualBox heeft aangemaakt -en verspreid zijn over verschillende bestanden- worden met het snapshot samengevoegd in één bestand. Dit kan een langdurig proces zijn. De informatie in het snapshot kan niet worden hersteld.&lt;/p&gt;&lt;/p&gt;Bent u er zeker van dat u het geselecteerde snapshot &lt;b&gt;%1&lt;/b&gt; wilt verwijderen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Unable to insert the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; into the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">Kan %1 niet kopppelen aan &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; op machine &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source> Would you like to force mounting of this medium?</source>
+        <translation type="obsolete"> Wilt u de koppeling van dit medium forceren?</translation>
+    </message>
+    <message>
+        <source>Unable to unmount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">Kan %1 niet afkopppelen van &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; op machine &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source> Would you like to force unmounting of this medium?</source>
+        <translation type="obsolete"> Wilt u de afkoppeling van dit medium forceren?</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the VirtualBox Guest Additions installer disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kon VirtualBox Guest Additions installatie-disk image file niet aan de virtuele machine &lt;b&gt;%1&lt;/b&gt; koppelen, omdat de machine geen cd/dvd-station heeft. Voeg een station toe via de Opslagpagina bij de instellingen van de virtuele machine.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <comment>warnAboutSettingsAutoConversion message box</comment>
+        <translation type="obsolete">&amp;Afsluiten</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The following VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;De volgende bestanden met VirtualBox-instellingen zullen automatisch worden omgezet van het oude formaat naar het nieuwe formaat, hetgeen nodig is voor deze nieuwe versie van VirtualBox.&lt;/p&gt;&lt;p&gt;Druk op &lt;b&gt;OK&lt;/b&gt; om VirtualBox nu te starten of druk op &lt;b&gt;Afsluiten&lt;/b&gt; als u de VirtualBox-applicatie wilt beëindigen zonder verdere acties.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>hard disk</source>
+        <comment>failed to mount ...</comment>
+        <translation type="obsolete">harde schijf</translation>
+    </message>
+    <message>
+        <source>CD/DVD</source>
+        <comment>failed to mount ... host-drive</comment>
+        <translation type="obsolete">CD/DVD</translation>
+    </message>
+    <message>
+        <source>CD/DVD image</source>
+        <comment>failed to mount ...</comment>
+        <translation type="obsolete">CD/DVD image</translation>
+    </message>
+    <message>
+        <source>floppy</source>
+        <comment>failed to mount ... host-drive</comment>
+        <translation type="obsolete">diskette</translation>
+    </message>
+    <message>
+        <source>floppy image</source>
+        <comment>failed to mount ...</comment>
+        <translation type="obsolete">diskette image</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD device?&lt;/p&gt;&lt;p&gt;You will not be able to insert any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u het cd/dvd-apparaat wilt verwijderen?&lt;/p&gt;&lt;p&gt;Het is daarna niet meer mogelijk om CD&apos;s of ISO-images te koppelen of de Guest Additions te installeren.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting the snapshot %1 will temporarily need more disk space. In the worst case the size of image %2 will grow by %3, however on this filesystem there is only %4 free.&lt;/p&gt;&lt;p&gt;Running out of disk space during the merge operation can result in corruption of the image and the VM configuration, i.e. loss of the VM and its data.&lt;/p&gt;&lt;p&gt;You may continue with deleting the snapshot at your own risk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het verwijderen van snapshot %1 kost tijdelijk meer schijfruimte. In het ergste geval zal de omvang van image %2 groeien met %3, er is echter maar %4 vrij.&lt;/p&gt;&lt;p&gt;Geen schijfruimte meer hebben tijdens de samenvoegoperatie kan als gevolg hebben, dat de image en de VM-configuratie corrupt raken. Dit betekent onherstelbaar verlies van deze VM en haar gegevens.&lt;/p&gt;&lt;p&gt;U mag natuurlijk op eigen risico doorgaan met het verwijderen van het snapshot.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Can not switch the guest display to fullscreen mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kan het gastscherm niet omzetten naar volledig scherm. U hebt meer virtuele schermen geconfigureerd dan dat er fysieke schermen zijn aangesloten.&lt;/p&gt;&lt;p&gt;Verminder het aantal virtuele schermen in uw VM configuratie of sluit meer schermen aan.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Can not switch the guest display to seamless mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kan het gastscherm niet omzetten naar naadloze modus. U hebt meer virtuele schermen geconfigureerd dan dat er fysieke schermen zijn aangesloten.&lt;/p&gt;&lt;p&gt;Verminder het aantal virtuele schermen in uw VM configuratie of sluit meer schermen aan.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kan de gebruikershandleiding &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; van VirtualBox niet vinden.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Wilt u deze van het internet downloaden?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u het zeker dat u de gebruikershandleiding van VirtualBox wilt downloaden van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (omvang %3 bytes)?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het downloaden van de gebruikershandleiding van VirtualBox is mislukt bij &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;De gebruikershandleiding van VirtualBox is succesvol gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; en lokaal opgeslagen als &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;De gebruikershandleiding van VirtualBox is met succes gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; maar kan lokaal niet worden opgeslagen als &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Kies aub een andere locatie voor dit bestand.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;U staat op het punt om de virtuele machine &lt;b&gt;%1&lt;/b&gt; uit de lijst met machines te verwijderen.&lt;/p&gt;&lt;p&gt;Moeten de bestanden, die de virtuele machine bevatten, ook verwijderd worden van u harde schijf?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;U staat op het punt om de virtuele machine &lt;b&gt;%1&lt;/b&gt; uit de lijst met machines te verwijderen.&lt;/p&gt;&lt;p&gt;Moeten de bestanden, die de virtuele machine bevatten, ook verwijderd worden van u harde schijf? Hiermee worden ook de bestanden verwijderd die de virtuele harde schijven van de machine bevatten, tenzij ze ingebruik zijn door een andere machine.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are about to remove the inaccessible virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list. Do you wish to proceed?</source>
+        <translation type="obsolete">U staat op het punt om de virtuele machine &lt;b&gt;%1&lt;/b&gt;, die niet te benaderen is, uit de lijst met machines te verwijderen. Wilt u doorgaan?</translation>
+    </message>
+    <message>
+        <source>Create &amp;new disk</source>
+        <comment>add attachment routine</comment>
+        <translation type="obsolete">Maak een &amp;nieuwe schijf aan</translation>
+    </message>
+    <message>
+        <source>&amp;Choose existing disk</source>
+        <comment>add attachment routine</comment>
+        <translation type="obsolete">&amp;Kies een bestaande schijf</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to add a new CD/DVD drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual CD/DVD disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;U staat op het punt een nieuw CD/DVD-station aan controller &lt;b&gt;%1&lt;/b&gt; toe te voegen.&lt;/p&gt;&lt;p&gt;Wilt u een virtuele CD/DVD-schijf in het station plaatsen of voorlopig leeg laten?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Choose disk</source>
+        <comment>add attachment routine</comment>
+        <translation type="obsolete">&amp;Kies een schijf</translation>
+    </message>
+    <message>
+        <source>Leave &amp;empty</source>
+        <comment>add attachment routine</comment>
+        <translation type="obsolete">Laat &amp;leeg</translation>
+    </message>
+    <message>
+        <source>Failed to detach the CD/DVD device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt CD/DVD-station &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; los te koppelen van het slot &lt;i&gt;%2&lt;/i&gt; van virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Failed to detach the floppy device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt diskettestation &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; los te koppelen van het slot &lt;i&gt;%2&lt;/i&gt; van virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message numerus="yes">
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <translatorcomment>RL - Noodzakelijke %n place marker ontbreekt, old format - Bij ticket #10400 virtualbox.org gezet, afwachten (02.04.2012)</translatorcomment>
+        <translation type="obsolete">
+            <numerusform>&lt;p&gt;De virtuele machine &lt;b&gt;%1&lt;/b&gt; bevindt zich momenteel in opgeslagen staat.&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machine weggegooid. Weet dat de bestaande machine niet worden veranderd.&lt;/p&gt;</numerusform>
+            <numerusform>&lt;p&gt;De virtuele machines &lt;b&gt;%1&lt;/b&gt; bevinden zich momenteel in opgeslagen staat.&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machines weggegooid. Weet dat de bestaande machines niet worden veranderd.&lt;/p&gt;</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Sorry, some generic error happens.</source>
+        <translation type="obsolete">Excuses, een algemene fout is opgetreden.</translation>
+    </message>
+    <message>
+        <source>Failed to attach the CD/DVD device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt CD/DVD-station &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te koppelen aan het slot &lt;i&gt;%2&lt;/i&gt; van de machine &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Failed to attach the floppy device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt diskettestation &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te koppelen aan het slot &lt;i&gt;%2&lt;/i&gt; van de machine &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;De VirtualBox Guest Additions lijken niet beschikbaar op deze virtuele machine. Gedeelde mappen kunnen dan niet worden gebruikt. Om gedeelde mappen te kunnen gebruiken binnen de virtuele machine installeert u de Guest Additions indien deze nog niet zijn geïnstalleerd. Indien wel, moet u deze herinstalleren. Selecteer &lt;b&gt;Installeer Guest Additions&lt;/b&gt; uit het menu &lt;b&gt;Machine&lt;/b&gt;. Zijn de Guest Additions wel goed geïnstalleerd maar is de machine nog niet helemaal gestart dan komen de gedeelde mappen waarschijnlijk beschikbaar zodra de machine wel volledig is opgestart.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;De virtuele machine schakelt nu over op de &lt;b&gt;schermvullende&lt;/b&gt; modus. U kunt ieder moment terugkeren door op &lt;b&gt;%1&lt;/b&gt; te drukken. Let op: de &lt;i&gt;Hosttoets&lt;/i&gt; is op dit moment &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Besef dat het hoofdmenu verborgen is bij volledig scherm. U kunt dit menu benaderen door op de &lt;b&gt;Hosttoets+Home&lt;/b&gt; te drukken.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Switch</source>
+        <comment>scale</comment>
+        <translation type="obsolete">Overschakelen</translation>
+    </message>
+    <message>
+        <source>&amp;Install</source>
+        <translation type="obsolete">&amp;Installeer</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to restore snapshot &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;U staat op het punt momentopname &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt; te herstellen. U kunt eerst een momentopname aanmaken van de huidige staat van de virtuele machine door het hokje beneden aan te vinken; indien u dit niet doet zal de huidige staat permanent verloren gaan. Wilt u doorgaan?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u momentopname &lt;b&gt;%1&lt;/b&gt; wilt terugzetten?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; to be installed.&lt;/p&gt;&lt;p&gt;Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;USB 2.0 staat momenteel aan voor deze virtuele machine. Echter, dit vereist dat &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is geïnstalleerd.&lt;/p&gt;&lt;p&gt;Installeer het Extension Pack van de VirtualBox downloadsite. Na installatie kunt u USB 2.0 weer inschakelen. In de tussentijd zal USB 2.0 worden uitgeschakeld, tenzij u de huidige verandering van instelling annuleert.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het is niet gelukt het gedownloade bestand als &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; op te slaan.&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>extension pack</comment>
+        <translation type="obsolete">Download</translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <comment>extension pack</comment>
+        <translation type="obsolete">OK</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;b&gt; kon niet van &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; worden gedownload&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+    </message>
+    <message numerus="yes">
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <comment>This text is never used with n == 0.  Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
+        <translation type="obsolete">
+            <numerusform>&lt;p&gt;De volgende virtuele machine bevindt zich momenteel in opgeslagen staat: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machine weggegooid. Weet dat de bestaande machine niet wordt veranderd.&lt;/p&gt;</numerusform>
+            <numerusform>&lt;p&gt;De volgende virtuele machines bevinden zich momenteel in opgeslagen staat: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machines weggegooid. Weet dat de bestaande machines niet worden veranderd.&lt;/p&gt;</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>You are about to create a new virtual machine without a hard drive. You will not be able to install an operating system on the machine until you add one. In the mean time you will only be able to start the machine using a virtual optical disk or from the network.</source>
+        <translation type="obsolete">U staat op het punt een nieuwe virtuele machine zonder harde schijf aan te maken. U zult niet in staat zijn een besturingssysteem te instaleren voordat u een schijf hebt toegevoegd. Tot die tijd kunt u alleen de machine starten met gebruikmaking van een virtuele optische schijf of vanaf het netwerk.</translation>
+    </message>
+    <message>
+        <source>Failed to drop data.</source>
+        <translation type="obsolete">Data droppen is niet gelukt.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions disk image file file.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kan het VirtualBox Guest Additions CD-imagebestand niet vinden.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Wilt u dit CD-image van het internet downloaden?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Close Virtual Machine</source>
+        <translation type="obsolete">Sluit virtuele machine af</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de virtuele harde schijf &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wilt losmaken?&lt;/p&gt;&lt;p&gt;Hierdoor wordt deze ontkoppeld van de volgende virtuele machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de virtuele optische schijf &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wilt losmaken?&lt;/p&gt;&lt;p&gt;Hierdoor wordt deze ontkoppeld van de volgende virtuele machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Weet u zeker dat u de virtuele floppydisk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wilt losmaken?&lt;/p&gt;&lt;p&gt;Hierdoor wordt deze ontkoppeld van de volgende virtuele machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to open the hard disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt harde schijf bestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
+    </message>
+    <message>
+        <source>Failed to open the optical disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translatorcomment>&quot;optische&quot; -&gt; de schijf is optisch, niet het bestand (dus niet: &quot;optisch schijf bestand&quot;)</translatorcomment>
+        <translation type="obsolete">Het is niet gelukt optische schijf bestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
+    </message>
+    <message>
+        <source>Failed to open the floppy disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt floppydiskbestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
+    </message>
+    <message>
+        <source>Failed to close the hard disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt harde schijf bestand &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te sluiten.</translation>
+    </message>
+    <message>
+        <source>Failed to close the optical disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt optische schijf bestand &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te sluiten.</translation>
+    </message>
+    <message>
+        <source>Failed to close the floppy disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="obsolete">Het is niet gelukt floppydiskbestand &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; te sluiten.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual CD/DVD drive?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Het &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt;-schijfimagebestand is met succes gedownload van &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; en lokaal opgeslagen als &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Wilt u het schijfimagebestand registreren en in het virtuele cd/dvd-station doen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kon het &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt;-schijfimagebestand niet in de virtuele machine &lt;b&gt;%1&lt;/b&gt; doen, omdat de machine geen cd/dvd-station heeft. Voeg een station toe via de pagina Opslag bij Instellingen van de virtuele machine.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;One or more virtual hard disks, optical or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Eén of meer virtuele harde schijven, optische bestanden of schijfimagebestanden zijn nu niet te benaderen. U kunt niet met de virtuele machines die deze media gebruiken werken, totdat dit medium of deze media weer benaderbaar zijn.&lt;/p&gt;&lt;p&gt;Druk op de knop &lt;b&gt;Controleren&lt;/b&gt; om de Virtuele Media Manager te openen om na te gaan welk medium niet te benaderen is, of druk op de knop &lt;b&gt;Negeren&lt;/b&gt; om dit bericht te negeren.&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetUserManual</name>
@@ -9526,10 +10726,6 @@
         <translation>Annuleer alle actieve netwerkoperaties</translation>
     </message>
     <message>
-        <source>Error: %1.</source>
-        <translation type="obsolete">Fout: %1.</translation>
-    </message>
-    <message>
         <source>Network Operation</source>
         <translation>Netwerkoperatie</translation>
     </message>
@@ -9544,6 +10740,10 @@
     <message>
         <source>The network operation failed with the following error: %1.</source>
         <translation>Netwerkoperatie mislukte met de volgende foutmelding: %1.</translation>
+    </message>
+    <message>
+        <source>Error: %1.</source>
+        <translation type="obsolete">Fout: %1.</translation>
     </message>
 </context>
 <context>
@@ -10094,6 +11294,21 @@
     </message>
 </context>
 <context>
+    <name>UIScreenshotViewer</name>
+    <message>
+        <source>Screenshot of %1 (%2)</source>
+        <translation type="vanished">Schermafdruk van %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Click to view non-scaled screenshot.</source>
+        <translation type="vanished">Klik om een niet-geschaalde schermafdruk te bekijken.</translation>
+    </message>
+    <message>
+        <source>Click to view scaled screenshot.</source>
+        <translation type="vanished">Klik om een geschaalde schermafdruk te bekijken.</translation>
+    </message>
+</context>
+<context>
     <name>UISelectorWindow</name>
     <message>
         <source>Show Toolbar</source>
@@ -10112,10 +11327,6 @@
         <translation>Bestanden virtuele machine (%1)</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster zal straks alle virtuele machines tonen die op uw computer staan. De lijst is nu leeg omdat u nog geen virtuele machines hebt aangemaakt.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Om een nieuwe virtuele machine aan te maken klikt u op de knop &lt;b&gt;Nieuw&lt;/b&gt; in de werkbalk linksboven in het venster.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Manager</source>
         <comment>Note: main window title which is pretended by the product name.</comment>
         <translation>Manager</translation>
@@ -10124,16 +11335,32 @@
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
         <translation>&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster zal straks alle virtuele machines tonen die op uw computer staan. De lijst is nu leeg omdat u nog geen virtuele machines hebt aangemaakt.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Om een nieuwe virtuele machine aan te maken klikt u op de knop &lt;b&gt;Nieuw&lt;/b&gt; in de werkbalk linksboven in het venster.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>Show Toolbar Text</source>
+        <translation type="vanished">Toon werkbalktekst</translation>
+    </message>
+    <message>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster zal straks alle virtuele machines tonen die op uw computer staan. De lijst is nu leeg omdat u nog geen virtuele machines hebt aangemaakt.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Om een nieuwe virtuele machine aan te maken klikt u op de knop &lt;b&gt;Nieuw&lt;/b&gt; in de werkbalk linksboven in het venster.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>UISession</name>
     <message>
+        <source>Updating Guest Additions</source>
+        <translation>Installeren Guest Additions</translation>
+    </message>
+    <message>
         <source>Install</source>
         <translation type="obsolete">Installeer</translation>
     </message>
+</context>
+<context>
+    <name>UISessionStateStatusBarIndicator</name>
     <message>
-        <source>Updating Guest Additions</source>
-        <translation>Installeren Guest Additions</translation>
+        <source>%1 status-bar indicator</source>
+        <comment>like &apos;hard-disk status-bar indicator&apos;</comment>
+        <translation type="vanished">%1 status-bar indicator</translation>
     </message>
 </context>
 <context>
@@ -10143,20 +11370,8 @@
         <translation>&lt;i&gt;Selecteer een categorie instellingen uit de lijst aan de linkerkant en beweeg de muis over een instellingsmogelijkheid voor meer informatie.&lt;/i&gt;</translation>
     </message>
     <message>
-        <source>On the &lt;b&gt;%1&lt;/b&gt; page, %2</source>
-        <translation type="obsolete">Op de &lt;b&gt;%1&lt;/b&gt; pagina, %2</translation>
-    </message>
-    <message>
         <source>Invalid settings detected</source>
         <translation>Ongeldige instellingen ontdekt</translation>
-    </message>
-    <message>
-        <source>Non-optimal settings detected</source>
-        <translation type="obsolete">Een aantal instellingen zijn niet optimaal</translation>
-    </message>
-    <message>
-        <source>Settings</source>
-        <translation type="obsolete">Instellingen</translation>
     </message>
     <message>
         <source>&lt;b&gt;%1&lt;/b&gt; page:</source>
@@ -10165,6 +11380,18 @@
     <message>
         <source>&lt;b&gt;%1: %2&lt;/b&gt; page:</source>
         <translation>&lt;b&gt;%1: %2&lt;/b&gt; pagina:</translation>
+    </message>
+    <message>
+        <source>On the &lt;b&gt;%1&lt;/b&gt; page, %2</source>
+        <translation type="obsolete">Op de &lt;b&gt;%1&lt;/b&gt; pagina, %2</translation>
+    </message>
+    <message>
+        <source>Non-optimal settings detected</source>
+        <translation type="obsolete">Een aantal instellingen zijn niet optimaal</translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation type="obsolete">Instellingen</translation>
     </message>
 </context>
 <context>
@@ -10184,10 +11411,6 @@
     <message>
         <source>Language</source>
         <translation>Taal</translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <translation type="obsolete">USB</translation>
     </message>
     <message>
         <source>Network</source>
@@ -10212,6 +11435,14 @@
     <message>
         <source>Preferences</source>
         <translation>Voorkeuren</translation>
+    </message>
+    <message>
+        <source>Allows to navigate through Global Property categories</source>
+        <translation type="vanished">Maakt het mogelijk door de Algemene Eigenschappen-categorieën te navigeren</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <translation type="obsolete">USB</translation>
     </message>
 </context>
 <context>
@@ -10272,6 +11503,10 @@
         <source>Settings</source>
         <translation>Instellingen</translation>
     </message>
+    <message>
+        <source>Allows to navigate through VM Settings categories</source>
+        <translation type="vanished">Maakt het mogelijk door de VM-instellingencategorieën te navigeren</translation>
+    </message>
 </context>
 <context>
     <name>UISettingsSerializerProgress</name>
@@ -10282,6 +11517,198 @@
     <message>
         <source>Saving Settings...</source>
         <translation>Instellingen opslaan...</translation>
+    </message>
+</context>
+<context>
+    <name>UISnapshotDetailsWidget</name>
+    <message>
+        <source>&lt;p&gt;You have the &lt;b&gt;Current State&lt;/b&gt; item selected.&lt;br&gt;Press the &lt;b&gt;Take&lt;/b&gt; button if you wish to take a new snapshot.&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;U heeft &lt;b&gt;Huidige Status&lt;/b&gt; geselecteerd.&lt;br&gt;Klik op de &lt;b&gt;Neem&lt;/b&gt;-knop als u een nieuw snapshot wilt nemen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Attributes</source>
+        <translation type="vanished">&amp;Attributen</translation>
+    </message>
+    <message>
+        <source>&amp;Information</source>
+        <translation type="vanished">&amp;Informatie</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="vanished">&amp;Naam:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="vanished">&amp;Beschrijving:</translation>
+    </message>
+    <message>
+        <source>Holds the snapshot name.</source>
+        <translation type="vanished">Toont de naam van het snapshot.</translation>
+    </message>
+    <message>
+        <source>Holds the snapshot description.</source>
+        <translation type="vanished">Toont de beschrijving van het snapshot.</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation type="vanished">Toepassen</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="vanished">Reset</translation>
+    </message>
+    <message>
+        <source>Apply changes in current snapshot details</source>
+        <translation type="vanished">Toepassen veranderingen in huidige snapshotdetails</translation>
+    </message>
+    <message>
+        <source>Reset changes in current snapshot details</source>
+        <translation type="vanished">Reset veranderingen in huidige snapshotdetails</translation>
+    </message>
+    <message>
+        <source>Apply Changes (%1)</source>
+        <translation type="vanished">Toepassen veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="vanished">Reset veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Click to enlarge the screenshot.</source>
+        <translation type="vanished">Klik om schermafdruk te vergroten.</translation>
+    </message>
+    <message>
+        <source>Snapshot name is empty</source>
+        <translation type="vanished">Geen snapshotnaam opgegeven</translation>
+    </message>
+</context>
+<context>
+    <name>UISnapshotPane</name>
+    <message>
+        <source>Current State (changed)</source>
+        <comment>Current State (Modified)</comment>
+        <translation type="vanished">Huidige staat (gewijzigd)</translation>
+    </message>
+    <message>
+        <source>Current State</source>
+        <comment>Current State (Unmodified)</comment>
+        <translation type="vanished">Huidige staat (ongewijzigd)</translation>
+    </message>
+    <message>
+        <source>The current state differs from the state stored in the current snapshot</source>
+        <translation type="vanished">De huidige staat verschilt van de staat zoals deze is opgeslagen in het huidige snapshot</translation>
+    </message>
+    <message>
+        <source>The current state is identical to the state stored in the current snapshot</source>
+        <translation type="vanished">De huidige staat is gelijk aan de staat zoals deze opgeslagen is in het huidige snapshot</translation>
+    </message>
+    <message>
+        <source>%1 (%2 ago)</source>
+        <comment>date time (how long ago)</comment>
+        <translation type="vanished">%1 (%2 geleden)</translation>
+    </message>
+    <message>
+        <source>%1 since %2</source>
+        <comment>Current State (time or date + time)</comment>
+        <translation type="vanished">%1 sinds %2</translation>
+    </message>
+    <message>
+        <source>current</source>
+        <comment>snapshot</comment>
+        <translation type="vanished">huidig</translation>
+    </message>
+    <message>
+        <source>online</source>
+        <comment>snapshot</comment>
+        <translation type="vanished">online</translation>
+    </message>
+    <message>
+        <source>Taken at %1</source>
+        <comment>Snapshot (time)</comment>
+        <translation type="vanished">Genomen om %1</translation>
+    </message>
+    <message>
+        <source>Taken on %1</source>
+        <comment>Snapshot (date + time)</comment>
+        <translation type="vanished">Genomen op %1</translation>
+    </message>
+    <message>
+        <source>Contains the snapshot tree of the current virtual machine</source>
+        <translation type="vanished">Bevat de snapshot-tree van de huidige virtuele machine</translation>
+    </message>
+    <message>
+        <source>&amp;Take...</source>
+        <translation type="vanished">&amp;Neem...</translation>
+    </message>
+    <message>
+        <source>&amp;Delete</source>
+        <translation type="vanished">&amp;Verwijderen</translation>
+    </message>
+    <message>
+        <source>&amp;Restore</source>
+        <translation type="vanished">&amp;Terugzetten</translation>
+    </message>
+    <message>
+        <source>&amp;Properties...</source>
+        <translation type="vanished">&amp;Eigenschappen...</translation>
+    </message>
+    <message>
+        <source>&amp;Clone...</source>
+        <translation type="vanished">&amp;Kloon...</translation>
+    </message>
+    <message>
+        <source>Take Snapshot (%1)</source>
+        <translation type="vanished">Neem snapshot (%1)</translation>
+    </message>
+    <message>
+        <source>Delete Snapshot (%1)</source>
+        <translation type="vanished">Verwijder snapshot (%1)</translation>
+    </message>
+    <message>
+        <source>Restore Snapshot (%1)</source>
+        <translation type="vanished">Terugzetten snapshot (%1)</translation>
+    </message>
+    <message>
+        <source>Open Snapshot Properties (%1)</source>
+        <translation type="vanished">Openen snapshoteigenschappen (%1)</translation>
+    </message>
+    <message>
+        <source>Clone Virtual Machine (%1)</source>
+        <translation type="vanished">Kloon Virtuele Machine (%1)</translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the current virtual machine state</source>
+        <translation type="vanished">Maak een snapshot van de huidige staat van de virtuele machine</translation>
+    </message>
+    <message>
+        <source>Delete selected snapshot of the virtual machine</source>
+        <translation type="vanished">Verwijder het geselecteerde snapshot van de virtuele machine</translation>
+    </message>
+    <message>
+        <source>Restore selected snapshot of the virtual machine</source>
+        <translation type="vanished">Zet het geselecteerde snapshot van de virtuele machine terug</translation>
+    </message>
+    <message>
+        <source>Open pane with the selected snapshot properties</source>
+        <translation type="vanished">Open deelvenster met geselecteerde snapshoteigenschappen</translation>
+    </message>
+    <message>
+        <source>Clone selected virtual machine</source>
+        <translation type="vanished">Kloon de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>snapshot</comment>
+        <translation type="vanished">Naam</translation>
+    </message>
+    <message>
+        <source>Taken</source>
+        <comment>snapshot</comment>
+        <translation type="vanished">Genomen</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="vanished">Snapshot %1</translation>
     </message>
 </context>
 <context>
@@ -10307,6 +11734,32 @@
     </message>
 </context>
 <context>
+    <name>UITakeSnapshotDialog</name>
+    <message>
+        <source>Take Snapshot of Virtual Machine</source>
+        <translation type="vanished">Maak snapshot van virtuele machine</translation>
+    </message>
+    <message>
+        <source>Snapshot &amp;Name</source>
+        <translation type="vanished">&amp;Naam snapshot</translation>
+    </message>
+    <message>
+        <source>Snapshot &amp;Description</source>
+        <translation type="vanished">&amp;Beschrijving snapshot</translation>
+    </message>
+    <message numerus="yes">
+        <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
+        <translation type="vanished">
+            <numerusform>Waarschuwing: U maakt een snapshot van een draaiende machine, die %n niet te wijzigen image gekoppeld heeft. Zolang u werkt vanaf dit snapshot, zal -om gegevensverlies te voorkomen- het niet te wijzigen image niet worden gereset.</numerusform>
+            <numerusform>Waarschuwing: U maakt een snapshot van een draaiende machine, die %n niet te wijzigen images gekoppeld heeft. Zolang u werkt vanaf dit snapshot, zullen -om gegevensverlies te voorkomen- de niet te wijzigen images niet worden gereset.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="vanished">Snapshot %1</translation>
+    </message>
+</context>
+<context>
     <name>UITextEditor</name>
     <message>
         <source>Edit text</source>
@@ -10327,6 +11780,53 @@
     <message>
         <source>Select a file to open...</source>
         <translation>Selecteer een bestand om te openen...</translation>
+    </message>
+</context>
+<context>
+    <name>UIToolsPaneGlobal</name>
+    <message>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;This window represents a set of global tools which are currently opened (or can be opened). They are not related to any particular machine but to the complete VM collection. For a list of currently available tools check the corresponding menu at the right side of the main tool bar located at the top of the window. This list will be extended with new tools in future releases.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
+        <translation type="vanished">&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Dit venster toont een set algemene gereedschappendie momenteel open staan (of geopend kunnen worden). Deze zijn nog niet gebonden aan een bepaalde machine maar aan de complete VM-collectie. Voor een lijst van beschikbare gereedschappen controlere men het overeenkomstig menu aan de rechter kant van de hoofdwerkbalk boven aan het scherm. Deze lijst zal worden uitgebreid in toekomstige uitgaven.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Tool to observe virtual storage media. Reflects all the chains of &lt;u&gt;virtual disks&lt;/u&gt; you have registered (per each storage type) within your virtual machines and allows for media operations like &lt;u&gt;copy&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt;, &lt;u&gt;release&lt;/u&gt; (detach it from VMs where it is currently attached to) and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; medium attributes like &lt;u&gt;type&lt;/u&gt;, &lt;u&gt;location/name&lt;/u&gt;, &lt;u&gt;description&lt;/u&gt; and &lt;u&gt;size&lt;/u&gt; (for dynamical storages only).</source>
+        <translation type="vanished">Om virtuele opslagmedia mee te bekijken. Toont alle ketens van &lt;u&gt;virtuele schijven&lt;/u&gt; die je hebt geregistreerd (per opslagtype) binnen de virtuele machines en maakt mediabewerkingen als &lt;u&gt;kopiëren&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt;, &lt;u&gt;vrijgeven&lt;/u&gt; (afkoppelen van VMs waar het op dat moment aan verbonden was) en het bekijken van hun eigenschappen mogenlijk. Steld in staat media-attributen te &lt;u&gt;bewerken&lt;/u&gt; als &lt;u&gt;type&lt;/u&gt;, &lt;u&gt;locatie/naam&lt;/u&gt;, &lt;u&gt;beschrijving&lt;/u&gt; en &lt;u&gt;grootte&lt;/u&gt; (alleen bij dynamische opslag).</translation>
+    </message>
+    <message>
+        <source>Tool to control host-only network interfaces. Reflects &lt;u&gt;host-only networks&lt;/u&gt;, their DHCP servers and allows for operations on the networks like possibility to &lt;u&gt;create&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt; and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; various &lt;u&gt;attributes&lt;/u&gt; for host-only interface and corresponding DHCP server.</source>
+        <translation type="vanished">Om host-only-netwerkinterfaces mee te beheren. Toont &lt;u&gt;host-only netwerken&lt;/u&gt;, hun DHCP-servers en staat bewerkingen toe op het netwerk als &lt;u&gt;aanmaken&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt; en bekijken eigenschappen. Mogelijkheid tot &lt;u&gt;bwerken&lt;/u&gt; van verschillende &lt;u&gt;attributen&lt;/u&gt; voor host-only-interface en corresponderende DHCP-server.</translation>
+    </message>
+</context>
+<context>
+    <name>UIToolsPaneMachine</name>
+    <message>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window lists all virtual machines and virtual machine groups on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
+        <translation type="vanished">&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster zal straks alle virtuele machines tonen die op uw computer staan. De lijst is nu leeg omdat u nog geen virtuele machines hebt aangemaakt.&lt;/p&gt;&lt;p&gt;Om een nieuwe virtuele machine aan te maken klikt u op de knop &lt;b&gt;Nieuw&lt;/b&gt; in de werkbalk linksboven in het venster.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window lists all virtual machines and virtual machine groups on your computer.&lt;/p&gt;&lt;p&gt;The right part of this window represents a set of tools which are currently opened (or can be opened) for the currently chosen machine. For a list of currently available tools check the corresponding menu at the right side of the main tool bar located at the top of the window. This list will be extended with new tools in future releases.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
+        <translation type="vanished">&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster toont alle virtuele machines en alle virtuele machine-groepen die op uw computer staan. &lt;/p&gt;&lt;p&gt;Het rechter deel van dit venster toont een set gereedschap die momenteel open staan (of open kunnen staan) ten behoeve van de huidig geselecteerde machine. Kijk voor een lijst van momenteel beschikbare gereedschappen naar het corresponderende menu rechts in de hoofdwerkbalk aan de top van het scherm. Deze lijst zal langer worden bij elke nieuwe release.&lt;/p&gt;&lt;p&gt;Klip op &lt;b&gt;%1&lt;/b&gt; voor hulp. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor meer informatie en het laatste nieuws.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Tool to observe virtual machine (VM) details. Reflects groups of &lt;u&gt;properties&lt;/u&gt; for the currently chosen VM and allows basic operations on certain properties (like the machine storage devices).</source>
+        <translation type="vanished">Om virtuele machine (VM)-details te bekijken. Toont groepen van &lt;u&gt;eigenschappen&lt;/u&gt; voor de geselecteerde VM en staat basisoperaties toe op bepaalde eigenschappen (zoals opslagapparaten van deze VM).</translation>
+    </message>
+    <message>
+        <source>Tool to control virtual machine (VM) snapshots. Reflects &lt;u&gt;snapshots&lt;/u&gt; created for the currently selected VM and allows snapshot operations like &lt;u&gt;create&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt;, &lt;u&gt;restore&lt;/u&gt; (make current) and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; snapshot attributes like &lt;u&gt;name&lt;/u&gt; and &lt;u&gt;description&lt;/u&gt;.</source>
+        <translation type="vanished">Om virtuele machine (VM)-snapshots te bekijken. Toont &lt;u&gt;snapshots&lt;/u&gt; gemaakt voor de geselecteerde VM en staat snapshot-operaties toe als &lt;u&gt;aanmaken&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt;, &lt;u&gt;terugzetten&lt;/u&gt; (maak huidig) alsmede het bekijken van hun eigenschappen. Maakt mogelijk snapshot attributen te &lt;u&gt;bewerken&lt;/u&gt; als &lt;u&gt;naam&lt;/u&gt; en &lt;u&gt;beschrijving&lt;/u&gt;.</translation>
+    </message>
+</context>
+<context>
+    <name>UIUSBFilterItem</name>
+    <message>
+        <source>%1, Active</source>
+        <comment>col.1 text, col.1 state</comment>
+        <translation type="vanished">%1, Actief</translation>
+    </message>
+    <message>
+        <source>%1</source>
+        <comment>col.1 text</comment>
+        <translation type="vanished">%1</translation>
     </message>
 </context>
 <context>
@@ -10459,14 +11959,6 @@
         <translation>%1 - Sessie-informatie</translation>
     </message>
     <message>
-        <source>&amp;Details</source>
-        <translation type="obsolete">&amp;Details</translation>
-    </message>
-    <message>
-        <source>&amp;Runtime</source>
-        <translation type="obsolete">&amp;Runtime</translation>
-    </message>
-    <message>
         <source>DMA Transfers</source>
         <translation>DMA overdracht</translation>
     </message>
@@ -10522,10 +12014,6 @@
         <translation>Geen netwerkadapters</translation>
     </message>
     <message>
-        <source>UIVMInfoDialog</source>
-        <translation type="obsolete">UIVMInfoDialog</translation>
-    </message>
-    <message>
         <source>Storage Statistics</source>
         <translation>Opslagstatistieken</translation>
     </message>
@@ -10547,11 +12035,6 @@
         <translation>Klembordmodus</translation>
     </message>
     <message>
-        <source>Drag&apos;n&apos;Drop Mode</source>
-        <translatorcomment>RL: Of &apos;Slepen-en-Neerzetten&apos; - &apos;t blijft een eeuwige discussie</translatorcomment>
-        <translation type="obsolete">Slepen-naar-modus</translation>
-    </message>
-    <message>
         <source>Configuration &amp;Details</source>
         <translation>Configuratie&amp;details</translation>
     </message>
@@ -10566,6 +12049,23 @@
     <message>
         <source>Drag and Drop Mode</source>
         <translation>Drag-and-drop modus</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation type="obsolete">&amp;Details</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime</source>
+        <translation type="obsolete">&amp;Runtime</translation>
+    </message>
+    <message>
+        <source>UIVMInfoDialog</source>
+        <translation type="obsolete">UIVMInfoDialog</translation>
+    </message>
+    <message>
+        <source>Drag&apos;n&apos;Drop Mode</source>
+        <translatorcomment>RL: Of &apos;Slepen-en-Neerzetten&apos; - &apos;t blijft een eeuwige discussie</translatorcomment>
+        <translation type="obsolete">Slepen-naar-modus</translation>
     </message>
 </context>
 <context>
@@ -10713,14 +12213,6 @@
 <context>
     <name>UIWizard</name>
     <message>
-        <source>Hide Description</source>
-        <translation type="obsolete">Beschrijving verbergen</translation>
-    </message>
-    <message>
-        <source>Show Description</source>
-        <translation type="obsolete">Beschrijving tonen</translation>
-    </message>
-    <message>
         <source>&amp;Expert Mode</source>
         <translation>&amp;Expertmodus</translation>
     </message>
@@ -10736,56 +12228,20 @@
         <source>Switch to &lt;nobr&gt;&lt;b&gt;Guided Mode&lt;/b&gt;&lt;/nobr&gt;, a step-by-step dialog with detailed explanations.</source>
         <translation>Schakel over op &lt;nobr&gt;&lt;b&gt;Begeleide modus&lt;/b&gt;&lt;/nobr&gt;, een stap-voor-stap dialoog met gedetailleerde uitleg.</translation>
     </message>
+    <message>
+        <source>Hide Description</source>
+        <translation type="obsolete">Beschrijving verbergen</translation>
+    </message>
+    <message>
+        <source>Show Description</source>
+        <translation type="obsolete">Beschrijving tonen</translation>
+    </message>
 </context>
 <context>
     <name>UIWizardCloneVD</name>
     <message>
-        <source>Copy Virtual Hard Drive</source>
-        <translation type="obsolete">Kopieer Virtuele Schijf</translation>
-    </message>
-    <message>
         <source>Copy</source>
         <translation>Kopieer</translation>
-    </message>
-    <message>
-        <source>Hard drive to copy</source>
-        <translation type="obsolete">Te kopiëren harde schijf</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Please select the virtual hard drive file that you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select one.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kies een virtuele schijf om te kopiëren als u deze nog niet geselecteerd hebt. U kunt een schijf kiezen uit de lijst of door op de mappenicoon naast de lijst te klikken en daar een schijfbestand te kiezen.&lt;p&gt;</translation>
-    </message>
-    <message>
-        <source>Choose a virtual hard drive file to copy...</source>
-        <translation type="obsolete">Kies een te kopiëren virtuele harde schijf bestand...</translation>
-    </message>
-    <message>
-        <source>Hard drive file type</source>
-        <translation type="obsolete">Bestandstype harde schijf</translation>
-    </message>
-    <message>
-        <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation type="obsolete">Kies het bestandstype dat u voor deze nieuwe virtuele schijf wilt gebruiken. Indien u niet van plan bent deze virtuele schijf met andersoortige virtualisatiesoftware te gebruiken kunt u deze instelling onveranderd laten.</translation>
-    </message>
-    <message>
-        <source>Storage on physical hard drive</source>
-        <translation type="obsolete">Opslag op fysieke harde schijf</translation>
-    </message>
-    <message>
-        <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation type="obsolete">Kies of het nieuwe virtuele schijf bestand naar de maximale grootte moet groeien door gebruik (dynamisch gealloceerd) of dat het op de maximale grootte moet worden aangemaakt (gefixeerde grootte).</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Een &lt;b&gt;dynamisch gealloceerd&lt;/b&gt; virtuele schijf bestand zal tijdens gebruik tot de aangegeven maximale grootte groeien en zo in het begin minder ruimte op uw fysieke harde schijf innemen.Het schijfbestand zal echter niet automatisch krimpen wanneer ruimte wordt vrijgemaakt.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Aanmaken van een virtuele schijf bestand van &lt;b&gt;gefixeerde grootte&lt;/b&gt; kan op sommige systemen langer duren, maar is vaak sneller in het gebruik.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
-        <translation type="obsolete">&lt;p&gt;U kunt er ook voor kiezen het virtuele schijf bestand &lt;b&gt;te splitsen&lt;/b&gt; in meerdere bestanden van maximaal twee gigabytes elk. Dit is hoofdzakelijk handig indien u de virtuele machine op verwijderbare USB-apparaten of op oudere systemen wilt opslaan, waarvan sommige niet kunnen omgaan met erg grote bestanden.</translation>
     </message>
     <message>
         <source>&amp;Dynamically allocated</source>
@@ -10800,37 +12256,9 @@
         <translation>&amp;splits in bestanden kleiner dan 2GB</translation>
     </message>
     <message>
-        <source>Please choose a location for new virtual hard drive file</source>
-        <translation type="obsolete">Kies een lokatie voor het nieuwe virtuele harde schijf bestand</translation>
-    </message>
-    <message>
-        <source>New hard drive to create</source>
-        <translation type="obsolete">Nieuw aan te maken harde schijf</translation>
-    </message>
-    <message>
-        <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation type="obsolete">Typ de naam van de nieuwe virtuele schijf in de ruimte beneden of klik op het mapicoontje, kies een andere map en maak daar het bestand in aan.</translation>
-    </message>
-    <message>
-        <source>Choose a location for new virtual hard drive file...</source>
-        <translation type="obsolete">Kies een lokatie voor het nieuwe virtuele harde schijf bestand...</translation>
-    </message>
-    <message>
         <source>%1_copy</source>
         <comment>copied virtual hard drive name</comment>
         <translation>%1_copy</translation>
-    </message>
-    <message>
-        <source>Hard drive to &amp;copy</source>
-        <translation type="obsolete">Te kopieren harde s&amp;chijf</translation>
-    </message>
-    <message>
-        <source>&amp;New hard drive to create</source>
-        <translation type="obsolete">&amp;Nieuw aan te maken harde schijf</translation>
-    </message>
-    <message>
-        <source>Hard drive file &amp;type</source>
-        <translation type="obsolete">Bestands&amp;type harde schijf</translation>
     </message>
     <message>
         <source>Copy Virtual Hard Disk</source>
@@ -10904,6 +12332,78 @@
         <source>Hard disk file &amp;type</source>
         <translation>Bestands&amp;type harde schijf</translation>
     </message>
+    <message>
+        <source>Copy Virtual Hard Drive</source>
+        <translation type="obsolete">Kopieer Virtuele Schijf</translation>
+    </message>
+    <message>
+        <source>Hard drive to copy</source>
+        <translation type="obsolete">Te kopiëren harde schijf</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select the virtual hard drive file that you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select one.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kies een virtuele schijf om te kopiëren als u deze nog niet geselecteerd hebt. U kunt een schijf kiezen uit de lijst of door op de mappenicoon naast de lijst te klikken en daar een schijfbestand te kiezen.&lt;p&gt;</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard drive file to copy...</source>
+        <translation type="obsolete">Kies een te kopiëren virtuele harde schijf bestand...</translation>
+    </message>
+    <message>
+        <source>Hard drive file type</source>
+        <translation type="obsolete">Bestandstype harde schijf</translation>
+    </message>
+    <message>
+        <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
+        <translation type="obsolete">Kies het bestandstype dat u voor deze nieuwe virtuele schijf wilt gebruiken. Indien u niet van plan bent deze virtuele schijf met andersoortige virtualisatiesoftware te gebruiken kunt u deze instelling onveranderd laten.</translation>
+    </message>
+    <message>
+        <source>Storage on physical hard drive</source>
+        <translation type="obsolete">Opslag op fysieke harde schijf</translation>
+    </message>
+    <message>
+        <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
+        <translation type="obsolete">Kies of het nieuwe virtuele schijf bestand naar de maximale grootte moet groeien door gebruik (dynamisch gealloceerd) of dat het op de maximale grootte moet worden aangemaakt (gefixeerde grootte).</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Een &lt;b&gt;dynamisch gealloceerd&lt;/b&gt; virtuele schijf bestand zal tijdens gebruik tot de aangegeven maximale grootte groeien en zo in het begin minder ruimte op uw fysieke harde schijf innemen.Het schijfbestand zal echter niet automatisch krimpen wanneer ruimte wordt vrijgemaakt.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Aanmaken van een virtuele schijf bestand van &lt;b&gt;gefixeerde grootte&lt;/b&gt; kan op sommige systemen langer duren, maar is vaak sneller in het gebruik.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
+        <translation type="obsolete">&lt;p&gt;U kunt er ook voor kiezen het virtuele schijf bestand &lt;b&gt;te splitsen&lt;/b&gt; in meerdere bestanden van maximaal twee gigabytes elk. Dit is hoofdzakelijk handig indien u de virtuele machine op verwijderbare USB-apparaten of op oudere systemen wilt opslaan, waarvan sommige niet kunnen omgaan met erg grote bestanden.</translation>
+    </message>
+    <message>
+        <source>Please choose a location for new virtual hard drive file</source>
+        <translation type="obsolete">Kies een lokatie voor het nieuwe virtuele harde schijf bestand</translation>
+    </message>
+    <message>
+        <source>New hard drive to create</source>
+        <translation type="obsolete">Nieuw aan te maken harde schijf</translation>
+    </message>
+    <message>
+        <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
+        <translation type="obsolete">Typ de naam van de nieuwe virtuele schijf in de ruimte beneden of klik op het mapicoontje, kies een andere map en maak daar het bestand in aan.</translation>
+    </message>
+    <message>
+        <source>Choose a location for new virtual hard drive file...</source>
+        <translation type="obsolete">Kies een lokatie voor het nieuwe virtuele harde schijf bestand...</translation>
+    </message>
+    <message>
+        <source>Hard drive to &amp;copy</source>
+        <translation type="obsolete">Te kopieren harde s&amp;chijf</translation>
+    </message>
+    <message>
+        <source>&amp;New hard drive to create</source>
+        <translation type="obsolete">&amp;Nieuw aan te maken harde schijf</translation>
+    </message>
+    <message>
+        <source>Hard drive file &amp;type</source>
+        <translation type="obsolete">Bestands&amp;type harde schijf</translation>
+    </message>
 </context>
 <context>
     <name>UIWizardCloneVM</name>
@@ -10942,10 +12442,6 @@
     <message>
         <source>Clone type</source>
         <translation>Kloontype</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Please choose the type of clone you wish to create.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full clone&lt;/b&gt;, an exact copy (including all virtual hard drive files) of the original virtual machine will be created.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Linked clone&lt;/b&gt;, a new machine will be created, but the virtual hard drive files will be tied to the virtual hard drive files of original machine and you will not be able to move the new virtual machine to a different computer without moving the original as well.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Kies het type kloon dat u wilt aanmaken.&lt;/p&gt;&lt;p&gt;Indien u kiest voor &lt;b&gt;Volle kloon&lt;/b&gt;, wordt er een exacte kopie (inclusief alle virtuele harde schijf bestanden) van de originele virtuele machine aangemaakt.&lt;/p&gt;&lt;p&gt;Indien u kiest voor &lt;b&gt;Gekoppelde kloon&lt;/b&gt;, wordt er een nieuwe machine aangemaakt, maar de virtuele harde schijf bestanden zullen gebonden zijn aan de virtuele harde schijf bestanden van de originele machine. U zult de nieuwe virtuele machine niet naar een andere computer kunnen verplaatsen, zonder dat ook met de originele virtuele machine te doen.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;If you create a &lt;b&gt;Linked clone&lt;/b&gt; then a new snapshot will be created in the original virtual machine as part of the cloning process.&lt;/p&gt;</source>
@@ -11008,6 +12504,10 @@
     <message>
         <source>&lt;p&gt;Please choose the type of clone you wish to create.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full clone&lt;/b&gt;, an exact copy (including all virtual hard disk files) of the original virtual machine will be created.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Linked clone&lt;/b&gt;, a new machine will be created, but the virtual hard disk files will be tied to the virtual hard disk files of original machine and you will not be able to move the new virtual machine to a different computer without moving the original as well.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Kies het type kloon dat u wilt aanmaken.&lt;/p&gt;&lt;p&gt;Indien u kiest voor &lt;b&gt;Volle kloon&lt;/b&gt;, wordt er een exacte kopie (inclusief alle virtuele harde schijf bestanden) van de originele virtuele machine aangemaakt.&lt;/p&gt;&lt;p&gt;Indien u kiest voor &lt;b&gt;Gekoppelde kloon&lt;/b&gt;, wordt er een nieuwe machine aangemaakt, maar de virtuele harde schijf bestanden zullen gebonden zijn aan de virtuele harde schijf bestanden van de originele machine. U zult de nieuwe virtuele machine niet naar een andere computer kunnen verplaatsen, zonder dat ook met de originele virtuele machine te doen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose the type of clone you wish to create.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full clone&lt;/b&gt;, an exact copy (including all virtual hard drive files) of the original virtual machine will be created.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Linked clone&lt;/b&gt;, a new machine will be created, but the virtual hard drive files will be tied to the virtual hard drive files of original machine and you will not be able to move the new virtual machine to a different computer without moving the original as well.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Kies het type kloon dat u wilt aanmaken.&lt;/p&gt;&lt;p&gt;Indien u kiest voor &lt;b&gt;Volle kloon&lt;/b&gt;, wordt er een exacte kopie (inclusief alle virtuele harde schijf bestanden) van de originele virtuele machine aangemaakt.&lt;/p&gt;&lt;p&gt;Indien u kiest voor &lt;b&gt;Gekoppelde kloon&lt;/b&gt;, wordt er een nieuwe machine aangemaakt, maar de virtuele harde schijf bestanden zullen gebonden zijn aan de virtuele harde schijf bestanden van de originele machine. U zult de nieuwe virtuele machine niet naar een andere computer kunnen verplaatsen, zonder dat ook met de originele virtuele machine te doen.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -11093,10 +12593,6 @@
         <translation>&amp;Bestand:</translation>
     </message>
     <message>
-        <source>Please choose a virtual appliance file</source>
-        <translation type="obsolete">Kies een virtuele appliance bestand</translation>
-    </message>
-    <message>
         <source>Open Virtualization Format Archive (%1)</source>
         <translation>Open Virtualisatie Archief Formaat (%1)</translation>
     </message>
@@ -11107,10 +12603,6 @@
     <message>
         <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
         <translation>Wegschrijven in het oudere OVF 0.9 formaat om compatibel te blijven met andere virtualisatieproducten.</translation>
-    </message>
-    <message>
-        <source>&amp;Write legacy OVF 0.9</source>
-        <translation type="obsolete">&amp;Schrijf weg in ouder formaat OVF 0.9</translation>
     </message>
     <message>
         <source>Create a Manifest file for automatic data integrity checks on import.</source>
@@ -11176,6 +12668,42 @@
         <source>&amp;Storage settings</source>
         <translation>Op&amp;slaginstellingen</translation>
     </message>
+    <message>
+        <source>Oracle Public Cloud Format Archive (%1)</source>
+        <translation type="vanished">Oracle Public Cloud Format Archive (%1)</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format 0.9</source>
+        <translation type="vanished">Open Virtualization Format 0.9</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format 1.0</source>
+        <translation type="vanished">Open Virtualization Format 1.0</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format 2.0</source>
+        <translation type="vanished">Open Virtualization Format 2.0</translation>
+    </message>
+    <message>
+        <source>Oracle Public Cloud Format 1.0</source>
+        <translation type="vanished">Oracle Public Cloud Format 1.0</translation>
+    </message>
+    <message>
+        <source>Write in new OVF 2.0 format.</source>
+        <translation type="vanished">Schrijven in new OVF 2.0 format.</translation>
+    </message>
+    <message>
+        <source>Write in Oracle Public Cloud 1.0 format.</source>
+        <translation type="vanished">Schrijven in Oracle Public Cloud 1.0 format.</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual appliance file</source>
+        <translation type="obsolete">Kies een virtuele appliance bestand</translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation type="obsolete">&amp;Schrijf weg in ouder formaat OVF 0.9</translation>
+    </message>
 </context>
 <context>
     <name>UIWizardExportAppPageBasic3</name>
@@ -11194,6 +12722,10 @@
     <message>
         <source>Choose a file to export the virtual appliance to...</source>
         <translation>Kies een bestand waarnaar de virtuele appliance moet worden geëxporteerd...</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a filename to export the virtual appliance to.&lt;/p&gt;&lt;p&gt;The &lt;b&gt;Open Virtualization Format&lt;/b&gt; supports only &lt;b&gt;ovf&lt;/b&gt; or &lt;b&gt;ova&lt;/b&gt; extensions. &lt;br&gt;If you use the &lt;b&gt;ovf&lt;/b&gt; extension, several files will be written separately.&lt;br&gt;If you use the &lt;b&gt;ova&lt;/b&gt; extension, all the files will be combined into one Open Virtualization Format archive.&lt;/p&gt;&lt;p&gt;The &lt;b&gt;Oracle Public Cloud Format&lt;/b&gt; supports only the &lt;b&gt;tar.gz&lt;/b&gt; extension.&lt;br&gt;Each virtual disk file will be written separately.&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;Kies een bestandsnaam om de virtuele appliance naar te exporteren.&lt;/p&gt;&lt;p&gt;De &lt;b&gt;Open Virtualization Format&lt;/b&gt; ondersteunt alleen &lt;b&gt;ovf&lt;/b&gt; of &lt;b&gt;ova&lt;/b&gt;-extensies. &lt;br&gt;Indien u de &lt;b&gt;ovf&lt;/b&gt;-extensie gebruikt zullen verscheidenen bestanden afzonderlijk worden geschreven.&lt;br&gt;Indien u de &lt;b&gt;ova&lt;/b&gt;-extensie gebruikt zullen alle bestanden gecombineerd worden tot één Open Virtualization Format-archief.&lt;/p&gt;&lt;p&gt;De &lt;b&gt;Oracle Public Cloud Format&lt;/b&gt; ondersteund alleen &lt;b&gt;tar.gz&lt;/b&gt;-extensies.&lt;br&gt;Elke virtual disk-bestand zal afzonderlijk worden geschreven.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -11229,10 +12761,6 @@
 <context>
     <name>UIWizardImportApp</name>
     <message>
-        <source>Import Virtual Applicance</source>
-        <translation type="obsolete">Importeer Virtual Applicance</translation>
-    </message>
-    <message>
         <source>Restore Defaults</source>
         <translation>Standaardinstellingen terugzetten</translation>
     </message>
@@ -11247,14 +12775,6 @@
     <message>
         <source>&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below.&lt;/p&gt;</source>
         <translation>&lt;p&gt;VirtualBox ondersteunt momenteel importeren van appliances opgeslagen in Open Virtualization Format (OVF). Om door te gaan selecteert u het te importeren bestand hieronder.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Open appliance...</source>
-        <translation type="obsolete">Open appliance...</translation>
-    </message>
-    <message>
-        <source>Select an appliance to import</source>
-        <translation type="obsolete">Selecteer een te importeren appliance</translation>
     </message>
     <message>
         <source>Open Virtualization Format (%1)</source>
@@ -11310,45 +12830,24 @@
         <source>Unverified self signed signature by %1!</source>
         <translation>Niet-geverifieerde &apos;self-signed&apos;-signatuur door %1!</translation>
     </message>
+    <message>
+        <source>Import Virtual Applicance</source>
+        <translation type="obsolete">Importeer Virtual Applicance</translation>
+    </message>
+    <message>
+        <source>Open appliance...</source>
+        <translation type="obsolete">Open appliance...</translation>
+    </message>
+    <message>
+        <source>Select an appliance to import</source>
+        <translation type="obsolete">Selecteer een te importeren appliance</translation>
+    </message>
 </context>
 <context>
     <name>UIWizardNewVD</name>
     <message>
-        <source>Create Virtual Hard Drive</source>
-        <translation type="obsolete">Maak een nieuwe virtuele harde schijf aan</translation>
-    </message>
-    <message>
         <source>Create</source>
         <translation>Aanmaken</translation>
-    </message>
-    <message>
-        <source>Hard drive file type</source>
-        <translation type="obsolete">Bestandstype harde schijf</translation>
-    </message>
-    <message>
-        <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation type="obsolete">Kies het bestandstype dat u wilt gebruiken voor deze nieuwe virtuele schijf. Indien u niet van plan bent deze virtuele schijf met andersoortige virtualisatiesoftware te gebruiken, kunt u deze instelling onveranderd laten.</translation>
-    </message>
-    <message>
-        <source>Storage on physical hard drive</source>
-        <translation type="obsolete">Opslag op fysieke harde schijf</translation>
-    </message>
-    <message>
-        <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation type="obsolete">Kies of het nieuwe virtuele schijf bestand naar de maximale grootte moet groeien door gebruik (dynamisch gealloceerd), of dat het op de maximale grootte moet worden aangemaakt (gefixeerde grootte).</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translatorcomment>in 1 zin vertalen geeft een te lange Nederlandse zin</translatorcomment>
-        <translation type="obsolete">&lt;p&gt;Een &lt;b&gt;dynamisch gealloceerd&lt;/b&gt; virtuele schijf bestand zal tijdens gebruik groeien tot de aangegeven maximale grootte en zo in het begin minder ruimte op uw fysieke harde schijf innemen. Het schijfbestand zal niet automatisch krimpen wanneer er ruimte wordt vrijgemaakt.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Aanmaken van een virtuele schijf bestand van &lt;b&gt;gefixeerde grootte&lt;/b&gt; kan op sommige systemen langer duren, maar is vaak sneller in het gebruik.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
-        <translation type="obsolete">&lt;p&gt;U kunt er ook voor kiezen het virtuele schijf bestand &lt;b&gt;te splitsen&lt;/b&gt; in meerdere bestanden van maximaal twee gigabytes elk. Dit is voornamelijk handig indien u de virtuele machine wilt opslaan op verwijderbare USB-apparaten of op oudere systemen, waarvan sommige niet kunnen omgaan met erg grote bestanden.</translation>
     </message>
     <message>
         <source>&amp;Dynamically allocated</source>
@@ -11371,28 +12870,12 @@
         <translation>Locatie en Grootte virtuele schijf</translation>
     </message>
     <message>
-        <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation type="obsolete">Typ de naam van de nieuwe virtuele schijf in de ruimte beneden; of klik op het mapicoontje, kies een andere map en maak daar het bestand in aan.</translation>
-    </message>
-    <message>
-        <source>Choose a location for new virtual hard drive file...</source>
-        <translation type="obsolete">Kies een lokatie voor het nieuwe virtuele harde schijf bestand...</translation>
-    </message>
-    <message>
-        <source>Select the size of the virtual hard drive in megabytes. This size is the limit on the amount of file data that a virtual machine will be able to store on the hard drive.</source>
-        <translation type="obsolete">Kies de grootte van de virtuele harde schijf in megabytes. Deze grootte bepaalt de hoeveelheid bestandsdata die een virtuele machine uiteindelijk op deze schijf kan opslaan.</translation>
-    </message>
-    <message>
         <source>File &amp;location</source>
         <translation>&amp;Locatie van bestand</translation>
     </message>
     <message>
         <source>File &amp;size</source>
         <translation>Bestand&amp;sgrootte</translation>
-    </message>
-    <message>
-        <source>Hard drive file &amp;type</source>
-        <translation type="obsolete">Bestands&amp;type harde schijf</translation>
     </message>
     <message>
         <source>Create Virtual Hard Disk</source>
@@ -11442,6 +12925,55 @@
         <source>Hard disk file &amp;type</source>
         <translation>Bestands&amp;type harde schijf</translation>
     </message>
+    <message>
+        <source>Create Virtual Hard Drive</source>
+        <translation type="obsolete">Maak een nieuwe virtuele harde schijf aan</translation>
+    </message>
+    <message>
+        <source>Hard drive file type</source>
+        <translation type="obsolete">Bestandstype harde schijf</translation>
+    </message>
+    <message>
+        <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
+        <translation type="obsolete">Kies het bestandstype dat u wilt gebruiken voor deze nieuwe virtuele schijf. Indien u niet van plan bent deze virtuele schijf met andersoortige virtualisatiesoftware te gebruiken, kunt u deze instelling onveranderd laten.</translation>
+    </message>
+    <message>
+        <source>Storage on physical hard drive</source>
+        <translation type="obsolete">Opslag op fysieke harde schijf</translation>
+    </message>
+    <message>
+        <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
+        <translation type="obsolete">Kies of het nieuwe virtuele schijf bestand naar de maximale grootte moet groeien door gebruik (dynamisch gealloceerd), of dat het op de maximale grootte moet worden aangemaakt (gefixeerde grootte).</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translatorcomment>in 1 zin vertalen geeft een te lange Nederlandse zin</translatorcomment>
+        <translation type="obsolete">&lt;p&gt;Een &lt;b&gt;dynamisch gealloceerd&lt;/b&gt; virtuele schijf bestand zal tijdens gebruik groeien tot de aangegeven maximale grootte en zo in het begin minder ruimte op uw fysieke harde schijf innemen. Het schijfbestand zal niet automatisch krimpen wanneer er ruimte wordt vrijgemaakt.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Aanmaken van een virtuele schijf bestand van &lt;b&gt;gefixeerde grootte&lt;/b&gt; kan op sommige systemen langer duren, maar is vaak sneller in het gebruik.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
+        <translation type="obsolete">&lt;p&gt;U kunt er ook voor kiezen het virtuele schijf bestand &lt;b&gt;te splitsen&lt;/b&gt; in meerdere bestanden van maximaal twee gigabytes elk. Dit is voornamelijk handig indien u de virtuele machine wilt opslaan op verwijderbare USB-apparaten of op oudere systemen, waarvan sommige niet kunnen omgaan met erg grote bestanden.</translation>
+    </message>
+    <message>
+        <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
+        <translation type="obsolete">Typ de naam van de nieuwe virtuele schijf in de ruimte beneden; of klik op het mapicoontje, kies een andere map en maak daar het bestand in aan.</translation>
+    </message>
+    <message>
+        <source>Choose a location for new virtual hard drive file...</source>
+        <translation type="obsolete">Kies een lokatie voor het nieuwe virtuele harde schijf bestand...</translation>
+    </message>
+    <message>
+        <source>Select the size of the virtual hard drive in megabytes. This size is the limit on the amount of file data that a virtual machine will be able to store on the hard drive.</source>
+        <translation type="obsolete">Kies de grootte van de virtuele harde schijf in megabytes. Deze grootte bepaalt de hoeveelheid bestandsdata die een virtuele machine uiteindelijk op deze schijf kan opslaan.</translation>
+    </message>
+    <message>
+        <source>Hard drive file &amp;type</source>
+        <translation type="obsolete">Bestands&amp;type harde schijf</translation>
+    </message>
 </context>
 <context>
     <name>UIWizardNewVM</name>
@@ -11452,26 +12984,6 @@
     <message>
         <source>Create</source>
         <translation>Aanmaken</translation>
-    </message>
-    <message>
-        <source>IDE Controller</source>
-        <translation type="obsolete">IDE controller</translation>
-    </message>
-    <message>
-        <source>SATA Controller</source>
-        <translation type="obsolete">SATA controller</translation>
-    </message>
-    <message>
-        <source>SCSI Controller</source>
-        <translation type="obsolete">SCSI controller</translation>
-    </message>
-    <message>
-        <source>Floppy Controller</source>
-        <translation type="obsolete">Diskette controller</translation>
-    </message>
-    <message>
-        <source>SAS Controller</source>
-        <translation type="obsolete">SAS controller</translation>
     </message>
     <message>
         <source>Name and operating system</source>
@@ -11488,46 +13000,6 @@
     <message>
         <source>&lt;p&gt;Select the amount of memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;&lt;p&gt;The recommended memory size is &lt;b&gt;%1&lt;/b&gt; MB.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Kies de hoeveelheid geheugen (RAM) in megabytes dat moet worden toegewezen aan deze virtuele machine.&lt;/p&gt;&lt;p&gt;De aanbevolen geheugengrootte is &lt;b&gt;%1&lt;/b&gt; MB.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Hard drive</source>
-        <translation type="obsolete">Harde schijf</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If you wish you can add a virtual hard drive to the new machine. You can either create a new hard drive file or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex storage set-up you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;&lt;p&gt;The recommended size of the hard drive is &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Indien u dat wilt, kunt u een virtuele harde schijf aan de nieuwe machine toevoegen. U kunt een geheel nieuw harde schijf bestand aanmaken, of een uit de lijst selecteren, of een bestand op een andere lokatie selecteren met gehulp van de mapicoon.&lt;/p&gt;&lt;p&gt;Indien u een wat meer complexe opslaginstelling nodig hebt, kunt u deze stap ook overslaan en deze instellingen aanbrengen wanneer de machine eenmaal is aangemaakt.&lt;/p&gt;&lt;p&gt;De aanbevolen grootte van de harde schijf is &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Do not add virtual hard drive</source>
-        <translation type="obsolete">Voeg virtuele harde schijf &amp;niet toe</translation>
-    </message>
-    <message>
-        <source>&amp;Create virtual hard drive now</source>
-        <translation type="obsolete">Maak nieuwe virtuele harde schijf &amp;nu aan</translation>
-    </message>
-    <message>
-        <source>&amp;Use existing virtual hard drive file</source>
-        <translation type="obsolete">Gebr&amp;uik een bestaand virtuele harde schijf bestand</translation>
-    </message>
-    <message>
-        <source>Choose a virtual hard drive file...</source>
-        <translation type="obsolete">Kies een virtuele harde schijf bestand...</translation>
-    </message>
-    <message>
-        <source>&amp;Memory size</source>
-        <translation>&amp;Geheugengrootte</translation>
-    </message>
-    <message>
-        <source>&amp;Do not add a virtual hard drive</source>
-        <translation type="obsolete">Voeg virtuele harde schijf &amp;niet toe</translation>
-    </message>
-    <message>
-        <source>&amp;Create a virtual hard drive now</source>
-        <translation type="obsolete">Maak nieuwe &amp;virtuele harde schijf nu aan</translation>
-    </message>
-    <message>
-        <source>&amp;Use an existing virtual hard drive file</source>
-        <translation type="obsolete">Gebr&amp;uik een bestaand virtuele harde schijf bestand</translation>
     </message>
     <message>
         <source>Hard disk</source>
@@ -11561,6 +13033,66 @@
         <source>&lt;p&gt;&lt;nobr&gt;You are about to create the virtual machine in the following folder:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</source>
         <translation type="vanished">&lt;p&gt;&lt;nobr&gt;U staat op het punt de virtuele machine aan te maken in de volgende map:&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>&amp;Memory size</source>
+        <translation>&amp;Geheugengrootte</translation>
+    </message>
+    <message>
+        <source>IDE Controller</source>
+        <translation type="obsolete">IDE controller</translation>
+    </message>
+    <message>
+        <source>SATA Controller</source>
+        <translation type="obsolete">SATA controller</translation>
+    </message>
+    <message>
+        <source>SCSI Controller</source>
+        <translation type="obsolete">SCSI controller</translation>
+    </message>
+    <message>
+        <source>Floppy Controller</source>
+        <translation type="obsolete">Diskette controller</translation>
+    </message>
+    <message>
+        <source>SAS Controller</source>
+        <translation type="obsolete">SAS controller</translation>
+    </message>
+    <message>
+        <source>Hard drive</source>
+        <translation type="obsolete">Harde schijf</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you wish you can add a virtual hard drive to the new machine. You can either create a new hard drive file or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex storage set-up you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;&lt;p&gt;The recommended size of the hard drive is &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Indien u dat wilt, kunt u een virtuele harde schijf aan de nieuwe machine toevoegen. U kunt een geheel nieuw harde schijf bestand aanmaken, of een uit de lijst selecteren, of een bestand op een andere lokatie selecteren met gehulp van de mapicoon.&lt;/p&gt;&lt;p&gt;Indien u een wat meer complexe opslaginstelling nodig hebt, kunt u deze stap ook overslaan en deze instellingen aanbrengen wanneer de machine eenmaal is aangemaakt.&lt;/p&gt;&lt;p&gt;De aanbevolen grootte van de harde schijf is &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Do not add virtual hard drive</source>
+        <translation type="obsolete">Voeg virtuele harde schijf &amp;niet toe</translation>
+    </message>
+    <message>
+        <source>&amp;Create virtual hard drive now</source>
+        <translation type="obsolete">Maak nieuwe virtuele harde schijf &amp;nu aan</translation>
+    </message>
+    <message>
+        <source>&amp;Use existing virtual hard drive file</source>
+        <translation type="obsolete">Gebr&amp;uik een bestaand virtuele harde schijf bestand</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard drive file...</source>
+        <translation type="obsolete">Kies een virtuele harde schijf bestand...</translation>
+    </message>
+    <message>
+        <source>&amp;Do not add a virtual hard drive</source>
+        <translation type="obsolete">Voeg virtuele harde schijf &amp;niet toe</translation>
+    </message>
+    <message>
+        <source>&amp;Create a virtual hard drive now</source>
+        <translation type="obsolete">Maak nieuwe &amp;virtuele harde schijf nu aan</translation>
+    </message>
+    <message>
+        <source>&amp;Use an existing virtual hard drive file</source>
+        <translation type="obsolete">Gebr&amp;uik een bestaand virtuele harde schijf bestand</translation>
+    </message>
 </context>
 <context>
     <name>VBoxAboutDlg</name>
@@ -11580,12 +13112,12 @@
 <context>
     <name>VBoxEmptyFileSelector</name>
     <message>
-        <source>&amp;Choose...</source>
-        <translation type="obsolete">&amp;Kiezen...</translation>
-    </message>
-    <message>
         <source>Choose...</source>
         <translation type="vanished">Kiezen...</translation>
+    </message>
+    <message>
+        <source>&amp;Choose...</source>
+        <translation type="obsolete">&amp;Kiezen...</translation>
     </message>
 </context>
 <context>
@@ -11593,10 +13125,6 @@
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation type="vanished">&lt;standaard terugzetten&gt;</translation>
-    </message>
-    <message>
-        <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
-        <translation type="obsolete">De daadwerkelijke waarde van het standaardpad wordt pas weergegeven na acceptatie van de wijzigingen en het opnieuw openen van dit dialoog.</translation>
     </message>
     <message>
         <source>&lt;not selected&gt;</source>
@@ -11615,16 +13143,8 @@
         <translation type="vanished">Terugzetten</translation>
     </message>
     <message>
-        <source>Opens a window to select a different folder.</source>
-        <translation type="obsolete">Opent een venster om een andere map te selecteren.</translation>
-    </message>
-    <message>
         <source>Resets the folder path to the default value.</source>
         <translation type="vanished">Zet het pad naar de map terug op de standaardwaarde.</translation>
-    </message>
-    <message>
-        <source>Opens a window to select a different file.</source>
-        <translation type="obsolete">Opent een venster om een ander bestand te selecteren.</translation>
     </message>
     <message>
         <source>Resets the file path to the default value.</source>
@@ -11633,14 +13153,6 @@
     <message>
         <source>&amp;Copy</source>
         <translation type="vanished">&amp;Kopiëren</translation>
-    </message>
-    <message>
-        <source>Please type the folder path here.</source>
-        <translation type="obsolete">Geef hier het gewenste pad naar de map op.</translation>
-    </message>
-    <message>
-        <source>Please type the file path here.</source>
-        <translation type="obsolete">Geef hier het gewenste pad naar het bestand op.</translation>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
@@ -11661,6 +13173,26 @@
     <message>
         <source>Holds the file path.</source>
         <translation type="vanished">Bevat het bestandspad.</translation>
+    </message>
+    <message>
+        <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
+        <translation type="obsolete">De daadwerkelijke waarde van het standaardpad wordt pas weergegeven na acceptatie van de wijzigingen en het opnieuw openen van dit dialoog.</translation>
+    </message>
+    <message>
+        <source>Opens a window to select a different folder.</source>
+        <translation type="obsolete">Opent een venster om een andere map te selecteren.</translation>
+    </message>
+    <message>
+        <source>Opens a window to select a different file.</source>
+        <translation type="obsolete">Opent een venster om een ander bestand te selecteren.</translation>
+    </message>
+    <message>
+        <source>Please type the folder path here.</source>
+        <translation type="obsolete">Geef hier het gewenste pad naar de map op.</translation>
+    </message>
+    <message>
+        <source>Please type the file path here.</source>
+        <translation type="obsolete">Geef hier het gewenste pad naar het bestand op.</translation>
     </message>
 </context>
 <context>
@@ -11846,11 +13378,6 @@
         <translation>Diskette</translation>
     </message>
     <message>
-        <source>CD/DVD</source>
-        <comment>DeviceType</comment>
-        <translation type="obsolete">cd/dvd</translation>
-    </message>
-    <message>
         <source>Hard Disk</source>
         <comment>DeviceType</comment>
         <translation>Harde schijf</translation>
@@ -11859,32 +13386,6 @@
         <source>Network</source>
         <comment>DeviceType</comment>
         <translation>Netwerk</translation>
-    </message>
-    <message>
-        <source>Normal</source>
-        <comment>DiskType</comment>
-        <translation type="obsolete">Normaal</translation>
-    </message>
-    <message>
-        <source>Immutable</source>
-        <comment>DiskType</comment>
-        <translation type="obsolete">Onveranderbaar</translation>
-    </message>
-    <message>
-        <source>Writethrough</source>
-        <comment>DiskType</comment>
-        <translatorcomment>begrip</translatorcomment>
-        <translation type="obsolete">Writethrough</translation>
-    </message>
-    <message>
-        <source>Ignore</source>
-        <comment>USBFilterActionType</comment>
-        <translation type="obsolete">Negeren</translation>
-    </message>
-    <message>
-        <source>Hold</source>
-        <comment>USBFilterActionType</comment>
-        <translation type="obsolete">Vasthouden</translation>
     </message>
     <message>
         <source>Null Audio Driver</source>
@@ -12111,31 +13612,6 @@
         <source>SATA</source>
         <comment>StorageBus</comment>
         <translation>SATA</translation>
-    </message>
-    <message>
-        <source>Primary</source>
-        <comment>StorageBusChannel</comment>
-        <translation type="obsolete">Primaire</translation>
-    </message>
-    <message>
-        <source>Secondary</source>
-        <comment>StorageBusChannel</comment>
-        <translation type="obsolete">Secundair</translation>
-    </message>
-    <message>
-        <source>Master</source>
-        <comment>StorageBusDevice</comment>
-        <translation type="obsolete">Master</translation>
-    </message>
-    <message>
-        <source>Slave</source>
-        <comment>StorageBusDevice</comment>
-        <translation type="obsolete">Slave</translation>
-    </message>
-    <message>
-        <source>Port %1</source>
-        <comment>StorageBusChannel</comment>
-        <translation type="obsolete">Poort %1</translation>
     </message>
     <message>
         <source>Solaris Audio</source>
@@ -12430,46 +13906,6 @@
         <translation>Diskette</translation>
     </message>
     <message>
-        <source>Device %1</source>
-        <comment>StorageBusDevice</comment>
-        <translation type="obsolete">Apparaat%1</translation>
-    </message>
-    <message>
-        <source>IDE Primary Master</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation type="obsolete">IDE Primaire Master</translation>
-    </message>
-    <message>
-        <source>IDE Primary Slave</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation type="obsolete">IDE Primaire Slave</translation>
-    </message>
-    <message>
-        <source>IDE Secondary Master</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation type="obsolete">IDE tweede Master</translation>
-    </message>
-    <message>
-        <source>IDE Secondary Slave</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation type="obsolete">IDE tweede Slave</translation>
-    </message>
-    <message>
-        <source>SATA Port %1</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation type="obsolete">SATA poort %1</translation>
-    </message>
-    <message>
-        <source>SCSI Port %1</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation type="obsolete">SCSI poort %1</translation>
-    </message>
-    <message>
-        <source>Floppy Device %1</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation type="obsolete">Diskette station %1</translation>
-    </message>
-    <message>
         <source>Paravirtualized Network (virtio-net)</source>
         <comment>NetworkAdapterType</comment>
         <translation>Paravirtualized Netwerk (virtio-net)</translation>
@@ -12534,19 +13970,10 @@
         <translation>&lt;b&gt;Geen media beschikbaar&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>You can create disk image files using the virtual media manager.</source>
-        <translation type="obsolete">U kunt media images aanmaken met behulp van de Virtuele Media Manager.</translation>
-    </message>
-    <message>
         <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
         <comment>medium</comment>
         <translatorcomment>RL - Definitie: &quot;A differencing disk is a virtual hard disk you use to isolate changes to a virtual hard disk or the guest operating system by storing them in a separate file.&quot; Een techterm dus. Niet vertalen.</translatorcomment>
         <translation>Aankoppelen van deze harde schijf wordt indirect uitgevoerd met gebruik van een nieuw aangemaakte differencing harde schijf.</translation>
-    </message>
-    <message>
-        <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these files.</source>
-        <comment>medium</comment>
-        <translation type="obsolete">Enkele media in deze keten van harde schijven zijn niet te benaderen. Gebruik de Virtuele Media Manager in &lt;b&gt;Geef differencing harde schijven weer&lt;/b&gt;-modus om deze media te inspecteren.</translation>
     </message>
     <message>
         <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
@@ -12598,10 +14025,6 @@
         </translation>
     </message>
     <message>
-        <source>(CD/DVD)</source>
-        <translation type="obsolete">(CD/DVD)</translation>
-    </message>
-    <message>
         <source>Screens</source>
         <comment>details report</comment>
         <translation>Beeldschermen</translation>
@@ -12647,33 +14070,13 @@
         <translation>PB</translation>
     </message>
     <message>
-        <source>Enabled</source>
-        <comment>nested paging</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>nested paging</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
-    </message>
-    <message>
         <source>Nested Paging</source>
         <translation>Geneste paging</translation>
-    </message>
-    <message>
-        <source>Shareable</source>
-        <comment>DiskType</comment>
-        <translation type="obsolete">Te delen</translation>
     </message>
     <message>
         <source>Unknown device</source>
         <comment>USB device details</comment>
         <translation>Onbekend apparaat</translation>
-    </message>
-    <message>
-        <source>SAS Port %1</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation type="obsolete">SAS poort %1</translation>
     </message>
     <message>
         <source>Remote Desktop Server Port</source>
@@ -12689,34 +14092,6 @@
         <source>Disabled</source>
         <comment>details report (VRDE Server)</comment>
         <translation>Uitgeschakeld</translation>
-    </message>
-    <message>
-        <source>Choose a virtual hard disk file</source>
-        <translation type="obsolete">Kies een virtueel harde schijf bestand</translation>
-    </message>
-    <message>
-        <source>hard disk</source>
-        <translation type="obsolete">harde schijf</translation>
-    </message>
-    <message>
-        <source>Choose a virtual CD/DVD disk file</source>
-        <translation type="obsolete">Kies een virtueel CD/DVD bestand</translation>
-    </message>
-    <message>
-        <source>CD/DVD disk</source>
-        <translation type="obsolete">cd/dvd schijf</translation>
-    </message>
-    <message>
-        <source>Choose a virtual floppy disk file</source>
-        <translation type="obsolete">Kies een virtueel diskette bestand</translation>
-    </message>
-    <message>
-        <source>floppy disk</source>
-        <translation type="obsolete">diskette</translation>
-    </message>
-    <message>
-        <source>All %1 images (%2)</source>
-        <translation type="obsolete">Alle %1 images (%2)</translation>
     </message>
     <message>
         <source>All files (*)</source>
@@ -12763,16 +14138,6 @@
         <translation>Intel HD Audio</translation>
     </message>
     <message>
-        <source>UDP</source>
-        <comment>NATProtocolType</comment>
-        <translation type="obsolete">UDP</translation>
-    </message>
-    <message>
-        <source>TCP</source>
-        <comment>NATProtocolType</comment>
-        <translation type="obsolete">TCP</translation>
-    </message>
-    <message>
         <source>PIIX3</source>
         <comment>ChipsetType</comment>
         <translation>PIIX3</translation>
@@ -12781,41 +14146,6 @@
         <source>ICH9</source>
         <comment>ChipsetType</comment>
         <translation>ICH9</translation>
-    </message>
-    <message>
-        <source>and</source>
-        <translation type="obsolete">en</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <comment>size suffix MBytes=1024KBytes</comment>
-        <translation type="obsolete">MB</translation>
-    </message>
-    <message>
-        <source>Readonly</source>
-        <comment>DiskType</comment>
-        <translation type="obsolete">Alleen-lezen</translation>
-    </message>
-    <message>
-        <source>Multi-attach</source>
-        <comment>DiskType</comment>
-        <translation type="obsolete">Multi-aansluitbaar</translation>
-    </message>
-    <message>
-        <source>Dynamically allocated storage</source>
-        <translation type="obsolete">Dynamisch gealloceerde opslag</translation>
-    </message>
-    <message>
-        <source>Fixed size storage</source>
-        <translation type="obsolete">Opslag van gefixeerde grootte</translation>
-    </message>
-    <message>
-        <source>Dynamically allocated storage split into files of less than 2GB</source>
-        <translation type="obsolete">Dynamisch gealloceerde opslag opgesplitst in bestanden van maximaal 2GB</translation>
-    </message>
-    <message>
-        <source>Fixed size storage split into files of less than 2GB</source>
-        <translation type="obsolete">Opslag van gefixeerde grootte opgesplitst in bestanden van maximaal 2GB</translation>
     </message>
     <message>
         <source>Execution Cap</source>
@@ -12837,21 +14167,6 @@
         <source>Generic Driver</source>
         <comment>NetworkAttachmentType</comment>
         <translation>Generiek stuurprogramma</translation>
-    </message>
-    <message>
-        <source>Deny</source>
-        <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation type="obsolete">Afwijzen</translation>
-    </message>
-    <message>
-        <source>Allow VMs</source>
-        <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation type="obsolete">VM&apos;s toestaan</translation>
-    </message>
-    <message>
-        <source>Allow All</source>
-        <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation type="obsolete">Alle toestaan</translation>
     </message>
     <message>
         <source>Adapter %1</source>
@@ -13093,14 +14408,6 @@
         <translation>Beschrijving</translation>
     </message>
     <message>
-        <source>Please choose a virtual hard drive file</source>
-        <translation type="obsolete">Kies een virtuele harde schijf bestand</translation>
-    </message>
-    <message>
-        <source>All virtual hard drive files (%1)</source>
-        <translation type="obsolete">Alle virtuele harde schijf bestanden (%1)</translation>
-    </message>
-    <message>
         <source>Please choose a virtual optical disk file</source>
         <translation>Kies een virtuele optisch schijf bestand</translation>
     </message>
@@ -13141,20 +14448,6 @@
         <translation>QCOW (QEMU Copy-On-Write)</translation>
     </message>
     <message>
-        <source>Please choose a location for new virtual hard drive file</source>
-        <translation type="obsolete">Kies een lokatie voor het nieuwe virtuele harde schijf bestand</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (Unrestricted Execution)</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (Unrestricted Execution)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
-    </message>
-    <message>
         <source>Unrestricted Execution</source>
         <comment>details report</comment>
         <translation>Onbeperkte uitvoering</translation>
@@ -13173,16 +14466,6 @@
         <source>PS/2 and USB Mouse</source>
         <comment>PointingHIDType</comment>
         <translation>PS/2- en USB-muis</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>unrestricted execution</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>unrestricted execution</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Unrestricted Execution</source>
@@ -13343,21 +14626,6 @@
         <translation>(Optisch station)</translation>
     </message>
     <message>
-        <source>Attaching this hard drive will be performed indirectly using a newly created differencing hard drive.</source>
-        <comment>medium</comment>
-        <translation type="obsolete">Aankoppelen van deze harde schijf wordt indirect uitgevoerd met gebruik van een nieuw aangemaakte differencing harde schijf.</translation>
-    </message>
-    <message>
-        <source>Some of the files in this hard drive chain are inaccessible. Please use the Virtual Medium Manager to inspect these files.</source>
-        <comment>medium</comment>
-        <translation type="obsolete">Enkele bestanden in deze keten van harde schijven zijn niet te benaderen. Gebruik de Virtuele Media Manager om deze bestanden te inspecteren.</translation>
-    </message>
-    <message>
-        <source>This base hard drive is indirectly attached using the following differencing hard drive:</source>
-        <comment>medium</comment>
-        <translation type="obsolete">Deze basis harde schijf is indirect gekoppeld met gebruik van deze differencing harde schijf:</translation>
-    </message>
-    <message>
         <source>Encrypted</source>
         <comment>medium</comment>
         <translation>Versleuteld</translation>
@@ -13479,6 +14747,335 @@
         <comment>InformationElementType</comment>
         <translation>Netwerkstatistieken</translation>
     </message>
+    <message>
+        <source>Hard Disks</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Harde schijf</translation>
+    </message>
+    <message>
+        <source>Optical Disks</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Optische schijven</translation>
+    </message>
+    <message>
+        <source>Floppy Disks</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Diskettes</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Netwerk</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">USB</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Gedeelde mappen</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Beeldscherm</translation>
+    </message>
+    <message>
+        <source>Video Capture</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Videocapture</translation>
+    </message>
+    <message>
+        <source>Features</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Eigenschappen</translation>
+    </message>
+    <message>
+        <source>Mouse</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Muis</translation>
+    </message>
+    <message>
+        <source>Keyboard</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Toetsenbord</translation>
+    </message>
+    <message>
+        <source>Differencing</source>
+        <comment>MediumType</comment>
+        <translation type="vanished">Differencing</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>IndicatorType</comment>
+        <translation type="vanished">Audio</translation>
+    </message>
+    <message>
+        <source>CD/DVD</source>
+        <comment>DeviceType</comment>
+        <translation type="obsolete">cd/dvd</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>DiskType</comment>
+        <translation type="obsolete">Normaal</translation>
+    </message>
+    <message>
+        <source>Immutable</source>
+        <comment>DiskType</comment>
+        <translation type="obsolete">Onveranderbaar</translation>
+    </message>
+    <message>
+        <source>Writethrough</source>
+        <comment>DiskType</comment>
+        <translatorcomment>begrip</translatorcomment>
+        <translation type="obsolete">Writethrough</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <comment>USBFilterActionType</comment>
+        <translation type="obsolete">Negeren</translation>
+    </message>
+    <message>
+        <source>Hold</source>
+        <comment>USBFilterActionType</comment>
+        <translation type="obsolete">Vasthouden</translation>
+    </message>
+    <message>
+        <source>Primary</source>
+        <comment>StorageBusChannel</comment>
+        <translation type="obsolete">Primaire</translation>
+    </message>
+    <message>
+        <source>Secondary</source>
+        <comment>StorageBusChannel</comment>
+        <translation type="obsolete">Secundair</translation>
+    </message>
+    <message>
+        <source>Master</source>
+        <comment>StorageBusDevice</comment>
+        <translation type="obsolete">Master</translation>
+    </message>
+    <message>
+        <source>Slave</source>
+        <comment>StorageBusDevice</comment>
+        <translation type="obsolete">Slave</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>StorageBusChannel</comment>
+        <translation type="obsolete">Poort %1</translation>
+    </message>
+    <message>
+        <source>Device %1</source>
+        <comment>StorageBusDevice</comment>
+        <translation type="obsolete">Apparaat%1</translation>
+    </message>
+    <message>
+        <source>IDE Primary Master</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="obsolete">IDE Primaire Master</translation>
+    </message>
+    <message>
+        <source>IDE Primary Slave</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="obsolete">IDE Primaire Slave</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Master</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="obsolete">IDE tweede Master</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Slave</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="obsolete">IDE tweede Slave</translation>
+    </message>
+    <message>
+        <source>SATA Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="obsolete">SATA poort %1</translation>
+    </message>
+    <message>
+        <source>SCSI Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="obsolete">SCSI poort %1</translation>
+    </message>
+    <message>
+        <source>Floppy Device %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="obsolete">Diskette station %1</translation>
+    </message>
+    <message>
+        <source>You can create disk image files using the virtual media manager.</source>
+        <translation type="obsolete">U kunt media images aanmaken met behulp van de Virtuele Media Manager.</translation>
+    </message>
+    <message>
+        <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these files.</source>
+        <comment>medium</comment>
+        <translation type="obsolete">Enkele media in deze keten van harde schijven zijn niet te benaderen. Gebruik de Virtuele Media Manager in &lt;b&gt;Geef differencing harde schijven weer&lt;/b&gt;-modus om deze media te inspecteren.</translation>
+    </message>
+    <message>
+        <source>(CD/DVD)</source>
+        <translation type="obsolete">(CD/DVD)</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>nested paging</comment>
+        <translation type="obsolete">Ingeschakeld</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>nested paging</comment>
+        <translation type="obsolete">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Shareable</source>
+        <comment>DiskType</comment>
+        <translation type="obsolete">Te delen</translation>
+    </message>
+    <message>
+        <source>SAS Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="obsolete">SAS poort %1</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard disk file</source>
+        <translation type="obsolete">Kies een virtueel harde schijf bestand</translation>
+    </message>
+    <message>
+        <source>hard disk</source>
+        <translation type="obsolete">harde schijf</translation>
+    </message>
+    <message>
+        <source>Choose a virtual CD/DVD disk file</source>
+        <translation type="obsolete">Kies een virtueel CD/DVD bestand</translation>
+    </message>
+    <message>
+        <source>CD/DVD disk</source>
+        <translation type="obsolete">cd/dvd schijf</translation>
+    </message>
+    <message>
+        <source>Choose a virtual floppy disk file</source>
+        <translation type="obsolete">Kies een virtueel diskette bestand</translation>
+    </message>
+    <message>
+        <source>floppy disk</source>
+        <translation type="obsolete">diskette</translation>
+    </message>
+    <message>
+        <source>All %1 images (%2)</source>
+        <translation type="obsolete">Alle %1 images (%2)</translation>
+    </message>
+    <message>
+        <source>UDP</source>
+        <comment>NATProtocolType</comment>
+        <translation type="obsolete">UDP</translation>
+    </message>
+    <message>
+        <source>TCP</source>
+        <comment>NATProtocolType</comment>
+        <translation type="obsolete">TCP</translation>
+    </message>
+    <message>
+        <source>and</source>
+        <translation type="obsolete">en</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024KBytes</comment>
+        <translation type="obsolete">MB</translation>
+    </message>
+    <message>
+        <source>Readonly</source>
+        <comment>DiskType</comment>
+        <translation type="obsolete">Alleen-lezen</translation>
+    </message>
+    <message>
+        <source>Multi-attach</source>
+        <comment>DiskType</comment>
+        <translation type="obsolete">Multi-aansluitbaar</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage</source>
+        <translation type="obsolete">Dynamisch gealloceerde opslag</translation>
+    </message>
+    <message>
+        <source>Fixed size storage</source>
+        <translation type="obsolete">Opslag van gefixeerde grootte</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage split into files of less than 2GB</source>
+        <translation type="obsolete">Dynamisch gealloceerde opslag opgesplitst in bestanden van maximaal 2GB</translation>
+    </message>
+    <message>
+        <source>Fixed size storage split into files of less than 2GB</source>
+        <translation type="obsolete">Opslag van gefixeerde grootte opgesplitst in bestanden van maximaal 2GB</translation>
+    </message>
+    <message>
+        <source>Deny</source>
+        <comment>NetworkAdapterPromiscModePolicyType</comment>
+        <translation type="obsolete">Afwijzen</translation>
+    </message>
+    <message>
+        <source>Allow VMs</source>
+        <comment>NetworkAdapterPromiscModePolicyType</comment>
+        <translation type="obsolete">VM&apos;s toestaan</translation>
+    </message>
+    <message>
+        <source>Allow All</source>
+        <comment>NetworkAdapterPromiscModePolicyType</comment>
+        <translation type="obsolete">Alle toestaan</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual hard drive file</source>
+        <translation type="obsolete">Kies een virtuele harde schijf bestand</translation>
+    </message>
+    <message>
+        <source>All virtual hard drive files (%1)</source>
+        <translation type="obsolete">Alle virtuele harde schijf bestanden (%1)</translation>
+    </message>
+    <message>
+        <source>Please choose a location for new virtual hard drive file</source>
+        <translation type="obsolete">Kies een lokatie voor het nieuwe virtuele harde schijf bestand</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (Unrestricted Execution)</comment>
+        <translation type="obsolete">Ingeschakeld</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (Unrestricted Execution)</comment>
+        <translation type="obsolete">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>unrestricted execution</comment>
+        <translation type="obsolete">Ingeschakeld</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>unrestricted execution</comment>
+        <translation type="obsolete">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Attaching this hard drive will be performed indirectly using a newly created differencing hard drive.</source>
+        <comment>medium</comment>
+        <translation type="obsolete">Aankoppelen van deze harde schijf wordt indirect uitgevoerd met gebruik van een nieuw aangemaakte differencing harde schijf.</translation>
+    </message>
+    <message>
+        <source>Some of the files in this hard drive chain are inaccessible. Please use the Virtual Medium Manager to inspect these files.</source>
+        <comment>medium</comment>
+        <translation type="obsolete">Enkele bestanden in deze keten van harde schijven zijn niet te benaderen. Gebruik de Virtuele Media Manager om deze bestanden te inspecteren.</translation>
+    </message>
+    <message>
+        <source>This base hard drive is indirectly attached using the following differencing hard drive:</source>
+        <comment>medium</comment>
+        <translation type="obsolete">Deze basis harde schijf is indirect gekoppeld met gebruik van deze differencing harde schijf:</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -13562,14 +15159,6 @@
         <translation>&amp;Acties</translation>
     </message>
     <message>
-        <source>&amp;New...</source>
-        <translation type="obsolete">&amp;Nieuw...</translation>
-    </message>
-    <message>
-        <source>&amp;Add...</source>
-        <translation type="obsolete">&amp;Toevoegen...</translation>
-    </message>
-    <message>
         <source>R&amp;emove</source>
         <translatorcomment>&amp;w</translatorcomment>
         <translation>Ver&amp;wijderen</translation>
@@ -13583,14 +15172,6 @@
         <source>Re&amp;fresh</source>
         <translatorcomment>&amp;V</translatorcomment>
         <translation>&amp;Verversen</translation>
-    </message>
-    <message>
-        <source>Create a new virtual hard disk</source>
-        <translation type="obsolete">Maak een nieuwe virtuele harde schijf aan</translation>
-    </message>
-    <message>
-        <source>Add an existing disk image file</source>
-        <translation type="obsolete">Voeg een bestaand medium toe</translation>
     </message>
     <message>
         <source>Remove the selected disk image file</source>
@@ -13609,26 +15190,6 @@
         <translation>Controleren toegankelijkheid</translation>
     </message>
     <message>
-        <source>&amp;Select</source>
-        <translation type="obsolete">&amp;Selecteer</translation>
-    </message>
-    <message>
-        <source>All files (*)</source>
-        <translation type="obsolete">Alle bestanden (*)</translation>
-    </message>
-    <message>
-        <source>Select a hard disk image file</source>
-        <translation type="obsolete">Selecteer een harde schijf bestand</translation>
-    </message>
-    <message>
-        <source>Select a CD/DVD disk image file</source>
-        <translation type="obsolete">Selecter een cd/dvd schijfbestand</translation>
-    </message>
-    <message>
-        <source>Select a floppy disk image files</source>
-        <translation type="obsolete">Selecteer een diskette schijfbestand</translation>
-    </message>
-    <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
         <translation>&lt;i&gt;Niet&amp;nbsp;aangesloten&lt;/i&gt;</translation>
     </message>
@@ -13640,10 +15201,6 @@
     <message>
         <source>Virtual Media Manager</source>
         <translation>Virtuele Media Manager</translation>
-    </message>
-    <message>
-        <source>Hard &amp;Disks</source>
-        <translation type="obsolete">&amp;Harde schijven</translation>
     </message>
     <message>
         <source>Name</source>
@@ -13658,32 +15215,8 @@
         <translation>Ware grootte</translation>
     </message>
     <message>
-        <source>&amp;CD/DVD Images</source>
-        <translation type="obsolete">&amp;CD/DVD images</translation>
-    </message>
-    <message>
         <source>Size</source>
         <translation>Grootte</translation>
-    </message>
-    <message>
-        <source>&amp;Floppy Images</source>
-        <translation type="obsolete">&amp;Diskette images</translation>
-    </message>
-    <message>
-        <source>CD/DVD disk</source>
-        <translation type="obsolete">cd/dvd-schijf</translation>
-    </message>
-    <message>
-        <source>hard disk</source>
-        <translation type="obsolete">harde schijf</translation>
-    </message>
-    <message>
-        <source>floppy disk</source>
-        <translation type="obsolete">Diskette</translation>
-    </message>
-    <message>
-        <source>All %1 images (%2)</source>
-        <translation type="obsolete">Alle %1 images (%2)</translation>
     </message>
     <message>
         <source>Type:</source>
@@ -13722,14 +15255,6 @@
         <translation>Pas de attributen van het geselecteerde medium aan</translation>
     </message>
     <message>
-        <source>C&amp;lose</source>
-        <translation type="obsolete">S&amp;luiten</translation>
-    </message>
-    <message>
-        <source>Create a new virtual hard drive</source>
-        <translation type="obsolete">Maak een nieuwe virtuele harde schijf aan</translation>
-    </message>
-    <message>
         <source>UUID:</source>
         <translation>UUID:</translation>
     </message>
@@ -13740,6 +15265,78 @@
     <message>
         <source>Encrypted with key:</source>
         <translation>Versleuteld met sleutel:</translation>
+    </message>
+    <message>
+        <source>&amp;New...</source>
+        <translation type="obsolete">&amp;Nieuw...</translation>
+    </message>
+    <message>
+        <source>&amp;Add...</source>
+        <translation type="obsolete">&amp;Toevoegen...</translation>
+    </message>
+    <message>
+        <source>Create a new virtual hard disk</source>
+        <translation type="obsolete">Maak een nieuwe virtuele harde schijf aan</translation>
+    </message>
+    <message>
+        <source>Add an existing disk image file</source>
+        <translation type="obsolete">Voeg een bestaand medium toe</translation>
+    </message>
+    <message>
+        <source>&amp;Select</source>
+        <translation type="obsolete">&amp;Selecteer</translation>
+    </message>
+    <message>
+        <source>All files (*)</source>
+        <translation type="obsolete">Alle bestanden (*)</translation>
+    </message>
+    <message>
+        <source>Select a hard disk image file</source>
+        <translation type="obsolete">Selecteer een harde schijf bestand</translation>
+    </message>
+    <message>
+        <source>Select a CD/DVD disk image file</source>
+        <translation type="obsolete">Selecter een cd/dvd schijfbestand</translation>
+    </message>
+    <message>
+        <source>Select a floppy disk image files</source>
+        <translation type="obsolete">Selecteer een diskette schijfbestand</translation>
+    </message>
+    <message>
+        <source>Hard &amp;Disks</source>
+        <translation type="obsolete">&amp;Harde schijven</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Images</source>
+        <translation type="obsolete">&amp;CD/DVD images</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Images</source>
+        <translation type="obsolete">&amp;Diskette images</translation>
+    </message>
+    <message>
+        <source>CD/DVD disk</source>
+        <translation type="obsolete">cd/dvd-schijf</translation>
+    </message>
+    <message>
+        <source>hard disk</source>
+        <translation type="obsolete">harde schijf</translation>
+    </message>
+    <message>
+        <source>floppy disk</source>
+        <translation type="obsolete">Diskette</translation>
+    </message>
+    <message>
+        <source>All %1 images (%2)</source>
+        <translation type="obsolete">Alle %1 images (%2)</translation>
+    </message>
+    <message>
+        <source>C&amp;lose</source>
+        <translation type="obsolete">S&amp;luiten</translation>
+    </message>
+    <message>
+        <source>Create a new virtual hard drive</source>
+        <translation type="obsolete">Maak een nieuwe virtuele harde schijf aan</translation>
     </message>
 </context>
 <context>
@@ -14120,10 +15717,6 @@
         <translation>Maak een snapshot van de huidige staat van de virtuele machine</translation>
     </message>
     <message>
-        <source>Show the details of the selected snapshot</source>
-        <translation type="obsolete">Toon details van geselecteerde snapshot</translation>
-    </message>
-    <message>
         <source> (%1)</source>
         <translation> (%1)</translation>
     </message>
@@ -14136,24 +15729,12 @@
         <translation>Snapshot verwij&amp;deren</translation>
     </message>
     <message>
-        <source>Restore the selected snapshot of the virtual machine</source>
-        <translation type="obsolete">Zet het geselecteerde snapshot van de virtuele machine terug</translation>
-    </message>
-    <message>
-        <source>Delete the selected snapshot of the virtual machine</source>
-        <translation type="obsolete">Verwijder het geselecteerde snapshot van de virtuele machine</translation>
-    </message>
-    <message>
         <source> (%1 ago)</source>
         <translation> (%1 geleden)</translation>
     </message>
     <message>
         <source>&amp;Clone...</source>
         <translation>&amp;Kloon...</translation>
-    </message>
-    <message>
-        <source>Clone the selected virtual machine</source>
-        <translation type="obsolete">Kloon geselecteerde virtuele machine</translation>
     </message>
     <message>
         <source>Restore selected snapshot of the virtual machine</source>
@@ -14170,6 +15751,22 @@
     <message>
         <source>Clone selected virtual machine</source>
         <translation>Kloon de geselecteerde virtuele machine</translation>
+    </message>
+    <message>
+        <source>Show the details of the selected snapshot</source>
+        <translation type="obsolete">Toon details van geselecteerde snapshot</translation>
+    </message>
+    <message>
+        <source>Restore the selected snapshot of the virtual machine</source>
+        <translation type="obsolete">Zet het geselecteerde snapshot van de virtuele machine terug</translation>
+    </message>
+    <message>
+        <source>Delete the selected snapshot of the virtual machine</source>
+        <translation type="obsolete">Verwijder het geselecteerde snapshot van de virtuele machine</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation type="obsolete">Kloon geselecteerde virtuele machine</translation>
     </message>
 </context>
 <context>

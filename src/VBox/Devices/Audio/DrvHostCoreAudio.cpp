@@ -1767,7 +1767,7 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMA
         {
             propAdr.mSelector = kAudioHardwarePropertyDefaultInputDevice;
             err = AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &propAdr,
-                                                    drvHostCoreAudioDefaultDeviceChangedCb, pStreamIn);
+                                                    drvHostCoreAudioDefaultDeviceChangedCb, &pStreamIn->cbCtx /* pvUser */);
             if (   err != noErr
                 && err != kAudioHardwareBadObjectError)
             {
@@ -1784,7 +1784,7 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMA
             AudioObjectPropertyAddress propAdr2 = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
                                                     kAudioObjectPropertyElementMaster };
             err = AudioObjectRemovePropertyListener(pStreamIn->deviceID, &propAdr2,
-                                                    drvHostCoreAudioDeviceStateChangedCb, &pStreamIn->cbCtx);
+                                                    drvHostCoreAudioDeviceStateChangedCb, &pStreamIn->cbCtx /* pvUser */);
             if (   err != noErr
                 && err != kAudioHardwareBadObjectError)
             {
@@ -1888,7 +1888,7 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDM
             propAdr.mScope    = kAudioObjectPropertyScopeGlobal;
             propAdr.mElement  = kAudioObjectPropertyElementMaster;
             err = AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &propAdr,
-                                                    drvHostCoreAudioDevPropChgCb, &pStreamOut->cbCtx /* pvUser */);
+                                                    drvHostCoreAudioDefaultDeviceChangedCb, &pStreamOut->cbCtx /* pvUser */);
             if (   err != noErr
                 && err != kAudioHardwareBadObjectError)
             {
@@ -1905,7 +1905,7 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDM
             AudioObjectPropertyAddress propAdr2 = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
                                                     kAudioObjectPropertyElementMaster };
             err = AudioObjectRemovePropertyListener(pStreamOut->deviceID, &propAdr2,
-                                                    drvHostCoreAudioDeviceStateChangedCb, &pStreamOut->cbCtx);
+                                                    drvHostCoreAudioDeviceStateChangedCb, &pStreamOut->cbCtx /* pvUser */);
             if (   err != noErr
                 && err != kAudioHardwareBadObjectError)
             {
@@ -2021,7 +2021,7 @@ static DECLCALLBACK(int) drvHostCoreAudioInitIn(PPDMIHOSTAUDIO pInterface,
                 AudioObjectPropertyAddress propAdr = { kAudioHardwarePropertyDefaultInputDevice, kAudioObjectPropertyScopeGlobal,
                                                        kAudioObjectPropertyElementMaster };
                 err = AudioObjectAddPropertyListener(kAudioObjectSystemObject, &propAdr,
-                                                     drvHostCoreAudioDefaultDeviceChangedCb, &pStreamIn->cbCtx);
+                                                     drvHostCoreAudioDefaultDeviceChangedCb, &pStreamIn->cbCtx /* pvUser */);
                 if (   err == noErr
                     || err == kAudioHardwareIllegalOperationError)
                 {
@@ -2039,7 +2039,7 @@ static DECLCALLBACK(int) drvHostCoreAudioInitIn(PPDMIHOSTAUDIO pInterface,
             AudioObjectPropertyAddress propAdr = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
                                                    kAudioObjectPropertyElementMaster };
             err = AudioObjectAddPropertyListener(pStreamIn->deviceID, &propAdr, drvHostCoreAudioDeviceStateChangedCb,
-                                                 &pStreamIn->cbCtx);
+                                                 &pStreamIn->cbCtx /* pvUser */);
             if (err == noErr)
             {
                 pStreamIn->fDevStateChgListReg = true;
@@ -2123,7 +2123,7 @@ static DECLCALLBACK(int) drvHostCoreAudioInitOut(PPDMIHOSTAUDIO pInterface,
             AudioObjectPropertyAddress propAdr = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal,
                                                    kAudioObjectPropertyElementMaster };
             err = AudioObjectAddPropertyListener(kAudioObjectSystemObject, &propAdr,
-                                                 drvHostCoreAudioDefaultDeviceChangedCb, &pStreamOut->cbCtx);
+                                                 drvHostCoreAudioDefaultDeviceChangedCb, &pStreamOut->cbCtx /* pvUser */);
             if (err == noErr)
             {
                 pStreamOut->fDefDevChgListReg = true;
@@ -2139,7 +2139,7 @@ static DECLCALLBACK(int) drvHostCoreAudioInitOut(PPDMIHOSTAUDIO pInterface,
             AudioObjectPropertyAddress propAdr = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
                                                    kAudioObjectPropertyElementMaster };
             err = AudioObjectAddPropertyListener(pStreamOut->deviceID, &propAdr, drvHostCoreAudioDeviceStateChangedCb,
-                                                 (void *)&pStreamOut->cbCtx);
+                                                 &pStreamOut->cbCtx /* pvUser */);
             if (err == noErr)
             {
                 pStreamOut->fDevStateChgListReg = true;

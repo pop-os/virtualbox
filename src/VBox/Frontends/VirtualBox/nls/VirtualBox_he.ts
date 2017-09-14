@@ -172,6 +172,19 @@
     </message>
 </context>
 <context>
+    <name>QObject</name>
+    <message>
+        <source>Component: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">רכיב: </translation>
+    </message>
+    <message>
+        <source>Interface: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">ממשק: </translation>
+    </message>
+</context>
+<context>
     <name>UIActionPool</name>
     <message>
         <source>&amp;Machine</source>
@@ -1088,6 +1101,14 @@
         <source>Power off selected virtual machines</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation type="obsolete">&amp;פרטים</translation>
+    </message>
+    <message>
+        <source>&amp;Snapshots</source>
+        <translation type="obsolete">&amp;תצלומי-בזק</translation>
+    </message>
 </context>
 <context>
     <name>UIAddDiskEncryptionPasswordDialog</name>
@@ -1888,6 +1909,21 @@
         <comment>details (user interface/mini-toolbar)</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (system/EFI)</comment>
+        <translation type="obsolete">מאופשר</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (audio/output)</comment>
+        <translation type="obsolete">מאופשר</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (audio/input)</comment>
+        <translation type="obsolete">מאופשר</translation>
+    </message>
 </context>
 <context>
     <name>UIGMachinePreview</name>
@@ -2232,21 +2268,9 @@
         <translation>מסיכת רשת</translation>
     </message>
     <message>
-        <source>Lower Bound</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Not set</source>
         <comment>bound</comment>
         <translation>לא נקבע</translation>
-    </message>
-    <message>
-        <source>Upper Bound</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Lists all available host-only networks.</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Name</source>
@@ -2333,6 +2357,63 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>The name &lt;b&gt;%1&lt;/b&gt; is being used for several NAT networks.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <comment>NAT network</comment>
+        <translation>פעילה</translation>
+    </message>
+    <message>
+        <source>&amp;Add NAT network</source>
+        <translation type="vanished">הוס&amp;ף רשת NAT</translation>
+    </message>
+    <message>
+        <source>&amp;Remove NAT network</source>
+        <translation type="vanished">הס&amp;ר רשת NAT</translation>
+    </message>
+    <message>
+        <source>&amp;Edit NAT network</source>
+        <translation type="vanished">&amp;ערוך רשת NAT</translation>
+    </message>
+    <message>
+        <source>Add NAT Network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove NAT Network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit NAT Network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adds new NAT network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removes selected NAT network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edits selected NAT network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lower Bound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Upper Bound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lists all available host-only networks.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 address.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2361,52 +2442,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The name &lt;b&gt;%1&lt;/b&gt; is being used for several NAT networks.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Active</source>
-        <comment>NAT network</comment>
-        <translation>פעילה</translation>
-    </message>
-    <message>
-        <source>&amp;Add NAT network</source>
-        <translation type="vanished">הוס&amp;ף רשת NAT</translation>
-    </message>
-    <message>
-        <source>&amp;Remove NAT network</source>
-        <translation type="vanished">הס&amp;ר רשת NAT</translation>
-    </message>
-    <message>
-        <source>&amp;Edit NAT network</source>
-        <translation type="vanished">&amp;ערוך רשת NAT</translation>
-    </message>
-    <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Add NAT Network</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Remove NAT Network</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Edit NAT Network</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Adds new NAT network.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Removes selected NAT network.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Edits selected NAT network.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2437,10 +2473,6 @@
 <context>
     <name>UIGlobalSettingsNetworkDetailsHost</name>
     <message>
-        <source>Host-only Network Details</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Adapter</source>
         <translation>&amp;מתאם</translation>
     </message>
@@ -2453,32 +2485,16 @@
         <translation>כתובת &amp;IPv4:</translation>
     </message>
     <message>
-        <source>Holds the host IPv4 address for this adapter.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>IPv4 Network &amp;Mask:</source>
         <translation>&amp;מסיכת רשת IPv4:</translation>
-    </message>
-    <message>
-        <source>Holds the host IPv4 network mask for this adapter.</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>I&amp;Pv6 Address:</source>
         <translation>כתובת I&amp;Pv6:</translation>
     </message>
     <message>
-        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>IPv6 Prefix &amp;Length:</source>
         <translation>&amp;אורך מסיכת רשת IPv6:</translation>
-    </message>
-    <message>
-        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;DHCP Server</source>
@@ -2493,12 +2509,32 @@
         <translation>&amp;כתובת רשת:</translation>
     </message>
     <message>
-        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Server &amp;Mask:</source>
+        <translation>&amp;מסיכת שרת:</translation>
+    </message>
+    <message>
+        <source>Host-only Network Details</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Server &amp;Mask:</source>
-        <translation>&amp;מסיכת שרת:</translation>
+        <source>Holds the host IPv4 address for this adapter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
@@ -2743,14 +2779,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Left </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Right </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Left Shift</source>
         <translation>Shift שמאלי</translation>
     </message>
@@ -2805,6 +2833,142 @@
     <message>
         <source>None</source>
         <translation type="unfinished">אין</translation>
+    </message>
+    <message>
+        <source>Left </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right </source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkDetailsWidget</name>
+    <message>
+        <source>&amp;Adapter</source>
+        <translation type="obsolete">&amp;מתאם</translation>
+    </message>
+    <message>
+        <source>&amp;DHCP Server</source>
+        <translation type="obsolete">שרת &amp;DHCP</translation>
+    </message>
+    <message>
+        <source>&amp;IPv4 Address:</source>
+        <translation type="obsolete">כתובת &amp;IPv4:</translation>
+    </message>
+    <message>
+        <source>IPv4 Network &amp;Mask:</source>
+        <translation type="obsolete">&amp;מסיכת רשת IPv4:</translation>
+    </message>
+    <message>
+        <source>I&amp;Pv6 Address:</source>
+        <translation type="obsolete">כתובת I&amp;Pv6:</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix &amp;Length:</source>
+        <translation type="obsolete">&amp;אורך מסיכת רשת IPv6:</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Server</source>
+        <translation type="obsolete">&amp;אפשר שרת</translation>
+    </message>
+    <message>
+        <source>Server Add&amp;ress:</source>
+        <translation type="obsolete">&amp;כתובת רשת:</translation>
+    </message>
+    <message>
+        <source>Server &amp;Mask:</source>
+        <translation type="obsolete">&amp;מסיכת שרת:</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkManager</name>
+    <message>
+        <source>Adapter</source>
+        <translation type="obsolete">מתאם</translation>
+    </message>
+    <message>
+        <source>Automatically configured</source>
+        <comment>interface</comment>
+        <translation type="obsolete">מוגדר אוטומטית</translation>
+    </message>
+    <message>
+        <source>Manually configured</source>
+        <comment>interface</comment>
+        <translation type="obsolete">מוגדר ידנית</translation>
+    </message>
+    <message>
+        <source>IPv4 Address</source>
+        <translation type="obsolete">כתובת IPv4</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>address</comment>
+        <translation type="obsolete">לא נקבע</translation>
+    </message>
+    <message>
+        <source>IPv4 Network Mask</source>
+        <translation type="obsolete">מסיכת רשת IPv4</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>mask</comment>
+        <translation type="obsolete">לא נקבע</translation>
+    </message>
+    <message>
+        <source>IPv6 Address</source>
+        <translation type="obsolete">כתובת IPv6</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix Length</source>
+        <translation type="obsolete">אורך מסיכת רשת IPv6</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>length</comment>
+        <translation type="obsolete">לא נקבע</translation>
+    </message>
+    <message>
+        <source>DHCP Server</source>
+        <translation type="obsolete">שרת DHCP</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>server</comment>
+        <translation type="obsolete">מאופשר</translation>
+    </message>
+    <message>
+        <source>Address</source>
+        <translation type="obsolete">כתובת</translation>
+    </message>
+    <message>
+        <source>Network Mask</source>
+        <translation type="obsolete">מסיכת רשת</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>bound</comment>
+        <translation type="obsolete">לא נקבע</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation type="obsolete">הס&amp;ר...</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="obsolete">שם</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="obsolete">סגור</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkManagerWidget</name>
+    <message>
+        <source>Networking</source>
+        <translation type="obsolete">רישות</translation>
     </message>
 </context>
 <context>
@@ -2867,11 +3031,6 @@
 <context>
     <name>UIIndicatorsPool</name>
     <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>Network adapters tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;מתאם %1 (%2)&lt;/b&gt;: %3 כבל %4&lt;/nobr&gt;</translation>
@@ -2892,11 +3051,6 @@
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;כל המתאמי רשת מנוטרלים כעת&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>USB device tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;אין התקני USB מוצמדים&lt;/b&gt;&lt;/nobr&gt;</translation>
@@ -2907,14 +3061,42 @@
         <translation type="vanished">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;בקר USB מנוטרל&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>Shared folders tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Shared folders tooltip</comment>
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;אין תיקיות משותפות&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;Video capture disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;&lt;b&gt;לכידת וידאו מנוטרלת&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;Video capture file:&lt;/b&gt; %1&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;&lt;b&gt;קובץ לכידת וידאו:&lt;/b&gt; %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Disconnected</source>
+        <comment>cable (Network tooltip)</comment>
+        <translation type="obsolete">מנותק</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>Display tooltip</comment>
+        <translation type="obsolete">מסכים</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
@@ -2928,14 +3110,6 @@
     <message>
         <source>&lt;nobr&gt;Indicates video capturing activity:&lt;/nobr&gt;&lt;br&gt;%1</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;&lt;b&gt;Video capture disabled&lt;/b&gt;&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;&lt;b&gt;לכידת וידאו מנוטרלת&lt;/b&gt;&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;&lt;b&gt;Video capture file:&lt;/b&gt; %1&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;&lt;b&gt;קובץ לכידת וידאו:&lt;/b&gt; %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Additional feature status:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</source>
@@ -4018,24 +4192,8 @@
         <translation>פורט %1</translation>
     </message>
     <message>
-        <source>When checked, enables the given parallel port of the virtual machine.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Enable Parallel Port</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Port &amp;Number:</source>
         <translation>&amp;מספר פורט:</translation>
-    </message>
-    <message>
-        <source>Holds the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;IRQ:</source>
-        <translation></translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
@@ -4044,6 +4202,22 @@
     <message>
         <source>Port &amp;Path:</source>
         <translation>&amp;נתיב פורט:</translation>
+    </message>
+    <message>
+        <source>When checked, enables the given parallel port of the virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable Parallel Port</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;IRQ:</source>
+        <translation></translation>
     </message>
     <message>
         <source>Holds the host parallel device name.</source>
@@ -4842,22 +5016,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9 you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1 MB</source>
         <translation type="unfinished">%1 מ״ב</translation>
     </message>
@@ -4873,6 +5031,22 @@
     </message>
     <message>
         <source>%1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9 you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5141,6 +5315,17 @@
     </message>
 </context>
 <context>
+    <name>UIMediumDetailsWidget</name>
+    <message>
+        <source>&amp;Type:</source>
+        <translation type="obsolete">&amp;טיפוס:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="obsolete">&amp;תיאור:</translation>
+    </message>
+</context>
+<context>
     <name>UIMediumManager</name>
     <message>
         <source>&amp;Hard drives</source>
@@ -5165,6 +5350,65 @@
     <message>
         <source>&amp;Hard disks</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Format:</source>
+        <translation type="obsolete">פורמט:</translation>
+    </message>
+    <message>
+        <source>Storage details:</source>
+        <translation type="obsolete">פרטי אחסון:</translation>
+    </message>
+    <message>
+        <source>Attached to:</source>
+        <translation type="obsolete">מוצמד אל:</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
+        <translation type="obsolete">&lt;i&gt;לא&amp;nbsp;מוצמד&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Copy...</source>
+        <translation type="obsolete">ה&amp;עתק...</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation type="obsolete">הס&amp;ר...</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh</source>
+        <translation type="obsolete">&amp;רענן</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="obsolete">שם</translation>
+    </message>
+    <message>
+        <source>Virtual Size</source>
+        <translation type="obsolete">גודל וירטואלי</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation type="obsolete">גודל אמיתי</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation type="obsolete">גודל</translation>
+    </message>
+    <message>
+        <source>Virtual Media Manager</source>
+        <translation type="obsolete">מנהל מדיה וירטואלית</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="obsolete">סגור</translation>
+    </message>
+</context>
+<context>
+    <name>UIMediumSizeEditor</name>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;%1 (%2 ב)&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -5338,10 +5582,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Failed to create the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) for the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;המכונה הוירטואלית מדווחת כי המערכת האורחת לא תומכת &lt;b&gt;שילוב סמן עכבר&lt;/b&gt; במצב וידאו נוכחי. עליך ללכוד את העכבר (על ידי לחיצה על פני תצוגת מכונה וירטואלית או לחיצה על מקש מארח) על מנת להשתמש בעכבר בתוך המערכת האורחת.&lt;/p&gt;</translation>
     </message>
@@ -5387,11 +5627,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Result&amp;nbsp;Code: </source>
-        <comment>error info</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Component: </source>
         <comment>error info</comment>
         <translation>רכיב: </translation>
@@ -5402,33 +5637,11 @@
         <translation>ממשק: </translation>
     </message>
     <message>
-        <source>Callee: </source>
-        <comment>error info</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Callee&amp;nbsp;RC: </source>
-        <comment>error info</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please close all programs in the guest OS that may be using this shared folder and try again.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Failed to open the license file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Failed to send the ACPI Power Button press event to the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to load the global GUI configuration from &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to save the global GUI configuration to &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5721,15 +5934,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5737,16 +5942,8 @@
         <translation>&amp;שדרג</translation>
     </message>
     <message>
-        <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Downgrade</source>
         <translation>&amp;הנמך</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Reinstall</source>
@@ -5956,24 +6153,8 @@
         <translation>התעלם</translation>
     </message>
     <message>
-        <source>Failed to create NAT network.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to remove NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Failed to create DHCP server.</source>
         <translation>נכשל ליצור שרת DHCP.</translation>
-    </message>
-    <message>
-        <source>Failed to remove DHCP server for network interface &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to create the host network interface.</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Create &amp;new disk</source>
@@ -6253,10 +6434,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6299,6 +6476,73 @@
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) for the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Result&amp;nbsp;Code: </source>
+        <comment>error info</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Callee: </source>
+        <comment>error info</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Callee&amp;nbsp;RC: </source>
+        <comment>error info</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please close all programs in the guest OS that may be using this shared folder and try again.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to load the global GUI configuration from &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to save the global GUI configuration to &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create NAT network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to remove NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to remove DHCP server for network interface &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create the host network interface.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6608,6 +6852,13 @@
     </message>
 </context>
 <context>
+    <name>UIScreenshotViewer</name>
+    <message>
+        <source>Screenshot of %1 (%2)</source>
+        <translation type="obsolete">צילום-מסך של %1 (%2)</translation>
+    </message>
+</context>
+<context>
     <name>UISelectorWindow</name>
     <message>
         <source>Show Toolbar</source>
@@ -6747,10 +6998,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Parallel Ports</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>USB</source>
         <translation></translation>
     </message>
@@ -6770,6 +7017,10 @@
         <source>Settings</source>
         <translation type="unfinished">הגדרות</translation>
     </message>
+    <message>
+        <source>Parallel Ports</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UISettingsSerializerProgress</name>
@@ -6780,6 +7031,62 @@
     <message>
         <source>Saving Settings...</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UISnapshotDetailsWidget</name>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="obsolete">&amp;שם:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="obsolete">&amp;תיאור:</translation>
+    </message>
+    <message>
+        <source>Click to enlarge the screenshot.</source>
+        <translation type="obsolete">לחץ כדי להגדיל את צילום-מסך זה.</translation>
+    </message>
+</context>
+<context>
+    <name>UISnapshotPane</name>
+    <message>
+        <source>Current State (changed)</source>
+        <comment>Current State (Modified)</comment>
+        <translation type="obsolete">מצב נוכחי (השתנה)</translation>
+    </message>
+    <message>
+        <source>Current State</source>
+        <comment>Current State (Unmodified)</comment>
+        <translation type="obsolete">מצב נוכחי</translation>
+    </message>
+    <message>
+        <source>%1 since %2</source>
+        <comment>Current State (time or date + time)</comment>
+        <translation type="obsolete">%1 מאז %2</translation>
+    </message>
+    <message>
+        <source>Taken at %1</source>
+        <comment>Snapshot (time)</comment>
+        <translation type="obsolete">נלקח במועד %1</translation>
+    </message>
+    <message>
+        <source>Taken on %1</source>
+        <comment>Snapshot (date + time)</comment>
+        <translation type="obsolete">נלקח במועד %1</translation>
+    </message>
+    <message>
+        <source>&amp;Clone...</source>
+        <translation type="obsolete">&amp;שבט...</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>snapshot</comment>
+        <translation type="obsolete">שם</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="obsolete">תצלום-בזק %1</translation>
     </message>
 </context>
 <context>
@@ -6795,6 +7102,25 @@
     <message>
         <source>Enable Status Bar</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UITakeSnapshotDialog</name>
+    <message>
+        <source>Take Snapshot of Virtual Machine</source>
+        <translation type="obsolete">קח תצלום-בזק של מכונה וירטואלית</translation>
+    </message>
+    <message>
+        <source>Snapshot &amp;Name</source>
+        <translation type="obsolete">&amp;שם תצלום-בזק</translation>
+    </message>
+    <message>
+        <source>Snapshot &amp;Description</source>
+        <translation type="obsolete">&amp;תיאור תצלום-בזק</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="obsolete">תצלום-בזק %1</translation>
     </message>
 </context>
 <context>
@@ -6947,22 +7273,6 @@
         <translation type="unfinished">%1 - מידע הפעלה</translation>
     </message>
     <message>
-        <source>Configuration &amp;Details</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Runtime Information</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>DMA Transfers</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PIO Transfers</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Data Read</source>
         <translation type="unfinished">מידע שנקרא</translation>
     </message>
@@ -6979,6 +7289,47 @@
         <translation type="unfinished">מידע שנקבל</translation>
     </message>
     <message>
+        <source>Not Available</source>
+        <comment>details report (VRDE server port)</comment>
+        <translation type="unfinished">לא זמין</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <translation type="unfinished">טיפוס מערכת אורחת</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <translation type="unfinished">סטטיסטיקת אחסון</translation>
+    </message>
+    <message>
+        <source>No Storage Devices</source>
+        <translation type="unfinished">אין התקני אחסון</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <translation type="unfinished">סטטיסטיקת רשת</translation>
+    </message>
+    <message>
+        <source>No Network Adapters</source>
+        <translation type="unfinished">אין מתאמי רשת</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DMA Transfers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PIO Transfers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Not Detected</source>
         <comment>guest additions</comment>
         <translation type="unfinished"></translation>
@@ -6987,11 +7338,6 @@
         <source>Not Detected</source>
         <comment>guest os type</comment>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not Available</source>
-        <comment>details report (VRDE server port)</comment>
-        <translation type="unfinished">לא זמין</translation>
     </message>
     <message>
         <source>Runtime Attributes</source>
@@ -7016,26 +7362,6 @@
     <message>
         <source>Guest Additions</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Guest OS Type</source>
-        <translation type="unfinished">טיפוס מערכת אורחת</translation>
-    </message>
-    <message>
-        <source>Storage Statistics</source>
-        <translation type="unfinished">סטטיסטיקת אחסון</translation>
-    </message>
-    <message>
-        <source>No Storage Devices</source>
-        <translation type="unfinished">אין התקני אחסון</translation>
-    </message>
-    <message>
-        <source>Network Statistics</source>
-        <translation type="unfinished">סטטיסטיקת רשת</translation>
-    </message>
-    <message>
-        <source>No Network Adapters</source>
-        <translation type="unfinished">אין מתאמי רשת</translation>
     </message>
 </context>
 <context>
@@ -7551,6 +7877,14 @@
         <translation>&amp;פורמט:</translation>
     </message>
     <message>
+        <source>Write in standard OVF 1.0 format.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Storage settings</source>
+        <translation>הגדרות &amp;אחסון</translation>
+    </message>
+    <message>
         <source>OVF 0.9</source>
         <translation></translation>
     </message>
@@ -7563,24 +7897,12 @@
         <translation></translation>
     </message>
     <message>
-        <source>Write in standard OVF 1.0 format.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Write in new experimental OVF 2.0 format.</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Storage settings</source>
-        <translation>הגדרות &amp;אחסון</translation>
     </message>
 </context>
 <context>
     <name>UIWizardExportAppPageBasic3</name>
-    <message>
-        <source>&lt;p&gt;Please choose a filename to export the OVF/OVA to.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ova&lt;/i&gt; extension, then all the files will be combined into one Open Virtualization Format Archive.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately.&lt;/p&gt;&lt;p&gt;Other extensions are not allowed.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
     <message>
         <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
         <translation type="unfinished"></translation>
@@ -7591,6 +7913,10 @@
     </message>
     <message>
         <source>Choose a file to export the virtual appliance to...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a filename to export the OVF/OVA to.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ova&lt;/i&gt; extension, then all the files will be combined into one Open Virtualization Format Archive.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately.&lt;/p&gt;&lt;p&gt;Other extensions are not allowed.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7951,16 +8277,6 @@
         <translation>סדר אתחול</translation>
     </message>
     <message>
-        <source>ACPI</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>I/O APIC</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
         <source>Enabled</source>
         <comment>details report (ACPI)</comment>
         <translation>מאופשר</translation>
@@ -8004,16 +8320,6 @@
         <source>Network</source>
         <comment>details report</comment>
         <translation>רשת</translation>
-    </message>
-    <message>
-        <source>Device Filters</source>
-        <comment>details report (USB)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 (%2 active)</source>
-        <comment>details report (USB)</comment>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -8196,16 +8502,6 @@
         <translation>מנוטרלים</translation>
     </message>
     <message>
-        <source>Serial Ports</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
         <source>Shared Folders</source>
         <comment>details report (shared folders)</comment>
         <translation>תיקיות משותפות</translation>
@@ -8242,11 +8538,6 @@
     </message>
     <message>
         <source>VT-x/AMD-V</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>PAE/NX</source>
         <comment>details report</comment>
         <translation></translation>
     </message>
@@ -8289,11 +8580,6 @@
         <source>Disabled</source>
         <comment>details report (parallel ports)</comment>
         <translation>מנוטרל</translation>
-    </message>
-    <message>
-        <source>Parallel Ports</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>USB</source>
@@ -8406,11 +8692,6 @@
         <translation>לא נגיש</translation>
     </message>
     <message>
-        <source>3D Acceleration</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Enabled</source>
         <comment>details report (3D Acceleration)</comment>
         <translation>מאופשר</translation>
@@ -8426,16 +8707,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Differencing</source>
-        <comment>DiskType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Nested Paging</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Enabled</source>
         <comment>details report (Nested Paging)</comment>
         <translation>מאופשר</translation>
@@ -8444,11 +8715,6 @@
         <source>Disabled</source>
         <comment>details report (Nested Paging)</comment>
         <translation>מנוטרל</translation>
-    </message>
-    <message>
-        <source>Internal network, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>SCSI</source>
@@ -8486,16 +8752,6 @@
         <translation></translation>
     </message>
     <message>
-        <source>Bridged adapter, %1</source>
-        <comment>details report (network)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host-only adapter, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Intel PRO/1000 MT Server (82545EM)</source>
         <comment>NetworkAdapterType</comment>
         <translation type="unfinished"></translation>
@@ -8517,11 +8773,6 @@
     </message>
     <message>
         <source>Processor(s)</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>details report</comment>
         <translation type="unfinished"></translation>
     </message>
@@ -8549,11 +8800,6 @@
         <source>Disabled</source>
         <comment>details report (2D Video Acceleration)</comment>
         <translation type="unfinished">מנוטרל</translation>
-    </message>
-    <message>
-        <source>2D Video Acceleration</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Not Attached</source>
@@ -8850,16 +9096,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Generic, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Generic Driver</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
@@ -9084,11 +9320,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Parallel ports</source>
-        <comment>DetailsElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>USB</source>
         <comment>DetailsElementType</comment>
         <translation></translation>
@@ -9154,11 +9385,6 @@
         <translation type="vanished">מנוטרל</translation>
     </message>
     <message>
-        <source>Unrestricted Execution</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>PS/2 Mouse</source>
         <comment>PointingHIDType</comment>
         <translation>עכבר PS/2</translation>
@@ -9191,11 +9417,6 @@
         <source>NAT Network</source>
         <comment>NetworkAttachmentType</comment>
         <translation>רשת NAT</translation>
-    </message>
-    <message>
-        <source>NAT network, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>You can create or add disk image files in the virtual machine settings.</source>
@@ -9347,10 +9568,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>(Optical Drive)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Please choose a virtual hard disk file</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9413,11 +9630,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Parallel ports</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>USB</source>
         <comment>InformationElementType</comment>
         <translation type="unfinished"></translation>
@@ -9449,6 +9661,145 @@
     </message>
     <message>
         <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">רשת</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">תיקיות משותפות</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">תצוגה</translation>
+    </message>
+    <message>
+        <source>Video Capture</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">לוכד וידאו</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">שמע</translation>
+    </message>
+    <message>
+        <source>ACPI</source>
+        <comment>details report</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>I/O APIC</source>
+        <comment>details report</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details report (USB)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details report (USB)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Serial Ports</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>details report</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details report</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Parallel Ports</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D Acceleration</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Differencing</source>
+        <comment>DiskType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>2D Video Acceleration</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generic, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>NAT network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Optical Drive)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
         <comment>InformationElementType</comment>
         <translation type="unfinished"></translation>
     </message>
@@ -9504,29 +9855,8 @@
         <translation>&amp;רענן</translation>
     </message>
     <message>
-        <source>Remove the selected disk image file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Release the selected disk image file by detaching it from the machines</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Refresh the list of disk image files</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Checking accessibility</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
         <translation>&lt;i&gt;לא&amp;nbsp;מוצמד&lt;/i&gt;</translation>
-    </message>
-    <message>
-        <source>--</source>
-        <comment>no info</comment>
-        <translation></translation>
     </message>
     <message>
         <source>Virtual Media Manager</source>
@@ -9575,6 +9905,27 @@
     <message>
         <source>&amp;Modify...</source>
         <translation>ה&amp;תאם...</translation>
+    </message>
+    <message>
+        <source>Remove the selected disk image file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Release the selected disk image file by detaching it from the machines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh the list of disk image files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking accessibility</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>--</source>
+        <comment>no info</comment>
+        <translation></translation>
     </message>
     <message>
         <source>Copy an existing disk image file</source>
@@ -9642,10 +9993,6 @@
 <context>
     <name>VBoxSnapshotsWgt</name>
     <message>
-        <source>VBoxSnapshotsWgt</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Current State (changed)</source>
         <comment>Current State (Modified)</comment>
         <translation>מצב נוכחי (השתנה)</translation>
@@ -9654,29 +10001,6 @@
         <source>Current State</source>
         <comment>Current State (Unmodified)</comment>
         <translation>מצב נוכחי</translation>
-    </message>
-    <message>
-        <source>The current state differs from the state stored in the current snapshot</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The current state is identical to the state stored in the current snapshot</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source> (current, </source>
-        <comment>Snapshot details</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>online)</source>
-        <comment>Snapshot details</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>offline)</source>
-        <comment>Snapshot details</comment>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Taken at %1</source>
@@ -9706,14 +10030,6 @@
         <translation>ה&amp;צג פרטים</translation>
     </message>
     <message>
-        <source>Take a snapshot of the current virtual machine state</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source> (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Restore Snapshot</source>
         <translation>&amp;שחזר תצלום-בזק</translation>
     </message>
@@ -9732,6 +10048,41 @@
     <message>
         <source>Clone the selected virtual machine</source>
         <translation type="vanished">שבט את המכונה הוירטואלית הנבחרת</translation>
+    </message>
+    <message>
+        <source>VBoxSnapshotsWgt</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current state differs from the state stored in the current snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current state is identical to the state stored in the current snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> (current, </source>
+        <comment>Snapshot details</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>online)</source>
+        <comment>Snapshot details</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>offline)</source>
+        <comment>Snapshot details</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the current virtual machine state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Restore selected snapshot of the virtual machine</source>
@@ -9764,16 +10115,16 @@
         <source>Snapshot &amp;Description</source>
         <translation>&amp;תיאור תצלום-בזק</translation>
     </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="unfinished">תצלום-בזק %1</translation>
+    </message>
     <message numerus="yes">
         <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Snapshot %1</source>
-        <translation type="unfinished">תצלום-בזק %1</translation>
     </message>
 </context>
 <context>

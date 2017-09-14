@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0" language="sk_SK">
+<TS version="2.1" language="sk_SK">
+<context>
+    <name>CloseButton</name>
+    <message>
+        <source>Close Tab</source>
+        <translation>Zavrieť kartu</translation>
+    </message>
+</context>
 <context>
     <name>MAC_APPLICATION_MENU</name>
     <message>
@@ -29,108 +36,6 @@
     </message>
     <message>
         <source>About %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>AudioOutput</name>
-    <message>
-        <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Revert back to device &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>Phonon::</name>
-    <message>
-        <source>Notifications</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Music</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Video</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Communication</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Games</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Accessibility</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>Phonon::Gstreamer::Backend</name>
-    <message>
-        <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
-          Some video features have been disabled.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Warning: You do not seem to have the base GStreamer plugins installed.
-          All audio and video support has been disabled</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>Phonon::Gstreamer::MediaObject</name>
-    <message>
-        <source>Cannot start playback. 
-
-Check your Gstreamer installation and make sure you 
-have libgstreamer-plugins-base installed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Could not open media source.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Invalid source type.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not locate media source.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not open audio device. The device is already in use.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not decode media source.</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>Phonon::VolumeSlider</name>
-    <message>
-        <source>Volume: %1%</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -675,6 +580,22 @@ na
         <source>Socket is not connected</source>
         <translation>Soket nie je pripojený</translation>
     </message>
+    <message>
+        <source>Operation on socket is not supported</source>
+        <translation>Operácia na sokete nie je podporovaná</translation>
+    </message>
+    <message>
+        <source>Connection timed out</source>
+        <translation>Časový limit pre spojenie vypršal</translation>
+    </message>
+    <message>
+        <source>Trying to connect while connection is in progress</source>
+        <translation>Pokus o pripojenie počas procesu pripájania</translation>
+    </message>
+    <message>
+        <source>Network unreachable</source>
+        <translation>Sieť je nedosiahnuteľná</translation>
+    </message>
 </context>
 <context>
     <name>QAbstractSpinBox</name>
@@ -689,6 +610,124 @@ na
     <message>
         <source>&amp;Select All</source>
         <translation>Vy&amp;brať všetko</translation>
+    </message>
+</context>
+<context>
+    <name>QAccessibleActionInterface</name>
+    <message>
+        <source>Press</source>
+        <translation>Stlačiť</translation>
+    </message>
+    <message>
+        <source>Increase</source>
+        <translation>Zvýšiť</translation>
+    </message>
+    <message>
+        <source>Decrease</source>
+        <translation>Znížiť</translation>
+    </message>
+    <message>
+        <source>ShowMenu</source>
+        <translation>Zobraziť menu</translation>
+    </message>
+    <message>
+        <source>SetFocus</source>
+        <translation>Zamerať</translation>
+    </message>
+    <message>
+        <source>Toggle</source>
+        <translation>Prepnúť</translation>
+    </message>
+    <message>
+        <source>Triggers the action</source>
+        <translation>Spustí akciu</translation>
+    </message>
+    <message>
+        <source>Increase the value</source>
+        <translation>Zvýši hodnotu</translation>
+    </message>
+    <message>
+        <source>Decrease the value</source>
+        <translation>Zníži hodnotu</translation>
+    </message>
+    <message>
+        <source>Shows the menu</source>
+        <translation>Zobrazí menu</translation>
+    </message>
+    <message>
+        <source>Sets the focus</source>
+        <translation>Nastaví zameranie</translation>
+    </message>
+    <message>
+        <source>Toggles the state</source>
+        <translation>Prepne stav</translation>
+    </message>
+    <message>
+        <source>Scroll Left</source>
+        <translation type="unfinished">Posunúť vľavo</translation>
+    </message>
+    <message>
+        <source>Scroll Right</source>
+        <translation type="unfinished">Posunúť vpravo</translation>
+    </message>
+    <message>
+        <source>Scroll Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Previous Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scrolls to the left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scrolls to the right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scrolls up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scrolls down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Goes back a page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Goes to the next page</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QAndroidPlatformTheme</name>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished">Áno</translation>
+    </message>
+    <message>
+        <source>Yes to All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation type="unfinished">Nie</translation>
+    </message>
+    <message>
+        <source>No to All</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -716,6 +755,25 @@ na
     </message>
 </context>
 <context>
+    <name>QAxSelect</name>
+    <message>
+        <source>Select ActiveX Control</source>
+        <translation type="vanished">Vybrať prvok ActiveX</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation type="vanished">OK</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation type="vanished">&amp;Zrušiť</translation>
+    </message>
+    <message>
+        <source>COM &amp;Object:</source>
+        <translation type="vanished">COM &amp;objekt:</translation>
+    </message>
+</context>
+<context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
@@ -728,6 +786,68 @@ na
     <message>
         <source>Toggle</source>
         <translation>Prepnúť</translation>
+    </message>
+</context>
+<context>
+    <name>QCocoaMenuItem</name>
+    <message>
+        <source>About Qt</source>
+        <translation type="unfinished">O Qt</translation>
+    </message>
+    <message>
+        <source>About</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Config</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Options</source>
+        <translation type="unfinished">Možnosti</translation>
+    </message>
+    <message>
+        <source>Setting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Setup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quit</source>
+        <translation type="unfinished">Opustiť</translation>
+    </message>
+    <message>
+        <source>Exit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut</source>
+        <translation type="unfinished">Vystrihnúť</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation type="unfinished">Kopírovať</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation type="unfinished">Vložiť</translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation type="unfinished">Vybrať všetko</translation>
+    </message>
+</context>
+<context>
+    <name>QCocoaTheme</name>
+    <message>
+        <source>Don&apos;t Save</source>
+        <translation type="unfinished">Neuložiť</translation>
     </message>
 </context>
 <context>
@@ -776,6 +896,23 @@ na
         <source>Select color</source>
         <translation>Vybrať farbu</translation>
     </message>
+    <message>
+        <source>Select Color</source>
+        <translation>Vybrať farbu</translation>
+    </message>
+    <message>
+        <source>&amp;HTML:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cursor at %1, %2
+Press ESC to cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Pick Screen Color</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QComboBox</name>
@@ -794,6 +931,53 @@ na
     <message>
         <source>Close</source>
         <translation>Zavrieť</translation>
+    </message>
+    <message>
+        <source>Open the combo box selection popup</source>
+        <translation>Otvoriť výber pomocou rozbaľovacieho zoznamu</translation>
+    </message>
+</context>
+<context>
+    <name>QCommandLineParser</name>
+    <message>
+        <source>Displays version information.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Displays this help.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown option &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown options: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Missing value after &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected value after &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>[options]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Usage: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Options:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Arguments:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -836,6 +1020,110 @@ na
     <message>
         <source>%1: ftok failed</source>
         <comment>QSystemSemaphore</comment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QCupsJobWidget</name>
+    <message>
+        <source>Job</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Job Control</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scheduled printing:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Billing information:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Job priority:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Banner Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>End:</source>
+        <comment>Banner page at end</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start:</source>
+        <comment>Banner page at start</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print Immediately</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hold Indefinitely</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Day (06:00 to 17:59)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Night (18:00 to 05:59)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Second Shift (16:00 to 23:59)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Third Shift (00:00 to 07:59)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Weekend (Saturday to Sunday)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Specific Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished">Žiadne</translation>
+    </message>
+    <message>
+        <source>Standard</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unclassified</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confidential</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Classified</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Secret</source>
+        <comment>CUPS Banner page</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top Secret</source>
+        <comment>CUPS Banner page</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -886,6 +1174,13 @@ na
     </message>
 </context>
 <context>
+    <name>QDBusTrayIcon</name>
+    <message>
+        <source>OK</source>
+        <translation type="unfinished">OK</translation>
+    </message>
+</context>
+<context>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
@@ -902,6 +1197,25 @@ na
     <message>
         <source>pm</source>
         <translation>pm</translation>
+    </message>
+</context>
+<context>
+    <name>QDateTimeParser</name>
+    <message>
+        <source>AM</source>
+        <translation type="unfinished">AM</translation>
+    </message>
+    <message>
+        <source>am</source>
+        <translation type="unfinished">am</translation>
+    </message>
+    <message>
+        <source>PM</source>
+        <translation type="unfinished">PM</translation>
+    </message>
+    <message>
+        <source>pm</source>
+        <translation type="unfinished">pm</translation>
     </message>
 </context>
 <context>
@@ -1016,6 +1330,18 @@ na
         <source>&amp;OK</source>
         <translation>&amp;OK</translation>
     </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation type="vanished">&amp;Uložiť</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation type="vanished">&amp;Zrušiť</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="vanished">&amp;Zavrieť</translation>
+    </message>
 </context>
 <context>
     <name>QDirModel</name>
@@ -1043,6 +1369,112 @@ na
     </message>
 </context>
 <context>
+    <name>QDnsLookup</name>
+    <message>
+        <source>Operation cancelled</source>
+        <translation>Operácia bola zrušená</translation>
+    </message>
+</context>
+<context>
+    <name>QDnsLookupRunnable</name>
+    <message>
+        <source>Invalid domain name</source>
+        <translation>Neplatný názov domény</translation>
+    </message>
+    <message>
+        <source>Not yet supported on Android</source>
+        <translation>Na Androide ešte nepodporované</translation>
+    </message>
+    <message>
+        <source>Resolver functions not found</source>
+        <translation>Funkcie prekladača (resolver) neboli nájdené</translation>
+    </message>
+    <message>
+        <source>Resolver initialization failed</source>
+        <translation>Prekladač (resolver) sa nepodarilo inicializovať</translation>
+    </message>
+    <message>
+        <source>Server could not process query</source>
+        <translation>Sever nemôže spracovať dopyt</translation>
+    </message>
+    <message>
+        <source>Server failure</source>
+        <translation>Zlyhanie servera</translation>
+    </message>
+    <message>
+        <source>Non existent domain</source>
+        <translation>Neexistujúca doména</translation>
+    </message>
+    <message>
+        <source>Server refused to answer</source>
+        <translation>Server odmietol odpovedať</translation>
+    </message>
+    <message>
+        <source>Invalid reply received</source>
+        <translation>Prijatá neplatná odpoveď</translation>
+    </message>
+    <message>
+        <source>Could not expand domain name</source>
+        <translation>Nie je možné expandovať názov domény</translation>
+    </message>
+    <message>
+        <source>Invalid IPv4 address record</source>
+        <translation>Neplatný záznam IPv4 adresy</translation>
+    </message>
+    <message>
+        <source>Invalid IPv6 address record</source>
+        <translation>Neplatný záznam IPv6 adresy</translation>
+    </message>
+    <message>
+        <source>Invalid canonical name record</source>
+        <translation>Neplatný záznam kanonického názvu</translation>
+    </message>
+    <message>
+        <source>Invalid name server record</source>
+        <translation>Neplatný záznam serverového názvu</translation>
+    </message>
+    <message>
+        <source>Invalid pointer record</source>
+        <translation>Neplatný záznam ukazovateľa</translation>
+    </message>
+    <message>
+        <source>Invalid mail exchange record</source>
+        <translation>Neplatný záznam e-mailovej výmeny</translation>
+    </message>
+    <message>
+        <source>Invalid service record</source>
+        <translation>Neplatný záznam služby</translation>
+    </message>
+    <message>
+        <source>Invalid text record</source>
+        <translation>Neplatný textový záznam</translation>
+    </message>
+    <message>
+        <source>Resolver library can&apos;t be loaded: No runtime library loading support</source>
+        <translation>Knižnica prekladača (resolver)  nemôže byť načítaná: načítanie knižnice za behu nie je podporované</translation>
+    </message>
+    <message>
+        <source>IPv6 addresses for nameservers are currently not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No hostname given</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid hostname</source>
+        <translation type="unfinished">Neplatný hostiteľ</translation>
+    </message>
+    <message>
+        <source>Host %1 could not be found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation type="unfinished">Neznáma chyba</translation>
+    </message>
+</context>
+<context>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
@@ -1055,6 +1487,14 @@ na
     <message>
         <source>Float</source>
         <translation>Plávať</translation>
+    </message>
+    <message>
+        <source>Undocks and re-attaches the dock widget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Closes the dock widget</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1089,6 +1529,60 @@ na
     <message>
         <source>Fatal Error:</source>
         <translation>Kritická chyba:</translation>
+    </message>
+</context>
+<context>
+    <name>QFile</name>
+    <message>
+        <source>Destination file exists</source>
+        <translation>Cieľový súbor existuje</translation>
+    </message>
+    <message>
+        <source>Will not rename sequential file using block copy</source>
+        <translation>Nepremenuje sekvenčný súbor pomocou kópie bloku</translation>
+    </message>
+    <message>
+        <source>Cannot remove source file</source>
+        <translation>Nemôžem odstrániť zdrojový súbor</translation>
+    </message>
+    <message>
+        <source>Cannot open %1 for input</source>
+        <translation>%1 sa nepodarilo otvoriť pre čítanie</translation>
+    </message>
+    <message>
+        <source>Cannot open for output</source>
+        <translation>Nemôžem otvoriť pre výstup</translation>
+    </message>
+    <message>
+        <source>Failure to write block</source>
+        <translation>Chyba pri zápise bloku</translation>
+    </message>
+    <message>
+        <source>Cannot create %1 for output</source>
+        <translation>Nepodarilo sa vytvoriť %1 pre výstup</translation>
+    </message>
+    <message>
+        <source>Destination file is the same file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source file does not exist.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error while renaming.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to restore from %1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QFileDevice</name>
+    <message>
+        <source>No file engine available or engine does not support UnMapExtension</source>
+        <translation>Nie je dostupný žiadny súborový prostriedok, alebo prostriedok nepodporuje UnMapExtension</translation>
     </message>
 </context>
 <context>
@@ -1245,6 +1739,100 @@ Chcete ho aj tak zmazať?</translation>
         <source>Remove</source>
         <translation>Odstrániť</translation>
     </message>
+    <message>
+        <source>Go back</source>
+        <translation>Ísť späť</translation>
+    </message>
+    <message>
+        <source>Go forward</source>
+        <translation>Ísť vpred</translation>
+    </message>
+    <message>
+        <source>Go to the parent directory</source>
+        <translation>Ísť do nadradeného priečinka</translation>
+    </message>
+    <message>
+        <source>Create a New Folder</source>
+        <translation>Vytvoriť nová priečinok</translation>
+    </message>
+    <message>
+        <source>Change to list view mode</source>
+        <translation>Zmeniť do režimu zobrazenia zoznamu</translation>
+    </message>
+    <message>
+        <source>Change to detail view mode</source>
+        <translation>Zmeniť do režimu zobrazenia detailov</translation>
+    </message>
+    <message>
+        <source>Sidebar</source>
+        <translation>Bočný panel</translation>
+    </message>
+    <message>
+        <source>List of places and bookmarks</source>
+        <translation>Zoznam miest a záložiek</translation>
+    </message>
+    <message>
+        <source>Files</source>
+        <translation>Súbory</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Zmazať</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to delete &apos;%1&apos;?</source>
+        <translation>Naozaj chcete zmazať &apos;%1&apos;?</translation>
+    </message>
+    <message>
+        <source>Recent Places</source>
+        <translation>Naposledy navštívené</translation>
+    </message>
+    <message>
+        <source>File Folder</source>
+        <comment>Match Windows Explorer</comment>
+        <translation>Priečinok súborov</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <comment>All other platforms</comment>
+        <translation>Priečinok</translation>
+    </message>
+    <message>
+        <source>Alias</source>
+        <comment>Mac OS X Finder</comment>
+        <translation type="vanished">Alias</translation>
+    </message>
+    <message>
+        <source>Shortcut</source>
+        <comment>All other platforms</comment>
+        <translation>Skratka</translation>
+    </message>
+    <message>
+        <source>Alt+Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alt+Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alt+Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All files (*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 File</source>
+        <extracomment>%1 is a file name suffix, for example txt</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alias</source>
+        <comment>OS X Finder</comment>
+        <translation type="unfinished">Alias</translation>
+    </message>
 </context>
 <context>
     <name>QFileSystemModel</name>
@@ -1305,6 +1893,10 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Computer</source>
         <translation>Počítač</translation>
+    </message>
+    <message>
+        <source>%1 byte(s)</source>
+        <translation>%1 bajt(ov)</translation>
     </message>
 </context>
 <context>
@@ -1473,6 +2065,37 @@ Chcete ho aj tak zmazať?</translation>
         <source>Runic</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>N&apos;Ko</source>
+        <translation>N&apos;Ko</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>The Normal or Regular font weight</comment>
+        <translation type="unfinished">Normálne</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <comment>The Medium font weight</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Thin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Extra Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Extra Bold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Extra</source>
+        <extracomment>The word for &quot;Extra&quot; as in &quot;Extra Bold, Extra Thin&quot; used as a pattern for string searches</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QFontDialog</name>
@@ -1613,12 +2236,55 @@ Chcete ho aj tak zmazať?</translation>
         <source>Connection refused for data connection</source>
         <translation>Dátové spojenie odmietnuté</translation>
     </message>
+    <message>
+        <source>Connection timed out to host %1</source>
+        <translation>Časový limit pre spojenie s počítačom &apos;%1&apos; bol prekročený</translation>
+    </message>
+    <message>
+        <source>Data Connection refused</source>
+        <translation>Dátové spojenie bolo zamietnuté</translation>
+    </message>
+</context>
+<context>
+    <name>QGnomeTheme</name>
+    <message>
+        <source>&amp;OK</source>
+        <translation type="unfinished">&amp;OK</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation type="unfinished">&amp;Uložiť</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="unfinished">&amp;Zavrieť</translation>
+    </message>
+    <message>
+        <source>Close without Saving</source>
+        <translation type="unfinished">Zavrieť bez uloženia</translation>
+    </message>
+</context>
+<context>
+    <name>QGuiApplication</name>
+    <message>
+        <source>QT_LAYOUT_DIRECTION</source>
+        <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
+        <translation>LTR</translation>
+    </message>
 </context>
 <context>
     <name>QHostInfo</name>
     <message>
         <source>Unknown error</source>
         <translation>Neznáma chyba</translation>
+    </message>
+    <message>
+        <source>No host name given</source>
+        <translation>Nezadaný názov hostiteľa</translation>
     </message>
 </context>
 <context>
@@ -1634,6 +2300,18 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Unknown error</source>
         <translation>Neznáma chyba</translation>
+    </message>
+    <message>
+        <source>No host name given</source>
+        <translation>Nezadaný názov hostiteľa</translation>
+    </message>
+    <message>
+        <source>Invalid hostname</source>
+        <translation>Neplatný hostiteľ</translation>
+    </message>
+    <message>
+        <source>Unknown error (%1)</source>
+        <translation>Neznáma chyba (%1)</translation>
     </message>
 </context>
 <context>
@@ -1711,10 +2389,6 @@ Chcete ho aj tak zmazať?</translation>
         <translation>Vyžaduje sa overenie</translation>
     </message>
     <message>
-        <source>Connection refused (or timed out)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Proxy requires authentication</source>
         <translation>Proxy vyžaduje overenie</translation>
     </message>
@@ -1735,6 +2409,18 @@ Chcete ho aj tak zmazať?</translation>
         <translation>Zlyhal SSL handshake</translation>
     </message>
     <message>
+        <source>Too many redirects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insecure redirect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connection refused (or timed out)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>HTTPS connection requested but SSL support not compiled in</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1744,6 +2430,38 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Authentication required</source>
         <translation>Vyžaduje sa overenie</translation>
+    </message>
+    <message>
+        <source>Did not receive HTTP response from proxy</source>
+        <translation>Žiadna HTTP odpoveď od proxy serveru</translation>
+    </message>
+    <message>
+        <source>Error parsing authentication request from proxy</source>
+        <translation>Chyba pri spracovaní autentifikačného požiadavku proxy serveru</translation>
+    </message>
+    <message>
+        <source>Proxy denied connection</source>
+        <translation>Proxy server odmietol spojenie</translation>
+    </message>
+    <message>
+        <source>Error communicating with HTTP proxy</source>
+        <translation>Chyba pri spojení s HTTP proxy</translation>
+    </message>
+    <message>
+        <source>Proxy server not found</source>
+        <translation>Proxy server nebol nájdený</translation>
+    </message>
+    <message>
+        <source>Proxy connection refused</source>
+        <translation>Proxy server odmietol spojenie</translation>
+    </message>
+    <message>
+        <source>Proxy server connection timed out</source>
+        <translation>Časový limit pre spojenie proxy serverom bol prekročený</translation>
+    </message>
+    <message>
+        <source>Proxy connection closed prematurely</source>
+        <translation>Spojenie s proxy serverom bolo predčasne uzavreté</translation>
     </message>
 </context>
 <context>
@@ -1858,6 +2576,52 @@ Chcete ho aj tak zmazať?</translation>
         <source>Unknown error</source>
         <translation>Neznáma chyba</translation>
     </message>
+    <message>
+        <source>file to open is a directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QImageReader</name>
+    <message>
+        <source>Invalid device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unsupported image format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to read image data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation type="unfinished">Neznáma chyba</translation>
+    </message>
+</context>
+<context>
+    <name>QImageWriter</name>
+    <message>
+        <source>Unknown error</source>
+        <translation type="unfinished">Neznáma chyba</translation>
+    </message>
+    <message>
+        <source>Device is not set</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Device not writable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unsupported image format</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QInputContext</name>
@@ -1876,6 +2640,88 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Mac OS X input method</source>
         <translation>Metóda vstupu Mac OS X</translation>
+    </message>
+</context>
+<context>
+    <name>QInputDialog</name>
+    <message>
+        <source>Enter a value:</source>
+        <translation>Zadajte hodnotu:</translation>
+    </message>
+</context>
+<context>
+    <name>QJsonParseError</name>
+    <message>
+        <source>no error occurred</source>
+        <translation>bez chyby</translation>
+    </message>
+    <message>
+        <source>unterminated object</source>
+        <translation>neukončený objekt</translation>
+    </message>
+    <message>
+        <source>missing name separator</source>
+        <translation>chýba oddeľovač mien</translation>
+    </message>
+    <message>
+        <source>unterminated array</source>
+        <translation>neukončené pole</translation>
+    </message>
+    <message>
+        <source>missing value separator</source>
+        <translation>chýbajúca hodnota oddeľovača</translation>
+    </message>
+    <message>
+        <source>illegal value</source>
+        <translation>neplatná hodnota</translation>
+    </message>
+    <message>
+        <source>invalid termination by number</source>
+        <translation>neplatné ukončenie číslom</translation>
+    </message>
+    <message>
+        <source>illegal number</source>
+        <translation>neplatné číslo</translation>
+    </message>
+    <message>
+        <source>invalid escape sequence</source>
+        <translation>neplatná escape sekvencia</translation>
+    </message>
+    <message>
+        <source>invalid UTF8 string</source>
+        <translation>neplatný UTF-8 reťazec</translation>
+    </message>
+    <message>
+        <source>unterminated string</source>
+        <translation>neukončený reťazec</translation>
+    </message>
+    <message>
+        <source>object is missing after a comma</source>
+        <translation>za čiarkou chýba objekt</translation>
+    </message>
+    <message>
+        <source>too deeply nested document</source>
+        <translation>príliš hlboko vnorený dokument</translation>
+    </message>
+    <message>
+        <source>too large document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>garbage at the end of the document</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QKeySequenceEdit</name>
+    <message>
+        <source>Press shortcut</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, ...</source>
+        <extracomment>This text is an &quot;unfinished&quot; shortcut, expands like &quot;Ctrl+A, ...&quot;</extracomment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1927,6 +2773,66 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
         <translation>Modul &apos;%1&apos; používa nekompatibilnú Qt knižnicu. (Nedajú sa miešať debug a release knižnice.)</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not an ELF object (%2)</source>
+        <translation>&apos;%1&apos; nie je ELF objekt (%2)</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not an ELF object</source>
+        <translation>&apos;%1&apos; nie je ELF objekt</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is an invalid ELF object (%2)</source>
+        <translation>&apos;%1&apos; je neplatný ELF objekt (%2)</translation>
+    </message>
+    <message>
+        <source>Cannot load library %1: %2</source>
+        <translation>Nie je možné načítať knižnicu %1: %2</translation>
+    </message>
+    <message>
+        <source>Cannot unload library %1: %2</source>
+        <translation>Nie je možné uvoľniť knižnicu %1: %2</translation>
+    </message>
+    <message>
+        <source>Cannot resolve symbol &quot;%1&quot; in %2: %3</source>
+        <translation>Nie je možné vyriešiť symbol &quot;%1&quot; v %2: %3</translation>
+    </message>
+    <message>
+        <source>Failed to extract plugin meta data from &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a valid Mach-O binary (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file is corrupt</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>no suitable architecture in fat binary</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>invalid magic %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>wrong architecture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>not a dynamic library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is not a Qt plugin</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2021,6 +2927,22 @@ Chcete ho aj tak zmazať?</translation>
         <source>%1: Unknown error %2</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1: Operation not permitted when socket is in this state</source>
+        <translation>%1: Operácia nie je povolená, keď je soket v tomto stave</translation>
+    </message>
+    <message>
+        <source>%1: Unknown error</source>
+        <translation>%1: Neznáma chyba</translation>
+    </message>
+    <message>
+        <source>%1: Access denied</source>
+        <translation>%1: Prístup odmietnutý</translation>
+    </message>
+    <message>
+        <source>Trying to connect while connection is in progress</source>
+        <translation>Pokus o pripojenie počas procesu pripájania</translation>
+    </message>
 </context>
 <context>
     <name>QMYSQLDriver</name>
@@ -2043,6 +2965,14 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Unable to rollback transaction</source>
         <translation>Transakcia sa nedá vrátiť späť</translation>
+    </message>
+    <message>
+        <source>Unable to open database &apos;%1&apos;</source>
+        <translation>Nie je možné otvoriť databázu &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Unable to allocate a MYSQL object</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2220,6 +3150,18 @@ Chcete ho aj tak zmazať?</translation>
         <translation>&lt;p&gt;Tento program používa Qt Open Source Edition verziu %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition je určená pre vývoj Open Source aplikácií. Pre vývoj vlastnených (closed source) aplikácií potrebujete komerčnú Qt licenciu.&lt;/p&gt;&lt;p&gt;Prosím pozrite &lt;a href=&quot;http://www.trolltech.com/company/model.html&quot;&gt;www.trolltech.com/company/model.html&lt;/a&gt; pre prehľad Qt licencovania.&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;O Qt&lt;/h3&gt;&lt;p&gt;Tento program používa Qt verziu %1.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under three different licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of the GNU LGPL version 2.1 or GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU LGPL version 2.1 is appropriate for the development of Qt applications provided you can comply with the terms and conditions of the GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU General Public License version 3.0 is appropriate for the development of Qt applications where you wish to use such applications in combination with software subject to the terms of the GNU GPL version 3.0 or where you are otherwise willing to comply with the terms of the GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://qt.io/licensing/&quot;&gt;qt.io/licensing&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) 2015 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of Digia Plc and/or its subsidiary(-ies).&lt;/p&gt;&lt;p&gt;Qt is developed as an open source project on &lt;a href=&quot;http://qt-project.org/&quot;&gt;qt-project.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Qt is a Digia product. See &lt;a href=&quot;http://qt.io/&quot;&gt;qt.io&lt;/a&gt; for more information.&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;Qt je C++ sada nástrojov pre vývoj viac platformových aplikácií.&lt;/p&gt;&lt;p&gt;Qt poskytuje jednotný prenosný zdrojový kód pre všetky hlavné operačné systémy stolových počítačov. Je tiež dostupné pre vstavané zariadenia a mobilné operačné systémy.&lt;/p&gt;&lt;p&gt;Qt je dostupné pod troma rôznymi licenciami tak, aby vyhovelo potrebám rôznych používateľov.&lt;/p&gt;&lt;p&gt;Qt s našou komerčnou licenčnou zmluvou je vhodná pre vývoj súkromného/komerčného softvéru, kde nechcete zdieľať akýkoľvek zdrojový kód s tretími stranami alebo nemôžete vyhovieť podmienkam licencií GNU LGPL vo verzií 2.1 alebo GNU GPL vo verzií 3.0. &lt;/p&gt;&lt;p&gt;Qt s licenciou GNU LGPL vo verzií 2.1 je vhodné pre vývoj Qt aplikácií, ak viete splniť požiadavky a podmienky licencie GNU LGPL vo verzií 2.1&lt;/p&gt;&lt;p&gt;Qt s licenciou GNU General Public License vo verzií 3.0 je vhodné pre vývoj Qt aplikácií, kde si želáte použiť také aplikácie v kombinácií so softvérom, ktoré podliehajú licencií GNU GPL verzie 3.0, alebo ste ochotný súhlasiť s podmienkami licencie GNU GPL verzie 3.0.&lt;/p&gt;&lt;p&gt;Viac informácií o Qt licenciách nájdete na stránke &lt;a href=&quot;http://qt.io/licensing/&quot;&gt;qt.io/licensing&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Copyright (C) 2015 The Qt Company Ltd a/alebo jej dcérske spoločnosti a ďalší prispievatelia&lt;/p&gt;&lt;p&gt;Qt a Qt logo sú obchodnými značkami spoločnosti Digia Plc a/alebo jej dcérskych spoločností.&lt;/p&gt;&lt;p&gt;Qt je vyvíjané ako projekt s otvoreným zdrojovým kódom na &lt;a href=&quot;http://qt-project.org/&quot;&gt;qt-project.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Qt je produktom spoločnosti Digia. Viac informácií nájdete na &lt;a href=&quot;http://qt.io/&quot;&gt;qt.io&lt;/a&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under three different licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of the GNU LGPL version 3 or GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU LGPL version 3 is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the GNU LGPL version 3.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU LGPL version 2.1 is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) %1 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd product developed as an open source project. See &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2348,6 +3290,47 @@ Chcete ho aj tak zmazať?</translation>
         <source>The proxy type is invalid for this operation</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Temporary error</source>
+        <translation>Dočasná chyba</translation>
+    </message>
+    <message>
+        <source>Network dropped connection on reset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connection reset by peer</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QNetworkAccessCacheBackend</name>
+    <message>
+        <source>Error opening %1</source>
+        <translation>Nepodarilo sa otvoriť %1</translation>
+    </message>
+</context>
+<context>
+    <name>QNetworkAccessDataBackend</name>
+    <message>
+        <source>Invalid URI: %1</source>
+        <translation>Neplatné URI: %1</translation>
+    </message>
+</context>
+<context>
+    <name>QNetworkAccessDebugPipeBackend</name>
+    <message>
+        <source>Write error writing to %1: %2</source>
+        <translation>Chyba zápisu do %1: %2</translation>
+    </message>
+    <message>
+        <source>Socket error on %1: %2</source>
+        <translation>Chyba soketu na %1: %2</translation>
+    </message>
+    <message>
+        <source>Remote host closed the connection prematurely on %1</source>
+        <translation>Hostiteľ predčasne uzatvoril spojenie s %1</translation>
+    </message>
 </context>
 <context>
     <name>QNetworkAccessFileBackend</name>
@@ -2390,6 +3373,17 @@ Chcete ho aj tak zmazať?</translation>
         <source>Error while uploading %1: %2</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No suitable proxy found</source>
+        <translation>Nepodarilo sa nájsť vhodný proxy server</translation>
+    </message>
+</context>
+<context>
+    <name>QNetworkAccessManager</name>
+    <message>
+        <source>Network access is disabled.</source>
+        <translation>Prístup na sieť je zakázaný.</translation>
+    </message>
 </context>
 <context>
     <name>QNetworkReply</name>
@@ -2401,12 +3395,80 @@ Chcete ho aj tak zmazať?</translation>
         <source>Protocol &quot;%1&quot; is unknown</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Background request not allowed.</source>
+        <translation>Požiadavka na pozadí nie je povolená.</translation>
+    </message>
+    <message>
+        <source>Network session error.</source>
+        <translation>Chyba spojenia siete.</translation>
+    </message>
+    <message>
+        <source>backend start error.</source>
+        <translation>chyba spustenia backendu.</translation>
+    </message>
+    <message>
+        <source>Temporary network failure.</source>
+        <translation>Dočasné zlyhanie siete.</translation>
+    </message>
+    <message>
+        <source>Error transferring %1 - server replied: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QNetworkReplyHttpImpl</name>
+    <message>
+        <source>Operation canceled</source>
+        <translation>Operácia zrušená</translation>
+    </message>
+    <message>
+        <source>No suitable proxy found</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QNetworkReplyHttpImplPrivate</name>
+    <message>
+        <source>No suitable proxy found</source>
+        <translation type="vanished">Nenájdené vhodné proxy</translation>
+    </message>
 </context>
 <context>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QNetworkSession</name>
+    <message>
+        <source>Invalid configuration.</source>
+        <translation>Neplatná konfigurácia.</translation>
+    </message>
+</context>
+<context>
+    <name>QNetworkSessionPrivateImpl</name>
+    <message>
+        <source>Unknown session error.</source>
+        <translation>Neznáma chyba spojenia.</translation>
+    </message>
+    <message>
+        <source>The session was aborted by the user or system.</source>
+        <translation>Spojenie bolo prerušené používateľom alebo systémom.</translation>
+    </message>
+    <message>
+        <source>The requested operation is not supported by the system.</source>
+        <translation>Požadovaná operácia nie je podporovaná systémom.</translation>
+    </message>
+    <message>
+        <source>The specified configuration cannot be used.</source>
+        <translation>Špecifikovanú konfiguráciu nie je možné použiť.</translation>
+    </message>
+    <message>
+        <source>Roaming was aborted or is not possible.</source>
+        <translation>Roaming bol prerušený alebo nie je možný.</translation>
     </message>
 </context>
 <context>
@@ -2467,6 +3529,10 @@ Chcete ho aj tak zmazať?</translation>
         <source>Unable to execute statement</source>
         <translation>Príkaz sa nedá vykonať</translation>
     </message>
+    <message>
+        <source>Unable to get statement type</source>
+        <translation>Neporadilo sa získať typ príkazu</translation>
+    </message>
 </context>
 <context>
     <name>QODBCDriver</name>
@@ -2493,6 +3559,10 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Unable to enable autocommit</source>
         <translation>Nedá sa povoliť automatické potvrdzovanie</translation>
+    </message>
+    <message>
+        <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
+        <translation>Nepodarilo sa spojenie - ovládač nepodporuje celú vyžadovanú funkcionalitu</translation>
     </message>
 </context>
 <context>
@@ -2536,6 +3606,46 @@ Chcete ho aj tak zmazať?</translation>
 </context>
 <context>
     <name>QObject</name>
+    <message>
+        <source>Could not read image data</source>
+        <translation type="vanished">Nepodarilo sa prečítať obrázkové dáta</translation>
+    </message>
+    <message>
+        <source>Sequential device (eg socket) for image read not supported</source>
+        <translation type="vanished">Sekvenčné zariadenie (napr. soket) nie je podporované na čítanie obrázkových dát</translation>
+    </message>
+    <message>
+        <source>Seek file/device for image read failed</source>
+        <translation type="vanished">Prehľadávanie súboru/zariadenia na čítanie obrázkových dát sa nepodarilo</translation>
+    </message>
+    <message>
+        <source>Image mHeader read failed</source>
+        <translation type="vanished">Čítanie mHeader obrázku sa nepodarilo</translation>
+    </message>
+    <message>
+        <source>Image type not supported</source>
+        <translation type="vanished">Nepodporovaný typ obrázku</translation>
+    </message>
+    <message>
+        <source>Image dpeth not valid</source>
+        <translation type="vanished">dpeth obrázku nie je platný</translation>
+    </message>
+    <message>
+        <source>Could not seek to image read footer</source>
+        <translation type="vanished">Nepodarilo sa vyhľadať pätu čítania obrázku</translation>
+    </message>
+    <message>
+        <source>Could not read footer</source>
+        <translation type="vanished">Nepodarilo sa prečítať pätu</translation>
+    </message>
+    <message>
+        <source>Image type (non-TrueVision 2.0) not supported</source>
+        <translation type="vanished">Typ obrázka (non-TrueVision 2.0) nie je podporovaný</translation>
+    </message>
+    <message>
+        <source>Could not reset to read data</source>
+        <translation type="vanished">Nie je možné znovunastavenie pre čítanie dát</translation>
+    </message>
     <message>
         <source>Operation not supported on %1</source>
         <translation type="unfinished"></translation>
@@ -2695,6 +3805,617 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>bottom margin</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Page Layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Page order:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pages per sheet:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pica (P̸)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Didot (DD)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cicero (CC)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation type="unfinished">Vlastné</translation>
+    </message>
+    <message>
+        <source>mm</source>
+        <extracomment>Unit &apos;Millimeter&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>pt</source>
+        <extracomment>Unit &apos;Points&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>in</source>
+        <extracomment>Unit &apos;Inch&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>P̸</source>
+        <extracomment>Unit &apos;Pica&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DD</source>
+        <extracomment>Unit &apos;Didot&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CC</source>
+        <extracomment>Unit &apos;Cicero&apos;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QPageSize</name>
+    <message>
+        <source>Custom (%1mm x %2mm)</source>
+        <extracomment>Custom size name in millimeters</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1pt x %2pt)</source>
+        <extracomment>Custom size name in points</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1in x %2in)</source>
+        <extracomment>Custom size name in inches</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1pc x %2pc)</source>
+        <extracomment>Custom size name in picas</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1DD x %2DD)</source>
+        <extracomment>Custom size name in didots</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom (%1CC x %2CC)</source>
+        <extracomment>Custom size name in ciceros</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 x %2 in</source>
+        <extracomment>Page size in &apos;Inch&apos;.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A0</source>
+        <translation type="unfinished">A0</translation>
+    </message>
+    <message>
+        <source>A1</source>
+        <translation type="unfinished">A1</translation>
+    </message>
+    <message>
+        <source>A2</source>
+        <translation type="unfinished">A2</translation>
+    </message>
+    <message>
+        <source>A3</source>
+        <translation type="unfinished">A3</translation>
+    </message>
+    <message>
+        <source>A4</source>
+        <translation type="unfinished">A4</translation>
+    </message>
+    <message>
+        <source>A5</source>
+        <translation type="unfinished">A5</translation>
+    </message>
+    <message>
+        <source>A6</source>
+        <translation type="unfinished">A6</translation>
+    </message>
+    <message>
+        <source>A7</source>
+        <translation type="unfinished">A7</translation>
+    </message>
+    <message>
+        <source>A8</source>
+        <translation type="unfinished">A8</translation>
+    </message>
+    <message>
+        <source>A9</source>
+        <translation type="unfinished">A9</translation>
+    </message>
+    <message>
+        <source>A10</source>
+        <translation type="unfinished">A10</translation>
+    </message>
+    <message>
+        <source>B0</source>
+        <translation type="unfinished">B0</translation>
+    </message>
+    <message>
+        <source>B1</source>
+        <translation type="unfinished">B1</translation>
+    </message>
+    <message>
+        <source>B2</source>
+        <translation type="unfinished">B2</translation>
+    </message>
+    <message>
+        <source>B3</source>
+        <translation type="unfinished">B3</translation>
+    </message>
+    <message>
+        <source>B4</source>
+        <translation type="unfinished">B4</translation>
+    </message>
+    <message>
+        <source>B5</source>
+        <translation type="unfinished">B5</translation>
+    </message>
+    <message>
+        <source>B6</source>
+        <translation type="unfinished">B6</translation>
+    </message>
+    <message>
+        <source>B7</source>
+        <translation type="unfinished">B7</translation>
+    </message>
+    <message>
+        <source>B8</source>
+        <translation type="unfinished">B8</translation>
+    </message>
+    <message>
+        <source>B9</source>
+        <translation type="unfinished">B9</translation>
+    </message>
+    <message>
+        <source>B10</source>
+        <translation type="unfinished">B10</translation>
+    </message>
+    <message>
+        <source>Executive (7.5 x 10 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Executive (7.25 x 10.5 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Folio (8.27 x 13 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Legal</source>
+        <translation type="unfinished">Legal</translation>
+    </message>
+    <message>
+        <source>Letter / ANSI A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tabloid / ANSI B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ledger / ANSI B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation type="unfinished">Vlastné</translation>
+    </message>
+    <message>
+        <source>A3 Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A4 Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A4 Plus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A4 Small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A5 Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B5 Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B8</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JIS B10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ANSI C</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ANSI D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ANSI E</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Legal Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter Plus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter Small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tabloid Extra</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect C</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Architect E</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Note</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quarto</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Statement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Super A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Super B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Postcard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Double Postcard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PRC 16K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PRC 32K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PRC 32K Big</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fan-fold US (14.875 x 11 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fan-fold German (8.5 x 12 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fan-fold German Legal (8.5 x 13 in)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope B4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope B5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope B6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C65</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope C7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope DL</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 11</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 12</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope US 14</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Monarch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Personal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Chou 3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Chou 4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Invite</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Italian</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Kaku 2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope Kaku 3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 8</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope PRC 10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Envelope You 4</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QPlatformTheme</name>
+    <message>
+        <source>OK</source>
+        <translation type="unfinished">OK</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation type="unfinished">Uložiť</translation>
+    </message>
+    <message>
+        <source>Save All</source>
+        <translation type="unfinished">Uložiť všetko</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation type="unfinished">Otvoriť</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation type="unfinished">Án&amp;o</translation>
+    </message>
+    <message>
+        <source>Yes to &amp;All</source>
+        <translation type="unfinished">Áno pre &amp;všetko</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation type="unfinished">&amp;Nie</translation>
+    </message>
+    <message>
+        <source>N&amp;o to All</source>
+        <translation type="unfinished">Nie pre všetk&amp;o</translation>
+    </message>
+    <message>
+        <source>Abort</source>
+        <translation type="unfinished">Prerušiť</translation>
+    </message>
+    <message>
+        <source>Retry</source>
+        <translation type="unfinished">Skúsiť znova</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <translation type="unfinished">Ignorovať</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Zavrieť</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation type="unfinished">Zahodiť</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation type="unfinished">Pomocník</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation type="unfinished">Použiť</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="unfinished">Nastaviť pôvodné</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation type="unfinished">Obnoviť štandardné</translation>
     </message>
 </context>
 <context>
@@ -2885,11 +4606,104 @@ Prosím zvoľte iné meno súboru.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Print to File (Postscript)</source>
+        <source>Local file</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Local file</source>
+        <source>Print</source>
+        <translation>Tlačiť</translation>
+    </message>
+    <message>
+        <source>Write PDF file</source>
+        <translation>Zapísať do PDF</translation>
+    </message>
+    <message>
+        <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
+        <translation>Hodnota &apos;Od&apos; nemôže byť väčšia ako hodnota &apos;Do&apos;.</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>Left to Right, Top to Bottom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left to Right, Bottom to Top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right to Left, Bottom to Top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right to Left, Top to Bottom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom to Top, Left to Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom to Top, Right to Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top to Bottom, Left to Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top to Bottom, Right to Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 (1x1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>2 (2x1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4 (2x2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>6 (2x3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>9 (3x3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>16 (4x4)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Odd Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Even Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Options &apos;Pages Per Sheet&apos; and &apos;Page Set&apos; cannot be used together.
+Please turn one of those options off.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print to File (Postscript)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2970,6 +4784,29 @@ Prosím zvoľte iné meno súboru.</translation>
     <message>
         <source>Close</source>
         <translation type="unfinished">Zavrieť</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Export to PDF</source>
+        <translation>Export do PDF</translation>
+    </message>
+    <message>
+        <source>Export to PostScript</source>
+        <translation type="vanished">Export do PostScript</translation>
+    </message>
+</context>
+<context>
+    <name>QPrintPropertiesDialog</name>
+    <message>
+        <source>Printer Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Job Options</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3065,6 +4902,14 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>Short side</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Current Page</source>
+        <translation>Aktuálna stránka</translation>
+    </message>
+    <message>
+        <source>Page Set:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QPrintWidget</name>
@@ -3106,6 +4951,49 @@ Prosím zvoľte iné meno súboru.</translation>
     </message>
 </context>
 <context>
+    <name>QProcess</name>
+    <message>
+        <source>Error reading from process</source>
+        <translation>Chyba pri čítaní z procesu</translation>
+    </message>
+    <message>
+        <source>Error writing to process</source>
+        <translation>Chyba pri zápise do procesu</translation>
+    </message>
+    <message>
+        <source>Process crashed</source>
+        <translation>Proces spadol</translation>
+    </message>
+    <message>
+        <source>No program defined</source>
+        <translation>Žiadny program nie je definovaný</translation>
+    </message>
+    <message>
+        <source>Could not open input redirection for reading</source>
+        <translation>Vstupné presmerovanie sa nepodarilo otvoriť na čítanie</translation>
+    </message>
+    <message>
+        <source>Could not open output redirection for writing</source>
+        <translation>Výstupné presmerovanie sa nepodarilo otvoriť pre zápis</translation>
+    </message>
+    <message>
+        <source>Resource error (fork failure): %1</source>
+        <translation>Chyba zdroja (fork failure): %1</translation>
+    </message>
+    <message>
+        <source>Process operation timed out</source>
+        <translation>Časový limit pre operáciu vypršal</translation>
+    </message>
+    <message>
+        <source>Process failed to start: %1</source>
+        <translation>Proces sa nepodarilo spustiť: %1</translation>
+    </message>
+    <message>
+        <source>Process failed to start</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>QProgressDialog</name>
     <message>
         <source>Cancel</source>
@@ -3117,6 +5005,28 @@ Prosím zvoľte iné meno súboru.</translation>
     <message>
         <source>Open</source>
         <translation>Otvoriť</translation>
+    </message>
+</context>
+<context>
+    <name>QQnxFileDialogHelper</name>
+    <message>
+        <source>CANCEL</source>
+        <translation type="vanished">ZRUŠIŤ</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation type="vanished">OK</translation>
+    </message>
+    <message>
+        <source>All files (*.*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QQnxFilePicker</name>
+    <message>
+        <source>Pick a file</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3164,6 +5074,353 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>met internal limit</source>
         <translation>dosiahnutý interný limit</translation>
     </message>
+    <message>
+        <source>lookbehinds not supported, see QTBUG-2371</source>
+        <translation>spätné vyhľadávanie (lookbehind) nie je podporované, pozri QTBUG-2371 </translation>
+    </message>
+    <message>
+        <source>invalid interval</source>
+        <translation>neplatný interval</translation>
+    </message>
+    <message>
+        <source>invalid category</source>
+        <translation>neplatná kategória</translation>
+    </message>
+</context>
+<context>
+    <name>QRegularExpression</name>
+    <message>
+        <source>no error</source>
+        <translation>žiadna chyba</translation>
+    </message>
+    <message>
+        <source>\ at end of pattern</source>
+        <translation>\ na konci vzorky</translation>
+    </message>
+    <message>
+        <source>\c at end of pattern</source>
+        <translation>\c na konci vzorky</translation>
+    </message>
+    <message>
+        <source>unrecognized character follows \</source>
+        <translation>nerozpoznaný znak nasleduje \</translation>
+    </message>
+    <message>
+        <source>numbers out of order in {} quantifier</source>
+        <translation>neplatné čísla v {} kvantifikátore</translation>
+    </message>
+    <message>
+        <source>number too big in {} quantifier</source>
+        <translation>číslo príliš veľké v {} kvantifikátore</translation>
+    </message>
+    <message>
+        <source>missing terminating ] for character class</source>
+        <translation>chýbajúca koncová ] pre triedu znakov</translation>
+    </message>
+    <message>
+        <source>invalid escape sequence in character class</source>
+        <translation>neplatná escape sekvencia v triede znakov</translation>
+    </message>
+    <message>
+        <source>range out of order in character class</source>
+        <translation>neplatný rozsah v triede znakov</translation>
+    </message>
+    <message>
+        <source>nothing to repeat</source>
+        <translation>nie je čo opakovať</translation>
+    </message>
+    <message>
+        <source>internal error: unexpected repeat</source>
+        <translation>interná chyba: neočakávané opakovanie</translation>
+    </message>
+    <message>
+        <source>unrecognized character after (? or (?-</source>
+        <translation>nerozpoznaný znak po (? alebo (?-</translation>
+    </message>
+    <message>
+        <source>POSIX named classes are supported only within a class</source>
+        <translation>POSIX menové triedy sú podporované iba v triedach</translation>
+    </message>
+    <message>
+        <source>missing )</source>
+        <translation>chýbajúca )</translation>
+    </message>
+    <message>
+        <source>reference to non-existent subpattern</source>
+        <translation>odkaz na neexistujúcu podvzorku</translation>
+    </message>
+    <message>
+        <source>erroffset passed as NULL</source>
+        <translation>erroffset odovzdaný ako NULL</translation>
+    </message>
+    <message>
+        <source>unknown option bit(s) set</source>
+        <translation>neznáma voľba nastavenie bit(ov)</translation>
+    </message>
+    <message>
+        <source>missing ) after comment</source>
+        <translation>chýbajúca ) po komentári</translation>
+    </message>
+    <message>
+        <source>regular expression is too large</source>
+        <translation>regulárny výraz je príliš veľký</translation>
+    </message>
+    <message>
+        <source>failed to get memory</source>
+        <translation>nepodarilo sa získať pamäť</translation>
+    </message>
+    <message>
+        <source>unmatched parentheses</source>
+        <translation>neuzavreté zátvorky</translation>
+    </message>
+    <message>
+        <source>internal error: code overflow</source>
+        <translation>interná chyba: kód pretečenia</translation>
+    </message>
+    <message>
+        <source>unrecognized character after (?&lt;</source>
+        <translation>nerozpoznaný znak po (?&lt;</translation>
+    </message>
+    <message>
+        <source>lookbehind assertion is not fixed length</source>
+        <translation>výrok spätného vyhľadávania (lookbehind assertion) nemá fixnú dĺžku</translation>
+    </message>
+    <message>
+        <source>malformed number or name after (?(</source>
+        <translation>chybné číslo alebo názov po (?(</translation>
+    </message>
+    <message>
+        <source>conditional group contains more than two branches</source>
+        <translation>podmienená skupina obsahuje viac ako dve vetvy</translation>
+    </message>
+    <message>
+        <source>assertion expected after (?(</source>
+        <translation>očakávaný výrok po (?(</translation>
+    </message>
+    <message>
+        <source>(?R or (?[+-]digits must be followed by )</source>
+        <translation>Za (?R alebo (?[+-]číslice musí nasledovať )</translation>
+    </message>
+    <message>
+        <source>unknown POSIX class name</source>
+        <translation>neznámy názov POSIX triedy</translation>
+    </message>
+    <message>
+        <source>POSIX collating elements are not supported</source>
+        <translation>POSIX zoraďovanie elementov nie je podporované</translation>
+    </message>
+    <message>
+        <source>this version of PCRE is not compiled with PCRE_UTF8 support</source>
+        <translation>táto verzia PCRE nie je skompilovaná s podporou PCRE_UTF8</translation>
+    </message>
+    <message>
+        <source>character value in \x{...} sequence is too large</source>
+        <translation>znaková hodnota v sekvencií \x{…} je príliš veľká</translation>
+    </message>
+    <message>
+        <source>invalid condition (?(0)</source>
+        <translation>neplatná podmienka (?(0)</translation>
+    </message>
+    <message>
+        <source>\C not allowed in lookbehind assertion</source>
+        <translation>\C nie je povolené vo výroku spätného vyhľadávania (lookbehind assertion)</translation>
+    </message>
+    <message>
+        <source>PCRE does not support \L, \l, \N{name}, \U, or \u</source>
+        <translation>PCRE nepodporuje \L, \l, \N{názov}, \U, alebo \u</translation>
+    </message>
+    <message>
+        <source>number after (?C is &gt; 255</source>
+        <translation>číslo po (?C je &gt; 255</translation>
+    </message>
+    <message>
+        <source>closing ) for (?C expected</source>
+        <translation>očakávaná je uzatváracia ) pre  (?C</translation>
+    </message>
+    <message>
+        <source>recursive call could loop indefinitely</source>
+        <translation>rekurzívne volanie môže viesť k nekonečnému cyklu</translation>
+    </message>
+    <message>
+        <source>unrecognized character after (?P</source>
+        <translation>nerozpoznaný znak po (?P</translation>
+    </message>
+    <message>
+        <source>syntax error in subpattern name (missing terminator)</source>
+        <translation>syntaktická chyba v názve podvzorky (chýba koncový znak)</translation>
+    </message>
+    <message>
+        <source>two named subpatterns have the same name</source>
+        <translation>dva pomenované podvzorky majú rovnaké názvy</translation>
+    </message>
+    <message>
+        <source>invalid UTF-8 string</source>
+        <translation>neplatný UTF-8 reťazec</translation>
+    </message>
+    <message>
+        <source>support for \P, \p, and \X has not been compiled</source>
+        <translation>podpora pre  \P, \p, a \X nebola zakompilovaná</translation>
+    </message>
+    <message>
+        <source>malformed \P or \p sequence</source>
+        <translation>chybná sekvencia \P alebo \p</translation>
+    </message>
+    <message>
+        <source>unknown property name after \P or \p</source>
+        <translation>neznámy názov vlastnosti po \P alebo \p</translation>
+    </message>
+    <message>
+        <source>subpattern name is too long (maximum 32 characters)</source>
+        <translation>názov podvzorky je príliš dlhý (maximum je 32 znakov)</translation>
+    </message>
+    <message>
+        <source>too many named subpatterns (maximum 10000)</source>
+        <translation>Príliš veľa pomenovaných podvzoriek (maximum je 10000)</translation>
+    </message>
+    <message>
+        <source>octal value is greater than \377 (not in UTF-8 mode)</source>
+        <translation>oktálna hodnota je väčšia než \377 (nie je v UTF-8 režime)</translation>
+    </message>
+    <message>
+        <source>internal error: overran compiling workspace</source>
+        <translation>interná chyba: pretiekol kompilačný pracovný priestor</translation>
+    </message>
+    <message>
+        <source>internal error: previously-checked referenced subpattern not found</source>
+        <translation>vnútorná chyba: skôr preskúmaná odkazovaná podvzorka nebola nájdená</translation>
+    </message>
+    <message>
+        <source>DEFINE group contains more than one branch</source>
+        <translation>DEFINE skupina obsahuje viac ako jednu vetvu</translation>
+    </message>
+    <message>
+        <source>repeating a DEFINE group is not allowed</source>
+        <translation>opakovanie DEFINE skupiny nie je povolené</translation>
+    </message>
+    <message>
+        <source>inconsistent NEWLINE options</source>
+        <translation>nekonzistentné NEWLINE možnosti</translation>
+    </message>
+    <message>
+        <source>\g is not followed by a braced, angle-bracketed, or quoted name/number or by a plain number</source>
+        <translation>za \g nie je názov/číslo v zátvorkách, lomených zátvorkách alebo úvodzovkách, alebo obyčajné číslo</translation>
+    </message>
+    <message>
+        <source>a numbered reference must not be zero</source>
+        <translation>číslovaný odkaz nemôže byť nula</translation>
+    </message>
+    <message>
+        <source>an argument is not allowed for (*ACCEPT), (*FAIL), or (*COMMIT)</source>
+        <translation>argument nie je povolený pre (*ACCEPT), (*FAIL), alebo (*COMMIT)</translation>
+    </message>
+    <message>
+        <source>(*VERB) not recognized</source>
+        <translation>(*VERB) nebol rozpoznaný</translation>
+    </message>
+    <message>
+        <source>number is too big</source>
+        <translation>číslo je príliš veľké</translation>
+    </message>
+    <message>
+        <source>subpattern name expected</source>
+        <translation>bol očakávaný názov podvzorky</translation>
+    </message>
+    <message>
+        <source>digit expected after (?+</source>
+        <translation>po (?+ bola očakávaná číslica</translation>
+    </message>
+    <message>
+        <source>] is an invalid data character in JavaScript compatibility mode</source>
+        <translation>] nie je platný dátový znak v režime JavaScript kompatibility</translation>
+    </message>
+    <message>
+        <source>different names for subpatterns of the same number are not allowed</source>
+        <translation>rozličné názvy pre podvzorky rovnakého čísla nie sú povolené</translation>
+    </message>
+    <message>
+        <source>(*MARK) must have an argument</source>
+        <translation>(*MARK) musí mať argument</translation>
+    </message>
+    <message>
+        <source>this version of PCRE is not compiled with PCRE_UCP support</source>
+        <translation>táto verzia PCRE nie je skompilovaná s podporou PCRE_UCP</translation>
+    </message>
+    <message>
+        <source>\c must be followed by an ASCII character</source>
+        <translation>za \c musí nasledovať ASCII znak</translation>
+    </message>
+    <message>
+        <source>\k is not followed by a braced, angle-bracketed, or quoted name</source>
+        <translation>za \k nie je názov v zátvorkách, lomených zátvorkách alebo úvodzovkách</translation>
+    </message>
+    <message>
+        <source>internal error: unknown opcode in find_fixedlength()</source>
+        <translation>interná chyba: neznámy opcode v find_fixedlength()</translation>
+    </message>
+    <message>
+        <source>\N is not supported in a class</source>
+        <translation>\N nie je podporovaný v triede</translation>
+    </message>
+    <message>
+        <source>too many forward references</source>
+        <translation>príliš veľa odkazov vpred</translation>
+    </message>
+    <message>
+        <source>disallowed Unicode code point (&gt;= 0xd800 &amp;&amp; &lt;= 0xdfff)</source>
+        <translation>neprípustný Unicode code point (&gt;= 0xd800 &amp;&amp; &lt;= 0xdfff)</translation>
+    </message>
+    <message>
+        <source>invalid UTF-16 string</source>
+        <translation>neplatný UTF-16 reťazec</translation>
+    </message>
+    <message>
+        <source>name is too long in (*MARK), (*PRUNE), (*SKIP), or (*THEN)</source>
+        <translation>názov je príliš dlhý v(*MARK), (*PRUNE), (*SKIP), alebo (*THEN)</translation>
+    </message>
+    <message>
+        <source>character value in \u.... sequence is too large</source>
+        <translation>znaková hodnota v sekvencií \u… je príliš veľká</translation>
+    </message>
+    <message>
+        <source>invalid UTF-32 string</source>
+        <translation type="unfinished">neplatný UTF-16 reťazec {32 ?}</translation>
+    </message>
+    <message>
+        <source>setting UTF is disabled by the application</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>non-hex character in \x{} (closing brace missing?)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>non-octal character in \o{} (closing brace missing?)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>missing opening brace after \o</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>parentheses are too deeply nested</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>invalid range in character class</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>group name must start with a non-digit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>parentheses are too deeply nested (stack check)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>digits missing in \x{} or \o{}</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QSQLite2Driver</name>
@@ -3182,6 +5439,14 @@ Prosím zvoľte iné meno súboru.</translation>
     <message>
         <source>Unable to rollback Transaction</source>
         <translation>Transakcia sa nedá vrátiť späť</translation>
+    </message>
+    <message>
+        <source>Error opening database</source>
+        <translation>Chyba pri otváraní databázy</translation>
+    </message>
+    <message>
+        <source>Unable to rollback transaction</source>
+        <translation>Nepodarilo sa odvolať transakciu</translation>
     </message>
 </context>
 <context>
@@ -3242,6 +5507,25 @@ Prosím zvoľte iné meno súboru.</translation>
     </message>
     <message>
         <source>No query</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to execute multiple statements at a time</source>
+        <translation>Nepodarilo sa naraz vykonať viac príkazov</translation>
+    </message>
+</context>
+<context>
+    <name>QSaveFile</name>
+    <message>
+        <source>Existing file %1 is not writable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filename refers to a directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Writing canceled by application</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3339,10 +5623,6 @@ Prosím zvoľte iné meno súboru.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1: doesn&apos;t exists</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1: out of resources</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3352,10 +5632,6 @@ Prosím zvoľte iné meno súboru.</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1: unix key file doesn&apos;t exists</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3372,6 +5648,38 @@ Prosím zvoľte iné meno súboru.</translation>
     </message>
     <message>
         <source>%1: not attached</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: doesn&apos;t exist</source>
+        <translation>%1: neexistuje</translation>
+    </message>
+    <message>
+        <source>%1: UNIX key file doesn&apos;t exist</source>
+        <translation>%1: Súbor s unixovým kľúčom neexistuje</translation>
+    </message>
+    <message>
+        <source>%1: invalid size</source>
+        <translation>%1: neplatná veľkosť</translation>
+    </message>
+    <message>
+        <source>%1: key error</source>
+        <translation>%1: chyba kľúča</translation>
+    </message>
+    <message>
+        <source>%1: size query failed</source>
+        <translation>%1: dopyt po veľkosti zlyhal</translation>
+    </message>
+    <message>
+        <source>%1: bad name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: doesn&apos;t exists</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unix key file doesn&apos;t exists</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3745,6 +6053,637 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>Home Page</source>
         <translation>Domovská stránka</translation>
     </message>
+    <message>
+        <source>Media Pause</source>
+        <extracomment>Media player pause button</extracomment>
+        <translation>Pozastaviť média</translation>
+    </message>
+    <message>
+        <source>Toggle Media Play/Pause</source>
+        <extracomment>Media player button to toggle between playing and paused</extracomment>
+        <translation>Prepnúť prehrávať/pozastaviť</translation>
+    </message>
+    <message>
+        <source>Monitor Brightness Up</source>
+        <translation>Zvýšiť jas obrazovky</translation>
+    </message>
+    <message>
+        <source>Monitor Brightness Down</source>
+        <translation>Stlmiť jas obrazovky</translation>
+    </message>
+    <message>
+        <source>Keyboard Light On/Off</source>
+        <translation>Zapnúť/vypnúť podsvietenie klávesnice</translation>
+    </message>
+    <message>
+        <source>Keyboard Brightness Up</source>
+        <translation>Zvýšiť jas klávesnice</translation>
+    </message>
+    <message>
+        <source>Keyboard Brightness Down</source>
+        <translation>Stlmiť jas klávesnice</translation>
+    </message>
+    <message>
+        <source>Power Off</source>
+        <translation>Vypnúť</translation>
+    </message>
+    <message>
+        <source>Wake Up</source>
+        <translation>Prebudiť</translation>
+    </message>
+    <message>
+        <source>Eject</source>
+        <translation>Vysunúť</translation>
+    </message>
+    <message>
+        <source>Screensaver</source>
+        <translation>Šetrič obrazovky</translation>
+    </message>
+    <message>
+        <source>WWW</source>
+        <translation>WWW</translation>
+    </message>
+    <message>
+        <source>Sleep</source>
+        <translation>Uspať</translation>
+    </message>
+    <message>
+        <source>LightBulb</source>
+        <translation>Žiarovka</translation>
+    </message>
+    <message>
+        <source>Shop</source>
+        <translation>Obchod</translation>
+    </message>
+    <message>
+        <source>History</source>
+        <translation>História</translation>
+    </message>
+    <message>
+        <source>Add Favorite</source>
+        <translation>Pridať k obľúbeným</translation>
+    </message>
+    <message>
+        <source>Hot Links</source>
+        <translation>Doporučené odkazy</translation>
+    </message>
+    <message>
+        <source>Adjust Brightness</source>
+        <translation>Upraviť jas</translation>
+    </message>
+    <message>
+        <source>Finance</source>
+        <translation>Financie</translation>
+    </message>
+    <message>
+        <source>Community</source>
+        <translation>Komunita</translation>
+    </message>
+    <message>
+        <source>Audio Rewind</source>
+        <translation type="vanished">Pretočiť audio</translation>
+    </message>
+    <message>
+        <source>Back Forward</source>
+        <translation>Späť dopredu</translation>
+    </message>
+    <message>
+        <source>Application Left</source>
+        <translation>Aplikácia vľavo</translation>
+    </message>
+    <message>
+        <source>Application Right</source>
+        <translation>Aplikácia vpravo</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>Kniha</translation>
+    </message>
+    <message>
+        <source>CD</source>
+        <translation>CD</translation>
+    </message>
+    <message>
+        <source>Calculator</source>
+        <translation>Kalkulačka</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Vyčistiť</translation>
+    </message>
+    <message>
+        <source>Clear Grab</source>
+        <translation>Zmazať uchopenie</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Zavrieť</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>Kopírovať</translation>
+    </message>
+    <message>
+        <source>Cut</source>
+        <translation>Vystrihnúť</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <translation>Obrazovka</translation>
+    </message>
+    <message>
+        <source>DOS</source>
+        <translation>DOS</translation>
+    </message>
+    <message>
+        <source>Documents</source>
+        <translation>Dokumenty</translation>
+    </message>
+    <message>
+        <source>Spreadsheet</source>
+        <translation>Tabuľkový procesor</translation>
+    </message>
+    <message>
+        <source>Browser</source>
+        <translation>Prehliadač</translation>
+    </message>
+    <message>
+        <source>Game</source>
+        <translation>Hra</translation>
+    </message>
+    <message>
+        <source>Go</source>
+        <translation>Ísť</translation>
+    </message>
+    <message>
+        <source>iTouch</source>
+        <translation>iTouch</translation>
+    </message>
+    <message>
+        <source>Logoff</source>
+        <translation>Odhlásiť</translation>
+    </message>
+    <message>
+        <source>Market</source>
+        <translation>Obchod</translation>
+    </message>
+    <message>
+        <source>Meeting</source>
+        <translation>Stretnutie</translation>
+    </message>
+    <message>
+        <source>Keyboard Menu</source>
+        <translation>Menu klávesnice</translation>
+    </message>
+    <message>
+        <source>Menu PB</source>
+        <translation>Menu PB</translation>
+    </message>
+    <message>
+        <source>My Sites</source>
+        <translation>Moje miesta</translation>
+    </message>
+    <message>
+        <source>News</source>
+        <translation>Správy</translation>
+    </message>
+    <message>
+        <source>Home Office</source>
+        <translation>Domáca kancelária</translation>
+    </message>
+    <message>
+        <source>Option</source>
+        <translation>Voľba</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>Vložiť</translation>
+    </message>
+    <message>
+        <source>Phone</source>
+        <translation>Telefón</translation>
+    </message>
+    <message>
+        <source>Reply</source>
+        <translation>Odpovedať</translation>
+    </message>
+    <message>
+        <source>Reload</source>
+        <translation>Znovu načítať</translation>
+    </message>
+    <message>
+        <source>Rotate Windows</source>
+        <translation>Otáčať okná</translation>
+    </message>
+    <message>
+        <source>Rotation PB</source>
+        <translation>Otáčanie PB</translation>
+    </message>
+    <message>
+        <source>Rotation KB</source>
+        <translation>Otáčanie KB</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation>Uložiť</translation>
+    </message>
+    <message>
+        <source>Send</source>
+        <translation>Poslať</translation>
+    </message>
+    <message>
+        <source>Spellchecker</source>
+        <translation>Kontrola preklepov</translation>
+    </message>
+    <message>
+        <source>Split Screen</source>
+        <translation>Rozdeliť obrazovku</translation>
+    </message>
+    <message>
+        <source>Support</source>
+        <translation>Podpora</translation>
+    </message>
+    <message>
+        <source>Task Panel</source>
+        <translation>Panel úloh</translation>
+    </message>
+    <message>
+        <source>Terminal</source>
+        <translation>Terminál</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Nástroje</translation>
+    </message>
+    <message>
+        <source>Travel</source>
+        <translation>Cestovanie</translation>
+    </message>
+    <message>
+        <source>Video</source>
+        <translation>Video</translation>
+    </message>
+    <message>
+        <source>Word Processor</source>
+        <translation>Textový procesor</translation>
+    </message>
+    <message>
+        <source>XFer</source>
+        <translation>XFer</translation>
+    </message>
+    <message>
+        <source>Zoom In</source>
+        <translation>Priblížiť</translation>
+    </message>
+    <message>
+        <source>Zoom Out</source>
+        <translation>Oddialiť</translation>
+    </message>
+    <message>
+        <source>Away</source>
+        <translation>Preč</translation>
+    </message>
+    <message>
+        <source>Messenger</source>
+        <translation>Posol</translation>
+    </message>
+    <message>
+        <source>WebCam</source>
+        <translation>Webkamera</translation>
+    </message>
+    <message>
+        <source>Mail Forward</source>
+        <translation>Preposlať ďalej</translation>
+    </message>
+    <message>
+        <source>Pictures</source>
+        <translation>Obrázky</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>Hudba</translation>
+    </message>
+    <message>
+        <source>Battery</source>
+        <translation>Batéria</translation>
+    </message>
+    <message>
+        <source>Bluetooth</source>
+        <translation>Bluetooth</translation>
+    </message>
+    <message>
+        <source>Wireless</source>
+        <translation>Bezdrôtové</translation>
+    </message>
+    <message>
+        <source>Ultra Wide Band</source>
+        <translation>Ultra široké pásmo</translation>
+    </message>
+    <message>
+        <source>Audio Forward</source>
+        <translation type="vanished">Audio dopredu</translation>
+    </message>
+    <message>
+        <source>Audio Repeat</source>
+        <translation>Audio opakovať</translation>
+    </message>
+    <message>
+        <source>Audio Random Play</source>
+        <translation>Audio náhodne hrať</translation>
+    </message>
+    <message>
+        <source>Subtitle</source>
+        <translation>Titulky</translation>
+    </message>
+    <message>
+        <source>Audio Cycle Track</source>
+        <translation>Audio opakovať skladbu</translation>
+    </message>
+    <message>
+        <source>Time</source>
+        <translation>Čas</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Zobraziť</translation>
+    </message>
+    <message>
+        <source>Top Menu</source>
+        <translation>Hlavné menu</translation>
+    </message>
+    <message>
+        <source>Suspend</source>
+        <translation>Uspať</translation>
+    </message>
+    <message>
+        <source>Hibernate</source>
+        <translation>Hibernovať</translation>
+    </message>
+    <message>
+        <source>Toggle Call/Hangup</source>
+        <extracomment>Button that will hang up if we&apos;re in call, or make a call if we&apos;re not.</extracomment>
+        <translation>Prepnúť volať/zvesiť</translation>
+    </message>
+    <message>
+        <source>Voice Dial</source>
+        <extracomment>Button to trigger voice dialing</extracomment>
+        <translation>Hlasové vytáčanie</translation>
+    </message>
+    <message>
+        <source>Last Number Redial</source>
+        <extracomment>Button to redial the last number called</extracomment>
+        <translation>Opakovať vytočenie posledného čísla</translation>
+    </message>
+    <message>
+        <source>Camera Shutter</source>
+        <extracomment>Button to trigger the camera shutter (take a picture)</extracomment>
+        <translation>Uzávierka kamery</translation>
+    </message>
+    <message>
+        <source>Camera Focus</source>
+        <extracomment>Button to focus the camera</extracomment>
+        <translation>Zaostrenie kamery</translation>
+    </message>
+    <message>
+        <source>Kanji</source>
+        <translation>Kandži</translation>
+    </message>
+    <message>
+        <source>Muhenkan</source>
+        <translation>Muhenkan</translation>
+    </message>
+    <message>
+        <source>Henkan</source>
+        <translation>Henkan</translation>
+    </message>
+    <message>
+        <source>Romaji</source>
+        <translation>Romadži</translation>
+    </message>
+    <message>
+        <source>Hiragana</source>
+        <translation>Hiragana</translation>
+    </message>
+    <message>
+        <source>Katakana</source>
+        <translation>Katakana</translation>
+    </message>
+    <message>
+        <source>Hiragana Katakana</source>
+        <translation>Hiragana Katakana</translation>
+    </message>
+    <message>
+        <source>Zenkaku</source>
+        <translation>Zenkaku</translation>
+    </message>
+    <message>
+        <source>Hankaku</source>
+        <translation>Hankaku</translation>
+    </message>
+    <message>
+        <source>Zenkaku Hankaku</source>
+        <translation>Zenkaku Hankaku</translation>
+    </message>
+    <message>
+        <source>Touroku</source>
+        <translation>Touroku</translation>
+    </message>
+    <message>
+        <source>Massyo</source>
+        <translation>Massyo</translation>
+    </message>
+    <message>
+        <source>Kana Lock</source>
+        <translation>Kana zámok</translation>
+    </message>
+    <message>
+        <source>Kana Shift</source>
+        <translation>Kana posun</translation>
+    </message>
+    <message>
+        <source>Eisu Shift</source>
+        <translation>Eisu posun</translation>
+    </message>
+    <message>
+        <source>Eisu toggle</source>
+        <translation>Eisu prepínač</translation>
+    </message>
+    <message>
+        <source>Code input</source>
+        <translation>Vstup pre kód</translation>
+    </message>
+    <message>
+        <source>Multiple Candidate</source>
+        <translation>Viacero kandidátov</translation>
+    </message>
+    <message>
+        <source>Previous Candidate</source>
+        <translation>Predchádzajúci kandidát</translation>
+    </message>
+    <message>
+        <source>Hangul</source>
+        <translation>Hangul</translation>
+    </message>
+    <message>
+        <source>Hangul Start</source>
+        <translation>Hangul začiatok</translation>
+    </message>
+    <message>
+        <source>Hangul End</source>
+        <translation>Hangul koniec</translation>
+    </message>
+    <message>
+        <source>Hangul Hanja</source>
+        <translation>Hangul Hanja </translation>
+    </message>
+    <message>
+        <source>Hangul Jamo</source>
+        <translation>Hangul Jamo</translation>
+    </message>
+    <message>
+        <source>Hangul Romaja</source>
+        <translation>Hangul Romaja</translation>
+    </message>
+    <message>
+        <source>Hangul Jeonja</source>
+        <translation>Hangul Jeonja</translation>
+    </message>
+    <message>
+        <source>Hangul Banja</source>
+        <translation>Hangul Banja</translation>
+    </message>
+    <message>
+        <source>Hangul PreHanja</source>
+        <translation>Hangul PreHanja</translation>
+    </message>
+    <message>
+        <source>Hangul PostHanja</source>
+        <translation>Hangul PostHanja</translation>
+    </message>
+    <message>
+        <source>Hangul Special</source>
+        <translation>Hangul špeciálny</translation>
+    </message>
+    <message>
+        <source>Media Rewind</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Media Fast Forward</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Power Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Microphone Mute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channel Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channel Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Microphone Volume Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Microphone Volume Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation type="unfinished">Otvoriť</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Printer</source>
+        <translation type="unfinished">Tlačiareň</translation>
+    </message>
+    <message>
+        <source>Execute</source>
+        <translation type="unfinished">Vykonať</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Touchpad Toggle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Touchpad On</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Touchpad Off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Num</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QSlider</name>
@@ -3778,6 +6717,418 @@ Prosím zvoľte iné meno súboru.</translation>
     <message>
         <source>Network operation timed out</source>
         <translation type="unfinished">Vypršal čas pre sieťovú operáciu</translation>
+    </message>
+    <message>
+        <source>Connection to proxy refused</source>
+        <translation>Spojenie s proxy serverom bolo odmietnuté</translation>
+    </message>
+    <message>
+        <source>Connection to proxy closed prematurely</source>
+        <translation>Spojenie s proxy serverom bolo predčasne uzavreté</translation>
+    </message>
+    <message>
+        <source>Proxy host not found</source>
+        <translation>Proxy server sa nepodarilo nájsť</translation>
+    </message>
+    <message>
+        <source>Connection to proxy timed out</source>
+        <translation>Časový limit pre spojenie proxy serverom bol prekročený</translation>
+    </message>
+    <message>
+        <source>Proxy authentication failed</source>
+        <translation>Autentifikácia na proxy serveri zlyhala</translation>
+    </message>
+    <message>
+        <source>Proxy authentication failed: %1</source>
+        <translation>Autentifikácia na proxy serveri zlyhala: %1</translation>
+    </message>
+    <message>
+        <source>SOCKS version 5 protocol error</source>
+        <translation>Chyba protokolu (SOCKS verzia 5)</translation>
+    </message>
+    <message>
+        <source>General SOCKSv5 server failure</source>
+        <translation>Všeobecná chyba pri spojení s SOCKSv5 serverom</translation>
+    </message>
+    <message>
+        <source>Connection not allowed by SOCKSv5 server</source>
+        <translation>Spojenie nebolo povolené SOCKSv5 serverom</translation>
+    </message>
+    <message>
+        <source>TTL expired</source>
+        <translation>TTL vypršané</translation>
+    </message>
+    <message>
+        <source>SOCKSv5 command not supported</source>
+        <translation>Nepodporovaný SOCKSv5 príkaz</translation>
+    </message>
+    <message>
+        <source>Address type not supported</source>
+        <translation>Nepodporovaný typ adresy</translation>
+    </message>
+    <message>
+        <source>Unknown SOCKSv5 proxy error code 0x%1</source>
+        <translation>Neznámy kód chyby od SOCKSv5 proxy serveru: 0x%1</translation>
+    </message>
+</context>
+<context>
+    <name>QSpiAccessibleBridge</name>
+    <message>
+        <source>invalid role</source>
+        <extracomment>Role of an accessible object - the object is in an invalid state or could not be constructed</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>title bar</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>menu bar</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>scroll bar</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>grip</source>
+        <extracomment>Role of an accessible object - the grip is usually used for resizing another object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>sound</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>cursor</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>text caret</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>alert message</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>frame</source>
+        <extracomment>Role of an accessible object: a window with frame and title
+----------
+Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>filler</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>popup menu</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>menu item</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>tool tip</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>application</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>document</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>panel</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>chart</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>dialog</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>separator</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>tool bar</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>status bar</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>table</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>column header</source>
+        <extracomment>Role of an accessible object - part of a table</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>row header</source>
+        <extracomment>Role of an accessible object - part of a table</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>column</source>
+        <extracomment>Role of an accessible object - part of a table</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>row</source>
+        <extracomment>Role of an accessible object - part of a table</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>cell</source>
+        <extracomment>Role of an accessible object - part of a table</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>link</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>help balloon</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>assistant</source>
+        <extracomment>Role of an accessible object - a helper dialog</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>list</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>list item</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>tree</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>tree item</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>page tab</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>property page</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>indicator</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>graphic</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>label</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>text</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>push button</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>check box</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>radio button</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>combo box</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>progress bar</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>dial</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>hotkey field</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>slider</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>spin box</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>canvas</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>animation</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>equation</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>button with drop down</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>button menu</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>button with drop down grid</source>
+        <extracomment>Role of an accessible object - a button that expands a grid.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>space</source>
+        <extracomment>Role of an accessible object - blank space between other objects.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>page tab list</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>clock</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>splitter</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>layered pane</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>web document</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>paragraph</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>section</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>color chooser</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>footer</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>form</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>heading</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>note</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>complementary content</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <extracomment>Role of an accessible object</extracomment>
+        <translation type="unfinished">neznáme</translation>
     </message>
 </context>
 <context>
@@ -3877,8 +7228,250 @@ Prosím zvoľte iné meno súboru.</translation>
         <translation>Chyba počas SSL handshake: %1</translation>
     </message>
     <message>
+        <source>No error</source>
+        <translation>Žiadna chyba</translation>
+    </message>
+    <message>
+        <source>The issuer certificate could not be found</source>
+        <translation>Certifikát vydavateľa sa nepodarilo nájsť</translation>
+    </message>
+    <message>
+        <source>The certificate signature could not be decrypted</source>
+        <translation>Podpis certifikátu sa nepodarilo rozlúštiť</translation>
+    </message>
+    <message>
+        <source>The public key in the certificate could not be read</source>
+        <translation>Verejný kľúč v certifikáte nie je možné prečítať</translation>
+    </message>
+    <message>
+        <source>The signature of the certificate is invalid</source>
+        <translation>Podpis v certifikáte nie je platný</translation>
+    </message>
+    <message>
+        <source>The certificate is not yet valid</source>
+        <translation>Certifikát ešte nie je platný</translation>
+    </message>
+    <message>
+        <source>The certificate has expired</source>
+        <translation>Platnosť certifikátu vypršala</translation>
+    </message>
+    <message>
+        <source>The certificate&apos;s notBefore field contains an invalid time</source>
+        <translation>Pole certifikátu &apos;notBefore&apos; obsahuje neplatný čas</translation>
+    </message>
+    <message>
+        <source>The certificate&apos;s notAfter field contains an invalid time</source>
+        <translation>Pole certifikátu &apos;notAfter&apos; obsahuje neplatný čas</translation>
+    </message>
+    <message>
+        <source>The certificate is self-signed, and untrusted</source>
+        <translation>Certifikát je podpísaný sám sebou a preto je nedôveryhodný</translation>
+    </message>
+    <message>
+        <source>The root certificate of the certificate chain is self-signed, and untrusted</source>
+        <translation>Koreňový certifikát certifikátu je podpísaný sám sebou a preto je nedôveryhodný</translation>
+    </message>
+    <message>
+        <source>The issuer certificate of a locally looked up certificate could not be found</source>
+        <translation>Nepodarilo sa nájsť vydavateľa certifikátu k miestne nájdenému certifikátu</translation>
+    </message>
+    <message>
+        <source>No certificates could be verified</source>
+        <translation>Ani jeden certifikát nie je možné overiť</translation>
+    </message>
+    <message>
+        <source>One of the CA certificates is invalid</source>
+        <translation>Jedna z CA certifikátov je neplatná</translation>
+    </message>
+    <message>
+        <source>The basicConstraints path length parameter has been exceeded</source>
+        <translation>Dĺžka cesty &apos;basicConstraints&apos; bola prekročená</translation>
+    </message>
+    <message>
+        <source>The supplied certificate is unsuitable for this purpose</source>
+        <translation>Poskytnutý certifikát nie je vhodný pre tento účel</translation>
+    </message>
+    <message>
+        <source>The root CA certificate is not trusted for this purpose</source>
+        <translation>Koreňový certifikát CA nie je dôveryhodný pre tento účel</translation>
+    </message>
+    <message>
+        <source>The root CA certificate is marked to reject the specified purpose</source>
+        <translation>Koreňový certifikát CA je označený na zamietnutie pre konkrétny účel</translation>
+    </message>
+    <message>
+        <source>The current candidate issuer certificate was rejected because its subject name did not match the issuer name of the current certificate</source>
+        <translation>Súčasný kandidát vydavateľa certifikátu bol zamietnutý, pretože jeho názov nezodpovedá názvu vydavateľa aktuálneho certifikátu</translation>
+    </message>
+    <message>
+        <source>The current candidate issuer certificate was rejected because its issuer name and serial number was present and did not match the authority key identifier of the current certificate</source>
+        <translation>Súčasný kandidát vydavateľa certifikátu bol zamietnutý, pretože jeho názov a sériové číslo, ktoré boli prezentované, nezodpovedajú identifikátoru kľúča autority aktuálneho certifikátu</translation>
+    </message>
+    <message>
+        <source>The peer did not present any certificate</source>
+        <translation>Druhá strana neposkytla žiadny certifikát</translation>
+    </message>
+    <message>
+        <source>The host name did not match any of the valid hosts for this certificate</source>
+        <translation>Názov hostiteľa nezodpovedá žiadnemu z platných hostiteľov pre tento certifikát</translation>
+    </message>
+    <message>
+        <source>The peer certificate is blacklisted</source>
+        <translation>Certifikát druhej strany je na čiernej listine</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Neznáma chyba</translation>
+    </message>
+    <message>
+        <source>Private key does not certify public key, %1</source>
+        <translation>Privátny kľúč nepotvrdzuje verejný kľúč, %1</translation>
+    </message>
+    <message>
+        <source>Unable to init SSL Context: %1</source>
+        <translation>Nepodarilo sa inicializovať kontext SSL: %1</translation>
+    </message>
+    <message>
+        <source>Unable to decrypt data: %1</source>
+        <translation>Nepodarilo sa rozlúštiť dáta:%1</translation>
+    </message>
+    <message>
+        <source>Error when setting the elliptic curves (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unsupported protocol</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenSSL version too old, need at least v1.0.2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The TLS/SSL connection has been closed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Private key does not certificate public key, %1</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QStandardPaths</name>
+    <message>
+        <source>Desktop</source>
+        <translation>Plocha</translation>
+    </message>
+    <message>
+        <source>Documents</source>
+        <translation>Dokumenty</translation>
+    </message>
+    <message>
+        <source>Fonts</source>
+        <translation>Písma</translation>
+    </message>
+    <message>
+        <source>Applications</source>
+        <translation>Aplikácie</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>Hudba</translation>
+    </message>
+    <message>
+        <source>Movies</source>
+        <translation>Filmy</translation>
+    </message>
+    <message>
+        <source>Pictures</source>
+        <translation>Obrázky</translation>
+    </message>
+    <message>
+        <source>Temporary Directory</source>
+        <translation>Dočasný priečinok</translation>
+    </message>
+    <message>
+        <source>Home</source>
+        <translation>Domov</translation>
+    </message>
+    <message>
+        <source>Application Data</source>
+        <translation>Dáta aplikácií</translation>
+    </message>
+    <message>
+        <source>Cache</source>
+        <translation>Vyrovnávacia pamäť</translation>
+    </message>
+    <message>
+        <source>Shared Data</source>
+        <translation>Zdielané dáta</translation>
+    </message>
+    <message>
+        <source>Runtime</source>
+        <translation>Runtime</translation>
+    </message>
+    <message>
+        <source>Configuration</source>
+        <translation>Nastavenie</translation>
+    </message>
+    <message>
+        <source>Shared Cache</source>
+        <translation>Zdielaná vyrovnávacia pamäť</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>Stiahnuté</translation>
+    </message>
+    <message>
+        <source>Shared Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Application Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QStateMachine</name>
+    <message>
+        <source>Missing initial state in compound state &apos;%1&apos;</source>
+        <translation>Chýba počiatočný stav zložené stavu &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Missing default state in history state &apos;%1&apos;</source>
+        <translation>Chýba implicitný stav zložené stavu &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>No common ancestor for targets and source of transition from state &apos;%1&apos;</source>
+        <translatorcomment>Žiadny spoločný predok pre ciele a zdroje prechodu zo stavu &apos;%1&apos;</translatorcomment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Neznáma chyba</translation>
+    </message>
+</context>
+<context>
+    <name>QSystemSemaphore</name>
+    <message>
+        <source>%1: permission denied</source>
+        <translation>%1: prístup zamietnutý</translation>
+    </message>
+    <message>
+        <source>%1: already exists</source>
+        <translation>%1: už existuje</translation>
+    </message>
+    <message>
+        <source>%1: does not exist</source>
+        <translation>%1: neexistuje</translation>
+    </message>
+    <message>
+        <source>%1: out of resources</source>
+        <translation>%1: už nie sú použiteľné zdroje</translation>
+    </message>
+    <message>
+        <source>%1: unknown error %2</source>
+        <translation>%1: neznáma chyba %2</translation>
     </message>
 </context>
 <context>
@@ -3901,6 +7494,13 @@ Prosím zvoľte iné meno súboru.</translation>
     <message>
         <source>Scroll Right</source>
         <translation>Posunúť vpravo</translation>
+    </message>
+</context>
+<context>
+    <name>QTcpServer</name>
+    <message>
+        <source>Operation on socket is not supported</source>
+        <translation>Nepodporovaná operácia so soketom</translation>
     </message>
 </context>
 <context>
@@ -3966,6 +7566,24 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>Redo</source>
         <translation>Opakovať vrátené</translation>
     </message>
+    <message>
+        <source>Undo %1</source>
+        <translation>Vrátiť späť %1</translation>
+    </message>
+    <message>
+        <source>Undo</source>
+        <comment>Default text for undo action</comment>
+        <translation>Späť</translation>
+    </message>
+    <message>
+        <source>Redo %1</source>
+        <translation>Opakovať vrátené %1</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <comment>Default text for redo action</comment>
+        <translation>Znovu</translation>
+    </message>
 </context>
 <context>
     <name>QUndoModel</name>
@@ -3983,6 +7601,24 @@ Prosím zvoľte iné meno súboru.</translation>
     <message>
         <source>Redo</source>
         <translation>Opakovať vrátené</translation>
+    </message>
+    <message>
+        <source>Undo %1</source>
+        <translation>Vrátiť späť %1</translation>
+    </message>
+    <message>
+        <source>Undo</source>
+        <comment>Default text for undo action</comment>
+        <translation>Späť</translation>
+    </message>
+    <message>
+        <source>Redo %1</source>
+        <translation>Opakovať vrátené %1</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <comment>Default text for redo action</comment>
+        <translation>Znovu</translation>
     </message>
 </context>
 <context>
@@ -4031,36 +7667,55 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>Insert Unicode control character</source>
         <translation>Vložiť Unicode riadiaci znak</translation>
     </message>
-</context>
-<context>
-    <name>QWebFrame</name>
     <message>
-        <source>Request cancelled</source>
+        <source>LRI Left-to-right isolate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Request blocked</source>
+        <source>RLI Right-to-left isolate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Cannot show URL</source>
+        <source>FSI First strong isolate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Frame load interruped by policy change</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot show mimetype</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>File does not exist</source>
+        <source>PDI Pop directional isolate</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QWebPage</name>
+    <message>
+        <source>Reset</source>
+        <comment>default label for Reset buttons in forms on web pages</comment>
+        <translation type="unfinished">Nastaviť pôvodné</translation>
+    </message>
+    <message>
+        <source>Go Back</source>
+        <comment>Back context menu item</comment>
+        <translation type="unfinished">Vrátiť sa späť</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <comment>Stop context menu item</comment>
+        <translation type="unfinished">Stop</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <comment>Ignore Spelling context menu item</comment>
+        <translation type="unfinished">Ignorovať</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <comment>Ignore Grammar context menu item</comment>
+        <translation type="unfinished">Ignorovať</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <comment>Unknown filesize FTP directory listing item</comment>
+        <translation type="unfinished">Neznáme</translation>
+    </message>
     <message>
         <source>Bad HTTP request</source>
         <translation type="unfinished"></translation>
@@ -4074,11 +7729,6 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>Submit</source>
         <comment>Submit (input element) alt text for &lt;input&gt; elements with no alt, title, or value</comment>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Reset</source>
-        <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation type="unfinished">Nastaviť pôvodné</translation>
     </message>
     <message>
         <source>This is a searchable index. Enter search keywords: </source>
@@ -4136,19 +7786,9 @@ Prosím zvoľte iné meno súboru.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Go Back</source>
-        <comment>Back context menu item</comment>
-        <translation type="unfinished">Vrátiť sa späť</translation>
-    </message>
-    <message>
         <source>Go Forward</source>
         <comment>Forward context menu item</comment>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Stop</source>
-        <comment>Stop context menu item</comment>
-        <translation type="unfinished">Stop</translation>
     </message>
     <message>
         <source>Reload</source>
@@ -4171,11 +7811,6 @@ Prosím zvoľte iné meno súboru.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Ignore</source>
-        <comment>Ignore Spelling context menu item</comment>
-        <translation type="unfinished">Ignorovať</translation>
-    </message>
-    <message>
         <source>Add To Dictionary</source>
         <comment>Learn Spelling context menu item</comment>
         <translation type="unfinished"></translation>
@@ -4194,11 +7829,6 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>Open Link</source>
         <comment>Open Link context menu item</comment>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Ignore</source>
-        <comment>Ignore Grammar context menu item</comment>
-        <translation type="unfinished">Ignorovať</translation>
     </message>
     <message>
         <source>Spelling</source>
@@ -4296,11 +7926,6 @@ Prosím zvoľte iné meno súboru.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unknown</source>
-        <comment>Unknown filesize FTP directory listing item</comment>
-        <translation type="unfinished">Neznáme</translation>
-    </message>
-    <message>
         <source>%1 (%2x%3 pixels)</source>
         <comment>Title string for images</comment>
         <translation type="unfinished"></translation>
@@ -4322,6 +7947,54 @@ Prosím zvoľte iné meno súboru.</translation>
     <message>
         <source>*</source>
         <translation>*</translation>
+    </message>
+</context>
+<context>
+    <name>QWidgetTextControl</name>
+    <message>
+        <source>&amp;Undo</source>
+        <translation>&amp;Späť</translation>
+    </message>
+    <message>
+        <source>&amp;Redo</source>
+        <translation>&amp;Znovu</translation>
+    </message>
+    <message>
+        <source>Cu&amp;t</source>
+        <translation>Vys&amp;trihnúť</translation>
+    </message>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>&amp;Kopírovať</translation>
+    </message>
+    <message>
+        <source>Copy &amp;Link Location</source>
+        <translation>&amp;Kopírovať umiestnenie odkazu</translation>
+    </message>
+    <message>
+        <source>&amp;Paste</source>
+        <translation>&amp;Vložiť</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Zmazať</translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation>Vybrať všetko</translation>
+    </message>
+</context>
+<context>
+    <name>QWindowsDirect2DIntegration</name>
+    <message>
+        <source>Qt cannot load the direct2d platform plugin because the Direct2D version on this system is too old. The minimum system requirement for this platform plugin is Windows 7 SP1 with Platform Update.
+
+The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on this system is %5.%6.%7.%8.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot load direct2d platform plugin</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4667,6 +8340,196 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>Invalid character reference.</source>
         <translation>Neplatný znak odkazu.</translation>
     </message>
+    <message>
+        <source>Attribute &apos;%1&apos; redefined.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>WebCore::PlatformScrollbar</name>
+    <message>
+        <source>Scroll here</source>
+        <translation type="unfinished">Posunúť sem</translation>
+    </message>
+    <message>
+        <source>Left edge</source>
+        <translation type="unfinished">Ľavá hrana</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation type="unfinished">Vrch</translation>
+    </message>
+    <message>
+        <source>Right edge</source>
+        <translation type="unfinished">Pravá hrana</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation type="unfinished">Spodok</translation>
+    </message>
+    <message>
+        <source>Page left</source>
+        <translation type="unfinished">Strana naľavo</translation>
+    </message>
+    <message>
+        <source>Page up</source>
+        <translation type="unfinished">Strana nahor</translation>
+    </message>
+    <message>
+        <source>Page right</source>
+        <translation type="unfinished">Strana napravo</translation>
+    </message>
+    <message>
+        <source>Page down</source>
+        <translation type="unfinished">Strana nadol</translation>
+    </message>
+    <message>
+        <source>Scroll left</source>
+        <translation type="unfinished">Posunúť naľavo</translation>
+    </message>
+    <message>
+        <source>Scroll up</source>
+        <translation type="unfinished">Posunúť nahor</translation>
+    </message>
+    <message>
+        <source>Scroll right</source>
+        <translation type="unfinished">Posunúť napravo</translation>
+    </message>
+    <message>
+        <source>Scroll down</source>
+        <translation type="unfinished">Posunúť nadol</translation>
+    </message>
+</context>
+<context>
+    <name>AudioOutput</name>
+    <message>
+        <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Revert back to device &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Phonon::</name>
+    <message>
+        <source>Notifications</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Communication</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Games</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Accessibility</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Phonon::Gstreamer::Backend</name>
+    <message>
+        <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
+          Some video features have been disabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warning: You do not seem to have the base GStreamer plugins installed.
+          All audio and video support has been disabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Phonon::Gstreamer::MediaObject</name>
+    <message>
+        <source>Cannot start playback. 
+
+Check your Gstreamer installation and make sure you 
+have libgstreamer-plugins-base installed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not open media source.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid source type.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not locate media source.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open audio device. The device is already in use.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not decode media source.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Phonon::VolumeSlider</name>
+    <message>
+        <source>Volume: %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QWebFrame</name>
+    <message>
+        <source>Request cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Request blocked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot show URL</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame load interruped by policy change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot show mimetype</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File does not exist</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QtXmlPatterns</name>
@@ -4902,11 +8765,15 @@ Prosím zvoľte iné meno súboru.</translation>
         <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
         <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
     </message>
@@ -5260,61 +9127,6 @@ Prosím zvoľte iné meno súboru.</translation>
     <message>
         <source>Volume: %1%</source>
         <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>WebCore::PlatformScrollbar</name>
-    <message>
-        <source>Scroll here</source>
-        <translation type="unfinished">Posunúť sem</translation>
-    </message>
-    <message>
-        <source>Left edge</source>
-        <translation type="unfinished">Ľavá hrana</translation>
-    </message>
-    <message>
-        <source>Top</source>
-        <translation type="unfinished">Vrch</translation>
-    </message>
-    <message>
-        <source>Right edge</source>
-        <translation type="unfinished">Pravá hrana</translation>
-    </message>
-    <message>
-        <source>Bottom</source>
-        <translation type="unfinished">Spodok</translation>
-    </message>
-    <message>
-        <source>Page left</source>
-        <translation type="unfinished">Strana naľavo</translation>
-    </message>
-    <message>
-        <source>Page up</source>
-        <translation type="unfinished">Strana nahor</translation>
-    </message>
-    <message>
-        <source>Page right</source>
-        <translation type="unfinished">Strana napravo</translation>
-    </message>
-    <message>
-        <source>Page down</source>
-        <translation type="unfinished">Strana nadol</translation>
-    </message>
-    <message>
-        <source>Scroll left</source>
-        <translation type="unfinished">Posunúť naľavo</translation>
-    </message>
-    <message>
-        <source>Scroll up</source>
-        <translation type="unfinished">Posunúť nahor</translation>
-    </message>
-    <message>
-        <source>Scroll right</source>
-        <translation type="unfinished">Posunúť napravo</translation>
-    </message>
-    <message>
-        <source>Scroll down</source>
-        <translation type="unfinished">Posunúť nadol</translation>
     </message>
 </context>
 </TS>

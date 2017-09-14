@@ -216,6 +216,34 @@
     </message>
 </context>
 <context>
+    <name>QObject</name>
+    <message>
+        <source>Result&amp;nbsp;Code: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">កូដ​&amp;nbsp;លទ្ធផល ៖</translation>
+    </message>
+    <message>
+        <source>Component: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">សមាសភាគ ៖</translation>
+    </message>
+    <message>
+        <source>Interface: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">ចំណុច​ប្រទាក់ ៖</translation>
+    </message>
+    <message>
+        <source>Callee: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Callee ៖ </translation>
+    </message>
+    <message>
+        <source>Callee&amp;nbsp;RC: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Callee&amp;nbsp;RC ៖ </translation>
+    </message>
+</context>
+<context>
     <name>UIActionPool</name>
     <message>
         <source>&amp;Machine</source>
@@ -1151,6 +1179,14 @@
     <message>
         <source>Disable Dock Icon Overlay</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation type="obsolete">សេចក្ដី​លម្អិត</translation>
+    </message>
+    <message>
+        <source>&amp;Snapshots</source>
+        <translation type="obsolete">រូបថត</translation>
     </message>
 </context>
 <context>
@@ -2508,11 +2544,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished">ច្រក %1</translation>
     </message>
     <message>
-        <source>Disabled</source>
-        <comment>details (parallel)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1 (%2 active)</source>
         <comment>details (usb)</comment>
         <translation type="unfinished">%1 (%2 សកម្មភាព)</translation>
@@ -2754,6 +2785,11 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Disabled</source>
         <comment>details (user interface/mini-toolbar)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (parallel)</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3374,43 +3410,9 @@ creating/removing host-only network</comment>
         <translation type="unfinished">បាន​កំណត់​រចនា​សម្ព័ន្ធ​​ដោយ​ដៃ​</translation>
     </message>
     <message>
-        <source>Not set</source>
-        <comment>address</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not set</source>
-        <comment>mask</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not set</source>
-        <comment>length</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>server</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>server</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not set</source>
-        <comment>bound</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Performing</source>
         <comment>creating/removing host-only network</comment>
         <translation type="obsolete">ការ​អនុវត្ត​</translation>
-    </message>
-    <message>
-        <source>Networking</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;NAT Networks</source>
@@ -3418,10 +3420,6 @@ creating/removing host-only network</comment>
     </message>
     <message>
         <source>Lists all available NAT networks.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Host-only Networks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3489,34 +3487,6 @@ creating/removing host-only network</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 address.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 network mask.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 address.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server address.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server mask.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server lower address bound.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server upper address bound.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The name &lt;b&gt;%1&lt;/b&gt; is being used for several NAT networks.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3547,6 +3517,72 @@ creating/removing host-only network</comment>
     </message>
     <message>
         <source>Edits selected NAT network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>address</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>mask</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>length</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>server</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>server</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <comment>bound</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Networking</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Host-only Networks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 address.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 network mask.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 address.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server address.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server mask.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server lower address bound.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server upper address bound.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3728,10 +3764,6 @@ creating/removing host-only network</comment>
         <translation type="unfinished">ម៉ាស៊ីន​បម្រើ​ DHCP</translation>
     </message>
     <message>
-        <source>&amp;Enable Server</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Indicates whether the DHCP Server is enabled on machine startup or not.</source>
         <translation type="obsolete">បង្ហាញ​​ថា​តើ​ម៉ា​ស៊ីន​បម្រើ​​ DHCP ត្រូវ​បាន​បើក​នៅពេល​ចាប់ផ្ដើម​ដែរ​ឬទេ ។</translation>
     </message>
@@ -3766,6 +3798,10 @@ creating/removing host-only network</comment>
     <message>
         <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation type="unfinished">បង្ហាញ​ព្រំដែន​អាសយដ្ឋាន​ខ្ពស់​ដែលបានផ្ដល់​ដោយ​ម៉ាស៊ីន​បម្រើ DHCP ដោយ​ផ្ដល់​សេវា​បណ្ដាញ​ភ្ជាប់​ជា​មួយ​នឹង​អាដាប់ទ័រ​ម៉ាស៊ីន​ ។</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Server</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>When checked, manual configuration will be used for this network adapter.</source>
@@ -4040,6 +4076,159 @@ creating/removing host-only network</comment>
     <message>
         <source>None</source>
         <translation type="unfinished">គ្មាន</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkDetailsWidget</name>
+    <message>
+        <source>&amp;Adapter</source>
+        <translation type="obsolete">អាដាប់ទ័រ</translation>
+    </message>
+    <message>
+        <source>&amp;DHCP Server</source>
+        <translation type="obsolete">ម៉ាស៊ីន​បម្រើ​ DHCP</translation>
+    </message>
+    <message>
+        <source>&amp;IPv4 Address:</source>
+        <translation type="obsolete">អា​សយ​ដ្ឋាន​ IPv4 ៖</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 address for this adapter.</source>
+        <translation type="obsolete">បង្ហាញ​អា​សយ​ដ្ឋាន​​ម៉ាស៊ីន​ IPv4 សម្រាប់​​អាដាប់​ទ័រ​​នេះ​ ។</translation>
+    </message>
+    <message>
+        <source>IPv4 Network &amp;Mask:</source>
+        <translation type="obsolete">របាំង​បណ្តាញ​ IPv4 ៖</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
+        <translation type="obsolete">បង្ហាញ​របាំង​បណ្តាញ​ម៉ាស៊ីន​ IPv4 សម្រាប់​អាដាប់​ទ័រ​នេះ​ ។</translation>
+    </message>
+    <message>
+        <source>I&amp;Pv6 Address:</source>
+        <translation type="obsolete">អាសយដ្ឋាន​ IPv6 ៖</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <translation type="obsolete">បង្ហាញ​​អា​សយដ្ឋាន​ម៉ាស៊ីន​ IPv6 សម្រាប់​​អាដាប់​ទ័រ​​នេះ ​ប្រ​សិន​បើ​​ IPv6 ត្រូវ​បាន​គាំ​ទ្រ ។</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix &amp;Length:</source>
+        <translation type="obsolete">ប្រ​វែង​របាំង​បណ្តាញ​ IPv6 ៖</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
+        <translation type="obsolete">បង្ហាញ​ប្រ​វែង​​បុព្វបទ​របាំង​បណ្តាញ​ម៉ាស៊ីន​ IPv6​ សម្រាប់​​អាដាប់​ទ័រ​​នេះ ​ប្រ​សិន​បើ​ IPv6 ត្រូវ​បាន​គាំ​ទ្រ​ ។</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="obsolete">កំណត់​ឡើង​វិញ</translation>
+    </message>
+    <message>
+        <source>Server Add&amp;ress:</source>
+        <translation type="obsolete">អាសយដ្ឋាន​ម៉ាស៊ីន​បម្រើ​ ៖</translation>
+    </message>
+    <message>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">បង្ហាញ​អាសយដ្ឋាន​បម្រើ​ម៉ាស៊ីន​​របស់​ DHCP ដែល​ភ្ជាប់​​បណ្តាញ​ជាមួយ​កម្ម​វិធី​សម្រួល​​ម៉ាស៊ីន​​-តែ​មួយនេះ​​ ។</translation>
+    </message>
+    <message>
+        <source>Server &amp;Mask:</source>
+        <translation type="obsolete">របាំង​ម៉ា​ស៊ីនបម្រើ​ ៖</translation>
+    </message>
+    <message>
+        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">បង្ហាញ​របាំង​បណ្តាញ​​សេវា​​បម្រើ​ម៉ា​ស៊ីន​របស់​ DHCP ដែល​ភ្ជាប់​​​ជា​មួយ​កម្ម​វិធី​សម្រួល​ម៉ា​ស៊ីន​​-​តែ​មួយ​នេះ​ ។</translation>
+    </message>
+    <message>
+        <source>&amp;Lower Address Bound:</source>
+        <translation type="obsolete">ព្រំ​ដែន​អា​សយ​ដ្ឋាន​ទាប​ ៖</translation>
+    </message>
+    <message>
+        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">បង្ហាញ​ព្រំដែន​អាសយដ្ឋានទាប​ដែល​បានផ្ដល់ដោយ​សេវា​ម៉ាស៊ីន​បម្រើ DHCP ដែល​បានភ្ជាប់​ជា​មួយនឹងកម្មវិធី​សម្រួល​ម៉ាស៊ីន​ ។</translation>
+    </message>
+    <message>
+        <source>&amp;Upper Address Bound:</source>
+        <translation type="obsolete">ព្រំដែន​អា​សយដ្ឋានខ្ពស់​ ៖</translation>
+    </message>
+    <message>
+        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">បង្ហាញ​ព្រំដែន​អាសយដ្ឋាន​ខ្ពស់​ដែលបានផ្ដល់​ដោយ​ម៉ាស៊ីន​បម្រើ DHCP ដោយ​ផ្ដល់​សេវា​បណ្ដាញ​ភ្ជាប់​ជា​មួយ​នឹង​អាដាប់ទ័រ​ម៉ាស៊ីន​ ។</translation>
+    </message>
+</context>
+<context>
+    <name>UIHostNetworkManager</name>
+    <message>
+        <source>Enable</source>
+        <comment>DHCP Server</comment>
+        <translation type="obsolete">បើក</translation>
+    </message>
+    <message>
+        <source>Adapter</source>
+        <translation type="obsolete">អាដាប់​ទ័រ</translation>
+    </message>
+    <message>
+        <source>Automatically configured</source>
+        <comment>interface</comment>
+        <translation type="obsolete">បាន​កំណត់​រចនាសម្ព័ន្ធ​ដោយ​ស្វ័យ​ប្រវត្តិ</translation>
+    </message>
+    <message>
+        <source>Manually configured</source>
+        <comment>interface</comment>
+        <translation type="obsolete">បាន​កំណត់​រចនា​សម្ព័ន្ធ​​ដោយ​ដៃ​</translation>
+    </message>
+    <message>
+        <source>IPv4 Address</source>
+        <translation type="obsolete">អាសយ​ដ្ឋាន IPv4​</translation>
+    </message>
+    <message>
+        <source>IPv4 Network Mask</source>
+        <translation type="obsolete">របាំង​បណ្តាញ​ IPv4</translation>
+    </message>
+    <message>
+        <source>IPv6 Address</source>
+        <translation type="obsolete">អាសយ​ដ្ឋាន​ IPv6</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix Length</source>
+        <translation type="obsolete">ប្រវែង​របាំង​បណ្តាញ​ IPv6</translation>
+    </message>
+    <message>
+        <source>DHCP Server</source>
+        <translation type="obsolete">ម៉ាស៊ីន​បម្រើ​ DHCP</translation>
+    </message>
+    <message>
+        <source>Address</source>
+        <translation type="obsolete">អាសយដ្ឋាន​</translation>
+    </message>
+    <message>
+        <source>Network Mask</source>
+        <translation type="obsolete">របាំង​បណ្តាញ​</translation>
+    </message>
+    <message>
+        <source>Lower Bound</source>
+        <translation type="obsolete">ព្រំ​ដែន​ទាប​​</translation>
+    </message>
+    <message>
+        <source>Upper Bound</source>
+        <translation type="obsolete">ព្រំ​ដែន​ខ្ពស់​</translation>
+    </message>
+    <message>
+        <source>&amp;Create</source>
+        <translation type="obsolete">បង្កើត</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="obsolete">ឈ្មោះ</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="obsolete">កំណត់​ឡើង​វិញ</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="obsolete">បិទ</translation>
     </message>
 </context>
 <context>
@@ -4391,11 +4580,6 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;បង្ហាញ​សកម្មភាព​របស់​ចំណុច​ប្រទាក់​បណ្ដាញ ៖&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
-        <comment>Network adapters tooltip</comment>
-        <translation></translation>
-    </message>
-    <message>
         <source>connected</source>
         <comment>Network adapters tooltip</comment>
         <translation>បាន​តភ្ជាប់</translation>
@@ -4460,6 +4644,16 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
         <translation type="obsolete">បង្ហាញ​ថាតើ​ក្ដារចុច​ត្រូវ​បានចាប់យក​ដោយ​ប្រព័ន្ធ​ប្រតិបត្តិការ​របស់​ម៉ាស៊ីន​ភ្ញៀវ (&lt;img src=:/hostkey_captured_16px.png/&gt;) ឬ​មិនមែន (&lt;img src=:/hostkey_16px.png/&gt;) ។</translation>
+    </message>
+    <message>
+        <source>Disconnected</source>
+        <comment>cable (Network tooltip)</comment>
+        <translation type="obsolete">បានផ្ដាច់</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation></translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates video capturing activity:&lt;/nobr&gt;&lt;br&gt;%1</source>
@@ -6671,22 +6865,6 @@ network adapter name</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9 you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1 MB</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6702,6 +6880,22 @@ network adapter name</comment>
     </message>
     <message>
         <source>%1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9 you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7054,6 +7248,21 @@ network adapter name</comment>
     </message>
 </context>
 <context>
+    <name>UIMediumDetailsWidget</name>
+    <message>
+        <source>&amp;Type:</source>
+        <translation type="obsolete">ប្រភេទ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="obsolete">សេចក្តី​ពិពណ៌នា​ ៖</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="obsolete">កំណត់​ឡើង​វិញ</translation>
+    </message>
+</context>
+<context>
     <name>UIMediumManager</name>
     <message>
         <source>&amp;Optical disks</source>
@@ -7074,6 +7283,59 @@ network adapter name</comment>
     <message>
         <source>&amp;Hard disks</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Attached to:</source>
+        <translation type="obsolete">បាន​​ភ្ជាប់ទៅកាន់ ៖</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
+        <translation type="obsolete">&lt;i&gt;មិនបាន​ភ្ជាប់&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>--</source>
+        <comment>no info</comment>
+        <translation type="obsolete">--</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh</source>
+        <translation type="obsolete">ធ្វើ​ឲ្យ​ស្រស់</translation>
+    </message>
+    <message>
+        <source>Refresh the list of disk image files</source>
+        <translation type="obsolete">ធ្វើ​ឲ្យ​បញ្ជី​មេឌៀ​ស្រស់</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="obsolete">ឈ្មោះ</translation>
+    </message>
+    <message>
+        <source>Virtual Size</source>
+        <translation type="obsolete">ទំហំ​និម្មិត</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation type="obsolete">ទំហំ​ពិតប្រាកដ</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation type="obsolete">ទំហំ</translation>
+    </message>
+    <message>
+        <source>Checking accessibility</source>
+        <translation type="obsolete">ពិនិត្យ​មើល​ភាព​អាច​ដំណើរការ​បាន​ទេ</translation>
+    </message>
+    <message>
+        <source>Virtual Media Manager</source>
+        <translation type="obsolete">កម្មវិធី​គ្រប់គ្រង​មេឌៀ​និម្មិត</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="obsolete">កំណត់​ឡើង​វិញ</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="obsolete">បិទ</translation>
     </message>
 </context>
 <context>
@@ -8168,15 +8430,7 @@ medium</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -8184,15 +8438,7 @@ medium</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Downgrade</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -8414,26 +8660,6 @@ medium</comment>
     <message>
         <source>Ignore</source>
         <translation type="unfinished">មិនអើពើ</translation>
-    </message>
-    <message>
-        <source>Failed to create NAT network.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to remove NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to create DHCP server.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to remove DHCP server for network interface &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to create the host network interface.</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Create &amp;new disk</source>
@@ -8692,10 +8918,6 @@ medium</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual optical drive?&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8750,6 +8972,46 @@ medium</comment>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;but the SHA-256 checksum verification failed.&lt;/p&gt;&lt;p&gt;Please do the download, installation and verification manually.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create NAT network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to remove NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create DHCP server.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to remove DHCP server for network interface &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create the host network interface.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -9526,6 +9788,21 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
 </context>
 <context>
+    <name>UIScreenshotViewer</name>
+    <message>
+        <source>Screenshot of %1 (%2)</source>
+        <translation type="obsolete">រូប​ថត​អេ​ក្រង់​របស់​ %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Click to view non-scaled screenshot.</source>
+        <translation type="obsolete">ចុច​ ដើម្បី​មើល​រូបថត​អេក្រង់​គ្មានមាត្រដ្ឋាន ។</translation>
+    </message>
+    <message>
+        <source>Click to view scaled screenshot.</source>
+        <translation type="obsolete">ចុច ដើម្បី​​មើល​រូប​ថត​អេក្រង់​ដែល​មានមាត្រ​ដ្ឋាន​ ។</translation>
+    </message>
+</context>
+<context>
     <name>UISelectorWindow</name>
     <message>
         <source>Show Toolbar</source>
@@ -9673,10 +9950,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Parallel Ports</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>USB</source>
         <translation type="unfinished">USB</translation>
     </message>
@@ -9704,6 +9977,10 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <source>Settings</source>
         <translation type="unfinished">កំណត់</translation>
     </message>
+    <message>
+        <source>Parallel Ports</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UISettingsSerializerProgress</name>
@@ -9714,6 +9991,78 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     <message>
         <source>Saving Settings...</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UISnapshotDetailsWidget</name>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="obsolete">ឈ្មោះ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="obsolete">សេចក្តី​ពិពណ៌នា​ ៖</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="obsolete">កំណត់​ឡើង​វិញ</translation>
+    </message>
+    <message>
+        <source>Click to enlarge the screenshot.</source>
+        <translation type="obsolete">ចុច ដើម្បី​ពង្រីក​រូប​ថត​អេ​ក្រង់​ ។</translation>
+    </message>
+</context>
+<context>
+    <name>UISnapshotPane</name>
+    <message>
+        <source>Current State (changed)</source>
+        <comment>Current State (Modified)</comment>
+        <translation type="obsolete">ស្ថានភាព​បច្ចុប្បន្ន (បាន​ផ្លាស់ប្ដូរ)</translation>
+    </message>
+    <message>
+        <source>Current State</source>
+        <comment>Current State (Unmodified)</comment>
+        <translation type="obsolete">ស្ថានភាព​បច្ចុប្បន្ន</translation>
+    </message>
+    <message>
+        <source>The current state differs from the state stored in the current snapshot</source>
+        <translation type="obsolete">ស្ថានភាព​បច្ចុប្បន្ន​ខុសពី​ស្ថានភាព​ដែល​បាន​ទុក​នៅក្នុង​រូបថត​បច្ចុប្បន្ន</translation>
+    </message>
+    <message>
+        <source>The current state is identical to the state stored in the current snapshot</source>
+        <translation type="obsolete">ស្ថានភាព​បច្ចុប្បន្ន​គឺ​ដូច​គ្នា​នឹង​ស្ថានភាព​ដែល​បាន​ទុក​នៅ​ក្នុង​រូបថត​បច្ចុប្បន្ន</translation>
+    </message>
+    <message>
+        <source>%1 since %2</source>
+        <comment>Current State (time or date + time)</comment>
+        <translation type="obsolete">%1 តាំង​ពី %2</translation>
+    </message>
+    <message>
+        <source>Taken at %1</source>
+        <comment>Snapshot (time)</comment>
+        <translation type="obsolete">បាន​ថត​នៅ %1</translation>
+    </message>
+    <message>
+        <source>Taken on %1</source>
+        <comment>Snapshot (date + time)</comment>
+        <translation type="obsolete">បានថត​នៅ​ថ្ងៃទី %1</translation>
+    </message>
+    <message>
+        <source>&amp;Delete</source>
+        <translation type="obsolete">លុប</translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the current virtual machine state</source>
+        <translation type="obsolete">យក​រូបថត​របស់​ស្ថានភាព​ម៉ាស៊ីន​និម្មិត​បច្ចុប្បន្ន</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>snapshot</comment>
+        <translation type="obsolete">ឈ្មោះ</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="obsolete">រូបថត %1</translation>
     </message>
 </context>
 <context>
@@ -9729,6 +10078,31 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     <message>
         <source>Enable Status Bar</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UITakeSnapshotDialog</name>
+    <message>
+        <source>Take Snapshot of Virtual Machine</source>
+        <translation type="obsolete">យក​រូបថត​របស់ម៉ាស៊ីន​និម្មិត</translation>
+    </message>
+    <message>
+        <source>Snapshot &amp;Name</source>
+        <translation type="obsolete">ឈ្មោះ​រូបថត</translation>
+    </message>
+    <message>
+        <source>Snapshot &amp;Description</source>
+        <translation type="obsolete">សេចក្ដី​ពិពណ៌នា​រូបថត</translation>
+    </message>
+    <message numerus="yes">
+        <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
+        <translation type="obsolete">
+            <numerusform>ការ​ព្រមាន ៖ អ្នកកំពុង​ថត​រូប​របស់​ម៉ាស៊ីន​ដែល​កំពុង​រត់ ដែលមាន​រូបភាព​មិនប្រែប្រួល %n បានភ្ជាប់​ទៅកាន់​វា ។ ដ៏រាប​ណា​អ្នកកំពុង​ធ្វើការ​​ពី​រូបភាព​ដែល​មិនប្រែប្រួល​នេះ នឹង​មិន​ត្រូ​វបានកំណត់​ឡើងវិញ​ ដើម្បី​ចៀសវាង​ពី​ការ​បាត់បង់​ទិន្នន័យ​ទេ ។</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation type="obsolete">រូបថត %1</translation>
     </message>
 </context>
 <context>
@@ -9921,14 +10295,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished">%1 - ព័ត៌មាន​សម័យ</translation>
     </message>
     <message>
-        <source>Configuration &amp;Details</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Runtime Information</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>DMA Transfers</source>
         <translation type="unfinished">ការ​ផ្ទេរ DMA</translation>
     </message>
@@ -9953,16 +10319,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished">បាន​ទទួល​ទិន្នន័យ</translation>
     </message>
     <message>
-        <source>Not Detected</source>
-        <comment>guest additions</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not Detected</source>
-        <comment>guest os type</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Not Available</source>
         <comment>details report (VRDE server port)</comment>
         <translation type="unfinished">មិនអាច​ប្រើបាន​</translation>
@@ -9974,18 +10330,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     <message>
         <source>Screen Resolution</source>
         <translation type="unfinished">គុណភាព​បង្ហាញ​របស់​អេក្រង់</translation>
-    </message>
-    <message>
-        <source>VM Uptime</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Clipboard Mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drag and Drop Mode</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Guest Additions</source>
@@ -10010,6 +10354,36 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     <message>
         <source>No Network Adapters</source>
         <translation type="unfinished">គ្មានអាដាប់ទ័រ​បណ្ដាញ​ទេ</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest additions</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest os type</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VM Uptime</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag and Drop Mode</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10508,6 +10882,14 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Write in standard OVF 1.0 format.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Storage settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>OVF 0.9</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10520,24 +10902,12 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Write in standard OVF 1.0 format.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Write in new experimental OVF 2.0 format.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Storage settings</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>UIWizardExportAppPageBasic3</name>
-    <message>
-        <source>&lt;p&gt;Please choose a filename to export the OVF/OVA to.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ova&lt;/i&gt; extension, then all the files will be combined into one Open Virtualization Format Archive.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately.&lt;/p&gt;&lt;p&gt;Other extensions are not allowed.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
     <message>
         <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
         <translation type="unfinished">សូម​បំពេញ​​វាល​​ដែល​បន្ថែម ​ដូចជា​​ឈ្មោះ​អ្នក​ប្រើ​ ពាក្យ​សម្ងាត់​ និងសញ្ញា​សម្គាល់​​ ហើយ​​​ផ្តល់​ឈ្មោះ​​ឯកសារ​សម្រាប់​គោលដៅ ​OVF ។</translation>
@@ -10548,6 +10918,10 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
     <message>
         <source>Choose a file to export the virtual appliance to...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a filename to export the OVF/OVA to.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ova&lt;/i&gt; extension, then all the files will be combined into one Open Virtualization Format Archive.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately.&lt;/p&gt;&lt;p&gt;Other extensions are not allowed.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -10675,10 +11049,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>File location and size</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10736,6 +11106,10 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
     <message>
         <source>Hard disk file &amp;type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -12725,21 +13099,6 @@ medium</comment>
         <translation type="unfinished">ថាសរឹង​មូលដ្ឋាន​នេះ​ត្រូវ​បាន​ភ្ជាប់​ដោយ​ប្រយោល​ ដោយ​ប្រើ​ថាសរឹង​ផ្សេង ៖</translation>
     </message>
     <message>
-        <source>Enabled</source>
-        <comment>details report (Nested Paging)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (Nested Paging)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Nested Paging</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Remote Display Server Port</source>
         <comment>details report (VRDP Server)</comment>
         <translation type="obsolete">ច្រក​ម៉ាស៊ីនបម្រើ​បង្ហាញ​ពី​ចម្ងាយ</translation>
@@ -12760,21 +13119,6 @@ medium</comment>
         <translation type="unfinished">ប្រព័ន្ធ</translation>
     </message>
     <message>
-        <source>Screens</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (2D Video Acceleration)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (2D Video Acceleration)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>2D Video Acceleration</source>
         <comment>details report</comment>
         <translation type="unfinished">ការ​បង្កើន​ល្បឿន​វីដេអូ​​ទ្វេ​មាត្រ</translation>
@@ -12793,11 +13137,6 @@ medium</comment>
         <source>Not Attached</source>
         <comment>details report (Storage)</comment>
         <translation type="unfinished">មិន​បានភ្ជាប់</translation>
-    </message>
-    <message>
-        <source>Storage</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -13009,21 +13348,6 @@ medium</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Remote Desktop Server Port</source>
-        <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Remote Desktop Server</source>
-        <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>hard disk</source>
         <translation type="obsolete">ថាសរឹង</translation>
     </message>
@@ -13089,16 +13413,6 @@ medium</comment>
     <message>
         <source>Execution Cap</source>
         <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Generic, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -13326,11 +13640,6 @@ medium</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Parallel ports</source>
-        <comment>DetailsElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>USB</source>
         <comment>DetailsElementType</comment>
         <translation type="unfinished">USB</translation>
@@ -13386,11 +13695,6 @@ medium</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unrestricted Execution</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>PS/2 Mouse</source>
         <comment>PointingHIDType</comment>
         <translation type="unfinished"></translation>
@@ -13422,11 +13726,6 @@ medium</comment>
     <message>
         <source>NAT Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>NAT network, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -13559,10 +13858,6 @@ medium</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>(Optical Drive)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Please choose a virtual hard disk file</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13645,11 +13940,6 @@ medium</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Parallel ports</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>USB</source>
         <comment>InformationElementType</comment>
         <translation type="unfinished">USB</translation>
@@ -13681,6 +13971,120 @@ medium</comment>
     </message>
     <message>
         <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hard Disks</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">ថាសរឹង</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">បណ្ដាញ</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">USB</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">បង្ហាញ​</translation>
+    </message>
+    <message>
+        <source>Differencing</source>
+        <comment>MediumType</comment>
+        <translation type="obsolete">ភាព​ខុសគ្នា</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>IndicatorType</comment>
+        <translation type="obsolete">អូឌីយ៉ូ</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generic, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>NAT network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Optical Drive)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
         <comment>InformationElementType</comment>
         <translation type="unfinished"></translation>
     </message>
@@ -13936,12 +14340,16 @@ VMM: Floppy Image</comment>
         <translation type="obsolete">ថាសរឹង</translation>
     </message>
     <message>
-        <source>Type:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Location:</source>
         <translation type="unfinished">ទី​តាំង​ ៖</translation>
+    </message>
+    <message>
+        <source>Attached to:</source>
+        <translation type="unfinished">បាន​​ភ្ជាប់ទៅកាន់ ៖</translation>
+    </message>
+    <message>
+        <source>Type:</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Format:</source>
@@ -13950,10 +14358,6 @@ VMM: Floppy Image</comment>
     <message>
         <source>Storage details:</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Attached to:</source>
-        <translation type="unfinished">បាន​​ភ្ជាប់ទៅកាន់ ៖</translation>
     </message>
     <message>
         <source>&amp;Copy...</source>
