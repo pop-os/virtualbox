@@ -1,3 +1,12 @@
+virtualbox (5.1.28-dfsg-1) unstable; urgency=medium
+
+  * Remove double "in" keyword, to make lintian happy
+  * New upstream version 5.1.28-dfsg
+  * Bump std-version to 4.1.0
+  * drop old patch cherry-pick-68274: upstream
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 14 Sep 2017 19:42:08 +0200
+
 virtualbox (5.1.26-dfsg-2) unstable; urgency=medium
 
   * Cherry-pick gcc warning fix 68274
