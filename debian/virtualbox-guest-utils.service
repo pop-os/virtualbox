@@ -1,0 +1,18 @@
+[Unit]
+Description=Virtualbox guest utils
+Conflicts=systemd-timesyncd.service
+
+[Service]
+Type=forking
+Restart=no
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+GuessMainPID=no
+RemainAfterExit=yes
+ExecStart=/etc/init.d/virtualbox-guest-utils start
+ExecStop=/etc/init.d/virtualbox-guest-utils stop
+
+[Install]
+WantedBy=multi-user.target
+

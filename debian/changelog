@@ -1,3 +1,11 @@
+virtualbox (5.1.28-dfsg-2) unstable; urgency=high
+
+  * Conflict with ntp services due to systemd hack removed.
+    (Closes: #873263)
+    (thanks to the various systemd maintainers and upstream for the help)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 04 Oct 2017 16:47:29 +0200
+
 virtualbox (5.1.28-dfsg-1) unstable; urgency=medium
 
   * Remove double "in" keyword, to make lintian happy
