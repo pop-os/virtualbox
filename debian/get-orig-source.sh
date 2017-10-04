@@ -47,6 +47,8 @@ rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/linux/selinux-fedora
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11include
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11stubs
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/kStuff/kStuff/kLdr/testcase/bin
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/AArch64/Fat.efi
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Arm/Fat.efi
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Ebc/Fat.efi
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Ia32/Fat.efi
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Ipf/Fat.efi
