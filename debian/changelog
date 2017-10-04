@@ -3,6 +3,7 @@ virtualbox (5.1.28-dfsg-2) unstable; urgency=high
   * Conflict with ntp services due to systemd hack removed.
     (Closes: #873263)
     (thanks to the various systemd maintainers and upstream for the help)
+  * Bump std-version to 4.1.1
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 04 Oct 2017 16:47:29 +0200
 
