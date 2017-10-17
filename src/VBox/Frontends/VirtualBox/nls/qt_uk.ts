@@ -627,7 +627,7 @@
     </message>
     <message>
         <source>Show All</source>
-        <translation>Показати всі</translation>
+        <translation>Показати все</translation>
     </message>
     <message>
         <source>Preferences...</source>
@@ -635,7 +635,7 @@
     </message>
     <message>
         <source>Quit %1</source>
-        <translation>Вийти з %1</translation>
+        <translation>Вихід з %1</translation>
     </message>
     <message>
         <source>About %1</source>
@@ -686,275 +686,275 @@
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 не визначено</translation>
+        <translation type="vanished">%1, %2 не визначено</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>Неоднозначний %1 не оброблюється</translation>
+        <translation type="vanished">Неоднозначний %1 не оброблюється</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Так</translation>
+        <translation type="vanished">Так</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Ні</translation>
+        <translation type="vanished">Ні</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Вставити</translation>
+        <translation type="vanished">Вставити</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Оновити</translation>
+        <translation type="vanished">Оновити</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Вилучити</translation>
+        <translation type="vanished">Вилучити</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Копіювати або пересунути файл</translation>
+        <translation type="vanished">Копіювати або пересунути файл</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Читання: %1</translation>
+        <translation type="vanished">Читання: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Запис: %1</translation>
+        <translation type="vanished">Запис: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Скасувати</translation>
+        <translation type="vanished">Скасувати</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Всі файли (*)</translation>
+        <translation type="vanished">Всі файли (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Ім&apos;я</translation>
+        <translation type="vanished">Ім&apos;я</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Розмір</translation>
+        <translation type="vanished">Розмір</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>Тип</translation>
+        <translation type="vanished">Тип</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Дата</translation>
+        <translation type="vanished">Дата</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Атрибути</translation>
+        <translation type="vanished">Атрибути</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Гаразд</translation>
+        <translation type="vanished">&amp;Гаразд</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Перегляд &amp;в:</translation>
+        <translation type="vanished">Перегляд &amp;в:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>&amp;Ім&apos;я файлу:</translation>
+        <translation type="vanished">&amp;Ім&apos;я файлу:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>&amp;Тип файлу:</translation>
+        <translation type="vanished">&amp;Тип файлу:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Назад</translation>
+        <translation type="vanished">Назад</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>Один каталог угору</translation>
+        <translation type="vanished">Один каталог угору</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Створити нову теку</translation>
+        <translation type="vanished">Створити нову теку</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Вигляд списком</translation>
+        <translation type="vanished">Вигляд списком</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Вигляд з подробицями</translation>
+        <translation type="vanished">Вигляд з подробицями</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>Перегляд відомостей про файл</translation>
+        <translation type="vanished">Перегляд відомостей про файл</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>Перегляд вмісту файла</translation>
+        <translation type="vanished">Перегляд вмісту файла</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Читання-запис</translation>
+        <translation type="vanished">Читання-запис</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Тільки для читання</translation>
+        <translation type="vanished">Тільки для читання</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Тільки для запису</translation>
+        <translation type="vanished">Тільки для запису</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Недоступний</translation>
+        <translation type="vanished">Недоступний</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Символьне посилання на файл</translation>
+        <translation type="vanished">Символьне посилання на файл</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Символьне посилання на каталог</translation>
+        <translation type="vanished">Символьне посилання на каталог</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Символьне посилання на спеціальний файл</translation>
+        <translation type="vanished">Символьне посилання на спеціальний файл</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Файл</translation>
+        <translation type="vanished">Файл</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Каталог</translation>
+        <translation type="vanished">Каталог</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Спеціальний файл</translation>
+        <translation type="vanished">Спеціальний файл</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Відкрити</translation>
+        <translation type="vanished">Відкрити</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Зберегти, як</translation>
+        <translation type="vanished">Зберегти, як</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Відкрити</translation>
+        <translation type="vanished">&amp;Відкрити</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Зберегти</translation>
+        <translation type="vanished">&amp;Зберегти</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Перейменувати</translation>
+        <translation type="vanished">&amp;Перейменувати</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Витерти</translation>
+        <translation type="vanished">&amp;Витерти</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>О&amp;новити</translation>
+        <translation type="vanished">О&amp;новити</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Впорядкувати за &amp;ім&apos;ям</translation>
+        <translation type="vanished">Впорядкувати за &amp;ім&apos;ям</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Впорядкувати за &amp;розміром</translation>
+        <translation type="vanished">Впорядкувати за &amp;розміром</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Впорядкувати за &amp;датою</translation>
+        <translation type="vanished">Впорядкувати за &amp;датою</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Невпорядковано</translation>
+        <translation type="vanished">&amp;Невпорядковано</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Впорядкувати</translation>
+        <translation type="vanished">Впорядкувати</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Показати &amp;приховані файли</translation>
+        <translation type="vanished">Показати &amp;приховані файли</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>файл</translation>
+        <translation type="vanished">файл</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>каталог</translation>
+        <translation type="vanished">каталог</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>символьне посилання</translation>
+        <translation type="vanished">символьне посилання</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>Вилучити %1</translation>
+        <translation type="vanished">Вилучити %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Ви дійсно хочете вилучити %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Ви дійсно хочете вилучити %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Так</translation>
+        <translation type="vanished">&amp;Так</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Ні</translation>
+        <translation type="vanished">&amp;Ні</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Нова тека 1</translation>
+        <translation type="vanished">Нова тека 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Нова тека</translation>
+        <translation type="vanished">Нова тека</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Нова тека %1</translation>
+        <translation type="vanished">Нова тека %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Знайти каталог</translation>
+        <translation type="vanished">Знайти каталог</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Каталоги</translation>
+        <translation type="vanished">Каталоги</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Каталог:</translation>
+        <translation type="vanished">Каталог:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Помилка</translation>
+        <translation type="vanished">Помилка</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
+        <translation type="vanished">%1
 Файл не знайдено.
 Перевірте шлях та ім&apos;я файла.</translation>
     </message>
@@ -964,18 +964,18 @@ Check path and filename.</source>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Неможливо прочитати каталог
+        <translation type="vanished">Неможливо прочитати каталог
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Неможливо створити каталог%1</translation>
+        <translation type="vanished">Неможливо створити каталог%1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Неможливо вилучити файли або каталог
+        <translation type="vanished">Неможливо вилучити файли або каталог
 %1</translation>
     </message>
     <message>
@@ -983,7 +983,7 @@ Check path and filename.</source>
 %1
 to
 %2</source>
-        <translation>Неможливо перейменувати
+        <translation type="vanished">Неможливо перейменувати
 %1
 в
 %2</translation>
@@ -991,13 +991,13 @@ to
     <message>
         <source>Could not open
 %1</source>
-        <translation>Неможливо відкрити
+        <translation type="vanished">Неможливо відкрити
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Неможливо записати
+        <translation type="vanished">Неможливо записати
 %1</translation>
     </message>
 </context>
@@ -1005,203 +1005,203 @@ to
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>Вирівняти</translation>
+        <translation type="vanished">Вирівняти</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>Підлаштувати...</translation>
+        <translation type="vanished">Підлаштувати...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>Дію зупинено користувачем</translation>
+        <translation type="vanished">Дію зупинено користувачем</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Скасувати</translation>
+        <translation type="vanished">Скасувати</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>Гаразд</translation>
+        <translation type="vanished">Гаразд</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Застосувати</translation>
+        <translation type="vanished">Застосувати</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Довідка</translation>
+        <translation type="vanished">Довідка</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Типові значення</translation>
+        <translation type="vanished">Типові значення</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Скасувати</translation>
+        <translation type="vanished">Скасувати</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Повернути</translation>
+        <translation type="vanished">&amp;Повернути</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>П&amp;овторити</translation>
+        <translation type="vanished">П&amp;овторити</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Ви&amp;різати</translation>
+        <translation type="vanished">Ви&amp;різати</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Копіювати</translation>
+        <translation type="vanished">&amp;Копіювати</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Вставити</translation>
+        <translation type="vanished">&amp;Вставити</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Очистити</translation>
+        <translation type="vanished">Очистити</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Вибрати все</translation>
+        <translation type="vanished">Вибрати все</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>Система</translation>
+        <translation type="vanished">Система</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>Відновити вгору</translation>
+        <translation type="vanished">Відновити вгору</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Мінімізувати</translation>
+        <translation type="vanished">Мінімізувати</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Відновити додолу</translation>
+        <translation type="vanished">Відновити додолу</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Максимізувати</translation>
+        <translation type="vanished">Максимізувати</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Закрити</translation>
+        <translation type="vanished">Закрити</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Містить команди для дій над вікном</translation>
+        <translation type="vanished">Містить команди для дій над вікном</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>Повертає мінімізоване в нормальний стан</translation>
+        <translation type="vanished">Повертає мінімізоване в нормальний стан</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>Відсуває вікно з дороги</translation>
+        <translation type="vanished">Відсуває вікно з дороги</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Повертає максимізоване в нормальний стан</translation>
+        <translation type="vanished">Повертає максимізоване в нормальний стан</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Показує вікно на весь екран</translation>
+        <translation type="vanished">Показує вікно на весь екран</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Закриває вікно</translation>
+        <translation type="vanished">Закриває вікно</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Показує ім&apos;я вікна та містить елементи керування ним</translation>
+        <translation type="vanished">Показує ім&apos;я вікна та містить елементи керування ним</translation>
     </message>
 </context>
 <context>
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Додатково...</translation>
+        <translation type="vanished">Додатково...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>Протокол &quot;%1&quot; не підтримується</translation>
+        <translation type="vanished">Протокол &quot;%1&quot; не підтримується</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>Протокол &quot;%1&quot; не підтримує перегляд списку каталогів</translation>
+        <translation type="vanished">Протокол &quot;%1&quot; не підтримує перегляд списку каталогів</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Протокол &quot;%1&quot; не підтримує створення каталогів</translation>
+        <translation type="vanished">Протокол &quot;%1&quot; не підтримує створення каталогів</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Протокол &quot;%1&quot; не підтримує вилучення файлів або каталогів</translation>
+        <translation type="vanished">Протокол &quot;%1&quot; не підтримує вилучення файлів або каталогів</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Протокол &quot;%1&quot; не підтримує перейменування файлів та каталогів</translation>
+        <translation type="vanished">Протокол &quot;%1&quot; не підтримує перейменування файлів та каталогів</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>Протокол &quot;%1&quot; не підтримує отримання файлів</translation>
+        <translation type="vanished">Протокол &quot;%1&quot; не підтримує отримання файлів</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>Протокол &quot;%1&quot; не підтримує викладення файлів</translation>
+        <translation type="vanished">Протокол &quot;%1&quot; не підтримує викладення файлів</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Протокол &quot;%1&quot; не підтримує копіювання або пересування файлів та каталогів</translation>
+        <translation type="vanished">Протокол &quot;%1&quot; не підтримує копіювання або пересування файлів та каталогів</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(невідомо)</translation>
+        <translation type="vanished">(невідомо)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Скасувати</translation>
+        <translation type="vanished">&amp;Скасувати</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Назад</translation>
+        <translation type="vanished">&lt; &amp;Назад</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Вперед &gt;</translation>
+        <translation type="vanished">&amp;Вперед &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Закінчити</translation>
+        <translation type="vanished">&amp;Закінчити</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Довідка</translation>
+        <translation type="vanished">&amp;Довідка</translation>
     </message>
 </context>
 <context>
@@ -1212,15 +1212,15 @@ to
     </message>
     <message>
         <source>Connection refused</source>
-        <translation>Відмовлено у зв&apos;язку</translation>
+        <translation>У з&apos;єднанні відмовлено</translation>
     </message>
     <message>
         <source>Socket operation timed out</source>
-        <translation>Дія з сокетом перевищила термін очікування</translation>
+        <translation>Час на операцію з сокетом вичерпано</translation>
     </message>
     <message>
         <source>Socket is not connected</source>
-        <translation>Сокет не є під&apos;єднаним</translation>
+        <translation>Сокет не під’єднано</translation>
     </message>
     <message>
         <source>Operation on socket is not supported</source>
@@ -1243,15 +1243,15 @@ to
     <name>QAbstractSpinBox</name>
     <message>
         <source>&amp;Step up</source>
-        <translation>&amp;Крок вгору</translation>
+        <translation>Крок в&amp;гору</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
-        <translation>Крок &amp;додолу</translation>
+        <translation>Крок до&amp;низу</translation>
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation>&amp;Вибрати все</translation>
+        <translation>&amp;Виділити все</translation>
     </message>
 </context>
 <context>
@@ -1376,39 +1376,39 @@ to
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Активувати</translation>
+        <translation type="vanished">Активувати</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>Програма &quot;%1&quot; потребує Qt %2, але знайдено Qt %3.</translation>
+        <translation>Виконуваний модуль &apos;%1&apos; вимагає Qt %2, знайдено Qt %3.</translation>
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation>Помилка несумісності бібліотеки Qt</translation>
+        <translation>Несумісна бібліотека Qt</translation>
     </message>
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Активує головне вікно програми</translation>
+        <translation type="vanished">Активує головне вікно програми</translation>
     </message>
 </context>
 <context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Зняти позначку</translation>
+        <translation type="vanished">Зняти позначку</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Поставити позначку</translation>
+        <translation type="vanished">Поставити позначку</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Перемикнути</translation>
+        <translation type="vanished">Перемикнути</translation>
     </message>
 </context>
 <context>
@@ -1477,7 +1477,7 @@ to
     <name>QColorDialog</name>
     <message>
         <source>Hu&amp;e:</source>
-        <translation>Від&amp;тінок:</translation>
+        <translation>&amp;Відтінок:</translation>
     </message>
     <message>
         <source>&amp;Sat:</source>
@@ -1485,7 +1485,7 @@ to
     </message>
     <message>
         <source>&amp;Val:</source>
-        <translation>&amp;Значення:</translation>
+        <translation>Знач&amp;ення:</translation>
     </message>
     <message>
         <source>&amp;Red:</source>
@@ -1497,27 +1497,27 @@ to
     </message>
     <message>
         <source>Bl&amp;ue:</source>
-        <translation>С&amp;иній:</translation>
+        <translation>&amp;Блакитний:</translation>
     </message>
     <message>
         <source>A&amp;lpha channel:</source>
-        <translation>Канал а&amp;льфа:</translation>
+        <translation>&amp;Альфа-канал:</translation>
     </message>
     <message>
         <source>&amp;Basic colors</source>
-        <translation>&amp;Базові кольори</translation>
+        <translation>Баз&amp;ові кольори</translation>
     </message>
     <message>
         <source>&amp;Custom colors</source>
-        <translation>&amp;Нетипові кольори</translation>
+        <translation>&amp;Кольори користувача</translation>
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
-        <translation>&amp;Додати до нетипових кольорів</translation>
+        <translation>&amp;Додати до кольорів користувача</translation>
     </message>
     <message>
         <source>Select color</source>
-        <translation>Виберіть колір</translation>
+        <translation type="vanished">Виберіть колір</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -1552,19 +1552,19 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Відкрити</translation>
+        <translation type="vanished">Відкрити</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Ні</translation>
+        <translation>Хибно</translation>
     </message>
     <message>
         <source>True</source>
-        <translation>Так</translation>
+        <translation>Істинно</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Закрити</translation>
+        <translation type="vanished">Закрити</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1619,17 +1619,17 @@ Press ESC to cancel</source>
     <message>
         <source>%1: key is empty</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: порожній ключ</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: неможливо створити ключ</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: збій ftok</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
@@ -1765,7 +1765,7 @@ Press ESC to cancel</source>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Неможливо з&apos;єднатися</translation>
+        <translation>Неможливо з&apos;єднатись</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
@@ -1784,11 +1784,11 @@ Press ESC to cancel</source>
     <name>QDB2Result</name>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Неможливо виконати оператор</translation>
+        <translation>Неможливо виконати вираз</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Неможливо підготувати оператор</translation>
+        <translation>Неможливо підготувати вираз</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
@@ -1796,15 +1796,15 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Unable to fetch record %1</source>
-        <translation>Неможливо вибрати запис %1</translation>
+        <translation>Неможливо отримати запис %1</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>Неможливо вибрати наступний</translation>
+        <translation>Неможливо отримати наступний запис</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation>Неможливо вибрати перший</translation>
+        <translation>Неможливо отримати перший запис</translation>
     </message>
 </context>
 <context>
@@ -1818,19 +1818,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>AM</translation>
+        <translation type="vanished">AM</translation>
     </message>
     <message>
         <source>am</source>
-        <translation>am</translation>
+        <translation type="vanished">am</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation>PM</translation>
+        <translation type="vanished">PM</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation>pm</translation>
+        <translation type="vanished">pm</translation>
     </message>
 </context>
 <context>
@@ -1856,15 +1856,15 @@ Press ESC to cancel</source>
     <name>QDial</name>
     <message>
         <source>QDial</source>
-        <translation>QDial</translation>
+        <translation type="vanished">QDial</translation>
     </message>
     <message>
         <source>SpeedoMeter</source>
-        <translation>Спідометр</translation>
+        <translation type="vanished">Спідометр</translation>
     </message>
     <message>
         <source>SliderHandle</source>
-        <translation>ДержакПовзунка</translation>
+        <translation type="vanished">ДержакПовзунка</translation>
     </message>
 </context>
 <context>
@@ -1875,94 +1875,94 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Done</source>
-        <translation type="unfinished">Зроблено</translation>
+        <translation type="obsolete">Зроблено</translation>
     </message>
 </context>
 <context>
     <name>QDialogButtonBox</name>
     <message>
         <source>OK</source>
-        <translation>Гаразд</translation>
+        <translation>OK</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>Зберегти</translation>
+        <translation type="vanished">Зберегти</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Відкрити</translation>
+        <translation type="vanished">Відкрити</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Скасувати</translation>
+        <translation type="vanished">Скасувати</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Закрити</translation>
+        <translation type="vanished">Закрити</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Застосувати</translation>
+        <translation type="vanished">Застосувати</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Скинути</translation>
+        <translation type="vanished">Скинути</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Довідка</translation>
+        <translation type="vanished">Довідка</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Не зберігати</translation>
+        <translation type="vanished">Не зберігати</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Відкинути</translation>
+        <translation type="vanished">Відхилити</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Так</translation>
+        <translation type="vanished">Т&amp;ак</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Так для &amp;всіх</translation>
+        <translation type="vanished">Так &amp;для всіх</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Ні</translation>
+        <translation type="vanished">&amp;Ні</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>Н&amp;і для всіх</translation>
+        <translation type="vanished">Ні для вс&amp;іх</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Зберегти всі</translation>
+        <translation type="vanished">Зберегти все</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Перервати</translation>
+        <translation type="vanished">Перервати</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Повторна спроба</translation>
+        <translation type="vanished">Повторити</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Пропустити</translation>
+        <translation type="vanished">Ігнорувати</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Відновити типові</translation>
+        <translation type="vanished">Відновити типово</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>Закрити без збереження</translation>
+        <translation type="vanished">Закрити без збереження</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation type="unfinished">&amp;Гаразд</translation>
+        <translation type="vanished">&amp;OK</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -1981,7 +1981,7 @@ Press ESC to cancel</source>
     <name>QDirModel</name>
     <message>
         <source>Name</source>
-        <translation>Ім&apos;я</translation>
+        <translation>Назва</translation>
     </message>
     <message>
         <source>Size</source>
@@ -2127,15 +2127,17 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>Закрити</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translation>Пришвартувати</translation>
+        <translation type="vanished">Пришвартувати</translation>
     </message>
     <message>
         <source>Float</source>
-        <translation>Відшвартувати</translation>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
+        <translation>Відкріпити</translation>
     </message>
     <message>
         <source>Undocks and re-attaches the dock widget</source>
@@ -2150,18 +2152,18 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Більше</translation>
+        <translation type="vanished">Більше</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Менше</translation>
+        <translation type="vanished">Менше</translation>
     </message>
 </context>
 <context>
     <name>QErrorMessage</name>
     <message>
         <source>Debug Message:</source>
-        <translation>Повідомлення зневадження:</translation>
+        <translation>Зневаджувальне повідомлення:</translation>
     </message>
     <message>
         <source>Warning:</source>
@@ -2177,7 +2179,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Гаразд</translation>
+        <translation>&amp;OK</translation>
     </message>
 </context>
 <context>
@@ -2238,11 +2240,11 @@ Press ESC to cancel</source>
     <name>QFileDialog</name>
     <message>
         <source>All Files (*)</source>
-        <translation>Всі файли (*)</translation>
+        <translation>Усі файли (*)</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Каталоги</translation>
+        <translation>Теки</translation>
     </message>
     <message>
         <source>&amp;Open</source>
@@ -2260,15 +2262,15 @@ Press ESC to cancel</source>
         <source>%1 already exists.
 Do you want to replace it?</source>
         <translation>%1 вже існує.
-Перезаписати?</translation>
+Бажаєте перезаписати його?</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Please verify the correct file name was given.</source>
-        <translation>%1.
+        <translation>%1
 Файл не знайдено.
-Переконайтеся, що введено правильне ім&apos;я файлу.</translation>
+Будь ласка, перевірте, що вказане правильне ім&apos;я файлу.</translation>
     </message>
     <message>
         <source>My Computer</source>
@@ -2280,11 +2282,11 @@ Please verify the correct file name was given.</source>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Витерти</translation>
+        <translation>&amp;Видалити</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Показати &amp;приховані файли</translation>
+        <translation>Показувати при&amp;ховані файли</translation>
     </message>
     <message>
         <source>Back</source>
@@ -2292,15 +2294,15 @@ Please verify the correct file name was given.</source>
     </message>
     <message>
         <source>Parent Directory</source>
-        <translation>Батьківський каталог</translation>
+        <translation>Батьківська тека</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Вигляд списком</translation>
+        <translation>Списком</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Вигляд з подробицями</translation>
+        <translation>Детально</translation>
     </message>
     <message>
         <source>Files of type:</source>
@@ -2308,33 +2310,33 @@ Please verify the correct file name was given.</source>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Каталог:</translation>
+        <translation>Тека:</translation>
     </message>
     <message>
         <source>%1
 Directory not found.
 Please verify the correct directory name was given.</source>
-        <translation>%1.
-Каталог не знайдено.
-Переконайтеся, що введено правильне ім&apos;я каталогу.</translation>
+        <translation>%1
+Тека не знайдена.
+Будь ласка, перевірте, що вказане правильне ім&apos;я теки.</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is write protected.
 Do you want to delete it anyway?</source>
-        <translation>&quot;%1&quot; захищено від запису.
-Дійсно вилучити?</translation>
+        <translation>&apos;%1&apos; захищено від запису.
+Бажаєте видалити незважаючи на це?</translation>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Дійсно вилучити &quot;%1&quot;?</translation>
+        <translation type="vanished">Дійсно вилучити &quot;%1&quot;?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
-        <translation>Неможливо вилучити каталог.</translation>
+        <translation>Не вдалося видалити теку.</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Зберегти, як</translation>
+        <translation>Зберегти як</translation>
     </message>
     <message>
         <source>Drive</source>
@@ -2350,11 +2352,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Знайти каталог</translation>
+        <translation>Пошук теки</translation>
     </message>
     <message>
         <source>Show </source>
-        <translation>Показати </translation>
+        <translation>Показати</translation>
     </message>
     <message>
         <source>Forward</source>
@@ -2370,11 +2372,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&amp;Choose</source>
-        <translation>&amp;Вибрати</translation>
+        <translation>&amp;Обрати</translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation>Вилучити</translation>
+        <translation>Видалити</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
@@ -2382,7 +2384,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Look in:</source>
-        <translation>Пошук в:</translation>
+        <translation>Перегляд в:</translation>
     </message>
     <message>
         <source>Create New Folder</source>
@@ -2491,7 +2493,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
-        <translation>&lt;b&gt;Неможливо використати ім&apos;я &quot;%1&quot;.&lt;/b&gt;&lt;p&gt;Спробуйте інше ім&apos;я, меншої довжини або без знаків пунктуації.</translation>
+        <translation>&lt;b&gt;Ім&apos;я &quot;%1&quot; не може бути використане.&lt;/b&gt;&lt;p&gt;Спробуйте використати інше ім&apos;я, меншої довжини або без знаків пунктуації.</translation>
     </message>
     <message>
         <source>Name</source>
@@ -2525,23 +2527,23 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>%1 TB</source>
-        <translation>%1 ТБ</translation>
+        <translation>%1 Тб</translation>
     </message>
     <message>
         <source>%1 GB</source>
-        <translation>%1 ГБ</translation>
+        <translation>%1 Гб</translation>
     </message>
     <message>
         <source>%1 MB</source>
-        <translation>%1 МБ</translation>
+        <translation>%1 Мб</translation>
     </message>
     <message>
         <source>%1 KB</source>
-        <translation>%1 КБ</translation>
+        <translation>%1 Кб</translation>
     </message>
     <message>
         <source>%1 bytes</source>
-        <translation>%1 байтів</translation>
+        <translation>%1 байт</translation>
     </message>
     <message>
         <source>%1 byte(s)</source>
@@ -2552,167 +2554,168 @@ Do you want to delete it anyway?</source>
     <name>QFontDatabase</name>
     <message>
         <source>Normal</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Звичайний</translation>
     </message>
     <message>
         <source>Bold</source>
-        <translation type="unfinished"></translation>
+        <translation>Жирний</translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation type="unfinished"></translation>
+        <translation>Напівжирний</translation>
     </message>
     <message>
         <source>Black</source>
-        <translation type="unfinished"></translation>
+        <translation>Чорний</translation>
     </message>
     <message>
         <source>Demi</source>
-        <translation type="unfinished"></translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation>Середній</translation>
     </message>
     <message>
         <source>Light</source>
-        <translation type="unfinished"></translation>
+        <translation>Світлий</translation>
     </message>
     <message>
         <source>Italic</source>
-        <translation type="unfinished"></translation>
+        <translation>Курсив</translation>
     </message>
     <message>
         <source>Oblique</source>
-        <translation type="unfinished"></translation>
+        <translation>Нахилений</translation>
     </message>
     <message>
         <source>Any</source>
-        <translation type="unfinished"></translation>
+        <translation>Будь-яка</translation>
     </message>
     <message>
         <source>Latin</source>
-        <translation type="unfinished"></translation>
+        <translation>Латиниця</translation>
     </message>
     <message>
         <source>Greek</source>
-        <translation type="unfinished"></translation>
+        <translation>Грецька</translation>
     </message>
     <message>
         <source>Cyrillic</source>
-        <translation type="unfinished"></translation>
+        <translation>Кирилиця</translation>
     </message>
     <message>
         <source>Armenian</source>
-        <translation type="unfinished"></translation>
+        <translation>Вірменська</translation>
     </message>
     <message>
         <source>Hebrew</source>
-        <translation type="unfinished"></translation>
+        <translation>Іврит</translation>
     </message>
     <message>
         <source>Arabic</source>
-        <translation type="unfinished"></translation>
+        <translation>Арабська</translation>
     </message>
     <message>
         <source>Syriac</source>
-        <translation type="unfinished"></translation>
+        <translation>Сирійська</translation>
     </message>
     <message>
         <source>Thaana</source>
-        <translation type="unfinished"></translation>
+        <translation>Тана</translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation type="unfinished"></translation>
+        <translation>Деванагарі</translation>
     </message>
     <message>
         <source>Bengali</source>
-        <translation type="unfinished"></translation>
+        <translation>Бенгальська</translation>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation type="unfinished"></translation>
+        <translation>Гурмукхі</translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation type="unfinished"></translation>
+        <translation>Гуджараті</translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation type="unfinished"></translation>
+        <translation>Орія</translation>
     </message>
     <message>
         <source>Tamil</source>
-        <translation type="unfinished"></translation>
+        <translation>Тамільська</translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation type="unfinished"></translation>
+        <translation>Телугу</translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation type="unfinished"></translation>
+        <translation>Каннада</translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation type="unfinished"></translation>
+        <translation>Малаялам</translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation type="unfinished"></translation>
+        <translation>Сингальська</translation>
     </message>
     <message>
         <source>Thai</source>
-        <translation type="unfinished"></translation>
+        <translation>Тайська</translation>
     </message>
     <message>
         <source>Lao</source>
-        <translation type="unfinished"></translation>
+        <translation>Лаоська</translation>
     </message>
     <message>
         <source>Tibetan</source>
-        <translation type="unfinished"></translation>
+        <translation>Тибетська</translation>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation type="unfinished"></translation>
+        <translation>М&apos;янма</translation>
     </message>
     <message>
         <source>Georgian</source>
-        <translation type="unfinished"></translation>
+        <translation>Грузинська</translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation type="unfinished"></translation>
+        <translation>Кхмерська</translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>Китайська спрощена</translation>
     </message>
     <message>
         <source>Traditional Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>Китайська традиційна</translation>
     </message>
     <message>
         <source>Japanese</source>
-        <translation type="unfinished"></translation>
+        <translation>Японська</translation>
     </message>
     <message>
         <source>Korean</source>
-        <translation type="unfinished"></translation>
+        <translation>Корейська</translation>
     </message>
     <message>
         <source>Vietnamese</source>
-        <translation type="unfinished"></translation>
+        <translation>В&apos;єтнамська</translation>
     </message>
     <message>
         <source>Symbol</source>
-        <translation type="unfinished"></translation>
+        <translation>Символьна</translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation type="unfinished"></translation>
+        <translation>Огам</translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation type="unfinished"></translation>
+        <translation>Рунічна</translation>
     </message>
     <message>
         <source>Normal</source>
@@ -2754,7 +2757,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Font st&amp;yle</source>
-        <translation>Ст&amp;иль шрифту</translation>
+        <translation>&amp;Стиль шрифту</translation>
     </message>
     <message>
         <source>&amp;Size</source>
@@ -2766,11 +2769,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation>Пере&amp;креслити</translation>
+        <translation>П&amp;ерекреслений</translation>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation>&amp;Підкреслити</translation>
+        <translation>П&amp;ідкреслений</translation>
     </message>
     <message>
         <source>Sample</source>
@@ -2778,7 +2781,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation>Система з&amp;апису</translation>
+        <translation>Система &amp;писемності</translation>
     </message>
     <message>
         <source>Select Font</source>
@@ -2789,7 +2792,7 @@ Do you want to delete it anyway?</source>
     <name>QFtp</name>
     <message>
         <source>Not connected</source>
-        <translation>Не з&apos;єднано</translation>
+        <translation>Не під&apos;єднано</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
@@ -2797,15 +2800,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Connection refused to host %1</source>
-        <translation>Відмовлено в з&apos;єднанні до вузла %1</translation>
+        <translation>Відмова у з’єднанні з вузлом %1</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>З&apos;єднано з вузлом %1</translation>
+        <translation>З’єднано з вузлом %1</translation>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>Відмовлено в з&apos;єднанні для каналу даних</translation>
+        <translation type="vanished">Відмовлено в з&apos;єднанні для каналу даних</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2814,52 +2817,55 @@ Do you want to delete it anyway?</source>
     <message>
         <source>Connecting to host failed:
 %1</source>
-        <translation>Помилка з&apos;єднання до вузла:
+        <translation>Збій з’єднання з вузлом:
 %1</translation>
     </message>
     <message>
         <source>Login failed:
 %1</source>
-        <translation>Помилка входження:
+        <translation>Збій входу:
 %1</translation>
     </message>
     <message>
         <source>Listing directory failed:
 %1</source>
-        <translation>Помилка отримання списку каталогів:%1</translation>
+        <translation>Збій перегляду теки:
+%1</translation>
     </message>
     <message>
         <source>Changing directory failed:
 %1</source>
-        <translation>Помилка переходу в каталог:
+        <translation>Збій зміни теки:
 %1</translation>
     </message>
     <message>
         <source>Downloading file failed:
 %1</source>
-        <translation>Помилка звантаження файлу:
+        <translation>Збій звантаження файлу:
 %1</translation>
     </message>
     <message>
         <source>Uploading file failed:
 %1</source>
-        <translation>Помилка відвантаження файлу:
+        <translation>Збій вивантаження файлу:
 %1</translation>
     </message>
     <message>
         <source>Removing file failed:
 %1</source>
-        <translation>Помилка вилучення файлу:%1</translation>
+        <translation>Збій видалення файлу:
+%1</translation>
     </message>
     <message>
         <source>Creating directory failed:
 %1</source>
-        <translation>Помилка створення каталогу:%1</translation>
+        <translation>Збій створення теки:
+%1</translation>
     </message>
     <message>
         <source>Removing directory failed:
 %1</source>
-        <translation>Помилка вилучення каталогу:
+        <translation>Збій видалення теки:
 %1</translation>
     </message>
     <message>
@@ -2868,19 +2874,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Знайдено вузол %1</translation>
+        <translation type="vanished">Знайдено вузол %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>З&apos;єднання з %1 закрито</translation>
+        <translation type="vanished">З&apos;єднання з %1 закрито</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Знайдено вузол</translation>
+        <translation type="vanished">Знайдено вузол</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>З&apos;єднано з вузлом</translation>
+        <translation type="vanished">З&apos;єднано з вузлом</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -2968,27 +2974,27 @@ Do you want to delete it anyway?</source>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>Невідома помилка</translation>
+        <translation type="vanished">Невідома помилка</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>Запит перервано</translation>
+        <translation type="vanished">Запит перервано</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>Не вказано сервер для з&apos;єднання</translation>
+        <translation type="vanished">Не вказано сервер для з&apos;єднання</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>Неправильна довжина вмісту</translation>
+        <translation type="vanished">Неправильна довжина вмісту</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>Сервер несподівано закрив з&apos;єднання</translation>
+        <translation type="vanished">Сервер несподівано закрив з&apos;єднання</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation>Відмовлено у зв&apos;язку</translation>
+        <translation>У з&apos;єднанні відмовлено</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
@@ -2996,35 +3002,35 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>Помилка запиту HTTP</translation>
+        <translation type="vanished">Помилка запиту HTTP</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>Неправильний заголовок відповіді HTTP</translation>
+        <translation type="vanished">Неправильний заголовок відповіді HTTP</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>Неправильно розділене тіло HTTP</translation>
+        <translation type="vanished">Неправильно розділене тіло HTTP</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Знайдено вузол %1</translation>
+        <translation type="vanished">Знайдено вузол %1</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>З&apos;єднано з вузлом %1</translation>
+        <translation type="vanished">З&apos;єднано з вузлом %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>З&apos;єднання з %1 закрито</translation>
+        <translation type="vanished">З&apos;єднання з %1 закрито</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Знайдено вузол</translation>
+        <translation type="vanished">Знайдено вузол</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>З&apos;єднано з вузлом</translation>
+        <translation type="vanished">З&apos;єднано з вузлом</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -3032,31 +3038,31 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>Проксі потребує автентифікації</translation>
+        <translation type="vanished">Проксі потребує автентифікації</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Автентифікація обов&apos;язкова</translation>
+        <translation type="vanished">Автентифікація обов&apos;язкова</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
-        <translation type="unfinished"></translation>
+        <translation>Проксі вимагає авторизації</translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translation type="unfinished"></translation>
+        <translation>Вузол вимагає авторизації</translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translation type="unfinished"></translation>
+        <translation>Дані пошкоджено</translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation type="unfinished"></translation>
+        <translation>Вказано невідомий протокол</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translation type="unfinished"></translation>
+        <translation>Збій рукостискання SSL</translation>
     </message>
     <message>
         <source>Too many redirects</source>
@@ -3079,7 +3085,7 @@ Do you want to delete it anyway?</source>
     <name>QHttpSocketEngine</name>
     <message>
         <source>Authentication required</source>
-        <translation>Автентифікація обов&apos;язкова</translation>
+        <translation>Необхідна авторизація</translation>
     </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
@@ -3118,11 +3124,11 @@ Do you want to delete it anyway?</source>
     <name>QIBaseDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation>Неможливо відкрити базу даних</translation>
+        <translation>Помилка відкриття бази даних</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>Неможливо почати транзакцію</translation>
+        <translation>Не вдалося почати транзакцію</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
@@ -3153,19 +3159,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Could not find array</source>
-        <translation>Неможливо знайти масив</translation>
+        <translation>Не вдалося знайти масив</translation>
     </message>
     <message>
         <source>Could not get array data</source>
-        <translation>Неможливо отримати дані масиву</translation>
+        <translation>Не вдалося отримати дані масиву</translation>
     </message>
     <message>
         <source>Could not get query info</source>
-        <translation>Неможливо отримати дані запиту</translation>
+        <translation>Не вдалося отримати інформацію про запит</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>Неможливо почати транзакцію</translation>
+        <translation>Не вдалося почати транзакцію</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
@@ -3173,23 +3179,23 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Could not allocate statement</source>
-        <translation>Неможливо розмістити оператор</translation>
+        <translation>Не вдалося виділити вираз</translation>
     </message>
     <message>
         <source>Could not prepare statement</source>
-        <translation>Неможливо підготувати оператор</translation>
+        <translation>Не вдалося підготувати вираз</translation>
     </message>
     <message>
         <source>Could not describe input statement</source>
-        <translation>Неможливо описати вхідний оператор</translation>
+        <translation>Не вдалося описати вхідний вираз</translation>
     </message>
     <message>
         <source>Could not describe statement</source>
-        <translation>Неможливо описати оператор</translation>
+        <translation>Не вдалося описати вираз</translation>
     </message>
     <message>
         <source>Unable to close statement</source>
-        <translation>Неможливо закрити оператор</translation>
+        <translation>Неможливо закрити вираз</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
@@ -3197,18 +3203,18 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Could not fetch next item</source>
-        <translation>Неможливо вибрати наступний елемент</translation>
+        <translation>Не вдалося отримати наступний елемент</translation>
     </message>
     <message>
         <source>Could not get statement info</source>
-        <translation>Неможливо отримати дані оператора</translation>
+        <translation>Не вдалося отримати інформацію про вираз</translation>
     </message>
 </context>
 <context>
     <name>QIODevice</name>
     <message>
         <source>Permission denied</source>
-        <translation>Відмовлено у доступі</translation>
+        <translation>Доступ заборонено</translation>
     </message>
     <message>
         <source>Too many open files</source>
@@ -3216,11 +3222,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>No such file or directory</source>
-        <translation>Немає такого файлу або каталогу</translation>
+        <translation>Файл чи тека не існують</translation>
     </message>
     <message>
         <source>No space left on device</source>
-        <translation>На пристрої не лишилось місця</translation>
+        <translation>На пристрої немає вільного місця</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3277,19 +3283,19 @@ Do you want to delete it anyway?</source>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="vanished">XIM</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>Метод введення XIM</translation>
+        <translation type="vanished">Метод введення XIM</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Метод введення Windows</translation>
+        <translation type="vanished">Метод введення Windows</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Метод введення Mac OS X</translation>
+        <translation type="vanished">Метод введення Mac OS X</translation>
     </message>
 </context>
 <context>
@@ -3378,35 +3384,35 @@ Do you want to delete it anyway?</source>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: неможливо завантажити %1 (%2)</translation>
+        <translation type="vanished">QLibrary::load_sys: неможливо завантажити %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys: неможливо вивантажити %1 (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys: неможливо вивантажити %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::resolve_sys: символ &quot;%1&quot; не є визначеним в %2 (%3)</translation>
+        <translation type="vanished">QLibrary::resolve_sys: символ &quot;%1&quot; не є визначеним в %2 (%3)</translation>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>Помилка виконання mmap &quot;%1&quot;: %2</translation>
+        <translation type="vanished">Помилка виконання mmap &quot;%1&quot;: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>Дані перевірки додатку не збігаються в &quot;%1&quot;</translation>
+        <translation type="vanished">Дані верифікації додатку не збігаються для ’%1’</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>Помилка виконання unmap &quot;%1&quot;: %2</translation>
+        <translation type="vanished">Помилка виконання unmap &quot;%1&quot;: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
-        <translation>Додаток &quot;%1&quot; використовує несумісну бібліотеку Qt. (%2.%3.%4) [%5]</translation>
+        <translation>Додаток &apos;%1&apos; використовує несумісну версію бібліотеки Qt. (%2.%3.%4) [%5]</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>Додаток &quot;%1&quot; використовує несумісну бібліотеку Qt. Очікувався ключ побудови &quot;%2&quot;, отримано &quot;%3&quot;</translation>
+        <translation type="vanished">Додаток &quot;%1&quot; використовує несумісну бібліотеку Qt. Очікувався ключ побудови &quot;%2&quot;, отримано &quot;%3&quot;</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3414,15 +3420,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translation>Спільну бібліотеку не знайдено.</translation>
+        <translation>Динамічна бібліотека не знайдена.</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
-        <translation>Файл &quot;%1&quot; не є правильним додатком Qt.</translation>
+        <translation>Файл &apos;%1&apos; не є правильний додатком Qt.</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation>Додаток &quot;%1&quot; використовує несумісну бібліотеку Qt. (Не дозволяється змішувати версію бібліотеки для зневадження і версію випуску.)</translation>
+        <translation>Додаток &apos;%1&apos; використовує несумісну версію бібліотеки Qt. (Неможливо змішувати зневаджувальні та релізні бібліотеки.)</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not an ELF object (%2)</source>
@@ -3509,73 +3515,73 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Вилучити</translation>
+        <translation>Видалити</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Вибрати все</translation>
+        <translation>Виділити все</translation>
     </message>
 </context>
 <context>
     <name>QLocalServer</name>
     <message>
         <source>%1: Name error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Помилка імені</translation>
     </message>
     <message>
         <source>%1: Permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Доступ заборонено</translation>
     </message>
     <message>
         <source>%1: Address in use</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Адреса використовується</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Невідома помилка %2</translation>
     </message>
 </context>
 <context>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: У з&apos;єднанні відмовлено</translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Віддалений кінець закрито</translation>
     </message>
     <message>
         <source>%1: Invalid name</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Неправильне ім&apos;я</translation>
     </message>
     <message>
         <source>%1: Socket access error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Помилка доступу до сокета</translation>
     </message>
     <message>
         <source>%1: Socket resource error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Помилка ресурсу сокета</translation>
     </message>
     <message>
         <source>%1: Socket operation timed out</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Час на операцію з сокетом вичерпано</translation>
     </message>
     <message>
         <source>%1: Datagram too large</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Завелика датаграма</translation>
     </message>
     <message>
         <source>%1: Connection error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Помилка з&apos;єднання</translation>
     </message>
     <message>
         <source>%1: The socket operation is not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Непідтримувана для сокета операція</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Невідома помилка %2</translation>
     </message>
     <message>
         <source>%1: Operation not permitted when socket is in this state</source>
@@ -3598,11 +3604,11 @@ Do you want to delete it anyway?</source>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Неможливо відкрити базу даних</translation>
+        <translation type="vanished">Неможливо відкрити базу даних</translation>
     </message>
     <message>
         <source>Unable to connect</source>
-        <translation>Неможливо з&apos;єднатися</translation>
+        <translation>Неможливо з&apos;єднатись</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -3629,7 +3635,7 @@ Do you want to delete it anyway?</source>
     <name>QMYSQLResult</name>
     <message>
         <source>Unable to fetch data</source>
-        <translation>Неможливо вибрати дані</translation>
+        <translation>Неможливо отримати дані</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
@@ -3637,15 +3643,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to store result</source>
-        <translation>Неможливо записати результат</translation>
+        <translation>Неможливо зберегти результат</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Неможливо підготувати оператор</translation>
+        <translation>Неможливо підготувати вираз</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation>Неможливо скинути оператор</translation>
+        <translation>Неможливо скинути вираз</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
@@ -3653,7 +3659,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Неможливо виконати оператор</translation>
+        <translation>Неможливо виконати вираз</translation>
     </message>
     <message>
         <source>Unable to bind outvalues</source>
@@ -3661,22 +3667,22 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to store statement results</source>
-        <translation>Неможливо зберегти результати оператора</translation>
+        <translation>Неможливо зберегти результати виразу</translation>
     </message>
     <message>
         <source>Unable to execute next query</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо виконати наступний запит</translation>
     </message>
     <message>
         <source>Unable to store next result</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо зберегти наступний результат</translation>
     </message>
 </context>
 <context>
     <name>QMdiArea</name>
     <message>
         <source>(Untitled)</source>
-        <translation type="unfinished"></translation>
+        <translation>(Без назви)</translation>
     </message>
 </context>
 <context>
@@ -3695,7 +3701,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Відновити додолу</translation>
+        <translation>Відновити</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
@@ -3711,62 +3717,62 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Мі&amp;німізувати</translation>
+        <translation>М&amp;інімізувати</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Ма&amp;ксимізувати</translation>
+        <translation>М&amp;аксимізувати</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Лишатися над &amp;іншими</translation>
+        <translation>Залишатись на &amp;горі</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Закрити</translation>
+        <translation>Закри&amp;ти</translation>
     </message>
     <message>
         <source>- [%1]</source>
-        <translation type="unfinished"></translation>
+        <translation>- [%1]</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation type="unfinished">Максимізувати</translation>
+        <translation>Максимізувати</translation>
     </message>
     <message>
         <source>Unshade</source>
-        <translation type="unfinished"></translation>
+        <translation>Розгорнути із заголовка</translation>
     </message>
     <message>
         <source>Shade</source>
-        <translation type="unfinished"></translation>
+        <translation>Згорнути в заголовок</translation>
     </message>
     <message>
         <source>Restore</source>
-        <translation type="unfinished"></translation>
+        <translation>Відновити</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Довідка</translation>
+        <translation>Довідка</translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation type="unfinished">Menu</translation>
+        <translation>Меню</translation>
     </message>
 </context>
 <context>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Закрити</translation>
+        <translation type="vanished">Закрити</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Відкрити</translation>
+        <translation type="vanished">Відкрити</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Виконати</translation>
+        <translation type="vanished">Виконати</translation>
     </message>
 </context>
 <context>
@@ -3777,7 +3783,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>OK</source>
-        <translation>Гаразд</translation>
+        <translation>OK</translation>
     </message>
     <message>
         <source>About Qt</source>
@@ -3785,19 +3791,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ця програма використовує Qt версії %1.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Ця програма використовує Qt версії %1.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
-        <translation>Показати подробиці...</translation>
+        <translation>Показати деталі...</translation>
     </message>
     <message>
         <source>Hide Details...</source>
-        <translation>Сховати подробиці...</translation>
+        <translation>Приховати деталі...</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ця програма використовує Qt Open Source Edition версії %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition призначено для розробки відкритих програмних засобів. Для розробки власницьких (закритих) програм вам потрібна комерційна ліцензія для Qt.&lt;/p&gt;&lt;p&gt;Перегляньте &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; щодо огляду ліцензій Qt.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Ця програма використовує Qt Open Source Edition версії %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition призначено для розробки відкритих програмних засобів. Для розробки власницьких (закритих) програм вам потрібна комерційна ліцензія для Qt.&lt;/p&gt;&lt;p&gt;Перегляньте &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; щодо огляду ліцензій Qt.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -3820,37 +3826,37 @@ Do you want to delete it anyway?</source>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>Вибрати метод вводу</translation>
+        <translation type="vanished">Вибрати метод вводу</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>Перемикач методів вводу</translation>
+        <translation type="vanished">Перемикач методів вводу</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>Перемикач методів вводу, що використовує контекстне меню текстових віджетів</translation>
+        <translation type="vanished">Перемикач методів вводу, що використовує контекстне меню текстових віджетів</translation>
     </message>
 </context>
 <context>
     <name>QNativeSocketEngine</name>
     <message>
         <source>The remote host closed the connection</source>
-        <translation>Віддалений вузол закрив з&apos;єднання</translation>
+        <translation>Віддалений вузол закрив з’єднання</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation>Перевищено термін очікування мережевої дії</translation>
+        <translation>Час на мережеву операцію вичерпано</translation>
     </message>
     <message>
         <source>Out of resources</source>
-        <translation>Вичерпано всі ресурси</translation>
+        <translation>Недостатньо ресурсів</translation>
     </message>
     <message>
         <source>Unsupported socket operation</source>
-        <translation>Непідтримувана дія сокетів</translation>
+        <translation>Непідтримувана для сокета операція</translation>
     </message>
     <message>
         <source>Protocol type not supported</source>
@@ -3858,23 +3864,23 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Invalid socket descriptor</source>
-        <translation>Неправильний опис сокету</translation>
+        <translation>Неправильний дескриптор сокета</translation>
     </message>
     <message>
         <source>Network unreachable</source>
-        <translation>Мережа недосяжна</translation>
+        <translation>Мережа недоступна</translation>
     </message>
     <message>
         <source>Permission denied</source>
-        <translation>Відмовлено у доступі</translation>
+        <translation>Доступ заборонено</translation>
     </message>
     <message>
         <source>Connection timed out</source>
-        <translation>Перевищено термін очікування для з&apos;єднання</translation>
+        <translation>Час на з’єднання вичерпано</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation>Відмовлено у зв&apos;язку</translation>
+        <translation>У з&apos;єднанні відмовлено</translation>
     </message>
     <message>
         <source>The bound address is already in use</source>
@@ -3882,7 +3888,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The address is not available</source>
-        <translation>Адреса недоступна</translation>
+        <translation>Адреса не доступна</translation>
     </message>
     <message>
         <source>The address is protected</source>
@@ -3890,7 +3896,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to send a message</source>
-        <translation>Неможливо відіслати повідомлення</translation>
+        <translation>Неможливо надіслати повідомлення</translation>
     </message>
     <message>
         <source>Unable to receive a message</source>
@@ -3906,7 +3912,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Another socket is already listening on the same port</source>
-        <translation>Інший сокет вже слухає цей порт</translation>
+        <translation>Інший сокет вже слухає цей самий порт</translation>
     </message>
     <message>
         <source>Unable to initialize non-blocking socket</source>
@@ -3922,15 +3928,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Host unreachable</source>
-        <translation>Вузол недосяжний</translation>
+        <translation>Вузол недоступний</translation>
     </message>
     <message>
         <source>Datagram was too large to send</source>
-        <translation>Дейтаграма є завеликою для відсилання</translation>
+        <translation>Датаграма завелика, щоб надіслати</translation>
     </message>
     <message>
         <source>Operation on non-socket</source>
-        <translation>Дія на об&apos;єкті, що не є сокетом</translation>
+        <translation>Операція з не-сокетом</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3938,7 +3944,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
-        <translation type="unfinished"></translation>
+        <translation>Неправильний тип проксі-серверу для цієї операції</translation>
     </message>
     <message>
         <source>Temporary error</source>
@@ -3986,42 +3992,42 @@ Do you want to delete it anyway?</source>
     <name>QNetworkAccessFileBackend</name>
     <message>
         <source>Request for opening non-local file %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Запит на відкриття нелокального файлу %1</translation>
     </message>
     <message>
         <source>Error opening %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Помилка відкриття %1: %2</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Помилка запису в %1: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо відкрити %1: Шлях є текою</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Помилка читання з %1: %2</translation>
     </message>
 </context>
 <context>
     <name>QNetworkAccessFtpBackend</name>
     <message>
         <source>Cannot open %1: is a directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо відкрити %1: шлях є текою</translation>
     </message>
     <message>
         <source>Logging in to %1 failed: authentication required</source>
-        <translation type="unfinished"></translation>
+        <translation>Збій входу до %1: необхідна авторизація</translation>
     </message>
     <message>
         <source>Error while downloading %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Помилка звантаження %1: %2</translation>
     </message>
     <message>
         <source>Error while uploading %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Помилка вивантаження %1: %2</translation>
     </message>
     <message>
         <source>No suitable proxy found</source>
@@ -4039,11 +4045,11 @@ Do you want to delete it anyway?</source>
     <name>QNetworkReply</name>
     <message>
         <source>Error downloading %1 - server replied: %2</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Помилка звантаження %1 - сервер відповів: %2</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>Невідомий протокол &quot;%1&quot;</translation>
     </message>
     <message>
         <source>Background request not allowed.</source>
@@ -4088,7 +4094,7 @@ Do you want to delete it anyway?</source>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation type="unfinished"></translation>
+        <translation>Операція скасована</translation>
     </message>
 </context>
 <context>
@@ -4125,35 +4131,35 @@ Do you want to delete it anyway?</source>
     <name>QOCIDriver</name>
     <message>
         <source>Unable to logon</source>
-        <translation>Неможливо зайти</translation>
+        <translation>Неможливо авторизуватись</translation>
     </message>
     <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
-        <translation>Неможливо ініціалізуватиQOCIDriver</translation>
+        <translation>Неможливо ініціалізувати</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation type="unfinished">Неможливо почати транзакцію</translation>
+        <translation>Неможливо почати транзакцію</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished">Неможливо завершити транзакцію</translation>
+        <translation>Неможливо завершити транзакцію</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished">Неможливо відкотити транзакцію</translation>
+        <translation>Неможливо відкотити транзакцію</translation>
     </message>
 </context>
 <context>
     <name>QOCIResult</name>
     <message>
         <source>Unable to bind column for batch execute</source>
-        <translation>Неможливо прив&apos;язати стовпчик для пакетного виконання</translation>
+        <translation>Неможливо прив’язати стовпець для пакетного виконання</translation>
     </message>
     <message>
         <source>Unable to execute batch statement</source>
-        <translation>Неможливо виконати пакетний оператор</translation>
+        <translation>Неможливо виконати пакетний вираз</translation>
     </message>
     <message>
         <source>Unable to goto next</source>
@@ -4161,11 +4167,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to alloc statement</source>
-        <translation>Неможливо розмістити оператор</translation>
+        <translation>Неможливо виділити вираз</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Неможливо підготувати оператор</translation>
+        <translation>Неможливо підготувати вираз</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
@@ -4173,11 +4179,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>Неможливо виконати оператор вибирання</translation>
+        <translation type="vanished">Неможливо виконати оператор вибирання</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Неможливо виконати оператор</translation>
+        <translation>Неможливо виконати вираз</translation>
     </message>
     <message>
         <source>Unable to get statement type</source>
@@ -4188,11 +4194,11 @@ Do you want to delete it anyway?</source>
     <name>QODBCDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Неможливо з&apos;єднатися</translation>
+        <translation>Неможливо з&apos;єднатись</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>Неможливо з&apos;єднатися - драйвер не підтримує всіх потрібних функцій</translation>
+        <translation type="vanished">Неможливо з&apos;єднатися - драйвер не підтримує всіх потрібних функцій</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
@@ -4208,7 +4214,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
-        <translation>Неможливо ввімкнути автозавершення транзакцій</translation>
+        <translation>Неможливо увімкнути автозавершення транзакцій</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
@@ -4219,19 +4225,19 @@ Do you want to delete it anyway?</source>
     <name>QODBCResult</name>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation>QODBCResult::reset: неможливо встановити &apos;SQL_CURSOR_STATIC&apos;, як атрибут оператора. Будь ласка, перевірте налаштування драйвера ODBC</translation>
+        <translation>QODBCResult::reset: Неможливо встановити &apos;SQL_CURSOR_STATIC&apos;, як атрибут виразу. Будь ласка, перевірте налаштування вашого драйверу ODBC</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Неможливо виконати оператор</translation>
+        <translation>Неможливо виконати вираз</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>Неможливо вибрати наступний</translation>
+        <translation>Неможливо отримати наступний запис</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Неможливо підготувати оператор</translation>
+        <translation>Неможливо підготувати вираз</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
@@ -4239,19 +4245,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо отримати останній запис</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо отримати</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation type="unfinished">Неможливо вибрати перший</translation>
+        <translation>Неможливо отримати перший запис</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо отримати попередній запис</translation>
     </message>
 </context>
 <context>
@@ -4401,38 +4407,38 @@ Do you want to delete it anyway?</source>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Ім&apos;я</translation>
+        <translation type="obsolete">Ім&apos;я</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation type="unfinished">Значення</translation>
+        <translation type="obsolete">Значення</translation>
     </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Неможливо з&apos;єднатися</translation>
+        <translation>Неможливо з&apos;єднатись</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
-        <translation>Неможливо почати транзакцію</translation>
+        <translation>Не вдалося почати транзакцію</translation>
     </message>
     <message>
         <source>Could not commit transaction</source>
-        <translation>Неможливо завершити транзакцію</translation>
+        <translation>Не вдалося завершити транзакцію</translation>
     </message>
     <message>
         <source>Could not rollback transaction</source>
-        <translation>Неможливо відкотити транзакцію</translation>
+        <translation>Не вдалося відкотити транзакцію</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо підписатись</translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо відписатись</translation>
     </message>
 </context>
 <context>
@@ -4443,90 +4449,90 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation type="unfinished">Неможливо підготувати оператор</translation>
+        <translation>Неможливо підготувати вираз</translation>
     </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
     <message>
         <source>Centimeters (cm)</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Сантиметри (см)</translation>
     </message>
     <message>
         <source>Millimeters (mm)</source>
-        <translation type="unfinished"></translation>
+        <translation>Міліметри (мм)</translation>
     </message>
     <message>
         <source>Inches (in)</source>
-        <translation type="unfinished"></translation>
+        <translation>Дюйми (in)</translation>
     </message>
     <message>
         <source>Points (pt)</source>
-        <translation type="unfinished"></translation>
+        <translation>Точки (pt)</translation>
     </message>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Форма</translation>
     </message>
     <message>
         <source>Paper</source>
-        <translation type="unfinished"></translation>
+        <translation>Папір</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation type="unfinished">Розмір сторінки:</translation>
+        <translation>Розмір сторінки:</translation>
     </message>
     <message>
         <source>Width:</source>
-        <translation type="unfinished"></translation>
+        <translation>Ширина:</translation>
     </message>
     <message>
         <source>Height:</source>
-        <translation type="unfinished"></translation>
+        <translation>Висота:</translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation type="unfinished">Джерело паперу:</translation>
+        <translation>Джерело паперу:</translation>
     </message>
     <message>
         <source>Orientation</source>
-        <translation type="unfinished"></translation>
+        <translation>Орієнтація</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation type="unfinished">Книжкове</translation>
+        <translation>Портрет</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation type="unfinished">Альбомне</translation>
+        <translation>Ландшафт</translation>
     </message>
     <message>
         <source>Reverse landscape</source>
-        <translation type="unfinished"></translation>
+        <translation>Обернений ландшафт</translation>
     </message>
     <message>
         <source>Reverse portrait</source>
-        <translation type="unfinished"></translation>
+        <translation>Обернений портрет</translation>
     </message>
     <message>
         <source>Margins</source>
-        <translation type="unfinished"></translation>
+        <translation>Поля</translation>
     </message>
     <message>
         <source>top margin</source>
-        <translation type="unfinished"></translation>
+        <translation>верхнє поле</translation>
     </message>
     <message>
         <source>left margin</source>
-        <translation type="unfinished"></translation>
+        <translation>ліве поле</translation>
     </message>
     <message>
         <source>right margin</source>
-        <translation type="unfinished"></translation>
+        <translation>праве поле</translation>
     </message>
     <message>
         <source>bottom margin</source>
-        <translation type="unfinished"></translation>
+        <translation>нижнє поле</translation>
     </message>
     <message>
         <source>Pica (P̸)</source>
@@ -5155,15 +5161,15 @@ Do you want to delete it anyway?</source>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>локальне з&apos;єднання</translation>
+        <translation type="vanished">локальне з&apos;єднання</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Псевдонім: %1</translation>
+        <translation type="vanished">Псевдонім: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>невідомо</translation>
+        <translation type="vanished">невідомо</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -5172,163 +5178,164 @@ Do you want to delete it anyway?</source>
     <message>
         <source>File %1 is not writable.
 Please choose a different file name.</source>
-        <translation>Файл %1 не дозволяє запис.
-Будь ласка, виберіть інше ім&apos;я файлу.</translation>
+        <translation>До файлу %1 неможливо писати.
+Будь ласка, оберіть інше ім&apos;я файлу.</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to overwrite it?</source>
-        <translation>%1 вже існує.Перезаписати?</translation>
+        <translation>%1 вже існує.
+Бажаєте перезаписати його?</translation>
     </message>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
-        <translation>%1 є каталогом.
-Введіть інше ім&apos;я файлу.</translation>
+        <translation>%1 - тека.
+Будь ласка, оберіть інше ім&apos;я файлу.</translation>
     </message>
     <message>
         <source>A0</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A0</translation>
     </message>
     <message>
         <source>A1</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A1</translation>
     </message>
     <message>
         <source>A2</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A2</translation>
     </message>
     <message>
         <source>A3</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A3</translation>
     </message>
     <message>
         <source>A4</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A4</translation>
     </message>
     <message>
         <source>A5</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A5</translation>
     </message>
     <message>
         <source>A6</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A6</translation>
     </message>
     <message>
         <source>A7</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A7</translation>
     </message>
     <message>
         <source>A8</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A8</translation>
     </message>
     <message>
         <source>A9</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A9</translation>
     </message>
     <message>
         <source>B0</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B0</translation>
     </message>
     <message>
         <source>B1</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B1</translation>
     </message>
     <message>
         <source>B2</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B2</translation>
     </message>
     <message>
         <source>B3</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B3</translation>
     </message>
     <message>
         <source>B4</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B4</translation>
     </message>
     <message>
         <source>B5</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B5</translation>
     </message>
     <message>
         <source>B6</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B6</translation>
     </message>
     <message>
         <source>B7</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B7</translation>
     </message>
     <message>
         <source>B8</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B8</translation>
     </message>
     <message>
         <source>B9</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B9</translation>
     </message>
     <message>
         <source>B10</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B10</translation>
     </message>
     <message>
         <source>C5E</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">C5E</translation>
     </message>
     <message>
         <source>DLE</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">DLE</translation>
     </message>
     <message>
         <source>Executive</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Executive</translation>
     </message>
     <message>
         <source>Folio</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Folio</translation>
     </message>
     <message>
         <source>Ledger</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Ledger</translation>
     </message>
     <message>
         <source>Legal</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Legal</translation>
     </message>
     <message>
         <source>Letter</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Letter</translation>
     </message>
     <message>
         <source>Tabloid</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Tabloid</translation>
     </message>
     <message>
         <source>US Common #10 Envelope</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">US Common #10 Envelope</translation>
     </message>
     <message>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Користувацький</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Опції &gt;&gt;</translation>
     </message>
     <message>
         <source>&amp;Print</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Друк</translation>
     </message>
     <message>
         <source>&amp;Options &lt;&lt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Опції &lt;&lt;</translation>
     </message>
     <message>
         <source>Print to File (PDF)</source>
-        <translation type="unfinished"></translation>
+        <translation>Друкувати в файл (PDF)</translation>
     </message>
     <message>
         <source>Local file</source>
-        <translation type="unfinished"></translation>
+        <translation>Локальний файл</translation>
     </message>
     <message>
         <source>Print</source>
@@ -5437,75 +5444,75 @@ Please turn one of those options off.</source>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
-        <translation type="unfinished"></translation>
+        <translation>Параметри сторінки</translation>
     </message>
     <message>
         <source>Print Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>Попередній перегляд друку</translation>
     </message>
     <message>
         <source>Next page</source>
-        <translation type="unfinished"></translation>
+        <translation>Наступна сторінка</translation>
     </message>
     <message>
         <source>Previous page</source>
-        <translation type="unfinished"></translation>
+        <translation>Попередня сторінка</translation>
     </message>
     <message>
         <source>First page</source>
-        <translation type="unfinished"></translation>
+        <translation>Перша сторінка</translation>
     </message>
     <message>
         <source>Last page</source>
-        <translation type="unfinished"></translation>
+        <translation>Остання сторінка</translation>
     </message>
     <message>
         <source>Fit width</source>
-        <translation type="unfinished"></translation>
+        <translation>По ширині</translation>
     </message>
     <message>
         <source>Fit page</source>
-        <translation type="unfinished"></translation>
+        <translation>Усю сторінку</translation>
     </message>
     <message>
         <source>Zoom in</source>
-        <translation type="unfinished"></translation>
+        <translation>Збільшити</translation>
     </message>
     <message>
         <source>Zoom out</source>
-        <translation type="unfinished"></translation>
+        <translation>Зменшити</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation type="unfinished">Книжкове</translation>
+        <translation>Портрет</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation type="unfinished">Альбомне</translation>
+        <translation>Ландшафт</translation>
     </message>
     <message>
         <source>Show single page</source>
-        <translation type="unfinished"></translation>
+        <translation>Показати одну сторінку</translation>
     </message>
     <message>
         <source>Show facing pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Показати титульні сторінки</translation>
     </message>
     <message>
         <source>Show overview of all pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Показати огляд усіх сторінок</translation>
     </message>
     <message>
         <source>Print</source>
-        <translation type="unfinished">Друкувати</translation>
+        <translation>Друк</translation>
     </message>
     <message>
         <source>Page setup</source>
-        <translation type="unfinished"></translation>
+        <translation>Параметри сторінки</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Закрити</translation>
+        <translation type="obsolete">Закрити</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -5535,11 +5542,11 @@ Please turn one of those options off.</source>
     <name>QPrintPropertiesWidget</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Форма</translation>
     </message>
     <message>
         <source>Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Сторінка</translation>
     </message>
     <message>
         <source>Advanced</source>
@@ -5550,79 +5557,79 @@ Please turn one of those options off.</source>
     <name>QPrintSettingsOutput</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Форма</translation>
     </message>
     <message>
         <source>Copies</source>
-        <translation type="unfinished">Копії</translation>
+        <translation>Копії</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation type="unfinished">Діапазон друку</translation>
+        <translation>Діапазон друку</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation type="unfinished">Друкувати все</translation>
+        <translation>Друкувати все</translation>
     </message>
     <message>
         <source>Pages from</source>
-        <translation type="unfinished">Сторінки з</translation>
+        <translation>Сторінки з</translation>
     </message>
     <message>
         <source>to</source>
-        <translation type="unfinished">по</translation>
+        <translation>до</translation>
     </message>
     <message>
         <source>Selection</source>
-        <translation type="unfinished">Вибрані</translation>
+        <translation>Виділення</translation>
     </message>
     <message>
         <source>Output Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Налаштування виводу</translation>
     </message>
     <message>
         <source>Copies:</source>
-        <translation type="unfinished"></translation>
+        <translation>Копій:</translation>
     </message>
     <message>
         <source>Collate</source>
-        <translation type="unfinished">Сортувати</translation>
+        <translation>Розібрати по копіях</translation>
     </message>
     <message>
         <source>Reverse</source>
-        <translation type="unfinished"></translation>
+        <translation>В зворотньому порядку</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation type="unfinished">Опції</translation>
+        <translation>Параметри</translation>
     </message>
     <message>
         <source>Color Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Режим кольору</translation>
     </message>
     <message>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Колір</translation>
     </message>
     <message>
         <source>Grayscale</source>
-        <translation type="unfinished"></translation>
+        <translation>Відтінки сірого</translation>
     </message>
     <message>
         <source>Duplex Printing</source>
-        <translation type="unfinished"></translation>
+        <translation>Двосторонній друк</translation>
     </message>
     <message>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Відсутній</translation>
     </message>
     <message>
         <source>Long side</source>
-        <translation type="unfinished"></translation>
+        <translation>По довгій стороні</translation>
     </message>
     <message>
         <source>Short side</source>
-        <translation type="unfinished"></translation>
+        <translation>По короткій стороні</translation>
     </message>
     <message>
         <source>Current Page</source>
@@ -5637,39 +5644,39 @@ Please turn one of those options off.</source>
     <name>QPrintWidget</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Форма</translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation type="unfinished">Принтер</translation>
+        <translation>Принтер</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Назва:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Властивості</translation>
     </message>
     <message>
         <source>Location:</source>
-        <translation type="unfinished"></translation>
+        <translation>Розташування:</translation>
     </message>
     <message>
         <source>Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>Перегляд</translation>
     </message>
     <message>
         <source>Type:</source>
-        <translation type="unfinished"></translation>
+        <translation>Тип:</translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation type="unfinished"></translation>
+        <translation>Вихідний &amp;файл:</translation>
     </message>
     <message>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation>...</translation>
     </message>
 </context>
 <context>
@@ -5730,7 +5737,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Відкрити</translation>
+        <translation type="vanished">Відкрити</translation>
     </message>
 </context>
 <context>
@@ -5759,7 +5766,7 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Поставити позначку</translation>
+        <translation type="vanished">Поставити позначку</translation>
     </message>
 </context>
 <context>
@@ -5770,15 +5777,15 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>disabled feature used</source>
-        <translation>вжито вимкнену можливість</translation>
+        <translation>використана вимкнена можливість</translation>
     </message>
     <message>
         <source>bad char class syntax</source>
-        <translation>неправильний синтаксис класу символу</translation>
+        <translation>неправильний синтаксис класу символів</translation>
     </message>
     <message>
         <source>bad lookahead syntax</source>
-        <translation>неправильний синтаксис перегляду вперед</translation>
+        <translation>неправильний синтаксис &quot;lookahead&quot;</translation>
     </message>
     <message>
         <source>bad repetition syntax</source>
@@ -5798,7 +5805,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>met internal limit</source>
-        <translation>досягнуто внутрішній ліміт</translation>
+        <translation>досягнуто внутрішнього обмеження</translation>
     </message>
     <message>
         <source>lookbehinds not supported, see QTBUG-2371</source>
@@ -6152,7 +6159,7 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>Помилка відкривання бази даних</translation>
+        <translation type="vanished">Помилка відкривання бази даних</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -6164,7 +6171,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>Неможливо відкотити транзакцію</translation>
+        <translation type="vanished">Неможливо відкотити транзакцію</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -6179,22 +6186,22 @@ Please turn one of those options off.</source>
     <name>QSQLite2Result</name>
     <message>
         <source>Unable to fetch results</source>
-        <translation>Неможливо витягнути результат</translation>
+        <translation>Неможливо отримати результати</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Неможливо виконати оператор</translation>
+        <translation>Неможливо виконати вираз</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation>Неможливо відкрити базу даних</translation>
+        <translation>Помилка відкриття бази даних</translation>
     </message>
     <message>
         <source>Error closing database</source>
-        <translation>Помилка закривання бази даних</translation>
+        <translation>Помилка закриття бази даних</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -6206,22 +6213,22 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished">Неможливо відкотити транзакцію</translation>
+        <translation>Неможливо відкотити транзакцію</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteResult</name>
     <message>
         <source>Unable to fetch row</source>
-        <translation>Неможливо вибрати рядок</translation>
+        <translation>Неможливо отримати рядок</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Неможливо виконати оператор</translation>
+        <translation>Неможливо виконати вираз</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation>Неможливо скинути оператор</translation>
+        <translation>Неможливо скинути вираз</translation>
     </message>
     <message>
         <source>Unable to bind parameters</source>
@@ -6233,7 +6240,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>No query</source>
-        <translation type="unfinished"></translation>
+        <translation>Запит відсутній</translation>
     </message>
     <message>
         <source>Unable to execute multiple statements at a time</source>
@@ -6263,39 +6270,39 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Лівий край</translation>
+        <translation>До лівої границі</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>Верх</translation>
+        <translation>Вгору</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Правий край</translation>
+        <translation>До правої границі</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>Низ</translation>
+        <translation>Донизу</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Сторінка ліворуч</translation>
+        <translation>На сторінку вліво</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Сторінка вгору</translation>
+        <translation>На сторінку вгору</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Сторінка праворуч</translation>
+        <translation>На сторінку вправо</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Сторінка додолу</translation>
+        <translation>На сторінку вниз</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Прокрутити ліворуч</translation>
+        <translation>Прокрутити вліво</translation>
     </message>
     <message>
         <source>Scroll up</source>
@@ -6303,78 +6310,78 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Прокрутити праворуч</translation>
+        <translation>Прокрутити вправо</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Прокрутити додолу</translation>
+        <translation>Прокрутити донизу</translation>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Вирівняти</translation>
+        <translation type="vanished">Вирівняти</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Позиція</translation>
+        <translation type="vanished">Позиція</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Рядок униз</translation>
+        <translation type="vanished">Рядок униз</translation>
     </message>
 </context>
 <context>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: неможливо встановити ключ для блокування</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: розмір створення менший нуля</translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: неможливо заблокувати</translation>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: неможливо розблокувати</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: доступ заборонено</translation>
     </message>
     <message>
         <source>%1: already exists</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: вже існує</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: недостатньо ресурсів</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: невідома помилка %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: пустий ключ</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: збій ftok</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: неможливо створити ключ</translation>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: обмеження розміру встановлені системою</translation>
     </message>
     <message>
         <source>%1: not attached</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: не прикріплено</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exist</source>
@@ -6413,7 +6420,8 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
-        <translation>Прогалина</translation>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
+        <translation>Пропуск</translation>
     </message>
     <message>
         <source>Esc</source>
@@ -6433,7 +6441,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Return</source>
-        <translation></translation>
+        <translation>Return</translation>
     </message>
     <message>
         <source>Enter</source>
@@ -6453,7 +6461,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Print</source>
-        <translation>Друкувати</translation>
+        <translation>Print</translation>
     </message>
     <message>
         <source>SysReq</source>
@@ -6469,7 +6477,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Left</source>
-        <translation>Ліворуч</translation>
+        <translation>Вліво</translation>
     </message>
     <message>
         <source>Up</source>
@@ -6477,11 +6485,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Right</source>
-        <translation>Праворуч</translation>
+        <translation>Вправо</translation>
     </message>
     <message>
         <source>Down</source>
-        <translation>Додолу</translation>
+        <translation>Вниз</translation>
     </message>
     <message>
         <source>PgUp</source>
@@ -6505,7 +6513,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Menu</source>
-        <translation>Menu</translation>
+        <translation>Меню</translation>
     </message>
     <message>
         <source>Help</source>
@@ -6517,15 +6525,15 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Forward</translation>
+        <translation>Вперед</translation>
     </message>
     <message>
         <source>Stop</source>
-        <translation>Stop</translation>
+        <translation>Стоп</translation>
     </message>
     <message>
         <source>Refresh</source>
-        <translation>Refresh</translation>
+        <translation>Оновити</translation>
     </message>
     <message>
         <source>Volume Down</source>
@@ -6533,47 +6541,47 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Volume Mute</source>
-        <translation>Приглушити</translation>
+        <translation>Вимкнути звук</translation>
     </message>
     <message>
         <source>Volume Up</source>
-        <translation>Голосніше</translation>
+        <translation>Гучніше</translation>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translation>Супербас</translation>
+        <translation>Посилення басів</translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translation>Низькі частоти голосніше</translation>
+        <translation>Баси гучніше</translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translation>Низькі частоти тихіше</translation>
+        <translation>Баси тихіше</translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation>Високі частоти голосніше</translation>
+        <translation>ВЧ гучніше</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation>Високі частоти тихіше</translation>
+        <translation>ВЧ тихіше</translation>
     </message>
     <message>
         <source>Media Play</source>
-        <translation>Запустити програвання</translation>
+        <translation>Відтворення</translation>
     </message>
     <message>
         <source>Media Stop</source>
-        <translation>Зупинити програвання</translation>
+        <translation>Зупинити відтворення</translation>
     </message>
     <message>
         <source>Media Previous</source>
-        <translation>Програти попередній</translation>
+        <translation>Відтворити попереднє</translation>
     </message>
     <message>
         <source>Media Next</source>
-        <translation>Програти наступний</translation>
+        <translation>Відтворити наступне</translation>
     </message>
     <message>
         <source>Media Record</source>
@@ -6581,7 +6589,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Favorites</source>
-        <translation>Улюблені</translation>
+        <translation>Обране</translation>
     </message>
     <message>
         <source>Search</source>
@@ -6589,7 +6597,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Standby</source>
-        <translation>В режим чергування</translation>
+        <translation>Режим очікування</translation>
     </message>
     <message>
         <source>Open URL</source>
@@ -6597,11 +6605,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Launch Mail</source>
-        <translation>Запустити пошту</translation>
+        <translation>Пошта</translation>
     </message>
     <message>
         <source>Launch Media</source>
-        <translation>Запустити медіа</translation>
+        <translation>Програвач</translation>
     </message>
     <message>
         <source>Launch (0)</source>
@@ -6673,23 +6681,23 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Page Up</source>
-        <translation>Сторінка вгору</translation>
+        <translation>На сторінку вгору</translation>
     </message>
     <message>
         <source>Page Down</source>
-        <translation>Сторінка додолу</translation>
+        <translation>На сторінку вниз</translation>
     </message>
     <message>
         <source>Caps Lock</source>
-        <translation>Caps Lock</translation>
+        <translation>Верхній регістр</translation>
     </message>
     <message>
         <source>Num Lock</source>
-        <translation>Num Lock</translation>
+        <translation>Цифрові клавіші</translation>
     </message>
     <message>
         <source>Number Lock</source>
-        <translation>Number Lock</translation>
+        <translation>Цифрові клавіші</translation>
     </message>
     <message>
         <source>Scroll Lock</source>
@@ -6701,7 +6709,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Вилучити</translation>
+        <translation>Видалити</translation>
     </message>
     <message>
         <source>Escape</source>
@@ -6709,11 +6717,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>System Request</source>
-        <translation>System Request</translation>
+        <translation>Системний запит</translation>
     </message>
     <message>
         <source>Select</source>
-        <translation>Select</translation>
+        <translation>Обрати</translation>
     </message>
     <message>
         <source>Yes</source>
@@ -6725,31 +6733,33 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Context1</source>
-        <translation>Контекст1</translation>
+        <translation>Контекст 1</translation>
     </message>
     <message>
         <source>Context2</source>
-        <translation>Контекст2</translation>
+        <translation>Контекст 2</translation>
     </message>
     <message>
         <source>Context3</source>
-        <translation>Контекст3</translation>
+        <translation>Контекст 3</translation>
     </message>
     <message>
         <source>Context4</source>
-        <translation>Контекст4</translation>
+        <translation>Контекст 4</translation>
     </message>
     <message>
         <source>Call</source>
-        <translation>Виклик</translation>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
+        <translation>Дзвонити</translation>
     </message>
     <message>
         <source>Hangup</source>
-        <translation>Покласти</translation>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
+        <translation>Покласти слухавку</translation>
     </message>
     <message>
         <source>Flip</source>
-        <translation>Flip</translation>
+        <translation>Фліп</translation>
     </message>
     <message>
         <source>Ctrl</source>
@@ -7415,34 +7425,34 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Сторінка ліворуч</translation>
+        <translation type="vanished">Сторінка ліворуч</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Сторінка вгору</translation>
+        <translation type="vanished">Сторінка вгору</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Позиція</translation>
+        <translation type="vanished">Позиція</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Сторінка праворуч</translation>
+        <translation type="vanished">Сторінка праворуч</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Сторінка додолу</translation>
+        <translation type="vanished">Сторінка додолу</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>Перевищено час очікування Socks5 для з&apos;єднання до сервера socks</translation>
+        <translation type="vanished">Перевищено час очікування Socks5 для з&apos;єднання до сервера socks</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation type="unfinished">Перевищено термін очікування мережевої дії</translation>
+        <translation>Час на мережеву операцію вичерпано</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -7866,54 +7876,54 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Більше</translation>
+        <translation type="vanished">Більше</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Менше</translation>
+        <translation type="vanished">Менше</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>Вилучити</translation>
+        <translation type="vanished">Вилучити</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Вилучити цей запис?</translation>
+        <translation type="vanished">Вилучити цей запис?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Так</translation>
+        <translation type="vanished">Так</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Ні</translation>
+        <translation type="vanished">Ні</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Вставити</translation>
+        <translation type="vanished">Вставити</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Поновити</translation>
+        <translation type="vanished">Поновити</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Зберегти правлення?</translation>
+        <translation type="vanished">Зберегти правлення?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Скасувати</translation>
+        <translation type="vanished">Скасувати</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Підтвердити</translation>
+        <translation type="vanished">Підтвердити</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Скасувати правлення?</translation>
+        <translation type="vanished">Скасувати правлення?</translation>
     </message>
 </context>
 <context>
@@ -7928,7 +7938,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error during SSL handshake: %1</source>
-        <translation>Помилка квитування SSL: %1</translation>
+        <translation>Помилка рукостискання SSL: %1</translation>
     </message>
     <message>
         <source>Error creating SSL context (%1)</source>
@@ -7940,11 +7950,11 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
-        <translation>Помилка створення сеансу SSL, %1</translation>
+        <translation>Помилка створення сесії SSL, %1</translation>
     </message>
     <message>
         <source>Error creating SSL session: %1</source>
-        <translation>Помилка створення сеансу SSL: %1</translation>
+        <translation>Помилка створення сесії SSL: %1</translation>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
@@ -7956,7 +7966,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error loading private key, %1</source>
-        <translation>Помилка завантаження приватного ключа, %1</translation>
+        <translation>Помилка завантаження закритого ключа, %1</translation>
     </message>
     <message>
         <source>No error</source>
@@ -8219,11 +8229,11 @@ Role of an accessible object</extracomment>
     <name>QTabBar</name>
     <message>
         <source>Scroll Left</source>
-        <translation>Прокрутити ліворуч</translation>
+        <translation>Прокрутити вліво</translation>
     </message>
     <message>
         <source>Scroll Right</source>
-        <translation>Прокрутити праворуч</translation>
+        <translation>Прокрутити вправо</translation>
     </message>
 </context>
 <context>
@@ -8237,35 +8247,35 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Повернути</translation>
+        <translation type="vanished">&amp;Повернути</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>П&amp;овторити</translation>
+        <translation type="vanished">П&amp;овторити</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Ви&amp;різати</translation>
+        <translation type="vanished">Ви&amp;різати</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Копіювати</translation>
+        <translation type="vanished">&amp;Копіювати</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Копіювати адресу &amp;посилання</translation>
+        <translation type="vanished">Копіювати адресу &amp;посилання</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Вставити</translation>
+        <translation type="vanished">&amp;Вставити</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Вилучити</translation>
+        <translation type="vanished">Вилучити</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Вибрати все</translation>
+        <translation type="vanished">Вибрати все</translation>
     </message>
 </context>
 <context>
@@ -8315,29 +8325,29 @@ Role of an accessible object</extracomment>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Натиснути</translation>
+        <translation type="vanished">Натиснути</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Відкрити</translation>
+        <translation type="vanished">Відкрити</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>Ця платформа не підтримує IPv6</translation>
+        <translation type="vanished">Ця платформа не підтримує IPv6</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>Повернути</translation>
+        <translation type="vanished">Повернути</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Повторити</translation>
+        <translation type="vanished">Повторити</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -8369,11 +8379,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Повернути</translation>
+        <translation type="vanished">Повернути</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Повторити</translation>
+        <translation type="vanished">Повторити</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -8398,47 +8408,47 @@ Role of an accessible object</extracomment>
     <name>QUnicodeControlCharacterMenu</name>
     <message>
         <source>LRM Left-to-right mark</source>
-        <translation>LRM позначка зліва направо</translation>
+        <translation>LRM Ознака зліва направо</translation>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation>RLM позначка справа наліво</translation>
+        <translation>RLM Ознака справа наліво</translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation>ZWJ з&apos;єднувач нульової ширини</translation>
+        <translation>ZWJ Об’єднувач нульової ширини</translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation>ZWNJ нез&apos;єднувач нульової ширини</translation>
+        <translation>ZWNJ Необ’єднувач нульової довжини</translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation>ZWSP прогалина нульової ширини</translation>
+        <translation>ZWSP Пропуск нульової ширини</translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation>LRE початок вбудовування зліва направо</translation>
+        <translation>LRE Початок вбудованого напису зліва направо</translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation>RLE початок вбудовування справа наліво</translation>
+        <translation>RLE Початок вбудованого напису справа наліво</translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation>LRO початок заміщення зліва направо</translation>
+        <translation>LRO Початок заміни напису зліва направо</translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation>RLO початок заміщення справа наліво</translation>
+        <translation>RLO Початок заміни напису справа наліво</translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation>PDF Pop напрямне форматування</translation>
+        <translation>PDF Забрати направлене форматування</translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
-        <translation>Вставити контрольний символ Unicode</translation>
+        <translation>Вставити керуючий символ Unicode</translation>
     </message>
     <message>
         <source>LRI Left-to-right isolate</source>
@@ -8462,32 +8472,32 @@ Role of an accessible object</extracomment>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation type="unfinished">Скинути</translation>
+        <translation type="obsolete">Скинути</translation>
     </message>
     <message>
         <source>Go Back</source>
         <comment>Back context menu item</comment>
-        <translation type="unfinished">Піти назад</translation>
+        <translation type="obsolete">Піти назад</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation type="unfinished">Stop</translation>
+        <translation type="obsolete">Stop</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation type="unfinished">Пропустити</translation>
+        <translation type="obsolete">Пропустити</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation type="unfinished">Пропустити</translation>
+        <translation type="obsolete">Пропустити</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation type="unfinished">Невідомо</translation>
+        <translation type="obsolete">Невідомо</translation>
     </message>
     <message>
         <source>Bad HTTP request</source>
@@ -8776,7 +8786,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWizard</name>
     <message>
         <source>Go Back</source>
-        <translation>Піти назад</translation>
+        <translation>Йти назад</translation>
     </message>
     <message>
         <source>Continue</source>
@@ -8784,15 +8794,15 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Commit</source>
-        <translation>Зафіксувати</translation>
+        <translation>Виконати</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Зроблено</translation>
+        <translation>Завершено</translation>
     </message>
     <message>
         <source>Quit</source>
-        <translation>Вийти</translation>
+        <translation type="vanished">Вийти</translation>
     </message>
     <message>
         <source>Help</source>
@@ -8804,7 +8814,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Закінчити</translation>
+        <translation>&amp;Завершити</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -8816,66 +8826,66 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Далі</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation type="unfinished">&amp;Вперед &gt;</translation>
+        <translation>&amp;Далі &gt;</translation>
     </message>
 </context>
 <context>
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Відновити</translation>
+        <translation type="vanished">&amp;Відновити</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Пересунути</translation>
+        <translation type="vanished">&amp;Пересунути</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Розмір</translation>
+        <translation type="vanished">&amp;Розмір</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Мі&amp;німізувати</translation>
+        <translation type="vanished">Мі&amp;німізувати</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Ма&amp;ксимізувати</translation>
+        <translation type="vanished">Ма&amp;ксимізувати</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Закрити</translation>
+        <translation type="vanished">&amp;Закрити</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Лишатися над &amp;іншими</translation>
+        <translation type="vanished">Лишатися над &amp;іншими</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>Зг&amp;орнути</translation>
+        <translation type="vanished">Зг&amp;орнути</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Мінімізувати</translation>
+        <translation type="vanished">Мінімізувати</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Відновити додолу</translation>
+        <translation type="vanished">Відновити додолу</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Закрити</translation>
+        <translation type="vanished">Закрити</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>&amp;Розгорнути</translation>
+        <translation type="vanished">&amp;Розгорнути</translation>
     </message>
 </context>
 <context>
@@ -8886,55 +8896,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation>помилка викликана споживачем</translation>
+        <translation>помилка, викликана користувачем</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
-        <translation>неочікуваний кінець файлу</translation>
+        <translation>несподіваний кінець файлу</translation>
     </message>
     <message>
         <source>more than one document type definition</source>
-        <translation>більше одного визначення типу документу (DTD)</translation>
+        <translation>більш ніж одне визначення типу документу</translation>
     </message>
     <message>
         <source>error occurred while parsing element</source>
-        <translation>помилка аналізу елемента</translation>
+        <translation>під час розбору елемента трапилась помилка</translation>
     </message>
     <message>
         <source>tag mismatch</source>
-        <translation>теґи не збігаються</translation>
+        <translation>тег не збігається</translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
-        <translation>помилка аналізу вмісту</translation>
+        <translation>під час розбору вмісту трапилась помилка</translation>
     </message>
     <message>
         <source>unexpected character</source>
-        <translation>неочікуваний символ</translation>
+        <translation>несподіваний символ</translation>
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation>неправильне ім&apos;я для обробної команди</translation>
+        <translation>неправильна назва для інструкції обробки</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation>при читанні оголошення XML очікувалася версія</translation>
+        <translation>під час читання оголошення XML очікувалась версія</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation>неправильне значення для окремого оголошення</translation>
+        <translation>неправильне значення для самостійного оголошення</translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>при читанні оголошень XML очікувалось оголошення кодування або окреме оголошення </translation>
+        <translation>під час читання оголошення XML очікувалось оголошення кодування або самостійне оголошення</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>при читанні оголошень XML очікувалось окреме оголошення</translation>
+        <translation>під час читання оголошення XML очікувалось самостійне оголошення</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translation>помилка при аналізі визначення типу документу (DTD)</translation>
+        <translation>під час розбору визначення типу документа трапилась помилка</translation>
     </message>
     <message>
         <source>letter is expected</source>
@@ -8942,46 +8952,46 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>error occurred while parsing comment</source>
-        <translation>помилка аналізу коментаря</translation>
+        <translation>під час розбору коментаря трапилась помилка</translation>
     </message>
     <message>
         <source>error occurred while parsing reference</source>
-        <translation>помилка аналізу посилання</translation>
+        <translation>під час розбору посилання трапилась помилка</translation>
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
-        <translation>посилання на внутрішній загальний елемент не дозволено в DTD</translation>
+        <translation>внутрішнє посилання на загальну сутність не дозволене в DTD</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>посилання на зовнішній розібраний загальний елемент не дозволено в значенні атрибута</translation>
+        <translation>зовнішнє розібране посилання на загальну сутність не дозволене в значенні атрибуту</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>посилання на зовнішній розібраний загальний елемент не дозволено в DTD</translation>
+        <translation>зовнішнє розібране посилання на загальну сутність не дозволене в DTD</translation>
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translation>посилання на нерозібраний елемент у неправильному контексті</translation>
+        <translation>нерозібране посилання на сутність в неправильному контексті</translation>
     </message>
     <message>
         <source>recursive entities</source>
-        <translation>рекурсивні елементи</translation>
+        <translation>рекурсивні сутності</translation>
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation>помилка в оголошенні тексту зовнішнього елемента</translation>
+        <translation>помилка в тексті оголошення зовнішньої сутності</translation>
     </message>
 </context>
 <context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation>Надлишковий вміст в кінці документу.</translation>
+        <translation>Зайві дані в кінці документу.</translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
-        <translation>Неправильне значення елементу.</translation>
+        <translation>Неправильне значення сутності.</translation>
     </message>
     <message>
         <source>Invalid XML character.</source>
@@ -8989,19 +8999,19 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation>Послідовність &quot;]]&gt;&quot; в вмісті є недозволеною.</translation>
+        <translation>Послідовність &apos;]]&gt;&apos; не дозволена в змісті.</translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation>Префікс простору імен &quot;%1&quot; не оголошено</translation>
+        <translation>Префікс простору імен &apos;%1&apos; не оголошено</translation>
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>Нове оголошення атрибуту.</translation>
+        <translation type="vanished">Атрибути перевизначено.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translation>Неочікуваний символ &quot;%1&quot; в ідентифікаторі публічного літерала.</translation>
+        <translation>Неочікуваний символ &apos;%1&apos; в публічному літералі id.</translation>
     </message>
     <message>
         <source>Invalid XML version string.</source>
@@ -9013,7 +9023,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translation>%1 є неправильним ім&apos;ям кодування.</translation>
+        <translation>%1 - неправильна назва кодування.</translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
@@ -9021,7 +9031,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation>Автономний приймає лише &quot;так&quot; чи &quot;ні&quot;.</translation>
+        <translation>Самостійний приймає лише так чи ні.</translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
@@ -9029,23 +9039,23 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Premature end of document.</source>
-        <translation>Передчасний кінець документа.</translation>
+        <translation>Несподіваний кінець документу.</translation>
     </message>
     <message>
         <source>Invalid document.</source>
-        <translation>Неправильно сформований документ.</translation>
+        <translation>Неправильний документ.</translation>
     </message>
     <message>
         <source>Expected </source>
-        <translation>Очікувався </translation>
+        <translation>Очікувалось </translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translation>, але отримано &quot;</translation>
+        <translation>, але отримано &apos;</translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translation>Неочікуваний &quot;</translation>
+        <translation>Неочікуване &apos;</translation>
     </message>
     <message>
         <source>Expected character data.</source>
@@ -9053,51 +9063,51 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Recursive entity detected.</source>
-        <translation>Знайдено рекурсивний елемент.</translation>
+        <translation>Знайдено рекурсивну сутність.</translation>
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translation>Очікувався початковий теґ.</translation>
+        <translation>Очікувався відкриваючий тег.</translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translation>Оголошення XML не на початку документа.</translation>
+        <translation>Оголошення XML не знаходиться на початку документу.</translation>
     </message>
     <message>
         <source>NDATA in parameter entity declaration.</source>
-        <translation>NDATA в оголошенні порожнього параметра.</translation>
+        <translation>NDATA в параметрі оголошення сутності.</translation>
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation>%1 не є дозволеною назвою інструкції обробляння.</translation>
+        <translation>%1 не є правильна назвою для інструкції обробки.</translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation>Неправильне ім&apos;я команди обробляння.</translation>
+        <translation>Неправильна назва для інструкції обробки.</translation>
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translation>Неправильне оголошення простору імен.</translation>
+        <translation>Неприпустиме оголошення простору імен.</translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
-        <translation>Неправильне ім&apos;я XML.</translation>
+        <translation>Неправильна назва XML.</translation>
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation>Не збігаються відкривні й закривні теґи.</translation>
+        <translation>Відкриваючий та закриваючий теги не збігаються.</translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Посилання на необроблений елемент &quot;%1&quot;.</translation>
+        <translation>Посилання на нерозібрану сутність &apos;%1&apos;.</translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translation>Відсутнє оголошення елемента &quot;%1&quot;.</translation>
+        <translation>Сутність &apos;%1&apos; не оголошена.</translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translation>Посилання на зовнішній елемент &quot;%1&quot; в значенні атрибута.</translation>
+        <translation>Посилання на зовнішню сутність &apos;%1&apos; в значені атрибута.</translation>
     </message>
     <message>
         <source>Invalid character reference.</source>
@@ -9105,15 +9115,15 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translation>Знайдено невірно закодований вміст.</translation>
+        <translation>Виявлено неправильно закодований вміст.</translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation>Окремий псевдо-атрибут має бути присутній після кодування.</translation>
+        <translation>Самостійний псевдоатрибут має знаходитсь після кодування.</translation>
     </message>
     <message>
         <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation>%1 є неприпустимим публічним іденифікатором.</translation>
+        <translation>%1 не є правильним ідентифікатором PUBLIC.</translation>
     </message>
     <message>
         <source>Attribute &apos;%1&apos; redefined.</source>
@@ -9297,55 +9307,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation type="unfinished">Прокрутити сюди</translation>
+        <translation type="obsolete">Прокрутити сюди</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation type="unfinished">Лівий край</translation>
+        <translation type="obsolete">Лівий край</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation type="unfinished">Верх</translation>
+        <translation type="obsolete">Верх</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation type="unfinished">Правий край</translation>
+        <translation type="obsolete">Правий край</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation type="unfinished">Низ</translation>
+        <translation type="obsolete">Низ</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation type="unfinished">Сторінка ліворуч</translation>
+        <translation type="obsolete">Сторінка ліворуч</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation type="unfinished">Сторінка вгору</translation>
+        <translation type="obsolete">Сторінка вгору</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation type="unfinished">Сторінка праворуч</translation>
+        <translation type="obsolete">Сторінка праворуч</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation type="unfinished">Сторінка додолу</translation>
+        <translation type="obsolete">Сторінка додолу</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation type="unfinished">Прокрутити ліворуч</translation>
+        <translation type="obsolete">Прокрутити ліворуч</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation type="unfinished">Прокрутити вгору</translation>
+        <translation type="obsolete">Прокрутити вгору</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation type="unfinished">Прокрутити праворуч</translation>
+        <translation type="obsolete">Прокрутити праворуч</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation type="unfinished">Прокрутити додолу</translation>
+        <translation type="obsolete">Прокрутити додолу</translation>
     </message>
 </context>
 <context>

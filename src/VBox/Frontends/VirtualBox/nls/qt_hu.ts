@@ -5,15 +5,15 @@
     <name>AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;A hangeszköz &lt;b&gt;%1&lt;/b&gt; most nem használható.&lt;br/&gt;Visszaállás erre: &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
+        <translation type="obsolete">&lt;html&gt;A hangeszköz &lt;b&gt;%1&lt;/b&gt; most nem használható.&lt;br/&gt;Visszaállás erre: &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;b&gt;%1&lt;/b&gt; lejátszó eszközre váltás, ami épp most lett elérhető, és elsőbbséget élvez a jelenlegihez képest&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;&lt;b&gt;%1&lt;/b&gt; lejátszó eszközre váltás, ami épp most lett elérhető, és elsőbbséget élvez a jelenlegihez képest&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Revert back to device &apos;%1&apos;</source>
-        <translation>Visszaállás a(z) &apos;%1&apos; eszközre</translation>
+        <translation type="obsolete">Visszaállás a(z) &apos;%1&apos; eszközre</translation>
     </message>
 </context>
 <context>
@@ -38,31 +38,31 @@
     <name>MAC_APPLICATION_MENU</name>
     <message>
         <source>Services</source>
-        <translation>Szolgáltatások</translation>
+        <translation type="unfinished">Szolgáltatások</translation>
     </message>
     <message>
         <source>Hide %1</source>
-        <translation>%1 elrejtése</translation>
+        <translation type="unfinished">%1 elrejtése</translation>
     </message>
     <message>
         <source>Hide Others</source>
-        <translation>Minden más elrejtése</translation>
+        <translation type="unfinished">Minden más elrejtése</translation>
     </message>
     <message>
         <source>Show All</source>
-        <translation>Mindet mutat</translation>
+        <translation type="unfinished">Mindet mutat</translation>
     </message>
     <message>
         <source>Preferences...</source>
-        <translation>Beállítások...</translation>
+        <translation type="unfinished">Beállítások...</translation>
     </message>
     <message>
         <source>Quit %1</source>
-        <translation>Kilépés: %1</translation>
+        <translation type="unfinished">Kilépés: %1</translation>
     </message>
     <message>
         <source>About %1</source>
-        <translation>%1 névjegye</translation>
+        <translation type="unfinished">%1 névjegye</translation>
     </message>
 </context>
 <context>
@@ -80,27 +80,27 @@
     <name>Phonon::</name>
     <message>
         <source>Notifications</source>
-        <translation>Figyelmeztetések</translation>
+        <translation type="obsolete">Figyelmeztetések</translation>
     </message>
     <message>
         <source>Music</source>
-        <translation>Zene</translation>
+        <translation type="obsolete">Zene</translation>
     </message>
     <message>
         <source>Video</source>
-        <translation>Videó</translation>
+        <translation type="obsolete">Videó</translation>
     </message>
     <message>
         <source>Communication</source>
-        <translation>Társalgás</translation>
+        <translation type="obsolete">Társalgás</translation>
     </message>
     <message>
         <source>Games</source>
-        <translation>Játékok</translation>
+        <translation type="obsolete">Játékok</translation>
     </message>
     <message>
         <source>Accessibility</source>
-        <translation>Kisegítő lehetőségek</translation>
+        <translation type="obsolete">Kisegítő lehetőségek</translation>
     </message>
 </context>
 <context>
@@ -127,13 +127,13 @@
     <message>
         <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
           Some video features have been disabled.</source>
-        <translation>Figyelmeztetés: Úgy tűnik, a gstreamer0.10-plugins-good nincs telepítve.
+        <translation type="obsolete">Figyelmeztetés: Úgy tűnik, a gstreamer0.10-plugins-good nincs telepítve.
           Néhány videóval kapcsolatos lehetőség le lesz tiltva.</translation>
     </message>
     <message>
         <source>Warning: You do not seem to have the base GStreamer plugins installed.
           All audio and video support has been disabled</source>
-        <translation>Figyelmeztetés: Úgy tűnik nincs semmilyen GStreamer plugin telepítve.
+        <translation type="obsolete">Figyelmeztetés: Úgy tűnik nincs semmilyen GStreamer plugin telepítve.
           Minden hang és videótámogatás le lesz tiltva</translation>
     </message>
 </context>
@@ -144,36 +144,34 @@
 
 Check your Gstreamer installation and make sure you 
 have libgstreamer-plugins-base installed.</source>
-        <translation>A lejátszás elindítása sikertelen. 
+        <translation type="obsolete">A lejátszás elindítása sikertelen. 
 
 Kérem, ellenőrizze, hogy a libgstreamer-plugins-base 
 telepített-e, és a gstreamer beállításai megfelelők-e.</translation>
     </message>
-    <message numerus="yes">
+    <message>
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
-        <translation>
-            <numerusform>Hiányzik egy kodek a lejátszáshoz. Kérem telepítse a következő kodek(eket): %0</numerusform>
-        </translation>
+        <translation type="obsolete">Hiányzik egy kodek a lejátszáshoz. Kérem telepítse a következő kodek(eket): %0</translation>
     </message>
     <message>
         <source>Could not open media source.</source>
-        <translation>A médiaforrás megnyitása sikertelen.</translation>
+        <translation type="obsolete">A médiaforrás megnyitása sikertelen.</translation>
     </message>
     <message>
         <source>Invalid source type.</source>
-        <translation>Érvénytelen forrás.</translation>
+        <translation type="obsolete">Érvénytelen forrás.</translation>
     </message>
     <message>
         <source>Could not locate media source.</source>
-        <translation>A médiaforrás nem található.</translation>
+        <translation type="obsolete">A médiaforrás nem található.</translation>
     </message>
     <message>
         <source>Could not open audio device. The device is already in use.</source>
-        <translation>A hangeszköz megnyitása sikertelen, mert valami már használja.</translation>
+        <translation type="obsolete">A hangeszköz megnyitása sikertelen, mert valami már használja.</translation>
     </message>
     <message>
         <source>Could not decode media source.</source>
-        <translation>A médiaforrás dekódolása sikertelen.</translation>
+        <translation type="obsolete">A médiaforrás dekódolása sikertelen.</translation>
     </message>
     <message>
         <source>Cannot start playback. 
@@ -514,11 +512,11 @@ Ellenőrizze le a GStreamer-t és győzödjön meg róla, hogy telepłtette-e a 
     <name>Phonon::VolumeSlider</name>
     <message>
         <source>Volume: %1%</source>
-        <translation>Hangerő: %1%</translation>
+        <translation type="obsolete">Hangerő: %1%</translation>
     </message>
     <message>
         <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
-        <translation>A csúszka segítségével állíthatja be a hangerőt. A bal szélső pozíció 0%-ot, a jobb szélső %1%-ot jelent</translation>
+        <translation type="obsolete">A csúszka segítségével állíthatja be a hangerőt. A bal szélső pozíció 0%-ot, a jobb szélső %1%-ot jelent</translation>
     </message>
     <message>
         <source>Muted</source>
@@ -529,275 +527,275 @@ Ellenőrizze le a GStreamer-t és győzödjön meg róla, hogy telepłtette-e a 
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 nincs definiálva</translation>
+        <translation type="obsolete">%1, %2 nincs definiálva</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>A nem egyértelmű %1 nem lesz kezelve</translation>
+        <translation type="obsolete">A nem egyértelmű %1 nem lesz kezelve</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Igaz</translation>
+        <translation type="obsolete">Igaz</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Hamis</translation>
+        <translation type="obsolete">Hamis</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Beszúrás</translation>
+        <translation type="obsolete">Beszúrás</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Frissítés</translation>
+        <translation type="obsolete">Frissítés</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Törlés</translation>
+        <translation type="obsolete">Törlés</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Fájl másolása vagy áthelyezése</translation>
+        <translation type="obsolete">Fájl másolása vagy áthelyezése</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Olvasás: %1</translation>
+        <translation type="obsolete">Olvasás: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Írás: %1</translation>
+        <translation type="obsolete">Írás: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Mégsem</translation>
+        <translation type="obsolete">Mégsem</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Minden fájl (*)</translation>
+        <translation type="obsolete">Minden fájl (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Név</translation>
+        <translation type="obsolete">Név</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Méret</translation>
+        <translation type="obsolete">Méret</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>Típus</translation>
+        <translation type="obsolete">Típus</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Dátum</translation>
+        <translation type="obsolete">Dátum</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Attribútumok</translation>
+        <translation type="obsolete">Attribútumok</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="obsolete">&amp;OK</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Keresés &amp;itt:</translation>
+        <translation type="obsolete">Keresés &amp;itt:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Fájl &amp;neve:</translation>
+        <translation type="obsolete">Fájl &amp;neve:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>Fájl &amp;típusa:</translation>
+        <translation type="obsolete">Fájl &amp;típusa:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Vissza</translation>
+        <translation type="obsolete">Vissza</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>Egy szinttel feljebb</translation>
+        <translation type="obsolete">Egy szinttel feljebb</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Új könyvtár létrehozása</translation>
+        <translation type="obsolete">Új könyvtár létrehozása</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Lista nézet</translation>
+        <translation type="obsolete">Lista nézet</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Részletes nézet</translation>
+        <translation type="obsolete">Részletes nézet</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>Fájlinformációk előnézete</translation>
+        <translation type="obsolete">Fájlinformációk előnézete</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>Fájltartalom előnézete</translation>
+        <translation type="obsolete">Fájltartalom előnézete</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Írható-olvasható</translation>
+        <translation type="obsolete">Írható-olvasható</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Csak olvasható</translation>
+        <translation type="obsolete">Csak olvasható</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Csak írható</translation>
+        <translation type="obsolete">Csak írható</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Nem elérhető</translation>
+        <translation type="obsolete">Nem elérhető</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Szimbolikus link a fájlra</translation>
+        <translation type="obsolete">Szimbolikus link a fájlra</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Szimbolikus link a könyvtárra</translation>
+        <translation type="obsolete">Szimbolikus link a könyvtárra</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Szimbolikus link a speciális fájlra</translation>
+        <translation type="obsolete">Szimbolikus link a speciális fájlra</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Fájl</translation>
+        <translation type="obsolete">Fájl</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Könyvtár</translation>
+        <translation type="obsolete">Könyvtár</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Speciális fájl</translation>
+        <translation type="obsolete">Speciális fájl</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Megnyitás</translation>
+        <translation type="obsolete">Megnyitás</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Mentés másként</translation>
+        <translation type="obsolete">Mentés másként</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Megnyitás</translation>
+        <translation type="obsolete">&amp;Megnyitás</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>Menté&amp;s</translation>
+        <translation type="obsolete">Menté&amp;s</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>Át&amp;nevezés</translation>
+        <translation type="obsolete">Át&amp;nevezés</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Törlés</translation>
+        <translation type="obsolete">&amp;Törlés</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>B&amp;etöltés újra</translation>
+        <translation type="obsolete">B&amp;etöltés újra</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Rendezés &amp;név szerint</translation>
+        <translation type="obsolete">Rendezés &amp;név szerint</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Rendezés &amp;méret szerint</translation>
+        <translation type="obsolete">Rendezés &amp;méret szerint</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Rendezés &amp;dátum szerint</translation>
+        <translation type="obsolete">Rendezés &amp;dátum szerint</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>Nin&amp;cs rendezés</translation>
+        <translation type="obsolete">Nin&amp;cs rendezés</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Rendezés</translation>
+        <translation type="obsolete">Rendezés</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>&amp;Rejtett fájlok megjelenítése</translation>
+        <translation type="obsolete">&amp;Rejtett fájlok megjelenítése</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>a fájl</translation>
+        <translation type="obsolete">a fájl</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>a könyvtár</translation>
+        <translation type="obsolete">a könyvtár</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>a szimbolikus link</translation>
+        <translation type="obsolete">a szimbolikus link</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>%1 törlése</translation>
+        <translation type="obsolete">%1 törlése</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Biztosan törlöd ezt: %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;Biztosan törölni akarja ezt: %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Igen</translation>
+        <translation type="obsolete">&amp;Igen</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Nem</translation>
+        <translation type="obsolete">&amp;Nem</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Új könyvtár 1</translation>
+        <translation type="obsolete">Új könyvtár 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Új könyvtár</translation>
+        <translation type="obsolete">Új könyvtár</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Új könyvtár %1</translation>
+        <translation type="obsolete">Új könyvtár %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Keresés a könyvtárban</translation>
+        <translation type="obsolete">Keresés a könyvtárban</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Könyvtárak</translation>
+        <translation type="obsolete">Könyvtárak</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Könyvtár:</translation>
+        <translation type="obsolete">Könyvtár:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Hiba</translation>
+        <translation type="obsolete">Hiba</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
+        <translation type="obsolete">%1
 A fájl nem található.
 Ellenőrizze a fájl nevét és elérési útját.</translation>
     </message>
@@ -819,19 +817,19 @@ Ellenőrizze a fájl nevét és elérési útját.</translation>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>A könyvtár nem olvasható:
+        <translation type="obsolete">A könyvtár nem olvasható:
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>A könyvtár nem hozható létre:
+        <translation type="obsolete">A könyvtár nem hozható létre:
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>A fájl vagy könyvtár nem törölhető:
+        <translation type="obsolete">A fájl vagy könyvtár nem törölhető:
 %1</translation>
     </message>
     <message>
@@ -839,7 +837,7 @@ Ellenőrizze a fájl nevét és elérési útját.</translation>
 %1
 to
 %2</source>
-        <translation>Nem nevezhető át
+        <translation type="obsolete">Nem nevezhető át
 %1
 erre:
 %2</translation>
@@ -847,13 +845,13 @@ erre:
     <message>
         <source>Could not open
 %1</source>
-        <translation>Nem nyitható meg:
+        <translation type="obsolete">Nem nyitható meg:
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Nem írható:
+        <translation type="obsolete">Nem írható:
 %1</translation>
     </message>
 </context>
@@ -861,134 +859,134 @@ erre:
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>Igazítás</translation>
+        <translation type="obsolete">Igazítás</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>Testreszabás...</translation>
+        <translation type="obsolete">Testreszabás...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>A műveletet a felhasználó megszakította</translation>
+        <translation type="obsolete">A műveletet a felhasználó megszakította</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Mégsem</translation>
+        <translation type="obsolete">Mégsem</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation type="obsolete">OK</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Alkalmaz</translation>
+        <translation type="obsolete">Alkalmaz</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Segítség</translation>
+        <translation type="obsolete">Súgó</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Alapértelmezések</translation>
+        <translation type="obsolete">Alapértelmezések</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Mégsem</translation>
+        <translation type="obsolete">Mégsem</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Visszavonás</translation>
+        <translation type="obsolete">&amp;Visszavonás</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Új&amp;ra</translation>
+        <translation type="obsolete">Új&amp;ra</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Kivágás</translation>
+        <translation type="obsolete">&amp;Kivágás</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Másolás</translation>
+        <translation type="obsolete">&amp;Másolás</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Beillesztés</translation>
+        <translation type="obsolete">&amp;Beillesztés</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Törlés</translation>
+        <translation type="obsolete">Törlés</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Összes kijelölése</translation>
+        <translation type="obsolete">Összes kijelölése</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>Rendszer</translation>
+        <translation type="obsolete">Rendszer</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>Visszaállítás</translation>
+        <translation type="obsolete">Visszaállítás</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimalizálás</translation>
+        <translation type="obsolete">Minimalizálás</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Előző méret</translation>
+        <translation type="obsolete">Előző méret</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Teljes méret</translation>
+        <translation type="obsolete">Teljes méret</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Bezárás</translation>
+        <translation type="obsolete">Bezárás</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Parancsokat tartalmaz az ablak kezeléséhez</translation>
+        <translation type="obsolete">Parancsokat tartalmaz az ablak kezeléséhez</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>A kis méretű ablakot normál méretűre állítja vissza</translation>
+        <translation type="obsolete">A kis méretű ablakot normál méretűre állítja vissza</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>Elmozgatja az ablakot az útból</translation>
+        <translation type="obsolete">Elmozgatja az ablakot az útból</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>A teljes méretű ablakot normál méretűre állítja vissza</translation>
+        <translation type="obsolete">A teljes méretű ablakot normál méretűre állítja vissza</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Az ablakot teljes képernyő méretűre növeli</translation>
+        <translation type="obsolete">Az ablakot teljes képernyő méretűre növeli</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Bezárja az ablakot</translation>
+        <translation type="obsolete">Bezárja az ablakot</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Megjeleníti az ablak nevét, és kezelőket a megváltoztatásukhoz</translation>
+        <translation type="vanished">Megjeleníti az ablak nevét, és kezelőket a megváltoztatásukhoz</translation>
     </message>
     <message>
         <source>Puts a minimized window back to normal</source>
@@ -1003,80 +1001,80 @@ erre:
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Továbbiak...</translation>
+        <translation type="obsolete">Továbbiak...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>A(z) `%1&apos; protokoll nem támogatott</translation>
+        <translation type="obsolete">A(z) `%1&apos; protokoll nem támogatott</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>A(z) `%1&apos; protokoll nem támogatja a könyvtárak tartalmának listázását</translation>
+        <translation type="obsolete">A(z) `%1&apos; protokoll nem támogatja a könyvtárak tartalmának listázását</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>A(z) `%1&apos; protokoll nem támogatja könyvtárak létrehozását</translation>
+        <translation type="obsolete">A(z) `%1&apos; protokoll nem támogatja könyvtárak létrehozását</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>A(z) &apos;%1&apos; protokoll nem támogatja a fájlok vagy könyvtárak törlését</translation>
+        <translation type="obsolete">A(z) &apos;%1&apos; protokoll nem támogatja a fájlok vagy könyvtárak törlését</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>A(z) &apos;%1&apos; protokoll nem támogatja a fájlok vagy könyvtárak átnevezését</translation>
+        <translation type="obsolete">A(z) &apos;%1&apos; protokoll nem támogatja a fájlok vagy könyvtárak átnevezését</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>A(z) &apos;%1&apos; protokoll nem támogatja a fájlok letöltését</translation>
+        <translation type="obsolete">A(z) &apos;%1&apos; protokoll nem támogatja a fájlok letöltését</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>A(z) &apos;%1&apos; protokoll nem támogatja a fájlok feltöltését</translation>
+        <translation type="obsolete">A(z) &apos;%1&apos; protokoll nem támogatja a fájlok feltöltését</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>A(z) &apos;%1&apos; protokoll nem támogatja a fájlok vagy könyvtárak másolását vagy áthelyezését</translation>
+        <translation type="obsolete">A(z) &apos;%1&apos; protokoll nem támogatja a fájlok vagy könyvtárak másolását vagy áthelyezését</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(ismeretlen)</translation>
+        <translation type="obsolete">(ismeretlen)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Mégsem</translation>
+        <translation type="obsolete">&amp;Mégsem</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Vissza</translation>
+        <translation type="obsolete">&lt; &amp;Vissza</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Következő &gt;</translation>
+        <translation type="obsolete">&amp;Következő &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Befejezés</translation>
+        <translation type="obsolete">&amp;Befejezés</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Súgó</translation>
+        <translation type="obsolete">&amp;Súgó</translation>
     </message>
 </context>
 <context>
     <name>QAbstractSocket</name>
     <message>
         <source>Host not found</source>
-        <translation>A kiszolgáló nem található</translation>
+        <translation type="unfinished">A kiszolgáló nem található</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation>A kapcsolat elutasítva</translation>
+        <translation type="unfinished">A kapcsolat elutasítva</translation>
     </message>
     <message>
         <source>Connection timed out</source>
@@ -1088,11 +1086,11 @@ erre:
     </message>
     <message>
         <source>Socket operation timed out</source>
-        <translation>Socket művelet időtúllépés</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Socket is not connected</source>
-        <translation>A socket nem kapcsolódott</translation>
+        <translation type="unfinished">A socket nem kapcsolódott</translation>
     </message>
     <message>
         <source>Operation on socket is not supported</source>
@@ -1107,15 +1105,15 @@ erre:
     <name>QAbstractSpinBox</name>
     <message>
         <source>&amp;Step up</source>
-        <translation>Lépés &amp;felfelé</translation>
+        <translation type="unfinished">Lépés &amp;felfelé</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
-        <translation>Lépés &amp;lefelé</translation>
+        <translation type="unfinished">Lépés &amp;lefelé</translation>
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation>Lépés &amp;lefelé</translation>
+        <translation type="unfinished">Ö&amp;sszes kijelölése</translation>
     </message>
 </context>
 <context>
@@ -1286,24 +1284,24 @@ erre:
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Aktiválás</translation>
+        <translation type="obsolete">Aktiválás</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>&apos;%1&apos; program Qt %2-t igényel (Qt %3 van telepítve).</translation>
+        <translation type="unfinished">&apos;%1&apos; program Qt %2-t igényel (Qt %3 van telepítve).</translation>
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation>Hiba: inkompatíbilis Qt függvénykönyvtár</translation>
+        <translation type="unfinished">Hiba: inkompatíbilis Qt függvénykönyvtár</translation>
     </message>
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Aktívvá teszi a program főablakát</translation>
+        <translation type="obsolete">Aktívvá teszi a program főablakát</translation>
     </message>
 </context>
 <context>
@@ -1329,15 +1327,15 @@ erre:
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Kijelölés megszüntetése</translation>
+        <translation type="obsolete">Kijelölés megszüntetése</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Kijelölés</translation>
+        <translation type="obsolete">Kijelölés</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Váltás</translation>
+        <translation type="obsolete">Váltás</translation>
     </message>
 </context>
 <context>
@@ -1406,31 +1404,31 @@ erre:
     <name>QColorDialog</name>
     <message>
         <source>Hu&amp;e:</source>
-        <translation>Á&amp;rnyalat:</translation>
+        <translation type="unfinished">Á&amp;rnyalat:</translation>
     </message>
     <message>
         <source>&amp;Sat:</source>
-        <translation>&amp;Telítettség:</translation>
+        <translation type="unfinished">&amp;Telítettség:</translation>
     </message>
     <message>
         <source>&amp;Val:</source>
-        <translation>&amp;Fényerő:</translation>
+        <translation type="unfinished">&amp;Fényerő:</translation>
     </message>
     <message>
         <source>&amp;Red:</source>
-        <translation>&amp;Vörös:</translation>
+        <translation type="unfinished">&amp;Vörös:</translation>
     </message>
     <message>
         <source>&amp;Green:</source>
-        <translation>&amp;Zöld:</translation>
+        <translation type="unfinished">&amp;Zöld:</translation>
     </message>
     <message>
         <source>Bl&amp;ue:</source>
-        <translation>&amp;Kék:</translation>
+        <translation type="unfinished">&amp;Kék:</translation>
     </message>
     <message>
         <source>A&amp;lpha channel:</source>
-        <translation>A&amp;lfa csatorna:</translation>
+        <translation type="unfinished">A&amp;lfa csatorna:</translation>
     </message>
     <message>
         <source>Select Color</source>
@@ -1438,19 +1436,19 @@ erre:
     </message>
     <message>
         <source>&amp;Basic colors</source>
-        <translation>Ala&amp;p színek</translation>
+        <translation type="unfinished">Ala&amp;p színek</translation>
     </message>
     <message>
         <source>&amp;Custom colors</source>
-        <translation>&amp;Saját színek</translation>
+        <translation type="unfinished">&amp;Saját színek</translation>
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
-        <translation>Hozzá&amp;adás a saját színekhez</translation>
+        <translation type="unfinished">Hozzá&amp;adás a saját színekhez</translation>
     </message>
     <message>
         <source>Select color</source>
-        <translation>Szín kiválasztása</translation>
+        <translation type="obsolete">Szín kiválasztása</translation>
     </message>
     <message>
         <source>&amp;Define Custom Colors &gt;&gt;</source>
@@ -1482,19 +1480,19 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Megnyitás</translation>
+        <translation type="obsolete">Megnyitás</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Hamis</translation>
+        <translation type="unfinished">Hamis</translation>
     </message>
     <message>
         <source>True</source>
-        <translation>Igaz</translation>
+        <translation type="unfinished">Igaz</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Bezárás</translation>
+        <translation type="obsolete">Bezárás</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1549,42 +1547,42 @@ Press ESC to cancel</source>
     <message>
         <source>%1: permission denied</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: hozzáférés megtagadva</translation>
+        <translation type="obsolete">%1: hozzáférés megtagadva</translation>
     </message>
     <message>
         <source>%1: already exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: már létezik</translation>
+        <translation type="obsolete">%1: már létezik</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: már létezik</translation>
+        <translation type="obsolete">%1: nem található</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: az erőforrások elfogytak</translation>
+        <translation type="obsolete">%1: az erőforrások elfogytak</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: ismeretlen hiba %2</translation>
+        <translation type="obsolete">%1: ismeretlen hiba %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: a kulcs hiányzik</translation>
+        <translation type="unfinished">%1: a kulcs hiányzik</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: a kulcs elkészítése sikertelen</translation>
+        <translation type="unfinished">%1: a kulcs elkészítése sikertelen</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: ftok hibát adott vissza</translation>
+        <translation type="unfinished">%1: ftok hibát adott vissza</translation>
     </message>
     <message>
         <source>%1: does not exist</source>
@@ -1700,46 +1698,46 @@ Press ESC to cancel</source>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Nem sikerült kapcsolódni</translation>
+        <translation type="unfinished">Nem sikerült kapcsolódni</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>A tranzakció nem görgethető vissza</translation>
+        <translation type="unfinished">A tranzakció nem görgethető vissza</translation>
     </message>
     <message>
         <source>Unable to set autocommit</source>
-        <translation>Az automatikus véglegesítés nem állítható be</translation>
+        <translation type="unfinished">Az automatikus véglegesítés nem állítható be</translation>
     </message>
 </context>
 <context>
     <name>QDB2Result</name>
     <message>
         <source>Unable to execute statement</source>
-        <translation>A művelet nem hajtható végre</translation>
+        <translation type="unfinished">A művelet nem hajtható végre</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>A művelet előkészítése nem lehetséges</translation>
+        <translation type="unfinished">A művelet előkészítése nem lehetséges</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation>A változó nem rögzíthető</translation>
+        <translation type="unfinished">A változó nem rögzíthető</translation>
     </message>
     <message>
         <source>Unable to fetch record %1</source>
-        <translation>A(z) %1. rekord nem olvasható ki</translation>
+        <translation type="unfinished">A(z) %1. rekord nem olvasható ki</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>A következő rekord nem olvasható ki</translation>
+        <translation type="unfinished">A következő rekord nem olvasható ki</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation>Az első rekord nem érhető el</translation>
+        <translation type="unfinished">Az első rekord nem érhető el</translation>
     </message>
 </context>
 <context>
@@ -1753,19 +1751,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>DE</translation>
+        <translation type="obsolete">DE</translation>
     </message>
     <message>
         <source>am</source>
-        <translation>de</translation>
+        <translation type="obsolete">de</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation>DU</translation>
+        <translation type="obsolete">DU</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation>du</translation>
+        <translation type="obsolete">du</translation>
     </message>
 </context>
 <context>
@@ -2305,26 +2303,26 @@ Press ESC to cancel</source>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
-        <translation>Mi ez?</translation>
+        <translation type="unfinished">Mi ez?</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Kész</translation>
+        <translation type="obsolete">Kész</translation>
     </message>
 </context>
 <context>
     <name>QDialogButtonBox</name>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation type="unfinished">OK</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>Mentés</translation>
+        <translation type="obsolete">Mentés</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Megnyitás</translation>
+        <translation type="obsolete">Megnyitás</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
@@ -2332,7 +2330,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Mégsem</translation>
+        <translation type="obsolete">Mégsem</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -2340,71 +2338,71 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Bezárás</translation>
+        <translation type="obsolete">Bezárás</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Alkalmaz</translation>
+        <translation type="obsolete">Alkalmaz</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Törlés</translation>
+        <translation type="obsolete">Törlés</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Segítség</translation>
+        <translation type="obsolete">Súgó</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Nincs mentés</translation>
+        <translation type="obsolete">Nincs mentés</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Elvetés</translation>
+        <translation type="obsolete">Elvetés</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Igen</translation>
+        <translation type="obsolete">&amp;Igen</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>&amp;Mindent elfogad</translation>
+        <translation type="obsolete">&amp;Mindent elfogad</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Nem</translation>
+        <translation type="obsolete">&amp;Nem</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>Mindent &amp;kihagy</translation>
+        <translation type="obsolete">Mindent &amp;kihagy</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Mindet menti</translation>
+        <translation type="obsolete">Mindet menti</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Megszakítás</translation>
+        <translation type="obsolete">Megszakítás</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Újra</translation>
+        <translation type="obsolete">Újra</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Kihagyás</translation>
+        <translation type="obsolete">Kihagyás</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Alapértelmezések visszaállítása</translation>
+        <translation type="obsolete">Alapértelmezések visszaállítása</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>Bezárás mentés nélkül</translation>
+        <translation type="obsolete">Bezárás mentés nélkül</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="obsolete">&amp;OK</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -2415,25 +2413,25 @@ Press ESC to cancel</source>
     <name>QDirModel</name>
     <message>
         <source>Name</source>
-        <translation>Név</translation>
+        <translation type="unfinished">Név</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Méret</translation>
+        <translation type="unfinished">Méret</translation>
     </message>
     <message>
         <source>Kind</source>
         <comment>Match OS X Finder</comment>
-        <translation>Típus</translation>
+        <translation type="unfinished">Kind</translation>
     </message>
     <message>
         <source>Type</source>
         <comment>All other platforms</comment>
-        <translation>Típus</translation>
+        <translation type="unfinished">Típus</translation>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation>Módosítás dátuma</translation>
+        <translation type="unfinished">Módosítás dátuma</translation>
     </message>
 </context>
 <context>
@@ -2546,14 +2544,16 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
-        <translation>Bezárás</translation>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
+        <translation type="unfinished">Bezárás</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translation>Dokkolt</translation>
+        <translation type="vanished">Dokkolt</translation>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation>Lebegő</translation>
     </message>
     <message>
@@ -2569,34 +2569,34 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Több</translation>
+        <translation type="obsolete">Több</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Kevesebb</translation>
+        <translation type="obsolete">Kevesebb</translation>
     </message>
 </context>
 <context>
     <name>QErrorMessage</name>
     <message>
         <source>Debug Message:</source>
-        <translation>Debug üzenet:</translation>
+        <translation type="unfinished">Debug üzenet:</translation>
     </message>
     <message>
         <source>Warning:</source>
-        <translation>Figyelmeztetés:</translation>
+        <translation type="unfinished">Figyelmeztetés:</translation>
     </message>
     <message>
         <source>Fatal Error:</source>
-        <translation>Végzetes hiba:</translation>
+        <translation type="unfinished">Végzetes hiba:</translation>
     </message>
     <message>
         <source>&amp;Show this message again</source>
-        <translation>Üzenet megjelenítése i&amp;smét</translation>
+        <translation type="unfinished">Üzenet megjelenítése i&amp;smét</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="unfinished">&amp;OK</translation>
     </message>
 </context>
 <context>
@@ -2657,35 +2657,35 @@ Press ESC to cancel</source>
     <name>QFileDialog</name>
     <message>
         <source>All Files (*)</source>
-        <translation>Minden fájl (*)</translation>
+        <translation type="unfinished">Minden fájl (*)</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Könyvtárak</translation>
+        <translation type="unfinished">Könyvtárak</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Megnyitás</translation>
+        <translation type="unfinished">&amp;Megnyitás</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>Menté&amp;s</translation>
+        <translation type="unfinished">Menté&amp;s</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Megnyitás</translation>
+        <translation type="unfinished">Megnyitás</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
-        <translation>%1 már létezik.
+        <translation type="unfinished">%1 már létezik.
 Lecseréli?</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Please verify the correct file name was given.</source>
-        <translation>%1
+        <translation type="unfinished">%1
 A fájl nem található.
 Ellenőrizze, hogy jól adta-e meg a fájl nevét.</translation>
     </message>
@@ -2703,77 +2703,77 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét.</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation>Számítógép</translation>
+        <translation type="unfinished">Számítógép</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>Át&amp;nevezés</translation>
+        <translation type="unfinished">Át&amp;nevezés</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Törlés</translation>
+        <translation type="unfinished">&amp;Törlés</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>&amp;Rejtett fájlok megjelenítése</translation>
+        <translation type="unfinished">&amp;Rejtett fájlok megjelenítése</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Vissza</translation>
+        <translation type="unfinished">Vissza</translation>
     </message>
     <message>
         <source>Parent Directory</source>
-        <translation>Szülőkönyvtár</translation>
+        <translation type="unfinished">Szülőkönyvtár</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Lista nézet</translation>
+        <translation type="unfinished">Lista nézet</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Részletes nézet</translation>
+        <translation type="unfinished">Részletes nézet</translation>
     </message>
     <message>
         <source>Files of type:</source>
-        <translation>Fájlok típusa:</translation>
+        <translation type="unfinished">Fájlok típusa:</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Könyvtár:</translation>
+        <translation type="unfinished">Könyvtár:</translation>
     </message>
     <message>
         <source>%1
 Directory not found.
 Please verify the correct directory name was given.</source>
-        <translation>%1
+        <translation type="unfinished">%1
 A könyvtár nem található.
-Ellenőrizd, hogy jól adta-e meg a könyvtár nevét.</translation>
+Ellenőrizze, hogy jól adta-e meg a könyvtár nevét.</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is write protected.
 Do you want to delete it anyway?</source>
-        <translation>&apos;%1&apos; írásvédett.
-Biztosan törlöd?</translation>
+        <translation type="unfinished">&apos;%1&apos; írásvédett.
+Biztosan törölni akarja?</translation>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Biztosan törlöd &apos;%1&apos;-t?</translation>
+        <translation type="obsolete">Biztosan törölni akarja &apos;%1&apos;-t?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
-        <translation>A könyvtár nem törölhető.</translation>
+        <translation type="unfinished">A könyvtár nem törölhető.</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Mentés másként</translation>
+        <translation type="unfinished">Mentés másként</translation>
     </message>
     <message>
         <source>Drive</source>
-        <translation>Meghajtó</translation>
+        <translation type="unfinished">Meghajtó</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Fájl</translation>
+        <translation type="unfinished">Fájl</translation>
     </message>
     <message>
         <source>File Folder</source>
@@ -2797,47 +2797,47 @@ Biztosan törlöd?</translation>
     </message>
     <message>
         <source>Unknown</source>
-        <translation>Ismeretlen</translation>
+        <translation type="unfinished">Ismeretlen</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Keresés a könyvtárban</translation>
+        <translation type="unfinished">Keresés a könyvtárban</translation>
     </message>
     <message>
         <source>Show </source>
-        <translation>Megjelenítés </translation>
+        <translation type="unfinished">Megjelenítés </translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Előre</translation>
+        <translation type="unfinished">Előre</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Új könyvtár</translation>
+        <translation type="unfinished">Új könyvtár</translation>
     </message>
     <message>
         <source>&amp;New Folder</source>
-        <translation>Ú&amp;j könyvtár</translation>
+        <translation type="unfinished">Ú&amp;j könyvtár</translation>
     </message>
     <message>
         <source>&amp;Choose</source>
-        <translation>&amp;Kiválasztás</translation>
+        <translation type="unfinished">&amp;Kiválasztás</translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation>Törlés</translation>
+        <translation type="unfinished">Törlés</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Fájl &amp;neve:</translation>
+        <translation type="unfinished">Fájl &amp;neve:</translation>
     </message>
     <message>
         <source>Look in:</source>
-        <translation>Keresés itt:</translation>
+        <translation type="unfinished">Keresés itt:</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Új könyvtár létrehozása</translation>
+        <translation type="unfinished">Új könyvtár létrehozása</translation>
     </message>
     <message>
         <source>Go back</source>
@@ -2918,61 +2918,61 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QFileSystemModel</name>
     <message>
         <source>Invalid filename</source>
-        <translation>Érvénytelen fájlnév</translation>
+        <translation type="unfinished">Érvénytelen fájlnév</translation>
     </message>
     <message>
         <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
-        <translation>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</translation>
+        <translation type="unfinished">&lt;b&gt;A(z) &quot;%1&quot; név nem használható.&lt;/b&gt;&lt;p&gt;Próbálja meg másik névvel, kevesebb karakterrel vagy írásjelek nélkül.</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Név</translation>
+        <translation type="unfinished">Név</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Méret</translation>
+        <translation type="unfinished">Méret</translation>
     </message>
     <message>
         <source>Kind</source>
         <comment>Match OS X Finder</comment>
-        <translation>Kind</translation>
+        <translation type="unfinished">Kind</translation>
     </message>
     <message>
         <source>Type</source>
         <comment>All other platforms</comment>
-        <translation>Típus</translation>
+        <translation type="unfinished">Típus</translation>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation>Módosítás dátuma</translation>
+        <translation type="unfinished">Módosítás dátuma</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation>Számítógép</translation>
+        <translation type="unfinished">Számítógép</translation>
     </message>
     <message>
         <source>Computer</source>
-        <translation>Számítógép</translation>
+        <translation type="unfinished">Számítógép</translation>
     </message>
     <message>
         <source>%1 TB</source>
-        <translation>%1 TB</translation>
+        <translation type="unfinished">%1 TB</translation>
     </message>
     <message>
         <source>%1 GB</source>
-        <translation>%1 GB</translation>
+        <translation type="unfinished">%1 GB</translation>
     </message>
     <message>
         <source>%1 MB</source>
-        <translation>%1 MB</translation>
+        <translation type="unfinished">%1 MB</translation>
     </message>
     <message>
         <source>%1 KB</source>
-        <translation>%1 KB</translation>
+        <translation type="unfinished">%1 KB</translation>
     </message>
     <message>
         <source>%1 bytes</source>
-        <translation>%1 bájt</translation>
+        <translation type="unfinished">%1 byte</translation>
     </message>
     <message>
         <source>%1 byte(s)</source>
@@ -2983,167 +2983,168 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QFontDatabase</name>
     <message>
         <source>Normal</source>
-        <translation>Normál</translation>
+        <translation type="obsolete">Normál</translation>
     </message>
     <message>
         <source>Bold</source>
-        <translation>Kövér</translation>
+        <translation type="unfinished">Kövér</translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation>Félkövér</translation>
+        <translation type="unfinished">Félkövér</translation>
     </message>
     <message>
         <source>Black</source>
-        <translation>Fekete</translation>
+        <translation type="unfinished">Fekete</translation>
     </message>
     <message>
         <source>Demi</source>
-        <translation>Fél</translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation type="unfinished">Félkövér</translation>
     </message>
     <message>
         <source>Light</source>
-        <translation>Világos</translation>
+        <translation type="unfinished">Világos</translation>
     </message>
     <message>
         <source>Italic</source>
-        <translation>Dőlt</translation>
+        <translation type="unfinished">Dőlt</translation>
     </message>
     <message>
         <source>Oblique</source>
-        <translation>Ferde</translation>
+        <translation type="unfinished">Ferde</translation>
     </message>
     <message>
         <source>Any</source>
-        <translation>Bármelyik</translation>
+        <translation type="unfinished">Bármelyik</translation>
     </message>
     <message>
         <source>Latin</source>
-        <translation>Latin</translation>
+        <translation type="unfinished">Latin</translation>
     </message>
     <message>
         <source>Greek</source>
-        <translation>Görög</translation>
+        <translation type="unfinished">Görög</translation>
     </message>
     <message>
         <source>Cyrillic</source>
-        <translation>Cirill</translation>
+        <translation type="unfinished">Cirill</translation>
     </message>
     <message>
         <source>Armenian</source>
-        <translation>Örmény</translation>
+        <translation type="unfinished">Örmény</translation>
     </message>
     <message>
         <source>Hebrew</source>
-        <translation>Héber</translation>
+        <translation type="unfinished">Héber</translation>
     </message>
     <message>
         <source>Arabic</source>
-        <translation>Arab</translation>
+        <translation type="unfinished">Arab</translation>
     </message>
     <message>
         <source>Syriac</source>
-        <translation>Szír</translation>
+        <translation type="unfinished">Szír</translation>
     </message>
     <message>
         <source>Thaana</source>
-        <translation>Thaana</translation>
+        <translation type="unfinished">Thaana</translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation>Dévangári</translation>
+        <translation type="unfinished">Dévangári</translation>
     </message>
     <message>
         <source>Bengali</source>
-        <translation>Bengáli</translation>
+        <translation type="unfinished">Bengáli</translation>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation>Gurmukhi</translation>
+        <translation type="unfinished">Gurmukhi</translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation>Gujarati</translation>
+        <translation type="unfinished">Gujarati</translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation>Oriya</translation>
+        <translation type="unfinished">Oriya</translation>
     </message>
     <message>
         <source>Tamil</source>
-        <translation>Tamil</translation>
+        <translation type="unfinished">Tamil</translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation>Telugu</translation>
+        <translation type="unfinished">Telugu</translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation>Kannada</translation>
+        <translation type="unfinished">Kannada</translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation>Maláj</translation>
+        <translation type="unfinished">Malayalam</translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation>Sinhala</translation>
+        <translation type="unfinished">Sinhala</translation>
     </message>
     <message>
         <source>Thai</source>
-        <translation>Thai</translation>
+        <translation type="unfinished">Thai</translation>
     </message>
     <message>
         <source>Lao</source>
-        <translation>Lao</translation>
+        <translation type="unfinished">Lao</translation>
     </message>
     <message>
         <source>Tibetan</source>
-        <translation>Tibeti</translation>
+        <translation type="unfinished">Tibeti</translation>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation>Miannmari</translation>
+        <translation type="unfinished">Miannmari</translation>
     </message>
     <message>
         <source>Georgian</source>
-        <translation>Gergely</translation>
+        <translation type="unfinished">Gergely</translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation>Khmer</translation>
+        <translation type="unfinished">Khmer</translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
-        <translation>Egyszerűsített kínai</translation>
+        <translation type="unfinished">Egyszerűsített kínai</translation>
     </message>
     <message>
         <source>Traditional Chinese</source>
-        <translation>Hagyományos kínai</translation>
+        <translation type="unfinished">Hagyományos kínai</translation>
     </message>
     <message>
         <source>Japanese</source>
-        <translation>Japán</translation>
+        <translation type="unfinished">Japán</translation>
     </message>
     <message>
         <source>Korean</source>
-        <translation>Koreai</translation>
+        <translation type="unfinished">Koreai</translation>
     </message>
     <message>
         <source>Vietnamese</source>
-        <translation>Vietnám</translation>
+        <translation type="unfinished">Vietnám</translation>
     </message>
     <message>
         <source>Symbol</source>
-        <translation>Szimbolum</translation>
+        <translation type="unfinished">Szimbolum</translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation>Ogham</translation>
+        <translation type="unfinished">Ogham</translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation>Rúna</translation>
+        <translation type="unfinished">Rúna</translation>
     </message>
     <message>
         <source>N&apos;Ko</source>
@@ -3181,54 +3182,54 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QFontDialog</name>
     <message>
         <source>&amp;Font</source>
-        <translation>&amp;Betűtípus</translation>
+        <translation type="unfinished">&amp;Betűtípus</translation>
     </message>
     <message>
         <source>Font st&amp;yle</source>
-        <translation>Betűtípu&amp;s stílusa</translation>
+        <translation type="unfinished">Betűtípu&amp;s stílusa</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Méret</translation>
+        <translation type="unfinished">&amp;Méret</translation>
     </message>
     <message>
         <source>Effects</source>
-        <translation>Hatások</translation>
+        <translation type="unfinished">Hatások</translation>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation>Á&amp;thúzott</translation>
+        <translation type="unfinished">Á&amp;thúzott</translation>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation>&amp;Aláhúzott</translation>
+        <translation type="unfinished">&amp;Aláhúzott</translation>
     </message>
     <message>
         <source>Sample</source>
-        <translation>Minta</translation>
+        <translation type="unfinished">Példa</translation>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation>Í&amp;rásmód</translation>
+        <translation type="unfinished">Í&amp;rásmód</translation>
     </message>
     <message>
         <source>Select Font</source>
-        <translation>Betűtípus kiválasztása</translation>
+        <translation type="unfinished">Betűtípus kiválasztása</translation>
     </message>
 </context>
 <context>
     <name>QFtp</name>
     <message>
         <source>Not connected</source>
-        <translation>Nincs kapcsolat</translation>
+        <translation type="unfinished">Nincs kapcsolat</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation>%1 kiszolgáló nem található</translation>
+        <translation type="unfinished">%1 kiszolgáló nem található</translation>
     </message>
     <message>
         <source>Connection refused to host %1</source>
-        <translation>A kapcsolódás %1 kiszolgálóhoz elutasítva</translation>
+        <translation type="unfinished">A kapcsolódás %1 kiszolgálóhoz elutasítva</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -3236,7 +3237,7 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Kapcsolódva %1 kiszolgálóhoz</translation>
+        <translation type="unfinished">Kapcsolódva %1 kiszolgálóhoz</translation>
     </message>
     <message>
         <source>Data Connection refused</source>
@@ -3244,85 +3245,85 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>Az adatkapcsolat elutasítva</translation>
+        <translation type="obsolete">Az adatkapcsolat elutasítva</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <translation type="unfinished">Ismeretlen hiba</translation>
     </message>
     <message>
         <source>Connecting to host failed:
 %1</source>
-        <translation>A kapcsolódás a kiszolgálóhoz nem sikerült:
+        <translation type="unfinished">A kapcsolódás a kiszolgálóhoz nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Login failed:
 %1</source>
-        <translation>A bejelentkezés nem sikerült:
+        <translation type="unfinished">A bejelentkezés nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Listing directory failed:
 %1</source>
-        <translation>A könyvtár listázása nem sikerült:
+        <translation type="unfinished">A könyvtár listázása nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Changing directory failed:
 %1</source>
-        <translation>A könyvtárváltás nem sikerült:
+        <translation type="unfinished">A könyvtárváltás nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Downloading file failed:
 %1</source>
-        <translation>A fájl letöltése nem sikerült:
+        <translation type="unfinished">A fájl letöltése nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Uploading file failed:
 %1</source>
-        <translation>A fájl feltöltése nem sikerült:
+        <translation type="unfinished">A fájl feltöltése nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Removing file failed:
 %1</source>
-        <translation>A fájl törlése nem sikerült:
+        <translation type="unfinished">A fájl törlése nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Creating directory failed:
 %1</source>
-        <translation>A fájl törlése nem sikerült:
+        <translation type="unfinished">A könyvtár létrehozása nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Removing directory failed:
 %1</source>
-        <translation>A könyvtár törlése nem sikerült:
+        <translation type="unfinished">A könyvtár törlése nem sikerült:
 %1</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation>A kapcsolat bezárult</translation>
+        <translation type="unfinished">A kapcsolat bezárult</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>%1 kiszolgálót megtaláltam</translation>
+        <translation type="obsolete">%1 kiszolgálót megtaláltam</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>A kapcsolat %1 kiszolgálóval bezárult</translation>
+        <translation type="obsolete">A kapcsolat %1 kiszolgálóval bezárult</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>A kiszolgálót megtaláltam</translation>
+        <translation type="obsolete">A kiszolgálót megtaláltam</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Kapcsolódva a kiszolgálóhoz</translation>
+        <translation type="obsolete">Kapcsolódva a kiszolgálóhoz</translation>
     </message>
 </context>
 <context>
@@ -3367,7 +3368,7 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QHostInfo</name>
     <message>
         <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <translation type="unfinished">Ismeretlen hiba</translation>
     </message>
     <message>
         <source>No host name given</source>
@@ -3378,15 +3379,15 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QHostInfoAgent</name>
     <message>
         <source>Host not found</source>
-        <translation>A kiszolgáló nem található</translation>
+        <translation type="unfinished">A kiszolgáló nem található</translation>
     </message>
     <message>
         <source>Unknown address type</source>
-        <translation>Ismeretlen címtípus</translation>
+        <translation type="unfinished">Ismeretlen címtípus</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <translation type="unfinished">Ismeretlen hiba</translation>
     </message>
     <message>
         <source>No host name given</source>
@@ -3405,104 +3406,103 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <translation type="obsolete">Ismeretlen hiba</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>A kérés megszakítva</translation>
+        <translation type="obsolete">A kérés megszakítva</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>Nincs szerver megadva</translation>
+        <translation type="obsolete">Nincs szerver megadva</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>Rossz tartalomhossz</translation>
+        <translation type="obsolete">Rossz tartalomhossz</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>A szerver váratlanul bezárta a kapcsolatot</translation>
+        <translation type="obsolete">A szerver váratlanul bezárta a kapcsolatot</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation>A kapcsolat elutasítva</translation>
+        <translation type="unfinished">A kapcsolat elutasítva</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation>%1 kiszolgáló nem található</translation>
+        <translation type="unfinished">%1 kiszolgáló nem található</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>A HTTP kérés nem sikerült</translation>
+        <translation type="obsolete">A HTTP kérés nem sikerült</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>Érvénytelen HTTP válasz-fejléc</translation>
+        <translation type="obsolete">Érvénytelen HTTP válasz-fejléc</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>Érvénytelen HTTP törzsrészlet</translation>
+        <translation type="obsolete">Érvénytelen HTTP törzsrészlet</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>%1 kiszolgálót megtaláltam</translation>
+        <translation type="obsolete">%1 kiszolgálót megtaláltam</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Kapcsolódva %1 kiszolgálóhoz</translation>
+        <translation type="obsolete">Kapcsolódva %1 kiszolgálóhoz</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>A kapcsolat %1 kiszolgálóval bezárult</translation>
+        <translation type="obsolete">A kapcsolat %1 kiszolgálóval bezárult</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>A kiszolgálót megtaláltam</translation>
+        <translation type="obsolete">A kiszolgálót megtaláltam</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Kapcsolódva a kiszolgálóhoz</translation>
+        <translation type="obsolete">Kapcsolódva a kiszolgálóhoz</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation>A kapcsolat bezárult</translation>
+        <translation type="unfinished">A kapcsolat bezárult</translation>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>A proxy azonosítást követel</translation>
+        <translation type="obsolete">A proxy azonosítást követel</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Azonosítás szükséges</translation>
+        <translation type="obsolete">Azonosítás szükséges</translation>
     </message>
     <message>
         <source>HTTPS connection requested but SSL support not compiled in</source>
-        <translatorcomment>HTTPS kapcsolat kiépítése szükséges, de nincs SSL támogatás</translatorcomment>
-        <translation></translation>
+        <translation type="obsolete">HTTPS kapcsolat kiépítése szükséges, de nincs SSL támogatás</translation>
     </message>
     <message>
         <source>Connection refused (or timed out)</source>
-        <translation>A kapcsolat elutasítva (vagy időtúllépés történt)</translation>
+        <translation type="obsolete">A kapcsolat elutasítva (vagy időtúllépés történt)</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
-        <translation>A proxy azonosítást követel</translation>
+        <translation type="unfinished">Socket művelet időtúllépés</translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translation>A gép azonosítást követel</translation>
+        <translation type="unfinished">A gép azonosítást követel</translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translation>Az adatok megsérültek</translation>
+        <translation type="unfinished">Az adatok megsérültek</translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation>Ismeretlen protokoll</translation>
+        <translation type="unfinished">Ismeretlen protokoll</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translation>Az SSL kézfogás sikertelen volt</translation>
+        <translation type="unfinished">Az SSL kézfogás sikertelen volt</translation>
     </message>
     <message>
         <source>Error writing response to device</source>
@@ -3525,7 +3525,7 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QHttpSocketEngine</name>
     <message>
         <source>Authentication required</source>
-        <translation>Azonosítás szükséges</translation>
+        <translation type="unfinished">Azonosítás szükséges</translation>
     </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
@@ -3564,113 +3564,113 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QIBaseDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation>Adatbázis megnyitási hiba</translation>
+        <translation type="unfinished">Adatbázis megnyitási hiba</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>A tranzakció nem indítható</translation>
+        <translation type="unfinished">A tranzakció nem indítható</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>A tranzakció nem görgethető vissza</translation>
+        <translation type="unfinished">A tranzakció nem görgethető vissza</translation>
     </message>
 </context>
 <context>
     <name>QIBaseResult</name>
     <message>
         <source>Unable to create BLOB</source>
-        <translation>A BLOB nem hozható létre </translation>
+        <translation type="unfinished">A BLOB nem hozható létre </translation>
     </message>
     <message>
         <source>Unable to write BLOB</source>
-        <translation>A BLOB nem írható</translation>
+        <translation type="unfinished">A BLOB nem írható</translation>
     </message>
     <message>
         <source>Unable to open BLOB</source>
-        <translation>A BLOB nem nyitható meg</translation>
+        <translation type="unfinished">A BLOB nem nyitható meg</translation>
     </message>
     <message>
         <source>Unable to read BLOB</source>
-        <translation>A BLOB nem olvasható</translation>
+        <translation type="unfinished">A BLOB nem olvasható</translation>
     </message>
     <message>
         <source>Could not find array</source>
-        <translation>A tömb nem található</translation>
+        <translation type="unfinished">A tömb nem található</translation>
     </message>
     <message>
         <source>Could not get array data</source>
-        <translation>A tömbbeli adatok nem érhetők el</translation>
+        <translation type="unfinished">A tömbbeli adatok nem érhetők el</translation>
     </message>
     <message>
         <source>Could not get query info</source>
-        <translation>A lekérdezés-információ nem érhető el</translation>
+        <translation type="unfinished">A lekérdezés-információ nem érhető el</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>A tranzakció nem indítható</translation>
+        <translation type="unfinished">A tranzakció nem indítható</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Could not allocate statement</source>
-        <translation>A művelet helyfoglalása sikertelen</translation>
+        <translation type="unfinished">A művelet helyfoglalása sikertelen</translation>
     </message>
     <message>
         <source>Could not prepare statement</source>
-        <translation>A művelet előkészítése sikertelen</translation>
+        <translation type="unfinished">A művelet előkészítése sikertelen</translation>
     </message>
     <message>
         <source>Could not describe input statement</source>
-        <translation>A bemeneti művelet leírása sikertelen</translation>
+        <translation type="unfinished">A bemeneti művelet leírása sikertelen</translation>
     </message>
     <message>
         <source>Could not describe statement</source>
-        <translation>A művelet leírása sikertelen</translation>
+        <translation type="unfinished">A művelet leírása sikertelen</translation>
     </message>
     <message>
         <source>Unable to close statement</source>
-        <translation>A művelet lezárása sikertelen</translation>
+        <translation type="unfinished">A művelet lezárása sikertelen</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
-        <translation>A művelet nem hajtható végre</translation>
+        <translation type="unfinished">A művelet nem hajtható végre</translation>
     </message>
     <message>
         <source>Could not fetch next item</source>
-        <translation>A következő adat nem olvasható ki</translation>
+        <translation type="unfinished">A következő adat nem olvasható ki</translation>
     </message>
     <message>
         <source>Could not get statement info</source>
-        <translation>A következő művelet információi nem érhetők el</translation>
+        <translation type="unfinished">A következő művelet információi nem érhetők el</translation>
     </message>
 </context>
 <context>
     <name>QIODevice</name>
     <message>
         <source>Permission denied</source>
-        <translation>Hozzáférés megtagadva</translation>
+        <translation type="unfinished">Hozzáférés megtagadva</translation>
     </message>
     <message>
         <source>Too many open files</source>
-        <translation>Túl sok fájl van nyitva</translation>
+        <translation type="unfinished">Túl sok fájl van nyitva</translation>
     </message>
     <message>
         <source>No such file or directory</source>
-        <translation>Nincs ilyen fájl vagy könyvtár</translation>
+        <translation type="unfinished">Nincs ilyen fájl vagy könyvtár</translation>
     </message>
     <message>
         <source>No space left on device</source>
-        <translation>Nincs több hely az eszközön</translation>
+        <translation type="unfinished">Nincs több hely az eszközön</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <translation type="unfinished">Ismeretlen hiba</translation>
     </message>
     <message>
         <source>file to open is a directory</source>
@@ -3723,19 +3723,19 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="obsolete">XIM</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>XIM beviteli mód</translation>
+        <translation type="obsolete">XIM beviteli mód</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Windows beviteli mód</translation>
+        <translation type="obsolete">Windows beviteli mód</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Mac OS X beviteli mód</translation>
+        <translation type="obsolete">Mac OS X beviteli mód</translation>
     </message>
     <message>
         <source>S60 FEP input method</source>
@@ -3828,51 +3828,51 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: %1 nem tölthető be (%2)</translation>
+        <translation type="obsolete">QLibrary::load_sys: %1 nem tölthető be (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::load_sys: %1 nem távolítható el (%2)</translation>
+        <translation type="obsolete">QLibrary::load_sys: %1 nem távolítható el (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::load_sys: &quot;%1&quot; szimbólum nem definiált ebben: %2 (%3)</translation>
+        <translation type="obsolete">QLibrary::load_sys: &quot;%1&quot; szimbólum nem definiált ebben: %2 (%3)</translation>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>Nem sikerült mmap-olni a(z) &apos;%1&apos;-t: %2</translation>
+        <translation type="obsolete">Nem sikerült mmap-olni a(z) &apos;%1&apos;-t: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>Plugin ellenőrző adat eltérés: &apos;%1&apos;</translation>
+        <translation type="obsolete">Plugin ellenőrző adat eltérés: &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>Nem sikerült unmap-olni a(z) &apos;%1&apos;-t: %2</translation>
+        <translation type="obsolete">Nem sikerült unmap-olni a(z) &apos;%1&apos;-t: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
-        <translation>A(z) &apos;%1&apos; plugin inkompatíbilis Qt függvénykönyvtárat használ. (%2.%3.%4) [%5]</translation>
+        <translation type="unfinished">A(z) &apos;%1&apos; plugin inkompatíbilis Qt függvénykönyvtárat használ. (%2.%3.%4) [%5]</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>A(z) &apos;%1&apos; plugin inkompatíbilis Qt függvénykönyvtárat használ. A várt build kucs &quot;%2&quot;, a kapott &quot;%3&quot;</translation>
+        <translation type="obsolete">A(z) &apos;%1&apos; plugin inkompatíbilis Qt függvénykönyvtárat használ. A várt build kucs &quot;%2&quot;, a kapott &quot;%3&quot;</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <translation type="unfinished">Ismeretlen hiba</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translation>Az osztott függvénykönyvtár nem található.</translation>
+        <translation type="unfinished">Az osztott függvénykönyvtár nem található.</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
-        <translation>A(z) &apos;%1&apos; fájl nem érvényes Qt plugin.</translation>
+        <translation type="unfinished">A(z) &apos;%1&apos; fájl nem érvényes Qt plugin.</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation>A(z) &apos;%1&apos; plugin inkompatíbilis Qt könyvtárat használ. (A debug és a release könyvtárak nem keverhetők.)</translation>
+        <translation type="unfinished">A(z) &apos;%1&apos; plugin inkompatíbilis Qt könyvtárat használ. (A debug és a release könyvtárak nem keverhetők.)</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not an ELF object (%2)</source>
@@ -3939,89 +3939,89 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QLineEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Visszavonás</translation>
+        <translation type="unfinished">&amp;Visszavonás</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Új&amp;ra</translation>
+        <translation type="unfinished">Új&amp;ra</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Kivágás</translation>
+        <translation type="unfinished">&amp;Kivágás</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Másolás</translation>
+        <translation type="unfinished">&amp;Másolás</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Beillesztés</translation>
+        <translation type="unfinished">&amp;Beillesztés</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Törlés</translation>
+        <translation type="unfinished">Törlés</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Összes kijelölése</translation>
+        <translation type="unfinished">Összes kijelölése</translation>
     </message>
 </context>
 <context>
     <name>QLocalServer</name>
     <message>
         <source>%1: Name error</source>
-        <translation>%1: Hibás név</translation>
+        <translation type="unfinished">%1: Hibás név</translation>
     </message>
     <message>
         <source>%1: Permission denied</source>
-        <translation>%1: hozzáférés megtagadva</translation>
+        <translation type="unfinished">%1: hozzáférés megtagadva</translation>
     </message>
     <message>
         <source>%1: Address in use</source>
-        <translation>%1: A cím már használatban van</translation>
+        <translation type="unfinished">%1: A cím már használatban van</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation>%1: ismeretlen hiba %2</translation>
+        <translation type="unfinished">%1: ismeretlen hiba %2</translation>
     </message>
 </context>
 <context>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation>%1: A kapcsolat elutasítva</translation>
+        <translation type="unfinished">%1: A kapcsolat elutasítva</translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
-        <translation>%1: A kapcsolat elutasítva</translation>
+        <translation type="unfinished">%1: A szerver lezárta a kapcsolatot</translation>
     </message>
     <message>
         <source>%1: Invalid name</source>
-        <translation>%1: A kapcsolat elutasítva</translation>
+        <translation type="unfinished">%1: Érvénytelen név</translation>
     </message>
     <message>
         <source>%1: Socket access error</source>
-        <translation>%1: Socket elérési hiba</translation>
+        <translation type="unfinished">%1: Socket elérési hiba</translation>
     </message>
     <message>
         <source>%1: Socket resource error</source>
-        <translation>%1: Socket erőforrás probléma</translation>
+        <translation type="unfinished">%1: Socket erőforrás probléma</translation>
     </message>
     <message>
         <source>%1: Socket operation timed out</source>
-        <translation>%1: Időtúllépés a socketen</translation>
+        <translation type="unfinished">%1: Időtúllépés a socketen</translation>
     </message>
     <message>
         <source>%1: Datagram too large</source>
-        <translation>%1: A csomag túl nagy</translation>
+        <translation type="unfinished">%1: A csomag túl nagy</translation>
     </message>
     <message>
         <source>%1: Connection error</source>
-        <translation>%1: Kapcsolódási hiba</translation>
+        <translation type="unfinished">%1: Kapcsolódási hiba</translation>
     </message>
     <message>
         <source>%1: The socket operation is not supported</source>
-        <translation>%1: A kívánt socket művelet nem támogatott</translation>
+        <translation type="unfinished">%1: A kívánt socket művelet nem támogatott</translation>
     </message>
     <message>
         <source>%1: Operation not permitted when socket is in this state</source>
@@ -4033,7 +4033,7 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation>%1: Ismeretlen hiba: %2</translation>
+        <translation type="unfinished">%1: Ismeretlen hiba %2</translation>
     </message>
     <message>
         <source>%1: Access denied</source>
@@ -4048,23 +4048,23 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Az adatbázis nem nyitható meg: &apos;</translation>
+        <translation type="obsolete">Az adatbázis nem nyitható meg: &apos;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
-        <translation>Nem sikerült kapcsolódni</translation>
+        <translation type="unfinished">Nem sikerült kapcsolódni</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>A tranzakció nem indítható</translation>
+        <translation type="unfinished">A tranzakció nem indítható</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>A tranzakció nem görgethető vissza</translation>
+        <translation type="unfinished">A tranzakció nem görgethető vissza</translation>
     </message>
     <message>
         <source>Unable to open database &apos;%1&apos;</source>
@@ -4079,129 +4079,129 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QMYSQLResult</name>
     <message>
         <source>Unable to fetch data</source>
-        <translation>Az adat nem olvasható ki</translation>
+        <translation type="unfinished">Az adat nem olvasható ki</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
-        <translation>A lekérdezés nem hajtható végre</translation>
+        <translation type="unfinished">A lekérdezés nem hajtható végre</translation>
     </message>
     <message>
         <source>Unable to store result</source>
-        <translation>Az eredmény nem tárolható</translation>
+        <translation type="unfinished">Az eredmény nem tárolható</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>A művelet előkészítése nem lehetséges</translation>
+        <translation type="unfinished">A művelet előkészítése nem lehetséges</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation>A művelet visszaállítása nem lehetséges</translation>
+        <translation type="unfinished">A művelet visszaállítása nem lehetséges</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation>A változó kötése sikertelen</translation>
+        <translation type="unfinished">A változó kötése sikertelen</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>A művelet nem hajtható végre</translation>
+        <translation type="unfinished">A művelet nem hajtható végre</translation>
     </message>
     <message>
         <source>Unable to bind outvalues</source>
-        <translation>A kimenő érték kötése sikertelen</translation>
+        <translation type="unfinished">A kimenő érték kötése sikertelen</translation>
     </message>
     <message>
         <source>Unable to store statement results</source>
-        <translation>A művelet eredményének tárolása sikertelen</translation>
+        <translation type="unfinished">A művelet eredményének tárolása sikertelen</translation>
     </message>
     <message>
         <source>Unable to execute next query</source>
-        <translation>A következő lekérdezés nem hajtható végre</translation>
+        <translation type="unfinished">A következő lekérdezés nem hajtható végre</translation>
     </message>
     <message>
         <source>Unable to store next result</source>
-        <translation>A következő eredmény nem tárolható</translation>
+        <translation type="unfinished">A következő eredmény nem tárolható</translation>
     </message>
 </context>
 <context>
     <name>QMdiArea</name>
     <message>
         <source>(Untitled)</source>
-        <translation>(Névtelen)</translation>
+        <translation type="unfinished">(Névtelen)</translation>
     </message>
 </context>
 <context>
     <name>QMdiSubWindow</name>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="unfinished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Bezárás</translation>
+        <translation type="unfinished">Bezárás</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Kis méret</translation>
+        <translation type="unfinished">Kis méret</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Előző méret</translation>
+        <translation type="unfinished">Előző méret</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Visszaállítás</translation>
+        <translation type="unfinished">&amp;Visszaállítás</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>Á&amp;thelyezés</translation>
+        <translation type="unfinished">Á&amp;thelyezés</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Méret</translation>
+        <translation type="unfinished">&amp;Méret</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>&amp;Kis méret</translation>
+        <translation type="unfinished">&amp;Kis méret</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Te&amp;ljes méret</translation>
+        <translation type="unfinished">Te&amp;ljes méret</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Mindig leg&amp;felül</translation>
+        <translation type="unfinished">Mindig leg&amp;felül</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Bezárás</translation>
+        <translation type="unfinished">&amp;Bezárás</translation>
     </message>
     <message>
         <source>- [%1]</source>
-        <translation>- [%1]</translation>
+        <translation type="unfinished">- [%1]</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Teljes méret</translation>
+        <translation type="unfinished">Teljes méret</translation>
     </message>
     <message>
         <source>Unshade</source>
-        <translation>Legördítés</translation>
+        <translation type="unfinished">Legördítés</translation>
     </message>
     <message>
         <source>Shade</source>
-        <translation>Felgördítés</translation>
+        <translation type="unfinished">Felgördítés</translation>
     </message>
     <message>
         <source>Restore</source>
-        <translation>Visszaállítás</translation>
+        <translation type="unfinished">Visszaállítás</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Súgó</translation>
+        <translation type="unfinished">Súgó</translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation>Menü</translation>
+        <translation type="unfinished">Menü</translation>
     </message>
 </context>
 <context>
@@ -4234,15 +4234,15 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Bezárás</translation>
+        <translation type="obsolete">Bezárás</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Megnyitás</translation>
+        <translation type="obsolete">Megnyitás</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Végrehajtás</translation>
+        <translation type="obsolete">Végrehajtás</translation>
     </message>
 </context>
 <context>
@@ -4304,27 +4304,27 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QMessageBox</name>
     <message>
         <source>Help</source>
-        <translation>Súgó</translation>
+        <translation type="unfinished">Súgó</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation type="unfinished">OK</translation>
     </message>
     <message>
         <source>About Qt</source>
-        <translation>A Qt névjegye</translation>
+        <translation type="unfinished">A Qt névjegye</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;A program a Qt %1 verzióját használja.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;A program a Qt %1 verzióját használja.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
-        <translation>Részletek megjelenítése...</translation>
+        <translation type="unfinished">Részletek megjelenítése...</translation>
     </message>
     <message>
         <source>Hide Details...</source>
-        <translation>Részletek elrejtése...</translation>
+        <translation type="unfinished">Részletek elrejtése...</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -4332,11 +4332,11 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;A program a Qt Open Source Edition %1 verziót használja.&lt;/p&gt;&lt;p&gt;A Qt Open Source Edition az Open Source (nyílt forrású) alkalmazások fejlesztéséhez készült. Zárt forrású alkalmazások fejlesztéséhez a kereskedelmi Qt licenszre van szükség.&lt;/p&gt;&lt;p&gt;A Qt licenszeléséről további információ a &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; oldalon található.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;A programa Qt Open Source Edition %1 verziót használja.&lt;/p&gt;&lt;p&gt;A Qt Open Source Edition az Open Source (nyílt forrású) alkalmazások fejlesztéséhez készült. Zárt forrású alkalmazások fejlesztéséhez a kereskedelmi Qt licenszre van szükség.&lt;/p&gt;&lt;p&gt;A Qt licenszeléséről további információ a &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; oldalon található.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;A Qt névjegye&lt;/h3&gt;%1&lt;p&gt;A Qt egy C++ eszközkészlet a kereszt-platformos alkalmazásfejlesztéshez.&lt;/p&gt;&lt;p&gt;A Qt egy-forrású hordozhatóságot biztosít az MS&amp;nbsp;Windows, a Mac&amp;nbsp;OS&amp;nbsp;X, a Linux, és az összes nagyobb kereskedelmi Unix változat között. A Qt mobileszközökhöz is elérhető, pl. Qtopia Core.&lt;/p&gt;&lt;p&gt;A Qt a Trolltech terméke. További információk: &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; .&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;A Qt névjegye&lt;/h3&gt;%1&lt;p&gt;A Qt egy C++ eszközkészlet a kereszt-platformos alkalmazásfejlesztéshez.&lt;/p&gt;&lt;p&gt;A Qt egy-forrású hordozhatóságot biztosít az MS&amp;nbsp;Windows, a Mac&amp;nbsp;OS&amp;nbsp;X, a Linux, és az összes nagyobb kereskedelmi Unix változat között. A Qt mobileszközökhöz is elérhető, pl. Qtopia Core.&lt;/p&gt;&lt;p&gt;A Qt a Trolltech terméke. További információk: &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; .&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is available under three different licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of the GNU LGPL version 2.1 or GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU LGPL version 2.1 is appropriate for the development of Qt applications (proprietary or open source) provided you can comply with the terms and conditions of the GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU General Public License version 3.0 is appropriate for the development of Qt applications where you wish to use such applications in combination with software subject to the terms of the GNU GPL version 3.0 or where you are otherwise willing to comply with the terms of the GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://qt.nokia.com/products/licensing&quot;&gt;qt.nokia.com/products/licensing&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) 2009 Nokia Corporation and/or its subsidiary(-ies).&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://qt.nokia.com/&quot;&gt;qt.nokia.com&lt;/a&gt; for more information.&lt;/p&gt;</source>
@@ -4366,93 +4366,93 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>Beviteli mód kiválasztása</translation>
+        <translation type="obsolete">Beviteli mód kiválasztása</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>Beviteli mód választó</translation>
+        <translation type="obsolete">Beviteli mód választó</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>A szöveg elemeken megjelenítendő felbukkanó beviteli mód választó</translation>
+        <translation type="obsolete">A szöveg elemeken megjelenítendő felbukkanó beviteli mód választó</translation>
     </message>
 </context>
 <context>
     <name>QNativeSocketEngine</name>
     <message>
         <source>The remote host closed the connection</source>
-        <translation>A távoli kiszolgáló bezárta a kapcsolatot</translation>
+        <translation type="unfinished">A távoli kiszolgáló bezárta a kapcsolatot</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation>Időtúllépés hálózati művelet során</translation>
+        <translation type="unfinished">Időtúllépés hálózati művelet során</translation>
     </message>
     <message>
         <source>Out of resources</source>
-        <translation>Az erőforrások elfogytak</translation>
+        <translation type="unfinished">Az erőforrások elfogytak</translation>
     </message>
     <message>
         <source>Unsupported socket operation</source>
-        <translation>Nem támogatott socket művelet</translation>
+        <translation type="unfinished">Nem támogatott socket művelet</translation>
     </message>
     <message>
         <source>Protocol type not supported</source>
-        <translation>Nem támogatott protokoll</translation>
+        <translation type="unfinished">Nem támogatott protokoll</translation>
     </message>
     <message>
         <source>Invalid socket descriptor</source>
-        <translation>Érvénytelen socket leíró</translation>
+        <translation type="unfinished">Érvénytelen socket leíró</translation>
     </message>
     <message>
         <source>Network unreachable</source>
-        <translation>A hálózat nem érhető el</translation>
+        <translation type="unfinished">A hálózat nem érhető el</translation>
     </message>
     <message>
         <source>Permission denied</source>
-        <translation>Hozzáférés megtagadva</translation>
+        <translation type="unfinished">Hozzáférés megtagadva</translation>
     </message>
     <message>
         <source>Connection timed out</source>
-        <translation>A kapcsolat várakozási ideje lejárt</translation>
+        <translation type="unfinished">A kapcsolat várakozási ideje lejárt</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation>A kapcsolat elutasítva</translation>
+        <translation type="unfinished">A kapcsolat elutasítva</translation>
     </message>
     <message>
         <source>The bound address is already in use</source>
-        <translation>A lefoglalandó cím használatban van</translation>
+        <translation type="unfinished">A lefoglalandó cím használatban van</translation>
     </message>
     <message>
         <source>The address is not available</source>
-        <translation>A cím nem elérhető</translation>
+        <translation type="unfinished">A cím nem elérhető</translation>
     </message>
     <message>
         <source>The address is protected</source>
-        <translation>A cím védett</translation>
+        <translation type="unfinished">A cím védett</translation>
     </message>
     <message>
         <source>Unable to send a message</source>
-        <translation>Nem küldhető üzenet</translation>
+        <translation type="unfinished">Nem küldhető üzenet</translation>
     </message>
     <message>
         <source>Unable to receive a message</source>
-        <translation>Nem fogadható üzenet</translation>
+        <translation type="unfinished">Nem fogadható üzenet</translation>
     </message>
     <message>
         <source>Unable to write</source>
-        <translation>Nem írható</translation>
+        <translation type="unfinished">Nem írható</translation>
     </message>
     <message>
         <source>Network error</source>
-        <translation>Hálózati hiba</translation>
+        <translation type="unfinished">Hálózati hiba</translation>
     </message>
     <message>
         <source>Another socket is already listening on the same port</source>
-        <translation>Egy másik socket már figyel ezen a porton</translation>
+        <translation type="unfinished">Egy másik socket már figyel ezen a porton</translation>
     </message>
     <message>
         <source>Temporary error</source>
@@ -4460,35 +4460,35 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     </message>
     <message>
         <source>Unable to initialize non-blocking socket</source>
-        <translation>A nem-blokkolo socket előkészítése sikertelen</translation>
+        <translation type="unfinished">A nem-blokkolo socket előkészítése sikertelen</translation>
     </message>
     <message>
         <source>Unable to initialize broadcast socket</source>
-        <translation>A broadcast socket előkészítése sikertelen</translation>
+        <translation type="unfinished">A broadcast socket előkészítése sikertelen</translation>
     </message>
     <message>
         <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
-        <translation>IPv6 socket használatának kísérlete IPv6 támogatás nélküli platformon</translation>
+        <translation type="unfinished">IPv6 socket használatának kísérlete IPv6 támogatás nélküli platformon</translation>
     </message>
     <message>
         <source>Host unreachable</source>
-        <translation>A kiszolgáló nem érhető el</translation>
+        <translation type="unfinished">A kiszolgáló nem érhető el</translation>
     </message>
     <message>
         <source>Datagram was too large to send</source>
-        <translation>A csomag mérete miatt nem küldhető el</translation>
+        <translation type="unfinished">A csomag mérete miatt nem küldhető el</translation>
     </message>
     <message>
         <source>Operation on non-socket</source>
-        <translation>A csomag mérete miatt nem küldhető el</translation>
+        <translation type="unfinished">Socket művelet érvénytelen eszközön</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <translation type="unfinished">Ismeretlen hiba</translation>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
-        <translation>A proxy típusa nem megfelelő a művelethez</translation>
+        <translation type="unfinished">A proxy típusa nem megfelelő a művelethez</translation>
     </message>
     <message>
         <source>Network dropped connection on reset</source>
@@ -4536,42 +4536,42 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QNetworkAccessFileBackend</name>
     <message>
         <source>Request for opening non-local file %1</source>
-        <translation>Nem helyi fájl megnyitásának kísérlete: %1</translation>
+        <translation type="unfinished">Nem helyi fájl megnyitásának kísérlete: %1</translation>
     </message>
     <message>
         <source>Error opening %1: %2</source>
-        <translation>Hiba a(z) %1 megnyitásakor: %2</translation>
+        <translation type="unfinished">Hiba a(z) %1 megnyitásakor: %2</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Hiba a(z) %1 kiírásakor: %2</translation>
+        <translation type="unfinished">Hiba a(z) %1 kiírásakor: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
-        <translation>Sikertelen megnyitás: %1 egy könyvtár</translation>
+        <translation type="unfinished">Sikertelen megnyitás: %1 egy könyvtár</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation>Hiba a(z) %1 olvasása közben: %2</translation>
+        <translation type="unfinished">Hiba a(z) %1 olvasása közben: %2</translation>
     </message>
 </context>
 <context>
     <name>QNetworkAccessFtpBackend</name>
     <message>
         <source>Cannot open %1: is a directory</source>
-        <translation>Sikertelen megnyitás: %1 egy könyvtár</translation>
+        <translation type="unfinished">Sikertelen megnyitás: %1 egy könyvtár</translation>
     </message>
     <message>
         <source>Logging in to %1 failed: authentication required</source>
-        <translation>A bejelentkezés sikertelen ide: %1, hitelesítés szükséges</translation>
+        <translation type="unfinished">A bejelentkezés sikertelen ide: %1, hitelesítés szükséges</translation>
     </message>
     <message>
         <source>Error while downloading %1: %2</source>
-        <translation>Hiba a(z) %1 letöltésekor: %2</translation>
+        <translation type="unfinished">Hiba a(z) %1 letöltésekor: %2</translation>
     </message>
     <message>
         <source>Error while uploading %1: %2</source>
-        <translation>Hiba a(z) %1 feltöltésekor: %2</translation>
+        <translation type="unfinished">Hiba a(z) %1 feltöltésekor: %2</translation>
     </message>
     <message>
         <source>No suitable proxy found</source>
@@ -4596,11 +4596,11 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QNetworkReply</name>
     <message>
         <source>Error downloading %1 - server replied: %2</source>
-        <translation>Hiba %1 letöltésekor - a szerver válasza: %2</translation>
+        <translation type="obsolete">Hiba %1 letöltésekor - a szerver válasza: %2</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
-        <translation>Ismeretlen protokoll: &quot;%1&quot;</translation>
+        <translation type="unfinished">Ismeretlen protokoll: &quot;%1&quot;</translation>
     </message>
     <message>
         <source>Background request not allowed.</source>
@@ -4645,7 +4645,7 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation>A művelet megszakítva</translation>
+        <translation type="unfinished">A művelet megszakítva</translation>
     </message>
 </context>
 <context>
@@ -4694,47 +4694,47 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QOCIDriver</name>
     <message>
         <source>Unable to logon</source>
-        <translation>A bejelentkezés nem lehetséges</translation>
+        <translation type="unfinished">A bejelentkezés nem lehetséges</translation>
     </message>
     <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
-        <translation>Az inicializálás nem lehetséges</translation>
+        <translation type="unfinished">Az inicializálás nem lehetséges</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>A tranzakció nem indítható</translation>
+        <translation type="unfinished">A tranzakció nem indítható</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem görgethető vissza</translation>
     </message>
 </context>
 <context>
     <name>QOCIResult</name>
     <message>
         <source>Unable to bind column for batch execute</source>
-        <translation>Az oszlop kötegelt végrehajtáshoz kötése sikertelen</translation>
+        <translation type="unfinished">Az oszlop kötegelt végrehajtáshoz kötése sikertelen</translation>
     </message>
     <message>
         <source>Unable to execute batch statement</source>
-        <translation>A kötegelt utasítások végrehajtása sikertelen</translation>
+        <translation type="unfinished">A kötegelt utasítások végrehajtása sikertelen</translation>
     </message>
     <message>
         <source>Unable to goto next</source>
-        <translation>Nem lehet a következőre lépni</translation>
+        <translation type="unfinished">Nem lehet a következőre lépni</translation>
     </message>
     <message>
         <source>Unable to alloc statement</source>
-        <translation>Az utasítás lefoglalása sikertelen</translation>
+        <translation type="unfinished">Az utasítás lefoglalása sikertelen</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Az utasítás előkészítése sikertelen</translation>
+        <translation type="unfinished">Az utasítás előkészítése sikertelen</translation>
     </message>
     <message>
         <source>Unable to get statement type</source>
@@ -4742,22 +4742,22 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation>A változó kötése sikertelen</translation>
+        <translation type="unfinished">A változó kötése sikertelen</translation>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>A SELECT utasítás nem végrehajtható</translation>
+        <translation type="vanished">A SELECT utasítás nem végrehajtható</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Az utasítás nem végrehajtható</translation>
+        <translation type="unfinished">Az utasítás nem végrehajtható</translation>
     </message>
 </context>
 <context>
     <name>QODBCDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Nem sikerült kapcsolódni</translation>
+        <translation type="unfinished">Nem sikerült kapcsolódni</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
@@ -4765,93 +4765,93 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>Nem sikerült kapcsolódni - A driver nem támogat minden szükséges szolgáltatást</translation>
+        <translation type="vanished">Nem sikerült kapcsolódni - A driver nem támogat minden szükséges szolgáltatást</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
-        <translation>Az automatikus véglegesítés nem tiltható le</translation>
+        <translation type="unfinished">Az automatikus véglegesítés nem tiltható le</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>A tranzakció nem görgethető vissza</translation>
+        <translation type="unfinished">A tranzakció nem görgethető vissza</translation>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
-        <translation>Az automatikus véglegesítés nem engedélyezhető</translation>
+        <translation type="unfinished">Az automatikus véglegesítés nem engedélyezhető</translation>
     </message>
 </context>
 <context>
     <name>QODBCResult</name>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation>QODBCResult::reset: Nem lehet a &apos;SQL_CURSOR_STATIC&apos; attribútumot beállítani a parancson. Ellenőrizd az ODBC driver beállítását</translation>
+        <translation type="unfinished">QODBCResult::reset: Nem lehet a &apos;SQL_CURSOR_STATIC&apos; attribútumot beállítani a parancson. Ellenőrizze az ODBC driver beállítását</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>A parancs nem hajtható végre</translation>
+        <translation type="unfinished">A parancs nem hajtható végre</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>A következő nem olvasható ki</translation>
+        <translation type="unfinished">A következő nem olvasható ki</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>A parancs előkészítése nem lehetséges</translation>
+        <translation type="unfinished">A parancs előkészítése nem lehetséges</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation>A változó nem rögzíthető</translation>
+        <translation type="unfinished">A változó nem rögzíthető</translation>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translation>Az utolsó eredmény nem érhető el</translation>
+        <translation type="unfinished">Az utolsó eredmény nem érhető el</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation>Az eredmény nem elérhető</translation>
+        <translation type="unfinished">Az eredmény nem elérhető</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation>Az első eredmény nem érhető el</translation>
+        <translation type="unfinished">Az első eredmény nem érhető el</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translation>Az előző eredmény nem érhető el</translation>
+        <translation type="unfinished">Az előző eredmény nem érhető el</translation>
     </message>
 </context>
 <context>
     <name>QObject</name>
     <message>
         <source>Operation not supported on %1</source>
-        <translation>A művelett nem támogatott a(z) %1-n</translation>
+        <translation type="obsolete">A művelett nem támogatott a(z) %1-n</translation>
     </message>
     <message>
         <source>Invalid URI: %1</source>
-        <translation>Érvénytelen cím: %1</translation>
+        <translation type="obsolete">Érvénytelen cím: %1</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Hiba a(z) %1 kiírásakor: %2</translation>
+        <translation type="obsolete">Hiba a(z) %1 kiírásakor: %2</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation>Hiba a(z) %1 olvasása közben: %2</translation>
+        <translation type="obsolete">Hiba a(z) %1 olvasása közben: %2</translation>
     </message>
     <message>
         <source>Socket error on %1: %2</source>
-        <translation>Socket hiba a(z) %1-n: %2</translation>
+        <translation type="obsolete">Socket hiba a(z) %1-n: %2</translation>
     </message>
     <message>
         <source>Remote host closed the connection prematurely on %1</source>
-        <translation>A(z) %1 gép idő előtt megszakította a kapcsolatot</translation>
+        <translation type="obsolete">A(z) %1 gép idő előtt megszakította a kapcsolatot</translation>
     </message>
     <message>
         <source>Protocol error: packet of size 0 received</source>
-        <translation>Protokoll hiba: 0 méretű csomag érkezett</translation>
+        <translation type="obsolete">Protokoll hiba: 0 méretű csomag érkezett</translation>
     </message>
     <message>
         <source>Invalid hostname</source>
@@ -4883,132 +4883,132 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>Név</translation>
+        <translation type="obsolete">Név</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Érték</translation>
+        <translation type="obsolete">Érték</translation>
     </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Nem sikerült kapcsolódni</translation>
+        <translation type="unfinished">Nem sikerült kapcsolódni</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
-        <translation>A tranzakció nem indítható</translation>
+        <translation type="unfinished">A tranzakció nem indítható</translation>
     </message>
     <message>
         <source>Could not commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Could not rollback transaction</source>
-        <translation>A tranzakció nem görgethető vissza</translation>
+        <translation type="unfinished">A tranzakció nem görgethető vissza</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation>A feliratkozás sikertelen</translation>
+        <translation type="unfinished">A feliratkozás sikertelen</translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translation>A leiratkozás sikertelen</translation>
+        <translation type="unfinished">A leiratkozás sikertelen</translation>
     </message>
 </context>
 <context>
     <name>QPSQLResult</name>
     <message>
         <source>Unable to create query</source>
-        <translation>A lekérdezés nem készíthető el</translation>
+        <translation type="unfinished">A lekérdezés nem készíthető el</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>A parancs előkészítése nem lehetséges</translation>
+        <translation type="unfinished">A parancs előkészítése nem lehetséges</translation>
     </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
     <message>
         <source>Centimeters (cm)</source>
-        <translation>Centiméter (cm)</translation>
+        <translation type="obsolete">Centiméter (cm)</translation>
     </message>
     <message>
         <source>Millimeters (mm)</source>
-        <translation>Milliméter (mm)</translation>
+        <translation type="unfinished">Milliméter (mm)</translation>
     </message>
     <message>
         <source>Inches (in)</source>
-        <translation>Inch (in)</translation>
+        <translation type="unfinished">Inch (in)</translation>
     </message>
     <message>
         <source>Points (pt)</source>
-        <translation>Pont (pt)</translation>
+        <translation type="unfinished">Pont (pt)</translation>
     </message>
     <message>
         <source>Form</source>
-        <translation>Formátum</translation>
+        <translation type="unfinished">Formátum</translation>
     </message>
     <message>
         <source>Paper</source>
-        <translation>Papír</translation>
+        <translation type="unfinished">Papír</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation>Papírméret:</translation>
+        <translation type="unfinished">Papírméret:</translation>
     </message>
     <message>
         <source>Width:</source>
-        <translation>Szélesség:</translation>
+        <translation type="unfinished">Szélesség:</translation>
     </message>
     <message>
         <source>Height:</source>
-        <translation>Magasság:</translation>
+        <translation type="unfinished">Magasság:</translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation>Papírforrás:</translation>
+        <translation type="unfinished">Papírforrás:</translation>
     </message>
     <message>
         <source>Orientation</source>
-        <translation>Orientáció</translation>
+        <translation type="unfinished">Orientáció</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation>Álló</translation>
+        <translation type="unfinished">Álló</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation>Fekvő</translation>
+        <translation type="unfinished">Fekvő</translation>
     </message>
     <message>
         <source>Reverse landscape</source>
-        <translation>Fordított fekvő</translation>
+        <translation type="unfinished">Fordított fekvő</translation>
     </message>
     <message>
         <source>Reverse portrait</source>
-        <translation>Fordított álló</translation>
+        <translation type="unfinished">Fordított álló</translation>
     </message>
     <message>
         <source>Margins</source>
-        <translation>Margók</translation>
+        <translation type="unfinished">Margók</translation>
     </message>
     <message>
         <source>top margin</source>
-        <translation>felső margó</translation>
+        <translation type="unfinished">felső margó</translation>
     </message>
     <message>
         <source>left margin</source>
-        <translation>bal margó</translation>
+        <translation type="unfinished">bal margó</translation>
     </message>
     <message>
         <source>right margin</source>
-        <translation>jobb margó</translation>
+        <translation type="unfinished">jobb margó</translation>
     </message>
     <message>
         <source>bottom margin</source>
-        <translation>alsó margó</translation>
+        <translation type="unfinished">alsó margó</translation>
     </message>
     <message>
         <source>Page Layout</source>
@@ -6463,80 +6463,80 @@ Ellenőrizze, hogy jól adta-e meg a fájl nevét</translation>
     <name>QPluginLoader</name>
     <message>
         <source>Unknown error</source>
-        <translation>Ismeretlen hiba</translation>
+        <translation type="unfinished">Ismeretlen hiba</translation>
     </message>
     <message>
         <source>The plugin was not loaded.</source>
-        <translation>A plugin nem lett betöltve.</translation>
+        <translation type="unfinished">A plugin nem lett betöltve.</translation>
     </message>
 </context>
 <context>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>helyben csatlakoztatva</translation>
+        <translation type="obsolete">helyben csatlakoztatva</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Álnevek: %1</translation>
+        <translation type="obsolete">Álnevek: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>ismeretlen</translation>
+        <translation type="obsolete">ismeretlen</translation>
     </message>
     <message>
         <source>Print To File ...</source>
-        <translation>Nyomtatás fájlba...</translation>
+        <translation type="unfinished">Nyomtatás fájlba...</translation>
     </message>
     <message>
         <source>File %1 is not writable.
 Please choose a different file name.</source>
-        <translation>%1 fájl nem írható.
-Válassz másik fájlnevet.</translation>
+        <translation type="unfinished">%1 fájl nem írható.
+Válasszon másik fájlnevet.</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to overwrite it?</source>
-        <translation>%1 már létezik.
-Felülírod?</translation>
+        <translation type="unfinished">%1 már létezik.
+Felülírja?</translation>
     </message>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
-        <translation>%1 egy könyvtár.
-Válassz másik fájlnevet.</translation>
+        <translation type="unfinished">%1 egy könyvtár.
+Válasszon másik fájlnevet.</translation>
     </message>
     <message>
         <source>Folio</source>
-        <translation>Fólió</translation>
+        <translation type="obsolete">Fólió</translation>
     </message>
     <message>
         <source>Letter</source>
-        <translation>Levél</translation>
+        <translation type="obsolete">Levél</translation>
     </message>
     <message>
         <source>US Common #10 Envelope</source>
-        <translation>US általános #10-es boríték</translation>
+        <translation type="obsolete">US általános #10-es boríték</translation>
     </message>
     <message>
         <source>Custom</source>
-        <translation>Egyéni</translation>
+        <translation type="obsolete">Egyéni</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
-        <translation>&amp;Opciók &gt;&gt;</translation>
+        <translation type="unfinished">&amp;Opciók &gt;&gt;</translation>
     </message>
     <message>
         <source>&amp;Print</source>
-        <translation>&amp;Nyomtatás</translation>
+        <translation type="unfinished">&amp;Nyomtatás</translation>
     </message>
     <message>
         <source>&amp;Options &lt;&lt;</source>
-        <translation>&amp;Opciók &lt;&lt;</translation>
+        <translation type="unfinished">&amp;Opciók &lt;&lt;</translation>
     </message>
     <message>
         <source>Print to File (PDF)</source>
-        <translation>Nyomtatás fájlba (PDF)</translation>
+        <translation type="unfinished">Nyomtatás fájlba (PDF)</translation>
     </message>
     <message>
         <source>Write PDF file</source>
@@ -6544,15 +6544,15 @@ Válassz másik fájlnevet.</translation>
     </message>
     <message>
         <source>Print to File (Postscript)</source>
-        <translation>Nyomtatás fájlba (PostScript)</translation>
+        <translation type="obsolete">Nyomtatás fájlba (PostScript)</translation>
     </message>
     <message>
         <source>Local file</source>
-        <translation>Helyi fájl</translation>
+        <translation type="unfinished">Helyi fájl</translation>
     </message>
     <message>
         <source>Write %1 file</source>
-        <translation>írás %1 fájlba</translation>
+        <translation type="obsolete">írás %1 fájlba</translation>
     </message>
     <message>
         <source>Print</source>
@@ -7000,71 +7000,71 @@ Please turn one of those options off.</source>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
-        <translation>Oldalbeállítás</translation>
+        <translation type="unfinished">Oldalbeállítás</translation>
     </message>
     <message>
         <source>Print Preview</source>
-        <translation>Nyomtatási kép</translation>
+        <translation type="unfinished">Nyomtatási kép</translation>
     </message>
     <message>
         <source>Next page</source>
-        <translation>Következő oldal</translation>
+        <translation type="unfinished">Következő oldal</translation>
     </message>
     <message>
         <source>Previous page</source>
-        <translation>Előző oldal</translation>
+        <translation type="unfinished">Előző oldal</translation>
     </message>
     <message>
         <source>First page</source>
-        <translation>Első oldal</translation>
+        <translation type="unfinished">Első oldal</translation>
     </message>
     <message>
         <source>Last page</source>
-        <translation>Utolsó oldal</translation>
+        <translation type="unfinished">Utolsó oldal</translation>
     </message>
     <message>
         <source>Fit width</source>
-        <translation>Szélesség igazítása</translation>
+        <translation type="unfinished">Szélesség igazítása</translation>
     </message>
     <message>
         <source>Fit page</source>
-        <translation>Oldal igazítása</translation>
+        <translation type="unfinished">Oldal igazítása</translation>
     </message>
     <message>
         <source>Zoom in</source>
-        <translation>Nagyítás</translation>
+        <translation type="unfinished">Nagyítás</translation>
     </message>
     <message>
         <source>Zoom out</source>
-        <translation>Kicsinyítés</translation>
+        <translation type="unfinished">Kicsinyítés</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation>Álló</translation>
+        <translation type="unfinished">Álló</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation>Fekvő</translation>
+        <translation type="unfinished">Fekvő</translation>
     </message>
     <message>
         <source>Show single page</source>
-        <translation>Egy oldalas megjelenítés</translation>
+        <translation type="unfinished">Egy oldalas megjelenítés</translation>
     </message>
     <message>
         <source>Show facing pages</source>
-        <translation>Kétoldalas megjelenítés</translation>
+        <translation type="unfinished">Kétoldalas megjelenítés</translation>
     </message>
     <message>
         <source>Show overview of all pages</source>
-        <translation>Az összes oldal megjelenítése</translation>
+        <translation type="unfinished">Az összes oldal megjelenítése</translation>
     </message>
     <message>
         <source>Print</source>
-        <translation>Nyomtatás</translation>
+        <translation type="unfinished">Nyomtatás</translation>
     </message>
     <message>
         <source>Page setup</source>
-        <translation>Oldalbeállítás</translation>
+        <translation type="unfinished">Oldalbeállítás</translation>
     </message>
     <message>
         <source>Export to PDF</source>
@@ -7076,7 +7076,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Bezárás</translation>
+        <translation type="obsolete">Bezárás</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -7110,94 +7110,94 @@ Please turn one of those options off.</source>
     <name>QPrintPropertiesWidget</name>
     <message>
         <source>Form</source>
-        <translation></translation>
+        <translation type="unfinished">Formátum</translation>
     </message>
     <message>
         <source>Page</source>
-        <translation>Lap</translation>
+        <translation type="unfinished">Papír</translation>
     </message>
     <message>
         <source>Advanced</source>
-        <translation>Egyebek</translation>
+        <translation type="obsolete">Egyebek</translation>
     </message>
 </context>
 <context>
     <name>QPrintSettingsOutput</name>
     <message>
         <source>Form</source>
-        <translation></translation>
+        <translation type="unfinished">Formátum</translation>
     </message>
     <message>
         <source>Copies</source>
-        <translation>Másolatok</translation>
+        <translation type="unfinished">Másolatok</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation>Nyomtatási tartomány</translation>
+        <translation type="unfinished">Nyomtatási tartomány</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation>Összes nyomtatása</translation>
+        <translation type="unfinished">Összes nyomtatása</translation>
     </message>
     <message>
         <source>Pages from</source>
-        <translation>Kezőoldal</translation>
+        <translation type="unfinished">Kezőoldal</translation>
     </message>
     <message>
         <source>to</source>
-        <translation>utolsó oldal</translation>
+        <translation type="unfinished">utolsó oldal</translation>
     </message>
     <message>
         <source>Selection</source>
-        <translation>Kijelölés</translation>
+        <translation type="unfinished">Kijelölés</translation>
     </message>
     <message>
         <source>Output Settings</source>
-        <translation>Kimenet beállítása</translation>
+        <translation type="unfinished">Kimenet beállítása</translation>
     </message>
     <message>
         <source>Copies:</source>
-        <translation>Másolat:</translation>
+        <translation type="unfinished">Másolat:</translation>
     </message>
     <message>
         <source>Collate</source>
-        <translation>Egyeztetés</translation>
+        <translation type="unfinished">Egyeztetés</translation>
     </message>
     <message>
         <source>Reverse</source>
-        <translation>Fordított</translation>
+        <translation type="unfinished">Fordított</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation>Opciók</translation>
+        <translation type="unfinished">Opciók</translation>
     </message>
     <message>
         <source>Color Mode</source>
-        <translation>Színmód</translation>
+        <translation type="unfinished">Színmód</translation>
     </message>
     <message>
         <source>Color</source>
-        <translation>Szín</translation>
+        <translation type="unfinished">Szín</translation>
     </message>
     <message>
         <source>Grayscale</source>
-        <translation>Szürkeárnyalatos</translation>
+        <translation type="unfinished">Szürkeárnyalatos</translation>
     </message>
     <message>
         <source>Duplex Printing</source>
-        <translation>Duplex nyomtatás</translation>
+        <translation type="unfinished">Duplex nyomtatás</translation>
     </message>
     <message>
         <source>None</source>
-        <translation>Nincs</translation>
+        <translation type="unfinished">Nincs</translation>
     </message>
     <message>
         <source>Long side</source>
-        <translation>Hosszabb oldal</translation>
+        <translation type="unfinished">Hosszabb oldal</translation>
     </message>
     <message>
         <source>Short side</source>
-        <translation>Rövidebb oldal</translation>
+        <translation type="unfinished">Rövidebb oldal</translation>
     </message>
     <message>
         <source>Current Page</source>
@@ -7212,39 +7212,39 @@ Please turn one of those options off.</source>
     <name>QPrintWidget</name>
     <message>
         <source>Form</source>
-        <translation></translation>
+        <translation type="unfinished">Formátum</translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation>Nyomtató</translation>
+        <translation type="unfinished">Nyomtató</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation>&amp;Név:</translation>
+        <translation type="unfinished">&amp;Név:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
-        <translation>Tula&amp;jdonságok</translation>
+        <translation type="unfinished">Tula&amp;jdonságok</translation>
     </message>
     <message>
         <source>Location:</source>
-        <translation>Hely:</translation>
+        <translation type="unfinished">Hely:</translation>
     </message>
     <message>
         <source>Preview</source>
-        <translation>Előnézet</translation>
+        <translation type="unfinished">Előnézet</translation>
     </message>
     <message>
         <source>Type:</source>
-        <translation>Típus:</translation>
+        <translation type="unfinished">Típus:</translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation>Kimeneti &amp;fájl:</translation>
+        <translation type="unfinished">Kimeneti &amp;fájl:</translation>
     </message>
     <message>
         <source>...</source>
-        <translation>...</translation>
+        <translation type="unfinished">...</translation>
     </message>
 </context>
 <context>
@@ -7294,14 +7294,14 @@ Please turn one of those options off.</source>
     <name>QProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Mégsem</translation>
+        <translation type="unfinished">Mégsem</translation>
     </message>
 </context>
 <context>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Megnyitás</translation>
+        <translation type="obsolete">Megnyitás</translation>
     </message>
 </context>
 <context>
@@ -7326,26 +7326,26 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Kijelölés</translation>
+        <translation type="obsolete">Kijelölés</translation>
     </message>
 </context>
 <context>
     <name>QRegExp</name>
     <message>
         <source>no error occurred</source>
-        <translation>nem történt hiba</translation>
+        <translation type="unfinished">nem történt hiba</translation>
     </message>
     <message>
         <source>disabled feature used</source>
-        <translation>letiltott lehetőség használata</translation>
+        <translation type="unfinished">letiltott lehetőség használata</translation>
     </message>
     <message>
         <source>bad char class syntax</source>
-        <translation>rossz karakterosztály-szintaxis</translation>
+        <translation type="unfinished">rossz karakterosztály-szintaxis</translation>
     </message>
     <message>
         <source>bad lookahead syntax</source>
-        <translation>rossz lookahead-szintaxis</translation>
+        <translation type="unfinished">rossz lookahead-szintaxis</translation>
     </message>
     <message>
         <source>lookbehinds not supported, see QTBUG-2371</source>
@@ -7353,23 +7353,23 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>bad repetition syntax</source>
-        <translation>rossz ismétlés-szintaxis</translation>
+        <translation type="unfinished">rossz ismétlés-szintaxis</translation>
     </message>
     <message>
         <source>invalid octal value</source>
-        <translation>érvénytelen oktális érték</translation>
+        <translation type="unfinished">érvénytelen oktális érték</translation>
     </message>
     <message>
         <source>missing left delim</source>
-        <translation>hiányzó baloldali határoló</translation>
+        <translation type="unfinished">hiányzó baloldali határoló</translation>
     </message>
     <message>
         <source>unexpected end</source>
-        <translation>váratlan befejezés</translation>
+        <translation type="unfinished">váratlan befejezés</translation>
     </message>
     <message>
         <source>met internal limit</source>
-        <translation>belső korlát elérve</translation>
+        <translation type="unfinished">belső korlát elérve</translation>
     </message>
     <message>
         <source>invalid interval</source>
@@ -7719,15 +7719,15 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>Adatbázis megnyitási hiba</translation>
+        <translation type="obsolete">Adatbázis megnyitási hiba</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>A tranzakció nem indítható</translation>
+        <translation type="unfinished">A tranzakció nem indítható</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
@@ -7735,7 +7735,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>A tranzakció nem görgethető vissza</translation>
+        <translation type="obsolete">A tranzakció nem görgethető vissza</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -7746,34 +7746,34 @@ Please turn one of those options off.</source>
     <name>QSQLite2Result</name>
     <message>
         <source>Unable to fetch results</source>
-        <translation>Az eredmények nem olvashatók ki</translation>
+        <translation type="unfinished">Az eredmények nem olvashatók ki</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>A parancs nem hajtható végre</translation>
+        <translation type="unfinished">A parancs nem hajtható végre</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation>Adatbázis megnyitási hiba</translation>
+        <translation type="unfinished">Adatbázis megnyitási hiba</translation>
     </message>
     <message>
         <source>Error closing database</source>
-        <translation>Adatbázis bezárási hiba</translation>
+        <translation type="unfinished">Adatbázis bezárási hiba</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>A tranzakció nem indítható</translation>
+        <translation type="unfinished">A tranzakció nem indítható</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>A tranzakció nem véglegesíthető</translation>
+        <translation type="unfinished">A tranzakció nem véglegesíthető</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>A tranzakció nem görgethető vissza</translation>
+        <translation type="unfinished">A tranzakció nem görgethető vissza</translation>
     </message>
     <message>
         <source>Unable to roll back transaction</source>
@@ -7784,11 +7784,11 @@ Please turn one of those options off.</source>
     <name>QSQLiteResult</name>
     <message>
         <source>Unable to fetch row</source>
-        <translation>A sor nem olvasható ki</translation>
+        <translation type="unfinished">A sor nem olvasható ki</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>A parancs nem hajtható végre</translation>
+        <translation type="unfinished">A parancs nem hajtható végre</translation>
     </message>
     <message>
         <source>Unable to execute multiple statements at a time</source>
@@ -7796,19 +7796,19 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation>A parancs nem vonható vissza</translation>
+        <translation type="unfinished">A parancs nem vonható vissza</translation>
     </message>
     <message>
         <source>Unable to bind parameters</source>
-        <translation>A paraméterek kötése sikertelen</translation>
+        <translation type="unfinished">A paraméterek kötése sikertelen</translation>
     </message>
     <message>
         <source>Parameter count mismatch</source>
-        <translation>A paraméterek száma nem megfelelő</translation>
+        <translation type="unfinished">A paraméterek száma nem megfelelő</translation>
     </message>
     <message>
         <source>No query</source>
-        <translation>Üres lekérdezés</translation>
+        <translation type="unfinished">Üres lekérdezés</translation>
     </message>
 </context>
 <context>
@@ -8053,94 +8053,94 @@ Please turn one of those options off.</source>
     <name>QScrollBar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Görgetés itt</translation>
+        <translation type="unfinished">Görgetés itt</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Bal szélen</translation>
+        <translation type="unfinished">Bal szélen</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>Fent</translation>
+        <translation type="unfinished">Fent</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Jobb szélen</translation>
+        <translation type="unfinished">Jobb szélen</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>Lent</translation>
+        <translation type="unfinished">Lent</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Egy oldalt balra</translation>
+        <translation type="unfinished">Oldal balra</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Egy oldalt fel</translation>
+        <translation type="unfinished">Oldal felfelé</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Egy oldalt jobbra</translation>
+        <translation type="unfinished">Oldal jobbra</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Oldal lefelé</translation>
+        <translation type="unfinished">Oldal lefelé</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Görgetés balra</translation>
+        <translation type="unfinished">Görgetés balra</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Görgetés felfelé</translation>
+        <translation type="unfinished">Görgetés felfelé</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Görgetés jobbra</translation>
+        <translation type="unfinished">Görgetés jobbra</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Görgetés lefelé</translation>
+        <translation type="unfinished">Görgetés lefelé</translation>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Sor felfelé</translation>
+        <translation type="obsolete">Sor felfelé</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Helyzet</translation>
+        <translation type="obsolete">Helyzet</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Sor lefelé</translation>
+        <translation type="obsolete">Sor lefelé</translation>
     </message>
 </context>
 <context>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation>%1:zárolási kulcs beállítása sikertelen</translation>
+        <translation type="unfinished">%1:a kulcs beállítása sikertelen a zároláson</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translation>%1: a megadott méret kissebb mint 0</translation>
+        <translation type="unfinished">%1: a megadott méret kissebb mint 0</translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
-        <translation>%1: a zárolás sikertelen</translation>
+        <translation type="unfinished">%1: a zárolás sikertelen</translation>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translation>%1: a feloldás sikertelen</translation>
+        <translation type="unfinished">%1: a feloldás sikertelen</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
-        <translation>%1: hozzáférés megtagadva</translation>
+        <translation type="unfinished">%1: hozzáférés megtagadva</translation>
     </message>
     <message>
         <source>%1: already exists</source>
-        <translation>%1: már létezik</translation>
+        <translation type="unfinished">%1: már létezik</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exist</source>
@@ -8152,39 +8152,39 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
-        <translation>%1: nem található</translation>
+        <translation type="obsolete">%1: nem tatlálható</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
-        <translation>%1: az erőforrások elfogytak</translation>
+        <translation type="unfinished">%1: az erőforrások elfogytak</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
-        <translation>%1: ismeretlen hiba %2</translation>
+        <translation type="unfinished">%1: ismeretlen hiba %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translation>%1: a kulcs hiányzik</translation>
+        <translation type="unfinished">%1: a kulcs hiányzik</translation>
     </message>
     <message>
         <source>%1: unix key file doesn&apos;t exists</source>
-        <translation>%1: az unix kulcsfájl hiányzik</translation>
+        <translation type="obsolete">%1: az unix kulcsfájl hiányzik</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
-        <translation>%1: ftok hibát adott vissza</translation>
+        <translation type="unfinished">%1: ftok hibát adott vissza</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
-        <translation>%1: a kulcs elkészítése sikertelen</translation>
+        <translation type="unfinished">%1: a kulcs elkészítése sikertelen</translation>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
-        <translation>%1: a rendszer méretkorlátokat állított fel</translation>
+        <translation type="unfinished">%1: a rendszer méretkorlátokat állított fel</translation>
     </message>
     <message>
         <source>%1: not attached</source>
-        <translation>%1: nem lesz csatolva</translation>
+        <translation type="unfinished">%1: nem lesz csatolva</translation>
     </message>
     <message>
         <source>%1: invalid size</source>
@@ -8207,171 +8207,172 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
-        <translation>Szóköz</translation>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
+        <translation type="unfinished">Szóköz</translation>
     </message>
     <message>
         <source>Esc</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Tab</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Backtab</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Backspace</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Return</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Enter</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Ins</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Del</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Pause</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Print</source>
-        <translation>Print Screen</translation>
+        <translation type="unfinished">Nyomtatás</translation>
     </message>
     <message>
         <source>SysReq</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Home</source>
-        <translation></translation>
+        <translation type="unfinished">Saját könyvtár</translation>
     </message>
     <message>
         <source>End</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Left</source>
-        <translation>Balra</translation>
+        <translation type="unfinished">Bal</translation>
     </message>
     <message>
         <source>Up</source>
-        <translation>Fel</translation>
+        <translation type="unfinished">Fel</translation>
     </message>
     <message>
         <source>Right</source>
-        <translation>Jobbra</translation>
+        <translation type="unfinished">Jobb</translation>
     </message>
     <message>
         <source>Down</source>
-        <translation>Le</translation>
+        <translation type="unfinished">Le</translation>
     </message>
     <message>
         <source>PgUp</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>PgDown</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>CapsLock</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>NumLock</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>ScrollLock</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation>Menü</translation>
+        <translation type="unfinished">Menü</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Segítség</translation>
+        <translation type="unfinished">Súgó</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Vissza</translation>
+        <translation type="unfinished">Vissza</translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Előre</translation>
+        <translation type="unfinished">Előre</translation>
     </message>
     <message>
         <source>Stop</source>
-        <translation>Stop</translation>
+        <translation type="unfinished">Stop</translation>
     </message>
     <message>
         <source>Refresh</source>
-        <translation>Frissítés</translation>
+        <translation type="unfinished">Frissítés</translation>
     </message>
     <message>
         <source>Volume Down</source>
-        <translation>Hangerő csökkentése</translation>
+        <translation type="unfinished">Hangerő csökkentése</translation>
     </message>
     <message>
         <source>Volume Mute</source>
-        <translation>Némítás</translation>
+        <translation type="unfinished">Némítás</translation>
     </message>
     <message>
         <source>Volume Up</source>
-        <translation>Hangerő növelése</translation>
+        <translation type="unfinished">Hangerő növelése</translation>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translation>Mély hang kiemelése</translation>
+        <translation type="unfinished">Mély hang kiemelése</translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translation>Mély hang növelése</translation>
+        <translation type="unfinished">Mély hang növelése</translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translation>Mély hang csökkentése</translation>
+        <translation type="unfinished">Mély hang csökkentése</translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation>Magas hang növelése</translation>
+        <translation type="unfinished">Magas hang növelése</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation>Magas hang csökkentése</translation>
+        <translation type="unfinished">Magas hang csökkentése</translation>
     </message>
     <message>
         <source>Media Play</source>
-        <translation>Média lejátszása</translation>
+        <translation type="unfinished">Média lejátszása</translation>
     </message>
     <message>
         <source>Media Stop</source>
-        <translation>Média leállítása</translation>
+        <translation type="unfinished">Média leállítása</translation>
     </message>
     <message>
         <source>Media Previous</source>
-        <translation>Előző média</translation>
+        <translation type="unfinished">Előző média</translation>
     </message>
     <message>
         <source>Media Next</source>
-        <translation>Következő média</translation>
+        <translation type="unfinished">Következő média</translation>
     </message>
     <message>
         <source>Media Record</source>
-        <translation>Média felvétel</translation>
+        <translation type="unfinished">Média felvétel</translation>
     </message>
     <message>
         <source>Media Pause</source>
@@ -8385,91 +8386,91 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Favorites</source>
-        <translation>Kedvencek</translation>
+        <translation type="unfinished">Kedvencek</translation>
     </message>
     <message>
         <source>Search</source>
-        <translation>Keresés</translation>
+        <translation type="unfinished">Keresés</translation>
     </message>
     <message>
         <source>Standby</source>
-        <translation>Standby</translation>
+        <translation type="unfinished">Standby</translation>
     </message>
     <message>
         <source>Open URL</source>
-        <translation>URL megynyitása</translation>
+        <translation type="unfinished">URL megynyitása</translation>
     </message>
     <message>
         <source>Launch Mail</source>
-        <translation>Levelezőprogram indítása</translation>
+        <translation type="unfinished">Levelezőprogram indítása</translation>
     </message>
     <message>
         <source>Launch Media</source>
-        <translation>Médialejátszó indítása</translation>
+        <translation type="unfinished">Médialejátszó indítása</translation>
     </message>
     <message>
         <source>Launch (0)</source>
-        <translation>(0) indítása</translation>
+        <translation type="unfinished">(0) indítása</translation>
     </message>
     <message>
         <source>Launch (1)</source>
-        <translation>(1) indítása</translation>
+        <translation type="unfinished">(1) indítása</translation>
     </message>
     <message>
         <source>Launch (2)</source>
-        <translation>(2) indítása</translation>
+        <translation type="unfinished">(2) indítása</translation>
     </message>
     <message>
         <source>Launch (3)</source>
-        <translation>(3) indítása</translation>
+        <translation type="unfinished">(3) indítása</translation>
     </message>
     <message>
         <source>Launch (4)</source>
-        <translation>(4) indítása</translation>
+        <translation type="unfinished">(4) indítása</translation>
     </message>
     <message>
         <source>Launch (5)</source>
-        <translation>(5) indítása</translation>
+        <translation type="unfinished">(5) indítása</translation>
     </message>
     <message>
         <source>Launch (6)</source>
-        <translation>(6) indítása</translation>
+        <translation type="unfinished">(6) indítása</translation>
     </message>
     <message>
         <source>Launch (7)</source>
-        <translation>(7) indítása</translation>
+        <translation type="unfinished">(7) indítása</translation>
     </message>
     <message>
         <source>Launch (8)</source>
-        <translation>(7) indítása</translation>
+        <translation type="unfinished">(8) indítása</translation>
     </message>
     <message>
         <source>Launch (9)</source>
-        <translation>(9) indítása</translation>
+        <translation type="unfinished">(9) indítása</translation>
     </message>
     <message>
         <source>Launch (A)</source>
-        <translation>(A) indítása</translation>
+        <translation type="unfinished">(A) indítása</translation>
     </message>
     <message>
         <source>Launch (B)</source>
-        <translation>(B) indítása</translation>
+        <translation type="unfinished">(B) indítása</translation>
     </message>
     <message>
         <source>Launch (C)</source>
-        <translation>(C) indítása</translation>
+        <translation type="unfinished">(C) indítása</translation>
     </message>
     <message>
         <source>Launch (D)</source>
-        <translation>(D) indítása</translation>
+        <translation type="unfinished">(D) indítása</translation>
     </message>
     <message>
         <source>Launch (E)</source>
-        <translation>(E) indítása</translation>
+        <translation type="unfinished">(E) indítása</translation>
     </message>
     <message>
         <source>Launch (F)</source>
-        <translation>(F) indítása</translation>
+        <translation type="unfinished">(F) indítása</translation>
     </message>
     <message>
         <source>Monitor Brightness Up</source>
@@ -8829,47 +8830,47 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Print Screen</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Page Up</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Page Down</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Caps Lock</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Num Lock</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Number Lock</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Scroll Lock</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation></translation>
+        <translation type="unfinished">Beszúrás</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation></translation>
+        <translation type="unfinished">Törlés</translation>
     </message>
     <message>
         <source>Escape</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>System Request</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Toggle Call/Hangup</source>
@@ -9018,71 +9019,73 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Select</source>
-        <translation>Kiválasztás</translation>
+        <translation type="unfinished">Kiválasztás</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Igen</translation>
+        <translation type="unfinished">Igen</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Nem</translation>
+        <translation type="unfinished">Nem</translation>
     </message>
     <message>
         <source>Context1</source>
-        <translation>Kontextus1</translation>
+        <translation type="unfinished">Kontextus1</translation>
     </message>
     <message>
         <source>Context2</source>
-        <translation>Kontextus2</translation>
+        <translation type="unfinished">Kontextus2</translation>
     </message>
     <message>
         <source>Context3</source>
-        <translation>Kontextus3</translation>
+        <translation type="unfinished">Kontextus3</translation>
     </message>
     <message>
         <source>Context4</source>
-        <translation>Kontextus4</translation>
+        <translation type="unfinished">Kontextus4</translation>
     </message>
     <message>
         <source>Call</source>
-        <translation>Hívás</translation>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
+        <translation type="unfinished">Hívás</translation>
     </message>
     <message>
         <source>Hangup</source>
-        <translation>Hívás vége</translation>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
+        <translation type="unfinished">Hívás vége</translation>
     </message>
     <message>
         <source>Flip</source>
-        <translation>Csere</translation>
+        <translation type="unfinished">Csere</translation>
     </message>
     <message>
         <source>Ctrl</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Shift</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Alt</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Meta</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>+</source>
-        <translation></translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>F%1</source>
-        <translation></translation>
+        <translation type="unfinished">F%1</translation>
     </message>
     <message>
         <source>Home Page</source>
-        <translation>Kezdőoldal</translation>
+        <translation type="unfinished">Kezdőoldal</translation>
     </message>
     <message>
         <source>Media Rewind</source>
@@ -9209,34 +9212,34 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Egy oldalt balra</translation>
+        <translation type="obsolete">Oldal balra</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Egy oldalt fel</translation>
+        <translation type="obsolete">Oldal felfelé</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Helyzet</translation>
+        <translation type="obsolete">Helyzet</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Egy oldalt jobbra</translation>
+        <translation type="obsolete">Oldal jobbra</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Egy oldalt le</translation>
+        <translation type="obsolete">Oldal lefelé</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>Időtúllépés a socks szerverhez kapcsolódáskor</translation>
+        <translation type="obsolete">Időtúllépés a socks szerverhez kapcsolódáskor</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation>Időtúllépés hálózati művelet során</translation>
+        <translation type="unfinished">Időtúllépés hálózati művelet során</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -9682,85 +9685,85 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Több</translation>
+        <translation type="obsolete">Több</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Kevesebb</translation>
+        <translation type="obsolete">Kevesebb</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>Törlés</translation>
+        <translation type="obsolete">Törlés</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Rekord törlése?</translation>
+        <translation type="obsolete">Rekord törlése?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Igen</translation>
+        <translation type="obsolete">Igen</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Nem</translation>
+        <translation type="obsolete">Nem</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Beszúrás</translation>
+        <translation type="obsolete">Beszúrás</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Frissítés</translation>
+        <translation type="obsolete">Frissítés</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Módosítások mentése?</translation>
+        <translation type="obsolete">Módosítások mentése?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Mégsem</translation>
+        <translation type="obsolete">Mégsem</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Megerősítés</translation>
+        <translation type="obsolete">Megerősítés</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Módosítások elvetése?</translation>
+        <translation type="obsolete">Módosítások elvetése?</translation>
     </message>
 </context>
 <context>
     <name>QSslSocket</name>
     <message>
         <source>Unable to write data: %1</source>
-        <translation>Az adat nem írható: %1</translation>
+        <translation type="unfinished">Az adat nem írható: %1</translation>
     </message>
     <message>
         <source>Error while reading: %1</source>
-        <translation>Olvasási hiba: %1</translation>
+        <translation type="unfinished">Olvasási hiba: %1</translation>
     </message>
     <message>
         <source>Error during SSL handshake: %1</source>
-        <translation>SSL kézfogás hiba: %1</translation>
+        <translation type="unfinished">SSL kézfogás hiba: %1</translation>
     </message>
     <message>
         <source>Error creating SSL context (%1)</source>
-        <translation>Az SSL kontextus létrehozása sikertelen (%1)</translation>
+        <translation type="unfinished">Az SSL kontextus létrehozása sikertelen (%1)</translation>
     </message>
     <message>
         <source>Invalid or empty cipher list (%1)</source>
-        <translation>Érvénytelen vagy üres a titkosítók listája (%1)</translation>
+        <translation type="unfinished">Érvénytelen vagy üres a titkosítók listája (%1)</translation>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
-        <translation>Hiba az SSL munkamenet létrehozásakor, %1</translation>
+        <translation type="unfinished">Hiba az SSL munkamenet létrehozásakor, %1</translation>
     </message>
     <message>
         <source>Error creating SSL session: %1</source>
-        <translation>Hiba az SSL munkamenet létrehozásakor: %1</translation>
+        <translation type="unfinished">Hiba az SSL munkamenet létrehozásakor: %1</translation>
     </message>
     <message>
         <source>Unable to init SSL Context: %1</source>
@@ -9772,15 +9775,15 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Kulcs nélkül nem állítható ki tanusítvány, %1</translation>
+        <translation type="unfinished">Kulcs nélkül nem állítható ki tanusítvány, %1</translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
-        <translation>Hiba a helyi tanúsítvány betöltése közben, %1</translation>
+        <translation type="unfinished">Hiba a helyi tanúsítvány betöltése közben, %1</translation>
     </message>
     <message>
         <source>Error loading private key, %1</source>
-        <translation>Hiba a titkos kulcs betöltése közben, %1</translation>
+        <translation type="unfinished">Hiba a titkos kulcs betöltése közben, %1</translation>
     </message>
     <message>
         <source>Private key does not certify public key, %1</source>
@@ -9788,7 +9791,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Private key does not certificate public key, %1</source>
-        <translation>A privát és a publikus kulcs nem illik össze: %1</translation>
+        <translation type="obsolete">A privát és a publikus kulcs nem illik össze: %1</translation>
     </message>
     <message>
         <source>No error</source>
@@ -10024,22 +10027,22 @@ Role of an accessible object</extracomment>
     <name>QTDSDriver</name>
     <message>
         <source>Unable to open connection</source>
-        <translation>A kapcsolat nem nyitható meg</translation>
+        <translation type="unfinished">A kapcsolat nem nyitható meg</translation>
     </message>
     <message>
         <source>Unable to use database</source>
-        <translation>Az adatbázis nem használható</translation>
+        <translation type="unfinished">Az adatbázis nem használható</translation>
     </message>
 </context>
 <context>
     <name>QTabBar</name>
     <message>
         <source>Scroll Left</source>
-        <translation>Görgetés balra</translation>
+        <translation type="unfinished">Görgetés balra</translation>
     </message>
     <message>
         <source>Scroll Right</source>
-        <translation>Görgetés jobbra</translation>
+        <translation type="unfinished">Görgetés jobbra</translation>
     </message>
 </context>
 <context>
@@ -10057,64 +10060,64 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Visszavonás</translation>
+        <translation type="obsolete">&amp;Visszavonás</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Új&amp;ra</translation>
+        <translation type="obsolete">Új&amp;ra</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Kivágás</translation>
+        <translation type="obsolete">&amp;Kivágás</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Másolás</translation>
+        <translation type="obsolete">&amp;Másolás</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>&amp;Link helyének másolása</translation>
+        <translation type="obsolete">&amp;Link helyének másolása</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Beillesztés</translation>
+        <translation type="obsolete">&amp;Beillesztés</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Törlés</translation>
+        <translation type="obsolete">Törlés</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Összes kijelölése</translation>
+        <translation type="obsolete">Összes kijelölése</translation>
     </message>
 </context>
 <context>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Nyomd meg</translation>
+        <translation type="obsolete">Nyomja meg</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Megnyitás</translation>
+        <translation type="obsolete">Megnyitás</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>A platform nem támogatja az IPv6-ot</translation>
+        <translation type="obsolete">A platform nem támogatja az IPv6-ot</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>Visszavonás</translation>
+        <translation type="obsolete">Visszavonás</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Újra</translation>
+        <translation type="obsolete">Újra</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -10139,18 +10142,18 @@ Role of an accessible object</extracomment>
     <name>QUndoModel</name>
     <message>
         <source>&lt;empty&gt;</source>
-        <translation>&lt;üres&gt;</translation>
+        <translation type="unfinished">&lt;üres&gt;</translation>
     </message>
 </context>
 <context>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Visszavonás</translation>
+        <translation type="obsolete">Visszavonás</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Újra</translation>
+        <translation type="obsolete">Újra</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -10175,47 +10178,47 @@ Role of an accessible object</extracomment>
     <name>QUnicodeControlCharacterMenu</name>
     <message>
         <source>LRM Left-to-right mark</source>
-        <translation>LRM (Balról jobbra jel)</translation>
+        <translation type="unfinished">LRM Balról jobbra jelölő</translation>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation>LRM (Jobbról balra jel)</translation>
+        <translation type="unfinished">LRM Jobbról balra jelölő</translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation>ZWJ Nulla szélességű egyesítő jelölő</translation>
+        <translation type="unfinished">ZWJ Nulla szélességű egyesítő jelölő</translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation>ZWN Nulla szélességű nem-egyesítő jelölő</translation>
+        <translation type="unfinished">ZWN Nulla szélességű nem-egyesítő jelölő</translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation>ZWSP Nulla szélességű szóköz</translation>
+        <translation type="unfinished">ZWSP Nulla szélességű szóköz</translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation>LRE balról-jobbra beágyazás kezdete</translation>
+        <translation type="unfinished">LRE balról-jobbra beágyazás kezdete</translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation>RLE jobbról-balra beágyazás kezdete</translation>
+        <translation type="unfinished">RLE jobbról-balra beágyazás kezdete</translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation>LRO balról-jobbra felülbírálás kezdete</translation>
+        <translation type="unfinished">LRO balról-jobbra felülbírálás kezdete</translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation>RLO Jobbról-balra felülbírálás kezdete</translation>
+        <translation type="unfinished">RLO Jobbról-balra felülbírálás kezdete</translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation>PDF normál irányú formázási jelölő</translation>
+        <translation type="unfinished">PDF normál irányú formázási jelölő</translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
-        <translation>Unicode vezérlőkarakter beszúrása</translation>
+        <translation type="unfinished">Unicode vezérlőkarakter beszúrása</translation>
     </message>
     <message>
         <source>LRI Left-to-right isolate</source>
@@ -10238,27 +10241,27 @@ Role of an accessible object</extracomment>
     <name>QWebFrame</name>
     <message>
         <source>Request cancelled</source>
-        <translation>A kérés megszakítva</translation>
+        <translation type="obsolete">A kérés megszakítva</translation>
     </message>
     <message>
         <source>Request blocked</source>
-        <translation>A kérést blokkolták</translation>
+        <translation type="obsolete">A kérést blokkolták</translation>
     </message>
     <message>
         <source>Cannot show URL</source>
-        <translation>A cím nem megjeleníthető</translation>
+        <translation type="obsolete">A cím nem megjeleníthető</translation>
     </message>
     <message>
         <source>Frame load interruped by policy change</source>
-        <translation>A keret betöltése szabályváltoztatás miatt megszakadt</translation>
+        <translation type="obsolete">A keret betöltése szabályváltoztatás miatt megszakadt</translation>
     </message>
     <message>
         <source>Cannot show mimetype</source>
-        <translation>Nem megjeleníthető fájltípus</translation>
+        <translation type="obsolete">Nem megjeleníthető fájltípus</translation>
     </message>
     <message>
         <source>File does not exist</source>
-        <translation>A fájl nem létezik</translation>
+        <translation type="obsolete">A fájl nem létezik</translation>
     </message>
     <message>
         <source>Frame load interrupted by policy change</source>
@@ -10269,251 +10272,251 @@ Role of an accessible object</extracomment>
     <name>QWebPage</name>
     <message>
         <source>Bad HTTP request</source>
-        <translation>Hibás HTTP kérés</translation>
+        <translation type="obsolete">Hibás HTTP kérés</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>default label for Submit buttons in forms on web pages</comment>
-        <translation>Küldés</translation>
+        <translation type="obsolete">Küldés</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>Submit (input element) alt text for &lt;input&gt; elements with no alt, title, or value</comment>
-        <translation>Küldés</translation>
+        <translation type="obsolete">Küldés</translation>
     </message>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation>Törlés</translation>
+        <translation type="obsolete">Törlés</translation>
     </message>
     <message>
         <source>This is a searchable index. Enter search keywords: </source>
         <comment>text that appears at the start of nearly-obsolete web pages in the form of a &apos;searchable index&apos;</comment>
-        <translation>Ez egy kereshető index. Írja be a keresendő szavakat: </translation>
+        <translation type="obsolete">Ez egy kereshető index. Írja be a keresendő szavakat: </translation>
     </message>
     <message>
         <source>Choose File</source>
         <comment>title for file button used in HTML forms</comment>
-        <translation>Fájl tallózása</translation>
+        <translation type="obsolete">Fájl tallózása</translation>
     </message>
     <message>
         <source>No file selected</source>
         <comment>text to display in file button used in HTML forms when no file is selected</comment>
-        <translation>Nincs fájl kiválaszva</translation>
+        <translation type="obsolete">Nincs fájl kiválaszva</translation>
     </message>
     <message>
         <source>Open in New Window</source>
         <comment>Open in New Window context menu item</comment>
-        <translation>Megnyitás új ablakban</translation>
+        <translation type="obsolete">Megnyitás új ablakban</translation>
     </message>
     <message>
         <source>Save Link...</source>
         <comment>Download Linked File context menu item</comment>
-        <translation>Link célpontjának mentése...</translation>
+        <translation type="obsolete">Link célpontjának mentése...</translation>
     </message>
     <message>
         <source>Copy Link</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Link címének másolása</translation>
+        <translation type="obsolete">Link címének másolása</translation>
     </message>
     <message>
         <source>Open Image</source>
         <comment>Open Image in New Window context menu item</comment>
-        <translation>Kép megnyitása</translation>
+        <translation type="obsolete">Kép megnyitása</translation>
     </message>
     <message>
         <source>Save Image</source>
         <comment>Download Image context menu item</comment>
-        <translation>Kép mentése</translation>
+        <translation type="obsolete">Kép mentése</translation>
     </message>
     <message>
         <source>Copy Image</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Kép másolása</translation>
+        <translation type="obsolete">Kép másolása</translation>
     </message>
     <message>
         <source>Open Frame</source>
         <comment>Open Frame in New Window context menu item</comment>
-        <translation>Keret megnyitása új ablakban</translation>
+        <translation type="obsolete">Keret megnyitása új ablakban</translation>
     </message>
     <message>
         <source>Copy</source>
         <comment>Copy context menu item</comment>
-        <translation>Másolás</translation>
+        <translation type="obsolete">Másolás</translation>
     </message>
     <message>
         <source>Go Back</source>
         <comment>Back context menu item</comment>
-        <translation>Vissza</translation>
+        <translation type="obsolete">Vissza</translation>
     </message>
     <message>
         <source>Go Forward</source>
         <comment>Forward context menu item</comment>
-        <translation>Előre</translation>
+        <translation type="obsolete">Előre</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation>Stop</translation>
+        <translation type="obsolete">Stop</translation>
     </message>
     <message>
         <source>Reload</source>
         <comment>Reload context menu item</comment>
-        <translation>Frissítés</translation>
+        <translation type="obsolete">Frissítés</translation>
     </message>
     <message>
         <source>Cut</source>
         <comment>Cut context menu item</comment>
-        <translation>Kivágás</translation>
+        <translation type="obsolete">Kivágás</translation>
     </message>
     <message>
         <source>Paste</source>
         <comment>Paste context menu item</comment>
-        <translation>Beillesztés</translation>
+        <translation type="obsolete">Beillesztés</translation>
     </message>
     <message>
         <source>No Guesses Found</source>
         <comment>No Guesses Found context menu item</comment>
-        <translation>Nincs találat</translation>
+        <translation type="obsolete">Nincs találat</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation>Kihagyás</translation>
+        <translation type="obsolete">Kihagyás</translation>
     </message>
     <message>
         <source>Add To Dictionary</source>
         <comment>Learn Spelling context menu item</comment>
-        <translation>Hozzáadás a szótárhoz</translation>
+        <translation type="obsolete">Hozzáadás a szótárhoz</translation>
     </message>
     <message>
         <source>Search The Web</source>
         <comment>Search The Web context menu item</comment>
-        <translation>Keresés a weben</translation>
+        <translation type="obsolete">Keresés a weben</translation>
     </message>
     <message>
         <source>Look Up In Dictionary</source>
         <comment>Look Up in Dictionary context menu item</comment>
-        <translation>Keresés a szótárban</translation>
+        <translation type="obsolete">Keresés a szótárban</translation>
     </message>
     <message>
         <source>Open Link</source>
         <comment>Open Link context menu item</comment>
-        <translation>Link megnyitása</translation>
+        <translation type="obsolete">Link megnyitása</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation>Kihagyás</translation>
+        <translation type="obsolete">Kihagyás</translation>
     </message>
     <message>
         <source>Spelling</source>
         <comment>Spelling and Grammar context sub-menu item</comment>
-        <translation>Nyelvi eszközök</translation>
+        <translation type="obsolete">Nyelvi eszközök</translation>
     </message>
     <message>
         <source>Show Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Nyelvi eszközök megjelenítése</translation>
+        <translation type="obsolete">Nyelvi eszközök megjelenítése</translation>
     </message>
     <message>
         <source>Hide Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Nyelvi eszközök elrejtése</translation>
+        <translation type="obsolete">Nyelvi eszközök elrejtése</translation>
     </message>
     <message>
         <source>Check Spelling</source>
         <comment>Check spelling context menu item</comment>
-        <translation>Nyelvhelyesség ellenőrzése</translation>
+        <translation type="obsolete">Nyelvhelyesség ellenőrzése</translation>
     </message>
     <message>
         <source>Check Spelling While Typing</source>
         <comment>Check spelling while typing context menu item</comment>
-        <translation>Nyelvhelyesség ellenőrzése gépeléskor</translation>
+        <translation type="obsolete">Nyelvhelyesség ellenőrzése gépeléskor</translation>
     </message>
     <message>
         <source>Check Grammar With Spelling</source>
         <comment>Check grammar with spelling context menu item</comment>
-        <translation>Nyelvtan ellenőrzése</translation>
+        <translation type="obsolete">Nyelvtan ellenőrzése</translation>
     </message>
     <message>
         <source>Fonts</source>
         <comment>Font context sub-menu item</comment>
-        <translation>Nyelvtan ellenőrzése</translation>
+        <translation type="obsolete">Betűtípus</translation>
     </message>
     <message>
         <source>Bold</source>
         <comment>Bold context menu item</comment>
-        <translation>Félkövér</translation>
+        <translation type="obsolete">Félkövér</translation>
     </message>
     <message>
         <source>Italic</source>
         <comment>Italic context menu item</comment>
-        <translation>Dőlt</translation>
+        <translation type="obsolete">Dőlt</translation>
     </message>
     <message>
         <source>Underline</source>
         <comment>Underline context menu item</comment>
-        <translation>Aláhúzott</translation>
+        <translation type="obsolete">Aláhúzott</translation>
     </message>
     <message>
         <source>Outline</source>
         <comment>Outline context menu item</comment>
-        <translation>Áthúzott</translation>
+        <translation type="obsolete">Áthúzott</translation>
     </message>
     <message>
         <source>Direction</source>
         <comment>Writing direction context sub-menu item</comment>
-        <translation>Irány</translation>
+        <translation type="obsolete">Irány</translation>
     </message>
     <message>
         <source>Default</source>
         <comment>Default writing direction context menu item</comment>
-        <translation>Alapértelmezett</translation>
+        <translation type="obsolete">Alapértelmezett</translation>
     </message>
     <message>
         <source>LTR</source>
         <comment>Left to Right context menu item</comment>
-        <translation>Balról jobbra</translation>
+        <translation type="obsolete">Balról jobbra</translation>
     </message>
     <message>
         <source>RTL</source>
         <comment>Right to Left context menu item</comment>
-        <translation>Jobbról balra</translation>
+        <translation type="obsolete">Jobbról balra</translation>
     </message>
     <message>
         <source>Inspect</source>
         <comment>Inspect Element context menu item</comment>
-        <translation>Elemzés</translation>
+        <translation type="obsolete">Elemzés</translation>
     </message>
     <message>
         <source>No recent searches</source>
         <comment>Label for only item in menu that appears when clicking on the search field image, when no searches have been performed</comment>
-        <translation>Nincs keresési előzmény</translation>
+        <translation type="obsolete">Nincs keresési előzmény</translation>
     </message>
     <message>
         <source>Recent searches</source>
         <comment>label for first item in the menu that appears when clicking on the search field image, used as embedded menu title</comment>
-        <translation>Keresési előzmények</translation>
+        <translation type="obsolete">Keresési előzmények</translation>
     </message>
     <message>
         <source>Clear recent searches</source>
         <comment>menu item in Recent Searches menu that empties menu&apos;s contents</comment>
-        <translation>Keresési előzmények ürítése</translation>
+        <translation type="obsolete">Keresési előzmények ürítése</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation>Ismeretlen</translation>
+        <translation type="obsolete">Ismeretlen</translation>
     </message>
     <message>
         <source>%1 (%2x%3 pixels)</source>
         <comment>Title string for images</comment>
-        <translation>%1 (%2x%3 képpont)</translation>
+        <translation type="obsolete">%1 (%2x%3 képpont)</translation>
     </message>
     <message>
         <source>Web Inspector - %2</source>
-        <translation>Web elemző - %2</translation>
+        <translation type="obsolete">Web elemző - %2</translation>
     </message>
     <message>
         <source>Redirection limit reached</source>
@@ -10988,14 +10991,14 @@ Role of an accessible object</extracomment>
     <name>QWhatsThisAction</name>
     <message>
         <source>What&apos;s This?</source>
-        <translation>Mi ez?</translation>
+        <translation type="unfinished">Mi ez?</translation>
     </message>
 </context>
 <context>
     <name>QWidget</name>
     <message>
         <source>*</source>
-        <translation>*</translation>
+        <translation type="unfinished">*</translation>
     </message>
 </context>
 <context>
@@ -11050,201 +11053,201 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWizard</name>
     <message>
         <source>Go Back</source>
-        <translation>Visszalépés</translation>
+        <translation type="unfinished">Visszalépés</translation>
     </message>
     <message>
         <source>Continue</source>
-        <translation>Folytatás</translation>
+        <translation type="unfinished">Folytatás</translation>
     </message>
     <message>
         <source>Commit</source>
-        <translation>Véglegesítés</translation>
+        <translation type="unfinished">Véglegesítés</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Kész</translation>
+        <translation type="unfinished">Kész</translation>
     </message>
     <message>
         <source>Quit</source>
-        <translation>Kilépés</translation>
+        <translation type="obsolete">Kilépés</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Segítség</translation>
+        <translation type="unfinished">Súgó</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Vissza</translation>
+        <translation type="unfinished">&lt; &amp;Vissza</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Befejezés</translation>
+        <translation type="unfinished">&amp;Befejezés</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Mégsem</translation>
+        <translation type="unfinished">Mégsem</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Súgó</translation>
+        <translation type="unfinished">&amp;Súgó</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>&amp;Következő</translation>
+        <translation type="unfinished">&amp;Következő</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Következő &gt;</translation>
+        <translation type="unfinished">&amp;Következő &gt;</translation>
     </message>
 </context>
 <context>
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Visszaállítás</translation>
+        <translation type="obsolete">&amp;Visszaállítás</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>Á&amp;thelyezés</translation>
+        <translation type="obsolete">Á&amp;thelyezés</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Méret</translation>
+        <translation type="obsolete">&amp;Méret</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>&amp;Kis méret</translation>
+        <translation type="obsolete">&amp;Kis méret</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Te&amp;ljes méret</translation>
+        <translation type="obsolete">Te&amp;ljes méret</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Bezárás</translation>
+        <translation type="obsolete">&amp;Bezárás</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Mindig leg&amp;felül</translation>
+        <translation type="obsolete">Mindig leg&amp;felül</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>&amp;Felgördítés</translation>
+        <translation type="obsolete">&amp;Felcsukás</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="obsolete">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Kis méret</translation>
+        <translation type="obsolete">Kis méret</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Előző méret</translation>
+        <translation type="obsolete">Előző méret</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Bezárás</translation>
+        <translation type="obsolete">Bezárás</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>&amp;Legördítés</translation>
+        <translation type="obsolete">&amp;Lenyitás</translation>
     </message>
 </context>
 <context>
     <name>QXml</name>
     <message>
         <source>no error occurred</source>
-        <translation>nem történt hiba</translation>
+        <translation type="unfinished">nem történt hiba</translation>
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation>feldolgozó által kiváltott hiba</translation>
+        <translation type="unfinished">feldolgozó által kiváltott hiba</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
-        <translation>váratlan fájlvég</translation>
+        <translation type="unfinished">váratlan fájlvég</translation>
     </message>
     <message>
         <source>more than one document type definition</source>
-        <translation>több dokumentumtípus definíció</translation>
+        <translation type="unfinished">több dokumentumtípus definíció</translation>
     </message>
     <message>
         <source>error occurred while parsing element</source>
-        <translation>hiba az elem értelmezésénél</translation>
+        <translation type="unfinished">hiba az elem értelmezésénél</translation>
     </message>
     <message>
         <source>tag mismatch</source>
-        <translation>eltérő tag hiba</translation>
+        <translation type="unfinished">eltérő tag hiba</translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
-        <translation>hiba a tartalom értelmezésénél</translation>
+        <translation type="unfinished">hiba a tartalom értelmezésénél</translation>
     </message>
     <message>
         <source>unexpected character</source>
-        <translation>váratlan karakter</translation>
+        <translation type="unfinished">váratlan karakter</translation>
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation>érvénytelen név parancs feldolgozásakor</translation>
+        <translation type="unfinished">érvénytelen feldolgozási utasítás név</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation>az XML deklaráció nem tartalmaz verzióinformációt</translation>
+        <translation type="unfinished">az XML deklaráció nem tartalmaz verzióinformációt</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation>érvénytelen érték önálló deklarációban</translation>
+        <translation type="unfinished">érvénytelen érték önálló deklarációban</translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>az XML deklarációból hiányzik a kódolási információ vagy egy önálló deklaráció</translation>
+        <translation type="unfinished">az XML deklarációból hiányzik a kódolási információ vagy egy önálló deklaráció</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>az XML deklarációból hiányzik az önálló deklaráció</translation>
+        <translation type="unfinished">az XML deklarációból hiányzik az önálló deklaráció</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translation>hiba a dokumentumtípus definíció értelmezésénél</translation>
+        <translation type="unfinished">hiba a dokumentumtípus definíció értelmezésénél</translation>
     </message>
     <message>
         <source>letter is expected</source>
-        <translation>a várt elem betű</translation>
+        <translation type="unfinished">a várt elem betű</translation>
     </message>
     <message>
         <source>error occurred while parsing comment</source>
-        <translation>hiba a komment értelmezésénél</translation>
+        <translation type="unfinished">hiba a megjegyzés értelmezésénél</translation>
     </message>
     <message>
         <source>error occurred while parsing reference</source>
-        <translation>hiba a hivatkozás értelmezésénél</translation>
+        <translation type="unfinished">hiba a hivatkozás értelmezésénél</translation>
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
-        <translation>A DTD-ben nincs megengedve belső általános entitás használata</translation>
+        <translation type="unfinished">A DTD-ben nem engedélyezett belső általános entitás használata</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>külső feldolgozású általános entitáshivatkozás nem engedélyezett attribútum értékében</translation>
+        <translation type="unfinished">külső feldolgozású általános entitáshivatkozás nem engedélyezett attribútum értékében</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>külső feldolgozású általános entitáshivatkozás nem engedélyezett a DTD-ben</translation>
+        <translation type="unfinished">külső feldolgozású általános entitáshivatkozás nem engedélyezett a DTD-ben</translation>
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translation>nem értelmezett entitás referencia egy rossz kontextusban</translation>
+        <translation type="unfinished">nem értelmezett entitás referencia egy rossz kontextusban</translation>
     </message>
     <message>
         <source>recursive entities</source>
-        <translation>rekurzív entitások</translation>
+        <translation type="unfinished">rekurzív entitások</translation>
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation>rekurzív entitások</translation>
+        <translation type="unfinished">hiba egy külső entitás szövegdeklarációjában</translation>
     </message>
 </context>
 <context>
@@ -11274,143 +11277,143 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation>Nem várt tartalom a dokumentum végén.</translation>
+        <translation type="unfinished">Nem várt tartalom a dokumentum végén.</translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
-        <translation>Érvénytelen entitás érték.</translation>
+        <translation type="unfinished">Érvénytelen entitás érték.</translation>
     </message>
     <message>
         <source>Invalid XML character.</source>
-        <translation>Érvénytelen XML karakter.</translation>
+        <translation type="unfinished">Érvénytelen XML karakter.</translation>
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation>&apos;]]&gt;&apos; szekvencia nem megengedett a tartalomban.</translation>
+        <translation type="unfinished">&apos;]]&gt;&apos; szekvencia nem megengedett a tartalomban.</translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation>A(z) &apos;%1&apos; névtér előtag nincs deklarálva</translation>
+        <translation type="unfinished">A(z) &apos;%1&apos; névtér prefixum nincs deklarálva</translation>
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>Az attributum újra lett definiálva.</translation>
+        <translation type="obsolete">Az attributum újra lett definiálva.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translation>Váratlan &apos;%1&apos; karakter a publikus id-ben.</translation>
+        <translation type="unfinished">Váratlan &apos;%1&apos; karakter a publikus id literálban.</translation>
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translation>Érvénytelen XML verzió string.</translation>
+        <translation type="unfinished">Érvénytelen XML verzió sztring.</translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translation>Nem támogatott XML verzió.</translation>
+        <translation type="unfinished">Nem támogatott XML verzió.</translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translation>%1 nem egy érvényes kódolás.</translation>
+        <translation type="unfinished">%1 nem egy érvényes kódolás név.</translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translation>%1 kódolás nem támogatott</translation>
+        <translation type="unfinished">%1 kódolás nem támogatott</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation>Csak igen vagy nem lehet az értéke.</translation>
+        <translation type="unfinished">Csak igen vagy nem lehet az értéke.</translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
-        <translation>Érvénytelen attribútum az XML deklarációban.</translation>
+        <translation type="unfinished">Érvénytelen attribútum az XML deklarációban.</translation>
     </message>
     <message>
         <source>Premature end of document.</source>
-        <translation>A dokumentum hirtelen véget ért.</translation>
+        <translation type="unfinished">A dokumentum hirtelen véget ért.</translation>
     </message>
     <message>
         <source>Invalid document.</source>
-        <translation>Érvénytelen dokumentum.</translation>
+        <translation type="unfinished">Érvénytelen dokumentum.</translation>
     </message>
     <message>
         <source>Expected </source>
-        <translation>Amit vártam: </translation>
+        <translation type="unfinished">Várt </translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translation>, de ezt kaptam: &apos;</translation>
+        <translation type="unfinished">, de ezt kaptam: &apos;</translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translation>Váratlan &apos;</translation>
+        <translation type="unfinished">Váratlan &apos;</translation>
     </message>
     <message>
         <source>Expected character data.</source>
-        <translation>Karakteres adat szükséges.</translation>
+        <translation type="unfinished">Karakteres adat szükséges.</translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
-        <translation>Rekurzív entitást találtam.</translation>
+        <translation type="unfinished">Rekurzív entitást találtam.</translation>
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translation>Kezdő tag szükséges.</translation>
+        <translation type="unfinished">Kezdő tag szükséges.</translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translation>Az XML deklaráció nem a dokumentum elején kezdődik.</translation>
+        <translation type="unfinished">Az XML deklaráció nem a dokumentum elején kezdődik.</translation>
     </message>
     <message>
         <source>NDATA in parameter entity declaration.</source>
-        <translation>NDATA a paraméter-entitás deklarációjában.</translation>
+        <translation type="unfinished">NDATA a paraméter-entitás deklarációjában.</translation>
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation>%1 nem érvényes feldolgozói utasítás.</translation>
+        <translation type="unfinished">%1 érvénytelen feldolgozási utasítás név.</translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation>Érvénytelen feldolgozói utasítás.</translation>
+        <translation type="unfinished">Érvénytelen feldolgozási utasítás név.</translation>
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translation>Érvénytelen névtér deklaráció.</translation>
+        <translation type="unfinished">Érvénytelen névtér deklaráció.</translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
-        <translation>Érvénytelen XML név.</translation>
+        <translation type="unfinished">Érvénytelen XML név.</translation>
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation>A nyitó és a záró tag nem egyezik.</translation>
+        <translation type="unfinished">A nyitó és a záró tag nem egyezik.</translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Hivatkozás egy nem értelmezett entitásra: &apos;%1&apos;.</translation>
+        <translation type="unfinished">Hivatkozás egy nem értelmezett entitásra: &apos;%1&apos;.</translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translation>&apos;%1&apos; entitás nincs deklarálva.</translation>
+        <translation type="unfinished">&apos;%1&apos; entitás nincs deklarálva.</translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translation>Hivatkozás &apos;%1&apos; külső entitásra attribútum értékben.</translation>
+        <translation type="unfinished">Hivatkozás &apos;%1&apos; külső entitásra attribútum értékben.</translation>
     </message>
     <message>
         <source>Invalid character reference.</source>
-        <translation>Érvénytelen karakterhivatkozás.</translation>
+        <translation type="unfinished">Érvénytelen karakterhivatkozás.</translation>
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translation>Hibás kódolású tartalom.</translation>
+        <translation type="unfinished">Hibás kódolású tartalom.</translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation>Az egyedülálló pszeudo-attribútumnak a kódolás után kell szerepelnie.</translation>
+        <translation type="unfinished">Az egyedülálló pszeudo-attribútumnak a kódolás után kell szerepelnie.</translation>
     </message>
     <message>
         <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation>%1 egy érvénytelen publikus azonosító.</translation>
+        <translation type="unfinished">%1 egy érvénytelen PUBLIC azonosító.</translation>
     </message>
     <message>
         <source>Attribute &apos;%1&apos; redefined.</source>
@@ -11421,499 +11424,499 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QtXmlPatterns</name>
     <message>
         <source>Network timeout.</source>
-        <translation>Hálózati időtúllépés.</translation>
+        <translation type="obsolete">Hálózati időtúllépés.</translation>
     </message>
     <message>
         <source>Element %1 can&apos;t be serialized because it appears outside the document element.</source>
-        <translation>%1 elem nem szerializálható, mert a document elemen kívül szerepel.</translation>
+        <translation type="obsolete">%1 elem nem szerializálható, mert a document elemen kívül szerepel.</translation>
     </message>
     <message>
         <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
-        <translation>%1 attribútum nem szerializálható, mert legfelső szinten szerepel.</translation>
+        <translation type="obsolete">%1 attribútum nem szerializálható, mert legfelső szinten szerepel.</translation>
     </message>
     <message>
         <source>Year %1 is invalid because it begins with %2.</source>
-        <translation>%1 év érvénytelen, mert %2-vel kezdődik.</translation>
+        <translation type="obsolete">%1 év érvénytelen, mert %2-vel kezdődik.</translation>
     </message>
     <message>
         <source>Day %1 is outside the range %2..%3.</source>
-        <translation>A(z) %1. nap nem esik %2 és %3 közé.</translation>
+        <translation type="obsolete">A(z) %1. nap nem esik %2 és %3 közé.</translation>
     </message>
     <message>
         <source>Month %1 is outside the range %2..%3.</source>
-        <translation>A(z) %1. hónap nem esik %2 és %3 közé.</translation>
+        <translation type="obsolete">A(z) %1. hónap nem esik %2 és %3 közé.</translation>
     </message>
     <message>
         <source>Overflow: Can&apos;t represent date %1.</source>
-        <translation>Túlcsordulás: A(z) %1 dátum nem reprezentálható.</translation>
+        <translation type="obsolete">Túlcsordulás: A(z) %1 dátum nem reprezentálható.</translation>
     </message>
     <message>
         <source>Day %1 is invalid for month %2.</source>
-        <translation>Nincs %1 nap %2 hónapban.</translation>
+        <translation type="obsolete">Nincs %1 nap %2 hónapban.</translation>
     </message>
     <message>
         <source>Time 24:%1:%2.%3 is invalid. Hour is 24, but minutes, seconds, and milliseconds are not all 0; </source>
-        <translation>Az 24:%1:%2.%3 időpont érvénytelen, mert az óra értéke 24, de a többi érték nem 0; </translation>
+        <translation type="obsolete">Az 24:%1:%2.%3 időpont érvénytelen, mert az óra értéke 24, de a többi érték nem 0; </translation>
     </message>
     <message>
         <source>Time %1:%2:%3.%4 is invalid.</source>
-        <translation>Az %1:%2:%3.%4 időpont érvénytelen.</translation>
+        <translation type="obsolete">Az %1:%2:%3.%4 időpont érvénytelen.</translation>
     </message>
     <message>
         <source>Overflow: Date can&apos;t be represented.</source>
-        <translation>Túlcsordulás: A dátum nem reprezentálható.</translation>
+        <translation type="obsolete">Túlcsordulás: A dátum nem reprezentálható.</translation>
     </message>
     <message>
         <source>At least one component must be present.</source>
-        <translation>Legalább egy komponenst meg kell adni.</translation>
+        <translation type="obsolete">Legalább egy komponenst meg kell adni.</translation>
     </message>
     <message>
         <source>At least one time component must appear after the %1-delimiter.</source>
-        <translation>Legalább egy időkomponenst meg kell adni a(z) %1 elválasztó után.</translation>
+        <translation type="obsolete">Legalább egy időkomponenst meg kell adni a(z) %1 elválasztó után.</translation>
     </message>
     <message>
         <source>%1 is not a valid value of type %2.</source>
-        <translation>%1 nem érvényes %2 típusú érték.</translation>
+        <translation type="obsolete">%1 nem érvényes %2 típusú érték.</translation>
     </message>
     <message>
         <source>When casting to %1 from %2, the source value cannot be %3.</source>
-        <translation>Ha %2-t %1-re kényszerítünk, a kiinduló érték nem lehet %3.</translation>
+        <translation type="obsolete">Ha %2-t %1-re kényszerítünk, a kiinduló érték nem lehet %3.</translation>
     </message>
     <message>
         <source>Integer division (%1) by zero (%2) is undefined.</source>
-        <translation>A nullával (%2) való egészosztás (%1) nincs értelmezve.</translation>
+        <translation type="obsolete">A nullával (%2) való egészosztás (%1) nincs értelmezve.</translation>
     </message>
     <message>
         <source>Division (%1) by zero (%2) is undefined.</source>
-        <translation>A nullával (%2) való osztás (%1) nincs értelmezve.</translation>
+        <translation type="obsolete">A nullával (%2) való osztás (%1) nincs értelmezve.</translation>
     </message>
     <message>
         <source>Modulus division (%1) by zero (%2) is undefined.</source>
-        <translation>A nullával (%2) való maradékos osztás (%1) nincs értelmezve.</translation>
+        <translation type="obsolete">A nullával (%2) való maradékos osztás (%1) nincs értelmezve.</translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 (not-a-number) is not allowed.</source>
-        <translation>%1 típusú érték %2-vel osztása nem megengedett, mert az nem szám.</translation>
+        <translation type="obsolete">%1 típusú érték %2-vel osztása nem megengedett, mert az nem szám.</translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 or %3 (plus or minus zero) is not allowed.</source>
-        <translation>%1 típusú érték osztása %2 vagy %3 (pozitív vagy negatív nulla) értékkel nem megengedett.</translation>
+        <translation type="obsolete">%1 típusú érték osztása %2 vagy %3 (pozitív vagy negatív nulla) értékkel nem megengedett.</translation>
     </message>
     <message>
         <source>Multiplication of a value of type %1 by %2 or %3 (plus or minus infinity) is not allowed.</source>
-        <translation>%1 típusú érték szorzása %2 vagy %3 (pozitív vagy negatív végtelen) típusú értékkel nem megengedett.</translation>
+        <translation type="obsolete">%1 típusú érték szorzása %2 vagy %3 (pozitív vagy negatív végtelen) típusú értékkel nem megengedett.</translation>
     </message>
     <message>
         <source>A value of type %1 cannot have an Effective Boolean Value.</source>
-        <translation>%1 típusú érték nem kaphat effektív logikai értéket.</translation>
+        <translation type="obsolete">%1 típusú érték nem kaphat effektív logikai értéket.</translation>
     </message>
     <message>
         <source>Effective Boolean Value cannot be calculated for a sequence containing two or more atomic values.</source>
-        <translation>Effektív logikai érték nem számítható olyan sorozatra, melyben kettő vagy több atomi érték szerepel.</translation>
+        <translation type="obsolete">Effektív logikai érték nem számítható olyan sorozatra, melyben kettő vagy több atomi érték szerepel.</translation>
     </message>
     <message>
         <source>Value %1 of type %2 exceeds maximum (%3).</source>
-        <translation>A(z) %2 típusú %1 érték meghaladja a maximumot (%3).</translation>
+        <translation type="obsolete">A(z) %2 típusú %1 érték meghaladja a maximumot (%3).</translation>
     </message>
     <message>
         <source>Value %1 of type %2 is below minimum (%3).</source>
-        <translation>A(z) %2 típusú %1 érték kisebb, mint a minimum (%3).</translation>
+        <translation type="obsolete">A(z) %2 típusú %1 érték kisebb, mint a minimum (%3).</translation>
     </message>
     <message>
         <source>A value of type %1 must contain an even number of digits. The value %2 does not.</source>
-        <translation>%1 típusú értékben páros számú számjegynek kell szerepelnie. A(z) %2 érték nem megfelelő.</translation>
+        <translation type="obsolete">%1 típusú értékben páros számú számjegynek kell szerepelnie. A(z) %2 érték nem megfelelő.</translation>
     </message>
     <message>
         <source>%1 is not valid as a value of type %2.</source>
-        <translation>%1 nem érvényes %2 típusú érték.</translation>
+        <translation type="obsolete">%1 nem érvényes %2 típusú érték.</translation>
     </message>
     <message>
         <source>Operator %1 cannot be used on type %2.</source>
-        <translation>%1 operátor nem használható %2 típuson.</translation>
+        <translation type="obsolete">%1 operátor nem használható %2 típuson.</translation>
     </message>
     <message>
         <source>Operator %1 cannot be used on atomic values of type %2 and %3.</source>
-        <translation>%1 operátor nem használható %2 és %3 típusok atomi értékein.</translation>
+        <translation type="obsolete">%1 operátor nem használható %2 és %3 típusok atomi értékein.</translation>
     </message>
     <message>
         <source>The namespace URI in the name for a computed attribute cannot be %1.</source>
-        <translation>Egy számított attribútum nevében szereplő névtér URI-je nem lehet %1.</translation>
+        <translation type="obsolete">Egy számított attribútum nevében szereplő névtér URI-je nem lehet %1.</translation>
     </message>
     <message>
         <source>The name for a computed attribute cannot have the namespace URI %1 with the local name %2.</source>
-        <translation>Számított attribútum neve nem szerepelhet %1 névtér URI-ben  %2 lokális névvel.</translation>
+        <translation type="obsolete">Számított attribútum neve nem szerepelhet %1 névtér URI-ben  %2 lokális névvel.</translation>
     </message>
     <message>
         <source>Type error in cast, expected %1, received %2.</source>
-        <translation>Típushiba a kényszerítés során, várt %1, kapott %2.</translation>
+        <translation type="obsolete">Típushiba a kényszerítés során, várt %1, kapott %2.</translation>
     </message>
     <message>
         <source>When casting to %1 or types derived from it, the source value must be of the same type, or it must be a string literal. Type %2 is not allowed.</source>
-        <translation>%1 vagy belőle származó típusra való kényszerítéskor a kiindulási értéknek azonos típusúnak vagy sztring literálnak kell lennie. %2 típus nem megengedett.</translation>
+        <translation type="obsolete">%1 vagy belőle származó típusra való kényszerítéskor a kiindulási értéknek azonos típusúnak vagy sztring literálnak kell lennie. %2 típus nem megengedett.</translation>
     </message>
     <message>
         <source>A comment cannot contain %1</source>
-        <translation>Megjegyzésben nem szerepelhet %1</translation>
+        <translation type="obsolete">Megjegyzésben nem szerepelhet %1</translation>
     </message>
     <message>
         <source>A comment cannot end with a %1.</source>
-        <translation>Egy megjegyzés nem végződhet a következőre: %1.</translation>
+        <translation type="obsolete">Egy megjegyzés nem végződhet a következőre: %1.</translation>
     </message>
     <message>
         <source>An attribute node cannot be a child of a document node. Therefore, the attribute %1 is out of place.</source>
-        <translation>Attribútum csomópont nem lehet egy document csomópont gyermeke. Emiatt a(z) %1 attribútum nem ide való.</translation>
+        <translation type="obsolete">Attribútum csomópont nem lehet egy document csomópont gyermeke. Emiatt a(z) %1 attribútum nem ide való.</translation>
     </message>
     <message>
         <source>A library module cannot be evaluated directly. It must be imported from a main module.</source>
-        <translation>Egy könyvtár modult nem lehet közvetlenül kiértékelni. Mindenképp egy fő modulból kell importálni.</translation>
+        <translation type="obsolete">Egy könyvtár modult nem lehet közvetlenül kiértékelni. Mindenképp egy fő modulból kell importálni.</translation>
     </message>
     <message>
         <source>A value of type %1 cannot be a predicate. A predicate must have either a numeric type or an Effective Boolean Value type.</source>
-        <translation>Egy %1 típusú érték nem lehet predikátum. Egy predikátumnak szám vagy effektív logikai érték típusúnak kell lennie.</translation>
+        <translation type="obsolete">Egy %1 típusú érték nem lehet predikátum. Egy predikátumnak szám vagy effektív logikai érték típusúnak kell lennie.</translation>
     </message>
     <message>
         <source>A positional predicate must evaluate to a single numeric value.</source>
-        <translation>Egy pozicionális predikátumnak egyetlen numerikus értékké kell kiértékelődnie.</translation>
+        <translation type="obsolete">Egy pozicionális predikátumnak egyetlen numerikus értékké kell kiértékelődnie.</translation>
     </message>
     <message>
         <source>%1 is not a valid target name in a processing instruction. It must be a %2 value, e.g. %3.</source>
-        <translation>%1 érvénytelen célnév egy feldolgozási utasításban. Értéke %2 típusú kell legyen, mint pl. %3.</translation>
+        <translation type="obsolete">%1 érvénytelen célnév egy feldolgozási utasításban. Értéke %2 típusú kell legyen, mint pl. %3.</translation>
     </message>
     <message>
         <source>The last step in a path must contain either nodes or atomic values. It cannot be a mixture between the two.</source>
-        <translation>Egy útvonal utolsó lépésének vagy csomópontokat vagy atomi értékeket kell tartalmaznia. Nem lehet a kettő keveréke.</translation>
+        <translation type="obsolete">Egy útvonal utolsó lépésének vagy csomópontokat vagy atomi értékeket kell tartalmaznia. Nem lehet a kettő keveréke.</translation>
     </message>
     <message>
         <source>The data of a processing instruction cannot contain the string %1</source>
-        <translation>Egy feldolgozási utasítás adata nem tartalmazhatja %1 sztringet</translation>
+        <translation type="obsolete">Egy feldolgozási utasítás adata nem tartalmazhatja %1 sztringet</translation>
     </message>
     <message>
         <source>No namespace binding exists for the prefix %1</source>
-        <translation>Nincs névtér kötés a(z) %1 prefixumhoz</translation>
+        <translation type="obsolete">Nincs névtér kötés a(z) %1 prefixumhoz</translation>
     </message>
     <message>
         <source>No namespace binding exists for the prefix %1 in %2</source>
-        <translation>Nincs névtér kötés a(z) %1 prefixumhoz itt: %2</translation>
+        <translation type="obsolete">Nincs névtér kötés a(z) %1 prefixumhoz %2 helyen</translation>
     </message>
     <message>
         <source>%1 is an invalid %2</source>
-        <translation>%1 egy érvénytelen %2</translation>
+        <translation type="obsolete">%1 egy érvénytelen %2</translation>
     </message>
     <message numerus="yes">
         <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform>%1 maximum %n argumentumot fogad, így %2 érvénytelen.</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform>%1 legalább %n argumentumot fogad, így %2 érvénytelen.</numerusform>
         </translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2. It must be a numeric type, xs:yearMonthDuration or xs:dayTimeDuration.</source>
-        <translation>%1 első paramétere nem lehet %2 típusú. Csak numerikus típus, xs:yearMonthDuration vagy xs:dayTimeDuration lehet.</translation>
+        <translation type="obsolete">%1 első paramétere nem lehet %2 típusú. Csak numerikus típus, xs:yearMonthDuration vagy xs:dayTimeDuration lehet.</translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>%1 első argumentuma nem lehet %2 típusú. Csak %3, %4 vagy %5 megengedett.</translation>
+        <translation type="obsolete">%1 első argumentuma nem lehet %2 típusú. Csak %3, %4 vagy %5 megengedett.</translation>
     </message>
     <message>
         <source>The second argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>%1 második argumentuma nem lehet %2 típusú. Csak %3, %4 vagy %5 megengedett.</translation>
+        <translation type="obsolete">%1 második argumentuma nem lehet %2 típusú. Csak %3, %4 vagy %5 megengedett.</translation>
     </message>
     <message>
         <source>%1 is not a valid XML 1.0 character.</source>
-        <translation>%1 érvénytelen XML 1.0 karakter.</translation>
+        <translation type="obsolete">%1 érvénytelen XML 1.0 karakter.</translation>
     </message>
     <message>
         <source>If both values have zone offsets, they must have the same zone offset. %1 and %2 are not the same.</source>
-        <translation>Ha mindkét értékben zóna eltolás van, akkor annak azonosnak kell lennie. %1 és %2 nem egyezik.</translation>
+        <translation type="obsolete">Ha mindkét értékben zóna eltolás van, akkor annak azonosnak kell lennie. %1 és %2 nem egyezik.</translation>
     </message>
     <message>
         <source>%1 was called.</source>
-        <translation>%1 meghívva.</translation>
+        <translation type="obsolete">%1 meghívva.</translation>
     </message>
     <message>
         <source>%1 must be followed by %2 or %3, not at the end of the replacement string.</source>
-        <translation>%1-t %2 vagy %3 kell kövesse, nem a helyettesítő karakterlánc végén.</translation>
+        <translation type="obsolete">%1-t %2 vagy %3 kell kövesse, nem a helyettesítő karakterlánc végén.</translation>
     </message>
     <message>
         <source>In the replacement string, %1 must be followed by at least one digit when not escaped.</source>
-        <translation>A csereszövegben %1-t legalább egy számjegy kell kövesse, amennyiben az nincs escapelve.</translation>
+        <translation type="obsolete">A csereszövegben %1-t legalább egy számjegy kell kövesse, amennyiben az nincs escapelve.</translation>
     </message>
     <message>
         <source>In the replacement string, %1 can only be used to escape itself or %2, not %3</source>
-        <translation>A csereszövegben %1 csak önmaga vagy %2 escapelésére használható, %3-ra nem</translation>
+        <translation type="obsolete">A csereszövegben %1 csak önmaga vagy %2 escapelésére használható, %3-ra nem</translation>
     </message>
     <message>
         <source>%1 matches newline characters</source>
-        <translation>%1 illeszkedik az újsor karakterekre</translation>
+        <translation type="obsolete">%1 illeszkedik az újsor karakterekre</translation>
     </message>
     <message>
         <source>%1 and %2 match the start and end of a line.</source>
-        <translation>%1 és %2 a sor elejére és végére is illeszkedik.</translation>
+        <translation type="obsolete">%1 és %2 a sor elejére és végére is illeszkedik.</translation>
     </message>
     <message>
         <source>Matches are case insensitive</source>
-        <translation>Az illeszkedések nem nagybetű-érzékenyek</translation>
+        <translation type="obsolete">Az illeszkedések nem nagybetű-érzékenyek</translation>
     </message>
     <message>
         <source>Whitespace characters are removed, except when they appear in character classes</source>
-        <translation>A nem nyomtatható karakterek törlésre kerülnek, kivéve, ha karakter osztályokban szerepelnek</translation>
+        <translation type="obsolete">A nem nyomtatható karakterek törlésre kerülnek, kivétel, ha karakter osztályokban szerepelnek</translation>
     </message>
     <message>
         <source>%1 is an invalid regular expression pattern: %2</source>
-        <translation>%1 érvénytelen reguláris kifejezés minta: %2</translation>
+        <translation type="obsolete">%1 érvénytelen reguláris kifejezés minta: %2</translation>
     </message>
     <message>
         <source>%1 is an invalid flag for regular expressions. Valid flags are:</source>
-        <translation>%1 érvénytelen kapcsoló reguláris kifejezésekhez. Az érvényes kapcsolók:</translation>
+        <translation type="obsolete">%1 érvénytelen kapcsoló reguláris kifejezésekhez. Az érvényes kapcsolók:</translation>
     </message>
     <message>
         <source>If the first argument is the empty sequence or a zero-length string (no namespace), a prefix cannot be specified. Prefix %1 was specified.</source>
-        <translation>Ha az első argumentum az üres szekvencia vagy egy nulla hosszúságú sztring (névtér nélkül), akkor nem adható meg prefixum. %1 prefixum lett megadva.</translation>
+        <translation type="obsolete">Ha az első argumentum az üres szekvencia vagy egy nulla hosszúságú sztring (névtér nélkül), akkor nem adható meg prefixum. %1 prefixum lett megadva.</translation>
     </message>
     <message>
         <source>It will not be possible to retrieve %1.</source>
-        <translation>Nem lesz lehetséges %1 lekérése.</translation>
+        <translation type="obsolete">Nem lesz lehetséges %1 lekérése.</translation>
     </message>
     <message>
         <source>The root node of the second argument to function %1 must be a document node. %2 is not a document node.</source>
-        <translation>%1 függvény második argumentumának gyökér csomópontja document típusú kell legyen. %2 nem document csomópont.</translation>
+        <translation type="obsolete">%1 függvény második argumentumának gyökér csomópontja document típusú kell legyen. %2 nem document csomópont.</translation>
     </message>
     <message>
         <source>The default collection is undefined</source>
-        <translation>Nincs meghatározva az alapértelmezett kollekció</translation>
+        <translation type="obsolete">Nincs meghatározva az alapértelmezett kollekció</translation>
     </message>
     <message>
         <source>%1 cannot be retrieved</source>
-        <translation>%1-t nem lehet lekérni</translation>
+        <translation type="obsolete">%1-t nem lehet lekérni</translation>
     </message>
     <message>
         <source>The normalization form %1 is unsupported. The supported forms are %2, %3, %4, and %5, and none, i.e. the empty string (no normalization).</source>
-        <translation>%1 normalizáló formája nem támogatott. A támogatott formák %2, %3, %4 és %5 vagy semmi, pl. az üres sztring (normalizáció nélkül).</translation>
+        <translation type="obsolete">%1 normalizáló formája nem támogatott. A támogatott formák %2, %3, %4 és %5 vagy semmi, pl. az üres sztring (normalizáció nélkül).</translation>
     </message>
     <message>
         <source>A zone offset must be in the range %1..%2 inclusive. %3 is out of range.</source>
-        <translation>Egy zónaeltolásnak a(z) %1..%2 nyílt intervallumba kell esnie. %3 az értékhatáron kívül van.</translation>
+        <translation type="obsolete">Egy zónaeltolásnak a(z) %1..%2 nyílt intervallumba kell esnie. %3 az értékhatáron kívül van.</translation>
     </message>
     <message>
         <source>%1 is not a whole number of minutes.</source>
-        <translation>%1 nem egész számú perc.</translation>
+        <translation type="obsolete">%1 nem egész számú perc.</translation>
     </message>
     <message>
         <source>Required cardinality is %1; got cardinality %2.</source>
-        <translation>Az elvárt kardinalitás %1; azonban %2 lett megadva.</translation>
+        <translation type="obsolete">Az elvárt kardinalitás %1; azonban %2 lett megadva.</translation>
     </message>
     <message>
         <source>The item %1 did not match the required type %2.</source>
-        <translation>%1 elem nem egyezik a várt %2 típussal.</translation>
+        <translation type="obsolete">%1 elem nem egyezik a várt %2 típussal.</translation>
     </message>
     <message>
         <source>%1 is an unknown schema type.</source>
-        <translation>%1 ismeretlen séma típus.</translation>
+        <translation type="obsolete">%1 ismeretlen séma típus.</translation>
     </message>
     <message>
         <source>Only one %1 declaration can occur in the query prolog.</source>
-        <translation>Csak egy %1 deklaráció szerepelhet a lekérdezés bevezetésben.</translation>
+        <translation type="obsolete">Csak egy %1 deklaráció szerepelhet a lekérdezés bevezetésben.</translation>
     </message>
     <message>
         <source>The initialization of variable %1 depends on itself</source>
-        <translation>%1 változó inicializálása önmagától függ</translation>
+        <translation type="obsolete">%1 változó inicializálása önmagától függ</translation>
     </message>
     <message>
         <source>The variable %1 is unused</source>
-        <translation>A(z) %1 változó nincs használva</translation>
+        <translation type="obsolete">A(z) %1 változó nincs használva</translation>
     </message>
     <message>
         <source>Version %1 is not supported. The supported XQuery version is 1.0.</source>
-        <translation>A(z) %1 verzió nem támogatott. A támogatott XQuery verzió 1.0.</translation>
+        <translation type="obsolete">A(z) %1 verzió nem támogatott. A támogatott XQuery verzió 1.0.</translation>
     </message>
     <message>
         <source>The encoding %1 is invalid. It must contain Latin characters only, must not contain whitespace, and must match the regular expression %2.</source>
-        <translation>%1 kódolás érvénytelen. Csak Latin karaktereket tartalmazhat, nem nyomtatható karakterek nélkül, és illeszkednie kell %2 reguláris kifejezésre.</translation>
+        <translation type="obsolete">%1 kódolás érvénytelen. Csak Latin karaktereket tartalmazhat, nem nyomtatható karakterek nélkül, és illeszkednie kell %2 reguláris kifejezésre.</translation>
     </message>
     <message>
         <source>No function with signature %1 is available</source>
-        <translation>%1 szignaturájú függvény nem található</translation>
+        <translation type="obsolete">%1 szignaturájú függvény nem található</translation>
     </message>
     <message>
         <source>A default namespace declaration must occur before function, variable, and option declarations.</source>
-        <translation>Egy alapértelmezett névtér deklarációnak meg kell előznie a függvény-, változó- és opció deklarációkat.</translation>
+        <translation type="obsolete">Egy alapértelmezett névtér deklarációnak meg kell előznie a függvény-, változó- és opció deklarációkat.</translation>
     </message>
     <message>
         <source>Namespace declarations must occur before function, variable, and option declarations.</source>
-        <translation>A névtér deklarációknak meg kell előzniük a függvény-, változó- és opció deklarációkat.</translation>
+        <translation type="obsolete">A névtér deklarációknak meg kell előzniük a függvény-, változó- és opció deklarációkat.</translation>
     </message>
     <message>
         <source>Module imports must occur before function, variable, and option declarations.</source>
-        <translation>Modul importoknak meg kell előzniük a függvény-, változó- és opció deklarációkat.</translation>
+        <translation type="obsolete">Modul importoknak meg kell előzniük a függvény-, változó- és opció deklarációkat.</translation>
     </message>
     <message>
         <source>It is not possible to redeclare prefix %1.</source>
-        <translation>%1 prefixum újradeklarálása nem lehetséges.</translation>
+        <translation type="obsolete">%1 prefixum újradeklarálása nem lehetséges.</translation>
     </message>
     <message>
         <source>Prefix %1 is already declared in the prolog.</source>
-        <translation>%1 prefixum már deklarálva van a bevezetésben.</translation>
+        <translation type="obsolete">%1 prefixum már deklarálva van a bevezetésben.</translation>
     </message>
     <message>
         <source>The name of an option must have a prefix. There is no default namespace for options.</source>
-        <translation>Egy opció nevének kötelező prefixumot megadni. Nics alapértelmezett névetér az opciók számára.</translation>
+        <translation type="obsolete">Egy opció nevének kötelező prefixumot megadni. Nics alapértelmezett névetér az opciók számára.</translation>
     </message>
     <message>
         <source>The Schema Import feature is not supported, and therefore %1 declarations cannot occur.</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">A Schema Import szolgáltatás nem támogatott, így %1 deklarációk nem fogadhatók el.</translation>
     </message>
     <message>
         <source>The target namespace of a %1 cannot be empty.</source>
-        <translation>Egy %1 cél-névtere nem lehet üres.</translation>
+        <translation type="obsolete">Egy %1 cél-névtere nem lehet üres.</translation>
     </message>
     <message>
         <source>The module import feature is not supported</source>
-        <translation>A modul import szolgáltatás nem támogatott</translation>
+        <translation type="obsolete">A modul import szolgáltatás nem támogatott</translation>
     </message>
     <message>
         <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation>Egy felhasználói függvény névtere nem lehet üres (próbálja meg a(z) %1 prefixumot, ami ilyen esetekre van fenntartva)</translation>
+        <translation type="obsolete">Egy felhasználói függvény névtere nem lehet üres (próbálja meg a(z) %1 prefixumot, ami ilyen esetekre van fenntartva)</translation>
     </message>
     <message>
         <source>The namespace %1 is reserved; therefore user defined functions may not use it. Try the predefined prefix %2, which exists for these cases.</source>
-        <translation>A(z) %1 névtér fenntartott, így felhasználói függvények nem használhatják. Próbálja meg a(z) %2 prefixumot, ami ilyen esetekre van.</translation>
+        <translation type="obsolete">A(z) %1 névtér fenntartott, így felhasználói függvények nem használhatják. Próbálja meg a(z) %2 prefixumot, ami ilyen esetekre van.</translation>
     </message>
     <message>
         <source>The namespace of a user defined function in a library module must be equivalent to the module namespace. In other words, it should be %1 instead of %2</source>
-        <translation>Egy függvénytár modulban definiált felhasználói függvény névtere meg kell egyezzen a modul névterével. Más szóval %1 kellene legyen %2 helyett</translation>
+        <translation type="obsolete">Egy függvénytár modulban definiált felhasználói függvény névtere meg kell egyezzen a modul névterével. Más szóval %1 kellene legyen %2 helyett</translation>
     </message>
     <message>
         <source>A function already exists with the signature %1.</source>
-        <translation>%1 szignaturájú függvény már létezik.</translation>
+        <translation type="obsolete">%1 szignaturájú függvény már létezik.</translation>
     </message>
     <message>
         <source>No external functions are supported. All supported functions can be used directly, without first declaring them as external</source>
-        <translation>Külső függvények nem támogatottak. Minden támogatott függvény használható, külső függvényként való deklarálás nélkül</translation>
+        <translation type="obsolete">Külső függvények nem támogatottak. Minden támogatott függvény használható, külső függvényként való deklarálás nélkül</translation>
     </message>
     <message>
         <source>The name of a variable bound in a for-expression must be different from the positional variable. Hence, the two variables named %1 collide.</source>
-        <translation>Egy for-kifejezésben kötött változó nevének különbözőnek kell lennie, mint a pozicionális változó neve. Így a két %1 nevű változó ütközik.</translation>
+        <translation type="obsolete">Egy for-kifejezésben kötött változó nevének különbözőnek kell lennie, mint a pozicionális változó neve. Így a két %1 nevű változó ütközik.</translation>
     </message>
     <message>
         <source>The Schema Validation Feature is not supported. Hence, %1-expressions may not be used.</source>
-        <translation>A Schema Validation szolgáltatás nem támogatott. Emiatt %1-kifejezések nem használhatók.</translation>
+        <translation type="obsolete">A Schema Validation szolgáltatás nem támogatott. Ennélfogva %1-kifejezések nem használhatók.</translation>
     </message>
     <message>
         <source>None of the pragma expressions are supported. Therefore, a fallback expression must be present</source>
-        <translation>A pragma kifejezések egyike sem támogatott. Ezért léteznie kell egy alapértelmezett kifejezésnek</translation>
+        <translation type="obsolete">Pragma kifejezések egyike sem támogatott. Ennélfogva léteznie kell egy alapértelmezett kifejezésnek</translation>
     </message>
     <message>
         <source>The %1-axis is unsupported in XQuery</source>
-        <translation>A(z) %1-tengely nem támogatott XQuery-ben</translation>
+        <translation type="obsolete">A(z) %1-tengely nem támogatott XQuery-ben</translation>
     </message>
     <message>
         <source>%1 is not a valid numeric literal.</source>
-        <translation>%1 érvénytelen numerikus literál.</translation>
+        <translation type="obsolete">%1 érvénytelen numerikus literál.</translation>
     </message>
     <message>
         <source>No function by name %1 is available.</source>
-        <translation>Nincs %1 nevű függvény.</translation>
+        <translation type="vanished">Nincs %1 nevű függvény.</translation>
     </message>
     <message>
         <source>The namespace URI cannot be the empty string when binding to a prefix, %1.</source>
-        <translation>Prefixumhoz kötés esetén a névtér URI nem lehet az üres sztring, %1.</translation>
+        <translation type="obsolete">Prefixumhoz kötés esetén a névtér URI nem lehet az üres sztring, %1.</translation>
     </message>
     <message>
         <source>%1 is an invalid namespace URI.</source>
-        <translation>%1 egy érvénytelen névtér URI.</translation>
+        <translation type="obsolete">%1 érvénytelen névtér URI.</translation>
     </message>
     <message>
         <source>It is not possible to bind to the prefix %1</source>
-        <translation>Nem lehet kötni %1 prefixumhoz</translation>
+        <translation type="obsolete">Nem lehet kötni %1 prefixumhoz</translation>
     </message>
     <message>
         <source>Namespace %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation>%1 névtér csak %2-hoz köthető (és minden esetben előre deklarált).</translation>
+        <translation type="obsolete">%1 névtér csak %2-hoz köthető (és minden esetben előre deklarált).</translation>
     </message>
     <message>
         <source>Prefix %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation>%1 prefixum csak %2-hoz köthető (és minden esetben előre deklarált).</translation>
+        <translation type="obsolete">%1 prefixum csak %2-hoz köthető (és minden esetben előre deklarált).</translation>
     </message>
     <message>
         <source>Two namespace declaration attributes have the same name: %1.</source>
-        <translation>Két névtér-deklaráció attribútum neve azonos: %1.</translation>
+        <translation type="obsolete">Két névtér-deklaráció attribútum neve azonos: %1.</translation>
     </message>
     <message>
         <source>The namespace URI must be a constant and cannot use enclosed expressions.</source>
-        <translation>Egy névtér URI-nek konstansnak kell lennie és nem használhat bennfoglalt kifejezéseket.</translation>
+        <translation type="obsolete">Egy névtér URI-nek konstansnak kell lennie és nem használhat bennfoglalt kifejezéseket.</translation>
     </message>
     <message>
         <source>A direct element constructor is not well-formed. %1 is ended with %2.</source>
-        <translation>Egy közvetlen elem konstruktor nem jól formázott. %1-t %2 zárja le.</translation>
+        <translation type="obsolete">Egy közvetlen elem konstruktor nem jól formázott. %1-t %2 zárja le.</translation>
     </message>
     <message>
         <source>The name %1 does not refer to any schema type.</source>
-        <translation>A(z) %1 név nem mutat semmilyen séma típusra.</translation>
+        <translation type="obsolete">A(z) %1 név nem mutat semmilyen séma típusra.</translation>
     </message>
     <message>
         <source>%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</source>
-        <translation>%1 komplex típus. Komplex típusra való kényszerítés nem lehetséges. Azonban atomi típusokra, mint pl. %2 történő kényszerítés igen.</translation>
+        <translation type="obsolete">%1 komplex típus. Komplex típusra való kényszerítés nem lehetséges. Azonban atomi típusokra, mint pl. %2 történő kényszerítés igen.</translation>
     </message>
     <message>
         <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
-        <translation>%1 nem atomi típus. Típuskényszerítés csak atomi típusra történhet.</translation>
+        <translation type="obsolete">%1 nem atomi típus. Típuskényszerítés csak atomi típusra történhet.</translation>
     </message>
     <message>
         <source>%1 is not in the in-scope attribute declarations. Note that the schema import feature is not supported.</source>
-        <translation>%1 nem a láthatóságon belüli attribútum deklarációk között van. A séma import szolgáltatás nem támogatott.</translation>
+        <translation type="obsolete">%1 nem a láthatóságon belüli attribútum deklarációk között van. A séma import szolgáltatás nem támogatott.</translation>
     </message>
     <message>
         <source>The name of an extension expression must be in a namespace.</source>
-        <translation>Egy kiterjesztés kifejezés nevének névtérben kell lennie.</translation>
+        <translation type="obsolete">Egy kiterjesztés kifejezés nevének névtérben kell lennie.</translation>
     </message>
     <message>
         <source>empty</source>
-        <translation>üres</translation>
+        <translation type="obsolete">üres</translation>
     </message>
     <message>
         <source>zero or one</source>
-        <translation>nulla vagy egy</translation>
+        <translation type="obsolete">nulla vagy egy</translation>
     </message>
     <message>
         <source>exactly one</source>
-        <translation>pontosan egy</translation>
+        <translation type="obsolete">pontosan egy</translation>
     </message>
     <message>
         <source>one or more</source>
-        <translation>egy vagy több</translation>
+        <translation type="obsolete">egy vagy több</translation>
     </message>
     <message>
         <source>zero or more</source>
-        <translation>nulla vagy több</translation>
+        <translation type="obsolete">nulla vagy több</translation>
     </message>
     <message>
         <source>Required type is %1, but %2 was found.</source>
-        <translation>Az elvárt típus %1, de a kapott %2.</translation>
+        <translation type="obsolete">Az elvárt típus %1, de a kapott %2.</translation>
     </message>
     <message>
         <source>Promoting %1 to %2 may cause loss of precision.</source>
-        <translation>%1 átalakítása %2 típusra a pontosság elvesztését okozhatja.</translation>
+        <translation type="obsolete">%1 átalakítása %2 típusra a pontosság elvesztését okozhatja.</translation>
     </message>
     <message>
         <source>The focus is undefined.</source>
-        <translation>A fókusz nincs definiálva.</translation>
+        <translation type="obsolete">A fókusz nincs definiálva.</translation>
     </message>
     <message>
         <source>It&apos;s not possible to add attributes after any other kind of node.</source>
-        <translation>Semmilyen más csomópont után nem adható meg attribútum.</translation>
+        <translation type="obsolete">Semmilyen más csomópont után nem adható meg attribútum.</translation>
     </message>
     <message>
         <source>An attribute by name %1 has already been created.</source>
-        <translation>%1 nevű attribútum már létre van hozva.</translation>
+        <translation type="obsolete">%1 nevű attribútum már létre van hozva.</translation>
     </message>
     <message>
         <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
-        <translation>Csak a Unicode Codepoint Collation támogatott(%1). %2 nem támogatott.</translation>
+        <translation type="obsolete">Csak a Unicode Codepoint Collation támogatott(%1). %2 nem támogatott.</translation>
     </message>
     <message>
         <source>%1 is an unsupported encoding.</source>
@@ -13325,66 +13328,66 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>VolumeSlider</name>
     <message>
         <source>Muted</source>
-        <translation>Elnémítva</translation>
+        <translation type="obsolete">Elnémítva</translation>
     </message>
     <message>
         <source>Volume: %1%</source>
-        <translation>Hangerő: %1%</translation>
+        <translation type="obsolete">Hangerő: %1%</translation>
     </message>
 </context>
 <context>
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Görgetés ide</translation>
+        <translation type="obsolete">Görgetés ide</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Bal szélre</translation>
+        <translation type="obsolete">Bal szélre</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>Felülre</translation>
+        <translation type="obsolete">Felülre</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Jobb szélre</translation>
+        <translation type="obsolete">Jobb szélre</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>Alulra</translation>
+        <translation type="obsolete">Alulra</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Egy oldalt balra</translation>
+        <translation type="obsolete">Egy oldalt balra</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Egy oldalt fel</translation>
+        <translation type="obsolete">Egy oldalt felfelé</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Egy oldalt jobbra</translation>
+        <translation type="obsolete">Egy oldalt jobbra</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Egy oldalt le</translation>
+        <translation type="obsolete">Egy oldalt lefelé</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Görgetés balra</translation>
+        <translation type="obsolete">Görgetés balra</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Görgetés felfelé</translation>
+        <translation type="obsolete">Görgetés felfelé</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Görgetés jobbra</translation>
+        <translation type="obsolete">Görgetés jobbra</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Görgetés lefelé</translation>
+        <translation type="obsolete">Görgetés lefelé</translation>
     </message>
 </context>
 <context>

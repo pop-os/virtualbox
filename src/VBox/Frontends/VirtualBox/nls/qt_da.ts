@@ -5,15 +5,15 @@
     <name>AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;Lydenheden &lt;b&gt;%1&lt;/b&gt; virker ikke.&lt;br/&gt;Prøver &lt;b&gt;%2&lt;/b&gt; i stedet.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;Audio-playback-enheden&lt;b&gt;%1&lt;/b&gt; virker ikke.&lt;br/&gt;Falder tilbage til &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;Skifter til audio-playback-enheden, &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;der lige er blevet tilgængelig og har en højere præference.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;Skifter til audio-playback-enheden, &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;der lige er blevet tilgængelig og har en højere præference.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Revert back to device &apos;%1&apos;</source>
-        <translation>Gå tilbage til enheden &apos;%1&apos;</translation>
+        <translation type="vanished">Gå tilbage til enheden &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -58,23 +58,23 @@
     <name>Phonon::</name>
     <message>
         <source>Notifications</source>
-        <translation>Meddelelser</translation>
+        <translation type="vanished">Meddelelser</translation>
     </message>
     <message>
         <source>Music</source>
-        <translation>Musik</translation>
+        <translation type="vanished">Musik</translation>
     </message>
     <message>
         <source>Communication</source>
-        <translation>Kommunikation</translation>
+        <translation type="vanished">Kommunikation</translation>
     </message>
     <message>
         <source>Games</source>
-        <translation>Spil</translation>
+        <translation type="vanished">Spil</translation>
     </message>
     <message>
         <source>Accessibility</source>
-        <translation>Tilgængelighed</translation>
+        <translation type="vanished">Tilgængelighed</translation>
     </message>
     <message>
         <source>Video</source>
@@ -86,14 +86,14 @@
     <message>
         <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
           Some video features have been disabled.</source>
-        <translation>Advarsel: Det ser ikke ud til, at gstreamer0.10-plugins-good pakken er installeret.
-Nogle videofunktioner er deaktiveret.</translation>
+        <translation type="vanished">Advarsel: Det ser ikke ud til, at gstreamer0.10-plugins-good pakken er installeret.
+	Nogle videofunktioner er deaktiveret.</translation>
     </message>
     <message>
         <source>Warning: You do not seem to have the base GStreamer plugins installed.
           All audio and video support has been disabled</source>
-        <translation>Advarsel: Det ser ikke ud til, at base GStreamer plugins er installeret.
-Al audio- og videosupport er deaktiveret</translation>
+        <translation type="vanished">Advarsel: Det ser ikke ud til, at base GStreamer plugins er installeret.
+	Al audio- og videosupport er deaktiveret</translation>
     </message>
 </context>
 <context>
@@ -103,44 +103,41 @@ Al audio- og videosupport er deaktiveret</translation>
 
 Check your Gstreamer installation and make sure you 
 have libgstreamer-plugins-base installed.</source>
-        <translation>Kan ikke starte playback.
+        <translation type="vanished">Kan ikke starte playback.
 
 Tjek Gstreamer-installationen og kontrollér, at 
 libgstreamer-plugins-base er installeret.</translation>
     </message>
-    <message numerus="yes">
+    <message>
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
-        <translation>
-            <numerusform>Der mangler et codec. Følgende codec skal installeres for at afspille dette indhold: %0</numerusform>
-            <numerusform>Der mangler flere codecs. Følgende codecs skal installeres for at afspille dette indhold: %0</numerusform>
-        </translation>
+        <translation type="vanished">Der mangler et codec. Følgende codecs skal installeres for at afspille dette indhold: %0</translation>
     </message>
     <message>
         <source>Could not open media source.</source>
-        <translation>Kunne ikke åbne mediekilden.</translation>
+        <translation type="vanished">Kunne ikke åbne mediekilden.</translation>
     </message>
     <message>
         <source>Invalid source type.</source>
-        <translation>Ugyldig kilde.</translation>
+        <translation type="vanished">Ugyldig kilde.</translation>
     </message>
     <message>
         <source>Could not locate media source.</source>
-        <translation>Kunne ikke lokalisere mediekilden.</translation>
+        <translation type="vanished">Kunne ikke lokalisere mediekilden.</translation>
     </message>
     <message>
         <source>Could not open audio device. The device is already in use.</source>
-        <translation>Kunne ikke åbne lydenheden. Enheden er allerede i brug.</translation>
+        <translation type="vanished">Kunne ikke åbne lydenheden. Enheden er allerede i brug.</translation>
     </message>
     <message>
         <source>Could not decode media source.</source>
-        <translation>Kunne ikke afkode mediekilden.</translation>
+        <translation type="vanished">Kunne ikke afkode mediekilden.</translation>
     </message>
 </context>
 <context>
     <name>Phonon::VolumeSlider</name>
     <message>
         <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
-        <translation>Anvend denne skyder til at indstille lydstyrken. Længst til venstre er 0% og længst til højre er %1%</translation>
+        <translation type="vanished">Anvend denne skyder til at indstille lydstyrken. Længst til venstre er 0% og længst til højre er %1%</translation>
     </message>
     <message>
         <source>Volume: %1%</source>
@@ -151,271 +148,271 @@ libgstreamer-plugins-base er installeret.</translation>
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 ikke definerede</translation>
+        <translation type="vanished">%1, %2 ikke definerede</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>Tvetydig %1 ikke behandlet</translation>
+        <translation type="vanished">Tvetydig %1 ikke behandlet</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Sandt</translation>
+        <translation type="vanished">Sandt</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Falsk</translation>
+        <translation type="vanished">Falsk</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Indsæt</translation>
+        <translation type="vanished">Indsæt</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Opdater</translation>
+        <translation type="vanished">Opdater</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Slet</translation>
+        <translation type="vanished">Slet</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Kopiér eller flyt en fil</translation>
+        <translation type="vanished">Kopiér eller flyt en fil</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Læs: %1</translation>
+        <translation type="vanished">Læs: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Skriv: %1</translation>
+        <translation type="vanished">Skriv: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annuller</translation>
+        <translation type="vanished">Annuller</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Alle filer (*)</translation>
+        <translation type="vanished">Alle filer (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Navn</translation>
+        <translation type="vanished">Navn</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Størrelse</translation>
+        <translation type="vanished">Størrelse</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Dato</translation>
+        <translation type="vanished">Dato</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Attributter</translation>
+        <translation type="vanished">Attributter</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="vanished">&amp;OK</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Kig &amp;i:</translation>
+        <translation type="vanished">Kig &amp;i:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Fil&amp;navn:</translation>
+        <translation type="vanished">Fil&amp;navn:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>Fil&amp;type:</translation>
+        <translation type="vanished">Fil&amp;type:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Tilbage</translation>
+        <translation type="vanished">Tilbage</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>En mappe op</translation>
+        <translation type="vanished">En mappe op</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Opret ny folder</translation>
+        <translation type="vanished">Opret ny folder</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Listevisning</translation>
+        <translation type="vanished">Listevisning</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Detaljevisning</translation>
+        <translation type="vanished">Detaljevisning</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>Vis filinformation</translation>
+        <translation type="vanished">Vis filinformation</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>Vis filindhold</translation>
+        <translation type="vanished">Vis filindhold</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Læs-skriv</translation>
+        <translation type="vanished">Læs-skriv</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Skrivebeskyttet</translation>
+        <translation type="vanished">Skrivebeskyttet</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Kun skrivning</translation>
+        <translation type="vanished">Write-only</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Utilgængelig</translation>
+        <translation type="vanished">Utilgængelig</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Symbolsk lænke til fil</translation>
+        <translation type="vanished">Symlink til Fil</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Symbolsk lænke til katalog</translation>
+        <translation type="vanished">Symlink til katalog</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Symbolsk lænke til specialfil</translation>
+        <translation type="vanished">Symlink til Speciel</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Fil</translation>
+        <translation type="vanished">Fil</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Katalog</translation>
+        <translation type="vanished">Katalog</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Specialfil</translation>
+        <translation type="vanished">Speciel</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Åbn</translation>
+        <translation type="vanished">Åbn</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Gem som</translation>
+        <translation type="vanished">Gem som</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Åbn</translation>
+        <translation type="vanished">&amp;Åbn</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Gem</translation>
+        <translation type="vanished">&amp;Gem</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Omdøb</translation>
+        <translation type="vanished">&amp;Omdøb</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Slet</translation>
+        <translation type="vanished">&amp;Slet</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>G&amp;enindlæs</translation>
+        <translation type="vanished">Gen&amp;indlæs</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Sortér efter &amp;navn</translation>
+        <translation type="vanished">Sortér efter n&amp;avn</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Sortér efter &amp;størrelse</translation>
+        <translation type="vanished">Sortér efter s&amp;tørrelse</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Sortér efter &amp;dato</translation>
+        <translation type="vanished">Sortér efter &amp;dato</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Usorteret</translation>
+        <translation type="vanished">&amp;Usorteret</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Sortér</translation>
+        <translation type="vanished">Sortér</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Vis s&amp;kjulte filer</translation>
+        <translation type="vanished">Vis s&amp;kjulte filer</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>filen</translation>
+        <translation type="vanished">filen</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>kataloget</translation>
+        <translation type="vanished">kataloget</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>den symbolske lænke</translation>
+        <translation type="vanished">symlinket</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>Slet %1</translation>
+        <translation type="vanished">Slet %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Er du sikker på, at du vil slette %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Er du sikker på, at du vil slette %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Ja</translation>
+        <translation type="vanished">&amp;Ja</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Nej</translation>
+        <translation type="vanished">&amp;Nej</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Ny mappe 1</translation>
+        <translation type="vanished">Ny folder 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Ny mappe</translation>
+        <translation type="vanished">Ny folder</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Ny mappe %1</translation>
+        <translation type="vanished">Ny folder %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Find katalog</translation>
+        <translation type="vanished">Find katalog</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Kataloger</translation>
+        <translation type="vanished">Kataloger</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Katalog:</translation>
+        <translation type="vanished">Katalog:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Fejl</translation>
+        <translation type="vanished">Fejl</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
+        <translation type="vanished">%1
 Filen blev ikke fundet.
 Kontrollér sti og filnavn.</translation>
     </message>
@@ -441,19 +438,19 @@ Kontrollér sti og filnavn.</translation>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Kunne ikke læse katalog
+        <translation type="vanished">Kunne ikke læse katalog
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Kunne ikke oprette katalog
+        <translation type="vanished">Kunne ikke oprette katalog
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Kunne ikke fjerne fil eller katalog
+        <translation type="vanished">Kunne ikke fjerne fil eller katalog
 %1</translation>
     </message>
     <message>
@@ -461,21 +458,21 @@ Kontrollér sti og filnavn.</translation>
 %1
 to
 %2</source>
-        <translation>Kunne ikke omdøbe
+        <translation type="vanished">Kunne ikke omdøbe
 %1
-til
+to
 %2</translation>
     </message>
     <message>
         <source>Could not open
 %1</source>
-        <translation>Kunne ikke åbne
+        <translation type="vanished">Kunne ikke åbne
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Kunne ikke skrive
+        <translation type="vanished">Kunne ikke skrive
 %1</translation>
     </message>
 </context>
@@ -483,44 +480,44 @@ til
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>Linie op</translation>
+        <translation type="vanished">Linie op</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>Tilpas...</translation>
+        <translation type="vanished">Tilpas...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>Brugeren stoppede handlingen</translation>
+        <translation type="vanished">Brugeren stoppede handlingen</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Annuller</translation>
+        <translation type="vanished">Annuller</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>Apply</source>
-        <translation>Udfør</translation>
+        <translation type="vanished">Udfør</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Hjælp</translation>
+        <translation type="vanished">Hjælp</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Standarder</translation>
+        <translation type="vanished">Standarder</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annuller</translation>
+        <translation type="vanished">Annuller</translation>
     </message>
     <message>
         <source>OK</source>
@@ -531,78 +528,78 @@ til
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Fortryd</translation>
+        <translation type="vanished">&amp;Fortryd</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Gendan</translation>
+        <translation type="vanished">&amp;Gendan</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Klip</translation>
+        <translation type="vanished">&amp;Klip</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>K&amp;opiér</translation>
+        <translation type="vanished">K&amp;opiér</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Sæt ind</translation>
+        <translation type="vanished">&amp;Sæt ind</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Ryd</translation>
+        <translation type="vanished">Ryd</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Markér alt</translation>
+        <translation type="vanished">Markér alt</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>Restore up</source>
-        <translation>Gendan op</translation>
+        <translation type="vanished">Gendan op</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimer</translation>
+        <translation type="vanished">Minimer</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Gendan ned</translation>
+        <translation type="vanished">Gendan ned</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Maksimér</translation>
+        <translation type="vanished">Maksimér</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation type="vanished">Luk</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Indeholder kommandoer til indstilling af vinduet</translation>
+        <translation type="vanished">Indeholder kommandoer til indstilling af vinduet</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>Sætter et minimeret vindue til normal størrelse</translation>
+        <translation type="vanished">Sætter et minimeret vindue til normal størrelse</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>Flytter vinduet væk</translation>
+        <translation type="vanished">Flytter vinduet væk</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Sætter et maksimeret vindue til normal størrelse</translation>
+        <translation type="vanished">Sætter et maksimeret vindue til normal størrelse</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Gør vinduet til fuld skærm</translation>
+        <translation type="vanished">Gør vinduet til fuld skærm</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Lukker vinduet</translation>
+        <translation type="vanished">Lukker vinduet</translation>
     </message>
     <message>
         <source>Displays the name of the window and contains controls to manipulate it</source>
@@ -610,7 +607,7 @@ til
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Viser vinduets navn og indeholder kontroller til indstilling af vinduet</translation>
+        <translation type="vanished">Viser vinduets navn og indeholder kontroller til indstilling af vinduet</translation>
     </message>
     <message>
         <source>System</source>
@@ -621,69 +618,69 @@ til
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Mere...</translation>
+        <translation type="vanished">Mere...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>Protokollen &apos;%1&apos; understøttes ikke</translation>
+        <translation type="vanished">Protokollen &apos;%1&apos; understøttes ikke</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>Protokollen &apos;%1&apos; understøtter ikke opremsning af kataloger</translation>
+        <translation type="vanished">Protokollen &apos;%1&apos; understøtter ikke opremsning af kataloger</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Protokollen &apos;%1&apos; understøtter ikke oprettelse af nye kataloger</translation>
+        <translation type="vanished">Protokollen &apos;%1&apos; understøtter ikke oprettelse af nye kataloger</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Protokollen &apos;%1&apos; understøtter ikke, at filer eller kataloger fjernes</translation>
+        <translation type="vanished">Protokollen &apos;%1&apos; understøtter ikke, at filer eller kataloger fjernes</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Protokollen &apos;%1&apos; understøtter ikke, at filer eller kataloger omdøbes</translation>
+        <translation type="vanished">Protokollen &apos;%1&apos; understøtter ikke, at filer eller kataloger omdøbes</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>Protokollen &apos;%1&apos; understøtter ikke hentning af filer</translation>
+        <translation type="vanished">Protokollen &apos;%1&apos; understøtter ikke hentning af filer</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>Protokollen &apos;%1&apos; understøtter ikke upload af filer</translation>
+        <translation type="vanished">Protokollen &apos;%1&apos; understøtter ikke upload af filer</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Protokollen &apos;%1&apos; understøtter ikke kopiering eller flytning af filer eller kataloger</translation>
+        <translation type="vanished">Protokollen &apos;%1&apos; understøtter ikke kopiering eller flytning af filer eller kataloger</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(ukendt)</translation>
+        <translation type="vanished">(ukendt)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Annuller</translation>
+        <translation type="vanished">&amp;Annuller</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; Til&amp;bage</translation>
+        <translation type="vanished">&lt; &amp;Tilbage</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Næste &gt;</translation>
+        <translation type="vanished">&amp;Næste &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>Ud&amp;før</translation>
+        <translation type="vanished">&amp;Udfør</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Hjælp</translation>
+        <translation type="vanished">&amp;Hjælp</translation>
     </message>
 </context>
 <context>
@@ -694,7 +691,7 @@ til
     </message>
     <message>
         <source>Host not found</source>
-        <translation>Vært blev ikke fundet</translation>
+        <translation>Host blev ikke fundet</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -706,11 +703,11 @@ til
     </message>
     <message>
         <source>Socket operation timed out</source>
-        <translation>Tidsfrist for sokkel-operation udløbet</translation>
+        <translation>Socket-operation timed out</translation>
     </message>
     <message>
         <source>Socket is not connected</source>
-        <translation>Sokkel ikke forbundet</translation>
+        <translation>Socket ikke forbundet</translation>
     </message>
     <message>
         <source>Network unreachable</source>
@@ -858,7 +855,7 @@ til
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Aktivér</translation>
+        <translation type="vanished">Aktivér</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -866,16 +863,16 @@ til
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation>Fejl: Inkompatibelt Qt bibliotek</translation>
+        <translation>Inkompatibel Qt Library fejl</translation>
     </message>
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Aktiverer programmets hovedvindue</translation>
+        <translation type="vanished">Aktiverer programmets hovedvindue</translation>
     </message>
 </context>
 <context>
@@ -897,15 +894,15 @@ til
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Fjern markering</translation>
+        <translation type="vanished">Fjern markering</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Markér</translation>
+        <translation type="vanished">Kryds af</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Skift om</translation>
+        <translation type="vanished">Slå til/fra</translation>
     </message>
 </context>
 <context>
@@ -978,11 +975,11 @@ til
     </message>
     <message>
         <source>&amp;Sat:</source>
-        <translation>&amp;Mætning:</translation>
+        <translation>&amp;Mæt:</translation>
     </message>
     <message>
         <source>&amp;Val:</source>
-        <translation>&amp;Værdi:</translation>
+        <translation>&amp;Vær:</translation>
     </message>
     <message>
         <source>&amp;Red:</source>
@@ -1014,11 +1011,11 @@ til
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
-        <translation>Føj til egne f&amp;arver</translation>
+        <translation>&amp;Føj til egne farver</translation>
     </message>
     <message>
         <source>Select color</source>
-        <translation>Vælg farve</translation>
+        <translation type="vanished">Vælg farve</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -1038,7 +1035,7 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Åbn</translation>
+        <translation type="vanished">Åbn</translation>
     </message>
     <message>
         <source>False</source>
@@ -1050,7 +1047,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation type="vanished">Luk</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1105,27 +1102,27 @@ Press ESC to cancel</source>
     <message>
         <source>%1: permission denied</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: ikke tilladt</translation>
+        <translation type="vanished">%1: ikke tilladt</translation>
     </message>
     <message>
         <source>%1: already exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: eksisterer allerede</translation>
+        <translation type="vanished">%1: eksisterer allerede</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: eksisterer ikke</translation>
+        <translation type="vanished">%1: eksisterer ikke</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: mangler ressourcer</translation>
+        <translation type="vanished">%1: mangler ressourcer</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: ukendt fejl %2</translation>
+        <translation type="vanished">%1: ukendt fejl %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
@@ -1251,7 +1248,7 @@ Press ESC to cancel</source>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
-        <translation></translation>
+        <translation>Kunne ikke skabe forbindelse</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
@@ -1323,7 +1320,7 @@ Press ESC to cancel</source>
     <name>QDial</name>
     <message>
         <source>SpeedoMeter</source>
-        <translation>Speedometer</translation>
+        <translation type="vanished">Speedometer</translation>
     </message>
     <message>
         <source>QDial</source>
@@ -1342,22 +1339,22 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Done</source>
-        <translation>Udført</translation>
+        <translation type="vanished">Udført</translation>
     </message>
 </context>
 <context>
     <name>QDialogButtonBox</name>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>Gem</translation>
+        <translation type="vanished">Gem</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Åbn</translation>
+        <translation type="vanished">Åbn</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
@@ -1365,7 +1362,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annuller</translation>
+        <translation type="vanished">Annuller</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -1373,67 +1370,67 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation type="vanished">Luk</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Udfør</translation>
+        <translation type="vanished">Udfør</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Nulstil</translation>
+        <translation type="vanished">Nulstil</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Hjælp</translation>
+        <translation type="vanished">Hjælp</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Gem ikke</translation>
+        <translation type="vanished">Gem ikke</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Kassér</translation>
+        <translation type="vanished">Kassér</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Ja</translation>
+        <translation type="vanished">&amp;Ja</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Ja til &amp;alle</translation>
+        <translation type="vanished">Ja til &amp;alle</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Nej</translation>
+        <translation type="vanished">&amp;Nej</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>Ne&amp;j til alle</translation>
+        <translation type="vanished">Ne&amp;j til alle</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Gem alle</translation>
+        <translation type="vanished">Gem alle</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Afbryd</translation>
+        <translation type="vanished">Afbryd</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Prøv igen</translation>
+        <translation type="vanished">Prøv igen</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Ignorer</translation>
+        <translation type="vanished">Ignorer</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Gendan standardværdier</translation>
+        <translation type="vanished">Gendan standardværdier</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>Luk uden at gemme</translation>
+        <translation type="vanished">Luk uden at gemme</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -1462,7 +1459,7 @@ Press ESC to cancel</source>
     <message>
         <source>Type</source>
         <comment>All other platforms</comment>
-        <translation>Type</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Date Modified</source>
@@ -1579,14 +1576,16 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>Luk</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translation>Låst</translation>
+        <translation type="vanished">Låst</translation>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation>Flydende</translation>
     </message>
     <message>
@@ -1602,11 +1601,11 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Mere</translation>
+        <translation type="vanished">Mere</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Mindre</translation>
+        <translation type="vanished">Mindre</translation>
     </message>
 </context>
 <context>
@@ -1621,15 +1620,15 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Fatal Error:</source>
-        <translation>Alvorlig fejl:</translation>
+        <translation>Fatal fejl:</translation>
     </message>
     <message>
         <source>&amp;Show this message again</source>
-        <translation>Vi&amp;s denne besked igen</translation>
+        <translation>&amp;Vis denne besked igen</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -1778,7 +1777,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Er du sikker på, at &apos;%1&apos; skal slettes?</translation>
+        <translation type="vanished">Er du sikker på, at &apos;%1&apos; skal slettes?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
@@ -1960,7 +1959,7 @@ Do you want to delete it anyway?</source>
     <message>
         <source>Type</source>
         <comment>All other platforms</comment>
-        <translation>Type</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Date Modified</source>
@@ -1972,7 +1971,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Computer</source>
-        <translation>Computer</translation>
+        <translation></translation>
     </message>
     <message>
         <source>%1 TB</source>
@@ -1988,7 +1987,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>%1 KB</source>
-        <translation>%1 KB</translation>
+        <translation>%1 KB&apos;</translation>
     </message>
     <message>
         <source>%1 bytes</source>
@@ -2007,7 +2006,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation>Halvfed</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Black</source>
@@ -2015,7 +2014,8 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Demi</source>
-        <translation>Mellem</translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation></translation>
     </message>
     <message>
         <source>Light</source>
@@ -2035,7 +2035,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Latin</source>
-        <translation>Latin</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Greek</source>
@@ -2063,11 +2063,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Thaana</source>
-        <translation>Thaana</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation>Devanagari</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Bengali</source>
@@ -2075,35 +2075,35 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation>Gurmukhi</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation>Gujarati</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation>Oriya</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Tamil</source>
-        <translation>Tamil</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation>Telugu</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation>Kannada</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation>Malayalam</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation>Sinhala</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Thai</source>
@@ -2111,7 +2111,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Lao</source>
-        <translation>Lao</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Tibetan</source>
@@ -2119,15 +2119,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation>Myanmar</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Georgian</source>
-        <translation>Georgisk</translation>
+        <translation>georgisk </translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation>Khmer</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
@@ -2151,15 +2151,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Symbol</source>
-        <translation>Symbol</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation>Ogham</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation>Runic</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Normal</source>
@@ -2201,7 +2201,7 @@ Do you want to delete it anyway?</source>
     <name>QFontDialog</name>
     <message>
         <source>&amp;Font</source>
-        <translation>Skri&amp;fttype</translation>
+        <translation>S&amp;krifttype</translation>
     </message>
     <message>
         <source>Font st&amp;yle</source>
@@ -2221,7 +2221,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation>&amp;Understreget</translation>
+        <translation>&amp;Understreg</translation>
     </message>
     <message>
         <source>Sample</source>
@@ -2260,7 +2260,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>Forbindelse afvist</translation>
+        <translation type="vanished">Dataforbindelse afvist</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2326,19 +2326,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Vært %1 fundet</translation>
+        <translation type="vanished">Vært %1 fundet</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Forbindelse til %1 lukket</translation>
+        <translation type="vanished">Forbindelse til %1 lukket</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Vært fundet</translation>
+        <translation type="vanished">Vært fundet</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Tilsluttet vært</translation>
+        <translation type="vanished">Tilsluttet vært</translation>
     </message>
     <message>
         <source>Data Connection refused</source>
@@ -2418,23 +2418,23 @@ Do you want to delete it anyway?</source>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
+        <translation type="vanished">Ukendt fejl</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>Forespørgsel blev annulleret</translation>
+        <translation type="vanished">Forespørgsel blev annulleret</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>Ingen server at forbinde til</translation>
+        <translation type="vanished">Ingen server at forbinde til</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>Forkert indholdslængde</translation>
+        <translation type="vanished">Forkert indholdslængde</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>Serveren afsluttede uventet forbindelsen</translation>
+        <translation type="vanished">Serveren afsluttede uventet forbindelsen</translation>
     </message>
     <message>
         <source>Unknown authentication method</source>
@@ -2454,35 +2454,35 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>HTTP anmodning mislykkedes</translation>
+        <translation type="vanished">HTTP anmodning mislykkedes</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>Ugyldig HTTP-svar-header</translation>
+        <translation type="vanished">Ugyldig HTTP-svar-header</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>Ugyldig HTTP chunked body</translation>
+        <translation type="vanished">Ugyldig HTTP chunked body</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Vært %1 fundet</translation>
+        <translation type="vanished">Vært %1 fundet</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Tilsluttet vært %1</translation>
+        <translation type="vanished">Tilsluttet vært %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Forbindelse til %1 lukket</translation>
+        <translation type="vanished">Forbindelse til %1 lukket</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Vært fundet</translation>
+        <translation type="vanished">Vært fundet</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Tilsluttet vært</translation>
+        <translation type="vanished">Tilsluttet vært</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2490,15 +2490,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>Kræver proxy-autentificering</translation>
+        <translation type="vanished">Kræver proxy-autentificering</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Autentificering påkrævet</translation>
+        <translation type="vanished">Autentificering påkrævet</translation>
     </message>
     <message>
         <source>Connection refused (or timed out)</source>
-        <translation>Forbindelse blev afvist (eller tid udløb)</translation>
+        <translation type="vanished">Forbindelse blev afvist (eller tid udløb)</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
@@ -2514,7 +2514,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation>Data er ødelagt</translation>
+        <translation>En ukendt protokol blev angivet</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
@@ -2522,7 +2522,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>HTTPS connection requested but SSL support not compiled in</source>
-        <translation>Der blev anmodet om en HTTPS-forbindelse, men SSL understøttelse er ikke kompileret ind</translation>
+        <translation type="vanished">Der blevet anmodet om en HTTPS-forbindelse, men SSL understøttelse er ikke kompileret ind</translation>
     </message>
     <message>
         <source>Too many redirects</source>
@@ -2735,15 +2735,15 @@ Do you want to delete it anyway?</source>
     <name>QInputContext</name>
     <message>
         <source>XIM input method</source>
-        <translation>XIM input-metode</translation>
+        <translation type="vanished">XIM input-metode</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Windows input-metode</translation>
+        <translation type="vanished">Windows input-metode</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Mac OS X input-metode</translation>
+        <translation type="vanished">Mac OS X input-metode</translation>
     </message>
     <message>
         <source>XIM</source>
@@ -2836,23 +2836,23 @@ Do you want to delete it anyway?</source>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: Kan ikke indlæse %1 (%2)</translation>
+        <translation type="vanished">QLibrary::load_sys: Kan ikke indlæse %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys: Kan ikke udlæse %1 (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys: Kan ikke udlæse %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::resolve_sys: Symbol &quot;%1&quot; ikke defineret i %2 (%3)</translation>
+        <translation type="vanished">QLibrary::resolve_sys: Symbol &quot;%1&quot; ikke defineret i %2 (%3)</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>Plugin-verifikationsdata er sat forkert sammen i &apos;%1&apos;</translation>
+        <translation type="vanished">Plugin-verifikationsdata er sat forkert sammen i &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>Der var ikke muligt at lave unmap på &apos;%1&apos;: %2 </translation>
+        <translation type="vanished">Der var ikke muligt at lave unmap på &apos;%1&apos;: %2 </translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
@@ -2860,11 +2860,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>Plugin &apos;%1&apos; bruger inkompatibelt Qt-bibliotek. Forventet build key &quot;%2&quot;, hentede &quot;%3&quot;&apos;</translation>
+        <translation type="vanished">Plugin &apos;%1&apos; bruger inkompatibelt Qt-bibliotek. Forventet build key &quot;%2&quot;, hentede &quot;%3&quot;&apos;</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Ukendt fejl</translation>
+        <translation>Ukendt fejl&apos;</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
@@ -3056,7 +3056,7 @@ Do you want to delete it anyway?</source>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Kunne ikke åbne databasen &apos;</translation>
+        <translation type="vanished">Kunne ikke åbne databasen &apos;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
@@ -3141,7 +3141,7 @@ Do you want to delete it anyway?</source>
     <name>QMdiSubWindow</name>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Close</source>
@@ -3177,7 +3177,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Altid øvers&amp;t</translation>
+        <translation>Bliv &amp;oppe</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -3185,7 +3185,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>- [%1]</source>
-        <translation>- [%1]</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Maximize</source>
@@ -3209,22 +3209,22 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Menu</source>
-        <translation>Menu</translation>
+        <translation></translation>
     </message>
 </context>
 <context>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation type="vanished">Luk</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Åbn</translation>
+        <translation type="vanished">Åbn</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Udfør</translation>
+        <translation type="vanished">Udfør</translation>
     </message>
 </context>
 <context>
@@ -3239,7 +3239,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation></translation>
     </message>
     <message>
         <source>About Qt</source>
@@ -3247,7 +3247,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dette program bruger Qt-version %1.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Dette program bruger Qt-version %1.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
@@ -3259,11 +3259,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dette program bruger Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition er tiltænkt udvikling af applikationer med åben kildekode. Du skal bruge en kommerciel Qt licens for at udvikle proprietære (lukket kildekode) applikationer.&lt;/p&gt;&lt;p&gt;Gå til &lt;a href=&quot;http://qt.nokia.com/company/model/&quot;&gt;qt.nokia.com/company/model/&lt;/a&gt; for et overblik over Qt-licenser.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Dette program bruger Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition er tiltænkt udvikling af applikationer med åben kildekode. Du skal bruge en kommerciel Qt licens for at udvikle proprietære (lukket kildekode) applikationer.&lt;/p&gt;&lt;p&gt;Gå til &lt;a href=&quot;http://qt.nokia.com/company/model/&quot;&gt;qt.nokia.com/company/model/&lt;/a&gt; for et overblik over Qt-licenser.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Om Qt&lt;/h3&gt;&lt;p&gt;Dette program anvender Qt version %1.&lt;/p&gt;&lt;p&gt;Qt er et C++ toolkit til cross-platform applikationsudvikling.&lt;/p&gt;&lt;p&gt;Qt tilbyder single-source portabilitet til MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, og alle større kommercielle Unix-varianter. Qt er også tilgængeligt til indlejrede systemer som Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;Qt er tilgængeligt under tre forskellige licenser skabt med henblik på at imødekomme forskellige brugeres behov.&lt;/p&gt;&lt;p&gt;Qt licenseret under vores kommercielle licensaftale er passende for udvikling af proprietær/kommerciel software, hvor du ikke ønsker at dele sourcekode med tredie part, eller på anden vis ikke kan tiltræde vilkårerne i GNU LGPL version 2.1 eller GNU GPL version 3.0&lt;/p&gt;&lt;p&gt;Qt licenseret under GLU General Public License version 3.0 er passende for udvikling af Qt applikationer, hvor du ønsker at bruge softwaren i kombination med software under vilkårerne i GNU GPL version 3.0, eller hvor du ellers er villig til at overholde vilkårerne i GNU GPL version 3.0&lt;/p&gt;&lt;p&gt;See venligst &lt;a href=&quot;http://qt.nokia.com/products/licensing&quot;&gt;qt.nokia.com/products/licensing&lt;/a&gt; for et overblik over Qt licensforhold.&lt;/p&gt;&lt;p&gt;Qt er et Nokia produkt. Se &lt;a href=&quot;http://qt.nokia.com/&quot;&gt;qt.nokia.com&lt;/a&gt; for yderligere information.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;Om Qt&lt;/h3&gt;&lt;p&gt;Dette program anvender Qt version %1.&lt;/p&gt;&lt;p&gt;Qt er et C++ toolkit til cross-platform applikationsudvikling.&lt;/p&gt;&lt;p&gt;Qt tilbyder single-source portabilitet til MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, og alle større kommercielle Unix-varianter. Qt er også tilgængeligt til indlejrede systemer som Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;Qt er tilgængeligt under tre forskellige licenser skabt med henblik på at imødekomme forskellige brugeres behov.&lt;/p&gt;&lt;p&gt;Qt licenseret under vores kommercielle licensaftale er passende for udvikling af proprietær/kommerciel software, hvor du ikke ønsker at dele sourcekode med tredie part, eller på anden vis ikke kan tiltræde vilkårerne i GNU LGPL version 2.1 eller GNU GPL version 3.0&lt;/p&gt;&lt;p&gt;Qt licenseret under GLU General Public License version 3.0 er passende for udvikling af Qt applikationer, hvor du ønsker at bruge softwaren i kombination med software under vilkårerne i GNU GPL version 3.0, eller hvor du ellers er villig til at overholde vilkårerne i GNU GPL version 3.0&lt;/p&gt;&lt;p&gt;See venligst &lt;a href=&quot;http://qt.nokia.com/products/licensing&quot;&gt;qt.nokia.com/products/licensing&lt;/a&gt; for et overblik over Qt licensforhold.&lt;/p&gt;&lt;p&gt;Qt er et Nokia produkt. Se &lt;a href=&quot;http://qt.nokia.com/&quot;&gt;qt.nokia.com&lt;/a&gt; for yderligere information.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://qt.nokia.com/&quot;&gt;qt.nokia.com&lt;/a&gt; for more information.&lt;/p&gt;</source>
@@ -3286,18 +3286,18 @@ Do you want to delete it anyway?</source>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>Vælg IM</translation>
+        <translation type="vanished">Markér IM</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>Omskifter mellem input-metoder</translation>
+        <translation type="vanished">Multiple input metode-switcher</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>Omskifter mellem input-metoder, der benytter tekstkontrollernes kontekstmenuer</translation>
+        <translation type="vanished">Multiple input metode-switcher, der benytter tekstkontrollernes kontekstmenuer</translation>
     </message>
 </context>
 <context>
@@ -3308,7 +3308,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation>Tidsudløb for netværksoperation</translation>
+        <translation>Netværksoperationen timed out</translation>
     </message>
     <message>
         <source>Out of resources</source>
@@ -3512,7 +3512,7 @@ Do you want to delete it anyway?</source>
     <name>QNetworkReply</name>
     <message>
         <source>Error downloading %1 - server replied: %2</source>
-        <translation>Der opstod fejl i at downloade %1 - serveren svarede: %2</translation>
+        <translation type="vanished">Der opstod fejl i at downloade %1 - serveren svarede: %2</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
@@ -3639,7 +3639,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>Kunne ikke udføre det valgte udsagn</translation>
+        <translation type="obsolete">Kunne ikke udføre det valgte udsagn</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
@@ -3658,7 +3658,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>Kunne ikke forbinde. Driveren understøtter ikke alle de nødvendige funktionaliteter</translation>
+        <translation type="vanished">Kunne ikke forbinde. Driveren understøtter ikke alle de nødvendige funktionaliteter</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
@@ -3724,31 +3724,31 @@ Do you want to delete it anyway?</source>
     <name>QObject</name>
     <message>
         <source>Operation not supported on %1</source>
-        <translation>Handling blev ikke understøttet på %1</translation>
+        <translation type="vanished">Handling blev ikke understøttet på %1</translation>
     </message>
     <message>
         <source>Invalid URI: %1</source>
-        <translation>Ugyldig URI: %1</translation>
+        <translation type="vanished">Ugyldig URI: %1</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Skrivefejl mens der blev skrevet til %1: %2</translation>
+        <translation type="vanished">Skrivefejl mens der blev skrevet til %1: %2</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation>Læsefejl mens der blev læst fra %1: %2</translation>
+        <translation type="vanished">Læsefejl mens der blev læst fra %1: %2</translation>
     </message>
     <message>
         <source>Socket error on %1: %2</source>
-        <translation>Socket-fejl på %1: %2</translation>
+        <translation type="vanished">Socket-fejl på %1: %2</translation>
     </message>
     <message>
         <source>Remote host closed the connection prematurely on %1</source>
-        <translation>Fjern-host lukkede forbindelsen for tidligt på %1</translation>
+        <translation type="vanished">Fjern-host lukkede forbindelsen for tidligt på %1</translation>
     </message>
     <message>
         <source>Protocol error: packet of size 0 received</source>
-        <translation>Protokolfejl: Pakke på størrelsen 0 modtaget</translation>
+        <translation type="vanished">Protokolfejl: Pakke på størrelsen 0 modtaget</translation>
     </message>
     <message>
         <source>Home</source>
@@ -3763,11 +3763,11 @@ Do you want to delete it anyway?</source>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>Navn</translation>
+        <translation type="vanished">Navn</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Værdi</translation>
+        <translation type="vanished">Værdi</translation>
     </message>
 </context>
 <context>
@@ -3812,7 +3812,7 @@ Do you want to delete it anyway?</source>
     <name>QPageSetupWidget</name>
     <message>
         <source>Centimeters (cm)</source>
-        <translation>Centimeter (cm)</translation>
+        <translation type="vanished">Centimeter (cm)</translation>
     </message>
     <message>
         <source>Millimeters (mm)</source>
@@ -3820,15 +3820,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Inches (in)</source>
-        <translation>Tommer (in)</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Points (pt)</source>
-        <translation>Punkter (pt)</translation>
+        <translation>Point (pt)</translation>
     </message>
     <message>
         <source>Form</source>
-        <translation>Form</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Paper</source>
@@ -3840,7 +3840,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Width:</source>
-        <translation>Bredde:</translation>
+        <translation>Vidde:</translation>
     </message>
     <message>
         <source>Height:</source>
@@ -3852,7 +3852,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Orientation</source>
-        <translation>Retning</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Portrait</source>
@@ -3876,19 +3876,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>top margin</source>
-        <translation>Øverste margen</translation>
+        <translation>Margen - øverst</translation>
     </message>
     <message>
         <source>left margin</source>
-        <translation>Venstre margen</translation>
+        <translation>Margen - venstre</translation>
     </message>
     <message>
         <source>right margin</source>
-        <translation>Højre margen</translation>
+        <translation>Margen - højre</translation>
     </message>
     <message>
         <source>bottom margin</source>
-        <translation>Nederste margen</translation>
+        <translation>Margen - bund</translation>
     </message>
     <message>
         <source>Page Layout</source>
@@ -4517,15 +4517,15 @@ Do you want to delete it anyway?</source>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>lokalt forbundet</translation>
+        <translation type="vanished">lokalt forbundet</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Aliaser: %1</translation>
+        <translation type="vanished">Aliasser: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>Ukendt</translation>
+        <translation type="vanished">Ukendt</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -4551,7 +4551,7 @@ Vælg et andet filnavn.</translation>
     </message>
     <message>
         <source>Custom</source>
-        <translation>Brugerdefineret</translation>
+        <translation type="vanished">Brugerdefineret</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
@@ -4571,7 +4571,7 @@ Vælg et andet filnavn.</translation>
     </message>
     <message>
         <source>Print to File (Postscript)</source>
-        <translation>Udskriv til fil (Postscript)</translation>
+        <translation type="vanished">Udskriv til fil (Postscript)</translation>
     </message>
     <message>
         <source>Local file</source>
@@ -4579,7 +4579,7 @@ Vælg et andet filnavn.</translation>
     </message>
     <message>
         <source>Write %1 file</source>
-        <translation>Skriv %1 fil</translation>
+        <translation type="vanished">Skriv %1 fil</translation>
     </message>
     <message>
         <source>File exists</source>
@@ -4887,7 +4887,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation type="vanished">Luk</translation>
     </message>
     <message>
         <source>Export to PDF</source>
@@ -4925,14 +4925,14 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Advanced</source>
-        <translation>Avanceret</translation>
+        <translation type="vanished">Avanceret</translation>
     </message>
 </context>
 <context>
     <name>QPrintSettingsOutput</name>
     <message>
         <source>Form</source>
-        <translation>Form</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Copies</source>
@@ -5019,11 +5019,11 @@ Please turn one of those options off.</source>
     <name>QPrintWidget</name>
     <message>
         <source>Form</source>
-        <translation>Form</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation>Printer</translation>
+        <translation>&apos;</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
@@ -5043,7 +5043,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Type:</source>
-        <translation>Type:</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
@@ -5051,7 +5051,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>...</source>
-        <translation>...</translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -5108,7 +5108,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Åbn</translation>
+        <translation type="vanished">Åbn</translation>
     </message>
 </context>
 <context>
@@ -5129,7 +5129,7 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Kontrollér</translation>
+        <translation type="vanished">Kontrollér</translation>
     </message>
 </context>
 <context>
@@ -5522,7 +5522,7 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>Der opstod fejl ved åbning af database</translation>
+        <translation type="vanished">Der opstod fejl ved åbning af database</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -5534,7 +5534,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>Kunne ikke tilbagetrække transaktion</translation>
+        <translation type="vanished">Kunne ikke tilbagetrække transaktion</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -5603,7 +5603,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>No query</source>
-        <translation>Ingen forespørgsel</translation>
+        <translation>Ingen forespørgesel</translation>
     </message>
     <message>
         <source>Unable to execute multiple statements at a time</source>
@@ -5629,7 +5629,7 @@ Please turn one of those options off.</source>
     <name>QScrollBar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Rul her</translation>
+        <translation>Scroll her</translation>
     </message>
     <message>
         <source>Left edge</source>
@@ -5665,31 +5665,31 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Rul til venstre</translation>
+        <translation>Scroll til venstre</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Rul op</translation>
+        <translation>Scroll op</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Rul til højre</translation>
+        <translation>Scroll til højre</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Rul ned</translation>
+        <translation>Scroll ned</translation>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Linje op</translation>
+        <translation type="vanished">Linie op</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Placering</translation>
+        <translation type="vanished">Placering</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Linje ned</translation>
+        <translation type="vanished">Linie ned</translation>
     </message>
 </context>
 <context>
@@ -5720,7 +5720,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
-        <translation>%1: Findes ikke</translation>
+        <translation type="vanished">%1: Findes ikke</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
@@ -5736,7 +5736,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: unix key file doesn&apos;t exists</source>
-        <translation>%1: Kunne ikke oprette nøgle</translation>
+        <translation type="vanished">%1: Kunne ikke oprette nøgle</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
@@ -5783,15 +5783,16 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
-        <translation>Mellemrum</translation>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
+        <translation></translation>
     </message>
     <message>
         <source>Esc</source>
-        <translation>Esc</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Tab</source>
-        <translation>Tab</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Backtab</source>
@@ -5803,23 +5804,23 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Return</source>
-        <translation>Retur</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Enter</source>
-        <translation>Retur</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Ins</source>
-        <translation>Insert</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Del</source>
-        <translation>Delete</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Pause</source>
-        <translation>Pause</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Print</source>
@@ -5827,15 +5828,15 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>SysReq</source>
-        <translation>SysReq</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Home</source>
-        <translation>Home</translation>
+        <translation></translation>
     </message>
     <message>
         <source>End</source>
-        <translation>End</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Left</source>
@@ -5855,27 +5856,27 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>PgUp</source>
-        <translation>PgUp</translation>
+        <translation></translation>
     </message>
     <message>
         <source>PgDown</source>
-        <translation>PgDown</translation>
+        <translation></translation>
     </message>
     <message>
         <source>CapsLock</source>
-        <translation>CapsLock</translation>
+        <translation>&apos;</translation>
     </message>
     <message>
         <source>NumLock</source>
-        <translation>NumLock</translation>
+        <translation></translation>
     </message>
     <message>
         <source>ScrollLock</source>
-        <translation>ScrollLock</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation>Menu</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Help</source>
@@ -5891,7 +5892,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Stop</source>
-        <translation>Stop</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Refresh</source>
@@ -5911,47 +5912,47 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translation>Bas Boost</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translation>Øg bas</translation>
+        <translation>Bass op</translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translation>Dæmp bas</translation>
+        <translation>Bass ned</translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation>Øg diskant</translation>
+        <translation>Diskant op</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation>Dæmp diskant</translation>
+        <translation>Diskant ned</translation>
     </message>
     <message>
         <source>Media Play</source>
-        <translation>Medie - Afspil</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Media Stop</source>
-        <translation>Medie - Stop</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Media Previous</source>
-        <translation>Medie - Forrige</translation>
+        <translation>Media forrige</translation>
     </message>
     <message>
         <source>Media Next</source>
-        <translation>Medie - Næste</translation>
+        <translation>Media næste</translation>
     </message>
     <message>
         <source>Media Record</source>
-        <translation>Medie - Optag</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Favorites</source>
-        <translation>Favoritter</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Search</source>
@@ -5959,7 +5960,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Standby</source>
-        <translation>Standby</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Open URL</source>
@@ -6039,51 +6040,51 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Print Screen</source>
-        <translation>Print Screen</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Page Up</source>
-        <translation>Page Up</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Page Down</source>
-        <translation>Page Down</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Caps Lock</source>
-        <translation>Caps Lock</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Num Lock</source>
-        <translation>Num Lock</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Number Lock</source>
-        <translation>Number Lock</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Scroll Lock</source>
-        <translation>Scroll Lock</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Insert</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Delete</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Escape</source>
-        <translation>Escape</translation>
+        <translation></translation>
     </message>
     <message>
         <source>System Request</source>
-        <translation>System Request</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Select</source>
-        <translation>Vælg</translation>
+        <translation>Væg</translation>
     </message>
     <message>
         <source>Yes</source>
@@ -6111,10 +6112,12 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation>Ring til</translation>
     </message>
     <message>
         <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
         <translation>Læg på</translation>
     </message>
     <message>
@@ -6123,27 +6126,27 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Ctrl</source>
-        <translation>Ctrl</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Shift</source>
-        <translation>Shift</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Alt</source>
-        <translation>Alt</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Meta</source>
-        <translation>Meta</translation>
+        <translation></translation>
     </message>
     <message>
         <source>+</source>
-        <translation>+</translation>
+        <translation></translation>
     </message>
     <message>
         <source>F%1</source>
-        <translation>F%1</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Home Page</source>
@@ -6777,30 +6780,30 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Side venstre</translation>
+        <translation type="vanished">Side venstre</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Side op</translation>
+        <translation type="vanished">Side op</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Placering</translation>
+        <translation type="vanished">Placering</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Side højre</translation>
+        <translation type="vanished">Side højre</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Side ned</translation>
+        <translation type="vanished">Side ned</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>Socks5 - Tidsfristen udløb for forbindelse til Socks server</translation>
+        <translation type="vanished">Socks5 - Tidsfristen udløb for forbindelse til Socks server</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
@@ -7223,54 +7226,54 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Mere</translation>
+        <translation type="vanished">Mere</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Mindre</translation>
+        <translation type="vanished">Mindre</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>Slet</translation>
+        <translation type="vanished">Slet</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Slet denne post?</translation>
+        <translation type="vanished">Slet denne post?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Ja</translation>
+        <translation type="vanished">Ja</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Nej</translation>
+        <translation type="vanished">Nej</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Indsæt</translation>
+        <translation type="vanished">Indsæt</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Opdater</translation>
+        <translation type="vanished">Opdater</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Gem ændringer?</translation>
+        <translation type="vanished">Gem ændringer?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annuller</translation>
+        <translation type="vanished">Annuller</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Bekræft</translation>
+        <translation type="vanished">Bekræft</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Skal dine ændringer annulleres?</translation>
+        <translation type="vanished">Skal dine ændringer annulleres?</translation>
     </message>
 </context>
 <context>
@@ -7293,7 +7296,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Invalid or empty cipher list (%1)</source>
-        <translation>Ugyldig eller tom cifferliste (%1)</translation>
+        <translation>Ugyldig eller tom chifferliste (%1)</translation>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
@@ -7317,7 +7320,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Private key does not certificate public key, %1</source>
-        <translation>Privat-nøgle autoriserer ikke offentlig-nøgle, %1</translation>
+        <translation type="vanished">Privat-nøgle autoriserer ikke offentlig-nøgle, %1</translation>
     </message>
     <message>
         <source>Error when setting the elliptic curves (%1)</source>
@@ -7576,11 +7579,11 @@ Role of an accessible object</extracomment>
     <name>QTabBar</name>
     <message>
         <source>Scroll Left</source>
-        <translation>Rul til venstre</translation>
+        <translation>Scroll til venstre</translation>
     </message>
     <message>
         <source>Scroll Right</source>
-        <translation>Rul til højre</translation>
+        <translation>Scroll til højre</translation>
     </message>
 </context>
 <context>
@@ -7594,64 +7597,64 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Fortryd</translation>
+        <translation type="vanished">&amp;Fortryd</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Gendan</translation>
+        <translation type="vanished">&amp;Gendan</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>K&amp;lip</translation>
+        <translation type="vanished">K&amp;lip</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopiér</translation>
+        <translation type="vanished">&amp;Kopiér</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Kopiér &amp;link</translation>
+        <translation type="vanished">Kopiér l&amp;ink</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Sæt ind</translation>
+        <translation type="vanished">&amp;Sæt ind</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Slet</translation>
+        <translation type="vanished">Slet</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Markér alt</translation>
+        <translation type="vanished">Markér alt</translation>
     </message>
 </context>
 <context>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Tryk på</translation>
+        <translation type="vanished">Tryk på</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Åbn</translation>
+        <translation type="vanished">Åbn</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>Denne platform understøtter ikke IPv6</translation>
+        <translation type="vanished">Denne platform understøtter ikke IPv6</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>Fortryd</translation>
+        <translation type="vanished">Fortryd</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Gentag</translation>
+        <translation type="vanished">Gendan</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7683,11 +7686,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Fortryd</translation>
+        <translation type="vanished">Fortryd</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Gentag</translation>
+        <translation type="vanished">Gendan</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7712,47 +7715,47 @@ Role of an accessible object</extracomment>
     <name>QUnicodeControlCharacterMenu</name>
     <message>
         <source>LRM Left-to-right mark</source>
-        <translation>LRM Left-to-right mark</translation>
+        <translation></translation>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation>RLM Right-to-left mark</translation>
+        <translation></translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation>ZWJ Zero width joiner</translation>
+        <translation></translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation>ZWNJ Zero width non-joiner</translation>
+        <translation></translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation>ZWSP Zero width space</translation>
+        <translation></translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation>LRE Start of left-to-right embedding</translation>
+        <translation></translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation>RLE Start of right-to-left embedding</translation>
+        <translation></translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation>LRO Start of left-to-right override</translation>
+        <translation></translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation>RLO Start of right-to-left override</translation>
+        <translation></translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation>PDF Pop directional formatting</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
-        <translation>Indsæt Unicode kontroltegn</translation>
+        <translation></translation>
     </message>
     <message>
         <source>LRI Left-to-right isolate</source>
@@ -7775,229 +7778,229 @@ Role of an accessible object</extracomment>
     <name>QWebFrame</name>
     <message>
         <source>Request cancelled</source>
-        <translation>Anmodning annulleret</translation>
+        <translation type="vanished">Anmodning annulleret</translation>
     </message>
     <message>
         <source>Request blocked</source>
-        <translation>Anmodning blokeret</translation>
+        <translation type="vanished">Anmodning blokeret</translation>
     </message>
     <message>
         <source>Cannot show URL</source>
-        <translation>Kan ikke vise URL</translation>
+        <translation type="vanished">Kan ikke vise URL</translation>
     </message>
     <message>
         <source>Frame load interruped by policy change</source>
-        <translation>Ændring i retningslinjer forhindrede hentning af ramme</translation>
+        <translation type="vanished">Billedindlæsning afbrudt af ændringer i retningslinier</translation>
     </message>
     <message>
         <source>Cannot show mimetype</source>
-        <translation>Kan ikke vise MIME-type</translation>
+        <translation type="vanished">Kan ikke vise MIME-type</translation>
     </message>
     <message>
         <source>File does not exist</source>
-        <translation>Fil eksisterer ikke</translation>
+        <translation type="vanished">Filen findes ikke</translation>
     </message>
 </context>
 <context>
     <name>QWebPage</name>
     <message>
         <source>Bad HTTP request</source>
-        <translation>Dårlig HTTP-anmodning</translation>
+        <translation type="vanished">Dårlig HTTP-anmodning</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>default label for Submit buttons in forms on web pages</comment>
-        <translation>Send</translation>
+        <translation type="vanished">Send</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>Submit (input element) alt text for &lt;input&gt; elements with no alt, title, or value</comment>
-        <translation>Send</translation>
+        <translation type="vanished">Send</translation>
     </message>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation>Nulstil</translation>
+        <translation type="vanished">Nulstil</translation>
     </message>
     <message>
         <source>This is a searchable index. Enter search keywords: </source>
         <comment>text that appears at the start of nearly-obsolete web pages in the form of a &apos;searchable index&apos;</comment>
-        <translation>Dette er et søgeindeks. Indtast søgeord:</translation>
+        <translation type="vanished">Dette er et søgeindeks. Indtast søgeord:</translation>
     </message>
     <message>
         <source>Choose File</source>
         <comment>title for file button used in HTML forms</comment>
-        <translation>Vælg fil</translation>
+        <translation type="vanished">Vælg fil</translation>
     </message>
     <message>
         <source>No file selected</source>
         <comment>text to display in file button used in HTML forms when no file is selected</comment>
-        <translation>Der er ikke valgt en fil</translation>
+        <translation type="vanished">Der er ikke valgt en fil</translation>
     </message>
     <message>
         <source>Open in New Window</source>
         <comment>Open in New Window context menu item</comment>
-        <translation>Åbn i nyt vindue</translation>
+        <translation type="vanished">Åbn i nyt vindue</translation>
     </message>
     <message>
         <source>Save Link...</source>
         <comment>Download Linked File context menu item</comment>
-        <translation>Gem link...</translation>
+        <translation type="vanished">Gem link...</translation>
     </message>
     <message>
         <source>Copy Link</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Kopiér link</translation>
+        <translation type="vanished">Kopiér link</translation>
     </message>
     <message>
         <source>Open Image</source>
         <comment>Open Image in New Window context menu item</comment>
-        <translation>Åbn billede</translation>
+        <translation type="vanished">Åbn billede</translation>
     </message>
     <message>
         <source>Save Image</source>
         <comment>Download Image context menu item</comment>
-        <translation>Gem billede</translation>
+        <translation type="vanished">Gem billede</translation>
     </message>
     <message>
         <source>Copy Image</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Kopiér billede</translation>
+        <translation type="vanished">Kopiér billede</translation>
     </message>
     <message>
         <source>Open Frame</source>
         <comment>Open Frame in New Window context menu item</comment>
-        <translation>Åbn faneblad</translation>
+        <translation type="vanished">Åbn faneblad</translation>
     </message>
     <message>
         <source>Copy</source>
         <comment>Copy context menu item</comment>
-        <translation>Kopiér</translation>
+        <translation type="vanished">Kopiér</translation>
     </message>
     <message>
         <source>Go Back</source>
         <comment>Back context menu item</comment>
-        <translation>Gå tilbage</translation>
+        <translation type="vanished">Gå tilbage</translation>
     </message>
     <message>
         <source>Go Forward</source>
         <comment>Forward context menu item</comment>
-        <translation>Gå frem</translation>
+        <translation type="vanished">Gå frem</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation>Stop</translation>
+        <translation type="vanished">Stop</translation>
     </message>
     <message>
         <source>Reload</source>
         <comment>Reload context menu item</comment>
-        <translation>Genindlæs</translation>
+        <translation type="vanished">Genindlæs</translation>
     </message>
     <message>
         <source>Cut</source>
         <comment>Cut context menu item</comment>
-        <translation>Klip</translation>
+        <translation type="vanished">Klip</translation>
     </message>
     <message>
         <source>Paste</source>
         <comment>Paste context menu item</comment>
-        <translation>Sæt ind</translation>
+        <translation type="vanished">Sæt ind</translation>
     </message>
     <message>
         <source>No Guesses Found</source>
         <comment>No Guesses Found context menu item</comment>
-        <translation>Der er ikke fundet nogen gæt</translation>
+        <translation type="vanished">Der er ikke fundet nogen gæt</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation>Ignorér</translation>
+        <translation type="vanished">Ignorér</translation>
     </message>
     <message>
         <source>Add To Dictionary</source>
         <comment>Learn Spelling context menu item</comment>
-        <translation>Tilføj til ordbog</translation>
+        <translation type="vanished">Tilføj til ordbog</translation>
     </message>
     <message>
         <source>Search The Web</source>
         <comment>Search The Web context menu item</comment>
-        <translation>Søg på nettet</translation>
+        <translation type="vanished">Søg på nettet</translation>
     </message>
     <message>
         <source>Look Up In Dictionary</source>
         <comment>Look Up in Dictionary context menu item</comment>
-        <translation>Slå op i ordbog</translation>
+        <translation type="vanished">Slå op i ordbog</translation>
     </message>
     <message>
         <source>Open Link</source>
         <comment>Open Link context menu item</comment>
-        <translation>Åbn link</translation>
+        <translation type="vanished">Åbn link</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation>Ignorér</translation>
+        <translation type="vanished">Ignorér</translation>
     </message>
     <message>
         <source>Spelling</source>
         <comment>Spelling and Grammar context sub-menu item</comment>
-        <translation>Stavekontrol</translation>
+        <translation type="vanished">Stavekontrol</translation>
     </message>
     <message>
         <source>Show Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Vis stave- og grammatikkontrol</translation>
+        <translation type="vanished">Vis stave- og grammatikkontrol</translation>
     </message>
     <message>
         <source>Hide Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Skjul stave- og grammatikkontrol</translation>
+        <translation type="vanished">Skjul stave- og grammatikkontrol</translation>
     </message>
     <message>
         <source>Check Spelling</source>
         <comment>Check spelling context menu item</comment>
-        <translation>Kør stavekontrol</translation>
+        <translation type="vanished">Kør stavekontrol</translation>
     </message>
     <message>
         <source>Check Spelling While Typing</source>
         <comment>Check spelling while typing context menu item</comment>
-        <translation>Kør stavekontrol mens der tastes</translation>
+        <translation type="vanished">Kør stavekontrol mens der tastes</translation>
     </message>
     <message>
         <source>Check Grammar With Spelling</source>
         <comment>Check grammar with spelling context menu item</comment>
-        <translation>Kør grammatikkontrol sammen med stavekontrol</translation>
+        <translation type="vanished">Kør grammatikkontrol sammen med stavekontrol</translation>
     </message>
     <message>
         <source>Fonts</source>
         <comment>Font context sub-menu item</comment>
-        <translation>Skrifttyper</translation>
+        <translation type="vanished">Skrifttyper</translation>
     </message>
     <message>
         <source>Bold</source>
         <comment>Bold context menu item</comment>
-        <translation>Fed</translation>
+        <translation type="vanished">Fed</translation>
     </message>
     <message>
         <source>Italic</source>
         <comment>Italic context menu item</comment>
-        <translation>Kursiv</translation>
+        <translation type="vanished">Kursiv</translation>
     </message>
     <message>
         <source>Underline</source>
         <comment>Underline context menu item</comment>
-        <translation>Understreget</translation>
+        <translation type="vanished">Understreget</translation>
     </message>
     <message>
         <source>Outline</source>
         <comment>Outline context menu item</comment>
-        <translation>Kontur</translation>
+        <translation type="vanished">Kontur</translation>
     </message>
     <message>
         <source>Direction</source>
         <comment>Writing direction context sub-menu item</comment>
-        <translation>Retning</translation>
+        <translation type="vanished">Retning</translation>
     </message>
     <message>
         <source>Text Direction</source>
@@ -8007,41 +8010,41 @@ Role of an accessible object</extracomment>
     <message>
         <source>Default</source>
         <comment>Default writing direction context menu item</comment>
-        <translation>Standard</translation>
+        <translation type="vanished">Standard</translation>
     </message>
     <message>
         <source>Inspect</source>
         <comment>Inspect Element context menu item</comment>
-        <translation>Inspicér</translation>
+        <translation type="vanished">Inspicér</translation>
     </message>
     <message>
         <source>No recent searches</source>
         <comment>Label for only item in menu that appears when clicking on the search field image, when no searches have been performed</comment>
-        <translation>Ingen aktuelle søgninger</translation>
+        <translation type="vanished">Ingen aktuelle søgninger</translation>
     </message>
     <message>
         <source>Recent searches</source>
         <comment>label for first item in the menu that appears when clicking on the search field image, used as embedded menu title</comment>
-        <translation>Aktuelle søgninger</translation>
+        <translation type="vanished">Aktuelle søgninger</translation>
     </message>
     <message>
         <source>Clear recent searches</source>
         <comment>menu item in Recent Searches menu that empties menu&apos;s contents</comment>
-        <translation>Ryd aktuelle søgninger</translation>
+        <translation type="vanished">Ryd aktuelle søgninger</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation>Ukendt</translation>
+        <translation type="vanished">Ukendt</translation>
     </message>
     <message>
         <source>%1 (%2x%3 pixels)</source>
         <comment>Title string for images</comment>
-        <translation>%1 (%2x%3 billedpunkter)</translation>
+        <translation type="vanished">%1 (%2x%3 pixels)</translation>
     </message>
     <message>
         <source>Web Inspector - %2</source>
-        <translation>Web-inspektør - %2</translation>
+        <translation type="vanished">Web-inspektør - %2</translation>
     </message>
     <message>
         <source>Scroll here</source>
@@ -8249,7 +8252,7 @@ Role of an accessible object</extracomment>
     <name>QWidget</name>
     <message>
         <source>*</source>
-        <translation>*</translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -8320,7 +8323,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Quit</source>
-        <translation>Afslut</translation>
+        <translation type="vanished">Afslut</translation>
     </message>
     <message>
         <source>Help</source>
@@ -8336,7 +8339,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annullér</translation>
+        <translation>Annuller</translation>
     </message>
     <message>
         <source>&amp;Help</source>
@@ -8355,51 +8358,51 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Gendan</translation>
+        <translation type="vanished">&amp;Gendan</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Flyt</translation>
+        <translation type="vanished">&amp;Flyt</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Størrelse</translation>
+        <translation type="vanished">&amp;Størrelse</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Mi&amp;nimér</translation>
+        <translation type="vanished">Mi&amp;nimér</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Ma&amp;ksimér</translation>
+        <translation type="vanished">Ma&amp;ksimér</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Luk</translation>
+        <translation type="vanished">&amp;Luk</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Bliv på &amp;toppen</translation>
+        <translation type="vanished">Bliv på &amp;toppen</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>Sk&amp;ygge</translation>
+        <translation type="vanished">Sk&amp;ygge</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimer</translation>
+        <translation type="vanished">Minimer</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Gendan ned</translation>
+        <translation type="vanished">Gendan ned</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation type="vanished">Luk</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>&amp;Fjern skygge</translation>
+        <translation type="vanished">&amp;Fjern skygge</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
@@ -8430,7 +8433,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>tag mismatch</source>
-        <translation>Mærke mismatch</translation>
+        <translation></translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
@@ -8525,7 +8528,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>Attribut redefineret.</translation>
+        <translation type="vanished">Attribut redefineret.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
@@ -8549,7 +8552,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation>Kun ja eller nej er gyldige svar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
@@ -8565,7 +8568,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Expected </source>
-        <translation>Forventede </translation>
+        <translation>Forventet</translation>
     </message>
     <message>
         <source>, but got &apos;</source>
@@ -8577,7 +8580,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Expected character data.</source>
-        <translation>Forventede tegndata.</translation>
+        <translation>Forventet tegndata.</translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
@@ -8585,7 +8588,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translation>Start-mærke forventet.</translation>
+        <translation>Start-tag forventet.</translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
@@ -8613,7 +8616,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation>Mismatch mellem åbning- og afslutningsmærke.</translation>
+        <translation>Åbner og afslutter tag-mismatch.</translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
@@ -8652,95 +8655,95 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QtXmlPatterns</name>
     <message>
         <source>An %1-attribute with value %2 has already been declared.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">En %1-attribut med værdi %2 er allerede erklæret.</translation>
     </message>
     <message>
         <source>An %1-attribute must have a valid %2 as value, which %3 isn&apos;t.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">En %1-attribut skal have en gyldig %2 som værdi, hvilket %3 ikke er.</translation>
     </message>
     <message>
         <source>Network timeout.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Netværk timeout.</translation>
     </message>
     <message>
         <source>Element %1 can&apos;t be serialized because it appears outside the document element.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Element %1 kan ikke serialiseres fordi det optræder udenfor dokument-elementet.</translation>
     </message>
     <message>
         <source>Year %1 is invalid because it begins with %2.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">År %1 er ugyldigt da det begynder med %2.</translation>
     </message>
     <message>
         <source>Day %1 is outside the range %2..%3.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Dag %1 er udenfor intervallet %2..%3.</translation>
     </message>
     <message>
         <source>Month %1 is outside the range %2..%3.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Måned %1 er udenfor intervallet %2..%3.</translation>
     </message>
     <message>
         <source>Overflow: Can&apos;t represent date %1.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Overflow: Kan ikke repræsentere dato %1.</translation>
     </message>
     <message>
         <source>Day %1 is invalid for month %2.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Dag %1 er ugyldig for månet %2.</translation>
     </message>
     <message>
         <source>Time 24:%1:%2.%3 is invalid. Hour is 24, but minutes, seconds, and milliseconds are not all 0; </source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Tidspunkt 24:%1:%2.%3 er ugyldigt. Timetal er 24, men minutter, sekunder og millisekunder er ikke alle 0; </translation>
     </message>
     <message>
         <source>Time %1:%2:%3.%4 is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Tidspunkt %1:%2:%3.%4 er ugyldigt.</translation>
     </message>
     <message>
         <source>Overflow: Date can&apos;t be represented.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Overflow: Dato kan ikke repræsenteres.</translation>
     </message>
     <message>
         <source>At least one component must be present.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Mindst en komponent skal være tilstede.</translation>
     </message>
     <message>
         <source>At least one time component must appear after the %1-delimiter.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Mindst en tidskomponent skal optræde efter %1-skillemærket.</translation>
     </message>
     <message>
         <source>No operand in an integer division, %1, can be %2.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Ingen operand i en heltalsdivision, %1, kan være %2.</translation>
     </message>
     <message>
         <source>The first operand in an integer division, %1, cannot be infinity (%2).</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Den første operand i en heltalsdivision, %1, kan ikke være uendeligt (%2).</translation>
     </message>
     <message>
         <source>The second operand in a division, %1, cannot be zero (%2).</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Den anden operand i en division, %1, kan ikke være nul (%2).</translation>
     </message>
     <message>
         <source>%1 is not a valid value of type %2.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">%1 er ikke en gyldig værdi af typen %2.</translation>
     </message>
     <message>
         <source>When casting to %1 from %2, the source value cannot be %3.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Ved cast til %1 fra %2, kan kildeværdien ikke være %3.</translation>
     </message>
     <message>
         <source>Integer division (%1) by zero (%2) is undefined.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Heltalsdivision (%1) med nul (%2) er udefineret.</translation>
     </message>
     <message>
         <source>Division (%1) by zero (%2) is undefined.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Division (%1) med nul (%2) er udefineret.</translation>
     </message>
     <message>
         <source>Modulus division (%1) by zero (%2) is undefined.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Modulusdivision (%1) med nul (%2) er udefineret.</translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 (not-a-number) is not allowed.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Division af værdi af typen %1 med %2 (ikke et tal) er ikke tilladt.</translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 or %3 (plus or minus zero) is not allowed.</source>
@@ -9237,7 +9240,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>VolumeSlider</name>
     <message>
         <source>Volume: %1%</source>
-        <translation>Lydstyrke: %1%</translation>
+        <translation type="vanished">Lydstyrke: %1%</translation>
     </message>
     <message>
         <source>Muted</source>
@@ -9248,55 +9251,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Rul her</translation>
+        <translation type="vanished">Rul her</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Venstre kant</translation>
+        <translation type="vanished">Venstre kant</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>Top</translation>
+        <translation type="vanished">Top</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Højre kant</translation>
+        <translation type="vanished">Højre kant</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>Bund</translation>
+        <translation type="vanished">Bund</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Side venstre</translation>
+        <translation type="vanished">Side venstre</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Side øverst</translation>
+        <translation type="vanished">Side øverst</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Side højre</translation>
+        <translation type="vanished">Side højre</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Side ned</translation>
+        <translation type="vanished">Side ned</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Rul til venstre</translation>
+        <translation type="vanished">Rul til venstre</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Rul op</translation>
+        <translation type="vanished">Rul op</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Rul til højre</translation>
+        <translation type="vanished">Rul til højre</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Rul ned</translation>
+        <translation type="vanished">Rul ned</translation>
     </message>
 </context>
 <context>

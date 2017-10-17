@@ -32,309 +32,309 @@
     </message>
     <message>
         <source>Quit %1</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">ចេញ %1</translation>
     </message>
     <message>
         <source>About %1</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">អំពី %1</translation>
     </message>
 </context>
 <context>
     <name>PPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>ឈ្មោះ</translation>
+        <translation type="vanished">ឈ្មោះ</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>តម្លៃ</translation>
+        <translation type="vanished">តម្លៃ</translation>
     </message>
 </context>
 <context>
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>មិន​បាន​កំណត់ %1, %2</translation>
+        <translation type="vanished">មិន​បាន​កំណត់ %1, %2</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>មិនបានគ្រប់គ្រង %1 ពិតប្រាកដ​ទេ</translation>
+        <translation type="vanished">មិនបានគ្រប់គ្រង %1 ពិតប្រាកដ​ទេ</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>ពិត</translation>
+        <translation type="vanished">ពិត</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>មិនពិតប្រាកដ</translation>
+        <translation type="vanished">មិនពិតប្រាកដ</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>បញ្ចូល</translation>
+        <translation type="vanished">បញ្ចូល</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>ធ្វើ​ឲ្យ​ទាន់សម័យ</translation>
+        <translation type="vanished">ធ្វើ​ឲ្យ​ទាន់សម័យ</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>លុប</translation>
+        <translation type="vanished">លុប</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>ចម្លង​ ឬ​ផ្លាស់ទី​ឯកសារ</translation>
+        <translation type="vanished">ចម្លង​ ឬ​ផ្លាស់ទី​ឯកសារ</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>អាន ៖ %1</translation>
+        <translation type="vanished">អាន ៖ %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>សរសេរ ៖ %1</translation>
+        <translation type="vanished">សរសេរ ៖ %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>ឯកសារ​ទាំង​អស់ (*)</translation>
+        <translation type="vanished">ឯកសារ​ទាំង​អស់ (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>ឈ្មោះ</translation>
+        <translation type="vanished">ឈ្មោះ</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>ទំហំ</translation>
+        <translation type="vanished">ទំហំ</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>ប្រភេទ</translation>
+        <translation type="vanished">ប្រភេទ</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>កាលបរិច្ឆេទ</translation>
+        <translation type="vanished">កាលបរិច្ឆេទ</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>គុណលក្ខណៈ</translation>
+        <translation type="vanished">គុណលក្ខណៈ</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>យល់ព្រម</translation>
+        <translation type="vanished">យល់ព្រម</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>មើល​ក្នុង ៖</translation>
+        <translation type="vanished">មើល​ក្នុង ៖</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>ឈ្មោះ​ឯកសារ ៖</translation>
+        <translation type="vanished">ឈ្មោះ​ឯកសារ ៖</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>ប្រភេទ​ឯកសារ ៖</translation>
+        <translation type="vanished">ប្រភេទ​ឯកសារ ៖</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>ថយក្រោយ</translation>
+        <translation type="vanished">ថយក្រោយ</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>មួយ​ថត​ឡើង​លើ</translation>
+        <translation type="vanished">មួយ​ថត​ឡើង​លើ</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>បង្កើត​ថត​ថ្មី</translation>
+        <translation type="vanished">បង្កើត​ថត​ថ្មី</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>ទិដ្ឋភាព​បញ្ជី</translation>
+        <translation type="vanished">ទិដ្ឋភាព​បញ្ជី</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>ទិដ្ឋភាព​លម្អិត</translation>
+        <translation type="vanished">ទិដ្ឋភាព​លម្អិត</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>ព័ត៌មាន​ឯកសារ​​​មើល​ជា​មុន</translation>
+        <translation type="vanished">ព័ត៌មាន​ឯកសារ​​​មើល​ជា​មុន</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>មាតិកា​ឯកសារ​មើល​ជា​មុន</translation>
+        <translation type="vanished">មាតិកា​ឯកសារ​មើល​ជា​មុន</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>អាន-សរសេរ</translation>
+        <translation type="vanished">អាន-សរសេរ</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>បាន​តែ​អាន</translation>
+        <translation type="vanished">បាន​តែ​អាន</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>បាន​តែ​សរសេរ</translation>
+        <translation type="vanished">បាន​តែ​សរសេរ</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>មិនអាច​ចូលដំណើរការ</translation>
+        <translation type="vanished">មិនអាច​ចូលដំណើរការ</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>តំណ​និមិត្តសញ្ញា​ទៅ​កាន់​ឯកសារ</translation>
+        <translation type="vanished">តំណ​និមិត្តសញ្ញា​ទៅ​កាន់​ឯកសារ</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>តំណ​និមិត្តសញ្ញា​ទៅ​កាន់ថត</translation>
+        <translation type="vanished">តំណ​និមិត្តសញ្ញា​ទៅ​កាន់ថត</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>តំណ​និមិត្តសញ្ញា​ទៅ​កាន់​ឯកសារ​ពិសេស</translation>
+        <translation type="vanished">តំណ​និមិត្តសញ្ញា​ទៅ​កាន់​ឯកសារ​ពិសេស</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>ឯកសារ</translation>
+        <translation type="vanished">ឯកសារ</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>ថត</translation>
+        <translation type="vanished">ថត</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>ពិសេស</translation>
+        <translation type="vanished">ពិសេស</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>បើក</translation>
+        <translation type="vanished">បើក</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>រក្សាទុក​ជា</translation>
+        <translation type="vanished">រក្សាទុក​ជា</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>បើក</translation>
+        <translation type="vanished">បើក</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>រក្សាទុក</translation>
+        <translation type="vanished">រក្សាទុក</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>ប្ដូរ​ឈ្មោះ</translation>
+        <translation type="vanished">ប្ដូរ​ឈ្មោះ</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>លុប</translation>
+        <translation type="vanished">លុប</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>ផ្ទុក​ឡើងវិញ</translation>
+        <translation type="vanished">ផ្ទុក​ឡើងវិញ</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>តម្រៀប​តាម​ឈ្មោះ</translation>
+        <translation type="vanished">តម្រៀប​តាម​ឈ្មោះ</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>តម្រៀប​តាម​ទំហំ</translation>
+        <translation type="vanished">តម្រៀប​តាម​ទំហំ</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>តម្រៀប​តាម​កាលបរិច្ឆេទ</translation>
+        <translation type="vanished">តម្រៀប​តាម​កាលបរិច្ឆេទ</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>មិន​បាន​តម្រៀប​ទេ</translation>
+        <translation type="vanished">មិន​បាន​តម្រៀប​ទេ</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>តម្រៀប</translation>
+        <translation type="vanished">តម្រៀប</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>បង្ហាញ​ឯកសារ​​ដែល​លាក់</translation>
+        <translation type="vanished">បង្ហាញ​ឯកសារ​​ដែល​លាក់</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>ឯកសារ</translation>
+        <translation type="vanished">ឯកសារ</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>ថត</translation>
+        <translation type="vanished">ថត</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>តំណនិមិត្តសញ្ញា</translation>
+        <translation type="vanished">តំណនិមិត្តសញ្ញា</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>លុប %1</translation>
+        <translation type="vanished">លុប %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;តើ​អ្នក​ប្រាកដ​ជា​ចង់​លុប %1 &quot;%2&quot; មែនឬ ?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;តើ​អ្នក​ប្រាកដ​ជា​ចង់​លុប %1 &quot;%2&quot; មែនឬ ?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>បាទ/ចាស</translation>
+        <translation type="vanished">បាទ/ចាស</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>ទេ</translation>
+        <translation type="vanished">ទេ</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>ថត​ថ្មី ១</translation>
+        <translation type="vanished">ថត​ថ្មី ១</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>ថត​ថ្មី</translation>
+        <translation type="vanished">ថត​ថ្មី</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>ថត​ថ្មី %1</translation>
+        <translation type="vanished">ថត​ថ្មី %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>រក​ថត</translation>
+        <translation type="vanished">រក​ថត</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>ថត</translation>
+        <translation type="vanished">ថត</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>ថត ៖</translation>
+        <translation type="vanished">ថត ៖</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>កំហុស</translation>
+        <translation type="vanished">កំហុស</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1 រក​មិនឃើញ​ទេ ។ សូម​ពិនិត្យ​មើល​ផ្លូវ និង​ឈ្មោះ​ឯកសារ ។</translation>
+        <translation type="vanished">%1 រក​មិនឃើញ​ទេ ។ សូម​ពិនិត្យ​មើល​ផ្លូវ និង​ឈ្មោះ​ឯកសារ ។</translation>
     </message>
     <message>
         <source>All Files (*.*)</source>
-        <translation>ឯកសារ​ទាំង​អស់ (*.*)</translation>
+        <translation type="vanished">ឯកសារ​ទាំង​អស់ (*.*)</translation>
     </message>
     <message>
         <source>Open </source>
-        <translation>បើក</translation>
+        <translation type="vanished">បើក</translation>
     </message>
     <message>
         <source>Select a Directory</source>
-        <translation>ជ្រើស​ថត</translation>
+        <translation type="vanished">ជ្រើស​ថត</translation>
     </message>
 </context>
 <context>
@@ -342,19 +342,19 @@ Check path and filename.</source>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>មិនអាច​អាន​ថត
+        <translation type="vanished">មិនអាច​អាន​ថត
 %1 បានទេ</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>មិនអាច​បង្កើត​ថត
+        <translation type="vanished">មិនអាច​បង្កើត​ថត
 %1 បានទេ</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>មិនអាច​យក​ឯកសារ ឬ​ថត​ចេញ​ទេ
+        <translation type="vanished">មិនអាច​យក​ឯកសារ ឬ​ថត​ចេញ​ទេ
 %1</translation>
     </message>
     <message>
@@ -362,7 +362,7 @@ Check path and filename.</source>
 %1
 to
 %2</source>
-        <translation>មិនអាច​ប្ដូរ​ឈ្មោះ
+        <translation type="vanished">មិនអាច​ប្ដូរ​ឈ្មោះ
 %1
 ទៅជា
 %2 បានទេ</translation>
@@ -370,13 +370,13 @@ to
     <message>
         <source>Could not open
 %1</source>
-        <translation>មិនអាច​បើក
+        <translation type="vanished">មិនអាច​បើក
 %1 បានទេ</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>មិនអាច​សរសេរ​ទៅកាន់
+        <translation type="vanished">មិនអាច​សរសេរ​ទៅកាន់
 %1 បានទេ</translation>
     </message>
 </context>
@@ -384,203 +384,203 @@ to
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>រៀប​ជា​ជួរ</translation>
+        <translation type="vanished">រៀប​ជា​ជួរ</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>ប្ដូរ​តាមបំណង...</translation>
+        <translation type="vanished">ប្ដូរ​តាមបំណង...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>ប្រតិបត្តិការ​បាន​បញ្ឈប់​ដោយ​អ្នកប្រើ</translation>
+        <translation type="vanished">ប្រតិបត្តិការ​បាន​បញ្ឈប់​ដោយ​អ្នកប្រើ</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>យល់ព្រម</translation>
+        <translation type="vanished">យល់ព្រម</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>អនុវត្ត</translation>
+        <translation type="vanished">អនុវត្ត</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>ជំនួយ</translation>
+        <translation type="vanished">ជំនួយ</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>លំនាំដើម</translation>
+        <translation type="vanished">លំនាំដើម</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>មិនធ្វើ​វិញ</translation>
+        <translation type="vanished">មិនធ្វើ​វិញ</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>ធ្វើ​វិញ</translation>
+        <translation type="vanished">ធ្វើ​វិញ</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>កាត់</translation>
+        <translation type="vanished">កាត់</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>ចម្លង</translation>
+        <translation type="vanished">ចម្លង</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>បិទភ្ជាប់</translation>
+        <translation type="vanished">បិទភ្ជាប់</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>ជម្រះ</translation>
+        <translation type="vanished">ជម្រះ</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>ជ្រើស​ទាំង​អស់</translation>
+        <translation type="vanished">ជ្រើស​ទាំង​អស់</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>ប្រព័ន្ធ</translation>
+        <translation type="vanished">ប្រព័ន្ធ</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>ស្ដារឡើង​វិញ​ទៅ​លើ</translation>
+        <translation type="vanished">ស្ដារឡើង​វិញ​ទៅ​លើ</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>បង្រួម​អប្បបរមា</translation>
+        <translation type="vanished">បង្រួម​អប្បបរមា</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>ស្ដារ​ឡើង​វិញ​ចុះក្រោម</translation>
+        <translation type="vanished">ស្ដារ​ឡើង​វិញ​ចុះក្រោម</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>ពង្រីក​អតិបរមា</translation>
+        <translation type="vanished">ពង្រីក​អតិបរមា</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>បិទ</translation>
+        <translation type="vanished">បិទ</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>មាន​ពាក្យ​បញ្ជា​ដើម្បី​គណនា​បង្អួច</translation>
+        <translation type="vanished">មាន​ពាក្យ​បញ្ជា​ដើម្បី​គណនា​បង្អួច</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>ដាក់​ការ​​​ថយក្រោយ​ដែល​បានបង្រួម​អប្បបរមា​ទៅ​ធម្មតា​វិញ</translation>
+        <translation type="vanished">ដាក់​ការ​​​ថយក្រោយ​ដែល​បានបង្រួម​អប្បបរមា​ទៅ​ធម្មតា​វិញ</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>ផ្លាស់ទី​បង្អួច​ចេញ​ពី​ផ្លូវ</translation>
+        <translation type="vanished">ផ្លាស់ទី​បង្អួច​ចេញ​ពី​ផ្លូវ</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>ដាក់​បង្អួច​ថយក្រោយ​ដែល​បានបង្រួម​អប្បបរមា​ទៅ​ធម្មតា​វិញ</translation>
+        <translation type="vanished">ដាក់​បង្អួច​ថយក្រោយ​ដែល​បានបង្រួម​អប្បបរមា​ទៅ​ធម្មតា​វិញ</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>ធ្វើ​ឲ្យ​បង្អួច​ពេញអេក្រង់</translation>
+        <translation type="vanished">ធ្វើ​ឲ្យ​បង្អួច​ពេញអេក្រង់</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>បិទ​បង្អួច</translation>
+        <translation type="vanished">បិទ​បង្អួច</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>បង្ហាញ​ឈ្មោះបង្អួច​ និង​មាន​វត្ថុ​បញ្ជា​ដើម្បី​គណនា​វា​ផងដែរ</translation>
+        <translation type="vanished">បង្ហាញ​ឈ្មោះបង្អួច​ និង​មាន​វត្ថុ​បញ្ជា​ដើម្បី​គណនា​វា​ផងដែរ</translation>
     </message>
 </context>
 <context>
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>ច្រើនទៀត...</translation>
+        <translation type="vanished">ច្រើនទៀត...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>ពិធីការ `%1&apos; មិន​ត្រូវ​បានគាំទ្រ​ទេ</translation>
+        <translation type="vanished">ពិធីការ `%1&apos; មិន​ត្រូវ​បានគាំទ្រ​ទេ</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>ពិធីការ `%1&apos; មិនគាំទ្រ​ថត​ដែល​រាយ​ទេ</translation>
+        <translation type="vanished">ពិធីការ `%1&apos; មិនគាំទ្រ​ថត​ដែល​រាយ​ទេ</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>ពិធីការ `%1&apos; មិនគាំទ្រ​ការ​បង្កើត​ថត​ថ្មីទេ</translation>
+        <translation type="vanished">ពិធីការ `%1&apos; មិនគាំទ្រ​ការ​បង្កើត​ថត​ថ្មីទេ</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>ពិធីការ `%1&apos; មិន​គាំទ្រ​ការ​យកឯកសារ ឬ​ថត​ចេញ​ទេ</translation>
+        <translation type="vanished">ពិធីការ `%1&apos; មិន​គាំទ្រ​ការ​យកឯកសារ ឬ​ថត​ចេញ​ទេ</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>ពិធីការ `%1&apos; មិន​គាំទ្រ​ការ​ប្ដូរ​ឈ្មោះ​ឯកសារ ឬ​ថត​ទេ</translation>
+        <translation type="vanished">ពិធីការ `%1&apos; មិន​គាំទ្រ​ការ​ប្ដូរ​ឈ្មោះ​ឯកសារ ឬ​ថត​ទេ</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>ពិធីការ `%1&apos; មិនគាំទ្រ​នឹង​ការ​ទទួល​ឯកសារ​ទេ</translation>
+        <translation type="vanished">ពិធីការ `%1&apos; មិនគាំទ្រ​នឹង​ការ​ទទួល​ឯកសារ​ទេ</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>ពិធីការ `%1&apos; មិន​គាំទ្រ​នឹង​ការ​ដាក់​ឯកសារ​ទេ</translation>
+        <translation type="vanished">ពិធីការ `%1&apos; មិន​គាំទ្រ​នឹង​ការ​ដាក់​ឯកសារ​ទេ</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>ពិធីការ `%1&apos; មិន​គាំត្រ​នឹង​ការ​ចម្លង ឬ​ផ្លាស់ទី​ឯកសារ ឬ​ថត​ទេ</translation>
+        <translation type="vanished">ពិធីការ `%1&apos; មិន​គាំត្រ​នឹង​ការ​ចម្លង ឬ​ផ្លាស់ទី​ឯកសារ ឬ​ថត​ទេ</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(មិនស្គាល់)</translation>
+        <translation type="vanished">(មិនស្គាល់)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; ថយក្រោយ</translation>
+        <translation type="vanished">&lt; ថយក្រោយ</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>បន្ទាប់ &gt;</translation>
+        <translation type="vanished">បន្ទាប់ &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>បញ្ចប់</translation>
+        <translation type="vanished">បញ្ចប់</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>ជំនួយ</translation>
+        <translation type="vanished">ជំនួយ</translation>
     </message>
 </context>
 <context>
@@ -755,7 +755,7 @@ to
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>ធ្វើ​ឲ្យ​សកម្ម</translation>
+        <translation type="vanished">ធ្វើ​ឲ្យ​សកម្ម</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -768,45 +768,45 @@ to
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>QT_LAYOUT_DIRECTION</translation>
+        <translation type="vanished">QT_LAYOUT_DIRECTION</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>ធ្វើ​ឲ្យ​បង្អួច​មេ​របស់​កម្មវិធី​សកម្ម</translation>
+        <translation type="vanished">ធ្វើ​ឲ្យ​បង្អួច​មេ​របស់​កម្មវិធី​សកម្ម</translation>
     </message>
 </context>
 <context>
     <name>QAxSelect</name>
     <message>
         <source>Select ActiveX Control</source>
-        <translation>ជ្រើស​វត្ថុ​បញ្ជា ActiveX</translation>
+        <translation type="vanished">ជ្រើស​វត្ថុ​បញ្ជា ActiveX</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>យល់ព្រម</translation>
+        <translation type="vanished">យល់ព្រម</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>COM &amp;Object:</source>
-        <translation>វត្ថុ COM ៖</translation>
+        <translation type="vanished">វត្ថុ COM ៖</translation>
     </message>
 </context>
 <context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>មិន​ធូសធីគ</translation>
+        <translation type="vanished">មិន​ធូសធីគ</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>ពិនិត្យ​មើល</translation>
+        <translation type="vanished">ពិនិត្យ​មើល</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>បិទ/បើក</translation>
+        <translation type="vanished">បិទ/បើក</translation>
     </message>
 </context>
 <context>
@@ -911,15 +911,15 @@ to
     </message>
     <message>
         <source>&amp;Define Custom Colors &gt;&gt;</source>
-        <translation>កំណត់​ពណ៌​ផ្ទាល់ខ្លួន &gt;&gt;</translation>
+        <translation type="vanished">កំណត់​ពណ៌​ផ្ទាល់ខ្លួន &gt;&gt;</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>យល់ព្រម</translation>
+        <translation type="vanished">យល់ព្រម</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
@@ -927,7 +927,7 @@ to
     </message>
     <message>
         <source>Select color</source>
-        <translation>ជ្រើស​ពណ៌</translation>
+        <translation type="vanished">ជ្រើស​ពណ៌</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -951,7 +951,7 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>បើក</translation>
+        <translation type="vanished">បើក</translation>
     </message>
     <message>
         <source>False</source>
@@ -963,7 +963,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>បិទ</translation>
+        <translation type="vanished">បិទ</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1192,19 +1192,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>AM</translation>
+        <translation type="vanished">AM</translation>
     </message>
     <message>
         <source>am</source>
-        <translation>am</translation>
+        <translation type="vanished">am</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation>PM</translation>
+        <translation type="vanished">PM</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation>pm</translation>
+        <translation type="vanished">pm</translation>
     </message>
 </context>
 <context>
@@ -1230,15 +1230,15 @@ Press ESC to cancel</source>
     <name>QDial</name>
     <message>
         <source>QDial</source>
-        <translation>QDial</translation>
+        <translation type="vanished">QDial</translation>
     </message>
     <message>
         <source>SpeedoMeter</source>
-        <translation>SpeedoMeter</translation>
+        <translation type="vanished">SpeedoMeter</translation>
     </message>
     <message>
         <source>SliderHandle</source>
-        <translation>SliderHandle</translation>
+        <translation type="vanished">SliderHandle</translation>
     </message>
 </context>
 <context>
@@ -1256,79 +1256,79 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Save</source>
-        <translation>រក្សាទុក</translation>
+        <translation type="vanished">រក្សាទុក</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>បើក</translation>
+        <translation type="vanished">បើក</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>បិទ</translation>
+        <translation type="vanished">បិទ</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>អនុវត្ត</translation>
+        <translation type="vanished">អនុវត្ត</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>កំណត់​ឡើង​វិញ</translation>
+        <translation type="vanished">កំណត់​ឡើង​វិញ</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>ជំនួយ</translation>
+        <translation type="vanished">ជំនួយ</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>កុំ​រក្សាទុក</translation>
+        <translation type="vanished">កុំ​រក្សាទុក</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>បាទ/ចាស</translation>
+        <translation type="vanished">បាទ/ចាស</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>បាទ/ចាស​ទៅ​ទាំង​អស់</translation>
+        <translation type="vanished">បាទ/ចាស​ទៅ​ទាំង​អស់</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>ទេ</translation>
+        <translation type="vanished">ទេ</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>ទេ​ទៅ​ទាំង​អស់</translation>
+        <translation type="vanished">ទេ​ទៅ​ទាំង​អស់</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>រក្សាទុកទាំង​អស់</translation>
+        <translation type="vanished">រក្សាទុកទាំង​អស់</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>ព្យាយាម​ម្ដង​ទៀត</translation>
+        <translation type="vanished">ព្យាយាម​ម្ដង​ទៀត</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>មិនអើពើ</translation>
+        <translation type="vanished">មិនអើពើ</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>ស្ដារ​លំនាំដើម​ឡើងវិញ</translation>
+        <translation type="vanished">ស្ដារ​លំនាំដើម​ឡើងវិញ</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>បិទ​ដោយ​មិន​រក្សាទុក</translation>
+        <translation type="vanished">បិទ​ដោយ​មិន​រក្សាទុក</translation>
     </message>
 </context>
 <context>
@@ -1466,14 +1466,16 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>បិទ</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translation>ចូលផែ</translation>
+        <translation type="vanished">ចូលផែ</translation>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation>អណ្ដែត</translation>
     </message>
     <message>
@@ -1489,11 +1491,11 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>ច្រើន​ជាង</translation>
+        <translation type="vanished">ច្រើន​ជាង</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>តិច​ជាង</translation>
+        <translation type="vanished">តិច​ជាង</translation>
     </message>
 </context>
 <context>
@@ -1652,7 +1654,7 @@ Please verify the correct file name was given.</source>
         <source>
 File not found.
 Please verify the correct file name was given</source>
-        <translation>
+        <translation type="vanished">
 រក​មិនឃើញឯកសារ ។
 សូម​ផ្ទៀងផ្ទាត់​ឈ្មោះ​ឯកសារ​ដែល​ត្រឹមត្រូវ​ដែល​ត្រូវ​ផ្ដល់</translation>
     </message>
@@ -1671,7 +1673,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>តើ​អ្នក​ប្រាកដ​ជា​ចង់​លុប &apos;%1&apos;?</translation>
+        <translation type="vanished">តើ​អ្នក​ប្រាកដ​ជា​ចង់​លុប &apos;%1&apos;?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
@@ -1679,7 +1681,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>All Files (*.*)</source>
-        <translation>ឯកសារ​ទាំង​អស់ (*.*)</translation>
+        <translation type="vanished">ឯកសារ​ទាំង​អស់ (*.*)</translation>
     </message>
     <message>
         <source>Save As</source>
@@ -2146,7 +2148,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>ការ​តភ្ជាប់​បាន​បដិសេធ​សម្រាប់​ការ​តភ្ជាប់​ទិន្នន័យ</translation>
+        <translation type="vanished">ការ​តភ្ជាប់​បាន​បដិសេធ​សម្រាប់​ការ​តភ្ជាប់​ទិន្នន័យ</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2212,19 +2214,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>រក​ឃើញ​ម៉ាស៊ីន %1</translation>
+        <translation type="vanished">រក​ឃើញ​ម៉ាស៊ីន %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>បាន​បិទ​ការ​តភ្ជាប់​ទៅ​កាន់ %1</translation>
+        <translation type="vanished">បាន​បិទ​ការ​តភ្ជាប់​ទៅ​កាន់ %1</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>រក​ឃើញ​ម៉ាស៊ីន</translation>
+        <translation type="vanished">រក​ឃើញ​ម៉ាស៊ីន</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>បានតភ្ជាប់​ទៅ​កាន់​ម៉ាស៊ីន</translation>
+        <translation type="vanished">បានតភ្ជាប់​ទៅ​កាន់​ម៉ាស៊ីន</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -2308,23 +2310,23 @@ Do you want to delete it anyway?</source>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>មិនស្គាល់​កំហុស</translation>
+        <translation type="vanished">មិនស្គាល់​កំហុស</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>បាន​បោះបង់​សំណើ</translation>
+        <translation type="vanished">បាន​បោះបង់​សំណើ</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>គ្មានម៉ាស៊ីន​បម្រើ​បានកំណត់​ដើម្បី​តភ្ជាប់​ទៅ</translation>
+        <translation type="vanished">គ្មានម៉ាស៊ីន​បម្រើ​បានកំណត់​ដើម្បី​តភ្ជាប់​ទៅ</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>ប្រវែង​មាតិកា​មិន​ត្រឹមត្រូវ</translation>
+        <translation type="vanished">ប្រវែង​មាតិកា​មិន​ត្រឹមត្រូវ</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>ម៉ាស៊ីនបម្រើ​បានបិទ​ការ​តភ្ជាប់​ដោយ​មិន​រំពឹង​ទុក</translation>
+        <translation type="vanished">ម៉ាស៊ីនបម្រើ​បានបិទ​ការ​តភ្ជាប់​ដោយ​មិន​រំពឹង​ទុក</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -2336,35 +2338,35 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>បាន​បរាជ័យ​ក្នុងការ​ស្នើ HTTP</translation>
+        <translation type="vanished">បាន​បរាជ័យ​ក្នុងការ​ស្នើ HTTP</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>បឋមកថាការ​ឆ្លើយតប​របស់ HTTP</translation>
+        <translation type="vanished">បឋមកថាការ​ឆ្លើយតប​របស់ HTTP</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>តួ HTTP មិន​ត្រឹមត្រូវ</translation>
+        <translation type="vanished">តួ HTTP មិន​ត្រឹមត្រូវ</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>រក​ឃើញ​ម៉ាស៊ីន %1</translation>
+        <translation type="vanished">រក​ឃើញ​ម៉ាស៊ីន %1</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>បានតភ្ជាប់​ទៅកាន់​ម៉ាស៊ីន %1</translation>
+        <translation type="vanished">បានតភ្ជាប់​ទៅកាន់​ម៉ាស៊ីន %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>បានបិទ​ការ​តភ្ជាប់​ទៅកាន់ %1</translation>
+        <translation type="vanished">បានបិទ​ការ​តភ្ជាប់​ទៅកាន់ %1</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>រក​ឃើញ​ម៉ាស៊ីន</translation>
+        <translation type="vanished">រក​ឃើញ​ម៉ាស៊ីន</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>បានតភ្ជាប់​ទៅ​កាន់​ម៉ាស៊ីន</translation>
+        <translation type="vanished">បានតភ្ជាប់​ទៅ​កាន់​ម៉ាស៊ីន</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2372,11 +2374,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>ត្រូវការ​ការ​ផ្ទៀងផ្ទាត់​ភាព​ត្រឹមត្រូវ​របស់​ប្រូកស៊ី</translation>
+        <translation type="vanished">ត្រូវការ​ការ​ផ្ទៀងផ្ទាត់​ភាព​ត្រឹមត្រូវ​របស់​ប្រូកស៊ី</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>ត្រូវការ​ការ​ផ្ទៀងផ្ទាត់​ភាព​ត្រឹមត្រូវ</translation>
+        <translation type="vanished">ត្រូវការ​ការ​ផ្ទៀងផ្ទាត់​ភាព​ត្រឹមត្រូវ</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
@@ -2609,19 +2611,19 @@ Do you want to delete it anyway?</source>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="vanished">XIM</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>វិធីសាស្ត្រ​បញ្ចូល XIM</translation>
+        <translation type="vanished">វិធីសាស្ត្រ​បញ្ចូល XIM</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>វិធី​សាស្ត្រ​បញ្ចូល​វីនដូ</translation>
+        <translation type="vanished">វិធី​សាស្ត្រ​បញ្ចូល​វីនដូ</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>វិធីសាស្ត្រ​បញ្ចូល​របស់ Mac OS X</translation>
+        <translation type="vanished">វិធីសាស្ត្រ​បញ្ចូល​របស់ Mac OS X</translation>
     </message>
 </context>
 <context>
@@ -2710,27 +2712,27 @@ Do you want to delete it anyway?</source>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys ៖ មិន​អាច​ផ្ទុក %1 (%2) បានទេ</translation>
+        <translation type="vanished">QLibrary::load_sys ៖ មិន​អាច​ផ្ទុក %1 (%2) បានទេ</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys ៖ មិន​អាច​មិនផ្ទុក​បានទេ %1 (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys ៖ មិន​អាច​មិនផ្ទុក​បានទេ %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::resolve_sys: Symbol &quot;%1&quot; មិន​បាន​កំណត់​នៅ​ក្នុង %2 (%3)</translation>
+        <translation type="vanished">QLibrary::resolve_sys: Symbol &quot;%1&quot; មិន​បាន​កំណត់​នៅ​ក្នុង %2 (%3)</translation>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>មិនអាច mmap &apos;%1&apos; ៖ %2 បានទេ</translation>
+        <translation type="vanished">មិនអាច mmap &apos;%1&apos; ៖ %2 បានទេ</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>ទិន្នន័យ​ផ្ទៀងផ្ទាត់​ភាព​ត្រឹមត្រូវ​របស់​កម្មវិធី​ជំនួយ​មិន​ផ្គូផ្គង​នៅ​ក្នុង &apos;%1&apos; ទេ</translation>
+        <translation type="vanished">ទិន្នន័យ​ផ្ទៀងផ្ទាត់​ភាព​ត្រឹមត្រូវ​របស់​កម្មវិធី​ជំនួយ​មិន​ផ្គូផ្គង​នៅ​ក្នុង &apos;%1&apos; ទេ</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>មិន​អាច unmap &apos;%1&apos;: %2</translation>
+        <translation type="vanished">មិន​អាច unmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
@@ -2738,7 +2740,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>កម្មវិធី​ជំនួយ &apos;%1&apos; ប្រើ​បណ្ណាល័យ Qt មិន​ឆបគ្នា ។ សោ​ស្ថាបនា​ដែល​បាន​រំពឹង​ទុកគឺ &quot;%2&quot; បាន​ទទួល &quot;%3&quot;</translation>
+        <translation type="vanished">កម្មវិធី​ជំនួយ &apos;%1&apos; ប្រើ​បណ្ណាល័យ Qt មិន​ឆបគ្នា ។ សោ​ស្ថាបនា​ដែល​បាន​រំពឹង​ទុកគឺ &quot;%2&quot; បាន​ទទួល &quot;%3&quot;</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2930,7 +2932,7 @@ Do you want to delete it anyway?</source>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>មិនអាច​បើក​មូលដ្ឋាន​ទិន្នន័យ​បានទេ &apos;</translation>
+        <translation type="vanished">មិនអាច​បើក​មូលដ្ឋាន​ទិន្នន័យ​បានទេ &apos;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
@@ -3090,66 +3092,66 @@ Do you want to delete it anyway?</source>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>បិទ</translation>
+        <translation type="vanished">បិទ</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>បើក</translation>
+        <translation type="vanished">បើក</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>ប្រតិបត្តិ</translation>
+        <translation type="vanished">ប្រតិបត្តិ</translation>
     </message>
 </context>
 <context>
     <name>QMenuBar</name>
     <message>
         <source>About</source>
-        <translation>អំពី</translation>
+        <translation type="vanished">អំពី</translation>
     </message>
     <message>
         <source>Config</source>
-        <translation>កំណត់​រចនាសម្ព័ន្ធ</translation>
+        <translation type="vanished">កំណត់​រចនាសម្ព័ន្ធ</translation>
     </message>
     <message>
         <source>Preference</source>
-        <translation>ចំណូល​ចិត្ត</translation>
+        <translation type="vanished">ចំណូល​ចិត្ត</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation>ជម្រើស</translation>
+        <translation type="vanished">ជម្រើស</translation>
     </message>
     <message>
         <source>Setting</source>
-        <translation>ការ​កំណត់</translation>
+        <translation type="vanished">ការ​កំណត់</translation>
     </message>
     <message>
         <source>Setup</source>
-        <translation>រៀបចំ</translation>
+        <translation type="vanished">រៀបចំ</translation>
     </message>
     <message>
         <source>Quit</source>
-        <translation>ចេញ</translation>
+        <translation type="vanished">ចេញ</translation>
     </message>
     <message>
         <source>Exit</source>
-        <translation>ចេញ</translation>
+        <translation type="vanished">ចេញ</translation>
     </message>
     <message>
         <source>About %1</source>
-        <translation>អំពី %1</translation>
+        <translation type="vanished">អំពី %1</translation>
     </message>
     <message>
         <source>About Qt</source>
-        <translation>អំពី Qt</translation>
+        <translation type="vanished">អំពី Qt</translation>
     </message>
     <message>
         <source>Preferences</source>
-        <translation>ចំណូលចិត្ត</translation>
+        <translation type="vanished">ចំណូលចិត្ត</translation>
     </message>
     <message>
         <source>Quit %1</source>
-        <translation>ចេញ %1</translation>
+        <translation type="vanished">ចេញ %1</translation>
     </message>
 </context>
 <context>
@@ -3168,11 +3170,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;កម្មវិធី​នេះ​ប្រើ​កំណែ Qt %1 ។&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;កម្មវិធី​នេះ​ប្រើ​កំណែ Qt %1 ។&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qtopia Core.&lt;/p&gt;&lt;p&gt;Qt is a Trolltech product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;អំពី Qt&lt;/h3&gt;%1&lt;p&gt;Qt គឺ​ជា​ព័ត៌មាន​ជំនួយ​ C++ សម្រាប់​កា​រអភិវឌ្ឍ​កម្មវិធី​​សម្រាប់​ប្រព័ន្ធ​ប្រតិបត្តិការ​ខុសគ្នា ។&lt;/p&gt;&lt;p&gt;Qt ផ្ដល់​នូវ​ភាព​ឆប​គ្នា​ដែល​បាន​ប្រភព​តែ​មួយ​ដែល​ប្រើបានទាំង MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux និង​ Unix ផ្នែក​ជំនួញ​ជា​ច្រើន​ទេ ។ Qt ក៏អាច​ប្រើ​បាន​សម្រាប់​ឧបករណ៍​ដែលបាន​បង្កប់​ដូចជា Qtopia ។ &lt;/p&gt;&lt;p&gt;Qt គឺជា​ផលិតផល​របស់ Trolltech ចំពោះ​ព័ត៌មាន​បន្ថែម​សូមមើល &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; ។&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;អំពី Qt&lt;/h3&gt;%1&lt;p&gt;Qt គឺ​ជា​ព័ត៌មាន​ជំនួយ​ C++ សម្រាប់​កា​រអភិវឌ្ឍ​កម្មវិធី​​សម្រាប់​ប្រព័ន្ធ​ប្រតិបត្តិការ​ខុសគ្នា ។&lt;/p&gt;&lt;p&gt;Qt ផ្ដល់​នូវ​ភាព​ឆប​គ្នា​ដែល​បាន​ប្រភព​តែ​មួយ​ដែល​ប្រើបានទាំង MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux និង​ Unix ផ្នែក​ជំនួញ​ជា​ច្រើន​ទេ ។ Qt ក៏អាច​ប្រើ​បាន​សម្រាប់​ឧបករណ៍​ដែលបាន​បង្កប់​ដូចជា Qtopia ។ &lt;/p&gt;&lt;p&gt;Qt គឺជា​ផលិតផល​របស់ Trolltech ចំពោះ​ព័ត៌មាន​បន្ថែម​សូមមើល &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; ។&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
@@ -3184,7 +3186,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;កម្មវិធី​នេះ​ប្រើកំណែ​កម្មវិធី​ប្រភព​កូដ​ចំហ​ Qt %1 ។&lt;/p&gt;&lt;p&gt;កំណែ​កម្មវិធី​ប្រភព​កូដ​ចំហ Qt សម្រាប់​ការ​អភិវឌ្ឍ​កម្មវិធី​ប្រភព​កូដ​ចំហ ។ អ្នក​ត្រូវការ​អាជ្ញាប័ណ្ណ Qt ផ្នែក​ជំនួញ​សម្រាប់​កម្មវិធី​មាន​​កម្មសិទ្ធិ (ប្រភព​បិទ) ។&lt;/p&gt;&lt;p&gt;ចំពោះ​ទិដ្ឋភាពទូទៅនៃ​អាជ្ញាប័ណ្ណ​របស់ Qt សូម​មើល &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; ។&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;កម្មវិធី​នេះ​ប្រើកំណែ​កម្មវិធី​ប្រភព​កូដ​ចំហ​ Qt %1 ។&lt;/p&gt;&lt;p&gt;កំណែ​កម្មវិធី​ប្រភព​កូដ​ចំហ Qt សម្រាប់​ការ​អភិវឌ្ឍ​កម្មវិធី​ប្រភព​កូដ​ចំហ ។ អ្នក​ត្រូវការ​អាជ្ញាប័ណ្ណ Qt ផ្នែក​ជំនួញ​សម្រាប់​កម្មវិធី​មាន​​កម្មសិទ្ធិ (ប្រភព​បិទ) ។&lt;/p&gt;&lt;p&gt;ចំពោះ​ទិដ្ឋភាពទូទៅនៃ​អាជ្ញាប័ណ្ណ​របស់ Qt សូម​មើល &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; ។&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -3199,18 +3201,18 @@ Do you want to delete it anyway?</source>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>ជ្រើស IM</translation>
+        <translation type="vanished">ជ្រើស IM</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>កម្មវិធីប្ដូរ​វិធីសាស្ត្រ​បញ្ចូល​ជា​ច្រើន</translation>
+        <translation type="vanished">កម្មវិធីប្ដូរ​វិធីសាស្ត្រ​បញ្ចូល​ជា​ច្រើន</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>កម្មវិធី​ប្ដូរ​វិធីសាស្ត្រ​ជា​ច្រើន​ដែល​ប្រើ​ម៉ឺនុយ​បរិបទ​របស់​ធាតុ​ក្រាហ្វិក​អត្ថបទ</translation>
+        <translation type="vanished">កម្មវិធី​ប្ដូរ​វិធីសាស្ត្រ​ជា​ច្រើន​ដែល​ប្រើ​ម៉ឺនុយ​បរិបទ​របស់​ធាតុ​ក្រាហ្វិក​អត្ថបទ</translation>
     </message>
 </context>
 <context>
@@ -3541,7 +3543,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>មិន​អាច​ប្រតិបត្តិ​ជ្រើស​សេចក្ដី​ថ្លែងការណ៍​បានទេ</translation>
+        <translation type="vanished">មិន​អាច​ប្រតិបត្តិ​ជ្រើស​សេចក្ដី​ថ្លែងការណ៍​បានទេ</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
@@ -3560,7 +3562,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>មិនអាច​តភ្ជាប់​បានទេ - កម្មវិធី​បញ្ជា​មិនគាំទ្រ​មុខងារ​ដែល​ត្រូវការ​ទាំង​អស់​ទេ</translation>
+        <translation type="vanished">មិនអាច​តភ្ជាប់​បានទេ - កម្មវិធី​បញ្ជា​មិនគាំទ្រ​មុខងារ​ដែល​ត្រូវការ​ទាំង​អស់​ទេ</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
@@ -3626,7 +3628,7 @@ Do you want to delete it anyway?</source>
     <name>QObject</name>
     <message>
         <source>Home</source>
-        <translation>ផ្ទះ</translation>
+        <translation type="vanished">ផ្ទះ</translation>
     </message>
 </context>
 <context>
@@ -4372,143 +4374,143 @@ Do you want to delete it anyway?</source>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>បាន​តភ្ជាប់​មូលដ្ឋាន</translation>
+        <translation type="vanished">បាន​តភ្ជាប់​មូលដ្ឋាន</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>ឈ្មោះ​ក្លែងក្លាយ ៖ %1</translation>
+        <translation type="vanished">ឈ្មោះ​ក្លែងក្លាយ ៖ %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>មិនស្គាល់</translation>
+        <translation type="vanished">មិនស្គាល់</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation>បញ្ឈរ</translation>
+        <translation type="vanished">បញ្ឈរ</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation>ផ្ដេក</translation>
+        <translation type="vanished">ផ្ដេក</translation>
     </message>
     <message>
         <source>A0 (841 x 1189 mm)</source>
-        <translation>A0 (841 x 1189 mm)</translation>
+        <translation type="vanished">A0 (841 x 1189 mm)</translation>
     </message>
     <message>
         <source>A1 (594 x 841 mm)</source>
-        <translation>A1 (594 x 841 mm)</translation>
+        <translation type="vanished">A1 (594 x 841 mm)</translation>
     </message>
     <message>
         <source>A2 (420 x 594 mm)</source>
-        <translation>A2 (420 x 594 mm)</translation>
+        <translation type="vanished">A2 (420 x 594 mm)</translation>
     </message>
     <message>
         <source>A3 (297 x 420 mm)</source>
-        <translation>A3 (297 x 420 mm)</translation>
+        <translation type="vanished">A3 (297 x 420 mm)</translation>
     </message>
     <message>
         <source>A4 (210 x 297 mm, 8.26 x 11.7 inches)</source>
-        <translation>A4 (210 x 297 mm, 8.26 x 11.7 inches)</translation>
+        <translation type="vanished">A4 (210 x 297 mm, 8.26 x 11.7 inches)</translation>
     </message>
     <message>
         <source>A5 (148 x 210 mm)</source>
-        <translation>A5 (148 x 210 mm)</translation>
+        <translation type="vanished">A5 (148 x 210 mm)</translation>
     </message>
     <message>
         <source>A6 (105 x 148 mm)</source>
-        <translation>A6 (105 x 148 mm)</translation>
+        <translation type="vanished">A6 (105 x 148 mm)</translation>
     </message>
     <message>
         <source>A7 (74 x 105 mm)</source>
-        <translation>A7 (74 x 105 mm)</translation>
+        <translation type="vanished">A7 (74 x 105 mm)</translation>
     </message>
     <message>
         <source>A8 (52 x 74 mm)</source>
-        <translation>A8 (52 x 74 mm)</translation>
+        <translation type="vanished">A8 (52 x 74 mm)</translation>
     </message>
     <message>
         <source>A9 (37 x 52 mm)</source>
-        <translation>A9 (37 x 52 mm)</translation>
+        <translation type="vanished">A9 (37 x 52 mm)</translation>
     </message>
     <message>
         <source>B0 (1000 x 1414 mm)</source>
-        <translation>B0 (1000 x 1414 mm)</translation>
+        <translation type="vanished">B0 (1000 x 1414 mm)</translation>
     </message>
     <message>
         <source>B1 (707 x 1000 mm)</source>
-        <translation>B1 (707 x 1000 mm)</translation>
+        <translation type="vanished">B1 (707 x 1000 mm)</translation>
     </message>
     <message>
         <source>B2 (500 x 707 mm)</source>
-        <translation>B2 (500 x 707 mm)</translation>
+        <translation type="vanished">B2 (500 x 707 mm)</translation>
     </message>
     <message>
         <source>B3 (353 x 500 mm)</source>
-        <translation>B3 (353 x 500 mm)</translation>
+        <translation type="vanished">B3 (353 x 500 mm)</translation>
     </message>
     <message>
         <source>B4 (250 x 353 mm)</source>
-        <translation>B4 (250 x 353 mm)</translation>
+        <translation type="vanished">B4 (250 x 353 mm)</translation>
     </message>
     <message>
         <source>B5 (176 x 250 mm, 6.93 x 9.84 inches)</source>
-        <translation>B5 (176 x 250 mm, 6.93 x 9.84 inches)</translation>
+        <translation type="vanished">B5 (176 x 250 mm, 6.93 x 9.84 inches)</translation>
     </message>
     <message>
         <source>B6 (125 x 176 mm)</source>
-        <translation>B6 (125 x 176 mm)</translation>
+        <translation type="vanished">B6 (125 x 176 mm)</translation>
     </message>
     <message>
         <source>B7 (88 x 125 mm)</source>
-        <translation>B7 (88 x 125 mm)</translation>
+        <translation type="vanished">B7 (88 x 125 mm)</translation>
     </message>
     <message>
         <source>B8 (62 x 88 mm)</source>
-        <translation>B8 (62 x 88 mm)</translation>
+        <translation type="vanished">B8 (62 x 88 mm)</translation>
     </message>
     <message>
         <source>B9 (44 x 62 mm)</source>
-        <translation>B9 (44 x 62 mm)</translation>
+        <translation type="vanished">B9 (44 x 62 mm)</translation>
     </message>
     <message>
         <source>B10 (31 x 44 mm)</source>
-        <translation>B10 (31 x 44 mm)</translation>
+        <translation type="vanished">B10 (31 x 44 mm)</translation>
     </message>
     <message>
         <source>C5E (163 x 229 mm)</source>
-        <translation>C5E (163 x 229 mm)</translation>
+        <translation type="vanished">C5E (163 x 229 mm)</translation>
     </message>
     <message>
         <source>DLE (110 x 220 mm)</source>
-        <translation>DLE (110 x 220 mm)</translation>
+        <translation type="vanished">DLE (110 x 220 mm)</translation>
     </message>
     <message>
         <source>Executive (7.5 x 10 inches, 191 x 254 mm)</source>
-        <translation>Executive (7.5 x 10 inches, 191 x 254 mm)</translation>
+        <translation type="vanished">Executive (7.5 x 10 inches, 191 x 254 mm)</translation>
     </message>
     <message>
         <source>Folio (210 x 330 mm)</source>
-        <translation>Folio (210 x 330 mm)</translation>
+        <translation type="vanished">Folio (210 x 330 mm)</translation>
     </message>
     <message>
         <source>Ledger (432 x 279 mm)</source>
-        <translation>Ledger (432 x 279 mm)</translation>
+        <translation type="vanished">Ledger (432 x 279 mm)</translation>
     </message>
     <message>
         <source>Legal (8.5 x 14 inches, 216 x 356 mm)</source>
-        <translation>Legal (8.5 x 14 inches, 216 x 356 mm)</translation>
+        <translation type="vanished">Legal (8.5 x 14 inches, 216 x 356 mm)</translation>
     </message>
     <message>
         <source>Letter (8.5 x 11 inches, 216 x 279 mm)</source>
-        <translation>Letter (8.5 x 11 inches, 216 x 279 mm)</translation>
+        <translation type="vanished">Letter (8.5 x 11 inches, 216 x 279 mm)</translation>
     </message>
     <message>
         <source>Tabloid (279 x 432 mm)</source>
-        <translation>Tabloid (279 x 432 mm)</translation>
+        <translation type="vanished">Tabloid (279 x 432 mm)</translation>
     </message>
     <message>
         <source>US Common #10 Envelope (105 x 241 mm)</source>
-        <translation>US Common #10 Envelope (105 x 241 mm)</translation>
+        <translation type="vanished">US Common #10 Envelope (105 x 241 mm)</translation>
     </message>
     <message>
         <source>OK</source>
@@ -4516,19 +4518,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation>ទំហំ​ទំព័រ ៖</translation>
+        <translation type="vanished">ទំហំ​ទំព័រ ៖</translation>
     </message>
     <message>
         <source>Orientation:</source>
-        <translation>ទិស ៖</translation>
+        <translation type="vanished">ទិស ៖</translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation>ប្រភព​ក្រដាស ៖</translation>
+        <translation type="vanished">ប្រភព​ក្រដាស ៖</translation>
     </message>
     <message>
         <source>Print</source>
@@ -4536,11 +4538,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>File</source>
-        <translation>ឯកសារ</translation>
+        <translation type="vanished">ឯកសារ</translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation>ម៉ាស៊ីន​បោះពុម្ព</translation>
+        <translation type="vanished">ម៉ាស៊ីន​បោះពុម្ព</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -4548,79 +4550,79 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Print dialog</source>
-        <translation>ប្រអប់​បោះពុម្ព</translation>
+        <translation type="vanished">ប្រអប់​បោះពុម្ព</translation>
     </message>
     <message>
         <source>Paper format</source>
-        <translation>ទ្រង់ទ្រាយ​ក្រដាស</translation>
+        <translation type="vanished">ទ្រង់ទ្រាយ​ក្រដាស</translation>
     </message>
     <message>
         <source>Size:</source>
-        <translation>ទំហំ ៖</translation>
+        <translation type="vanished">ទំហំ ៖</translation>
     </message>
     <message>
         <source>Properties</source>
-        <translation>លក្ខណៈសម្បត្តិ</translation>
+        <translation type="vanished">លក្ខណៈសម្បត្តិ</translation>
     </message>
     <message>
         <source>Printer info:</source>
-        <translation>ព័ត៌មាន​របស់​ម៉ាស៊ីន​បោះពុម្ព ៖</translation>
+        <translation type="vanished">ព័ត៌មាន​របស់​ម៉ាស៊ីន​បោះពុម្ព ៖</translation>
     </message>
     <message>
         <source>Browse</source>
-        <translation>រក​មើល</translation>
+        <translation type="vanished">រក​មើល</translation>
     </message>
     <message>
         <source>Print to file</source>
-        <translation>បោះពុម្ព​ទៅ​ឯកសារ</translation>
+        <translation type="vanished">បោះពុម្ព​ទៅ​ឯកសារ</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation>ជួរ​បោះពុម្ព</translation>
+        <translation type="vanished">ជួរ​បោះពុម្ព</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation>បោះពុម្ព​ទាំង​អស់</translation>
+        <translation type="vanished">បោះពុម្ព​ទាំង​អស់</translation>
     </message>
     <message>
         <source>Pages from</source>
-        <translation>ទំព័រ​ពី</translation>
+        <translation type="vanished">ទំព័រ​ពី</translation>
     </message>
     <message>
         <source>to</source>
-        <translation>ដល់</translation>
+        <translation type="vanished">ដល់</translation>
     </message>
     <message>
         <source>Selection</source>
-        <translation>ជម្រើស</translation>
+        <translation type="vanished">ជម្រើស</translation>
     </message>
     <message>
         <source>Copies</source>
-        <translation>ច្បាប់ចម្លង</translation>
+        <translation type="vanished">ច្បាប់ចម្លង</translation>
     </message>
     <message>
         <source>Number of copies:</source>
-        <translation>ចំនួន​ច្បាប់ចម្លង ៖</translation>
+        <translation type="vanished">ចំនួន​ច្បាប់ចម្លង ៖</translation>
     </message>
     <message>
         <source>Collate</source>
-        <translation>តម្រៀប​តាម​លំដាប់</translation>
+        <translation type="vanished">តម្រៀប​តាម​លំដាប់</translation>
     </message>
     <message>
         <source>Print last page first</source>
-        <translation>បោះពុម្ព​ទំព័រ​ចុងក្រោយ​មុន</translation>
+        <translation type="vanished">បោះពុម្ព​ទំព័រ​ចុងក្រោយ​មុន</translation>
     </message>
     <message>
         <source>Other</source>
-        <translation>ផ្សេងៗ​ទៀត</translation>
+        <translation type="vanished">ផ្សេងៗ​ទៀត</translation>
     </message>
     <message>
         <source>Print in color if available</source>
-        <translation>បោះពុម្ព​តែ​ពណ៌ ប្រសិន​បើ​មាន</translation>
+        <translation type="vanished">បោះពុម្ព​តែ​ពណ៌ ប្រសិន​បើ​មាន</translation>
     </message>
     <message>
         <source>Double side printing</source>
-        <translation>បោះពុម្ព​ទាំងសង​ខាង</translation>
+        <translation type="vanished">បោះពុម្ព​ទាំងសង​ខាង</translation>
     </message>
     <message>
         <source>File %1 is not writable.
@@ -4636,15 +4638,15 @@ Do you want to overwrite it?</source>
     </message>
     <message>
         <source>File exists</source>
-        <translation>មាន​ឯកសារ​រួច​ហើយ</translation>
+        <translation type="vanished">មាន​ឯកសារ​រួច​ហើយ</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Do you want to overwrite it?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;តើ​អ្នក​ចង់​សរសេរ​ជាន់​លើ​វា​ដែរឬទេ ?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;តើ​អ្នក​ចង់​សរសេរ​ជាន់​លើ​វា​ដែរឬទេ ?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Print selection</source>
-        <translation>បោះពុម្ព​ជម្រើស</translation>
+        <translation type="vanished">បោះពុម្ព​ជម្រើស</translation>
     </message>
     <message>
         <source>%1 is a directory.
@@ -4841,15 +4843,15 @@ Please turn one of those options off.</source>
     <name>QPrintPropertiesDialog</name>
     <message>
         <source>PPD Properties</source>
-        <translation>លក្ខណៈសម្បត្តិ PPD</translation>
+        <translation type="vanished">លក្ខណៈសម្បត្តិ PPD</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>រក្សាទុក</translation>
+        <translation type="vanished">រក្សាទុក</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>យល់ព្រម</translation>
+        <translation type="vanished">យល់ព្រម</translation>
     </message>
     <message>
         <source>Printer Properties</source>
@@ -5051,7 +5053,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>បើក</translation>
+        <translation type="vanished">បើក</translation>
     </message>
 </context>
 <context>
@@ -5072,7 +5074,7 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>ពិនិត្យ​មើល</translation>
+        <translation type="vanished">ពិនិត្យ​មើល</translation>
     </message>
 </context>
 <context>
@@ -5465,7 +5467,7 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>កំហុស​ក្នុងការ​បើក​មូលដ្ឋាន​ទិន្នន័យ</translation>
+        <translation type="vanished">កំហុស​ក្នុងការ​បើក​មូលដ្ឋាន​ទិន្នន័យ</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -5477,7 +5479,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>មិនអាច​ជម្រះ​ដំណើរ​ផ្លាស់ប្ដូរ​បានទេ</translation>
+        <translation type="vanished">មិនអាច​ជម្រះ​ដំណើរ​ផ្លាស់ប្ដូរ​បានទេ</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -5519,7 +5521,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to roll back transaction</source>
-        <translation>មិនអាច​ជម្រះ​ដំណើរ​ផ្លាស់ប្ដូរ​បានទេ</translation>
+        <translation type="vanished">មិនអាច​ជម្រះ​ដំណើរ​ផ្លាស់ប្ដូរ​បានទេ</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
@@ -5628,15 +5630,15 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Line up</source>
-        <translation>បន្ទាត់​ឡើង​លើ</translation>
+        <translation type="vanished">បន្ទាត់​ឡើង​លើ</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>ទីតាំង</translation>
+        <translation type="vanished">ទីតាំង</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>បន្ទាត់​ចុះក្រោម</translation>
+        <translation type="vanished">បន្ទាត់​ចុះក្រោម</translation>
     </message>
 </context>
 <context>
@@ -5722,6 +5724,7 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation>ចន្លោះ</translation>
     </message>
     <message>
@@ -6050,10 +6053,12 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation>ហៅ</translation>
     </message>
     <message>
         <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
         <translation>ព្យួរ</translation>
     </message>
     <message>
@@ -6716,30 +6721,30 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>ទំព័រ​ឆ្វេង</translation>
+        <translation type="vanished">ទំព័រ​ឆ្វេង</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>ទំព័រ​លើ</translation>
+        <translation type="vanished">ទំព័រ​លើ</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>ទីតាំង</translation>
+        <translation type="vanished">ទីតាំង</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>ទំព័រ​ស្ដាំ</translation>
+        <translation type="vanished">ទំព័រ​ស្ដាំ</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>ទំព័រ​ក្រោម</translation>
+        <translation type="vanished">ទំព័រ​ក្រោម</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>កំហុស​ក្នុងការ​អស់ពេល​រន្ធ ៥ ក្នុងការ​តភ្ជាប់​ទៅកាន់ម៉ាស៊ីន​បម្រើ​រន្ធ</translation>
+        <translation type="vanished">កំហុស​ក្នុងការ​អស់ពេល​រន្ធ ៥ ក្នុងការ​តភ្ជាប់​ទៅកាន់ម៉ាស៊ីន​បម្រើ​រន្ធ</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -7162,54 +7167,54 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>ច្រើនជាង</translation>
+        <translation type="vanished">ច្រើនជាង</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>តិចជាង</translation>
+        <translation type="vanished">តិចជាង</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>លុប</translation>
+        <translation type="vanished">លុប</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>លុប​កំណត់​ត្រា​នេះ​ឬ ?</translation>
+        <translation type="vanished">លុប​កំណត់​ត្រា​នេះ​ឬ ?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>បាទ/ចាស</translation>
+        <translation type="vanished">បាទ/ចាស</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>ទេ</translation>
+        <translation type="vanished">ទេ</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>បញ្ចូល</translation>
+        <translation type="vanished">បញ្ចូល</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>ធ្វើ​ឲ្យ​ទាន់សម័យ</translation>
+        <translation type="vanished">ធ្វើ​ឲ្យ​ទាន់សម័យ</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>រក្សាទុក​ការ​កែសម្រួល ?</translation>
+        <translation type="vanished">រក្សាទុក​ការ​កែសម្រួល ?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>បោះបង់</translation>
+        <translation type="vanished">បោះបង់</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>អះអាង</translation>
+        <translation type="vanished">អះអាង</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>បោះបង់​ការ​កែសម្រួល​របស់​អ្នកឬ ?</translation>
+        <translation type="vanished">បោះបង់​ការ​កែសម្រួល​របស់​អ្នកឬ ?</translation>
     </message>
 </context>
 <context>
@@ -7256,7 +7261,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Private key do not certificate public key, %1</source>
-        <translation>សោ​ឯកជន​មិន​មែនជា​សោ​សាធារណៈ​របស់​វិញ្ញាបនបត្រ %1</translation>
+        <translation type="vanished">សោ​ឯកជន​មិន​មែនជា​សោ​សាធារណៈ​របស់​វិញ្ញាបនបត្រ %1</translation>
     </message>
     <message>
         <source>Error when setting the elliptic curves (%1)</source>
@@ -7526,7 +7531,7 @@ Role of an accessible object</extracomment>
     <name>QTcpServer</name>
     <message>
         <source>Socket operation unsupported</source>
-        <translation>មិនគាំទ្រ​ប្រតិបត្តិការ​រន្ធ​ទេ</translation>
+        <translation type="vanished">មិនគាំទ្រ​ប្រតិបត្តិការ​រន្ធ​ទេ</translation>
     </message>
     <message>
         <source>Operation on socket is not supported</source>
@@ -7537,64 +7542,64 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>មិនធ្វើវិញ</translation>
+        <translation type="vanished">មិនធ្វើវិញ</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>ធ្វើវិញ</translation>
+        <translation type="vanished">ធ្វើវិញ</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>កាត់</translation>
+        <translation type="vanished">កាត់</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>ចម្លង</translation>
+        <translation type="vanished">ចម្លង</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>ចម្លង​ទីតាំង​តំណ</translation>
+        <translation type="vanished">ចម្លង​ទីតាំង​តំណ</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>បិទភ្ជាប់</translation>
+        <translation type="vanished">បិទភ្ជាប់</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>លុប</translation>
+        <translation type="vanished">លុប</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>ជ្រើស​ទាំង​អស់</translation>
+        <translation type="vanished">ជ្រើស​ទាំង​អស់</translation>
     </message>
 </context>
 <context>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>ចុច</translation>
+        <translation type="vanished">ចុច</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>បើក</translation>
+        <translation type="vanished">បើក</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>វេទិកា​នេះ​មិនគាំទ្រ IPv6 នោះទេ</translation>
+        <translation type="vanished">វេទិកា​នេះ​មិនគាំទ្រ IPv6 នោះទេ</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>មិនធ្វើ​វិញ</translation>
+        <translation type="vanished">មិនធ្វើ​វិញ</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>ធ្វើវិញ</translation>
+        <translation type="vanished">ធ្វើវិញ</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7626,11 +7631,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>មិនធ្វើវិញ</translation>
+        <translation type="vanished">មិនធ្វើវិញ</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>ធ្វើ​វិញ</translation>
+        <translation type="vanished">ធ្វើ​វិញ</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7796,7 +7801,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Quit</source>
-        <translation>ចេញ</translation>
+        <translation type="vanished">ចេញ</translation>
     </message>
     <message>
         <source>Help</source>
@@ -7831,55 +7836,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>ស្ដារឡើងវិញ</translation>
+        <translation type="vanished">ស្ដារឡើងវិញ</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>ផ្លាស់ទី</translation>
+        <translation type="vanished">ផ្លាស់ទី</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>ទំហំ</translation>
+        <translation type="vanished">ទំហំ</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>បង្រួម​អប្បបរមា</translation>
+        <translation type="vanished">បង្រួម​អប្បបរមា</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>ពង្រីក​អតិបរមា</translation>
+        <translation type="vanished">ពង្រីក​អតិបរមា</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>បិទ</translation>
+        <translation type="vanished">បិទ</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>នៅ​កំពូល</translation>
+        <translation type="vanished">នៅ​កំពូល</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>ស្រមោល</translation>
+        <translation type="vanished">ស្រមោល</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>បង្រួម​អប្បបរមា</translation>
+        <translation type="vanished">បង្រួម​អប្បបរមា</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>ស្ដារ​ចុះក្រោម​ឡើង​វិញ</translation>
+        <translation type="vanished">ស្ដារ​ចុះក្រោម​ឡើង​វិញ</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>បិទ</translation>
+        <translation type="vanished">បិទ</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>មិនដាក់​ស្រមោល</translation>
+        <translation type="vanished">មិនដាក់​ស្រមោល</translation>
     </message>
 </context>
 <context>
@@ -8001,7 +8006,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>បានកំណត់​គុណលក្ខណៈ​ឡើង​វិញ ។</translation>
+        <translation type="vanished">បានកំណត់​គុណលក្ខណៈ​ឡើង​វិញ ។</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
@@ -8025,7 +8030,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Invalid XML encoding name.</source>
-        <translation>ឈ្មោះ​អ៊ីនកូដ​ XML មិន​ត្រឹមត្រូវ​ទេ ។</translation>
+        <translation type="vanished">ឈ្មោះ​អ៊ីនកូដ​ XML មិន​ត្រឹមត្រូវ​ទេ ។</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>

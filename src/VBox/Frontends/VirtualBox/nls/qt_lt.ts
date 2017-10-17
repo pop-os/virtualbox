@@ -5,15 +5,15 @@
     <name>AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;b&gt;%1&lt;/b&gt;Garso atkūrimo įrenginys neveikia.&lt;br/&gt;Naudosimas &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;&lt;b&gt;%1&lt;/b&gt;Garso atkūrimo įrenginys neveikia.&lt;br/&gt;Naudosimas &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;Naudosimas &lt;b&gt;%1&lt;/b&gt; garso atkūrimo įrenginys,&lt;br/&gt;kuris ką tik tapo prieinamu bei turi aukštesnį prioritetą.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;Naudosimas &lt;b&gt;%1&lt;/b&gt; garso atkūrimo įrenginys,&lt;br/&gt;kuris ką tik tapo prieinamu bei turi aukštesnį prioritetą.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Revert back to device &apos;%1&apos;</source>
-        <translation>Naudosimas įrenginys „%1“</translation>
+        <translation type="vanished">Naudosimas įrenginys „%1“</translation>
     </message>
 </context>
 <context>
@@ -53,58 +53,58 @@
     <name>MAC_APPLICATION_MENU</name>
     <message>
         <source>Services</source>
-        <translation>Paslaugos</translation>
+        <translation>Tarnybos</translation>
     </message>
     <message>
         <source>Hide %1</source>
-        <translation>Slėpti %1</translation>
+        <translation>Nerodyti „%1“</translation>
     </message>
     <message>
         <source>Hide Others</source>
-        <translation>Slėpti kitką</translation>
+        <translation>Nerodyti kitų</translation>
     </message>
     <message>
         <source>Show All</source>
-        <translation>Rodyti viską</translation>
+        <translation>Rodyti visas programas</translation>
     </message>
     <message>
         <source>Preferences...</source>
-        <translation>Nuostatos...</translation>
+        <translation>Nuostatos…</translation>
     </message>
     <message>
         <source>Quit %1</source>
-        <translation>Baigti %1</translation>
+        <translation>Baigti „%1“ darbą</translation>
     </message>
     <message>
         <source>About %1</source>
-        <translation>Apie %1</translation>
+        <translation>Apie „%1“</translation>
     </message>
 </context>
 <context>
     <name>Phonon::</name>
     <message>
         <source>Notifications</source>
-        <translation>Pranešimai</translation>
+        <translation type="vanished">Pranešimai</translation>
     </message>
     <message>
         <source>Music</source>
-        <translation>Muzika</translation>
+        <translation type="vanished">Muzika</translation>
     </message>
     <message>
         <source>Video</source>
-        <translation>Vaizdai</translation>
+        <translation type="vanished">Video</translation>
     </message>
     <message>
         <source>Communication</source>
-        <translation>Bendravimas</translation>
+        <translation type="vanished">Komunikavimas</translation>
     </message>
     <message>
         <source>Games</source>
-        <translation>Žaidimai</translation>
+        <translation type="vanished">Žaidimai</translation>
     </message>
     <message>
         <source>Accessibility</source>
-        <translation>Prieinamumas</translation>
+        <translation type="vanished">Prieiga neįgaliesiems</translation>
     </message>
 </context>
 <context>
@@ -131,18 +131,14 @@
     <message>
         <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
           Some video features have been disabled.</source>
-        <translatorcomment>Attention: Vous n&apos;avez apparemment pas installé le paquet gstreamer0.10-plugins-good.
-Des fonctionnalités vidéo ont été desactivées.</translatorcomment>
-        <translation>Dėmesio: panašu, kad gstreamer0.10-plugins-good paketas neįdiegtas.
-          Kai kurios vaizdo funkcijos uždraustos.</translation>
+        <translation type="vanished">Dėmesio! Panašu, jog neįdiegtas „gstreamer0.10-plugins-good“ paketas.
+          Kai kurios vaizdo galimybės išjungtos.</translation>
     </message>
     <message>
         <source>Warning: You do not seem to have the base GStreamer plugins installed.
           All audio and video support has been disabled</source>
-        <translatorcomment>Attention: Vous n&apos;avez apparemment pas installées les plugins de base de GStreamer.
-Le support audio et vidéo est désactivé.</translatorcomment>
-        <translation>Dėmesio: panašu, kad neįdiegtas pagrindinis GStreamer papildinys.
-          Visas garso ir vaizdo palaikymas yra uždraustas</translation>
+        <translation type="vanished">Dėmesio! Panašu, jog neįdiegti baziniai „GStreamer“ papildiniai.
+          Visas garso ir vaizdo palaikymas išjungtas.</translation>
     </message>
 </context>
 <context>
@@ -153,39 +149,34 @@ Le support audio et vidéo est désactivé.</translatorcomment>
 Check your Gstreamer installation and make sure you 
 have libgstreamer-plugins-base installed.</source>
         <translatorcomment>Impossible de démarrer la lecture. Verifiez votre installation de Gstreamer et assuez-vousd&apos;avoir installé libgstreamer-plugins-base.</translatorcomment>
-        <translation>Nepavyksta groti. 
+        <translation type="vanished">Nepavyksta groti. 
 
 Patikrinkite, ar tinkamai įdiegtas Gstreamer ir 
 jo elementas libgstreamer-plugins-base.</translation>
     </message>
-    <message numerus="yes">
+    <message>
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
-        <translatorcomment>Des codecs requis sont manquants. Vous devez installer les codecs suivants pour jouer le contenu</translatorcomment>
-        <translation>
-            <numerusform>Trūksta reikiamos kodavimo priemonės. Norėdami atlikti šį kūrinį, įdiekite šią kodavimo priemonę: %0</numerusform>
-            <numerusform>Trūksta reikiamos kodavimo priemonės. Norėdami atlikti šį kūrinį, įdiekite šias kodavimo priemones: %0</numerusform>
-            <numerusform>Trūksta reikiamos kodavimo priemonės. Norėdami atlikti šį kūrinį, įdiekite šias kodavimo priemones: %0</numerusform>
-        </translation>
+        <translation type="vanished">Trūksta būtino kodeko. Šiam turiniui atkurti būtina įdiegti šiuos kodekus: %0</translation>
     </message>
     <message>
         <source>Could not open media source.</source>
-        <translation>Nepavyksta atverti kūrinio šaltinio.</translation>
+        <translation type="vanished">Nepavyko atverti medijos šaltinio.</translation>
     </message>
     <message>
         <source>Invalid source type.</source>
-        <translation>Netinkamas šaltinio tipas.</translation>
+        <translation type="vanished">Netinkamas šaltinio tipas.</translation>
     </message>
     <message>
         <source>Could not locate media source.</source>
-        <translation>Nepavyksta rasti kūrinio šaltinio.</translation>
+        <translation type="vanished">Nepavyko rasti medijos šaltinio.</translation>
     </message>
     <message>
         <source>Could not open audio device. The device is already in use.</source>
-        <translation>Nepavyksta atverti garso įrenginio.Įrenginys užimtas.</translation>
+        <translation type="vanished">Nepavyko atverti garso įrenginio. Įrenginys jau naudojamas.</translation>
     </message>
     <message>
         <source>Could not decode media source.</source>
-        <translation>Nepavyksta iškoduoti kūrinio šaltinio.</translation>
+        <translation type="vanished">Nepavyko dekoduoti medijos šaltinio.</translation>
     </message>
     <message>
         <source>Cannot start playback. 
@@ -517,12 +508,11 @@ Patikrinkite „GStreamer“ įdiegtį ir įsitikinkite, jog yra
     <name>Phonon::VolumeSlider</name>
     <message>
         <source>Volume: %1%</source>
-        <translation>Garsumas: %1%</translation>
+        <translation type="vanished">Garsis: %1%</translation>
     </message>
     <message>
         <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
-        <translatorcomment>Utilisez le slider pour ajuster le volume. La position la plus à gauche est 0%, la plus à droite est %1%</translatorcomment>
-        <translation>Garsumą keiskite šliaužikliu. Kairiausia padėtis atitinka 0%, o dešiniausia – %1%</translation>
+        <translation type="obsolete">Šio šliaužiklio pagalba galite keisti garsį. Kairiausioji pozicija lygi 0%, dešiniausioji – %1%</translation>
     </message>
     <message>
         <source>Use this slider to adjust the volume. The leftmost position is 0%. The rightmost is %1%</source>
@@ -537,281 +527,277 @@ Patikrinkite „GStreamer“ įdiegtį ir įsitikinkite, jog yra
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translatorcomment>La séquence %1, %2 n&apos;est pas définie</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">%1, %2 neapibrėžtas</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translatorcomment>Séquence ambiguë %1 non traitée</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Nevienareikšmė kombinacija %1 neapdorota</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Tiesa</translation>
+        <translation type="vanished">Taip</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Melas</translation>
+        <translation type="vanished">Ne</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Įterpti</translation>
+        <translation type="vanished">Įterpti</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Atnaujinti</translation>
+        <translation type="vanished">Atnaujinti</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Pašalinti</translation>
+        <translation type="vanished">Pašalinti</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Kopijuoti arba perkelti rinkmeną</translation>
+        <translation type="vanished">Failo kopijavimas arba perkėlimas</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Skaityti: %1</translation>
+        <translation type="vanished">Skaitomas: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Rašyti: %1</translation>
+        <translation type="vanished">Rašomas: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Atšaukti</translation>
+        <translation type="vanished">Atsisakyti</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Visos rinkmenos (*)</translation>
+        <translation type="vanished">Visi failai (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Pavadinimas</translation>
+        <translation type="vanished">Vardas</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Dydis</translation>
+        <translation type="vanished">Dydis</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>Tipas</translation>
+        <translation type="vanished">Tipas</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Data</translation>
+        <translation type="vanished">Data</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Savybės</translation>
+        <translation type="vanished">Atributai</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Gerai</translation>
+        <translation type="vanished">&amp;Gerai</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Kur &amp;ieškoti:</translation>
+        <translation type="vanished">&amp;Vieta:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Rinkmenos &amp;pavadinimas:</translation>
+        <translation type="vanished">&amp;Failo vardas:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>Rinkmenos &amp;tipas:</translation>
+        <translation type="vanished">Failo &amp;tipas:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Atgal</translation>
+        <translation type="vanished">Atgal</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>Į aukštesnį aplanką</translation>
+        <translation type="vanished">Vienu lygiu aukščiau</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Sukurti naują aplanką</translation>
+        <translation type="vanished">Kurti naują aplanką</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Sąrašo rodinys</translation>
+        <translation type="vanished">Rodyti sąrašą</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Detalus rodinys</translation>
+        <translation type="vanished">Rodyti išsamią informaciją</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translatorcomment>Informations du fichier prévisualisé</translatorcomment>
-        <translation>Rinkmenos informacijos peržiūra</translation>
+        <translation type="vanished">Peržiūrėti failo savybes</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translatorcomment>Contenu du fichier prévisualisé</translatorcomment>
-        <translation>Rinkmenos turinio peržiūra</translation>
+        <translation type="vanished">Peržiūrėti failo turinį</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Tik rašyti</translation>
+        <translation type="vanished">Skaitomas ir rašomas</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Tik skaityti</translation>
+        <translation type="vanished">Tik skaitomas</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Tik rašyti</translation>
+        <translation type="vanished">Tik rašomas</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Neprieinama</translation>
+        <translation type="vanished">Nepasiekiamas</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Sukurti simbolinę nuorodą į rinkmeną</translation>
+        <translation type="vanished">Simbolinė nuoroda į failą</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Sukurti simbolinę nuorodą į aplanką</translation>
+        <translation type="vanished">Simbolinė nuoroda į aplanką</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Sukurti specialią simbolinę nuorodą</translation>
+        <translation type="vanished">Simbolinė nuoroda į spec. failą</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Rinkmena</translation>
+        <translation type="vanished">Failas</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Aplankas</translation>
+        <translation type="vanished">Aplankas</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Specialus</translation>
+        <translation type="vanished">Spec. failas</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Atverti</translation>
+        <translation type="vanished">Atverti</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Įrašyti kaip</translation>
+        <translation type="vanished">Įrašyti kaip</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>At&amp;verti</translation>
+        <translation type="vanished">At&amp;verti</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>Į&amp;rašyti</translation>
+        <translation type="vanished">Į&amp;rašyti</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Pervadinti</translation>
+        <translation type="vanished">Per&amp;vardyti</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Ištrinti</translation>
+        <translation type="vanished">Pa&amp;šalinti</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>Įk&amp;elti iš naujo</translation>
+        <translation type="vanished">Įkelti iš &amp;naujo</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Rikiuoti pagal &amp;pavadinimą</translation>
+        <translation type="vanished">Rikiuoti pagal &amp;vardą</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Rikiuoti pagal &amp;dydį</translation>
+        <translation type="vanished">Rikiuoti pagal &amp;dydį</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Rikiuoti pagal &amp;datą</translation>
+        <translation type="vanished">Rikiuoti pagal d&amp;atą</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Nerikiuoti</translation>
+        <translation type="vanished">&amp;Nerikiuoti</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Rikiuoti</translation>
+        <translation type="vanished">Rikiavimas</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Rodyti paslėptas &amp;rinkmenas</translation>
+        <translation type="vanished">Rodyti pa&amp;slėptus failus</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>rinkmeną</translation>
+        <translation type="vanished">failą</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>aplanką</translation>
+        <translation type="vanished">aplanką</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>simbolinę nuorodą</translation>
+        <translation type="vanished">simbolinę nuorodą</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>Ištrinti %1</translation>
+        <translation type="vanished">Pašalinti %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Tikrai ištrinti %1 „%2“?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Ar tikrai norite pašalinti %1 „%2“?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Taip</translation>
+        <translation type="vanished">&amp;Taip</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Ne</translation>
+        <translation type="vanished">&amp;Ne</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Naujas aplankas 1</translation>
+        <translation type="vanished">Naujas aplankas 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Naujas aplankas</translation>
+        <translation type="vanished">Naujas aplankas</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Naujas aplankas %1</translation>
+        <translation type="vanished">Naujas aplankas %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Ieškoti aplanko</translation>
+        <translation type="vanished">Ieškoti aplanko</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Aplankai</translation>
+        <translation type="vanished">Aplankai</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Aplankas:</translation>
+        <translation type="vanished">Aplankas:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Klaida</translation>
+        <translation type="vanished">Klaida</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
-Rinkmena nerasta.
-Patikrinkite rinkmenos kelią ir pavadinimą.</translation>
+        <translation type="vanished">%1
+Failas nerastas.
+Patikrinkite kelią ir failo vardą.</translation>
     </message>
     <message>
         <source>All Files (*.*)</source>
@@ -831,19 +817,19 @@ Patikrinkite rinkmenos kelią ir pavadinimą.</translation>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Nepavyksta nuskaityti iš aplanko
+        <translation type="vanished">Aplanko nuskaityti nepavyko
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Nepavyksta sukurti aplanko
+        <translation type="vanished">Aplanko sukurti nepavyko
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Nepavyksta pašalinti rinkmenos arba aplanko
+        <translation type="vanished">Failo ar aplanko pašalinti nepavyko
 %1</translation>
     </message>
     <message>
@@ -851,20 +837,21 @@ Patikrinkite rinkmenos kelią ir pavadinimą.</translation>
 %1
 to
 %2</source>
-        <translation>%1
-nepavyksta pervadinti į
+        <translation type="vanished">Nepavyko pervardyti
+%1
+į
 %2</translation>
     </message>
     <message>
         <source>Could not open
 %1</source>
-        <translation>Nepavyksta atverti
+        <translation type="vanished">Nepavyko atverti
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Nepavyksta rašyti į
+        <translation type="vanished">Nepavyko įrašyti
 %1</translation>
     </message>
 </context>
@@ -872,139 +859,135 @@ nepavyksta pervadinti į
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translatorcomment>Aligner</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Sulygiuoti</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translatorcomment>Personnaliser...</translatorcomment>
-        <translation>Derinti...</translation>
+        <translation type="vanished">Tinkinti…</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>Veiksmą nutraukė naudotojas</translation>
+        <translation type="vanished">Operaciją nutraukė naudotojas</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Atšaukti</translation>
+        <translation type="vanished">Atsisakyti</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>Gerai</translation>
+        <translation type="vanished">Gerai</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Pritaikyti</translation>
+        <translation type="vanished">Pritaikyti</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Pagalba</translation>
+        <translation type="vanished">Pagalba</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Numatyta</translation>
+        <translation type="vanished">Numatytosios reikšmės</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Atšaukti</translation>
+        <translation type="vanished">Atsisakyti</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>Atša&amp;ukti</translation>
+        <translation type="vanished">&amp;Atšaukti</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Paka&amp;rtoti</translation>
+        <translation type="vanished">A&amp;tstatyti</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Iškirp&amp;ti</translation>
+        <translation type="vanished">Iški&amp;rpti</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopijuoti</translation>
+        <translation type="vanished">&amp;Kopijuoti</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Padėti</translation>
+        <translation type="vanished">Į&amp;dėti</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Išvalyti</translation>
+        <translation type="vanished">Išvalyti</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Viską pažymėti</translation>
+        <translation type="vanished">Pažymėti viską</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>Sistema</translation>
+        <translation type="vanished">Sistemos antraštė</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>Atstatyti aukščiau</translation>
+        <translation type="vanished">Atkurti langą</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Sumažinti</translation>
+        <translation type="vanished">Sumažinti</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Atstatyti žemiau</translation>
+        <translation type="vanished">Atkurti dydį</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Išdidinti</translation>
+        <translation type="vanished">Išdidinti</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Užverti</translation>
+        <translation type="vanished">Užverti</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translatorcomment>Contient des commandes pour manipuler la fenêtre</translatorcomment>
-        <translation>Komandos langui valdyti</translation>
+        <translation type="vanished">Apima komandas darbui su langu</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>Sumažintą langą grąžina į įprastą būseną</translation>
+        <translation type="vanished">Sumažintą langą grąžina į įprastą būseną</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translatorcomment>Déplace la fenêtre à l&apos;écart</translatorcomment>
-        <translation>Nukelia langą</translation>
+        <translation type="vanished">Paslepia langą</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Išdidintą langą grąžina į įprastą būseną</translation>
+        <translation type="vanished">Grąžina pradinį išdidinto lango dydį</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Langą rodo visame ekrane</translation>
+        <translation type="vanished">Išdidina langą per visą ekraną</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Užveria langą</translation>
+        <translation type="vanished">Užveria langą</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
         <translatorcomment>Affiche le nom de la fenêtre et contient des contrôles pour la manipuler</translatorcomment>
-        <translation>Rodo lango pavadinimą ir turi jo tvarkymo priemones</translation>
+        <translation type="vanished">Rodo lango pavadinimą ir turi jo tvarkymo priemones</translation>
     </message>
     <message>
         <source>Puts a minimized window back to normal</source>
@@ -1019,92 +1002,88 @@ nepavyksta pervadinti į
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Daugiau...</translation>
+        <translation type="vanished">Daugiau…</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>Protokolas „%1“ nepalaikomas</translation>
+        <translation type="vanished">Protokolas „%1“ nepalaikomas</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translatorcomment>Le protocole `%1&apos; ne permet pas de lister les fichiers d&apos;un dossier</translatorcomment>
-        <translation>Protokolas „%1“ nepalaiko aplankų sąrašų pateikimo</translation>
+        <translation type="vanished">Protokole „%1“ katalogų sąrašų pateikimas nenumatytas</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Protokolas „%1“ nepaliko naujų aplankų kūrimo</translation>
+        <translation type="vanished">Protokole „%1“ naujų katalogų kūrimas nepalaikomas</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Protokolas „%1“ nepaliko rinkmenų ir aplankų šalinimo</translation>
+        <translation type="vanished">Protokole „%1“ failų ar aplankų šalinimas nenumatytas</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Protokolas „%1“ nepaliko rinkmenų ir aplankų pervedinimo</translation>
+        <translation type="vanished">Protokole „%1“ failų ar aplankų pervardinimas nenumatytas</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>Protokolas „%1“ nepalaiko rinkmenų gavimo</translation>
+        <translation type="vanished">Protokole „%1“ failų gavimas nenumatytas</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>Protokolas „%1“ nepalaiko rinkmenų įkėlimo</translation>
+        <translation type="vanished">Protokole „%1“ failų įdėjimas nenumatytas</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Protokolas „%1“ nepaliko rinkmenų ir aplankų kopijavimo ir perkėlimo</translation>
+        <translation type="vanished">Protokole „%1“ failų ar aplankų kopijavimas ar perkėlimas nenumatytas</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(nežinoma)</translation>
+        <translation type="vanished">(nežinoma)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Atšaukti</translation>
+        <translation type="vanished">&amp;Atsisakyti</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Atgal</translation>
+        <translation type="vanished">&lt; At&amp;gal</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Toliau &gt;</translation>
+        <translation type="vanished">&amp;Toliau &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Užbaigti</translation>
+        <translation type="vanished">&amp;Baigti</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Pagalba</translation>
+        <translation type="vanished">&amp;Žinynas</translation>
     </message>
 </context>
 <context>
     <name>QAbstractSocket</name>
     <message>
         <source>Host not found</source>
-        <translation>Pagrindinis kompiuteris nerastas</translation>
+        <translation>Mazgas nerastas</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translatorcomment>Connexion refusée</translatorcomment>
         <translation>Ryšys atmestas</translation>
     </message>
     <message>
         <source>Socket operation timed out</source>
-        <translatorcomment>Opération socket expirée</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Baigėsi operacijai su lizdu skirtas laikas</translation>
     </message>
     <message>
         <source>Socket is not connected</source>
-        <translatorcomment>Le socket n&apos;est pas connecté</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Lizdas neprijungtas</translation>
     </message>
     <message>
         <source>Operation on socket is not supported</source>
@@ -1127,15 +1106,15 @@ nepavyksta pervadinti į
     <name>QAbstractSpinBox</name>
     <message>
         <source>&amp;Step up</source>
-        <translation>Pa&amp;didinti</translation>
+        <translation>&amp;Padidinti</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
-        <translation>Su&amp;mažinti</translation>
+        <translation>Pa&amp;mažinti</translation>
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation>&amp;Viską pažymėti</translation>
+        <translation>Pažymėti &amp;viską</translation>
     </message>
 </context>
 <context>
@@ -1275,24 +1254,24 @@ nepavyksta pervadinti į
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Aktyvuoti</translation>
+        <translation type="vanished">Aktyvinti</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>„%1“ vykdymui reikia Qt %2 (rasta Qt %3).</translation>
+        <translation>Vykdomajam failui „%1“ reikalingos „Qt %2“ bibliotekos, tačiau aptiktos „Qt %3“.</translation>
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation>Klaida: QT bibliotekos nesuderinamos</translation>
+        <translation>„Qt“ bibliotekos nesuderinamumo klaida</translation>
     </message>
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Aktyvuoja programos pagrindinį langą</translation>
+        <translation type="vanished">Suaktyvina pagrindinį programos langą</translation>
     </message>
 </context>
 <context>
@@ -1318,15 +1297,15 @@ nepavyksta pervadinti į
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Atžymėti</translation>
+        <translation type="vanished">Panaikinti žymėjimą</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Pažymėti</translation>
+        <translation type="vanished">Pažymėti</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Perjungti</translation>
+        <translation type="vanished">Perjungti</translation>
     </message>
 </context>
 <context>
@@ -1395,15 +1374,15 @@ nepavyksta pervadinti į
     <name>QColorDialog</name>
     <message>
         <source>Hu&amp;e:</source>
-        <translation>&amp;Tonas :</translation>
+        <translation>&amp;Atspalvis:</translation>
     </message>
     <message>
         <source>&amp;Sat:</source>
-        <translation>&amp;Sodrumas:</translation>
+        <translation>&amp;Grynis:</translation>
     </message>
     <message>
         <source>&amp;Val:</source>
-        <translation>&amp;Reikšmė:</translation>
+        <translation>&amp;Skaistis:</translation>
     </message>
     <message>
         <source>&amp;Red:</source>
@@ -1423,19 +1402,19 @@ nepavyksta pervadinti į
     </message>
     <message>
         <source>&amp;Basic colors</source>
-        <translation>&amp;Pagrindinės spalvos</translation>
+        <translation>&amp;Bazinės spalvos</translation>
     </message>
     <message>
         <source>&amp;Custom colors</source>
-        <translation>&amp;Derintos spalvos</translation>
+        <translation>&amp;Naudotojo spalvos</translation>
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
-        <translation>Pridėti prie d&amp;erintų spalvų</translation>
+        <translation>Į&amp;traukti į naudotojo spalvas</translation>
     </message>
     <message>
         <source>Select color</source>
-        <translation>Spalvos pasirinkimas</translation>
+        <translation type="vanished">Spalvos pasirinkimas</translation>
     </message>
     <message>
         <source>Select Color</source>
@@ -1459,19 +1438,19 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Atverti</translation>
+        <translation type="vanished">Atverti</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Melas</translation>
+        <translation>Ne</translation>
     </message>
     <message>
         <source>True</source>
-        <translation>Tiesa</translation>
+        <translation>Taip</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Užverti</translation>
+        <translation type="vanished">Užverti</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1526,46 +1505,42 @@ Press ESC to cancel</source>
     <message>
         <source>%1: permission denied</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: nepakanka leidimų</translation>
+        <translation type="vanished">%1: nepakanka teisių</translation>
     </message>
     <message>
         <source>%1: already exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: jau yra</translation>
+        <translation type="vanished">%1: jau egzistuoja</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: nėra</translation>
+        <translation type="vanished">%1: nėra</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
         <comment>QSystemSemaphore</comment>
-        <translatorcomment>%1: plus de ressources disponibles</translatorcomment>
-        <translation>%1: viršija išteklius</translation>
+        <translation type="vanished">%1: pritrūko išteklių</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: nežinoma klaida %2</translation>
+        <translation type="vanished">%1: nežinoma klaida %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
         <comment>QSystemSemaphore</comment>
-        <translatorcomment>%1: clé vide</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: raktas tuščias</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
         <comment>QSystemSemaphore</comment>
-        <translatorcomment>%1: impossible de créer la clé</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: rakto sukurti nepavyko</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
         <comment>QSystemSemaphore</comment>
-        <translatorcomment>%1: ftok a échoué</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: nepavyko ftok()</translation>
     </message>
     <message>
         <source>%1: does not exist</source>
@@ -1681,56 +1656,46 @@ Press ESC to cancel</source>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
-        <translatorcomment>Incapable d&apos;établir une connexion</translatorcomment>
-        <translation>Nepavyksta prisijungti</translation>
+        <translation>Nepavyko užmegzti ryšio</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translatorcomment>Incapable de soumettre la transaction</translatorcomment>
-        <translation>Nepavyksta įkelti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translatorcomment>Incapable d&apos;annuler la transaction</translatorcomment>
-        <translation>Nepavyksta atsisakyti operacijos</translation>
+        <translation>Nepavyko anuliuoti transakcijos</translation>
     </message>
     <message>
         <source>Unable to set autocommit</source>
-        <translatorcomment>Impossible d&apos;activer l&apos;auto-soumission</translatorcomment>
-        <translation>Nepavyksta įgalinti automatinio įkėlimo</translation>
+        <translation>Nepavyko įjungti automatinio transakcijų patvirtinimo</translation>
     </message>
 </context>
 <context>
     <name>QDB2Result</name>
     <message>
         <source>Unable to execute statement</source>
-        <translatorcomment>Impossible d&apos;exécuter la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti sakinio</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translatorcomment>Impossible de prépare la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko paruošti sakinio</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translatorcomment>Impossible d&apos;attacher la variable</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Nepavyko susieti kintamojo</translation>
     </message>
     <message>
         <source>Unable to fetch record %1</source>
-        <translatorcomment>Impossible de récupérer l&apos;enregistrement %1</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko gauti įrašo %1</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translatorcomment>Impossible de récupérer le suivant</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko gauti tolesnio įrašo</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translatorcomment>Impossible de récupérer le premier</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko gauti pirmojo įrašo</translation>
     </message>
 </context>
 <context>
@@ -1744,19 +1709,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Priešpiet</translation>
     </message>
     <message>
         <source>am</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">priešpiet</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Popiet</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">popiet</translation>
     </message>
 </context>
 <context>
@@ -1963,16 +1928,15 @@ Press ESC to cancel</source>
     <name>QDial</name>
     <message>
         <source>QDial</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">QDial</translation>
     </message>
     <message>
         <source>SpeedoMeter</source>
-        <translation>Greičio matuoklis</translation>
+        <translation type="vanished">Spidometras</translation>
     </message>
     <message>
         <source>SliderHandle</source>
-        <translatorcomment>Poignée</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Šliaužiklio rankenėlė</translation>
     </message>
 </context>
 <context>
@@ -1983,7 +1947,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Done</source>
-        <translation>Užbaigti</translation>
+        <translation type="vanished">Baigta</translation>
     </message>
 </context>
 <context>
@@ -1994,83 +1958,83 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Save</source>
-        <translation>Įrašyti</translation>
+        <translation type="vanished">Įrašyti</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Atverti</translation>
+        <translation type="vanished">Atverti</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Atšaukti</translation>
+        <translation type="vanished">Atsisakyti</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Užverti</translation>
+        <translation type="vanished">Užverti</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Pritaikyti</translation>
+        <translation type="vanished">Pritaikyti</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Iš naujo</translation>
+        <translation type="vanished">Atkurti</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Pagalba</translation>
+        <translation type="vanished">Žinynas</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Neįrašyti</translation>
+        <translation type="vanished">Neįrašyti</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Panaikinti</translation>
+        <translation type="vanished">Atmesti</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Taip</translation>
+        <translation type="vanished">&amp;Taip</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Taip &amp;viskam</translation>
+        <translation type="vanished">Taip &amp;viskam</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Ne</translation>
+        <translation type="vanished">&amp;Ne</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>N&amp;e viskam</translation>
+        <translation type="vanished">N&amp;e viskam</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Viską įrašyti</translation>
+        <translation type="vanished">Įrašyti visus</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Nutraukti</translation>
+        <translation type="vanished">Nutraukti</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Kartoti</translation>
+        <translation type="vanished">Kartoti bandymą</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Nepaisyti</translation>
+        <translation type="vanished">Nepaisyti</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Atkurti numatytąsias reikšmes</translation>
+        <translation type="vanished">Atkurti numatytąsias reikšmes</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>Užverti neišsaugant</translation>
+        <translation type="vanished">Užverti neįrašius</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Gerai</translation>
+        <translation type="vanished">&amp;Gerai</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -2089,7 +2053,7 @@ Press ESC to cancel</source>
     <name>QDirModel</name>
     <message>
         <source>Name</source>
-        <translation>Pavadinimas</translation>
+        <translation>Vardas</translation>
     </message>
     <message>
         <source>Size</source>
@@ -2107,7 +2071,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation>Pakeitimo data</translation>
+        <translation>Modifikavimo data</translation>
     </message>
 </context>
 <context>
@@ -2220,17 +2184,17 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>Užverti</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translatorcomment>Attacher</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Įsegti</translation>
     </message>
     <message>
         <source>Float</source>
-        <translatorcomment>Détacher</translatorcomment>
-        <translation type="unfinished"></translation>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
+        <translation>Išsegti</translation>
     </message>
     <message>
         <source>Undocks and re-attaches the dock widget</source>
@@ -2245,11 +2209,11 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Daugiau</translation>
+        <translation type="vanished">Daugiau</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Mažiau</translation>
+        <translation type="vanished">Mažiau</translation>
     </message>
 </context>
 <context>
@@ -2264,11 +2228,11 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Fatal Error:</source>
-        <translation>Lemtinga klaida:</translation>
+        <translation>Lemtingoji klaida:</translation>
     </message>
     <message>
         <source>&amp;Show this message again</source>
-        <translation>&amp;Rodyti šį pranešimą dar kartą</translation>
+        <translation>&amp;Rodyti šį pranešimą vėl</translation>
     </message>
     <message>
         <source>&amp;OK</source>
@@ -2333,7 +2297,7 @@ Press ESC to cancel</source>
     <name>QFileDialog</name>
     <message>
         <source>All Files (*)</source>
-        <translation>Visos rinkmenos (*)</translation>
+        <translation>Visi failai (*)</translation>
     </message>
     <message>
         <source>Directories</source>
@@ -2354,31 +2318,32 @@ Press ESC to cancel</source>
     <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
-        <translation>Rinkmena %1 jau yra. Perrašyti ją?</translation>
+        <translation>%1 jau egzistuoja.
+Ar norite jį pakeisti?</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Please verify the correct file name was given.</source>
         <translation>%1
-Rinkmena nerasta.
-Patikrinkite rinkmenos kelią ir pavadinimą.</translation>
+Failas nerastas.
+Įsitikinkite, jog nurodėte teisingą failo vardą.</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation>Mano kompiuteris</translation>
+        <translation>Kompiuteris</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Pervadinti</translation>
+        <translation>Per&amp;vardyti</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Ištrinti</translation>
+        <translation>Pa&amp;šalinti</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Rodyti paslėptas &amp;rinkmenas</translation>
+        <translation>Rodyti pa&amp;slėptus failus</translation>
     </message>
     <message>
         <source>Back</source>
@@ -2386,19 +2351,19 @@ Patikrinkite rinkmenos kelią ir pavadinimą.</translation>
     </message>
     <message>
         <source>Parent Directory</source>
-        <translation>Į aukštesnį aplanką</translation>
+        <translation>Vienu lygiu aukščiau</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Sąrašo rodinys</translation>
+        <translation>Rodyti sąrašą</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Detalus rodinys</translation>
+        <translation>Rodyti išsamią informaciją</translation>
     </message>
     <message>
         <source>Files of type:</source>
-        <translation>Rinkmenos, kurių tipas:</translation>
+        <translation>Failų tipas:</translation>
     </message>
     <message>
         <source>Directory:</source>
@@ -2410,21 +2375,21 @@ Directory not found.
 Please verify the correct directory name was given.</source>
         <translation>%1
 Aplankas nerastas.
-Patikrinkite aplanko pavadinimą.</translation>
+Įsitikinkite, jog nurodėte teisingą aplanko vardą.</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is write protected.
 Do you want to delete it anyway?</source>
-        <translation>„%1“ apsaugotas nuo įrašymas.
-Vis tiek norite ištrinti?</translation>
+        <translation>„%1“ yra apsaugotas nuo rašymo.
+Ar vis tiek norite jį pašalinti?</translation>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Tikrai norite ištrinti „%1“?</translation>
+        <translation type="vanished">Ar tikrai norite pašalinti „%1“?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
-        <translation>Nepavyksta pašalinti aplanko.</translation>
+        <translation>Nepavyko pašalinti aplanko.</translation>
     </message>
     <message>
         <source>Save As</source>
@@ -2432,15 +2397,15 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Drive</source>
-        <translation></translation>
+        <translation>Diskas</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Rinkmena</translation>
+        <translation>failas</translation>
     </message>
     <message>
         <source>Unknown</source>
-        <translation>Nežinoma</translation>
+        <translation>Nežinomas</translation>
     </message>
     <message>
         <source>Find Directory</source>
@@ -2452,7 +2417,7 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Toliau</translation>
+        <translation>Pirmyn</translation>
     </message>
     <message>
         <source>New Folder</source>
@@ -2464,7 +2429,7 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>&amp;Choose</source>
-        <translation>&amp;Pasirinkti</translation>
+        <translation>Pasi&amp;rinkti</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -2472,15 +2437,15 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Rinkmenos &amp;pavadinimas:</translation>
+        <translation>&amp;Failo vardas:</translation>
     </message>
     <message>
         <source>Look in:</source>
-        <translation>Kur ieškoti:</translation>
+        <translation>Vieta:</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Sukurti naują aplanką</translation>
+        <translation>Kurti naują aplanką</translation>
     </message>
     <message>
         <source>Go back</source>
@@ -2585,15 +2550,15 @@ Vis tiek norite ištrinti?</translation>
     <name>QFileSystemModel</name>
     <message>
         <source>Invalid filename</source>
-        <translation>Rinkmenos pavadinimas netinkamas</translation>
+        <translation>Neleistinas failo vardas</translation>
     </message>
     <message>
         <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
-        <translation>&lt;b&gt;Negalima naudoti pavadinimo „%1“&lt;/b&gt;&lt;p&gt;Naudokite kitą trumpesnį pavadinimą be skyrybos ženklų.</translation>
+        <translation>&lt;b&gt;Vardas „%1“ neleistinas.&lt;/b&gt;&lt;p&gt;Pabandykite įvesti kitą vardą, pvz., sudarytą iš mažiau simbolių ar be skyrybos ženklų.</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Pavadinimas</translation>
+        <translation>Vardas</translation>
     </message>
     <message>
         <source>Size</source>
@@ -2611,11 +2576,11 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation>Pakeitimo data</translation>
+        <translation>Modifikavimo data</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation>Mano kompiuteris</translation>
+        <translation>Kompiuteris</translation>
     </message>
     <message>
         <source>Computer</source>
@@ -2639,7 +2604,7 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>%1 bytes</source>
-        <translation>%1 baitai</translation>
+        <translation>%1 B</translation>
     </message>
     <message>
         <source>%1 byte(s)</source>
@@ -2650,35 +2615,36 @@ Vis tiek norite ištrinti?</translation>
     <name>QFontDatabase</name>
     <message>
         <source>Normal</source>
-        <translation>Įprastas</translation>
+        <translation type="vanished">Normalusis</translation>
     </message>
     <message>
         <source>Bold</source>
-        <translation>Pusjuodis</translation>
+        <translation>Pastorintas</translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation>Silpnai pusjuodis</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Black</source>
-        <translation>Juodas</translation>
+        <translation type="unfinished">Ryškus</translation>
     </message>
     <message>
         <source>Demi</source>
-        <translation>Pusiau</translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Light</source>
-        <translation>Plonas</translation>
+        <translation type="unfinished">Lengvas</translation>
     </message>
     <message>
         <source>Italic</source>
-        <translation>Kursyvinis</translation>
+        <translation>Kursyvas</translation>
     </message>
     <message>
         <source>Oblique</source>
-        <translation>Pasviras</translation>
+        <translation>Pasvirasis</translation>
     </message>
     <message>
         <source>Any</source>
@@ -2714,11 +2680,11 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Thaana</source>
-        <translation type="unfinished"></translation>
+        <translation>Tana</translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation>Devanagari</translation>
+        <translation>Devangarių</translation>
     </message>
     <message>
         <source>Bengali</source>
@@ -2726,15 +2692,15 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation>Gurmukhi</translation>
+        <translation>Gurmukų</translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation>Gudžarati</translation>
+        <translation>Gujaračių</translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation type="unfinished"></translation>
+        <translation>Orijų</translation>
     </message>
     <message>
         <source>Tamil</source>
@@ -2742,19 +2708,19 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation>Telugu</translation>
+        <translation>Telugų</translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation type="unfinished"></translation>
+        <translation>Kanadų</translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation>Malajalių</translation>
+        <translation>Malajalamų</translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation>Sinhala</translation>
+        <translation>Singalų</translation>
     </message>
     <message>
         <source>Thai</source>
@@ -2766,11 +2732,11 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Tibetan</source>
-        <translation>Tibeto</translation>
+        <translation>Tibetiečių</translation>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation>Mianmaro</translation>
+        <translation>Birmiečių</translation>
     </message>
     <message>
         <source>Georgian</source>
@@ -2778,11 +2744,11 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation>Chmerų</translation>
+        <translation>Khmerų</translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
-        <translation>Supaprastinta kinų</translation>
+        <translation>Supaprastintoji kinų</translation>
     </message>
     <message>
         <source>Traditional Chinese</source>
@@ -2802,15 +2768,15 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Symbol</source>
-        <translation>Simbolis</translation>
+        <translation>Spec. simboliai</translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation type="unfinished"></translation>
+        <translation>Ogamas</translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation>Runų</translation>
+        <translation>Runos</translation>
     </message>
     <message>
         <source>N&apos;Ko</source>
@@ -2864,11 +2830,11 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation>Per&amp;braukta</translation>
+        <translation>&amp;Perbrauktas</translation>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation>&amp;Pabrauktas</translation>
+        <translation>Pa&amp;brauktas</translation>
     </message>
     <message>
         <source>Sample</source>
@@ -2876,34 +2842,34 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation>Rašymo &amp;sistema</translation>
+        <translation>&amp;Rašto sistema</translation>
     </message>
     <message>
         <source>Select Font</source>
-        <translation>Pasirinkti šriftą</translation>
+        <translation>Parinkite šriftą</translation>
     </message>
 </context>
 <context>
     <name>QFtp</name>
     <message>
         <source>Not connected</source>
-        <translation>Neprisijungta</translation>
+        <translation>Neužmegztas ryšys</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation>Pagrindinis kompiuteris %1 nerastas</translation>
+        <translation>Mazgas %1 nerastas</translation>
     </message>
     <message>
         <source>Connection refused to host %1</source>
-        <translation>Prisijungimas prie pagrindinio kompiuterio %1 atmestas</translation>
+        <translation>Mazgas %1 atmetė ryšį</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Prisijungta prie pagrindinio kompiuterio %1</translation>
+        <translation>Užmegztas ryšys su mazgu %1</translation>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Užmegzti duomenų perdavimo ryšį atsisakyta</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2912,76 +2878,76 @@ Vis tiek norite ištrinti?</translation>
     <message>
         <source>Connecting to host failed:
 %1</source>
-        <translation>Nepavyko prisijungti prie pagrindinio kompiuterio:
+        <translation>Nepavyko užmegzti ryšio su mazgu:
 %1</translation>
     </message>
     <message>
         <source>Login failed:
 %1</source>
-        <translation>Prisijungti nepavyko:
+        <translation>Registracija į seansą nepavyko:
 %1</translation>
     </message>
     <message>
         <source>Listing directory failed:
 %1</source>
-        <translation>Nepavyko pateikti aplankų sąrašo:
+        <translation>Nepavyko gauti katalogo turinio sąrašo:
 %1</translation>
     </message>
     <message>
         <source>Changing directory failed:
 %1</source>
-        <translation>Nepavyko pakeisti aplanko:
+        <translation>Pereiti į kitą katalogą nepavyko:
 %1</translation>
     </message>
     <message>
         <source>Downloading file failed:
 %1</source>
-        <translation>Nepavyko parsiųsti rinkmenos:
+        <translation>Parsiųsti failo nepavyko:
 %1</translation>
     </message>
     <message>
         <source>Uploading file failed:
 %1</source>
-        <translation>Nepavyko įkelti rinkmenos:
+        <translation>Nusiųsti failo nepavyko:
 %1</translation>
     </message>
     <message>
         <source>Removing file failed:
 %1</source>
-        <translation>Nepavyko pašalinti rinkmenos:
+        <translation>Pašalinti failo nepavyko:
 %1</translation>
     </message>
     <message>
         <source>Creating directory failed:
 %1</source>
-        <translation>Nepavyko sukurti aplanko:
+        <translation>Sukurti katalogo nepavyko:
 %1</translation>
     </message>
     <message>
         <source>Removing directory failed:
 %1</source>
-        <translation>Nepavyko pašalinti aplanko:
+        <translation>Pašalinti katalogo nepavyko:
 %1</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation>Ryšys nutrauktas</translation>
+        <translation>Ryšys baigtas</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Rastas pagrindinis kompiuteris %1</translation>
+        <translation type="vanished">Mazgas %1 nerastas</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Ryšys su %1 baigtas</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Rastas pagrindinis kompiuteris</translation>
+        <translation type="vanished">Mazgas surastas</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Prisijungta prie pagrindinio kompiuterio</translation>
+        <translation type="vanished">Užmegztas ryšys su mazgu</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -3038,11 +3004,11 @@ Vis tiek norite ištrinti?</translation>
     <name>QHostInfoAgent</name>
     <message>
         <source>Host not found</source>
-        <translation>Pagrindinis kompiuteris nerastas</translation>
+        <translation>Mazgas nerastas</translation>
     </message>
     <message>
         <source>Unknown address type</source>
-        <translation>Nežinimo tipo adresas</translation>
+        <translation>Nežinomas adreso tipas</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3065,23 +3031,23 @@ Vis tiek norite ištrinti?</translation>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>Nežinoma klaida</translation>
+        <translation type="vanished">Nežinoma klaida</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Užklausos vykdymas nutrauktas</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Nenurodytas serveris, prie kurio reikėtų jungtis</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Neteisinga turinio apimtis</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Serveris netikėtai užbaigė ryšį</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -3089,56 +3055,55 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation>Pagrindinis kompiuteris %1 nerastas</translation>
+        <translation>Mazgas %1 nerastas</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">HTTP užlklausa nesėkminga</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Netinkama HTTP atsako antraštė</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Neleistinai fragmentuoti HTTP duomenys</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Rastas pagrindinis kompiuteris %1</translation>
+        <translation type="vanished">Mazgas %1 nerastas</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Prisijungta prie pagrindinio kompiuterio %1</translation>
+        <translation type="vanished">Užmegztas ryšys su mazgu %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Ryšys su %1 baigtas</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Rastas pagrindinis kompiuteris</translation>
+        <translation type="vanished">Mazgas surastas</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Prisijungta prie pagrindinio kompiuterio</translation>
+        <translation type="vanished">Užmegztas ryšys su mazgu</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation>Ryšys nutrauktas</translation>
+        <translation>Ryšys baigtas</translation>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translatorcomment>Le proxy requiert une authentification</translatorcomment>
-        <translation>Reikia nustatyti tapatybę įgaliotame serveryje</translation>
+        <translation type="vanished">Būtinas tapatumo nustatymas įgaliotajame serveryje</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Reikia nustatyti tapatybę</translation>
+        <translation type="vanished">Būtinas tapatumo nustatymas</translation>
     </message>
     <message>
         <source>Connection refused (or timed out)</source>
-        <translation>Ryšys atmestas (arba pasibaigė laikas)</translation>
+        <translation type="vanished">Ryšys atmestas (arba baigėsi jam skirtas laikas)</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
@@ -3146,28 +3111,23 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translatorcomment>L&apos;hôte requiert une authentification</translatorcomment>
-        <translation>Pagrindinis kompiuteris reikalauja nustatyti tapatybę</translation>
+        <translation>Mazgas reikalauja nustatyti tapatybę</translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translatorcomment>Données corrompues</translatorcomment>
         <translation>Duomenys sugadinti</translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translatorcomment>Protocole spécifié inconnu</translatorcomment>
         <translation>Nurodytas nežinomas protokolas</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translatorcomment>le handshake SSL a échoué</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>SSL pasisveikinimas nepavyko</translation>
     </message>
     <message>
         <source>HTTPS connection requested but SSL support not compiled in</source>
-        <translatorcomment>Connexion HTTPS requise mais le support SSL n&apos;est pas compilé</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Pareikalauta HTTPS ryšio, tačiau SSL palaikymas nebuvo įkompiliuotas</translation>
     </message>
     <message>
         <source>Unknown authentication method</source>
@@ -3190,7 +3150,7 @@ Vis tiek norite ištrinti?</translation>
     <name>QHttpSocketEngine</name>
     <message>
         <source>Authentication required</source>
-        <translation>Reikia nustatyti tapatybę</translation>
+        <translation>Būtinas tapatumo nustatymas</translation>
     </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
@@ -3229,125 +3189,109 @@ Vis tiek norite ištrinti?</translation>
     <name>QIBaseDriver</name>
     <message>
         <source>Error opening database</source>
-        <translatorcomment>Erreur d&apos;ouverture de la base de données</translatorcomment>
-        <translation>Atveriant duomenų bazę įvyko klaida</translation>
+        <translation>Klaida atveriant duomenų bazę</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translatorcomment>La transaction n&apos;a pas pu être démarrée</translatorcomment>
-        <translation>Nepavyksta pradėti operacijos</translation>
+        <translation>Nepavyko pradėti transakcijos</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Nepavyksta įkelti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nepavyksta atsisakyti operacijos</translation>
+        <translation>Nepavyko anuliuoti transakcijos</translation>
     </message>
 </context>
 <context>
     <name>QIBaseResult</name>
     <message>
         <source>Unable to create BLOB</source>
-        <translation>Nepavyksta sukurti BLOB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to write BLOB</source>
-        <translation>Nepavyksta įrašyti BLOB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to open BLOB</source>
-        <translation>Nepavyksta atverti BLOB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to read BLOB</source>
-        <translation>Nepavyksta nuskaityti BLOB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not find array</source>
-        <translatorcomment>Impossible de trouver le tableau</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not get array data</source>
-        <translatorcomment>Impossible de trouver le tableau de données</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not get query info</source>
-        <translatorcomment>Impossible d&apos;avoir les informations sur la requête</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>Nepavyksta pradėti operacijos</translation>
+        <translation>Nepavyko pradėti transakcijos</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Nepavyksta įkelti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Could not allocate statement</source>
-        <translatorcomment>Impossible d&apos;allouer la requête</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not prepare statement</source>
-        <translatorcomment>Impossible de préparer la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko paruošti sakinio</translation>
     </message>
     <message>
         <source>Could not describe input statement</source>
-        <translatorcomment>Impossible de décrire la requête</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not describe statement</source>
-        <translatorcomment>Impossible de décrire la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko aprašyti sakinio</translation>
     </message>
     <message>
         <source>Unable to close statement</source>
-        <translatorcomment>Impossible de fermer la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko užverti sakinio</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
-        <translatorcomment>Impossible d&apos;exécuter la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti užklausos</translation>
     </message>
     <message>
         <source>Could not fetch next item</source>
-        <translatorcomment>Impossible de récuperer l&apos;élément suivant</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not get statement info</source>
-        <translatorcomment>Impossible d&apos;avoir les informations sur la requête</translatorcomment>
-        <translation>Nepavyksta gauti informacijos apie būseną</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QIODevice</name>
     <message>
         <source>Permission denied</source>
-        <translation>Nepakanka leidimų</translation>
+        <translation>Nepakanka teisių</translation>
     </message>
     <message>
         <source>Too many open files</source>
-        <translatorcomment>Trop de fichiers ouverts simultanément</translatorcomment>
-        <translation>Atverta per daug rinkmenų</translation>
+        <translation>Per daug atvertų failų</translation>
     </message>
     <message>
         <source>No such file or directory</source>
-        <translatorcomment>Aucun fichier ou dossier de ce nom</translatorcomment>
-        <translation>Tokios rinkmenos ar aplanko nėra</translation>
+        <translation>Nėra tokio failo ar katalogo</translation>
     </message>
     <message>
         <source>No space left on device</source>
-        <translatorcomment>Aucun espace disponible sur le périphérique</translatorcomment>
-        <translation>Įrenginyje nebėra vietos</translation>
+        <translation>Įrenginyje neliko laisvos vietos</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3404,19 +3348,19 @@ Vis tiek norite ištrinti?</translation>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="vanished">XIM</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>XIM įvesties metodas</translation>
+        <translation type="vanished">XIM įvesties būdas</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Windows įvesties metodas</translation>
+        <translation type="vanished">„Windows“ įvesties būdas</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Mac OS X įvesties metodas</translation>
+        <translation type="vanished">„Mac OS X“ įvesties būdas</translation>
     </message>
     <message>
         <source>FEP</source>
@@ -3513,21 +3457,19 @@ Vis tiek norite ištrinti?</translation>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: Nepavyksta įkelti %1 (%2)</translation>
+        <translation type="vanished">QLibrary::load_sys: Nepavyksta įkelti %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys: Nepavyksta iškelti %1 (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys: Nepavyksta iškelti %1 (%2)</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
-        <translatorcomment>Le plugin &apos;%1&apos; utilise une bibliothèque Qt incompatible. (%2.%3.%4) [%5]</translatorcomment>
-        <translation>„%1“ papildinys naudoja nesuderinamą Qt biblioteką. (%2.%3.%4) [%5]</translation>
+        <translation>Papildinys „%1“ naudoja nesuderinamą „Qt“ bibliotekos versiją (%2.%3.%4) [%5]</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translatorcomment>Le plugin &apos;%1&apos; utilise une bibliothèque Qt incompatible. Clé attendue &quot;%2&quot;, reçue &quot;%3&quot;</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Papildinys „%1“ naudoja nesuderinamą „Qt“. Tikėtasi darinio rakto „%2“, tačiau gautas „%3“</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3535,18 +3477,15 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translatorcomment>La bibliothèque partagée est introuvable.</translatorcomment>
-        <translation>Bendra biblioteka nerasta.</translation>
+        <translation>Bendroji biblioteka nerasta.</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
-        <translatorcomment>Le fichier &apos;%1&apos; n&apos;est pas un plugin Qt valide.</translatorcomment>
-        <translation>Rinkmena „%1“ nėra tinkamas Qt papildinys.</translation>
+        <translation>Failas „%1“ nėra teisingas „Qt“ papildinys.</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translatorcomment>Le plugin &apos;%1&apos; utilise une bibliothèque Qt incompatible.  (Il est impossible de mélanger des bibliothèques &apos;debug&apos; et &apos;release&apos;.)</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Papildinys „%1“ naudoja nesuderinamą „Qt“ bibliotekos versiją (negalima maišyti derinimui ir galutinėms laidoms skirtų bibliotekų).</translation>
     </message>
     <message>
         <source>Cannot load library %1: %2</source>
@@ -3633,15 +3572,15 @@ Vis tiek norite ištrinti?</translation>
     <name>QLineEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>Atša&amp;ukti</translation>
+        <translation>&amp;Atšaukti</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Paka&amp;rtoti</translation>
+        <translation>A&amp;tstatyti</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Iškirp&amp;ti</translation>
+        <translation>Iški&amp;rpti</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
@@ -3649,82 +3588,77 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Padėti</translation>
+        <translation>Į&amp;dėti</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Ištrinti</translation>
+        <translation>Pašalinti</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Viską pažymėti</translation>
+        <translation>Pažymėti viską</translation>
     </message>
 </context>
 <context>
     <name>QLocalServer</name>
     <message>
         <source>%1: Name error</source>
-        <translation>%1: Vardo klaida</translation>
+        <translation>%1: vardo klaida</translation>
     </message>
     <message>
         <source>%1: Permission denied</source>
-        <translation>%1: Nepakanka leidimų</translation>
+        <translation>%1: nepakanka teisių</translation>
     </message>
     <message>
         <source>%1: Address in use</source>
-        <translation>%1: Adresas jau naudojamas</translation>
+        <translation>%1: adresas jau naudojamas</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation>%1: Nežinoma klaida %2</translation>
+        <translation>%1: nežinoma klaida %2</translation>
     </message>
 </context>
 <context>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation>%1: Ryšys atmestas</translation>
+        <translation>%1: ryšys atmestas</translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
-        <translation>%1: Ryšys nutrauktas</translation>
+        <translation>%1: nutolęs mazgas užbaigė ryšį</translation>
     </message>
     <message>
         <source>%1: Invalid name</source>
-        <translation>%1: Netinkamas pavadinimas</translation>
+        <translation>%1: netinkamas vardas</translation>
     </message>
     <message>
         <source>%1: Socket access error</source>
-        <translatorcomment>%1: Erreur d&apos;accès au socket</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: prieigos prie lizdo klaida</translation>
     </message>
     <message>
         <source>%1: Socket resource error</source>
-        <translatorcomment>%1: Erreur de ressource du socket</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: lizdo ištekliaus klaida</translation>
     </message>
     <message>
         <source>%1: Socket operation timed out</source>
-        <translatorcomment>%1: L&apos;opération socket a expiré</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: baigėsi operacijai su lizdu skirtas laikas</translation>
     </message>
     <message>
         <source>%1: Datagram too large</source>
-        <translatorcomment>%1: Datagramme trop grand</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: duomenų paketas per didelis</translation>
     </message>
     <message>
         <source>%1: Connection error</source>
-        <translation>%1: Ryšio klaida</translation>
+        <translation>%1: ryšio klaida</translation>
     </message>
     <message>
         <source>%1: The socket operation is not supported</source>
-        <translatorcomment>%1: L&apos;opération n&apos;est pas supportée</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: operacija su lizdu nepalaikoma</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation>%1: Nežinoma klaida %2</translation>
+        <translation>%1: nežinoma klaida %2</translation>
     </message>
     <message>
         <source>%1: Unknown error</source>
@@ -3747,23 +3681,23 @@ Vis tiek norite ištrinti?</translation>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Napavyksta atverti duomenų bazės</translation>
+        <translation type="vanished">Nepavyko atverti duomenų bazės &apos;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
-        <translation>Nepavyksta prisijungti</translation>
+        <translation>Nepavyko užmegzti ryšio</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Nepavyksta pradėti operacijos</translation>
+        <translation>Nepavyko pradėti transakcijos</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Nepavyksta įkelti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nepavyksta atsisakyti operacijos</translation>
+        <translation>Nepavyko anuliuoti transakcijos</translation>
     </message>
     <message>
         <source>Unable to allocate a MYSQL object</source>
@@ -3778,56 +3712,46 @@ Vis tiek norite ištrinti?</translation>
     <name>QMYSQLResult</name>
     <message>
         <source>Unable to fetch data</source>
-        <translation>Nepavyksta gauti duomenų</translation>
+        <translation>Nepavyko gauti duomenų</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
-        <translatorcomment>Impossible d&apos;exécuter la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti užklausos</translation>
     </message>
     <message>
         <source>Unable to store result</source>
-        <translatorcomment>Impossible de stocker le résultat</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko išsaugoti rezultato</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translatorcomment>Impossible de préparer l&apos;instruction</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko paruošti sakinio</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translatorcomment>Impossible de réinitialiser l&apos;instruction</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translatorcomment>Impossible d&apos;attacher la valeur</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translatorcomment>Impossible d&apos;exécuter la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti sakinio</translation>
     </message>
     <message>
         <source>Unable to bind outvalues</source>
-        <translatorcomment>Impossible d&apos;attacher les valeurs de sortie</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to store statement results</source>
-        <translatorcomment>Impossible de stocker les résultats de la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko išsaugoti sakinio rezultatų</translation>
     </message>
     <message>
         <source>Unable to execute next query</source>
-        <translatorcomment>Impossible d&apos;exécuterla prochaine requête</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to store next result</source>
-        <translatorcomment>Impossible de stocker le prochain résultat</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3835,14 +3759,14 @@ Vis tiek norite ištrinti?</translation>
     <name>QMdiArea</name>
     <message>
         <source>(Untitled)</source>
-        <translation>(be antraštės)</translation>
+        <translation>(Be pavadinimo)</translation>
     </message>
 </context>
 <context>
     <name>QMdiSubWindow</name>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation>%1 – [%2]</translation>
     </message>
     <message>
         <source>Close</source>
@@ -3854,11 +3778,11 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Atstatyti žemiau</translation>
+        <translation>Atkurti dydį</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Atstatyti</translation>
+        <translation>&amp;Atkurti</translation>
     </message>
     <message>
         <source>&amp;Move</source>
@@ -3866,7 +3790,7 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Dydis</translation>
+        <translation>&amp;Keisti dydį</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
@@ -3886,7 +3810,7 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>- [%1]</source>
-        <translation>- [%1]</translation>
+        <translation>– [%1]</translation>
     </message>
     <message>
         <source>Maximize</source>
@@ -3894,20 +3818,19 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Unshade</source>
-        <translation type="unfinished"></translation>
+        <translation>Išvynioti</translation>
     </message>
     <message>
         <source>Shade</source>
-        <translatorcomment>Ombrer</translatorcomment>
-        <translation>Patamsinti</translation>
+        <translation>Suvynioti</translation>
     </message>
     <message>
         <source>Restore</source>
-        <translation>Atstatyti</translation>
+        <translation>Atkurti langą</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Pagalba</translation>
+        <translation>Žinynas</translation>
     </message>
     <message>
         <source>Menu</source>
@@ -3918,15 +3841,15 @@ Vis tiek norite ištrinti?</translation>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Užverti</translation>
+        <translation type="vanished">Užverti</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Atverti</translation>
+        <translation type="vanished">Atverti</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Įvykdyti</translation>
+        <translation type="vanished">Vykdyti</translation>
     </message>
 </context>
 <context>
@@ -3940,7 +3863,7 @@ Vis tiek norite ištrinti?</translation>
     <name>QMessageBox</name>
     <message>
         <source>Help</source>
-        <translation>Pagalba</translation>
+        <translation>Žinynas</translation>
     </message>
     <message>
         <source>OK</source>
@@ -3948,19 +3871,19 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>About Qt</source>
-        <translation>Apie Qt</translation>
+        <translation>Apie „Qt“</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ši programa naudoja %1 Qt versija.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Ši programa naudoja %1 Qt versija.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
-        <translation>Rodyti detales...</translation>
+        <translation>Išsamiau…</translation>
     </message>
     <message>
         <source>Hide Details...</source>
-        <translation>Slėpti detales...</translation>
+        <translation>Glausčiau…</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -3987,44 +3910,37 @@ Vis tiek norite ištrinti?</translation>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translatorcomment>Sélectionner IM</translatorcomment>
-        <translation>Pasirinkti ĮM</translation>
+        <translation type="vanished">Įvesties būdo pasirinkimas</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translatorcomment>Sélectionneur de méthode de saisie</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Skirtingų įvesties būtų perjungiklis</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translatorcomment>Sélectionneur de méthode de saisie qui utilise le menu contextuel des widgets de texte</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Skirtingų įvesties būdų perjungiklis, esantis teksto laukų kontekstiniame meniu</translation>
     </message>
 </context>
 <context>
     <name>QNativeSocketEngine</name>
     <message>
         <source>The remote host closed the connection</source>
-        <translatorcomment>L&apos;hôte distant a fermé la connexion</translatorcomment>
-        <translation>Nuotolinis pagrindinis kompiuteris nutraukė ryšį</translation>
+        <translation>Nutolęs mazgas užbaigė ryšį</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translatorcomment>L&apos;opération réseau a expiré</translatorcomment>
-        <translation>Baigėsi laikas tinklo operacijai</translation>
+        <translation>Baigėsi tinklo operacijai skirtas laikas</translation>
     </message>
     <message>
         <source>Out of resources</source>
-        <translatorcomment>Manque de ressources</translatorcomment>
-        <translation>Trūksta išteklių</translation>
+        <translation>Pritrūko išteklių</translation>
     </message>
     <message>
         <source>Unsupported socket operation</source>
-        <translatorcomment>Opération socket non supportée</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepalaikoma operacija su lizdu</translation>
     </message>
     <message>
         <source>Protocol type not supported</source>
@@ -4032,21 +3948,19 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Invalid socket descriptor</source>
-        <translatorcomment>Descripteur de socket invalide</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Netinkamas lizdo deskriptorius</translation>
     </message>
     <message>
         <source>Network unreachable</source>
-        <translatorcomment>Réseau impossible à rejoindre</translatorcomment>
         <translation>Tinklas nepasiekiamas</translation>
     </message>
     <message>
         <source>Permission denied</source>
-        <translation>Nepakanka leidimų</translation>
+        <translation>Nepakanka teisių</translation>
     </message>
     <message>
         <source>Connection timed out</source>
-        <translation>Baigėsi ryšio laikas</translation>
+        <translation>Baigėsi ryšiui skirtas laikas</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -4054,33 +3968,27 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>The bound address is already in use</source>
-        <translatorcomment>L&apos;adresse liée est déjà en usage</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Bandomas naudoti adresas jau yra naudojamas</translation>
     </message>
     <message>
         <source>The address is not available</source>
-        <translatorcomment>L&apos;adresse n&apos;est pas disponible</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Adresas neleidžiamas</translation>
     </message>
     <message>
         <source>The address is protected</source>
-        <translatorcomment>L&apos;adresse est protégée</translatorcomment>
         <translation>Adresas apsaugotas</translation>
     </message>
     <message>
         <source>Unable to send a message</source>
-        <translatorcomment>Impossible d&apos;envoyer un message</translatorcomment>
-        <translation>Nepavyksta išsiųsti žinutės</translation>
+        <translation>Nepavyko išsiųsti pranešimo</translation>
     </message>
     <message>
         <source>Unable to receive a message</source>
-        <translatorcomment>Impossible de recevoir un message</translatorcomment>
-        <translation>Nepavyksta gauti žinutės</translation>
+        <translation>Nepavyko gauti pranešimo</translation>
     </message>
     <message>
         <source>Unable to write</source>
-        <translatorcomment>Impossible d&apos;écrire</translatorcomment>
-        <translation>Nepavyksta įrašyti</translation>
+        <translation>Rašymas nepavyko</translation>
     </message>
     <message>
         <source>Network error</source>
@@ -4088,38 +3996,31 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Another socket is already listening on the same port</source>
-        <translatorcomment>Un autre socket écoute déjà sur le même port</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Tą patį prievadą klausymui jau naudoja kitas lizdas</translation>
     </message>
     <message>
         <source>Unable to initialize non-blocking socket</source>
-        <translatorcomment>Impossible d&apos;initialiser le socket asynchrone</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko inicijuoti neblokuojamo lizdo</translation>
     </message>
     <message>
         <source>Unable to initialize broadcast socket</source>
-        <translatorcomment>Impossible d&apos;initialiser le socket broadcast</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko inicijuoti lizdo transliavimui</translation>
     </message>
     <message>
         <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
-        <translatorcomment>Tentative d&apos;utiliser un socket IPv6 sur une plateforme qui ne supporte pas IPv6</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Bandoma naudoti IPv6 lizdą platformoje, kurioje IPv6 protokolas nepalaikomas</translation>
     </message>
     <message>
         <source>Host unreachable</source>
-        <translatorcomment>Hôte inaccessible</translatorcomment>
-        <translation>Pagrindinis kompiuteris nepasiekiamas</translation>
+        <translation>Mazgas nepasiekiamas</translation>
     </message>
     <message>
         <source>Datagram was too large to send</source>
-        <translatorcomment>Le datagramme était trop grand pour être envoyé</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Duomenų paketas per didelis, kad galėtų būti išsiųstas</translation>
     </message>
     <message>
         <source>Operation on non-socket</source>
-        <translatorcomment>Operation sur non-socket</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Operacija ne su lizdu</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -4127,8 +4028,7 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
-        <translatorcomment>Le type de proxy est invalide pour cette opération</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Įgaliotojo serverio tipas netinkamas šiai operacijai</translation>
     </message>
     <message>
         <source>Temporary error</source>
@@ -4180,48 +4080,42 @@ Vis tiek norite ištrinti?</translation>
     <name>QNetworkAccessFileBackend</name>
     <message>
         <source>Request for opening non-local file %1</source>
-        <translatorcomment>Requête d&apos;ouverture de fichier distant %1</translatorcomment>
-        <translation>Bandoma atverti nuotolinę rinkmeną %1</translation>
+        <translation>Prašoma atverti nevietinį failą %1</translation>
     </message>
     <message>
         <source>Error opening %1: %2</source>
-        <translatorcomment>Erreur lors de l&apos;ouverture de %1 : %2</translatorcomment>
-        <translation>Atveriant %1 įvyko klaida: %2</translation>
+        <translation>Klaida atveriant %1: %2</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translatorcomment>Erreur d&apos;écriture de %1 : %2</translatorcomment>
-        <translation>Klaida rašant į %1: %2</translation>
+        <translation>Rašymo klaida rašant %1: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
-        <translatorcomment>Impossible d&apos;ouvrir %1 : le chemin est un dossier</translatorcomment>
-        <translation>Nepavyksta atverti %1: kelias yra aplankas</translation>
+        <translation>Nepavyko atverti %1: tai katalogo kelias</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translatorcomment>Erreur de lecture de %1 : %2</translatorcomment>
-        <translation>Klaida skaitant iš %1: %2</translation>
+        <translation>Skaitymo klaida skaitant %1: %2</translation>
     </message>
 </context>
 <context>
     <name>QNetworkAccessFtpBackend</name>
     <message>
         <source>Cannot open %1: is a directory</source>
-        <translation>Nepavyksta atverti %1: tai yra aplankas</translation>
+        <translation>Nepavyko atverti %1: tai yra katalogas</translation>
     </message>
     <message>
         <source>Logging in to %1 failed: authentication required</source>
-        <translatorcomment>Connexion à %1 a échoué : authentification requise</translatorcomment>
-        <translation>Nepavyko prisijungti prie %1: reikia patvirtinti tapatybę</translation>
+        <translation>Registracija į seansą su %1 nepavyko: būtinas tapatumo nustatymas</translation>
     </message>
     <message>
         <source>Error while downloading %1: %2</source>
-        <translation>Klaida įvyko parsiunčiant %1 : %2</translation>
+        <translation>Klaida parsiunčiant %1: %2</translation>
     </message>
     <message>
         <source>Error while uploading %1: %2</source>
-        <translation>Klaida įvyko įkeliant %1 : %2</translation>
+        <translation>Klaida nusiunčiant %1: %2</translation>
     </message>
     <message>
         <source>No suitable proxy found</source>
@@ -4246,7 +4140,7 @@ Vis tiek norite ištrinti?</translation>
     <name>QNetworkReply</name>
     <message>
         <source>Error downloading %1 - server replied: %2</source>
-        <translation>Klaida parsiunčiant %1 - serveris grąžino: %2</translation>
+        <translation type="vanished">Klaida parsiunčiant %1. Serveris atsakė: %2</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
@@ -4288,7 +4182,7 @@ Vis tiek norite ištrinti?</translation>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation>Veiksmas atšauktas</translation>
+        <translation>Operacija atšaukta</translation>
     </message>
 </context>
 <context>
@@ -4333,62 +4227,55 @@ Vis tiek norite ištrinti?</translation>
     <name>QOCIDriver</name>
     <message>
         <source>Unable to logon</source>
-        <translation>Nepavyskta pradėti sesijos</translation>
+        <translation>Nepavyko registruotis į seansą</translation>
     </message>
     <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
-        <translation>Nepavyksta paruošti</translation>
+        <translation>Inicijavimas nepavyko</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Nepavyksta pradėti operacijos</translation>
+        <translation>Nepavyko pradėti transakcijos</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Nepavyksta įrašyti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nepavyksta atsisakyti operacijos</translation>
+        <translation>Nepavyko anuliuoti transakcijos</translation>
     </message>
 </context>
 <context>
     <name>QOCIResult</name>
     <message>
         <source>Unable to bind column for batch execute</source>
-        <translatorcomment>Impossible d&apos;attacher la colonne pour une execution batch</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to execute batch statement</source>
-        <translatorcomment>Impossible d&apos;exécuter l&apos;instruction batch</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti paketinio sakinio</translation>
     </message>
     <message>
         <source>Unable to goto next</source>
-        <translatorcomment>Impossible de passer au suivant</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to alloc statement</source>
-        <translatorcomment>Impossible d&apos;allouer la requête</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translatorcomment>Impossible de préparer la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko paruošti sakinio</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translatorcomment>Impossible d&apos;attacher la valeur</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translatorcomment>Impossible d&apos;exéctuer la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti sakinio</translation>
     </message>
     <message>
         <source>Unable to get statement type</source>
@@ -4404,29 +4291,28 @@ Vis tiek norite ištrinti?</translation>
     <name>QODBCDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translatorcomment>Incapable d&apos;établir une connexion</translatorcomment>
-        <translation>Nepavyksta prisijungti</translation>
+        <translation>Nepavyko užmegzti ryšio</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
         <translatorcomment>Impossible de se connecter - Le pilote ne supporte pas toutes les fonctionnalités nécessaires</translatorcomment>
-        <translation>Nepavyksta prisijungti - tvarkyklė nepaiko reikiamų funkcijų</translation>
+        <translation type="vanished">Nepavyksta prisijungti - tvarkyklė nepaiko reikiamų funkcijų</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
-        <translation>Nepavyksta uždrausti automatinio įkėlimo</translation>
+        <translation>Nepavyko išjungti automatinio transakcijų patvirtinimo</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Nepavyksta įkelti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nepavyksta atsisakyti operacijos</translation>
+        <translation>Nepavyko anuliuoti transakcijos</translation>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
-        <translation>Nepavyksta įgalinti automatinio įkėlimo</translation>
+        <translation>Nepavyko įjungti automatinio transakcijų patvirtinimo</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
@@ -4437,62 +4323,54 @@ Vis tiek norite ištrinti?</translation>
     <name>QODBCResult</name>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translatorcomment>QODBCResult::reset: Impossible d&apos;utiliser &apos;SQL_CURSOR_STATIC&apos; comme attribut de requête. Veuillez vérifier la configuration de votre pilote ODBC</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>QODBCResult::reset: nepavyko nustatyti sakinio atributo „SQL_CURSOR_STATIC“. Patikrinkite ODBC tvarkyklės sąranką</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translatorcomment>Impossible d&apos;exéctuer la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti sakinio</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translatorcomment>Impossible de récupérer le suivant</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko gauti tolesnio įrašo</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translatorcomment>Impossible de préparer la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko paruošti sakinio</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translatorcomment>Impossible d&apos;attacher la variable</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko susieti kintamojo</translation>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translatorcomment>Impossible de récupérer le dernier</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko gauti paskutinio įrašo</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation>Nepavyksta gauti</translation>
+        <translation>Nepavyko gauti įrašo</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translatorcomment>Impossible de récupérer le premier</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko gauti pirmojo įrašo</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translatorcomment>Impossible de récupérer le précedent</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko gauti ankstesnio įrašo</translation>
     </message>
 </context>
 <context>
     <name>QObject</name>
     <message>
         <source>Invalid URI: %1</source>
-        <translation>Klaidingas URI: %1</translation>
+        <translation type="vanished">Klaidingas URI: %1</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Klaida rašant į %1: %2</translation>
+        <translation type="vanished">Klaida rašant į %1: %2</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation>Klaida skaitant iš %1: %2</translation>
+        <translation type="vanished">Klaida skaitant iš %1: %2</translation>
     </message>
     <message>
         <source>PulseAudio Sound Server</source>
@@ -4535,63 +4413,60 @@ Vis tiek norite ištrinti?</translation>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>Pavadinimas</translation>
+        <translation type="vanished">Vardas</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Reikšmė</translation>
+        <translation type="vanished">Reikšmė</translation>
     </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translatorcomment>Impossible d&apos;établir une connexion</translatorcomment>
-        <translation>Nepavyksta prisijungti</translation>
+        <translation>Nepavyko užmegzti ryšio</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
-        <translation>Nepavyksta pradėti operacijos</translation>
+        <translation>Nepavyko pradėti transakcijos</translation>
     </message>
     <message>
         <source>Could not commit transaction</source>
-        <translation>Nepavyksta įkelti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Could not rollback transaction</source>
-        <translation>Nepavyksta atsisakyti operacijos</translation>
+        <translation>Nepavyko anuliuoti transakcijos</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko prenumeruoti</translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translatorcomment>Impossible de se désinscrire</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko atsisakyti prenumeratos</translation>
     </message>
 </context>
 <context>
     <name>QPSQLResult</name>
     <message>
         <source>Unable to create query</source>
-        <translation>Nepavyksta sukurti užklausos</translation>
+        <translation>Nepavyko sukurti užklausos</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translatorcomment>Impossible de préparer la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko paruošti sakinio</translation>
     </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
     <message>
         <source>Centimeters (cm)</source>
-        <translation>Centimetrai (cm)</translation>
+        <translation type="vanished">Centimetrai (cm)</translation>
     </message>
     <message>
         <source>Millimeters (mm)</source>
-        <translation>Millimetrai (mm)</translation>
+        <translation>Milimetrai (mm)</translation>
     </message>
     <message>
         <source>Inches (in)</source>
@@ -4611,7 +4486,7 @@ Vis tiek norite ištrinti?</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation>Puslapio dydis:</translation>
+        <translation>Popieriaus dydis:</translation>
     </message>
     <message>
         <source>Width:</source>
@@ -5292,161 +5167,161 @@ Vis tiek norite ištrinti?</translation>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>vietinis prijungimas</translation>
+        <translation type="vanished">prijungtas prie šio įrenginio</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Pseudonimai: %1</translation>
+        <translation type="vanished">Alternatyvieji vardai: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>nežinoma</translation>
+        <translation type="vanished">nežinomas</translation>
     </message>
     <message>
         <source>Print To File ...</source>
-        <translation>Spausdinti į rinkmeną...</translation>
+        <translation>Parinkite failą, į kurį norite spausdinti</translation>
     </message>
     <message>
         <source>File %1 is not writable.
 Please choose a different file name.</source>
-        <translation>Nepavyksta rašyti į %1.
-Pasirinkite kitą rinkmenos pavadinimą.</translation>
+        <translation>Į failą „%1“ rašyti neleidžiama.
+Pasirinkite kitą failo vardą.</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to overwrite it?</source>
-        <translation>%1 jau yra.
-Perrašyti?</translation>
+        <translation>Failas „%1“ jau yra.
+Ar norite jį perrašyti?</translation>
     </message>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
-        <translation>%1 yra aplankas.
-Pasirinkite kitą rinkmenos pavadinimą.</translation>
+        <translation>„%1“ yra katalogas.
+Pasirinkite kitą failo vardą.</translation>
     </message>
     <message>
         <source>A0</source>
-        <translation>A0</translation>
+        <translation type="vanished">A0</translation>
     </message>
     <message>
         <source>A1</source>
-        <translation>A1</translation>
+        <translation type="vanished">A1</translation>
     </message>
     <message>
         <source>A2</source>
-        <translation>A2</translation>
+        <translation type="vanished">A2</translation>
     </message>
     <message>
         <source>A3</source>
-        <translation>A3</translation>
+        <translation type="vanished">A3</translation>
     </message>
     <message>
         <source>A4</source>
-        <translation>A4</translation>
+        <translation type="vanished">A4</translation>
     </message>
     <message>
         <source>A5</source>
-        <translation>A5</translation>
+        <translation type="vanished">A5</translation>
     </message>
     <message>
         <source>A6</source>
-        <translation>A6</translation>
+        <translation type="vanished">A6</translation>
     </message>
     <message>
         <source>A7</source>
-        <translation>A7</translation>
+        <translation type="vanished">A7</translation>
     </message>
     <message>
         <source>A8</source>
-        <translation>A8</translation>
+        <translation type="vanished">A8</translation>
     </message>
     <message>
         <source>A9</source>
-        <translation>A9</translation>
+        <translation type="vanished">A9</translation>
     </message>
     <message>
         <source>B0</source>
-        <translation>B0</translation>
+        <translation type="vanished">B0</translation>
     </message>
     <message>
         <source>B1</source>
-        <translation>B1</translation>
+        <translation type="vanished">B1</translation>
     </message>
     <message>
         <source>B2</source>
-        <translation>B2</translation>
+        <translation type="vanished">B2</translation>
     </message>
     <message>
         <source>B3</source>
-        <translation>B3</translation>
+        <translation type="vanished">B3</translation>
     </message>
     <message>
         <source>B4</source>
-        <translation>B4</translation>
+        <translation type="vanished">B4</translation>
     </message>
     <message>
         <source>B5</source>
-        <translation>B5</translation>
+        <translation type="vanished">B5</translation>
     </message>
     <message>
         <source>B6</source>
-        <translation>B6</translation>
+        <translation type="vanished">B6</translation>
     </message>
     <message>
         <source>B7</source>
-        <translation>B7</translation>
+        <translation type="vanished">B7</translation>
     </message>
     <message>
         <source>B8</source>
-        <translation>B8</translation>
+        <translation type="vanished">B8</translation>
     </message>
     <message>
         <source>B9</source>
-        <translation>B9</translation>
+        <translation type="vanished">B9</translation>
     </message>
     <message>
         <source>B10</source>
-        <translation>B10</translation>
+        <translation type="vanished">B10</translation>
     </message>
     <message>
         <source>C5E</source>
-        <translation>C5E</translation>
+        <translation type="vanished">C5E</translation>
     </message>
     <message>
         <source>DLE</source>
-        <translation>DLE</translation>
+        <translation type="vanished">DLE</translation>
     </message>
     <message>
         <source>Executive</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Executive</translation>
     </message>
     <message>
         <source>Folio</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Folio</translation>
     </message>
     <message>
         <source>Ledger</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Ledger</translation>
     </message>
     <message>
         <source>Legal</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Legal</translation>
     </message>
     <message>
         <source>Letter</source>
-        <translation>Laiškas</translation>
+        <translation type="vanished">Letter</translation>
     </message>
     <message>
         <source>Tabloid</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Tabloid</translation>
     </message>
     <message>
         <source>US Common #10 Envelope</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">JAV įprastas #10 vokas</translation>
     </message>
     <message>
         <source>Custom</source>
-        <translation>Savitas</translation>
+        <translation type="vanished">Pasirinktinis</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
@@ -5462,19 +5337,19 @@ Pasirinkite kitą rinkmenos pavadinimą.</translation>
     </message>
     <message>
         <source>Print to File (PDF)</source>
-        <translation>Spausdinti į rinkmeną (PDF)</translation>
+        <translation>Spausdinti į failą (PDF)</translation>
     </message>
     <message>
         <source>Print to File (Postscript)</source>
-        <translation>Spausdinti į rinkmeną (PostScript)</translation>
+        <translation type="vanished">Spausdinti į failą (PostScript)</translation>
     </message>
     <message>
         <source>Local file</source>
-        <translation>Vietinė rinkmena</translation>
+        <translation>vietinis failas</translation>
     </message>
     <message>
         <source>Write %1 file</source>
-        <translation>Įrašyti į rinkmeną %1</translation>
+        <translation type="vanished">įrašyti %1 failą</translation>
     </message>
     <message>
         <source>Print</source>
@@ -5718,7 +5593,7 @@ Please turn one of those options off.</source>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
-        <translation>Puslapio konfigūracija</translation>
+        <translation>Puslapio parinktys</translation>
     </message>
     <message>
         <source>Print Preview</source>
@@ -5726,7 +5601,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Next page</source>
-        <translation>Tolesnis puslapis</translation>
+        <translation>Kitas puslapis</translation>
     </message>
     <message>
         <source>Previous page</source>
@@ -5742,27 +5617,27 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Fit width</source>
-        <translation>Taikyti pagal plotį</translation>
+        <translation>Priderinti mastelį prie lapo pločio</translation>
     </message>
     <message>
         <source>Fit page</source>
-        <translation>Įtalpinti puslapį</translation>
+        <translation>Priderinti mastelį prie lapo dydžio</translation>
     </message>
     <message>
         <source>Zoom in</source>
-        <translation>Priartinti</translation>
+        <translation>Pritraukti</translation>
     </message>
     <message>
         <source>Zoom out</source>
-        <translation>Atitolinti</translation>
+        <translation>Atitraukti</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation>Stačias</translation>
+        <translation>Stačias lapas</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation>Gulsčias</translation>
+        <translation>Gulsčias lapas</translation>
     </message>
     <message>
         <source>Show single page</source>
@@ -5770,11 +5645,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Show facing pages</source>
-        <translation>Rodyti po du puslapius</translation>
+        <translation>Rodyti kaip knygą</translation>
     </message>
     <message>
         <source>Show overview of all pages</source>
-        <translation>Rodyti visus puslapius</translation>
+        <translation>Rodyti visų puslapių apžvalgą</translation>
     </message>
     <message>
         <source>Print</source>
@@ -5782,11 +5657,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Page setup</source>
-        <translation>Puslapio konfigūracija</translation>
+        <translation>Puslapio parinktys</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Užverti</translation>
+        <translation type="vanished">Užverti</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -5824,7 +5699,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Advanced</source>
-        <translation>Sudėtingiau</translation>
+        <translation type="vanished">Kita</translation>
     </message>
 </context>
 <context>
@@ -5839,12 +5714,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Print range</source>
-        <translatorcomment>Imprimer la sélection</translatorcomment>
-        <translation>Spausdinimo rėžis</translation>
+        <translation>Spaudinio apimtis</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation>Viską spausdinti</translation>
+        <translation>Spausdinti viską</translation>
     </message>
     <message>
         <source>Pages from</source>
@@ -5856,13 +5730,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Selection</source>
-        <translatorcomment>Sélection</translatorcomment>
-        <translation>Pasirinkimas</translation>
+        <translation>Pažymėtą sritį</translation>
     </message>
     <message>
         <source>Output Settings</source>
-        <translatorcomment>Paramètres de sortie</translatorcomment>
-        <translation>Išvesties nuostatos</translation>
+        <translation>Išvesties parinktys</translation>
     </message>
     <message>
         <source>Copies:</source>
@@ -5870,13 +5742,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Collate</source>
-        <translatorcomment>Assembler</translatorcomment>
-        <translation>Rikiuoti</translation>
+        <translation>Sugrupuoti</translation>
     </message>
     <message>
         <source>Reverse</source>
-        <translatorcomment>Inverse</translatorcomment>
-        <translation>Atvirkščiai</translation>
+        <translation>Sp. atvirkštine tvarka</translation>
     </message>
     <message>
         <source>Options</source>
@@ -5884,34 +5754,31 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Color Mode</source>
-        <translation>Spalvų veiksena</translation>
+        <translation>Spalvų pateikimas</translation>
     </message>
     <message>
         <source>Color</source>
-        <translation>Spalvota</translation>
+        <translation>Spausdinti spalvotai</translation>
     </message>
     <message>
         <source>Grayscale</source>
-        <translation>Pilkumo skalė</translation>
+        <translation>Spausdinti nespalvotai</translation>
     </message>
     <message>
         <source>Duplex Printing</source>
-        <translatorcomment>Impression en duplex</translatorcomment>
         <translation>Dvipusis spausdinimas</translation>
     </message>
     <message>
         <source>None</source>
-        <translation>Nieko</translation>
+        <translation>Nenaudoti</translation>
     </message>
     <message>
         <source>Long side</source>
-        <translatorcomment>Côté long</translatorcomment>
-        <translation>Platusis kraštas</translation>
+        <translation>Versti per ilgąją kraštinę</translation>
     </message>
     <message>
         <source>Short side</source>
-        <translatorcomment>Côté court</translatorcomment>
-        <translation>Siaurasis kraštas</translation>
+        <translation>Versti per trumpąją kraštinę</translation>
     </message>
     <message>
         <source>Current Page</source>
@@ -5934,11 +5801,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation>&amp;Pavadinimas:</translation>
+        <translation>&amp;Vardas:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
-        <translation>&amp;Savybės</translation>
+        <translation>&amp;Nuostatos</translation>
     </message>
     <message>
         <source>Location:</source>
@@ -5954,11 +5821,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation>Išvesties &amp;rinkmena:</translation>
+        <translation>Išvesties &amp;failas:</translation>
     </message>
     <message>
         <source>...</source>
-        <translation>...</translation>
+        <translation>…</translation>
     </message>
 </context>
 <context>
@@ -6008,14 +5875,14 @@ Please turn one of those options off.</source>
     <name>QProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Atšaukti</translation>
+        <translation>Atsisakyti</translation>
     </message>
 </context>
 <context>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Atverti</translation>
+        <translation type="vanished">Atverti</translation>
     </message>
 </context>
 <context>
@@ -6036,53 +5903,45 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Pažymėti</translation>
+        <translation type="vanished">Pažymėti</translation>
     </message>
 </context>
 <context>
     <name>QRegExp</name>
     <message>
         <source>no error occurred</source>
-        <translatorcomment>aucune erreur ne s&apos;est produite</translatorcomment>
-        <translation>jokių klaidų</translation>
+        <translation>klaidų neaptikta</translation>
     </message>
     <message>
         <source>disabled feature used</source>
-        <translation>parinktis uždrausta</translation>
+        <translation>naudojama išjungta galimybė</translation>
     </message>
     <message>
         <source>bad char class syntax</source>
-        <translatorcomment>syntaxe invalide pour classe de caractère</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>bloga simbolių klasės sintaksė</translation>
     </message>
     <message>
         <source>bad lookahead syntax</source>
-        <translatorcomment>syntaxe invalide pour lookahead</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>bloga apžvalgos į priekį sintaksė</translation>
     </message>
     <message>
         <source>bad repetition syntax</source>
-        <translatorcomment>syntaxe invalide pour répétition</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>bloga kartojimo sintaksė</translation>
     </message>
     <message>
         <source>invalid octal value</source>
-        <translatorcomment>valeur octale invalide</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>negalima aštuntainė reikšmė</translation>
     </message>
     <message>
         <source>missing left delim</source>
-        <translatorcomment>délémiteur gauche manquant</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>trūksta kairiojo skirtuko</translation>
     </message>
     <message>
         <source>unexpected end</source>
-        <translatorcomment>fin impromptue</translatorcomment>
         <translation>netikėta pabaiga</translation>
     </message>
     <message>
         <source>met internal limit</source>
-        <translatorcomment>rencontré limite interne</translatorcomment>
         <translation>pasiekta vidinė riba</translation>
     </message>
     <message>
@@ -6438,19 +6297,19 @@ Please turn one of those options off.</source>
     <message>
         <source>Error to open database</source>
         <translatorcomment>Erreur à l&apos;ouverture de la base de données</translatorcomment>
-        <translation>Atveriant duomenų bazę įvyko klaida</translation>
+        <translation type="vanished">Atveriant duomenų bazę įvyko klaida</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Nepavyksta pradėti operacijos</translation>
+        <translation>Nepavyko pradėti transakcijos</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Nepavyksta įkelti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>Nepavyksta atsisakyti operacijos</translation>
+        <translation type="vanished">Nepavyksta atsisakyti operacijos</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -6465,67 +6324,61 @@ Please turn one of those options off.</source>
     <name>QSQLite2Result</name>
     <message>
         <source>Unable to fetch results</source>
-        <translation>Nepavyksta gauti rezultatų</translation>
+        <translation>Nepavyko gauti rezultatų</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translatorcomment>Impossible d&apos;exécuter la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti sakinio</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation>Atveriant duomenų bazę įvyko klaida</translation>
+        <translation>Klaida atveriant duomenų bazę</translation>
     </message>
     <message>
         <source>Error closing database</source>
-        <translation>Užveriant duomenų bazę įvyko klaida</translation>
+        <translation>Klaida užveriant duomenų bazę</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Nepavyksta pradėti operacijos</translation>
+        <translation>Nepavyko pradėti transakcijos</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Nepavyksta įkelti operacijos</translation>
+        <translation>Nepavyko užbaigti transakcijos</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Nepavyksta atsisakyti operacijos</translation>
+        <translation>Nepavyko anuliuoti transakcijos</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteResult</name>
     <message>
         <source>Unable to fetch row</source>
-        <translation>Nepavyksta gauti dabar</translation>
+        <translation>Nepavyko gauti eilutės</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translatorcomment>Impossible d&apos;exécuter la requête</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepavyko įvykdyti sakinio</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translatorcomment>Impossible de réinitialiser la requête</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to bind parameters</source>
-        <translatorcomment>Impossible d&apos;attacher les paramètres</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Parameter count mismatch</source>
-        <translatorcomment>Nombre de paramètres incorrect</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nesutampa parametrų skaičius</translation>
     </message>
     <message>
         <source>No query</source>
-        <translatorcomment>Pas de requête</translatorcomment>
-        <translation>Užklausos nėra</translation>
+        <translation>Nėra užklausos</translation>
     </message>
     <message>
         <source>Unable to execute multiple statements at a time</source>
@@ -6814,7 +6667,7 @@ Please turn one of those options off.</source>
     <name>QScrollBar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Slikti iki čia</translation>
+        <translation>Slinkti į čia</translation>
     </message>
     <message>
         <source>Left edge</source>
@@ -6834,19 +6687,19 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Puslapis kairėje</translation>
+        <translation>Puslapis kairėn</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Puslapiu aukštyn</translation>
+        <translation>Puslapis aukštyn</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Puslapis dešinėje</translation>
+        <translation>Puslapis dešinėn</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Puslapiu žemyn</translation>
+        <translation>Puslapis žemyn</translation>
     </message>
     <message>
         <source>Scroll left</source>
@@ -6854,7 +6707,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Slikti auktyn</translation>
+        <translation>Slinkti aukštyn</translation>
     </message>
     <message>
         <source>Scroll right</source>
@@ -6866,54 +6719,50 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Linija aukštyn</translation>
+        <translation type="vanished">Eilutė aukštyn</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Padėtis</translation>
+        <translation type="vanished">Padėtis</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Linija žemyn</translation>
+        <translation type="vanished">Eilutė žemyn</translation>
     </message>
 </context>
 <context>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translatorcomment>%1 : impossible d&apos;affecter la clé au verrou</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: užrakinant nepavyko nustatyti rakto</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translatorcomment>%1 : taille de création est inférieur à 0</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: bandomo kurti objekto dydis neigiamas</translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
-        <translatorcomment>%1 : impossible de vérrouiller</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: nepavyko užrakinti</translation>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translatorcomment>%1 : impossible de déverrouiller</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: nepavyko atrakinti</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
-        <translation>%1: nepakanka leidimų</translation>
+        <translation>%1: nepakanka teisių</translation>
     </message>
     <message>
         <source>%1: already exists</source>
-        <translation>%1: jau yra</translation>
+        <translation>%1: jau egzistuoja</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
-        <translation>%1: nėra</translation>
+        <translation type="vanished">%1: neegzistuoja</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
-        <translation>%1: viršija išteklius</translation>
+        <translation>%1: pritrūko išteklių</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
@@ -6921,28 +6770,23 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translatorcomment>%1 : clé vide</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: raktas tuščias</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
-        <translatorcomment>%1 : ftok a échoué</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: nepavyko ftok()</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
-        <translatorcomment>%1 : impossible de créer la clé</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: rakto sukurti nepavyko</translation>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
-        <translatorcomment>%1 : le système impose des restrictions sur la taille</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: dydį ribojama sistema</translation>
     </message>
     <message>
         <source>%1: not attached</source>
-        <translatorcomment>%1 : non attaché</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>%1: nesusieta</translation>
     </message>
     <message>
         <source>%1: invalid size</source>
@@ -6978,15 +6822,16 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation>Tarpas</translation>
     </message>
     <message>
         <source>Esc</source>
-        <translation>Gr(įžti)</translation>
+        <translation>Gr</translation>
     </message>
     <message>
         <source>Tab</source>
-        <translation>Tab(uliacija)</translation>
+        <translation>Tab</translation>
     </message>
     <message>
         <source>Backtab</source>
@@ -6994,11 +6839,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Backspace</source>
-        <translation>Naikinti</translation>
+        <translation>Naikinti iš kairės</translation>
     </message>
     <message>
         <source>Return</source>
-        <translation type="unfinished"></translation>
+        <translation>Įvesti</translation>
     </message>
     <message>
         <source>Enter</source>
@@ -7010,7 +6855,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Del</source>
-        <translation>Šalinti</translation>
+        <translation>Šal</translation>
     </message>
     <message>
         <source>Pause</source>
@@ -7018,19 +6863,19 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Print</source>
-        <translation>Ekrano nuotrauka</translation>
+        <translation>Sp</translation>
     </message>
     <message>
         <source>SysReq</source>
-        <translation type="unfinished"></translation>
+        <translation>Sist.</translation>
     </message>
     <message>
         <source>Home</source>
-        <translation>Prad(žia)</translation>
+        <translation>Prad</translation>
     </message>
     <message>
         <source>End</source>
-        <translation>Pab(aiga)</translation>
+        <translation>Pab</translation>
     </message>
     <message>
         <source>Left</source>
@@ -7050,19 +6895,19 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>PgUp</source>
-        <translation>Psl aukštyn</translation>
+        <translation>Psl. aukštyn</translation>
     </message>
     <message>
         <source>PgDown</source>
-        <translation>Psl žemyn</translation>
+        <translation>Psl. žemyn</translation>
     </message>
     <message>
         <source>CapsLock</source>
-        <translation>Didž(iosios)</translation>
+        <translation>Didž</translation>
     </message>
     <message>
         <source>NumLock</source>
-        <translation>Skaitm(enys)</translation>
+        <translation>Skaitm</translation>
     </message>
     <message>
         <source>ScrollLock</source>
@@ -7082,7 +6927,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Toliau</translation>
+        <translation>Pirmyn</translation>
     </message>
     <message>
         <source>Stop</source>
@@ -7090,11 +6935,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Refresh</source>
-        <translation>Atnaujinti</translation>
+        <translation>Atsiųsti iš naujo</translation>
     </message>
     <message>
         <source>Volume Down</source>
-        <translation>Pritildyti</translation>
+        <translation>Tyliau</translation>
     </message>
     <message>
         <source>Volume Mute</source>
@@ -7102,66 +6947,58 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Volume Up</source>
-        <translation>Pagarsinti</translation>
+        <translation>Garsiau</translation>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translatorcomment>Graves fort</translatorcomment>
-        <translation>Žemi dažniai</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translatorcomment>Graves haut</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translatorcomment>Graves bas</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translatorcomment>Aigus haut</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translatorcomment>Aigus bas</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Media Play</source>
-        <translation>Groti kūrinį</translation>
-    </message>
-    <message>
-        <source>Media Stop</source>
-        <translation>Sustabdyti kūrinį</translation>
-    </message>
-    <message>
-        <source>Media Previous</source>
-        <translation>Ankstenis kūrinys</translation>
-    </message>
-    <message>
-        <source>Media Next</source>
-        <translation>Tolesnis kūrinys</translation>
-    </message>
-    <message>
-        <source>Media Record</source>
-        <translation>Įrašyti kūrinį</translation>
-    </message>
-    <message>
-        <source>Favorites</source>
-        <translatorcomment>Préférés</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Media Stop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Media Previous</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Media Next</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Media Record</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Adresynas</translation>
+    </message>
+    <message>
         <source>Search</source>
-        <translatorcomment>Recherche</translatorcomment>
         <translation>Ieškoti</translation>
     </message>
     <message>
         <source>Standby</source>
-        <translatorcomment>Attente</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7170,93 +7007,91 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Launch Mail</source>
-        <translatorcomment>Lancer courrier</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Atverti el. paštą</translation>
     </message>
     <message>
         <source>Launch Media</source>
-        <translatorcomment>Lancer média</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Atverti medijos leistuvę</translation>
     </message>
     <message>
         <source>Launch (0)</source>
-        <translation>Paleisti (0)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (1)</source>
-        <translation>Paleisti (1)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (2)</source>
-        <translation>Paleisti (2)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (3)</source>
-        <translation>Paleisti (3)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (4)</source>
-        <translation>Paleisti (4)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (5)</source>
-        <translation>Paleisti (5)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (6)</source>
-        <translation>Paleisti (6)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (7)</source>
-        <translation>Paleisti (7)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (8)</source>
-        <translation>Paleisti (8)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (9)</source>
-        <translation>Paleisti (9)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (A)</source>
-        <translation>Paleisti (A)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (B)</source>
-        <translation>Paleisti (B)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (C)</source>
-        <translation>Paleisti (C)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (D)</source>
-        <translation>Paleisti (D)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (E)</source>
-        <translation>Paleisti (E)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Launch (F)</source>
-        <translation>Paleisti (F)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Print Screen</source>
-        <translation>Ekrano nuotrauka</translation>
+        <translation>Ekrano spausdinimas</translation>
     </message>
     <message>
         <source>Page Up</source>
-        <translation>Puslapiu aukštyn</translation>
+        <translation>Ankstesnis puslapis</translation>
     </message>
     <message>
         <source>Page Down</source>
-        <translation>Puslapiu žemyn</translation>
+        <translation>Kitas puslapis</translation>
     </message>
     <message>
         <source>Caps Lock</source>
-        <translation>Didžiosios</translation>
+        <translation>Didžiosios raidės</translation>
     </message>
     <message>
         <source>Num Lock</source>
@@ -7268,27 +7103,27 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Scroll Lock</source>
-        <translation>Slinkti</translation>
+        <translation>Ekrano slinkimas</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Įterpti</translation>
+        <translation>Įterpimas</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Šalinti</translation>
+        <translation>Šalinimas</translation>
     </message>
     <message>
         <source>Escape</source>
-        <translation>Grįžti</translation>
+        <translation>Grįžimas</translation>
     </message>
     <message>
         <source>System Request</source>
-        <translation type="unfinished"></translation>
+        <translation>Sisteminė užklausa</translation>
     </message>
     <message>
         <source>Select</source>
-        <translation>Pasirinkti</translation>
+        <translation>Rinktis</translation>
     </message>
     <message>
         <source>Yes</source>
@@ -7300,31 +7135,33 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Context1</source>
-        <translation type="unfinished">Contexte1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Context2</source>
-        <translation type="unfinished">Contexte2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Context3</source>
-        <translation type="unfinished">Contexte3</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Context4</source>
-        <translation type="unfinished">Contexte4</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Call</source>
-        <translation type="unfinished">Appeler</translation>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
+        <translation>Skambinti</translation>
     </message>
     <message>
         <source>Hangup</source>
-        <translation type="unfinished">Raccrocher</translation>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
+        <translation>Užbaigti skambutį</translation>
     </message>
     <message>
         <source>Flip</source>
-        <translation type="unfinished">Retourner</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Ctrl</source>
@@ -7340,7 +7177,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Meta</source>
-        <translation type="unfinished"></translation>
+        <translation>Meta</translation>
     </message>
     <message>
         <source>+</source>
@@ -7352,7 +7189,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Home Page</source>
-        <translation>Pagrindinis puslapis</translation>
+        <translation>Pradžios tinklalapis</translation>
     </message>
     <message>
         <source>Media Pause</source>
@@ -7982,31 +7819,30 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Puslapis kairėje</translation>
+        <translation type="vanished">Puslapis kairėn</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Puslapiu aukštyn</translation>
+        <translation type="vanished">Puslapis aukštyn</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Padėtis</translation>
+        <translation type="vanished">Padėtis</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Puslapis dešinėje</translation>
+        <translation type="vanished">Puslapis dešinėn</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Puslapiu žemyn</translation>
+        <translation type="vanished">Puslapis žemyn</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Network operation timed out</source>
-        <translatorcomment>L&apos;opération réseau a expiré</translatorcomment>
-        <translation>Baigėsi laikas tinklo operacijai</translation>
+        <translation>Baigėsi tinklo operacijai skirtas laikas</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -8461,107 +8297,97 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Daugiau</translation>
+        <translation type="vanished">Daugiau</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Mažiau</translation>
+        <translation type="vanished">Mažiau</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translatorcomment>Supprimer</translatorcomment>
-        <translation>Šalinti</translation>
+        <translation type="vanished">Šalinimas</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translatorcomment>Supprimer cet enregistrement ?</translatorcomment>
-        <translation>Pašalinti įrašą?</translation>
+        <translation type="vanished">Pašalinti šį įrašą?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Taip</translation>
+        <translation type="vanished">Taip</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Ne</translation>
+        <translation type="vanished">Ne</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translatorcomment>Insérer</translatorcomment>
-        <translation>Įterpti</translation>
+        <translation type="vanished">Įterpimas</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Atnaujinti</translation>
+        <translation type="vanished">Atnaujinimas</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translatorcomment>Enregistrer les modifications</translatorcomment>
-        <translation>Išsaugoti pakeitimus?</translation>
+        <translation type="vanished">Įrašyti pakeitimus?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Atšaukti</translation>
+        <translation type="vanished">Atsisakyti</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Patvirtinti</translation>
+        <translation type="vanished">Patvirtinimas</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translatorcomment>Annuler vos modifications </translatorcomment>
-        <translation>Atmesti pakeitimus?</translation>
+        <translation type="vanished">Atsisakyti atliktų pakeitimų?</translation>
     </message>
 </context>
 <context>
     <name>QSslSocket</name>
     <message>
         <source>Unable to write data: %1</source>
-        <translation>Nepavyksta įrašyti duomenų: %1</translation>
+        <translation>Nepavyko rašyti duomenų: %1</translation>
     </message>
     <message>
         <source>Error while reading: %1</source>
-        <translation>Skaitymo klaida: %1</translation>
+        <translation>Klaida skaitant: %1</translation>
     </message>
     <message>
         <source>Error during SSL handshake: %1</source>
-        <translatorcomment>Erreur lors de la poignée de main SSL : %1</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Klaida SSL pasisveikinimo metu: %1</translation>
     </message>
     <message>
         <source>Error creating SSL context (%1)</source>
-        <translatorcomment>Erreur lors de la création du contexte SSL (%1)</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Klaida sukuriant SSL kontekstą (%1)</translation>
     </message>
     <message>
         <source>Invalid or empty cipher list (%1)</source>
-        <translatorcomment>La list de chiffrements est invalide ou vide (%1)</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Netinkamas arba tuščias šifrų sąrašas (%1)</translation>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
-        <translation>Kuriant SSL sesiją įvyko klaida, %1</translation>
+        <translation>Klaida kuriant SSL sesiją; %1</translation>
     </message>
     <message>
         <source>Error creating SSL session: %1</source>
-        <translation>Kuriant SSL sesiją įvyko klaida: %1</translation>
+        <translation>Klaida kuriant SSL sesiją: %1</translation>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
-        <translatorcomment>Impossible de fournir un certificat sans clé, %1</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Negalima pateikti liudijimo, neturint rakto; %1</translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
-        <translation>Įkeliant vietinį liudijimą įvyko klaida, %1</translation>
+        <translation>Klaida įkeliant vietinį liudijimą; %1</translation>
     </message>
     <message>
         <source>Error loading private key, %1</source>
-        <translatorcomment>Erreur lors du chargement de la clé privée, %1</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Klaida įkeliant privatų raktą; %1</translation>
     </message>
     <message>
         <source>No error</source>
@@ -8967,13 +8793,11 @@ Role of an accessible object</extracomment>
     <name>QTDSDriver</name>
     <message>
         <source>Unable to open connection</source>
-        <translatorcomment>Impossible d&apos;ouvrir la connexion</translatorcomment>
-        <translation>nepavyksta atverti ryšio</translation>
+        <translation>Nepavyko atverti ryšio</translation>
     </message>
     <message>
         <source>Unable to use database</source>
-        <translatorcomment>Impossible d&apos;utiliser la base de données</translatorcomment>
-        <translation>Napavyksta pasinaudoti duomenų baze</translation>
+        <translation>Nepavyko naudoti duomenų bazės</translation>
     </message>
 </context>
 <context>
@@ -8998,65 +8822,64 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>Atša&amp;ukti</translation>
+        <translation type="vanished">&amp;Atšaukti</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Paka&amp;rtoti</translation>
+        <translation type="vanished">A&amp;tstatyti</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Iškirp&amp;ti</translation>
+        <translation type="vanished">Iški&amp;rpti</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopijuoti</translation>
+        <translation type="vanished">&amp;Kopijuoti</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Kopijuoti &amp;jungties adresą</translation>
+        <translation type="vanished">Kopijuoti &amp;saito adresą</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Padėti</translation>
+        <translation type="vanished">Į&amp;dėti</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Ištrinti</translation>
+        <translation type="vanished">Pašalinti</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Viską pažymėti</translation>
+        <translation type="vanished">Pažymėti viską</translation>
     </message>
 </context>
 <context>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Spausti</translation>
+        <translation type="vanished">Nuspausti</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Atverti</translation>
+        <translation type="vanished">Atverti</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translatorcomment>Cette plateforme ne supporte pas IPv6</translatorcomment>
-        <translation>Ši platforma nepalaiko IPv6</translation>
+        <translation type="vanished">Šioje platformoje IPv6 protokolas nepalaikomas</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>Atšaukti</translation>
+        <translation type="obsolete">Atšaukti</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Pakartoti</translation>
+        <translation type="obsolete">Atstatyti</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -9088,11 +8911,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Atšaukti</translation>
+        <translation type="obsolete">Atšaukti</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Pakartoti</translation>
+        <translation type="obsolete">Atstatyti</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -9117,47 +8940,47 @@ Role of an accessible object</extracomment>
     <name>QUnicodeControlCharacterMenu</name>
     <message>
         <source>LRM Left-to-right mark</source>
-        <translation>LRM žymė iš kairės į dešinę</translation>
+        <translation>LRM Krypties iš kairės į dešinę ženklas</translation>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation>RLM žymė iš dešinės į kairę</translation>
+        <translation>RLM Krypties iš dešinės į kairę ženklas</translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation>ZWJ nulinio pločio jungtis</translation>
+        <translation>ZWJ Nulinio pločio jungimo ženklas</translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation>ZWNJ nulinio pločio nejungtis</translation>
+        <translation>ZWNJ Nulinio pločio nejungimo ženklas</translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation>ZWSP nulinio pločio tarpas</translation>
+        <translation>ZWSP Nulinio pločio tarpas</translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation>LRE „iš kairės į dešinę“ integruotas</translation>
+        <translation>LRE Įterpties iš kairės į dešinę pradžia</translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation>RLE „iš dešinės į kairę“ integruotas</translation>
+        <translation>RLE Įterpties iš dešinės į kairę pradžia</translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation>LRO „iš kairės į dešinę“ atšaukimas</translation>
+        <translation>LRO Perdengiantis iš kairės į dešinę pradžia</translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation>RLO „iš dešinės į kairę“ atšaukimas</translation>
+        <translation>RLO Perdengimo iš dešinės į kairę pradžia</translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation>PDF Pop kryptingas formatavimas</translation>
+        <translation>PDF Ankstesnės krypties ženklas</translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
-        <translation>Įterpti unikodo valdymo simbolį</translation>
+        <translation>Įterpti unikodo valdymo ženklą</translation>
     </message>
     <message>
         <source>LRI Left-to-right isolate</source>
@@ -9180,25 +9003,23 @@ Role of an accessible object</extracomment>
     <name>QWebFrame</name>
     <message>
         <source>Request cancelled</source>
-        <translation>Atsisakyta užklausos</translation>
+        <translation type="vanished">Užklausos atsisakyta</translation>
     </message>
     <message>
         <source>Request blocked</source>
-        <translatorcomment>Requête bloquée</translatorcomment>
-        <translation>Užklausa užblokuota</translation>
+        <translation type="vanished">Užklausa uždrausta</translation>
     </message>
     <message>
         <source>Cannot show URL</source>
-        <translation>Nepavyksta parodyti URL</translation>
+        <translation type="vanished">URL parodyti nepavyko</translation>
     </message>
     <message>
         <source>Cannot show mimetype</source>
-        <translatorcomment>Impossible d&apos;afficher le mimetype</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Šio MIME tipo parodyti negalima</translation>
     </message>
     <message>
         <source>File does not exist</source>
-        <translation>Rinkmenos nėra</translation>
+        <translation type="vanished">Failas neegzistuoja</translation>
     </message>
     <message>
         <source>Request canceled</source>
@@ -9222,256 +9043,251 @@ Role of an accessible object</extracomment>
     <name>QWebPage</name>
     <message>
         <source>Bad HTTP request</source>
-        <translatorcomment>Requête HTTP erronée</translatorcomment>
-        <translation>Bloga HTTP užklausa</translation>
+        <translation type="obsolete">Bloga HTTP užklausa</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>default label for Submit buttons in forms on web pages</comment>
-        <translation>Pateikti</translation>
+        <translation type="vanished">Pateikti</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>Submit (input element) alt text for &lt;input&gt; elements with no alt, title, or value</comment>
-        <translation>Pateikti</translation>
+        <translation type="vanished">Pateikti</translation>
     </message>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation>Iš naujo</translation>
+        <translation type="vanished">Atstatyti</translation>
     </message>
     <message>
         <source>This is a searchable index. Enter search keywords: </source>
         <comment>text that appears at the start of nearly-obsolete web pages in the form of a &apos;searchable index&apos;</comment>
-        <translatorcomment>Ceci est un index. Veuillez saisir les mots-clé :</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Tai – sąrašas, kuriame galite vykdyti paiešką. Įveskite reikšminius paieškos žodžius: </translation>
     </message>
     <message>
         <source>Choose File</source>
         <comment>title for file button used in HTML forms</comment>
-        <translation>Pasirinkti rinkmeną</translation>
+        <translation type="vanished">Parinkti failą</translation>
     </message>
     <message>
         <source>No file selected</source>
         <comment>text to display in file button used in HTML forms when no file is selected</comment>
-        <translation>Rinkmena nepasirinkta</translation>
+        <translation type="vanished">Failas nepasirinktas</translation>
     </message>
     <message>
         <source>Open in New Window</source>
         <comment>Open in New Window context menu item</comment>
-        <translation>Atverti naujame lange</translation>
+        <translation type="vanished">Atverti naujame lange</translation>
     </message>
     <message>
         <source>Save Link...</source>
         <comment>Download Linked File context menu item</comment>
-        <translation>Įrašyti nuorodą...</translation>
+        <translation type="vanished">Įrašyti saistomą objektą kaip…</translation>
     </message>
     <message>
         <source>Copy Link</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Kopijuoti nuorodą</translation>
+        <translation type="vanished">Kopijuoti saito adresą</translation>
     </message>
     <message>
         <source>Open Image</source>
         <comment>Open Image in New Window context menu item</comment>
-        <translation>Atverti paveikslėlį</translation>
+        <translation type="vanished">Atverti paveikslą</translation>
     </message>
     <message>
         <source>Save Image</source>
         <comment>Download Image context menu item</comment>
-        <translation>Įrašyti paveikslėlį</translation>
+        <translation type="vanished">Įrašyti paveikslą</translation>
     </message>
     <message>
         <source>Copy Image</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Kopijuoti paveikslėlį</translation>
+        <translation type="vanished">Kopijuoti paveikslą</translation>
     </message>
     <message>
         <source>Open Frame</source>
         <comment>Open Frame in New Window context menu item</comment>
-        <translation>Atverti kadrą</translation>
+        <translation type="vanished">Atverti kadrą</translation>
     </message>
     <message>
         <source>Copy</source>
         <comment>Copy context menu item</comment>
-        <translation>Kopijuoti</translation>
+        <translation type="vanished">Kopijuoti</translation>
     </message>
     <message>
         <source>Go Back</source>
         <comment>Back context menu item</comment>
-        <translation>Atgal</translation>
+        <translation type="vanished">Grįžti atgal</translation>
     </message>
     <message>
         <source>Go Forward</source>
         <comment>Forward context menu item</comment>
-        <translation>Toliau</translation>
+        <translation type="vanished">Eiti pirmyn</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation>Stabdyti</translation>
+        <translation type="vanished">Stabdyti</translation>
     </message>
     <message>
         <source>Reload</source>
         <comment>Reload context menu item</comment>
-        <translation>Įkelti iš naujo</translation>
+        <translation type="vanished">Atsiųsti iš naujo</translation>
     </message>
     <message>
         <source>Cut</source>
         <comment>Cut context menu item</comment>
-        <translation>Iškirpti</translation>
+        <translation type="vanished">Iškirpti</translation>
     </message>
     <message>
         <source>Paste</source>
         <comment>Paste context menu item</comment>
-        <translation>Padėti</translation>
+        <translation type="vanished">Įdėti</translation>
     </message>
     <message>
         <source>No Guesses Found</source>
         <comment>No Guesses Found context menu item</comment>
-        <translatorcomment>Pas de candidat trouvés</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Pasiūlymų nėra</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation>Nepaisyti</translation>
+        <translation type="vanished">Nepaisyti</translation>
     </message>
     <message>
         <source>Add To Dictionary</source>
         <comment>Learn Spelling context menu item</comment>
-        <translation>Įtraukti į žodyną</translation>
+        <translation type="vanished">Įtraukti į žodyną</translation>
     </message>
     <message>
         <source>Search The Web</source>
         <comment>Search The Web context menu item</comment>
-        <translation>Ieškoti žiniatinklyje</translation>
+        <translation type="vanished">Ieškoti saityne</translation>
     </message>
     <message>
         <source>Look Up In Dictionary</source>
         <comment>Look Up in Dictionary context menu item</comment>
-        <translation>Ieškoti žodyne</translation>
+        <translation type="vanished">Ieškoti žodyne</translation>
     </message>
     <message>
         <source>Open Link</source>
         <comment>Open Link context menu item</comment>
-        <translation>Atverti nuorodą</translation>
+        <translation type="vanished">Atverti saistomą objektą</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation>Nepaisyti</translation>
+        <translation type="vanished">Nepaisyti</translation>
     </message>
     <message>
         <source>Spelling</source>
         <comment>Spelling and Grammar context sub-menu item</comment>
-        <translation>Rašybos tikrinimas</translation>
+        <translation type="vanished">Rašyba</translation>
     </message>
     <message>
         <source>Show Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Rodyti rašybos ir gramatikos tikrinimą</translation>
+        <translation type="vanished">Rodyti rašybą ir gramatiką</translation>
     </message>
     <message>
         <source>Hide Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Slėpti rašybos ir gramatikos tikrinimą</translation>
+        <translation type="vanished">Nerodyti rašybos ir gramatikos</translation>
     </message>
     <message>
         <source>Check Spelling</source>
         <comment>Check spelling context menu item</comment>
-        <translation>Tikrinti rašybą</translation>
+        <translation type="vanished">Patikrinti rašybą</translation>
     </message>
     <message>
         <source>Check Spelling While Typing</source>
         <comment>Check spelling while typing context menu item</comment>
-        <translation>Rašybą tikrinti įvedimo metu</translation>
+        <translation type="vanished">Tikrinti rašybą rašant tekstą</translation>
     </message>
     <message>
         <source>Check Grammar With Spelling</source>
         <comment>Check grammar with spelling context menu item</comment>
-        <translation>Tikrinant rašybą, tikrinti ir gramatiką</translation>
+        <translation type="vanished">Tikrinti gramatiką kartu su rašyba</translation>
     </message>
     <message>
         <source>Fonts</source>
         <comment>Font context sub-menu item</comment>
-        <translation>Šriftai</translation>
+        <translation type="vanished">Šriftai</translation>
     </message>
     <message>
         <source>Bold</source>
         <comment>Bold context menu item</comment>
-        <translation>Pusjuodis</translation>
+        <translation type="vanished">Pastorintas</translation>
     </message>
     <message>
         <source>Italic</source>
         <comment>Italic context menu item</comment>
-        <translation>Kursyvinis</translation>
+        <translation type="vanished">Kursyvas</translation>
     </message>
     <message>
         <source>Underline</source>
         <comment>Underline context menu item</comment>
-        <translation>Pabrauktas</translation>
+        <translation type="vanished">Pabrauktas</translation>
     </message>
     <message>
         <source>Outline</source>
         <comment>Outline context menu item</comment>
-        <translation>Kontūras</translation>
+        <translation type="vanished">Kontūrinis</translation>
     </message>
     <message>
         <source>Direction</source>
         <comment>Writing direction context sub-menu item</comment>
-        <translation>Kryptis</translation>
+        <translation type="vanished">Kryptis</translation>
     </message>
     <message>
         <source>Default</source>
         <comment>Default writing direction context menu item</comment>
-        <translation>Numatyta</translation>
+        <translation type="vanished">Numatytoji</translation>
     </message>
     <message>
         <source>LTR</source>
         <comment>Left to Right context menu item</comment>
-        <translation>Iš kairės į dešinę</translation>
+        <translation type="vanished">Iš kairės į dešinę</translation>
     </message>
     <message>
         <source>RTL</source>
         <comment>Right to Left context menu item</comment>
-        <translation>Iš dešinės į kairę</translation>
+        <translation type="vanished">Iš dešinės į kairę</translation>
     </message>
     <message>
         <source>Inspect</source>
         <comment>Inspect Element context menu item</comment>
-        <translatorcomment>Inspecter</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Tirti</translation>
     </message>
     <message>
         <source>No recent searches</source>
         <comment>Label for only item in menu that appears when clicking on the search field image, when no searches have been performed</comment>
-        <translation>Paieškų nebuvo</translation>
+        <translation type="vanished">Paskiausių paieškų nėra</translation>
     </message>
     <message>
         <source>Recent searches</source>
         <comment>label for first item in the menu that appears when clicking on the search field image, used as embedded menu title</comment>
-        <translation>Paskiausios paieškos</translation>
+        <translation type="vanished">Paskiausios paieškos</translation>
     </message>
     <message>
         <source>Clear recent searches</source>
         <comment>menu item in Recent Searches menu that empties menu&apos;s contents</comment>
-        <translation>Išvalyti paskiausias paieškas</translation>
+        <translation type="vanished">Išvalyti paskiausių paieškų sąrašą</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation>Nežinoma</translation>
+        <translation type="vanished">Nežinomas</translation>
     </message>
     <message>
         <source>%1 (%2x%3 pixels)</source>
         <comment>Title string for images</comment>
-        <translation>%1 (%2x%3 tšk)</translation>
+        <translation type="vanished">%1 (%2×%3 taškų)</translation>
     </message>
     <message>
         <source>Web Inspector - %2</source>
-        <translatorcomment>Inspecteur Web - %2</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Saityno tyriklis – %2</translation>
     </message>
     <message>
         <source>Redirection limit reached</source>
@@ -10073,43 +9889,43 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWizard</name>
     <message>
         <source>Go Back</source>
-        <translation>Atgal</translation>
+        <translation>Grįžti atgal</translation>
     </message>
     <message>
         <source>Continue</source>
-        <translation>Toliau</translation>
+        <translation>Tęsti</translation>
     </message>
     <message>
         <source>Commit</source>
-        <translation>Įkelti</translation>
+        <translation>Pritaikyti</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Užbaigti</translation>
+        <translation>Baigta</translation>
     </message>
     <message>
         <source>Quit</source>
-        <translation>Baigti</translation>
+        <translation type="vanished">Baigti</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Pagalba</translation>
+        <translation>Žinynas</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Atgal</translation>
+        <translation>&lt; At&amp;gal</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Užbaigti</translation>
+        <translation>&amp;Baigti</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Atšaukti</translation>
+        <translation>Atsisakyti</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Pagalba</translation>
+        <translation>&amp;Žinynas</translation>
     </message>
     <message>
         <source>&amp;Next</source>
@@ -10124,172 +9940,150 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Atstatyti</translation>
+        <translation type="vanished">&amp;Atkurti</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Perkelti</translation>
+        <translation type="vanished">&amp;Perkelti</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Keisti dydį</translation>
+        <translation type="vanished">&amp;Keisti dydį</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Su&amp;mažinti</translation>
+        <translation type="vanished">Su&amp;mažinti</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Iš&amp;didinti</translation>
+        <translation type="vanished">Iš&amp;didinti</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Užverti</translation>
+        <translation type="vanished">&amp;Užverti</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>&amp;Visada viršuje</translation>
+        <translation type="vanished">&amp;Visada viršuje</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translatorcomment>&amp;Enrouler</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">&amp;Suvynioti</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 – [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Sumažinti</translation>
+        <translation type="vanished">Sumažinti</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translatorcomment>Restaurer en bas</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Atkurti dydį</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Užverti</translation>
+        <translation type="vanished">Užverti</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translatorcomment>&amp;Dérouler</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">I&amp;švynioti</translation>
     </message>
 </context>
 <context>
     <name>QXml</name>
     <message>
         <source>no error occurred</source>
-        <translatorcomment>aucune erreur ne s&apos;est produite</translatorcomment>
-        <translation>jokių klaidų</translation>
+        <translation>klaidų neaptikta</translation>
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translatorcomment>erreur déclenchée par le consommateur</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>vartotojo iššaukta klaida</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
-        <translatorcomment>fin de fichier impromptue</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>netikėta failo pabaiga</translation>
     </message>
     <message>
         <source>more than one document type definition</source>
-        <translatorcomment>plus d&apos;une définition de type de document</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>daugiau nei viena dokumento tipo apibrėžtis</translation>
     </message>
     <message>
         <source>error occurred while parsing element</source>
-        <translatorcomment>une erreur s&apos;est produite lors de l&apos;analyse d&apos;un élément</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>analizuojant elementą, įvyko klaida</translation>
     </message>
     <message>
         <source>tag mismatch</source>
-        <translatorcomment>balise débalancée</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>nesutampančios gairės</translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
-        <translatorcomment>une erreur s&apos;est produise lors de l&apos;analyse du contenu</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>analizuojant turinį, įvyko klaida</translation>
     </message>
     <message>
         <source>unexpected character</source>
-        <translatorcomment>caractère impromptu</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>netikėtas simbolis</translation>
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translatorcomment>nom d&apos;instruction de traitement invalide</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>netinkamas apdorojimo komandos vardas</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translatorcomment>version attendue dans la déclaration XML</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>skaitant XML aprašą, tikėtasi versijos</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>netinkama „standalone“ deklaracijos reikšmė</translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>skaitant XML aprašą, tikėtasi koduotės aprašo arba „standalone“ deklaracijos</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>skaitant XML aprašą, tikėtasi „standalone“ deklaracijos</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translatorcomment>une erreur s&apos;est produite lors de l&apos;analyse d&apos;une définition de type de document</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>analizuojant dokumento tipo apibrėžtį, įvyko klaida</translation>
     </message>
     <message>
         <source>letter is expected</source>
-        <translatorcomment>lettre attendue</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>tikėtasi raidės</translation>
     </message>
     <message>
         <source>error occurred while parsing comment</source>
-        <translatorcomment>une erreur s&apos;est produise lors de l&apos;analyse d&apos;un commentaire</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>analizuojant komentarą, įvyko klaida</translation>
     </message>
     <message>
         <source>error occurred while parsing reference</source>
-        <translatorcomment>une erreur s&apos;est produite lors de l&apos;analyse d&apos;une référence</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>analizuojant rodyklę, įvyko klaida</translation>
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
-        <translatorcomment>appel d&apos;entité interne générale non permis dans la DTD</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>nuorodos į vidines bendrines esybes DTD apibrėžtyse neleidžiamos</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in attribute value</source>
-        <translatorcomment>appel d&apos;entité externe parsée  non permis dans la valeur d&apos;un attribut</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>nuorodos į išorines išanalizuotas bendrines esybes atributų reikšmėse neleidžiamos</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in DTD</source>
-        <translatorcomment>appel d&apos;entité externe parsée générale non permis dans la DTD</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>nuorodos į išorines išanalizuotas bendrines esybes DTD apibrėžtyse neleidžiamos</translation>
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translatorcomment>appel d&apos;entité non parsée dans un contexte invalide</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>nuoroda į neišanalizuotą esybę netinkamame kontekste</translation>
     </message>
     <message>
         <source>recursive entities</source>
-        <translatorcomment>entités récursives</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>rekusyvios esybės</translation>
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation type="unfinished"></translation>
+        <translation>klaida išorinės esybės tekstinėje deklaracijoje</translation>
     </message>
 </context>
 <context>
@@ -10319,178 +10113,143 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translatorcomment>Conteny supplémentaire à la fin du document.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Papildomas turinys dokumento pabaigoje.</translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
-        <translatorcomment>Valeur de l&apos;entité invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Netinkama esybės reikšmė.</translation>
     </message>
     <message>
         <source>Invalid XML character.</source>
-        <translatorcomment>Caractère XML invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Neleistinas XML simbolis.</translation>
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translatorcomment>Séquence &apos;]]&gt;&apos; interdite dans le contenu.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Simbolių seka „]]&gt;“ turinyje neleidžiama.</translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translatorcomment>Le préfixe de namespace &apos;%1&apos; non déclaré</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Vardų erdvės prefiksas „%1“ nebuvo deklaruotas</translation>
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translatorcomment>Attribut redéfini.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Atributas apibrėžiamas pakartotinai.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translatorcomment>Caractère &apos;%1&apos; inattendu dans un &apos;public id literal&apos;.</translatorcomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translatorcomment>Version XML invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Neleistina XML versijos eilutė.</translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translatorcomment>Version XML non supportée.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nepalaikoma XML versija.</translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translatorcomment>%1 n&apos;est pas un encodage valide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Koduotės pavadinimas „%1“ yra netinkamas.</translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translatorcomment>Encodage %1 n&apos;est pas supporté</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Koduotė „%1“ nepalaikoma</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translatorcomment>&apos;Standalone&apos; n&apos;accepte que &apos;yes&apos; ou &apos;no&apos;.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>„standalone“ deklaracijos reikšmė gali būti tik „yes“ arba „no“.</translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
-        <translatorcomment>Attribut invalide dans la déclaration XML.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Neleistinas atributas XML deklaracijoje.</translation>
     </message>
     <message>
         <source>Premature end of document.</source>
-        <translatorcomment>Fin de document prématurée.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Netikėta dokumento pabaiga.</translation>
     </message>
     <message>
         <source>Invalid document.</source>
-        <translatorcomment>Document invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Neteisingas dokumentas.</translation>
     </message>
     <message>
         <source>Expected </source>
-        <translatorcomment>Attendu </translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Laukta </translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translatorcomment>, mais eu &apos;</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>, bet gauta &apos;</translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translatorcomment>Inattendu &apos;</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Netikėta &apos;</translation>
     </message>
     <message>
         <source>Expected character data.</source>
-        <translatorcomment>Character data attendu.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Laukta simbolinių duomenų.</translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
-        <translatorcomment>Entité recursive détectée.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Aptikta rekursyvi esybė.</translation>
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translatorcomment>Balise ouvrante attendue.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Laukta atveriančiosios gairės.</translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translatorcomment>Déclaration XML après le début du document.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>XML aprašas ne dokumento pradžioje.</translation>
     </message>
     <message>
         <source>NDATA in parameter entity declaration.</source>
-        <translatorcomment>NDATA dans une déclaration d&apos;entité paramètre.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>NDATA parametro esybės deklaracijoje.</translation>
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translatorcomment>%1 est un nom d&apos;instruction de traitement invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Apdorojimo komandos vardas „%1“ yra netinkamas.</translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translatorcomment>Nom d&apos;instruction de traitement invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Neleistinas apdorojimo komandos vardas.</translation>
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translatorcomment>Déclaration de namespace illégale.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Neleistinos vardų erdvės deklaracija.</translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
-        <translatorcomment>Nom XML invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Neleistinas XML vardas.</translation>
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translatorcomment>Ouverture et fermeture de balise invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nesutampa atveriančioji ir užveriančioji gairės.</translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translatorcomment>Référence vers une entité non analysée &apos;%1&apos;.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nuoroda į neišanalizuotą esybę „%1“.</translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translatorcomment>Entité &apos;%1&apos; non déclarée.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Esybė „%1“ nedeklaruota.</translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translatorcomment>Référence vers une entité externe &apos;%1&apos; dans la valeur de l&apos;attribut.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Nuoroda į išorinę esybę „%1“ atributo reikšmėje.</translation>
     </message>
     <message>
         <source>Invalid character reference.</source>
-        <translatorcomment>Référence vers un caractère invalide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Netinkama nuoroda į simbolį.</translation>
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translatorcomment>Encodage du contenu incorrect.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Aptikta neteisingai užkioduoto turinio.</translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translatorcomment>Le pseudo attribut standalone doit apparaître après l&apos;encodage.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>Pseudoatributas „standalone“ turi būti įrašomas po koduotės aprašo.</translation>
     </message>
     <message>
         <source>%1 is an invalid PUBLIC identifier.</source>
-        <translatorcomment>%1 n&apos;est pas un identifiant PUBLIC valide.</translatorcomment>
-        <translation type="unfinished"></translation>
+        <translation>PUBLIC identifikatorius „%1“ yra netinkamas.</translation>
     </message>
     <message>
         <source>Attribute &apos;%1&apos; redefined.</source>
@@ -10589,66 +10348,66 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>VolumeSlider</name>
     <message>
         <source>Muted</source>
-        <translation>Nutildyta</translation>
+        <translation type="vanished">Nutildyta</translation>
     </message>
     <message>
         <source>Volume: %1%</source>
-        <translation>Garsumas: %1%</translation>
+        <translation type="vanished">Garsumas: %1%</translation>
     </message>
 </context>
 <context>
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Slikti iki čia</translation>
+        <translation type="vanished">Slikti iki čia</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Kairysis kraštas</translation>
+        <translation type="vanished">Kairysis kraštas</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>Viršus</translation>
+        <translation type="vanished">Viršus</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Dešinysis kraštas</translation>
+        <translation type="vanished">Dešinysis kraštas</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>Apačia</translation>
+        <translation type="vanished">Apačia</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Puslapis kairėje</translation>
+        <translation type="vanished">Puslapis kairėje</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Puslapis viršuje</translation>
+        <translation type="vanished">Puslapis viršuje</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Puslapis dešinėje</translation>
+        <translation type="vanished">Puslapis dešinėje</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Puslapis apačioje</translation>
+        <translation type="vanished">Puslapis apačioje</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Slinkti kairėn</translation>
+        <translation type="vanished">Slinkti kairėn</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Slikti auktyn</translation>
+        <translation type="vanished">Slikti auktyn</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Slinkti dešinėn</translation>
+        <translation type="vanished">Slinkti dešinėn</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Slinkti žemyn</translation>
+        <translation type="vanished">Slinkti žemyn</translation>
     </message>
 </context>
 <context>

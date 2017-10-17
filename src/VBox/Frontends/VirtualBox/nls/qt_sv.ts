@@ -5,18 +5,18 @@
     <name>CloseButton</name>
     <message>
         <source>Close Tab</source>
-        <translation>Stäng flik</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>FakeReply</name>
     <message>
         <source>Fake error !</source>
-        <translation>Låtsasfel!</translation>
+        <translation type="vanished">Låtsasfel!</translation>
     </message>
     <message>
         <source>Invalid URL</source>
-        <translation>Ogiltig webbadress</translation>
+        <translation type="vanished">Ogiltig webbadress</translation>
     </message>
 </context>
 <context>
@@ -27,11 +27,11 @@
     </message>
     <message>
         <source>Hide %1</source>
-        <translation>Dölj %1</translation>
+        <translation>Göm %1</translation>
     </message>
     <message>
         <source>Hide Others</source>
-        <translation>Dölj övriga</translation>
+        <translation>Göm övriga</translation>
     </message>
     <message>
         <source>Show All</source>
@@ -39,7 +39,7 @@
     </message>
     <message>
         <source>Preferences...</source>
-        <translation>Inställningar...</translation>
+        <translation>Inställningar…</translation>
     </message>
     <message>
         <source>Quit %1</source>
@@ -76,19 +76,19 @@
     <name>Phonon::AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;Ljuduppspelningsenheten &lt;b&gt;%1&lt;/b&gt; fungerar inte.&lt;br/&gt;Återgår till &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;Ljuduppspelningsenheten &lt;b&gt;%1&lt;/b&gt; fungerar inte.&lt;br/&gt;Återgår till &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;Växlar till ljuduppspelningsenheten &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;som precis blev tillgänglig och har företräde.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;Växlar till ljuduppspelningsenheten &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;som precis blev tillgänglig och har företräde.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Revert back to device &apos;%1&apos;</source>
-        <translation>Återgå till enhet &apos;%1&apos;</translation>
+        <translation type="vanished">Återgå till enhet &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which has higher preference or is specifically configured for this stream.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;Växlar till ljuduppspelningsenheten &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;som har företräde eller är specifikt inställd för den här strömmen.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;Växlar till ljuduppspelningsenheten &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;som har företräde eller är specifikt inställd för den här strömmen.&lt;/html&gt;</translation>
     </message>
 </context>
 <context>
@@ -98,18 +98,18 @@
 
 Check your GStreamer installation and make sure you 
 have libgstreamer-plugins-base installed.</source>
-        <translation>Kan inte starta uppspelningen. 
+        <translation type="vanished">Kan inte starta uppspelningen. 
 
 Kontrollera din Gstreamer-installation och försäkra dig om 
 att du har libgstreamer-plugins-base installerat.</translation>
     </message>
     <message>
         <source>Missing codec helper script assistant.</source>
-        <translation>Saknar hjälpskriptguide för kodek.</translation>
+        <translation type="vanished">Saknar hjälpskriptguide för kodek.</translation>
     </message>
     <message>
         <source>Plugin codec installation failed for codec: %0</source>
-        <translation>Installering av insticksprogram för avkodning misslyckades för: %0</translation>
+        <translation type="vanished">Installering av insticksprogram för avkodning misslyckades för: %0</translation>
     </message>
     <message>
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
@@ -150,217 +150,217 @@ att du har libgstreamer-plugins-base installerat.</translation>
     <name>Phonon::MMF</name>
     <message>
         <source>Audio Output</source>
-        <translation>Ljuduppspelning</translation>
+        <translation type="vanished">Ljuduppspelning</translation>
     </message>
     <message>
         <source>The audio output device</source>
-        <translation>Ljudutenheten</translation>
+        <translation type="vanished">Ljudutenheten</translation>
     </message>
     <message>
         <source>No error</source>
-        <translation>Inget fel</translation>
+        <translation type="vanished">Inget fel</translation>
     </message>
     <message>
         <source>Not found</source>
-        <translation>Hittades inte</translation>
+        <translation type="vanished">Hittades inte</translation>
     </message>
     <message>
         <source>Out of memory</source>
-        <translation>Slut på minne</translation>
+        <translation type="vanished">Slut på minne</translation>
     </message>
     <message>
         <source>Not supported</source>
-        <translation>Stöds inte</translation>
+        <translation type="vanished">Stöds inte</translation>
     </message>
     <message>
         <source>Overflow</source>
-        <translation>För mycket data</translation>
+        <translation type="vanished">För mycket data</translation>
     </message>
     <message>
         <source>Underflow</source>
-        <translation>För lite data</translation>
+        <translation type="vanished">För lite data</translation>
     </message>
     <message>
         <source>Already exists</source>
-        <translation>Finns redan</translation>
+        <translation type="vanished">Finns redan</translation>
     </message>
     <message>
         <source>Path not found</source>
-        <translation>Sökväg hittades inte</translation>
+        <translation type="vanished">Sökväg hittades inte</translation>
     </message>
     <message>
         <source>In use</source>
-        <translation>Används</translation>
+        <translation type="vanished">Används</translation>
     </message>
     <message>
         <source>Not ready</source>
-        <translation>Inte klar</translation>
+        <translation type="vanished">Inte klar</translation>
     </message>
     <message>
         <source>Access denied</source>
-        <translation>Åtkomst nekades</translation>
+        <translation type="vanished">Åtkomst nekades</translation>
     </message>
     <message>
         <source>Could not connect</source>
-        <translation>Kunde inte ansluta</translation>
+        <translation type="vanished">Kunde inte ansluta</translation>
     </message>
     <message>
         <source>Disconnected</source>
-        <translation>Nerkopplad</translation>
+        <translation type="vanished">Nerkopplad</translation>
     </message>
     <message>
         <source>Permission denied</source>
-        <translation>Åtkomst nekad</translation>
+        <translation type="vanished">Åtkomst nekad</translation>
     </message>
     <message>
         <source>Insufficient bandwidth</source>
-        <translation>Otillräcklig bandbredd</translation>
+        <translation type="vanished">Otillräcklig bandbredd</translation>
     </message>
     <message>
         <source>Network unavailable</source>
-        <translation>Nätverk inte tillgängligt</translation>
+        <translation type="vanished">Nätverk inte tillgängligt</translation>
     </message>
     <message>
         <source>Network communication error</source>
-        <translation>Kommunikationsfel i nätverket</translation>
+        <translation type="vanished">Kommunikationsfel i nätverket</translation>
     </message>
     <message>
         <source>Streaming not supported</source>
-        <translation>Strömmande media stöds inte</translation>
+        <translation type="vanished">Strömmande media stöds inte</translation>
     </message>
     <message>
         <source>Server alert</source>
-        <translation>Servervarning</translation>
+        <translation type="vanished">Servervarning</translation>
     </message>
     <message>
         <source>Invalid protocol</source>
-        <translation>Ogiltigt protokoll</translation>
+        <translation type="vanished">Ogiltigt protokoll</translation>
     </message>
     <message>
         <source>Invalid URL</source>
-        <translation>Ogiltig webbadress</translation>
+        <translation type="vanished">Ogiltig webbadress</translation>
     </message>
     <message>
         <source>Multicast error</source>
-        <translation>Multicastfel</translation>
+        <translation type="vanished">Multicastfel</translation>
     </message>
     <message>
         <source>Proxy server error</source>
-        <translation>Proxyserverfel</translation>
+        <translation type="vanished">Proxyserverfel</translation>
     </message>
     <message>
         <source>Proxy server not supported</source>
-        <translation>Proxyserver stöds inte</translation>
+        <translation type="vanished">Proxyserver stöds inte</translation>
     </message>
     <message>
         <source>Audio output error</source>
-        <translation>Fel vid ljuduppspelning</translation>
+        <translation type="vanished">Fel vid ljuduppspelning</translation>
     </message>
     <message>
         <source>Video output error</source>
-        <translation>Fel vid videouppspelning</translation>
+        <translation type="vanished">Fel vid videouppspelning</translation>
     </message>
     <message>
         <source>Decoder error</source>
-        <translation>Avkodningsfel</translation>
+        <translation type="vanished">Avkodningsfel</translation>
     </message>
     <message>
         <source>Audio or video components could not be played</source>
-        <translation>Ljud- eller videokomponent kunde inte spelas</translation>
+        <translation type="vanished">Ljud- eller videokomponent kunde inte spelas</translation>
     </message>
     <message>
         <source>DRM error</source>
-        <translation>Fel i digital upphovsrättshantering (DRM)</translation>
+        <translation type="vanished">Fel i digital upphovsrättshantering (DRM)</translation>
     </message>
     <message>
         <source>Unknown error (%1)</source>
-        <translation>Okänt fel (%1)</translation>
+        <translation type="vanished">Okänt fel (%1)</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::AbstractMediaPlayer</name>
     <message>
         <source>Not ready to play</source>
-        <translation>Inte klar att spela</translation>
+        <translation type="vanished">Inte klar att spela</translation>
     </message>
     <message>
         <source>Error opening file</source>
-        <translation>Fel när filen skulle öppnas</translation>
+        <translation type="vanished">Fel när filen skulle öppnas</translation>
     </message>
     <message>
         <source>Error opening URL</source>
-        <translation>Fel när webbadressen skulle öppnas</translation>
+        <translation type="vanished">Fel när webbadressen skulle öppnas</translation>
     </message>
     <message>
         <source>Error opening resource</source>
-        <translation>Fel när resurs skulle öppnas</translation>
+        <translation type="vanished">Fel när resurs skulle öppnas</translation>
     </message>
     <message>
         <source>Error opening source: resource not opened</source>
-        <translation>Fel när källa skulle öppnas: Resursen öppnades inte</translation>
+        <translation type="vanished">Fel när källa skulle öppnas: Resursen öppnades inte</translation>
     </message>
     <message>
         <source>Setting volume failed</source>
-        <translation>Ställa in volym misslyckades</translation>
+        <translation type="vanished">Ställa in volym misslyckades</translation>
     </message>
     <message>
         <source>Loading clip failed</source>
-        <translation>Ladda klipp misslyckades</translation>
+        <translation type="vanished">Ladda klipp misslyckades</translation>
     </message>
     <message>
         <source>Playback complete</source>
-        <translation>Uppspelning färdig</translation>
+        <translation type="vanished">Uppspelning färdig</translation>
     </message>
     <message>
         <source>Download error</source>
-        <translation>Nedladdningsfel</translation>
+        <translation type="vanished">Nedladdningsfel</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::AbstractVideoPlayer</name>
     <message>
         <source>Pause failed</source>
-        <translation>Paus misslyckades</translation>
+        <translation type="vanished">Paus misslyckades</translation>
     </message>
     <message>
         <source>Seek failed</source>
-        <translation>Sökning misslyckades</translation>
+        <translation type="vanished">Sökning misslyckades</translation>
     </message>
     <message>
         <source>Getting position failed</source>
-        <translation>Hämta position misslyckades</translation>
+        <translation type="vanished">Hämta position misslyckades</translation>
     </message>
     <message>
         <source>Opening clip failed</source>
-        <translation>Öppna klipp misslyckades</translation>
+        <translation type="vanished">Öppna klipp misslyckades</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::AudioEqualizer</name>
     <message>
         <source>%1 Hz</source>
-        <translation>%1 Hz</translation>
+        <translation type="vanished">%1 Hz</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::AudioPlayer</name>
     <message>
         <source>Getting position failed</source>
-        <translation>Hämta position misslyckades</translation>
+        <translation type="vanished">Hämta position misslyckades</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::DsaVideoPlayer</name>
     <message>
         <source>Video display error</source>
-        <translation>Videovisningsfel</translation>
+        <translation type="vanished">Videovisningsfel</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::EffectFactory</name>
     <message>
         <source>Enabled</source>
-        <translation>Aktiverad</translation>
+        <translation type="vanished">Aktiverad</translation>
     </message>
 </context>
 <context>
@@ -368,96 +368,96 @@ att du har libgstreamer-plugins-base installerat.</translation>
     <message>
         <source>Decay HF ratio (%)</source>
         <extracomment>DecayHFRatio: Ratio of high-frequency decay time to the value specified by DecayTime.</extracomment>
-        <translation>HF-avklingningsförhållande (%)</translation>
+        <translation type="vanished">HF-avklingningsförhållande (%)</translation>
     </message>
     <message>
         <source>Decay time (ms)</source>
         <extracomment>DecayTime: Time over which reverberation is diminished.</extracomment>
-        <translation>Avklingningstid (ms)</translation>
+        <translation type="vanished">Avklingningstid (ms)</translation>
     </message>
     <message>
         <source>Density (%)</source>
         <extracomment>Density Delay between first and subsequent reflections. Note that the S60 platform documentation does not make clear the distinction between this value and the Diffusion value.</extracomment>
-        <translation>Täthet (%)</translation>
+        <translation type="vanished">Täthet (%)</translation>
     </message>
     <message>
         <source>Diffusion (%)</source>
         <extracomment>Diffusion: Delay between first and subsequent reflections. Note that the S60 platform documentation does not make clear the distinction between this value and the Density value.</extracomment>
-        <translation>Diffusion (%)</translation>
+        <translation type="vanished">Diffusion (%)</translation>
     </message>
     <message>
         <source>Reflections delay (ms)</source>
         <extracomment>ReflectionsDelay: Amount of delay between the arrival the direct path from the source and the arrival of the first reflection.</extracomment>
-        <translation>Reflektionsfördröjning (ms)</translation>
+        <translation type="vanished">Reflektionsfördröjning (ms)</translation>
     </message>
     <message>
         <source>Reflections level (mB)</source>
         <extracomment>ReflectionsLevel: Amplitude of reflections. This value is corrected by the RoomLevel to give the final reflection amplitude.</extracomment>
-        <translation>Reflektionsnivå (mB)</translation>
+        <translation type="vanished">Reflektionsnivå (mB)</translation>
     </message>
     <message>
         <source>Reverb delay (ms)</source>
         <extracomment>ReverbDelay: Amount of time between arrival of the first reflection and start of the late reverberation.</extracomment>
-        <translation>Ekofördröjning (ms)</translation>
+        <translation type="vanished">Ekofördröjning (ms)</translation>
     </message>
     <message>
         <source>Reverb level (mB)</source>
         <extracomment>ReverbLevel Amplitude of reverberations. This value is corrected by the RoomLevel to give the final reverberation amplitude.</extracomment>
-        <translation>Ekonivå (mB)</translation>
+        <translation type="vanished">Ekonivå (mB)</translation>
     </message>
     <message>
         <source>Room HF level</source>
         <extracomment>RoomHFLevel: Amplitude of low-pass filter used to attenuate the high frequency component of reflected sound.</extracomment>
-        <translation>HF-rumsnivå</translation>
+        <translation type="vanished">HF-rumsnivå</translation>
     </message>
     <message>
         <source>Room level (mB)</source>
         <extracomment>RoomLevel: Master volume control for all reflected sound.</extracomment>
-        <translation>Rumsnivå (mB)</translation>
+        <translation type="vanished">Rumsnivå (mB)</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::MediaObject</name>
     <message>
         <source>Error opening source: type not supported</source>
-        <translation>Fel när källa skulle öppnas: Typen stöds inte</translation>
+        <translation type="vanished">Fel när källa skulle öppnas: Typen stöds inte</translation>
     </message>
     <message>
         <source>Error opening source: resource is compressed</source>
-        <translation>Fel när källa skulle öppnas: Resursen är komprimerad</translation>
+        <translation type="vanished">Fel när källa skulle öppnas: Resursen är komprimerad</translation>
     </message>
     <message>
         <source>Error opening source: resource not valid</source>
-        <translation>Fel när källa skulle öppnas: Resursen är inte giltig</translation>
+        <translation type="vanished">Fel när källa skulle öppnas: Resursen är inte giltig</translation>
     </message>
     <message>
         <source>Error opening source: media type could not be determined</source>
-        <translation>Fel när källa skulle öppnas: Medietyp kunde inte bestämmas</translation>
+        <translation type="vanished">Fel när källa skulle öppnas: Medietyp kunde inte bestämmas</translation>
     </message>
     <message>
         <source>Failed to set requested IAP</source>
-        <translation>Misslyckades ställa in begärd IAP</translation>
+        <translation type="vanished">Misslyckades ställa in begärd IAP</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::StereoWidening</name>
     <message>
         <source>Level (%)</source>
-        <translation>Nivå (%)</translation>
+        <translation type="vanished">Nivå (%)</translation>
     </message>
 </context>
 <context>
     <name>Phonon::MMF::SurfaceVideoPlayer</name>
     <message>
         <source>Video display error</source>
-        <translation>Videovisningsfel</translation>
+        <translation type="vanished">Videovisningsfel</translation>
     </message>
 </context>
 <context>
     <name>Phonon::VolumeSlider</name>
     <message>
         <source>Muted</source>
-        <translation>Tyst</translation>
+        <translation type="vanished">Tyst</translation>
     </message>
     <message>
         <source>Volume: %1%</source>
@@ -472,289 +472,289 @@ att du har libgstreamer-plugins-base installerat.</translation>
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 är inte definierad</translation>
+        <translation type="vanished">%1, %2 är inte definierad</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>Tvetydigt %1 hanteras inte</translation>
+        <translation type="vanished">Tvetydigt %1 hanteras inte</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Sant</translation>
+        <translation type="vanished">Sant</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Falskt</translation>
+        <translation type="vanished">Falskt</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Infoga</translation>
+        <translation type="vanished">Infoga</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Uppdatera</translation>
+        <translation type="vanished">Uppdatera</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Ta bort</translation>
+        <translation type="vanished">Ta bort</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Kopiera eller ta bort en fil</translation>
+        <translation type="vanished">Kopiera eller ta bort en fil</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Läs: %1</translation>
+        <translation type="vanished">Läs: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Skriv: %1</translation>
+        <translation type="vanished">Skriv: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <translation type="vanished">Avbryt</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Alla filer (*)</translation>
+        <translation type="vanished">Alla filer (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Namn</translation>
+        <translation type="vanished">Namn</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Storlek</translation>
+        <translation type="vanished">Storlek</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>Typ</translation>
+        <translation type="vanished">Typ</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Datum</translation>
+        <translation type="vanished">Datum</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Attribut</translation>
+        <translation type="vanished">Attribut</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="vanished">&amp;OK</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Leta &amp;i:</translation>
+        <translation type="vanished">Leta &amp;i:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Fil&amp;namn:</translation>
+        <translation type="vanished">Fil&amp;namn:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>Fil&amp;typ:</translation>
+        <translation type="vanished">Fil&amp;typ:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Tillbaka</translation>
+        <translation type="vanished">Tillbaka</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>En katalog uppåt</translation>
+        <translation type="vanished">En katalog uppåt</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Skapa ny mapp</translation>
+        <translation type="vanished">Skapa ny mapp</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Listvy</translation>
+        <translation type="vanished">Listvy</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Detaljvy</translation>
+        <translation type="vanished">Detaljvy</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>Förhandsgranska filinformation</translation>
+        <translation type="vanished">Förhandsgranska filinformation</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>Förhandsgranska filinnehåll</translation>
+        <translation type="vanished">Förhandsgranska filinnehåll</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Läs-skriv</translation>
+        <translation type="vanished">Läs-skriv</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Skrivskyddad</translation>
+        <translation type="vanished">Skrivskyddad</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Lässkyddad</translation>
+        <translation type="vanished">Lässkyddad</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Otillgänglig</translation>
+        <translation type="vanished">Otillgänglig</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Symbolisk länk till fil</translation>
+        <translation type="vanished">Symbolisk länk till fil</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Symbolisk länk till katalog</translation>
+        <translation type="vanished">Symbolisk länk till katalog</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Symbolisk länk till special</translation>
+        <translation type="vanished">Symbolisk länk till special</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Fil</translation>
+        <translation type="vanished">Fil</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Katalog</translation>
+        <translation type="vanished">Katalog</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Special</translation>
+        <translation type="vanished">Special</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Öppna</translation>
+        <translation type="vanished">Öppna</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Spara som</translation>
+        <translation type="vanished">Spara som</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Öppna</translation>
+        <translation type="vanished">&amp;Öppna</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Spara</translation>
+        <translation type="vanished">&amp;Spara</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Byt namn</translation>
+        <translation type="vanished">&amp;Byt namn</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Ta bort</translation>
+        <translation type="vanished">&amp;Ta bort</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>Uppdat&amp;era</translation>
+        <translation type="vanished">Uppdat&amp;era</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Sortera efter &amp;namn</translation>
+        <translation type="vanished">Sortera efter &amp;namn</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Sortera efter &amp;storlek</translation>
+        <translation type="vanished">Sortera efter &amp;storlek</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Sortera efter &amp;datum</translation>
+        <translation type="vanished">Sortera efter &amp;datum</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Osorterad</translation>
+        <translation type="vanished">&amp;Osorterad</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Sortera</translation>
+        <translation type="vanished">Sortera</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Visa &amp;dolda filer</translation>
+        <translation type="vanished">Visa &amp;dolda filer</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>filen</translation>
+        <translation type="vanished">filen</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>katalogen</translation>
+        <translation type="vanished">katalogen</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>symboliska länken</translation>
+        <translation type="vanished">symboliska länken</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>Ta bort %1</translation>
+        <translation type="vanished">Ta bort %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Är du säker på att du vill ta bort %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Är du säker på att du vill ta bort %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Ja</translation>
+        <translation type="vanished">&amp;Ja</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Nej</translation>
+        <translation type="vanished">&amp;Nej</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Ny mapp 1</translation>
+        <translation type="vanished">Ny mapp 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Ny mapp</translation>
+        <translation type="vanished">Ny mapp</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Ny mapp %1</translation>
+        <translation type="vanished">Ny mapp %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Hitta katalog</translation>
+        <translation type="vanished">Hitta katalog</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Kataloger</translation>
+        <translation type="vanished">Kataloger</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Katalog:</translation>
+        <translation type="vanished">Katalog:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Fel</translation>
+        <translation type="vanished">Fel</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
+        <translation type="vanished">%1
 Filen hittades inte. 
 Kontrollera sökväg och filnamn.</translation>
     </message>
     <message>
         <source>All Files (*.*)</source>
-        <translation>Alla filer (*.*)</translation>
+        <translation type="vanished">Alla filer (*.*)</translation>
     </message>
     <message>
         <source>Open </source>
-        <translation>Öppna</translation>
+        <translation type="vanished">Öppna</translation>
     </message>
     <message>
         <source>Select a Directory</source>
-        <translation>Välj en katalog</translation>
+        <translation type="vanished">Välj en katalog</translation>
     </message>
 </context>
 <context>
@@ -762,19 +762,19 @@ Kontrollera sökväg och filnamn.</translation>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Kunde inte läsa katalogen
+        <translation type="vanished">Kunde inte läsa katalogen
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Kunde inte skapa katalogen 
+        <translation type="vanished">Kunde inte skapa katalogen 
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Kunde inte ta bort filen eller katalogen 
+        <translation type="vanished">Kunde inte ta bort filen eller katalogen 
 %1</translation>
     </message>
     <message>
@@ -782,7 +782,7 @@ Kontrollera sökväg och filnamn.</translation>
 %1
 to
 %2</source>
-        <translation>Kunde inte byta namn på 
+        <translation type="vanished">Kunde inte byta namn på 
 %1 
 till 
 %2</translation>
@@ -790,13 +790,13 @@ till
     <message>
         <source>Could not open
 %1</source>
-        <translation>Kunde inte öppna 
+        <translation type="vanished">Kunde inte öppna 
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Kunde inte skriva till 
+        <translation type="vanished">Kunde inte skriva till 
 %1</translation>
     </message>
 </context>
@@ -804,138 +804,138 @@ till
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>Rada upp</translation>
+        <translation type="vanished">Rada upp</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>Anpassa...</translation>
+        <translation type="vanished">Anpassa...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>Åtgärden stoppades av användaren</translation>
+        <translation type="vanished">Åtgärden stoppades av användaren</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <translation type="vanished">Avbryt</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation type="vanished">OK</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Verkställ</translation>
+        <translation type="vanished">Verkställ</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Hjälp</translation>
+        <translation type="vanished">Hjälp</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Standardvärden</translation>
+        <translation type="vanished">Standardvärden</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <translation type="vanished">Avbryt</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Ångra</translation>
+        <translation type="vanished">&amp;Ångra</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Gör om</translation>
+        <translation type="vanished">&amp;Gör om</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Klipp u&amp;t</translation>
+        <translation type="vanished">Klipp u&amp;t</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopiera</translation>
+        <translation type="vanished">&amp;Kopiera</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>Klistra &amp;in</translation>
+        <translation type="vanished">Klistra &amp;in</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Töm</translation>
+        <translation type="vanished">Töm</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Markera alla</translation>
+        <translation type="vanished">Markera alla</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>System</translation>
+        <translation type="vanished">System</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>Återställ uppåt</translation>
+        <translation type="vanished">Återställ uppåt</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimera</translation>
+        <translation type="vanished">Minimera</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Återställ nedåt</translation>
+        <translation type="vanished">Återställ nedåt</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Maximera</translation>
+        <translation type="vanished">Maximera</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="vanished">Stäng</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Innehåller kommandon för att manipulera fönstret</translation>
+        <translation type="vanished">Innehåller kommandon för att manipulera fönstret</translation>
     </message>
     <message>
         <source>Puts a minimized window back to normal</source>
-        <translation>Återställer ett minimerat fönster till normalt</translation>
+        <translation type="vanished">Återställer ett minimerat fönster till normalt</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation type="obsolete">Återställer ett minimerat till normalt</translation>
+        <translation type="vanished">Återställer ett minimerat till normalt</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>Flyttar fönstret ur vägen</translation>
+        <translation type="vanished">Flyttar fönstret ur vägen</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Återställer ett maximerat fönster tillbaka till normalt</translation>
+        <translation type="vanished">Återställer ett maximerat fönster tillbaka till normalt</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Gör fönstret till helskärm</translation>
+        <translation type="vanished">Gör fönstret till helskärm</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Stänger fönstret</translation>
+        <translation type="vanished">Stänger fönstret</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Visar namnet på fönstret och innehåller kontroller för att manipulera det</translation>
+        <translation type="vanished">Visar namnet på fönstret och innehåller kontroller för att manipulera det</translation>
     </message>
     <message>
         <source>Displays the name of the window and contains controls to manipulate it</source>
@@ -946,76 +946,76 @@ till
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Mer...</translation>
+        <translation type="vanished">Mer...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>Protokollet &quot;%&quot; stöds inte</translation>
+        <translation type="vanished">Protokollet \&quot;%\&quot; stöds inte</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att lista kataloger</translation>
+        <translation type="vanished">Protokollet \&quot;%1\&quot; har inte stöd för att lista kataloger</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att skapa nya kataloger</translation>
+        <translation type="vanished">Protokollet \&quot;%1\&quot; har inte stöd för att skapa nya kataloger</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att ta bort filer eller kataloger</translation>
+        <translation type="vanished">Protokollet \&quot;%1\&quot; har inte stöd för att ta bort filer eller kataloger</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att byta namn på filer eller kataloger</translation>
+        <translation type="vanished">Protokollet \&quot;%1\&quot; har inte stöd för att byta namn på filer eller kataloger</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att hämta filer</translation>
+        <translation type="vanished">Protokollet \&quot;%1\&quot; har inte stöd för att hämta filer</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att lämna filer</translation>
+        <translation type="vanished">Protokollet \&quot;%1\&quot; har inte stöd för att lämna filer</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att kopiera eller flytta filer eller kataloger</translation>
+        <translation type="vanished">Protokollet \&quot;%1\&quot; har inte stöd för att kopiera eller flytta filer eller kataloger</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(okänt)</translation>
+        <translation type="vanished">(okänt)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Avbryt</translation>
+        <translation type="vanished">&amp;Avbryt</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; Till&amp;baka</translation>
+        <translation type="vanished">&lt; Till&amp;baka</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Nästa &gt;</translation>
+        <translation type="vanished">&amp;Nästa &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Färdigställ</translation>
+        <translation type="vanished">&amp;Färdig</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Hjälp</translation>
+        <translation type="vanished">&amp;Hjälp</translation>
     </message>
 </context>
 <context>
     <name>QAbstractSocket</name>
     <message>
         <source>Operation on socket is not supported</source>
-        <translation>Uttagsåtgärden stöds inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Host not found</source>
@@ -1027,7 +1027,7 @@ till
     </message>
     <message>
         <source>Connection timed out</source>
-        <translation>Tidsgränsen för anslutning överstegs</translation>
+        <translation type="unfinished">Tidsgränsen för anslutning överstegs</translation>
     </message>
     <message>
         <source>Socket operation timed out</source>
@@ -1039,7 +1039,7 @@ till
     </message>
     <message>
         <source>Network unreachable</source>
-        <translation>Nätverket är inte nåbart</translation>
+        <translation type="unfinished">Nätverket är inte nåbart</translation>
     </message>
     <message>
         <source>Trying to connect while connection is in progress</source>
@@ -1058,7 +1058,7 @@ till
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation>&amp;Markera allt</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1164,7 +1164,7 @@ till
     <name>QAccessibleButton</name>
     <message>
         <source>Press</source>
-        <translation>Tryck</translation>
+        <translation type="vanished">Tryck</translation>
     </message>
 </context>
 <context>
@@ -1190,7 +1190,7 @@ till
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Aktivera</translation>
+        <translation type="vanished">Aktivera</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -1203,45 +1203,45 @@ till
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Aktiverar programmets huvudfönster</translation>
+        <translation type="vanished">Aktiverar programmets huvudfönster</translation>
     </message>
 </context>
 <context>
     <name>QAxSelect</name>
     <message>
         <source>Select ActiveX Control</source>
-        <translation>Välj ActiveX Control</translation>
+        <translation type="vanished">Välj ActiveX Control</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation type="vanished">OK</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Avbryt</translation>
+        <translation type="vanished">&amp;Avbryt</translation>
     </message>
     <message>
         <source>COM &amp;Object:</source>
-        <translation>COM-&amp;objekt:</translation>
+        <translation type="vanished">COM-&amp;objekt:</translation>
     </message>
 </context>
 <context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Avkryssa</translation>
+        <translation type="vanished">Avkryssa</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Kryssa</translation>
+        <translation type="vanished">Kryssa</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Växla</translation>
+        <translation type="vanished">Växla</translation>
     </message>
 </context>
 <context>
@@ -1338,7 +1338,7 @@ till
     </message>
     <message>
         <source>Select Color</source>
-        <translation>Välj färg</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Basic colors</source>
@@ -1386,19 +1386,19 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Öppna</translation>
+        <translation type="vanished">Öppna</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Falskt</translation>
+        <translation type="unfinished">Falskt</translation>
     </message>
     <message>
         <source>True</source>
-        <translation>Sant</translation>
+        <translation type="unfinished">Sant</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="obsolete">Stäng</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1453,12 +1453,12 @@ Press ESC to cancel</source>
     <message>
         <source>%1: permission denied</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: åtkomst nekad</translation>
+        <translation type="vanished">%1: åtkomst nekad</translation>
     </message>
     <message>
         <source>%1: already exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: finns redan</translation>
+        <translation type="vanished">%1: finns redan</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
@@ -1468,32 +1468,32 @@ Press ESC to cancel</source>
     <message>
         <source>%1: does not exist</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: finns inte</translation>
+        <translation type="vanished">%1: finns inte</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: slut på resurser</translation>
+        <translation type="vanished">%1: slut på resurser</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: okänt fel %2</translation>
+        <translation type="vanished">%1: okänt fel %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: nyckeln är tom</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: kunde inte skapa nyckel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: ftok misslyckades</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1657,19 +1657,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>AM</translation>
+        <translation type="vanished">AM</translation>
     </message>
     <message>
         <source>am</source>
-        <translation>am</translation>
+        <translation type="vanished">am</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation>PM</translation>
+        <translation type="vanished">PM</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation>pm</translation>
+        <translation type="vanished">pm</translation>
     </message>
 </context>
 <context>
@@ -1695,686 +1695,686 @@ Press ESC to cancel</source>
     <name>QDeclarativeAbstractAnimation</name>
     <message>
         <source>Cannot animate non-existent property &quot;%1&quot;</source>
-        <translation>Kan inte animera en icke-existerande egenskap &quot;%1&quot;</translation>
+        <translation type="vanished">Kan inte animera en icke-existerande egenskap &quot;%1&quot;</translation>
     </message>
     <message>
         <source>Cannot animate read-only property &quot;%1&quot;</source>
-        <translation>Kan inte animera en skrivskyddad egenskap &quot;%1&quot;</translation>
+        <translation type="vanished">Kan inte animera en skrivskyddad egenskap &quot;%1&quot;</translation>
     </message>
     <message>
         <source>Animation is an abstract class</source>
-        <translation>Animation är en abstrakt klass</translation>
+        <translation type="vanished">Animation är en abstrakt klass</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeAnchorAnimation</name>
     <message>
         <source>Cannot set a duration of &lt; 0</source>
-        <translation>Kan inte ställa in en varaktighet mindre än 0</translation>
+        <translation type="vanished">Kan inte ställa in en varaktighet mindre än 0</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeAnchors</name>
     <message>
         <source>Possible anchor loop detected on fill.</source>
-        <translation>Möjlig förankringssnurra detekterad vid ifyllnad.</translation>
+        <translation type="vanished">Möjlig förankringssnurra detekterad vid ifyllnad.</translation>
     </message>
     <message>
         <source>Possible anchor loop detected on centerIn.</source>
-        <translation>Möjlig förankringssnurra detekterad för centerIn.</translation>
+        <translation type="vanished">Möjlig förankringssnurra detekterad för centerIn.</translation>
     </message>
     <message>
         <source>Cannot anchor to an item that isn&apos;t a parent or sibling.</source>
-        <translation>Kan inte ankra till ett objekt som inte är överliggande eller på samma nivå.</translation>
+        <translation type="vanished">Kan inte ankra till ett objekt som inte är överliggande eller på samma nivå.</translation>
     </message>
     <message>
         <source>Possible anchor loop detected on vertical anchor.</source>
-        <translation>Möjlig förankringssnurra detekterad för vertikal förankring.</translation>
+        <translation type="vanished">Möjlig förankringssnurra detekterad för vertikal förankring.</translation>
     </message>
     <message>
         <source>Possible anchor loop detected on horizontal anchor.</source>
-        <translation>Möjlig förankringssnurra detekterad för horisontell förankring.</translation>
+        <translation type="vanished">Möjlig förankringssnurra detekterad för horisontell förankring.</translation>
     </message>
     <message>
         <source>Cannot specify left, right, and hcenter anchors.</source>
-        <translation>Kan inte ange vänster-, höger- eller horisontell centralförankring.</translation>
+        <translation type="vanished">Kan inte ange vänster-, höger- eller horisontell centralförankring.</translation>
     </message>
     <message>
         <source>Cannot anchor to a null item.</source>
-        <translation>Kan inte förankra till ett objekt som är null.</translation>
+        <translation type="vanished">Kan inte förankra till ett objekt som är null.</translation>
     </message>
     <message>
         <source>Cannot anchor a horizontal edge to a vertical edge.</source>
-        <translation>Kan inte förankra en horisontell kant till en vertikal kant.</translation>
+        <translation type="vanished">Kan inte förankra en horisontell kant till en vertikal kant.</translation>
     </message>
     <message>
         <source>Cannot anchor item to self.</source>
-        <translation>Kan inte förankra objekt till sig själv.</translation>
+        <translation type="vanished">Kan inte förankra objekt till sig själv.</translation>
     </message>
     <message>
         <source>Cannot specify top, bottom, and vcenter anchors.</source>
-        <translation>Kan inte ange över-, under- eller vertikal centralförankring.</translation>
+        <translation type="vanished">Kan inte ange över-, under- eller vertikal centralförankring.</translation>
     </message>
     <message>
         <source>Baseline anchor cannot be used in conjunction with top, bottom, or vcenter anchors.</source>
-        <translation>Baslinjeförankring kan inte användas tillsammans med över-, under- eller vertikal centralförankring.</translation>
+        <translation type="vanished">Baslinjeförankring kan inte användas tillsammans med över-, under- eller vertikal centralförankring.</translation>
     </message>
     <message>
         <source>Cannot anchor a vertical edge to a horizontal edge.</source>
-        <translation>Kan inte förankra en vertikal kant till en horisontell kant.</translation>
+        <translation type="vanished">Kan inte förankra en vertikal kant till en horisontell kant.</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeAnimatedImage</name>
     <message>
         <source>Qt was built without support for QMovie</source>
-        <translation>Qt byggdes utan stöd för QMovie</translation>
+        <translation type="vanished">Qt byggdes utan stöd för QMovie</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeApplication</name>
     <message>
         <source>Application is an abstract class</source>
-        <translation>Application är en abstrakt klass</translation>
+        <translation type="vanished">Application är en abstrakt klass</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeBehavior</name>
     <message>
         <source>Cannot change the animation assigned to a Behavior.</source>
-        <translation>Kan inte ändra animeringen tilldelad till Behavior.</translation>
+        <translation type="vanished">Kan inte ändra animeringen tilldelad till Behavior.</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeBinding</name>
     <message>
         <source>Binding loop detected for property &quot;%1&quot;</source>
-        <translation>Bindningssnurra detekterades för egenskap &quot;%1&quot;</translation>
+        <translation type="vanished">Bindningssnurra detekterades för egenskap &quot;%1&quot;</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeCompiledBindings</name>
     <message>
         <source>Binding loop detected for property &quot;%1&quot;</source>
-        <translation>Bindningssnurra detekterades för egenskap &quot;%1&quot;</translation>
+        <translation type="vanished">Bindningssnurra detekterades för egenskap &quot;%1&quot;</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeCompiler</name>
     <message>
         <source>Invalid property assignment: &quot;%1&quot; is a read-only property</source>
-        <translation>Ogiltig egenskapstilldelning: &quot;%1&quot; är en skrivskyddad egenskap</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: &quot;%1&quot; är en skrivskyddad egenskap</translation>
     </message>
     <message>
         <source>Invalid property assignment: unknown enumeration</source>
-        <translation>Ogiltig egenskapstilldelning: okänt uppräkningsvärde</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: okänt uppräkningsvärde</translation>
     </message>
     <message>
         <source>Invalid property assignment: string expected</source>
-        <translation>Ogiltig egenskapstilldelning: sträng förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: sträng förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: url expected</source>
-        <translation>Ogiltig egenskapstilldelning: webbadress förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: webbadress förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: unsigned int expected</source>
-        <translation>Ogiltig egenskapstilldelning: heltal utan tecken förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: heltal utan tecken förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: int expected</source>
-        <translation>Ogiltig egenskapstilldelning: heltal förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: heltal förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: number expected</source>
-        <translation>Ogiltig egenskapstilldelning: tal förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: tal förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: color expected</source>
-        <translation>Ogiltig egenskapstilldelning: färg förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: färg förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: date expected</source>
-        <translation>Ogiltig egenskapstilldelning: datum förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: datum förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: time expected</source>
-        <translation>Ogiltig egenskapstilldelning: tid förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: tid förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: datetime expected</source>
-        <translation>Ogiltig egenskapstilldelning: datum och tid förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: datum och tid förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: point expected</source>
-        <translation>Ogiltig egenskapstilldelning: punkt förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: punkt förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: size expected</source>
-        <translation>Ogiltig egenskapstilldelning: storlek förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: storlek förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: rect expected</source>
-        <translation>Ogiltig egenskapstilldelning: rektangel förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: rektangel förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: boolean expected</source>
-        <translation>Ogiltig egenskapstilldelning: Boolean förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: Boolean förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: 3D vector expected</source>
-        <translation>Ogiltig egenskapstilldelning: tredimensionell vektor förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: tredimensionell vektor förväntades</translation>
     </message>
     <message>
         <source>Invalid property assignment: unsupported type &quot;%1&quot;</source>
-        <translation>Ogiltig egenskapstilldelning: typen &quot;%1&quot; stöds inte</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: typen &quot;%1&quot; stöds inte</translation>
     </message>
     <message>
         <source>Element is not creatable.</source>
-        <translation>Elementet går inte att skapa.</translation>
+        <translation type="vanished">Elementet går inte att skapa.</translation>
     </message>
     <message>
         <source>Component elements may not contain properties other than id</source>
-        <translation>Komponentelement får inte innehålla andra egenskaper än ID</translation>
+        <translation type="vanished">Komponentelement får inte innehålla andra egenskaper än ID</translation>
     </message>
     <message>
         <source>Invalid component id specification</source>
-        <translation>Ogiltig specifikation av komponent-ID</translation>
+        <translation type="vanished">Ogiltig specifikation av komponent-ID</translation>
     </message>
     <message>
         <source>id is not unique</source>
-        <translation>ID-värdet är inte unikt</translation>
+        <translation type="vanished">ID-värdet är inte unikt</translation>
     </message>
     <message>
         <source>Invalid component body specification</source>
-        <translation>Ogiltig specifikation av component body</translation>
+        <translation type="vanished">Ogiltig specifikation av component body</translation>
     </message>
     <message>
         <source>Component objects cannot declare new properties.</source>
-        <translation>Komponentobjekt kan inte deklarera nya egenskaper.</translation>
+        <translation type="vanished">Komponentobjekt kan inte deklarera nya egenskaper.</translation>
     </message>
     <message>
         <source>Component objects cannot declare new signals.</source>
-        <translation>Komponentobjekt kan inte deklarera nya signaler.</translation>
+        <translation type="vanished">Komponentobjekt kan inte deklarera nya signaler.</translation>
     </message>
     <message>
         <source>Component objects cannot declare new functions.</source>
-        <translation>Komponentobjekt kan inte deklarera nya funktioner.</translation>
+        <translation type="vanished">Komponentobjekt kan inte deklarera nya funktioner.</translation>
     </message>
     <message>
         <source>Cannot create empty component specification</source>
-        <translation>Kan inte skapa tom komponentspecifikation</translation>
+        <translation type="vanished">Kan inte skapa tom komponentspecifikation</translation>
     </message>
     <message>
         <source>&quot;%1.%2&quot; is not available in %3 %4.%5.</source>
-        <translation>&quot;%1.%2&quot; är inte tillgänglig i %3 %4.%5.</translation>
+        <translation type="vanished">&quot;%1.%2&quot; är inte tillgänglig i %3 %4.%5.</translation>
     </message>
     <message>
         <source>&quot;%1.%2&quot; is not available due to component versioning.</source>
-        <translation>&quot;%1.%2&quot; är inte tillgänglig på grund av komponentversion.</translation>
+        <translation type="vanished">&quot;%1.%2&quot; är inte tillgänglig på grund av komponentversion.</translation>
     </message>
     <message>
         <source>Incorrectly specified signal assignment</source>
-        <translation>Felaktigt angiven signaltilldelning</translation>
+        <translation type="vanished">Felaktigt angiven signaltilldelning</translation>
     </message>
     <message>
         <source>Cannot assign a value to a signal (expecting a script to be run)</source>
-        <translation>Kan inte tilldela ett värde till en signal (förväntar att ett skript ska köras)</translation>
+        <translation type="vanished">Kan inte tilldela ett värde till en signal (förväntar att ett skript ska köras)</translation>
     </message>
     <message>
         <source>Empty signal assignment</source>
-        <translation>Tom signaltilldelning</translation>
+        <translation type="vanished">Tom signaltilldelning</translation>
     </message>
     <message>
         <source>Empty property assignment</source>
-        <translation>Tom egenskapstilldelning</translation>
+        <translation type="vanished">Tom egenskapstilldelning</translation>
     </message>
     <message>
         <source>Attached properties cannot be used here</source>
-        <translation>Anslutna egenskaper kan inte användas här</translation>
+        <translation type="vanished">Anslutna egenskaper kan inte användas här</translation>
     </message>
     <message>
         <source>Non-existent attached object</source>
-        <translation>Anslutet objekt existerar inte</translation>
+        <translation type="vanished">Anslutet objekt existerar inte</translation>
     </message>
     <message>
         <source>Invalid attached object assignment</source>
-        <translation>Ogiltig tilldelning av anslutet objekt</translation>
+        <translation type="vanished">Ogiltig tilldelning av anslutet objekt</translation>
     </message>
     <message>
         <source>Cannot assign to non-existent default property</source>
-        <translation>Kan inte tilldela en standardegenskap som inte finns</translation>
+        <translation type="vanished">Kan inte tilldela en standardegenskap som inte finns</translation>
     </message>
     <message>
         <source>Cannot assign to non-existent property &quot;%1&quot;</source>
-        <translation>Kan inte tilldela till egenskapen  &quot;%1 &quot; som inte finns</translation>
+        <translation type="vanished">Kan inte tilldela till egenskapen  &quot;%1 &quot; som inte finns</translation>
     </message>
     <message>
         <source>Invalid use of namespace</source>
-        <translation>Ogiltig användning av namnrymd</translation>
+        <translation type="vanished">Ogiltig användning av namnrymd</translation>
     </message>
     <message>
         <source>Not an attached property name</source>
-        <translation>Inte ett namn på en ansluten egenskap</translation>
+        <translation type="vanished">Inte ett namn på en ansluten egenskap</translation>
     </message>
     <message>
         <source>Invalid use of id property</source>
-        <translation>Ogiltig användning av id-egenskap</translation>
+        <translation type="vanished">Ogiltig användning av id-egenskap</translation>
     </message>
     <message>
         <source>Property has already been assigned a value</source>
-        <translation>Egenskapen har redan tilldelats ett värde</translation>
+        <translation type="vanished">Egenskapen har redan tilldelats ett värde</translation>
     </message>
     <message>
         <source>Invalid grouped property access</source>
-        <translation>Ogiltig grupperad egenskapsåtkomst</translation>
+        <translation type="vanished">Ogiltig grupperad egenskapsåtkomst</translation>
     </message>
     <message>
         <source>Cannot assign a value directly to a grouped property</source>
-        <translation>Kan inte tilldela ett värde direkt till en grupperad egenskap</translation>
+        <translation type="vanished">Kan inte tilldela ett värde direkt till en grupperad egenskap</translation>
     </message>
     <message>
         <source>Invalid property use</source>
-        <translation>Ogiltig användning av egenskap</translation>
+        <translation type="vanished">Ogiltig användning av egenskap</translation>
     </message>
     <message>
         <source>Property assignment expected</source>
-        <translation>Egenskapstilldelning förväntades</translation>
+        <translation type="vanished">Egenskapstilldelning förväntades</translation>
     </message>
     <message>
         <source>Single property assignment expected</source>
-        <translation>Enstaka egenskapstilldelning förväntades</translation>
+        <translation type="vanished">Enstaka egenskapstilldelning förväntades</translation>
     </message>
     <message>
         <source>Unexpected object assignment</source>
-        <translation>Oväntad objekttilldelning</translation>
+        <translation type="vanished">Oväntad objekttilldelning</translation>
     </message>
     <message>
         <source>Cannot assign object to list</source>
-        <translation>Kan inte tilldela objekt till lista</translation>
+        <translation type="vanished">Kan inte tilldela objekt till lista</translation>
     </message>
     <message>
         <source>Can only assign one binding to lists</source>
-        <translation>Kan bara tilldela en bindning till listor</translation>
+        <translation type="vanished">Kan bara tilldela en bindning till listor</translation>
     </message>
     <message>
         <source>Cannot assign primitives to lists</source>
-        <translation>Kan inte tilldela primitiver till listor</translation>
+        <translation type="vanished">Kan inte tilldela primitiver till listor</translation>
     </message>
     <message>
         <source>Cannot assign multiple values to a script property</source>
-        <translation>Kan inte tilldela flera värden till en skriptegenskap</translation>
+        <translation type="vanished">Kan inte tilldela flera värden till en skriptegenskap</translation>
     </message>
     <message>
         <source>Invalid property assignment: script expected</source>
-        <translation>Ogiltig egenskapstilldelning: skript förväntades</translation>
+        <translation type="vanished">Ogiltig egenskapstilldelning: skript förväntades</translation>
     </message>
     <message>
         <source>Cannot assign multiple values to a singular property</source>
-        <translation>Kan inte tilldela flera värden till en enskild egenskap</translation>
+        <translation type="vanished">Kan inte tilldela flera värden till en enskild egenskap</translation>
     </message>
     <message>
         <source>Cannot assign object to property</source>
-        <translation>Kan inte tilldela objekt till egenskap</translation>
+        <translation type="vanished">Kan inte tilldela objekt till egenskap</translation>
     </message>
     <message>
         <source>&quot;%1&quot; cannot operate on &quot;%2&quot;</source>
-        <translation>&quot;%1&quot; kan inte användas för &quot;%2&quot;</translation>
+        <translation type="vanished">&quot;%1&quot; kan inte användas för &quot;%2&quot;</translation>
     </message>
     <message>
         <source>Duplicate default property</source>
-        <translation>Duplicerad fördefinierad egenskap</translation>
+        <translation type="vanished">Duplicerad fördefinierad egenskap</translation>
     </message>
     <message>
         <source>Duplicate property name</source>
-        <translation>Duplicerat egenskapsnamn</translation>
+        <translation type="vanished">Duplicerat egenskapsnamn</translation>
     </message>
     <message>
         <source>Property names cannot begin with an upper case letter</source>
-        <translation>Egenskapsnamn kan inte börja med en stor bokstav</translation>
+        <translation type="vanished">Egenskapsnamn kan inte börja med en stor bokstav</translation>
     </message>
     <message>
         <source>Illegal property name</source>
-        <translation>Ogiltigt egenskapsnamn</translation>
+        <translation type="vanished">Ogiltigt egenskapsnamn</translation>
     </message>
     <message>
         <source>Duplicate signal name</source>
-        <translation>Duplicerat signalnamn</translation>
+        <translation type="vanished">Duplicerat signalnamn</translation>
     </message>
     <message>
         <source>Signal names cannot begin with an upper case letter</source>
-        <translation>Signalnamn kan inte börja med en stor bokstav</translation>
+        <translation type="vanished">Signalnamn kan inte börja med en stor bokstav</translation>
     </message>
     <message>
         <source>Illegal signal name</source>
-        <translation>Ogiltigt signalnamn</translation>
+        <translation type="vanished">Ogiltigt signalnamn</translation>
     </message>
     <message>
         <source>Duplicate method name</source>
-        <translation>Duplicerat metodnamn</translation>
+        <translation type="vanished">Duplicerat metodnamn</translation>
     </message>
     <message>
         <source>Method names cannot begin with an upper case letter</source>
-        <translation>Metodnamn kan inte börja med en stor bokstav</translation>
+        <translation type="vanished">Metodnamn kan inte börja med en stor bokstav</translation>
     </message>
     <message>
         <source>Illegal method name</source>
-        <translation>Felaktigt metodnamn</translation>
+        <translation type="vanished">Felaktigt metodnamn</translation>
     </message>
     <message>
         <source>Property value set multiple times</source>
-        <translation>Egenskapsvärde angivet flera gånger</translation>
+        <translation type="vanished">Egenskapsvärde angivet flera gånger</translation>
     </message>
     <message>
         <source>Invalid property nesting</source>
-        <translation>Ogiltig nästling av egenskaper</translation>
+        <translation type="vanished">Ogiltig nästling av egenskaper</translation>
     </message>
     <message>
         <source>Cannot override FINAL property</source>
-        <translation>Kan inte överskrida egenskapen FINAL</translation>
+        <translation type="vanished">Kan inte överskrida egenskapen FINAL</translation>
     </message>
     <message>
         <source>Invalid property type</source>
-        <translation>Ogiltig egenskapstyp</translation>
+        <translation type="vanished">Ogiltig egenskapstyp</translation>
     </message>
     <message>
         <source>Invalid empty ID</source>
-        <translation>Ogiltigt tomt ID</translation>
+        <translation type="vanished">Ogiltigt tomt ID</translation>
     </message>
     <message>
         <source>IDs cannot start with an uppercase letter</source>
-        <translation>Inget ID får börja med en stor bokstav</translation>
+        <translation type="vanished">Inget ID får börja med en stor bokstav</translation>
     </message>
     <message>
         <source>IDs must start with a letter or underscore</source>
-        <translation>Alla ID måste börja med en bokstav eller ett understreck</translation>
+        <translation type="vanished">Alla ID måste börja med en bokstav eller ett understreck</translation>
     </message>
     <message>
         <source>IDs must contain only letters, numbers, and underscores</source>
-        <translation>ID får bara innehålla bokstäver, siffror och understreck</translation>
+        <translation type="vanished">ID får bara innehålla bokstäver, siffror och understreck</translation>
     </message>
     <message>
         <source>ID illegally masks global JavaScript property</source>
-        <translation>ID maskerar felaktigt global Javascript-egenskap</translation>
+        <translation type="vanished">ID maskerar felaktigt global Javascript-egenskap</translation>
     </message>
     <message>
         <source>No property alias location</source>
-        <translation>Ingen aliasplats för egenskap</translation>
+        <translation type="vanished">Ingen aliasplats för egenskap</translation>
     </message>
     <message>
         <source>Invalid alias location</source>
-        <translation>Ogiltig aliasplats</translation>
+        <translation type="vanished">Ogiltig aliasplats</translation>
     </message>
     <message>
         <source>Invalid alias reference. An alias reference must be specified as &lt;id&gt;, &lt;id&gt;.&lt;property&gt; or &lt;id&gt;.&lt;value property&gt;.&lt;property&gt;</source>
-        <translation>Ogiltig aliasreferens En aliasreferens måste anges som &lt;id&gt;, &lt;id&gt;.&lt;property&gt; eller &lt;id&gt;.&lt;value property&gt;.&lt;property&gt;</translation>
+        <translation type="vanished">Ogiltig aliasreferens En aliasreferens måste anges som &lt;id&gt;, &lt;id&gt;.&lt;property&gt; eller &lt;id&gt;.&lt;value property&gt;.&lt;property&gt;</translation>
     </message>
     <message>
         <source>Invalid alias reference. Unable to find id &quot;%1&quot;</source>
-        <translation>Ogiltig aliasreferens. Kan inte hitta id &quot;%1&quot;</translation>
+        <translation type="vanished">Ogiltig aliasreferens. Kan inte hitta id &quot;%1&quot;</translation>
     </message>
     <message>
         <source>Alias property exceeds alias bounds</source>
-        <translation>Aliasegenskap överskrider aliasgränser</translation>
+        <translation type="vanished">Aliasegenskap överskrider aliasgränser</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeComponent</name>
     <message>
         <source>Invalid empty URL</source>
-        <translation>Ogiltig tom webbadress</translation>
+        <translation type="vanished">Ogiltig tom webbadress</translation>
     </message>
     <message>
         <source>createObject: value is not an object</source>
-        <translation>createObject: värdet är inte ett objekt</translation>
+        <translation type="vanished">createObject: värdet är inte ett objekt</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeConnections</name>
     <message>
         <source>Cannot assign to non-existent property &quot;%1&quot;</source>
-        <translation>Kan inte tilldela till egenskapen &quot;%1&quot; som inte finns</translation>
+        <translation type="vanished">Kan inte tilldela till egenskapen &quot;%1&quot; som inte finns</translation>
     </message>
     <message>
         <source>Connections: nested objects not allowed</source>
-        <translation>Connections: nästlade objekt tillåts inte</translation>
+        <translation type="vanished">Connections: nästlade objekt tillåts inte</translation>
     </message>
     <message>
         <source>Connections: syntax error</source>
-        <translation>Connections: syntaxfel</translation>
+        <translation type="vanished">Connections: syntaxfel</translation>
     </message>
     <message>
         <source>Connections: script expected</source>
-        <translation>Connections: skript förväntades</translation>
+        <translation type="vanished">Connections: skript förväntades</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeEngine</name>
     <message>
         <source>executeSql called outside transaction()</source>
-        <translation>executeSql anropad utanför transaction()</translation>
+        <translation type="vanished">executeSql anropad utanför transaction()</translation>
     </message>
     <message>
         <source>Read-only Transaction</source>
-        <translation>Skrivskyddad transaktion</translation>
+        <translation type="vanished">Skrivskyddad transaktion</translation>
     </message>
     <message>
         <source>Version mismatch: expected %1, found %2</source>
-        <translation>Version matchar inte: förväntade %1, hittade %2</translation>
+        <translation type="vanished">Version matchar inte: förväntade %1, hittade %2</translation>
     </message>
     <message>
         <source>SQL transaction failed</source>
-        <translation>SQL-transaktion misslyckades</translation>
+        <translation type="vanished">SQL-transaktion misslyckades</translation>
     </message>
     <message>
         <source>transaction: missing callback</source>
-        <translation>transaction: saknar återanrop</translation>
+        <translation type="vanished">transaction: saknar återanrop</translation>
     </message>
     <message>
         <source>SQL: database version mismatch</source>
-        <translation>SQL: databasversion matchar inte</translation>
+        <translation type="vanished">SQL: databasversion matchar inte</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeFlipable</name>
     <message>
         <source>front is a write-once property</source>
-        <translation>front är en egenskap som kan skrivas en gång</translation>
+        <translation type="vanished">front är en egenskap som kan skrivas en gång</translation>
     </message>
     <message>
         <source>back is a write-once property</source>
-        <translation>back är en egenskap som kan skrivas en gång</translation>
+        <translation type="vanished">back är en egenskap som kan skrivas en gång</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeImportDatabase</name>
     <message>
         <source>cannot load module &quot;%1&quot;: File name case mismatch for &quot;%2&quot;</source>
-        <translation>kan inte ladda modul &quot;%1&quot;: Filnamnets stora och små bokstäver stämmer inte för &quot;%2&quot;</translation>
+        <translation type="vanished">kan inte ladda modul &quot;%1&quot;: Filnamnets stora och små bokstäver stämmer inte för &quot;%2&quot;</translation>
     </message>
     <message>
         <source>module &quot;%1&quot; definition &quot;%2&quot; not readable</source>
-        <translation>modul &quot;%1&quot; definition &quot;%2&quot; är inte läsbar</translation>
+        <translation type="vanished">modul &quot;%1&quot; definition &quot;%2&quot; är inte läsbar</translation>
     </message>
     <message>
         <source>plugin cannot be loaded for module &quot;%1&quot;: %2</source>
-        <translation>insticksprogram kan inte laddas för modulen &quot;%1&quot;: %2</translation>
+        <translation type="vanished">insticksprogram kan inte laddas för modulen &quot;%1&quot;: %2</translation>
     </message>
     <message>
         <source>module &quot;%1&quot; plugin &quot;%2&quot; not found</source>
-        <translation>modul &quot;%1&quot; insticksprogram &quot;%2&quot; hittades inte</translation>
+        <translation type="vanished">modul &quot;%1&quot; insticksprogram &quot;%2&quot; hittades inte</translation>
     </message>
     <message>
         <source>module &quot;%1&quot; version %2.%3 is not installed</source>
-        <translation>modul &quot;%1&quot; version %2.%3 är inte installerad</translation>
+        <translation type="vanished">modul &quot;%1&quot; version %2.%3 är inte installerad</translation>
     </message>
     <message>
         <source>module &quot;%1&quot; is not installed</source>
-        <translation>modul &quot;%1&quot; är inte installerad</translation>
+        <translation type="vanished">modul &quot;%1&quot; är inte installerad</translation>
     </message>
     <message>
         <source>&quot;%1&quot;: no such directory</source>
-        <translation>&quot;%1&quot;: ingen sådan katalog</translation>
+        <translation type="vanished">&quot;%1&quot;: ingen sådan katalog</translation>
     </message>
     <message>
         <source>import &quot;%1&quot; has no qmldir and no namespace</source>
-        <translation>import &quot;%1&quot; har inget qmldir och ingen namnrymd</translation>
+        <translation type="vanished">import &quot;%1&quot; har inget qmldir och ingen namnrymd</translation>
     </message>
     <message>
         <source>- %1 is not a namespace</source>
-        <translation>- %1 är inte en namnrymd</translation>
+        <translation type="vanished">- %1 är inte en namnrymd</translation>
     </message>
     <message>
         <source>- nested namespaces not allowed</source>
-        <translation>- nästlade namnrymder tillåts inte</translation>
+        <translation type="vanished">- nästlade namnrymder tillåts inte</translation>
     </message>
     <message>
         <source>local directory</source>
-        <translation>lokal katalog</translation>
+        <translation type="vanished">lokal katalog</translation>
     </message>
     <message>
         <source>is ambiguous. Found in %1 and in %2</source>
-        <translation>är tvetydig. Hittades i %1 och i %2</translation>
+        <translation type="vanished">är tvetydig. Hittades i %1 och i %2</translation>
     </message>
     <message>
         <source>is ambiguous. Found in %1 in version %2.%3 and %4.%5</source>
-        <translation>är tvetydig. Hittades i %1 i version %2.%3 och %4.%5</translation>
+        <translation type="vanished">är tvetydig. Hittades i %1 i version %2.%3 och %4.%5</translation>
     </message>
     <message>
         <source>is instantiated recursively</source>
-        <translation>instantieras rekursivt</translation>
+        <translation type="vanished">instantieras rekursivt</translation>
     </message>
     <message>
         <source>is not a type</source>
-        <translation>är inte en typ</translation>
+        <translation type="vanished">är inte en typ</translation>
     </message>
     <message>
         <source>File name case mismatch for &quot;%2&quot;</source>
-        <translation>Filnamnets stora och små bokstäver stämmer inte för &quot;%2&quot;</translation>
+        <translation type="vanished">Filnamnets stora och små bokstäver stämmer inte för &quot;%2&quot;</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeKeyNavigationAttached</name>
     <message>
         <source>KeyNavigation is only available via attached properties</source>
-        <translation>Nyckelnavigering är bara tillgänglig via anslutna egenskaper</translation>
+        <translation type="vanished">Nyckelnavigering är bara tillgänglig via anslutna egenskaper</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeKeysAttached</name>
     <message>
         <source>Keys is only available via attached properties</source>
-        <translation>Nycklar är bara tillgängliga via anslutna egenskaper</translation>
+        <translation type="vanished">Nycklar är bara tillgängliga via anslutna egenskaper</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeLayoutMirroringAttached</name>
     <message>
         <source>LayoutDirection attached property only works with Items</source>
-        <translation>LayoutDirection ansluten egenskap fungerar bara med objekt</translation>
+        <translation type="vanished">LayoutDirection ansluten egenskap fungerar bara med objekt</translation>
     </message>
     <message>
         <source>LayoutMirroring is only available via attached properties</source>
-        <translation>LayoutMirroring är bara tillgänglig via anslutna egenskaper</translation>
+        <translation type="vanished">LayoutMirroring är bara tillgänglig via anslutna egenskaper</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeListModel</name>
     <message>
         <source>remove: index %1 out of range</source>
-        <translation>remove: index %1 utanför intervall</translation>
+        <translation type="vanished">remove: index %1 utanför intervall</translation>
     </message>
     <message>
         <source>insert: value is not an object</source>
-        <translation>insert: värdet är inte ett objekt</translation>
+        <translation type="vanished">insert: värdet är inte ett objekt</translation>
     </message>
     <message>
         <source>insert: index %1 out of range</source>
-        <translation>insert: index %1 utanför intervall</translation>
+        <translation type="vanished">insert: index %1 utanför intervall</translation>
     </message>
     <message>
         <source>move: out of range</source>
-        <translation>move: utanför intervall</translation>
+        <translation type="vanished">move: utanför intervall</translation>
     </message>
     <message>
         <source>append: value is not an object</source>
-        <translation>append: värdet är inte ett objekt</translation>
+        <translation type="vanished">append: värdet är inte ett objekt</translation>
     </message>
     <message>
         <source>set: value is not an object</source>
-        <translation>set: värdet är inte ett objekt</translation>
+        <translation type="vanished">set: värdet är inte ett objekt</translation>
     </message>
     <message>
         <source>set: index %1 out of range</source>
-        <translation>set: index %1 utanför intervall</translation>
+        <translation type="vanished">set: index %1 utanför intervall</translation>
     </message>
     <message>
         <source>ListElement: cannot contain nested elements</source>
-        <translation>ListElement: kan inte innehålla nästlade element</translation>
+        <translation type="vanished">ListElement: kan inte innehålla nästlade element</translation>
     </message>
     <message>
         <source>ListElement: cannot use reserved &quot;id&quot; property</source>
-        <translation>ListElement: kan inte använda reserverad egenskap &quot;id&quot;</translation>
+        <translation type="vanished">ListElement: kan inte använda reserverad egenskap &quot;id&quot;</translation>
     </message>
     <message>
         <source>ListElement: cannot use script for property value</source>
-        <translation>ListElement: kan inte använda skript för egenskapsvärde</translation>
+        <translation type="vanished">ListElement: kan inte använda skript för egenskapsvärde</translation>
     </message>
     <message>
         <source>ListModel: undefined property &apos;%1&apos;</source>
-        <translation>ListModel: odefinierad egenskap &apos;%1&apos;</translation>
+        <translation type="vanished">ListModel: odefinierad egenskap &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeLoader</name>
     <message>
         <source>Loader does not support loading non-visual elements.</source>
-        <translation>Laddaren stöder inte att ladda icke-visuella element.</translation>
+        <translation type="vanished">Laddaren stöder inte att ladda icke-visuella element.</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeParentAnimation</name>
     <message>
         <source>Unable to preserve appearance under complex transform</source>
-        <translation>Kan inte bevara utseende med komplex transform</translation>
+        <translation type="vanished">Kan inte bevara utseende med komplex transform</translation>
     </message>
     <message>
         <source>Unable to preserve appearance under non-uniform scale</source>
-        <translation>Kan inte bevara utseende med icke likformig skala</translation>
+        <translation type="vanished">Kan inte bevara utseende med icke likformig skala</translation>
     </message>
     <message>
         <source>Unable to preserve appearance under scale of 0</source>
-        <translation>Kan inte bevara utseende med skala 0</translation>
+        <translation type="vanished">Kan inte bevara utseende med skala 0</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeParentChange</name>
     <message>
         <source>Unable to preserve appearance under complex transform</source>
-        <translation>Kan inte bevara utseende med komplex transform</translation>
+        <translation type="vanished">Kan inte bevara utseende med komplex transform</translation>
     </message>
     <message>
         <source>Unable to preserve appearance under non-uniform scale</source>
-        <translation>Kan inte bevara utseende med icke likformig skala</translation>
+        <translation type="vanished">Kan inte bevara utseende med icke likformig skala</translation>
     </message>
     <message>
         <source>Unable to preserve appearance under scale of 0</source>
-        <translation>Kan inte bevara utseende med skala 0</translation>
+        <translation type="vanished">Kan inte bevara utseende med skala 0</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeParser</name>
     <message>
         <source>Illegal unicode escape sequence</source>
-        <translation>Ogiltig Unicode escape-sekvens</translation>
+        <translation type="vanished">Ogiltig Unicode escape-sekvens</translation>
     </message>
     <message>
         <source>Illegal character</source>
-        <translation>Ogiltigt tecken</translation>
+        <translation type="vanished">Ogiltigt tecken</translation>
     </message>
     <message>
         <source>Unclosed string at end of line</source>
-        <translation>Oavslutad sträng vid radslut</translation>
+        <translation type="vanished">Oavslutad sträng vid radslut</translation>
     </message>
     <message>
         <source>Illegal escape squence</source>
@@ -2382,240 +2382,240 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Illegal escape sequence</source>
-        <translation>Ogiltig escape-sekvens</translation>
+        <translation type="vanished">Ogiltig escape-sekvens</translation>
     </message>
     <message>
         <source>Unclosed comment at end of file</source>
-        <translation>Oavslutad kommentar vid filslut</translation>
+        <translation type="vanished">Oavslutad kommentar vid filslut</translation>
     </message>
     <message>
         <source>Illegal syntax for exponential number</source>
-        <translation>Ogiltig syntax för exponentialtal</translation>
+        <translation type="vanished">Ogiltig syntax för exponentialtal</translation>
     </message>
     <message>
         <source>Identifier cannot start with numeric literal</source>
-        <translation>Identifierare kan inte inledas med numeriskt tecken</translation>
+        <translation type="vanished">Identifierare kan inte inledas med numeriskt tecken</translation>
     </message>
     <message>
         <source>Unterminated regular expression literal</source>
-        <translation>Oavslutad literal i reguljärt uttryck</translation>
+        <translation type="vanished">Oavslutad literal i reguljärt uttryck</translation>
     </message>
     <message>
         <source>Invalid regular expression flag &apos;%0&apos;</source>
-        <translation>Ogiltig reguljärt uttrycksflagga &apos;%0&apos;</translation>
+        <translation type="vanished">Ogiltig reguljärt uttrycksflagga &apos;%0&apos;</translation>
     </message>
     <message>
         <source>Unterminated regular expression backslash sequence</source>
-        <translation>Oavslutad bakstreck-sekvens i reguljärt uttryck</translation>
+        <translation type="vanished">Oavslutad bakstreck-sekvens i reguljärt uttryck</translation>
     </message>
     <message>
         <source>Unterminated regular expression class</source>
-        <translation>Oavslutad reguljär uttrycksklass</translation>
+        <translation type="vanished">Oavslutad reguljär uttrycksklass</translation>
     </message>
     <message>
         <source>Syntax error</source>
-        <translation>Syntaxfel</translation>
+        <translation type="vanished">Syntaxfel</translation>
     </message>
     <message>
         <source>Unexpected token `%1&apos;</source>
-        <translation>Oväntad symbol `%1&apos;</translation>
+        <translation type="vanished">Oväntad symbol `%1&apos;</translation>
     </message>
     <message>
         <source>Expected token `%1&apos;</source>
-        <translation>Förväntad symbol `%1&apos;</translation>
+        <translation type="vanished">Förväntad symbol `%1&apos;</translation>
     </message>
     <message>
         <source>Property value set multiple times</source>
-        <translation>Egenskapsvärde angivet flera gånger</translation>
+        <translation type="vanished">Egenskapsvärde angivet flera gånger</translation>
     </message>
     <message>
         <source>Expected type name</source>
-        <translation>Förväntade typnamn</translation>
+        <translation type="vanished">Förväntade typnamn</translation>
     </message>
     <message>
         <source>Invalid import qualifier ID</source>
-        <translation>Ogiltig identifierare för importkvalificering</translation>
+        <translation type="vanished">Ogiltig identifierare för importkvalificering</translation>
     </message>
     <message>
         <source>Reserved name &quot;Qt&quot; cannot be used as an qualifier</source>
-        <translation>Reserverat namn &quot;Qt&quot; kan inte användas som kvalificering</translation>
+        <translation type="vanished">Reserverat namn &quot;Qt&quot; kan inte användas som kvalificering</translation>
     </message>
     <message>
         <source>Script import qualifiers must be unique.</source>
-        <translation>Kvalificering av skriptimport måste vara unik.</translation>
+        <translation type="vanished">Kvalificering av skriptimport måste vara unik.</translation>
     </message>
     <message>
         <source>Script import requires a qualifier</source>
-        <translation>Skriptimport kräver en kvalificering</translation>
+        <translation type="vanished">Skriptimport kräver en kvalificering</translation>
     </message>
     <message>
         <source>Library import requires a version</source>
-        <translation>Biblioteksimport kräver en version</translation>
+        <translation type="vanished">Biblioteksimport kräver en version</translation>
     </message>
     <message>
         <source>Expected parameter type</source>
-        <translation>Förväntade parametertyp</translation>
+        <translation type="vanished">Förväntade parametertyp</translation>
     </message>
     <message>
         <source>Invalid property type modifier</source>
-        <translation>Ogiltig modifierare av egenskapstyp</translation>
+        <translation type="vanished">Ogiltig modifierare av egenskapstyp</translation>
     </message>
     <message>
         <source>Unexpected property type modifier</source>
-        <translation>Oväntad modifierare av egenskapstyp</translation>
+        <translation type="vanished">Oväntad modifierare av egenskapstyp</translation>
     </message>
     <message>
         <source>Expected property type</source>
-        <translation>Förväntade egenskapstyp</translation>
+        <translation type="vanished">Förväntade egenskapstyp</translation>
     </message>
     <message>
         <source>Readonly not yet supported</source>
-        <translation>Skrivskydd stöds inte ännu</translation>
+        <translation type="vanished">Skrivskydd stöds inte ännu</translation>
     </message>
     <message>
         <source>JavaScript declaration outside Script element</source>
-        <translation>Javascript-deklaration utanför Script-element</translation>
+        <translation type="vanished">Javascript-deklaration utanför Script-element</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativePauseAnimation</name>
     <message>
         <source>Cannot set a duration of &lt; 0</source>
-        <translation>Kan inte ställa in varaktighet mindre än 0</translation>
+        <translation type="vanished">Kan inte ställa in varaktighet mindre än 0</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativePixmap</name>
     <message>
         <source>Error decoding: %1: %2</source>
-        <translation>Fel vid avkodning: %1: %2</translation>
+        <translation type="vanished">Fel vid avkodning: %1: %2</translation>
     </message>
     <message>
         <source>Failed to get image from provider: %1</source>
-        <translation>Misslyckades hämta bild från leverantör: %1</translation>
+        <translation type="vanished">Misslyckades hämta bild från leverantör: %1</translation>
     </message>
     <message>
         <source>Cannot open: %1</source>
-        <translation>Kan inte öppna: %1</translation>
+        <translation type="vanished">Kan inte öppna: %1</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativePropertyAnimation</name>
     <message>
         <source>Cannot set a duration of &lt; 0</source>
-        <translation>Kan inte ställa in varaktighet mindre än 0</translation>
+        <translation type="vanished">Kan inte ställa in varaktighet mindre än 0</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativePropertyChanges</name>
     <message>
         <source>PropertyChanges does not support creating state-specific objects.</source>
-        <translation>PropertyChanges stöder inte att skapa tillståndsspecifika objekt.</translation>
+        <translation type="vanished">PropertyChanges stöder inte att skapa tillståndsspecifika objekt.</translation>
     </message>
     <message>
         <source>Cannot assign to non-existent property &quot;%1&quot;</source>
-        <translation>Kan inte tilldela till egenskapen &quot;%1&quot; som inte finns</translation>
+        <translation type="vanished">Kan inte tilldela till egenskapen &quot;%1&quot; som inte finns</translation>
     </message>
     <message>
         <source>Cannot assign to read-only property &quot;%1&quot;</source>
-        <translation>Kan inte tilldela till skrivskyddad egenskap &quot;%1&quot;</translation>
+        <translation type="vanished">Kan inte tilldela till skrivskyddad egenskap &quot;%1&quot;</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeTextInput</name>
     <message>
         <source>Could not load cursor delegate</source>
-        <translation>Kunde inte ladda markörrepresentant</translation>
+        <translation type="vanished">Kunde inte ladda markörrepresentant</translation>
     </message>
     <message>
         <source>Could not instantiate cursor delegate</source>
-        <translation>Kunde inte initiera markörrepresentant</translation>
+        <translation type="vanished">Kunde inte initiera markörrepresentant</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeTypeLoader</name>
     <message>
         <source>Script %1 unavailable</source>
-        <translation>Skriptet %1 är inte tillgängligt</translation>
+        <translation type="vanished">Skriptet %1 är inte tillgängligt</translation>
     </message>
     <message>
         <source>Type %1 unavailable</source>
-        <translation>Typen %1 inte tillgänglig</translation>
+        <translation type="vanished">Typen %1 inte tillgänglig</translation>
     </message>
     <message>
         <source>Namespace %1 cannot be used as a type</source>
-        <translation>Namnrymd %1 kan inte användas som en typ</translation>
+        <translation type="vanished">Namnrymd %1 kan inte användas som en typ</translation>
     </message>
     <message>
         <source>%1 %2</source>
-        <translation>%1 %2</translation>
+        <translation type="vanished">%1 %2</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeVME</name>
     <message>
         <source>Unable to create object of type %1</source>
-        <translation>Kan inte skapa objekt av typen %1</translation>
+        <translation type="vanished">Kan inte skapa objekt av typen %1</translation>
     </message>
     <message>
         <source>Cannot assign value %1 to property %2</source>
-        <translation>Kan inte tilldela värdet %1 till egenskapen %2</translation>
+        <translation type="vanished">Kan inte tilldela värdet %1 till egenskapen %2</translation>
     </message>
     <message>
         <source>Cannot assign object type %1 with no default method</source>
-        <translation>Kan inte tilldela objekttyp %1 utan fördefinierad metod</translation>
+        <translation type="vanished">Kan inte tilldela objekttyp %1 utan fördefinierad metod</translation>
     </message>
     <message>
         <source>Cannot connect mismatched signal/slot %1 %vs. %2</source>
-        <translation>Kan inte ansluta signal %1 och slot %2 som inte matchar</translation>
+        <translation type="vanished">Kan inte ansluta signal %1 och slot %2 som inte matchar</translation>
     </message>
     <message>
         <source>Cannot assign an object to signal property %1</source>
-        <translation>Kan inte tilldela ett objekt till signalegenskap %1</translation>
+        <translation type="vanished">Kan inte tilldela ett objekt till signalegenskap %1</translation>
     </message>
     <message>
         <source>Cannot assign object to list</source>
-        <translation>Kan inte tilldela objekt till lista</translation>
+        <translation type="vanished">Kan inte tilldela objekt till lista</translation>
     </message>
     <message>
         <source>Cannot assign object to interface property</source>
-        <translation>Kan inte tilldela objekt till egenskap i interface</translation>
+        <translation type="vanished">Kan inte tilldela objekt till egenskap i interface</translation>
     </message>
     <message>
         <source>Unable to create attached object</source>
-        <translation>Kan inte skapa anslutet objekt</translation>
+        <translation type="vanished">Kan inte skapa anslutet objekt</translation>
     </message>
     <message>
         <source>Cannot set properties on %1 as it is null</source>
-        <translation>Kan inte ställa in egenskaper för %1 eftersom den är null</translation>
+        <translation type="vanished">Kan inte ställa in egenskaper för %1 eftersom den är null</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeVisualDataModel</name>
     <message>
         <source>Delegate component must be Item type.</source>
-        <translation>Representantkomponent måste vara objekttyp.</translation>
+        <translation type="vanished">Representantkomponent måste vara objekttyp.</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeXmlListModel</name>
     <message>
         <source>Qt was built without support for xmlpatterns</source>
-        <translation>Qt byggdes utan stöd för xmlpatterns</translation>
+        <translation type="vanished">Qt byggdes utan stöd för xmlpatterns</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeXmlListModelRole</name>
     <message>
         <source>An XmlRole query must not start with &apos;/&apos;</source>
-        <translation>En förfrågan till en XmlRole får inte börja med &apos;/&apos;</translation>
+        <translation type="vanished">En förfrågan till en XmlRole får inte börja med &apos;/&apos;</translation>
     </message>
 </context>
 <context>
     <name>QDeclarativeXmlRoleList</name>
     <message>
         <source>An XmlListModel query must start with &apos;/&apos; or &quot;//&quot;</source>
-        <translation>En förfrågan till en XmlListModel måste börja med &apos;/&apos; eller &quot;//&quot;</translation>
+        <translation type="vanished">En förfrågan till en XmlListModel måste börja med &apos;/&apos; eller &quot;//&quot;</translation>
     </message>
 </context>
 <context>
@@ -2637,47 +2637,47 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Save</source>
-        <translation>Spara</translation>
+        <translation type="obsolete">Spara</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Spara</translation>
+        <translation type="obsolete">&amp;Spara</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Öppna</translation>
+        <translation type="vanished">Öppna</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <translation type="obsolete">Avbryt</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Avbryt</translation>
+        <translation type="obsolete">&amp;Avbryt</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="obsolete">Stäng</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>Stän&amp;g</translation>
+        <translation type="obsolete">&amp;Stäng</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Verkställ</translation>
+        <translation type="vanished">Verkställ</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Återställ</translation>
+        <translation type="vanished">Återställ</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Hjälp</translation>
+        <translation type="vanished">Hjälp</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Spara inte</translation>
+        <translation type="vanished">Spara inte</translation>
     </message>
     <message>
         <source>Close without Saving</source>
@@ -2685,47 +2685,47 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Förkasta</translation>
+        <translation type="vanished">Förkasta</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Ja</translation>
+        <translation type="vanished">&amp;Ja</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Ja till &amp;alla</translation>
+        <translation type="vanished">Ja till &amp;alla</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Nej</translation>
+        <translation type="vanished">&amp;Nej</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>N&amp;ej till alla</translation>
+        <translation type="vanished">N&amp;ej till alla</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Spara alla</translation>
+        <translation type="vanished">Spara alla</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Avbryt</translation>
+        <translation type="vanished">Avbryt</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Försök igen</translation>
+        <translation type="vanished">Försök igen</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Ignorera</translation>
+        <translation type="vanished">Ignorera</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Återställ standardvärden</translation>
+        <translation type="vanished">Återställ standardvärden</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="obsolete">&amp;OK</translation>
     </message>
 </context>
 <context>
@@ -2863,7 +2863,8 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
+        <translation type="unfinished">Stäng</translation>
     </message>
     <message>
         <source>Dock</source>
@@ -2871,7 +2872,8 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Float</source>
-        <translation>Flyt</translation>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Undocks and re-attaches the dock widget</source>
@@ -2886,11 +2888,11 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Mer</translation>
+        <translation type="obsolete">Mer</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Mindre</translation>
+        <translation type="obsolete">Mindre</translation>
     </message>
 </context>
 <context>
@@ -2920,7 +2922,7 @@ Press ESC to cancel</source>
     <name>QFile</name>
     <message>
         <source>Destination file exists</source>
-        <translation>Målfilen finns</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Will not rename sequential file using block copy</source>
@@ -2928,23 +2930,23 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Cannot remove source file</source>
-        <translation>Kan inte ta bort källfil</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot open %1 for input</source>
-        <translation>Kan inte öppna %1 för inmatning</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot open for output</source>
-        <translation>Kan inte öppna för utmatning</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Failure to write block</source>
-        <translation>Misslyckades skriva block</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot create %1 for output</source>
-        <translation>Kan inte skapa %1 för utmatning</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Destination file is the same file.</source>
@@ -3062,7 +3064,7 @@ Vill du ta bort den ändå?</translation>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Är du säker på att du vill ta bort \&quot;%1\&quot;?</translation>
+        <translation type="vanished">Är du säker på att du vill ta bort \&quot;%1\&quot;?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
@@ -3070,11 +3072,11 @@ Vill du ta bort den ändå?</translation>
     </message>
     <message>
         <source>Recent Places</source>
-        <translation>Senaste platser</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>All Files (*.*)</source>
-        <translation>Alla filer (*.*)</translation>
+        <translation type="vanished">Alla filer (*.*)</translation>
     </message>
     <message>
         <source>Save As</source>
@@ -3101,7 +3103,7 @@ Vill du ta bort den ändå?</translation>
     <message>
         <source>Alias</source>
         <comment>Mac OS X Finder</comment>
-        <translation>Alias</translation>
+        <translation type="vanished">Alias</translation>
     </message>
     <message>
         <source>Shortcut</source>
@@ -3114,43 +3116,43 @@ Vill du ta bort den ändå?</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Hitta katalog</translation>
+        <translation type="unfinished">Hitta katalog</translation>
     </message>
     <message>
         <source>Show </source>
-        <translation>Visa </translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Framåt</translation>
+        <translation type="unfinished">Framåt</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Ny mapp</translation>
+        <translation type="unfinished">Ny mapp</translation>
     </message>
     <message>
         <source>&amp;New Folder</source>
-        <translation>&amp;Ny mapp</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Choose</source>
-        <translation>&amp;Välj</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation>Ta bort</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Fil&amp;namn:</translation>
+        <translation type="unfinished">Fil&amp;namn:</translation>
     </message>
     <message>
         <source>Look in:</source>
-        <translation>Leta i:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Skapa ny mapp</translation>
+        <translation type="unfinished">Skapa ny mapp</translation>
     </message>
     <message>
         <source>Go back</source>
@@ -3235,61 +3237,61 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QFileSystemModel</name>
     <message>
         <source>%1 TB</source>
-        <translation>%1 TB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 GB</source>
-        <translation>%1 GB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 MB</source>
-        <translation>%1 MB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 KB</source>
-        <translation>%1 KB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 bytes</source>
-        <translation>%1 byte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid filename</source>
-        <translation>Ogiltigt filnamn</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
-        <translation>&lt;b&gt;Namnet &quot;%1&quot; kan inte användas.&lt;/b&gt;&lt;p&gt;Försök med ett annat namn, mindre antal tecken eller utan skiljetecken.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Namn</translation>
+        <translation type="unfinished">Namn</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Storlek</translation>
+        <translation type="unfinished">Storlek</translation>
     </message>
     <message>
         <source>Kind</source>
         <comment>Match OS X Finder</comment>
-        <translation>Sort</translation>
+        <translation type="unfinished">Sort</translation>
     </message>
     <message>
         <source>Type</source>
         <comment>All other platforms</comment>
-        <translation>Typ</translation>
+        <translation type="unfinished">Typ</translation>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation>Ändringsdatum</translation>
+        <translation type="unfinished">Ändringsdatum</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation>Min dator</translation>
+        <translation type="unfinished">Min dator</translation>
     </message>
     <message>
         <source>Computer</source>
-        <translation>Dator</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 byte(s)</source>
@@ -3300,163 +3302,164 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QFontDatabase</name>
     <message>
         <source>Bold</source>
-        <translation>Fet</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation>Halvfet</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Black</source>
-        <translation>Svart</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Demi</source>
-        <translation>Halv</translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Light</source>
-        <translation>Ljus</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Italic</source>
-        <translation>Kursiv</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Oblique</source>
-        <translation>Oblik</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Any</source>
-        <translation>Alla</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Latin</source>
-        <translation>Latinska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Greek</source>
-        <translation>Grekiska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cyrillic</source>
-        <translation>Kyrilliska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Armenian</source>
-        <translation>Armeniska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Hebrew</source>
-        <translation>Hebreiska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Arabic</source>
-        <translation>Arabiska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Syriac</source>
-        <translation>Syrianska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Thaana</source>
-        <translation>Thaana</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation>Devanagari</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Bengali</source>
-        <translation>Bengaliska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation>Gurmukhi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation>Gujarati</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation>Oriya</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Tamil</source>
-        <translation>Tamilska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation>Telugu</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation>Kannada</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation>Malayalam</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation>Sinhala</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Thai</source>
-        <translation>Thailändska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Lao</source>
-        <translation>Laotiska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Tibetan</source>
-        <translation>Tibetanska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation>Myanmar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Georgian</source>
-        <translation>Georgiska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation>Khmeriska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
-        <translation>Kinesiska (förenklad)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Traditional Chinese</source>
-        <translation>Kinesiska (traditionell)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Japanese</source>
-        <translation>Japanska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Korean</source>
-        <translation>Koreanska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Vietnamese</source>
-        <translation>Vietnamesiska</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Symbol</source>
-        <translation>Symbol</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation>Ogham</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation>Runskrift</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>N&apos;Ko</source>
@@ -3549,7 +3552,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
-        <translation>Tidsgräns gick ut vid anslutning till värden %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connected to host %1</source>
@@ -3557,7 +3560,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>Anslutning vägrades för dataanslutning</translation>
+        <translation type="vanished">Anslutning vägrades för dataanslutning</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3623,19 +3626,19 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Värden %1 hittades</translation>
+        <translation type="vanished">Värden %1 hittades</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Anslutningen till %1 stängdes</translation>
+        <translation type="vanished">Anslutningen till %1 stängdes</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Värden hittades</translation>
+        <translation type="vanished">Värden hittades</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Ansluten till värden</translation>
+        <translation type="vanished">Ansluten till värden</translation>
     </message>
     <message>
         <source>Data Connection refused</source>
@@ -3715,23 +3718,23 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>Okänt fel</translation>
+        <translation type="vanished">Okänt fel</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>Begäran avbröts</translation>
+        <translation type="vanished">Begäran avbröts</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>Ingen server inställd att ansluta till</translation>
+        <translation type="vanished">Ingen server inställd att ansluta till</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>Fel innehållslängd</translation>
+        <translation type="vanished">Fel innehållslängd</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>Servern stängde oväntat anslutningen</translation>
+        <translation type="vanished">Servern stängde oväntat anslutningen</translation>
     </message>
     <message>
         <source>Connection refused (or timed out)</source>
@@ -3763,35 +3766,35 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>HTTP-begäran misslyckades</translation>
+        <translation type="vanished">HTTP-begäran misslyckades</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>Ogiltig HTTP-svarshuvud</translation>
+        <translation type="vanished">Ogiltig HTTP-svarshuvud</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>Ogiltig HTTP chunked body</translation>
+        <translation type="vanished">Ogiltig HTTP chunked body</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Värden %1 hittades</translation>
+        <translation type="vanished">Värden %1 hittades</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Ansluten till värden %1</translation>
+        <translation type="vanished">Ansluten till värden %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Anslutningen till %1 stängdes</translation>
+        <translation type="vanished">Anslutningen till %1 stängdes</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Värden hittades</translation>
+        <translation type="vanished">Värden hittades</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Ansluten till värd</translation>
+        <translation type="vanished">Ansluten till värd</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -3799,23 +3802,23 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
-        <translation>Proxy kräver autentisering</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translation>Värden kräver autentisering</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translation>Data skadat</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation>Okänt protokoll angivet</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translation>SSL-handskakning misslyckades</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Too many redirects</source>
@@ -3834,39 +3837,39 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QHttpSocketEngine</name>
     <message>
         <source>Did not receive HTTP response from proxy</source>
-        <translation>Tog inte emot HTTP-svar från proxy</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error parsing authentication request from proxy</source>
-        <translation>Fel vid tolkning av behörighetsbegäran från proxy</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Autentisering krävs</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy denied connection</source>
-        <translation>Anslutning till proxy vägrades</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error communicating with HTTP proxy</source>
-        <translation>Fel vid kommunikation med HTTP-proxy</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy server not found</source>
-        <translation>Proxy-server hittades inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy connection refused</source>
-        <translation>Anslutning till proxy vägrades</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy server connection timed out</source>
-        <translation>Anslutningen till proxy överskred tidsgräns</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy connection closed prematurely</source>
-        <translation>Anslutning till proxy stängdes i förtid</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4032,34 +4035,34 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="vanished">XIM</translation>
     </message>
     <message>
         <source>FEP</source>
-        <translation>FEP</translation>
+        <translation type="vanished">FEP</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>XIM-inmatningsmetod</translation>
+        <translation type="vanished">XIM-inmatningsmetod</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Windows-inmatningsmetod</translation>
+        <translation type="vanished">Windows-inmatningsmetod</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Mac OS X-inmatningsmetod</translation>
+        <translation type="vanished">Mac OS X-inmatningsmetod</translation>
     </message>
     <message>
         <source>S60 FEP input method</source>
-        <translation>S60 FEP-inmatningsmetod</translation>
+        <translation type="vanished">S60 FEP-inmatningsmetod</translation>
     </message>
 </context>
 <context>
     <name>QInputDialog</name>
     <message>
         <source>Enter a value:</source>
-        <translation>Ange ett värde:</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4153,15 +4156,15 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translation>Det delade biblioteket hittades inte.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
-        <translation>Filen \&quot;%1\&quot; är inte ett giltig Qt-insticksprogram.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
-        <translation>Insticksprogrammet \&quot;%1\&quot; använder ett inkompatibelt Qt-bibliotek. (%2.%3.%4) [%5]</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
@@ -4169,23 +4172,23 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation>Insticksmodulen \&quot;%1\&quot; använder ett inkompatibelt Qt-bibliotek. (Kan inte blanda bibliotek för debug och release.)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Okänt fel</translation>
+        <translation type="unfinished">Okänt fel</translation>
     </message>
     <message>
         <source>Cannot load library %1: %2</source>
-        <translation>Kan inte ladda biblioteket %1: %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot unload library %1: %2</source>
-        <translation>Kan inte ladda ur biblioteket %1: %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot resolve symbol &quot;%1&quot; in %2: %3</source>
-        <translation>Kan inte upplösa symbolen &quot;%1&quot; i %2: %3</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not an ELF object (%2)</source>
@@ -4283,66 +4286,66 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QLocalServer</name>
     <message>
         <source>%1: Name error</source>
-        <translation>%1: Namnfel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Permission denied</source>
-        <translation>%1: Återkomst nekad</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Address in use</source>
-        <translation>%1: Adressen används redan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation>%1: Okänt fel %2</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation>%1: Anslutning nekad</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
-        <translation>%1: Fjärrvärden stängde</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Invalid name</source>
-        <translation>%1: Ogiltigt namn</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Socket access error</source>
-        <translation>%1: Uttagsåtkomstfel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Socket resource error</source>
-        <translation>%1: Resursfel i uttag</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Socket operation timed out</source>
-        <translation>%1: Uttagsåtgärd översteg tidsgränsen</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Datagram too large</source>
-        <translation>%1: Datagram för stort</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Connection error</source>
-        <translation>%1: Anslutningsfel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: The socket operation is not supported</source>
-        <translation>%1: Uttagsåtgärden stöds inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Unknown error</source>
-        <translation>%1: Okänt fel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation>%1: Okänt fel %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: Operation not permitted when socket is in this state</source>
@@ -4361,7 +4364,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Kunde inte öppna databasen \&quot;</translation>
+        <translation type="vanished">Kunde inte öppna databasen \&quot;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
@@ -4428,108 +4431,108 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Unable to execute next query</source>
-        <translation>Kunde inte köra nästa frågesats</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to store next result</source>
-        <translation>Kunde inte lagra nästa resultat</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QMdiArea</name>
     <message>
         <source>(Untitled)</source>
-        <translation>(Namnlös)</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QMdiSubWindow</name>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="unfinished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="unfinished">Stäng</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimera</translation>
+        <translation type="unfinished">Minimera</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Återställ nedåt</translation>
+        <translation type="unfinished">Återställ nedåt</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation>Åte&amp;rställ</translation>
+        <translation type="unfinished">Åte&amp;rställ</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Flytta</translation>
+        <translation type="unfinished">&amp;Flytta</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Storlek</translation>
+        <translation type="unfinished">&amp;Storlek</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Mi&amp;nimera</translation>
+        <translation type="unfinished">Mi&amp;nimera</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Ma&amp;ximera</translation>
+        <translation type="unfinished">Ma&amp;ximera</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Alltid övers&amp;t</translation>
+        <translation type="unfinished">Stanna kvar övers&amp;t</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Stäng</translation>
+        <translation type="unfinished">&amp;Stäng</translation>
     </message>
     <message>
         <source>- [%1]</source>
-        <translation>- [%1]</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Maximera</translation>
+        <translation type="unfinished">Maximera</translation>
     </message>
     <message>
         <source>Unshade</source>
-        <translation>Avskugga</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Shade</source>
-        <translation>Skugga</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Restore</source>
-        <translation>Återställ</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Hjälp</translation>
+        <translation type="unfinished">Hjälp</translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation>Meny</translation>
+        <translation type="unfinished">Meny</translation>
     </message>
 </context>
 <context>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="vanished">Stäng</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Öppna</translation>
+        <translation type="vanished">Öppna</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Kör</translation>
+        <translation type="vanished">Kör</translation>
     </message>
 </context>
 <context>
@@ -4584,7 +4587,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Actions</source>
-        <translation>Åtgärder</translation>
+        <translation type="vanished">Åtgärder</translation>
     </message>
 </context>
 <context>
@@ -4603,7 +4606,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is available under three different licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of the GNU LGPL version 2.1 or GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU LGPL version 2.1 is appropriate for the development of Qt applications (proprietary or open source) provided you can comply with the terms and conditions of the GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU General Public License version 3.0 is appropriate for the development of Qt applications where you wish to use such applications in combination with software subject to the terms of the GNU GPL version 3.0 or where you are otherwise willing to comply with the terms of the GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://qt.nokia.com/products/licensing&quot;&gt;qt.nokia.com/products/licensing&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://qt.nokia.com/&quot;&gt;qt.nokia.com&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Qt är ett C++-programbibliotek för programutveckling på flera plattformar.&lt;/p&gt;&lt;p&gt;Qt gör det möjligt att använda samma källkod för MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, och alla större kommersiella Unix-versioner. Qt finns också tillgängligt för inbäddade enheter som Qt for Embedded Linux och Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt är tillgängligt med tre olika licensalternativ skapade för att uppfylla behoven hos våra olika användare.&lt;/p&gt;&lt;p&gt;Qt licensierat enligt vårt kommersiella licensavtal är lämpligt för utveckling av privat eller kommersiell programvara, där man inte vill dela någon källkod med tredje part eller på annat sätt inte kan uppfylla villkoren i GNU LGPL version 2.1 eller GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Qt licensierat enligt GNU LGPL version 2.1 är lämpligt för utveckling av Qt-program (privata eller med öppen källkod) under förutsättning att man kan uppfylla villkoren och kraven i GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Qt licensierat enligt GNU General Public License version 3.0 är lämpligt för utveckling av Qt-program där man vill använda sådana program i kombination med programvara som lyder under villkoren i GNU GPL version 3.0 eller där man i övrigt är beredd att uppfylla villkoren i GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Se &lt;a href=&quot;http://qt.nokia.com/products/licensing&quot;&gt;qt.nokia.com/products/licensing&lt;/a&gt; för en översikt av Qt licensiering.&lt;/p&gt;&lt;p&gt;Copyright © 2010 Nokia Corporation och/eller dess dotterbolag.&lt;/p&gt;&lt;p&gt;Qt är en produkt från Nokia. Se &lt;a href=&quot;http://qt.nokia.com/&quot;&gt;qt.nokia.com&lt;/a&gt; för mer information.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Qt är ett C++-programbibliotek för programutveckling på flera plattformar.&lt;/p&gt;&lt;p&gt;Qt gör det möjligt att använda samma källkod för MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, och alla större kommersiella Unix-versioner. Qt finns också tillgängligt för inbäddade enheter som Qt for Embedded Linux och Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt är tillgängligt med tre olika licensalternativ skapade för att uppfylla behoven hos våra olika användare.&lt;/p&gt;&lt;p&gt;Qt licensierat enligt vårt kommersiella licensavtal är lämpligt för utveckling av privat eller kommersiell programvara, där man inte vill dela någon källkod med tredje part eller på annat sätt inte kan uppfylla villkoren i GNU LGPL version 2.1 eller GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Qt licensierat enligt GNU LGPL version 2.1 är lämpligt för utveckling av Qt-program (privata eller med öppen källkod) under förutsättning att man kan uppfylla villkoren och kraven i GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Qt licensierat enligt GNU General Public License version 3.0 är lämpligt för utveckling av Qt-program där man vill använda sådana program i kombination med programvara som lyder under villkoren i GNU GPL version 3.0 eller där man i övrigt är beredd att uppfylla villkoren i GNU GPL version 3.0.&lt;/p&gt;&lt;p&gt;Se &lt;a href=&quot;http://qt.nokia.com/products/licensing&quot;&gt;qt.nokia.com/products/licensing&lt;/a&gt; för en översikt av Qt licensiering.&lt;/p&gt;&lt;p&gt;Copyright © 2010 Nokia Corporation och/eller dess dotterbolag.&lt;/p&gt;&lt;p&gt;Qt är en produkt från Nokia. Se &lt;a href=&quot;http://qt.nokia.com/&quot;&gt;qt.nokia.com&lt;/a&gt; för mer information.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>About Qt</source>
@@ -4619,7 +4622,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Hide Details...</source>
-        <translation>Dölj detaljer...</translation>
+        <translation>Dölj detaljer,,,</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
@@ -4642,18 +4645,18 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>Välj inmatningsmetod</translation>
+        <translation type="vanished">Välj inmatningsmetod</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>Växlare för flera inmatningsmetoder</translation>
+        <translation type="vanished">Växlare för flera inmatningsmetoder</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>Växlare för flera inmatningsmetoder som använder sammanhangsmenyn för textwidgar</translation>
+        <translation type="vanished">Växlare för flera inmatningsmetoder som använder sammanhangsmenyn för textwidgar</translation>
     </message>
 </context>
 <context>
@@ -4760,7 +4763,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
-        <translation>Proxytypen är ogiltig för denna åtgärd</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Temporary error</source>
@@ -4779,14 +4782,14 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QNetworkAccessCacheBackend</name>
     <message>
         <source>Error opening %1</source>
-        <translation>Fel när %1 skulle öppnas</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QNetworkAccessDataBackend</name>
     <message>
         <source>Operation not supported on %1</source>
-        <translation>Åtgärden stöds inte på %1</translation>
+        <translation type="vanished">Åtgärden stöds inte på %1</translation>
     </message>
     <message>
         <source>Invalid URI: %1</source>
@@ -4812,46 +4815,46 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QNetworkAccessFileBackend</name>
     <message>
         <source>Request for opening non-local file %1</source>
-        <translation>Begäran om öppning av icke-lokala filen %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error opening %1: %2</source>
-        <translation>Fel vid öppnade av %1: %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Skrivfel vid skrivning till %1: %2</translation>
+        <translation type="unfinished">Skrivfel vid skrivning till %1: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
-        <translation>Kan inte öppna %1: Sökvägen är en katalog</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation>Läsfel vid läsning från %1: %2</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QNetworkAccessFtpBackend</name>
     <message>
         <source>No suitable proxy found</source>
-        <translation>Någon lämplig proxy hittades inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot open %1: is a directory</source>
-        <translation>Kan inte öppna %1: är en katalog</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Logging in to %1 failed: authentication required</source>
-        <translation>Inloggning mot %1 misslyckades: autentisering krävs</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error while downloading %1: %2</source>
-        <translation>Fel vid hämtning av %1: %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error while uploading %1: %2</source>
-        <translation>Fel vid sändning av %1: %2</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4865,7 +4868,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QNetworkReply</name>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
-        <translation>Protokollet &quot;%1&quot; är okänt</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Network session error.</source>
@@ -4907,7 +4910,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation>Åtgärden avbröts</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4921,11 +4924,11 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QNetworkSessionPrivateImpl</name>
     <message>
         <source>Roaming error</source>
-        <translation>Roaming-fel</translation>
+        <translation type="vanished">Roaming-fel</translation>
     </message>
     <message>
         <source>Session aborted by user or system</source>
-        <translation>Session avbruten av användaren eller systemet</translation>
+        <translation type="vanished">Session avbruten av användaren eller systemet</translation>
     </message>
     <message>
         <source>The specified configuration cannot be used.</source>
@@ -4933,7 +4936,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Unidentified Error</source>
-        <translation>Oidentifierat fel</translation>
+        <translation type="vanished">Oidentifierat fel</translation>
     </message>
     <message>
         <source>Unknown session error.</source>
@@ -4961,19 +4964,19 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
-        <translation>Kunde inte initiera</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Kunde inte påbörja transaktion</translation>
+        <translation type="unfinished">Kunde inte påbörja transaktion</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Kunde inte verkställa transaktion</translation>
+        <translation type="unfinished">Kunde inte verkställa transaktion</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Kunde inte rulla tillbaka transaktion</translation>
+        <translation type="unfinished">Kunde inte rulla tillbaka transaktion</translation>
     </message>
 </context>
 <context>
@@ -5023,7 +5026,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation type="obsolete">Kunde inte ansluta - Drivrutinen har inte stöd för all nödvändig funktionalitet</translation>
+        <translation type="vanished">Kunde inte ansluta - Drivrutinen har inte stöd för all nödvändig funktionalitet</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
@@ -5070,38 +5073,38 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translation>Kunde inte hämta sista</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation>Kunde inte hämta</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation>Kunde inte hämta första</translation>
+        <translation type="unfinished">Kunde inte hämta första</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translation>Kunde inte hämta föregående</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QObject</name>
     <message>
         <source>Home</source>
-        <translation type="obsolete">Hem</translation>
+        <translation type="obsolete">Home</translation>
     </message>
     <message>
         <source>PulseAudio Sound Server</source>
-        <translation>PulseAudio ljudserver</translation>
+        <translation type="vanished">PulseAudio ljudserver</translation>
     </message>
     <message>
         <source>&quot;%1&quot; duplicates a previous role name and will be disabled.</source>
-        <translation>&quot;%1&quot; duplicerar ett tidigare rollnamn och kommer att inaktiveras.</translation>
+        <translation type="vanished">&quot;%1&quot; duplicerar ett tidigare rollnamn och kommer att inaktiveras.</translation>
     </message>
     <message>
         <source>invalid query: &quot;%1&quot;</source>
-        <translation>ogiltig förfrågan: &quot;%1&quot;</translation>
+        <translation type="vanished">ogiltig förfrågan: &quot;%1&quot;</translation>
     </message>
     <message>
         <source>Operation not supported on %1</source>
@@ -5136,11 +5139,11 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>Namn</translation>
+        <translation type="obsolete">Namn</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Värde</translation>
+        <translation type="obsolete">Värde</translation>
     </message>
 </context>
 <context>
@@ -5163,11 +5166,11 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation>Kunde inte prenumerera</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translation>Kunde inte avsluta prenumeration</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5178,86 +5181,86 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Kunde inte förbereda frågesats</translation>
+        <translation type="unfinished">Kunde inte förbereda frågesats</translation>
     </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
     <message>
         <source>Millimeters (mm)</source>
-        <translation>Millimeter (mm)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Inches (in)</source>
-        <translation>Tum (in)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Points (pt)</source>
-        <translation>Punkter (pt)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Form</source>
-        <translation>Format</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Paper</source>
-        <translation>Papper</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation>Sidstorlek:</translation>
+        <translation type="unfinished">Sidstorlek:</translation>
     </message>
     <message>
         <source>Width:</source>
-        <translation>Bredd:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Height:</source>
-        <translation>Höjd:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation>Papperskälla:</translation>
+        <translation type="unfinished">Papperskälla:</translation>
     </message>
     <message>
         <source>Orientation</source>
-        <translation>Orientering</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation>Stående</translation>
+        <translation type="unfinished">Stående</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation>Liggande</translation>
+        <translation type="unfinished">Liggande</translation>
     </message>
     <message>
         <source>Reverse landscape</source>
-        <translation>Omvänt liggande</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Reverse portrait</source>
-        <translation>Omvänt porträtt</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Margins</source>
-        <translation>Marginaler</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>top margin</source>
-        <translation>övermarginal</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>left margin</source>
-        <translation>Vänstermarginal</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>right margin</source>
-        <translation>högermarginal</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>bottom margin</source>
-        <translation>nedermarginal</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Page Layout</source>
@@ -5879,26 +5882,26 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <name>QPluginLoader</name>
     <message>
         <source>The plugin was not loaded.</source>
-        <translation>Insticksprogrammet lästes inte in.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Okänt fel</translation>
+        <translation type="unfinished">Okänt fel</translation>
     </message>
 </context>
 <context>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>lokalt ansluten</translation>
+        <translation type="vanished">lokalt ansluten</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Alias: %1</translation>
+        <translation type="vanished">Alias: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>okänt</translation>
+        <translation type="vanished">okänt</translation>
     </message>
     <message>
         <source>File exists</source>
@@ -5910,123 +5913,123 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>A0 (841 x 1189 mm)</source>
-        <translation>A0 (841 x 1189 mm)</translation>
+        <translation type="vanished">A0 (841 x 1189 mm)</translation>
     </message>
     <message>
         <source>A1 (594 x 841 mm)</source>
-        <translation>A1 (594 x 841 mm)</translation>
+        <translation type="vanished">A1 (594 x 841 mm)</translation>
     </message>
     <message>
         <source>A2 (420 x 594 mm)</source>
-        <translation>A2 (420 x 594 mm)</translation>
+        <translation type="vanished">A2 (420 x 594 mm)</translation>
     </message>
     <message>
         <source>A3 (297 x 420 mm)</source>
-        <translation>A3 (297 x 420 mm)</translation>
+        <translation type="vanished">A3 (297 x 420 mm)</translation>
     </message>
     <message>
         <source>A4 (210 x 297 mm, 8.26 x 11.7 inches)</source>
-        <translation>A4 (210 x 297 mm, 8.26 x 11.7 tum)</translation>
+        <translation type="vanished">A4 (210 x 297 mm, 8.26 x 11.7 tum)</translation>
     </message>
     <message>
         <source>A5 (148 x 210 mm)</source>
-        <translation>A5 (148 x 210 mm)</translation>
+        <translation type="vanished">A5 (148 x 210 mm)</translation>
     </message>
     <message>
         <source>A6 (105 x 148 mm)</source>
-        <translation>A6 (105 x 148 mm)</translation>
+        <translation type="vanished">A6 (105 x 148 mm)</translation>
     </message>
     <message>
         <source>A7 (74 x 105 mm)</source>
-        <translation>A7 (74 x 105 mm)</translation>
+        <translation type="vanished">A7 (74 x 105 mm)</translation>
     </message>
     <message>
         <source>A8 (52 x 74 mm)</source>
-        <translation>A8 (52 x 74 mm)</translation>
+        <translation type="vanished">A8 (52 x 74 mm)</translation>
     </message>
     <message>
         <source>A9 (37 x 52 mm)</source>
-        <translation>A9 (37 x 52 mm)</translation>
+        <translation type="vanished">A9 (37 x 52 mm)</translation>
     </message>
     <message>
         <source>B0 (1000 x 1414 mm)</source>
-        <translation>B0 (1000 x 1414 mm)</translation>
+        <translation type="vanished">B0 (1000 x 1414 mm)</translation>
     </message>
     <message>
         <source>B1 (707 x 1000 mm)</source>
-        <translation>B1 (707 x 1000 mm)</translation>
+        <translation type="vanished">B1 (707 x 1000 mm)</translation>
     </message>
     <message>
         <source>B2 (500 x 707 mm)</source>
-        <translation>B2 (500 x 707 mm)</translation>
+        <translation type="vanished">B2 (500 x 707 mm)</translation>
     </message>
     <message>
         <source>B3 (353 x 500 mm)</source>
-        <translation>B3 (353 x 500 mm)</translation>
+        <translation type="vanished">B3 (353 x 500 mm)</translation>
     </message>
     <message>
         <source>B4 (250 x 353 mm)</source>
-        <translation>B4 (250 x 353 mm)</translation>
+        <translation type="vanished">B4 (250 x 353 mm)</translation>
     </message>
     <message>
         <source>B5 (176 x 250 mm, 6.93 x 9.84 inches)</source>
-        <translation>B5 (176 x 250 mm, 6.93 x 9.84 tum)</translation>
+        <translation type="vanished">B5 (176 x 250 mm, 6.93 x 9.84 tum)</translation>
     </message>
     <message>
         <source>B6 (125 x 176 mm)</source>
-        <translation>B6 (125 x 176 mm)</translation>
+        <translation type="vanished">B6 (125 x 176 mm)</translation>
     </message>
     <message>
         <source>B7 (88 x 125 mm)</source>
-        <translation>B7 (88 x 125 mm)</translation>
+        <translation type="vanished">B7 (88 x 125 mm)</translation>
     </message>
     <message>
         <source>B8 (62 x 88 mm)</source>
-        <translation>B8 (62 x 88 mm)</translation>
+        <translation type="vanished">B8 (62 x 88 mm)</translation>
     </message>
     <message>
         <source>B9 (44 x 62 mm)</source>
-        <translation>B9 (44 x 62 mm)</translation>
+        <translation type="vanished">B9 (44 x 62 mm)</translation>
     </message>
     <message>
         <source>B10 (31 x 44 mm)</source>
-        <translation>B10 (31 x 44 mm)</translation>
+        <translation type="vanished">B10 (31 x 44 mm)</translation>
     </message>
     <message>
         <source>C5E (163 x 229 mm)</source>
-        <translation>C5E (163 x 229 mm)</translation>
+        <translation type="vanished">C5E (163 x 229 mm)</translation>
     </message>
     <message>
         <source>DLE (110 x 220 mm)</source>
-        <translation>DLE (110 x 220 mm)</translation>
+        <translation type="vanished">DLE (110 x 220 mm)</translation>
     </message>
     <message>
         <source>Executive (7.5 x 10 inches, 191 x 254 mm)</source>
-        <translation>Executive (7.5 x 10 tum, 191 x 254 mm)</translation>
+        <translation type="vanished">Executive (7.5 x 10 tum, 191 x 254 mm)</translation>
     </message>
     <message>
         <source>Folio (210 x 330 mm)</source>
-        <translation>Folio (210 x 330 mm)</translation>
+        <translation type="vanished">Folio (210 x 330 mm)</translation>
     </message>
     <message>
         <source>Ledger (432 x 279 mm)</source>
-        <translation>Ledger (432 x 279 mm)</translation>
+        <translation type="vanished">Ledger (432 x 279 mm)</translation>
     </message>
     <message>
         <source>Legal (8.5 x 14 inches, 216 x 356 mm)</source>
-        <translation>Legal (8.5 x 14 tum, 216 x 356 mm)</translation>
+        <translation type="vanished">Legal (8.5 x 14 tum, 216 x 356 mm)</translation>
     </message>
     <message>
         <source>Letter (8.5 x 11 inches, 216 x 279 mm)</source>
-        <translation>Letter (8.5 x 11 tum, 216 x 279 mm)</translation>
+        <translation type="vanished">Letter (8.5 x 11 tum, 216 x 279 mm)</translation>
     </message>
     <message>
         <source>Tabloid (279 x 432 mm)</source>
-        <translation>Tabloid (279 x 432 mm)</translation>
+        <translation type="vanished">Tabloid (279 x 432 mm)</translation>
     </message>
     <message>
         <source>US Common #10 Envelope (105 x 241 mm)</source>
-        <translation>US Common #10 Envelope (105 x 241 mm)</translation>
+        <translation type="vanished">US Common #10 Envelope (105 x 241 mm)</translation>
     </message>
     <message>
         <source>Print selection</source>
@@ -6034,7 +6037,7 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Print current page</source>
-        <translation>Skriv ut aktuell sida</translation>
+        <translation type="vanished">Skriv ut aktuell sida</translation>
     </message>
     <message>
         <source>OK</source>
@@ -6050,11 +6053,11 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation>Skriv ut intervall</translation>
+        <translation type="vanished">Skriv ut intervall</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation>Skriv ut alla</translation>
+        <translation type="vanished">Skriv ut alla</translation>
     </message>
     <message>
         <source>File %1 is not writable.
@@ -6071,24 +6074,23 @@ Vill du skriva över den?</translation>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
-        <translation>%1 är en katalog.
-Välj ett annat filnamn.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
-        <translation>A&amp;lternativ &gt;&gt;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Print</source>
-        <translation>Skriv &amp;ut</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Options &lt;&lt;</source>
-        <translation>A&amp;lternativ &lt;&lt;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Print to File (PDF)</source>
-        <translation>Skriv ut till fil (PDF)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Print to File (Postscript)</source>
@@ -6096,7 +6098,7 @@ Välj ett annat filnamn.</translation>
     </message>
     <message>
         <source>Local file</source>
-        <translation>Lokal fil</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Write %1 file</source>
@@ -6104,7 +6106,7 @@ Välj ett annat filnamn.</translation>
     </message>
     <message>
         <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
-        <translation>Värdet för \&quot;From\&quot; får inte vara större än värdet för \&quot;To\&quot;.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Portrait</source>
@@ -6416,83 +6418,83 @@ Please turn one of those options off.</source>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
-        <translation>Sidkonfiguration</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1%</source>
-        <translation>%1 %</translation>
+        <translation type="unfinished">%1%</translation>
     </message>
     <message>
         <source>Print Preview</source>
-        <translation>Förhandsvisning</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Next page</source>
-        <translation>Nästa sida</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Previous page</source>
-        <translation>Föregående sida</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>First page</source>
-        <translation>Första sidan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Last page</source>
-        <translation>Sista sidan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Fit width</source>
-        <translation>Anpassa efter bredd</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Fit page</source>
-        <translation>Anpassa till sida</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Zoom in</source>
-        <translation>Zooma in</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Zoom out</source>
-        <translation>Zooma ut</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation>Stående</translation>
+        <translation type="unfinished">Stående</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation>Liggande</translation>
+        <translation type="unfinished">Liggande</translation>
     </message>
     <message>
         <source>Show single page</source>
-        <translation>Visa en sida</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show facing pages</source>
-        <translation>Visa dubbelsidig layout</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show overview of all pages</source>
-        <translation>Visa översikt för alla sidor</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Print</source>
-        <translation>Skriv ut</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Page setup</source>
-        <translation>Sidkonfiguration</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="obsolete">Stäng</translation>
     </message>
     <message>
         <source>Export to PDF</source>
-        <translation>Exportera till PDF</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Export to PostScript</source>
@@ -6526,11 +6528,11 @@ Please turn one of those options off.</source>
     <name>QPrintPropertiesWidget</name>
     <message>
         <source>Form</source>
-        <translation>Format</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Page</source>
-        <translation>Sida</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Advanced</source>
@@ -6541,79 +6543,79 @@ Please turn one of those options off.</source>
     <name>QPrintSettingsOutput</name>
     <message>
         <source>Form</source>
-        <translation>Format</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Copies</source>
-        <translation>Kopior</translation>
+        <translation type="unfinished">Kopior</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation>Utskriftsintervall</translation>
+        <translation type="unfinished">Skriv ut intervall</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation>Skriv ut alla</translation>
+        <translation type="unfinished">Skriv ut alla</translation>
     </message>
     <message>
         <source>Pages from</source>
-        <translation>Sidor från</translation>
+        <translation type="unfinished">Sidor från</translation>
     </message>
     <message>
         <source>to</source>
-        <translation>till</translation>
+        <translation type="unfinished">till</translation>
     </message>
     <message>
         <source>Selection</source>
-        <translation>Val</translation>
+        <translation type="unfinished">Val</translation>
     </message>
     <message>
         <source>Output Settings</source>
-        <translation>Utmatningsinställningar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Copies:</source>
-        <translation>Kopior:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Collate</source>
-        <translation>Sortera</translation>
+        <translation type="unfinished">Sortera</translation>
     </message>
     <message>
         <source>Reverse</source>
-        <translation>Omvänt</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Options</source>
-        <translation>Alternativ</translation>
+        <translation type="unfinished">Alternativ</translation>
     </message>
     <message>
         <source>Color Mode</source>
-        <translation>Färgläge</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Color</source>
-        <translation>Färg</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Grayscale</source>
-        <translation>Gråskala</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Duplex Printing</source>
-        <translation>Dubbelsidig utskrift</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>None</source>
-        <translation>Ingen</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Long side</source>
-        <translation>Långsida</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Short side</source>
-        <translation>Kortsida</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Current Page</source>
@@ -6628,74 +6630,74 @@ Please turn one of those options off.</source>
     <name>QPrintWidget</name>
     <message>
         <source>Form</source>
-        <translation>Format</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation>Skrivare</translation>
+        <translation type="unfinished">Skrivare</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation>&amp;Namn:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
-        <translation>E&amp;genskaper</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Location:</source>
-        <translation>Plats:</translation>
+        <translation type="unfinished">Plats:</translation>
     </message>
     <message>
         <source>Preview</source>
-        <translation>Förhandsvisa</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Type:</source>
-        <translation>Typ:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation>Ut&amp;fil:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>...</source>
-        <translation>...</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QProcess</name>
     <message>
         <source>Error reading from process</source>
-        <translation>Läsfel vid läsning från process</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error writing to process</source>
-        <translation>Skrivfel vid skrivning till process</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Process crashed</source>
-        <translation>Processen kraschade</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No program defined</source>
-        <translation>Inget program definierat</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not open input redirection for reading</source>
-        <translation>Kunde inte omdirigerad inmatning för läsning</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Could not open output redirection for writing</source>
-        <translation>Kunde inte omdirigerad utmatning för skrivning</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Resource error (fork failure): %1</source>
-        <translation>Resursfel (fork misslyckades): %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Process operation timed out</source>
-        <translation>Processåtgärd överskred tidsgräns</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Process failed to start: %1</source>
@@ -6717,7 +6719,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Öppna</translation>
+        <translation type="vanished">Öppna</translation>
     </message>
 </context>
 <context>
@@ -6738,7 +6740,7 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Kryssa</translation>
+        <translation type="vanished">Kryssa</translation>
     </message>
 </context>
 <context>
@@ -7131,7 +7133,7 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation type="obsolete">Fel vid öppning av databas</translation>
+        <translation type="vanished">Fel vid öppning av databas</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -7151,7 +7153,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation type="obsolete">Kunde inte rulla tillbaka transaktion</translation>
+        <translation type="vanished">Kunde inte rulla tillbaka transaktion</translation>
     </message>
 </context>
 <context>
@@ -7185,7 +7187,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Kunde inte rulla tillbaka transaktion</translation>
+        <translation type="unfinished">Kunde inte rulla tillbaka transaktion</translation>
     </message>
     <message>
         <source>Unable to roll back transaction</source>
@@ -7216,7 +7218,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>No query</source>
-        <translation>Ingen frågesats</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to execute multiple statements at a time</source>
@@ -7242,275 +7244,275 @@ Please turn one of those options off.</source>
     <name>QScriptBreakpointsModel</name>
     <message>
         <source>ID</source>
-        <translation>Id</translation>
+        <translation type="vanished">Id</translation>
     </message>
     <message>
         <source>Location</source>
-        <translation>Plats</translation>
+        <translation type="vanished">Plats</translation>
     </message>
     <message>
         <source>Condition</source>
-        <translation>Villkor</translation>
+        <translation type="vanished">Villkor</translation>
     </message>
     <message>
         <source>Ignore-count</source>
-        <translation>Ignorerat antal</translation>
+        <translation type="vanished">Ignorerat antal</translation>
     </message>
     <message>
         <source>Single-shot</source>
-        <translation>Engångs</translation>
+        <translation type="vanished">Engångs</translation>
     </message>
     <message>
         <source>Hit-count</source>
-        <translation>Träffantal</translation>
+        <translation type="vanished">Träffantal</translation>
     </message>
 </context>
 <context>
     <name>QScriptBreakpointsWidget</name>
     <message>
         <source>New</source>
-        <translation>Ny</translation>
+        <translation type="vanished">Ny</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Ta bort</translation>
+        <translation type="vanished">Ta bort</translation>
     </message>
 </context>
 <context>
     <name>QScriptDebugger</name>
     <message>
         <source>Go to Line</source>
-        <translation>Gå till rad</translation>
+        <translation type="vanished">Gå till rad</translation>
     </message>
     <message>
         <source>Line:</source>
-        <translation>Rad:</translation>
+        <translation type="vanished">Rad:</translation>
     </message>
     <message>
         <source>Interrupt</source>
-        <translation>Avbrott</translation>
+        <translation type="vanished">Avbrott</translation>
     </message>
     <message>
         <source>Shift+F5</source>
-        <translation>Skift+F5</translation>
+        <translation type="vanished">Skift+F5</translation>
     </message>
     <message>
         <source>Continue</source>
-        <translation>Fortsätt</translation>
+        <translation type="vanished">Fortsätt</translation>
     </message>
     <message>
         <source>F5</source>
-        <translation>F5</translation>
+        <translation type="vanished">F5</translation>
     </message>
     <message>
         <source>Step Into</source>
-        <translation>Stega in i</translation>
+        <translation type="vanished">Stega in i</translation>
     </message>
     <message>
         <source>F11</source>
-        <translation>F11</translation>
+        <translation type="vanished">F11</translation>
     </message>
     <message>
         <source>Step Over</source>
-        <translation>Stega förbi</translation>
+        <translation type="vanished">Stega förbi</translation>
     </message>
     <message>
         <source>F10</source>
-        <translation>F10</translation>
+        <translation type="vanished">F10</translation>
     </message>
     <message>
         <source>Step Out</source>
-        <translation>Stega ut ur</translation>
+        <translation type="vanished">Stega ut ur</translation>
     </message>
     <message>
         <source>Shift+F11</source>
-        <translation>Skift+F11</translation>
+        <translation type="vanished">Skift+F11</translation>
     </message>
     <message>
         <source>Run to Cursor</source>
-        <translation>Kör till markören</translation>
+        <translation type="vanished">Kör till markören</translation>
     </message>
     <message>
         <source>Ctrl+F10</source>
-        <translation>Ctrl+F10</translation>
+        <translation type="vanished">Ctrl+F10</translation>
     </message>
     <message>
         <source>Run to New Script</source>
-        <translation>Kör till nytt skript</translation>
+        <translation type="vanished">Kör till nytt skript</translation>
     </message>
     <message>
         <source>Toggle Breakpoint</source>
-        <translation>Växla brytpunkt</translation>
+        <translation type="vanished">Växla brytpunkt</translation>
     </message>
     <message>
         <source>F9</source>
-        <translation>F9</translation>
+        <translation type="vanished">F9</translation>
     </message>
     <message>
         <source>Clear Debug Output</source>
-        <translation>Rensa felsökningsutmatning</translation>
+        <translation type="vanished">Rensa felsökningsutmatning</translation>
     </message>
     <message>
         <source>Clear Error Log</source>
-        <translation>Rensa fellogg</translation>
+        <translation type="vanished">Rensa fellogg</translation>
     </message>
     <message>
         <source>Clear Console</source>
-        <translation>Rensa konsol</translation>
+        <translation type="vanished">Rensa konsol</translation>
     </message>
     <message>
         <source>&amp;Find in Script...</source>
-        <translation>&amp;Sök i skript...</translation>
+        <translation type="vanished">&amp;Sök i skript...</translation>
     </message>
     <message>
         <source>Ctrl+F</source>
-        <translation>Ctrl+F</translation>
+        <translation type="vanished">Ctrl+F</translation>
     </message>
     <message>
         <source>Find &amp;Next</source>
-        <translation>Sök &amp;nästa</translation>
+        <translation type="vanished">Sök &amp;nästa</translation>
     </message>
     <message>
         <source>F3</source>
-        <translation>F3</translation>
+        <translation type="vanished">F3</translation>
     </message>
     <message>
         <source>Find &amp;Previous</source>
-        <translation>Sök &amp;föregående</translation>
+        <translation type="vanished">Sök &amp;föregående</translation>
     </message>
     <message>
         <source>Shift+F3</source>
-        <translation>Skift+F3</translation>
+        <translation type="vanished">Skift+F3</translation>
     </message>
     <message>
         <source>Ctrl+G</source>
-        <translation>Ctrl+G</translation>
+        <translation type="vanished">Ctrl+G</translation>
     </message>
     <message>
         <source>Debug</source>
-        <translation>Felsök</translation>
+        <translation type="vanished">Felsök</translation>
     </message>
 </context>
 <context>
     <name>QScriptDebuggerCodeFinderWidget</name>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="vanished">Stäng</translation>
     </message>
     <message>
         <source>Previous</source>
-        <translation>Föregående</translation>
+        <translation type="vanished">Föregående</translation>
     </message>
     <message>
         <source>Next</source>
-        <translation>Nästa</translation>
+        <translation type="vanished">Nästa</translation>
     </message>
     <message>
         <source>Case Sensitive</source>
-        <translation>Skiftlägeskänslig</translation>
+        <translation type="vanished">Skiftlägeskänslig</translation>
     </message>
     <message>
         <source>Whole words</source>
-        <translation>Hela ord</translation>
+        <translation type="vanished">Hela ord</translation>
     </message>
     <message>
         <source>&lt;img src=&quot;:/qt/scripttools/debugging/images/wrap.png&quot;&gt;&amp;nbsp;Search wrapped</source>
-        <translation>&lt;img src=&quot;:/qt/scripttools/debugging/images/wrap.png&quot;&gt;&amp;nbsp;Sökning omstartad</translation>
+        <translation type="vanished">&lt;img src=&quot;:/qt/scripttools/debugging/images/wrap.png&quot;&gt;&amp;nbsp;Sökning omstartad</translation>
     </message>
 </context>
 <context>
     <name>QScriptDebuggerLocalsModel</name>
     <message>
         <source>Name</source>
-        <translation>Namn</translation>
+        <translation type="vanished">Namn</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Värde</translation>
+        <translation type="vanished">Värde</translation>
     </message>
 </context>
 <context>
     <name>QScriptDebuggerStackModel</name>
     <message>
         <source>Level</source>
-        <translation>Nivå</translation>
+        <translation type="vanished">Nivå</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Namn</translation>
+        <translation type="vanished">Namn</translation>
     </message>
     <message>
         <source>Location</source>
-        <translation>Plats</translation>
+        <translation type="vanished">Plats</translation>
     </message>
 </context>
 <context>
     <name>QScriptEdit</name>
     <message>
         <source>Toggle Breakpoint</source>
-        <translation>Växla brytpunkt</translation>
+        <translation type="vanished">Växla brytpunkt</translation>
     </message>
     <message>
         <source>Disable Breakpoint</source>
-        <translation>Inaktivera brytpunkt</translation>
+        <translation type="vanished">Inaktivera brytpunkt</translation>
     </message>
     <message>
         <source>Enable Breakpoint</source>
-        <translation>Aktivera brytpunkt</translation>
+        <translation type="vanished">Aktivera brytpunkt</translation>
     </message>
     <message>
         <source>Breakpoint Condition:</source>
-        <translation>Brytpunktsvillkor:</translation>
+        <translation type="vanished">Brytpunktsvillkor:</translation>
     </message>
 </context>
 <context>
     <name>QScriptEngineDebugger</name>
     <message>
         <source>Loaded Scripts</source>
-        <translation>Laddade skript</translation>
+        <translation type="vanished">Laddade skript</translation>
     </message>
     <message>
         <source>Breakpoints</source>
-        <translation>Brytpunkter</translation>
+        <translation type="vanished">Brytpunkter</translation>
     </message>
     <message>
         <source>Stack</source>
-        <translation>Stack</translation>
+        <translation type="vanished">Stack</translation>
     </message>
     <message>
         <source>Locals</source>
-        <translation>Lokala</translation>
+        <translation type="vanished">Lokala</translation>
     </message>
     <message>
         <source>Console</source>
-        <translation>Konsol</translation>
+        <translation type="vanished">Konsol</translation>
     </message>
     <message>
         <source>Debug Output</source>
-        <translation>Felsökningsutmatning</translation>
+        <translation type="vanished">Felsökningsutmatning</translation>
     </message>
     <message>
         <source>Error Log</source>
-        <translation>Fellogg</translation>
+        <translation type="vanished">Fellogg</translation>
     </message>
     <message>
         <source>Search</source>
-        <translation>Sök</translation>
+        <translation type="vanished">Sök</translation>
     </message>
     <message>
         <source>View</source>
-        <translation>Visa</translation>
+        <translation type="vanished">Visa</translation>
     </message>
     <message>
         <source>Qt Script Debugger</source>
-        <translation>Qt-skriptfelsökare</translation>
+        <translation type="vanished">Qt-skriptfelsökare</translation>
     </message>
 </context>
 <context>
     <name>QScriptNewBreakpointWidget</name>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="vanished">Stäng</translation>
     </message>
 </context>
 <context>
@@ -7569,34 +7571,34 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Rada upp</translation>
+        <translation type="vanished">Rada upp</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Position</translation>
+        <translation type="vanished">Position</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Rad nedåt</translation>
+        <translation type="vanished">Rad nedåt</translation>
     </message>
 </context>
 <context>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation>%1: kunde inte ställa in nyckel på lås</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translation>%1: skapad storlek är mindre än 0</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
-        <translation>%1: kunde inte låsa</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translation>%1: kunde inte låsa upp</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
@@ -7604,31 +7606,31 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: permission denied</source>
-        <translation>%1: behörighet nekas</translation>
+        <translation type="unfinished">%1: åtkomst nekad</translation>
     </message>
     <message>
         <source>%1: already exists</source>
-        <translation>%1: finns redan</translation>
+        <translation type="unfinished">%1: finns redan</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
-        <translation>%1: slut på resurser</translation>
+        <translation type="unfinished">%1: slut på resurser</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
-        <translation>%1: okänt fel %2</translation>
+        <translation type="unfinished">%1: okänt fel %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translation>%1: nyckeln är tom</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
-        <translation>%1: ftok misslyckades</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
-        <translation>%1: kunde inte skapa nyckel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exist</source>
@@ -7640,23 +7642,23 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
-        <translation>%1: systeminställda storleksbegränsningar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: not attached</source>
-        <translation>%1: inte bifogad</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: invalid size</source>
-        <translation>%1: ogiltig storlek</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: key error</source>
-        <translation>%1: nyckelfel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: size query failed</source>
-        <translation>%1: storleksbegäran misslyckades</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1: bad name</source>
@@ -8014,7 +8016,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Audio Rewind</source>
-        <translation>Spola tillbaka ljud</translation>
+        <translation type="vanished">Spola tillbaka ljud</translation>
     </message>
     <message>
         <source>Back Forward</source>
@@ -8254,7 +8256,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Audio Forward</source>
-        <translation>Spola fram ljud</translation>
+        <translation type="vanished">Spola fram ljud</translation>
     </message>
     <message>
         <source>Audio Repeat</source>
@@ -8676,23 +8678,23 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Sida vänster</translation>
+        <translation type="vanished">Sida vänster</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Sida uppåt</translation>
+        <translation type="vanished">Sida uppåt</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Position</translation>
+        <translation type="vanished">Position</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Sida höger</translation>
+        <translation type="vanished">Sida höger</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Sida nedåt</translation>
+        <translation type="vanished">Sida nedåt</translation>
     </message>
 </context>
 <context>
@@ -8703,86 +8705,86 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Connection to proxy refused</source>
-        <translation>Anslutning till proxy vägrades</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connection to proxy closed prematurely</source>
-        <translation>Anslutning till proxy stängdes i förtid</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy host not found</source>
-        <translation>Proxy-värddator hittades inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connection to proxy timed out</source>
-        <translation>Anslutningen till proxy överskred tidsgräns</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy authentication failed</source>
-        <translation>Behörighetskontroll med proxy misslyckades</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy authentication failed: %1</source>
-        <translation>Behörighetskontroll med proxy misslyckades: %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>SOCKS version 5 protocol error</source>
-        <translation>SOCKS version 5 protokollfel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>General SOCKSv5 server failure</source>
-        <translation>Allmänt SOCKS v5 serverfel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connection not allowed by SOCKSv5 server</source>
-        <translation>Anslutning inte tillåten av SOCKS v5 server</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>TTL expired</source>
-        <translation>TTL utgången</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>SOCKSv5 command not supported</source>
-        <translation>SOCKS v5-kommando stöds inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Address type not supported</source>
-        <translation>Adresstypen stöds inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unknown SOCKSv5 proxy error code 0x%1</source>
-        <translation>Okänd SOCKS v5 proxyfelkod 0x%1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation>Tidsgräns för nätverksåtgärd överstegs</translation>
+        <translation type="unfinished">Tidsgräns för nätverksåtgärd överstegs</translation>
     </message>
 </context>
 <context>
     <name>QSoftKeyManager</name>
     <message>
         <source>Ok</source>
-        <translation>Ok</translation>
+        <translation type="vanished">Ok</translation>
     </message>
     <message>
         <source>Select</source>
-        <translation>Välj</translation>
+        <translation type="vanished">Välj</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Klar</translation>
+        <translation type="vanished">Klar</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation>Alternativ</translation>
+        <translation type="vanished">Alternativ</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <translation type="vanished">Avbryt</translation>
     </message>
     <message>
         <source>Exit</source>
-        <translation>Avsluta</translation>
+        <translation type="vanished">Avsluta</translation>
     </message>
 </context>
 <context>
@@ -9149,61 +9151,61 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Mer</translation>
+        <translation type="vanished">Mer</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Mindre</translation>
+        <translation type="vanished">Mindre</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>Ta bort</translation>
+        <translation type="vanished">Ta bort</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Ta bort denna post?</translation>
+        <translation type="vanished">Ta bort denna post?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Ja</translation>
+        <translation type="vanished">Ja</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Nej</translation>
+        <translation type="vanished">Nej</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Infoga</translation>
+        <translation type="vanished">Infoga</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Uppdatera</translation>
+        <translation type="vanished">Uppdatera</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Spara redigeringar?</translation>
+        <translation type="vanished">Spara redigeringar?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <translation type="vanished">Avbryt</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Bekräfta</translation>
+        <translation type="vanished">Bekräfta</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Avbryt dina redigeringar?</translation>
+        <translation type="vanished">Avbryt dina redigeringar?</translation>
     </message>
 </context>
 <context>
     <name>QSslSocket</name>
     <message>
         <source>Unable to write data: %1</source>
-        <translation>Kunde inte skriva data: %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to decrypt data: %1</source>
@@ -9211,19 +9213,19 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error while reading: %1</source>
-        <translation>Fel vid läsning: %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error during SSL handshake: %1</source>
-        <translation>Fel under SSL-handskakning: %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error creating SSL context (%1)</source>
-        <translation>Fel vid skapande av SSL-kontext (%1)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid or empty cipher list (%1)</source>
-        <translation>Ogiltig eller tom chifferlista (%1)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Private key does not certify public key, %1</source>
@@ -9231,23 +9233,23 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
-        <translation>Fel vid skapande av SSL-session, %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error creating SSL session: %1</source>
-        <translation>Fel vid skapande av SSL-session: %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Kan inte tillhandahålla ett certifikat utan nyckel, %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
-        <translation>Fel vid inläsning av lokalt certifikat, %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Error loading private key, %1</source>
-        <translation>Fel vid inläsning av privat nyckel, %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No error</source>
@@ -9468,23 +9470,23 @@ Role of an accessible object</extracomment>
     <name>QSystemSemaphore</name>
     <message>
         <source>%1: out of resources</source>
-        <translation>%1: slut på resurser</translation>
+        <translation type="unfinished">%1: slut på resurser</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
-        <translation>%1: behörighet nekas</translation>
+        <translation type="unfinished">%1: åtkomst nekad</translation>
     </message>
     <message>
         <source>%1: already exists</source>
-        <translation>%1: finns redan</translation>
+        <translation type="unfinished">%1: finns redan</translation>
     </message>
     <message>
         <source>%1: does not exist</source>
-        <translation>%1: finns inte</translation>
+        <translation type="unfinished">%1: finns inte</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
-        <translation>%1: okänt fel %2</translation>
+        <translation type="unfinished">%1: okänt fel %2</translation>
     </message>
 </context>
 <context>
@@ -9513,7 +9515,7 @@ Role of an accessible object</extracomment>
     <name>QTcpServer</name>
     <message>
         <source>Operation on socket is not supported</source>
-        <translation>Åtgärden för uttaget stöds inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Socket operation unsupported</source>
@@ -9524,64 +9526,64 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Ångra</translation>
+        <translation type="vanished">&amp;Ångra</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Gör om</translation>
+        <translation type="vanished">&amp;Gör om</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Klipp u&amp;t</translation>
+        <translation type="vanished">Klipp u&amp;t</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopiera</translation>
+        <translation type="vanished">&amp;Kopiera</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Kopiera &amp;länkplats</translation>
+        <translation type="vanished">Kopiera &amp;länkplats</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>Klistra &amp;in</translation>
+        <translation type="vanished">Klistra &amp;in</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Ta bort</translation>
+        <translation type="vanished">Ta bort</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Markera alla</translation>
+        <translation type="vanished">Markera alla</translation>
     </message>
 </context>
 <context>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Tryck</translation>
+        <translation type="vanished">Tryck</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Öppna</translation>
+        <translation type="vanished">Öppna</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>Denna plattform saknar stöd för IPv6</translation>
+        <translation type="vanished">Denna plattform saknar stöd för IPv6</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>Ångra</translation>
+        <translation type="vanished">Ångra</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Gör om</translation>
+        <translation type="vanished">Gör om</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -9613,11 +9615,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Ångra</translation>
+        <translation type="vanished">Ångra</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Gör om</translation>
+        <translation type="vanished">Gör om</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -9705,7 +9707,7 @@ Role of an accessible object</extracomment>
     <name>QWebFrame</name>
     <message>
         <source>Frame load interrupted by policy change</source>
-        <translation>Raminläsning avbröts av policyändring</translation>
+        <translation type="vanished">Raminläsning avbröts av policyändring</translation>
     </message>
     <message>
         <source>Request cancelled</source>
@@ -9736,7 +9738,7 @@ Role of an accessible object</extracomment>
     <name>QWebPage</name>
     <message>
         <source>Redirection limit reached</source>
-        <translation>Omdirigeringsgräns uppnådd</translation>
+        <translation type="vanished">Omdirigeringsgräns uppnådd</translation>
     </message>
     <message>
         <source>Bad HTTP request</source>
@@ -9757,32 +9759,32 @@ Stop context menu item</comment>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation>Återställ</translation>
+        <translation type="obsolete">Återställ</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation>Stoppa</translation>
+        <translation type="obsolete">Stoppa</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation>Ignorera</translation>
+        <translation type="obsolete">Ignorera</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation>Ignorera</translation>
+        <translation type="obsolete">Ignorera</translation>
     </message>
     <message>
         <source>Left to Right</source>
         <comment>Left to Right context menu item</comment>
-        <translation>Vänster till höger</translation>
+        <translation type="vanished">Vänster till höger</translation>
     </message>
     <message>
         <source>Right to Left</source>
         <comment>Right to Left context menu item</comment>
-        <translation>Höger till vänster</translation>
+        <translation type="vanished">Höger till vänster</translation>
     </message>
     <message>
         <source>Inspect</source>
@@ -9807,12 +9809,12 @@ Stop context menu item</comment>
     <message>
         <source>Missing Plug-in</source>
         <comment>Label text to be used when a plug-in is missing</comment>
-        <translation>Saknar insticksprogram</translation>
+        <translation type="vanished">Saknar insticksprogram</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation>Okänd</translation>
+        <translation type="obsolete">Okänt</translation>
     </message>
     <message>
         <source>%1 (%2x%3 pixels)</source>
@@ -9822,197 +9824,197 @@ Stop context menu item</comment>
     <message>
         <source>Loading...</source>
         <comment>Media controller status message when the media is loading</comment>
-        <translation>Laddar...</translation>
+        <translation type="vanished">Laddar...</translation>
     </message>
     <message>
         <source>Live Broadcast</source>
         <comment>Media controller status message when watching a live broadcast</comment>
-        <translation>Direktsändning</translation>
+        <translation type="vanished">Direktsändning</translation>
     </message>
     <message>
         <source>Audio Element</source>
         <comment>Media controller element</comment>
-        <translation>Ljudkomponent</translation>
+        <translation type="vanished">Ljudkomponent</translation>
     </message>
     <message>
         <source>Video Element</source>
         <comment>Media controller element</comment>
-        <translation>Videokomponent</translation>
+        <translation type="vanished">Videokomponent</translation>
     </message>
     <message>
         <source>Mute Button</source>
         <comment>Media controller element</comment>
-        <translation>Tystknapp</translation>
+        <translation type="vanished">Tystknapp</translation>
     </message>
     <message>
         <source>Unmute Button</source>
         <comment>Media controller element</comment>
-        <translation>Ljudåterställningsknapp</translation>
+        <translation type="vanished">Ljudåterställningsknapp</translation>
     </message>
     <message>
         <source>Play Button</source>
         <comment>Media controller element</comment>
-        <translation>Uppspelningsknapp</translation>
+        <translation type="vanished">Uppspelningsknapp</translation>
     </message>
     <message>
         <source>Pause Button</source>
         <comment>Media controller element</comment>
-        <translation>Pausknapp</translation>
+        <translation type="vanished">Pausknapp</translation>
     </message>
     <message>
         <source>Slider</source>
         <comment>Media controller element</comment>
-        <translation>Skjutreglage</translation>
+        <translation type="vanished">Skjutreglage</translation>
     </message>
     <message>
         <source>Slider Thumb</source>
         <comment>Media controller element</comment>
-        <translation>Skjutreglageknapp</translation>
+        <translation type="vanished">Skjutreglageknapp</translation>
     </message>
     <message>
         <source>Rewind Button</source>
         <comment>Media controller element</comment>
-        <translation>Bakåtspolningsknapp</translation>
+        <translation type="vanished">Bakåtspolningsknapp</translation>
     </message>
     <message>
         <source>Return to Real-time Button</source>
         <comment>Media controller element</comment>
-        <translation>Återgång till realtid-knapp</translation>
+        <translation type="vanished">Återgång till realtid-knapp</translation>
     </message>
     <message>
         <source>Elapsed Time</source>
         <comment>Media controller element</comment>
-        <translation>Förfluten tid</translation>
+        <translation type="vanished">Förfluten tid</translation>
     </message>
     <message>
         <source>Remaining Time</source>
         <comment>Media controller element</comment>
-        <translation>Återstående tid</translation>
+        <translation type="vanished">Återstående tid</translation>
     </message>
     <message>
         <source>Status Display</source>
         <comment>Media controller element</comment>
-        <translation>Statusfönster</translation>
+        <translation type="vanished">Statusfönster</translation>
     </message>
     <message>
         <source>Fullscreen Button</source>
         <comment>Media controller element</comment>
-        <translation>Fullskärmsknapp</translation>
+        <translation type="vanished">Fullskärmsknapp</translation>
     </message>
     <message>
         <source>Seek Forward Button</source>
         <comment>Media controller element</comment>
-        <translation>Sök framåt-knapp</translation>
+        <translation type="vanished">Sök framåt-knapp</translation>
     </message>
     <message>
         <source>Seek Back Button</source>
         <comment>Media controller element</comment>
-        <translation>Sök bakåt-knapp</translation>
+        <translation type="vanished">Sök bakåt-knapp</translation>
     </message>
     <message>
         <source>Audio element playback controls and status display</source>
         <comment>Media controller element</comment>
-        <translation>Ljudkomponentens uppspelningskontroller och statusvisning</translation>
+        <translation type="vanished">Ljudkomponentens uppspelningskontroller och statusvisning</translation>
     </message>
     <message>
         <source>Video element playback controls and status display</source>
         <comment>Media controller element</comment>
-        <translation>Videokomponentens uppspelningskontroller och statusvisning</translation>
+        <translation type="vanished">Videokomponentens uppspelningskontroller och statusvisning</translation>
     </message>
     <message>
         <source>Mute audio tracks</source>
         <comment>Media controller element</comment>
-        <translation>Tysta ljudspår</translation>
+        <translation type="vanished">Tysta ljudspår</translation>
     </message>
     <message>
         <source>Unmute audio tracks</source>
         <comment>Media controller element</comment>
-        <translation>Återställ volym för ljudspår</translation>
+        <translation type="vanished">Återställ volym för ljudspår</translation>
     </message>
     <message>
         <source>Begin playback</source>
         <comment>Media controller element</comment>
-        <translation>Börja uppspelning</translation>
+        <translation type="vanished">Börja uppspelning</translation>
     </message>
     <message>
         <source>Pause playback</source>
         <comment>Media controller element</comment>
-        <translation>Paus i uppspelning</translation>
+        <translation type="vanished">Paus i uppspelning</translation>
     </message>
     <message>
         <source>Movie time scrubber</source>
         <comment>Media controller element</comment>
-        <translation>Filmtidsrensning</translation>
+        <translation type="vanished">Filmtidsrensning</translation>
     </message>
     <message>
         <source>Movie time scrubber thumb</source>
         <comment>Media controller element</comment>
-        <translation>Filmtidsrensningsknapp</translation>
+        <translation type="vanished">Filmtidsrensningsknapp</translation>
     </message>
     <message>
         <source>Rewind movie</source>
         <comment>Media controller element</comment>
-        <translation>Spola tillbaka film</translation>
+        <translation type="vanished">Spola tillbaka film</translation>
     </message>
     <message>
         <source>Return streaming movie to real-time</source>
         <comment>Media controller element</comment>
-        <translation>Återställ strömmande film till realtid</translation>
+        <translation type="vanished">Återställ strömmande film till realtid</translation>
     </message>
     <message>
         <source>Current movie time</source>
         <comment>Media controller element</comment>
-        <translation>Aktuell filmtid</translation>
+        <translation type="vanished">Aktuell filmtid</translation>
     </message>
     <message>
         <source>Remaining movie time</source>
         <comment>Media controller element</comment>
-        <translation>Återstående filmtid</translation>
+        <translation type="vanished">Återstående filmtid</translation>
     </message>
     <message>
         <source>Current movie status</source>
         <comment>Media controller element</comment>
-        <translation>Aktuell filmstatus</translation>
+        <translation type="vanished">Aktuell filmstatus</translation>
     </message>
     <message>
         <source>Play movie in full-screen mode</source>
         <comment>Media controller element</comment>
-        <translation>Spela film i fullskärmsläge</translation>
+        <translation type="vanished">Spela film i fullskärmsläge</translation>
     </message>
     <message>
         <source>Seek quickly back</source>
         <comment>Media controller element</comment>
-        <translation>Sök snabbt bakåt</translation>
+        <translation type="vanished">Sök snabbt bakåt</translation>
     </message>
     <message>
         <source>Seek quickly forward</source>
         <comment>Media controller element</comment>
-        <translation>Sök snabbt framåt</translation>
+        <translation type="vanished">Sök snabbt framåt</translation>
     </message>
     <message>
         <source>Indefinite time</source>
         <comment>Media time description</comment>
-        <translation>Odefinierad tid</translation>
+        <translation type="vanished">Odefinierad tid</translation>
     </message>
     <message>
         <source>%1 days %2 hours %3 minutes %4 seconds</source>
         <comment>Media time description</comment>
-        <translation>%1 dagar %2 timmar %3 minuter %4 sekunder</translation>
+        <translation type="vanished">%1 dagar %2 timmar %3 minuter %4 sekunder</translation>
     </message>
     <message>
         <source>%1 hours %2 minutes %3 seconds</source>
         <comment>Media time description</comment>
-        <translation>%1 timmar %2 minuter %3 sekunder</translation>
+        <translation type="vanished">%1 timmar %2 minuter %3 sekunder</translation>
     </message>
     <message>
         <source>%1 minutes %2 seconds</source>
         <comment>Media time description</comment>
-        <translation>%1 minuter %2 sekunder</translation>
+        <translation type="vanished">%1 minuter %2 sekunder</translation>
     </message>
     <message>
         <source>%1 seconds</source>
         <comment>Media time description</comment>
-        <translation>%1 sekunder</translation>
+        <translation type="vanished">%1 sekunder</translation>
     </message>
     <message>
         <source>Unknown</source>
@@ -10022,115 +10024,115 @@ Unknown filesize FTP directory listing item</comment>
     </message>
     <message>
         <source>Scroll here</source>
-        <translation>Rulla här</translation>
+        <translation type="obsolete">Rulla här</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Vänsterkant</translation>
+        <translation type="obsolete">Vänsterkant</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>Överkant</translation>
+        <translation type="obsolete">Överkant</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Högerkant</translation>
+        <translation type="obsolete">Högerkant</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>Nederkant</translation>
+        <translation type="obsolete">Nederkant</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Sida vänster</translation>
+        <translation type="obsolete">Sida vänster</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Sida uppåt</translation>
+        <translation type="obsolete">Sida uppåt</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Sida höger</translation>
+        <translation type="obsolete">Sida höger</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Sida nedåt</translation>
+        <translation type="obsolete">Sida nedåt</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Rulla vänster</translation>
+        <translation type="obsolete">Rulla vänster</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Rulla uppåt</translation>
+        <translation type="obsolete">Rulla uppåt</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Rulla höger</translation>
+        <translation type="obsolete">Rulla höger</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Rulla nedåt</translation>
+        <translation type="obsolete">Rulla nedåt</translation>
     </message>
     <message>
         <source>JavaScript Problem - %1</source>
-        <translation>Javascript-problem - %1</translation>
+        <translation type="vanished">Javascript-problem - %1</translation>
     </message>
     <message>
         <source>The script on this page appears to have a problem. Do you want to stop the script?</source>
-        <translation>Skriptet på sidan verkar ha problem. Vill du stoppa skriptet?</translation>
+        <translation type="vanished">Skriptet på sidan verkar ha problem. Vill du stoppa skriptet?</translation>
     </message>
     <message>
         <source>Paste and Match Style</source>
-        <translation>Klistra in och matcha stil</translation>
+        <translation type="vanished">Klistra in och matcha stil</translation>
     </message>
     <message>
         <source>Remove formatting</source>
-        <translation>Ta bort formatering</translation>
+        <translation type="vanished">Ta bort formatering</translation>
     </message>
     <message>
         <source>Strikethrough</source>
-        <translation>Överstrykning</translation>
+        <translation type="vanished">Överstrykning</translation>
     </message>
     <message>
         <source>Subscript</source>
-        <translation>Nedsänkt</translation>
+        <translation type="vanished">Nedsänkt</translation>
     </message>
     <message>
         <source>Superscript</source>
-        <translation>Upphöjt</translation>
+        <translation type="vanished">Upphöjt</translation>
     </message>
     <message>
         <source>Insert Bulleted List</source>
-        <translation>Infoga punktlista</translation>
+        <translation type="vanished">Infoga punktlista</translation>
     </message>
     <message>
         <source>Insert Numbered List</source>
-        <translation>Infoga numrerad lista</translation>
+        <translation type="vanished">Infoga numrerad lista</translation>
     </message>
     <message>
         <source>Indent</source>
-        <translation>Indentera</translation>
+        <translation type="vanished">Indentera</translation>
     </message>
     <message>
         <source>Outdent</source>
-        <translation>Ta bort indentering</translation>
+        <translation type="vanished">Ta bort indentering</translation>
     </message>
     <message>
         <source>Center</source>
-        <translation>Centrera</translation>
+        <translation type="vanished">Centrera</translation>
     </message>
     <message>
         <source>Justify</source>
-        <translation>Anpassa</translation>
+        <translation type="vanished">Anpassa</translation>
     </message>
     <message>
         <source>Align Left</source>
-        <translation>Vänsterjustera</translation>
+        <translation type="vanished">Vänsterjustera</translation>
     </message>
     <message>
         <source>Align Right</source>
-        <translation>Högerjustera</translation>
+        <translation type="vanished">Högerjustera</translation>
     </message>
     <message>
         <source>Submit</source>
@@ -10534,19 +10536,19 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWizard</name>
     <message>
         <source>Go Back</source>
-        <translation>Gå bakåt</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Continue</source>
-        <translation>Fortsätt</translation>
+        <translation type="unfinished">Fortsätt</translation>
     </message>
     <message>
         <source>Commit</source>
-        <translation>Verkställ</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Färdig</translation>
+        <translation type="unfinished">Klar</translation>
     </message>
     <message>
         <source>Quit</source>
@@ -10554,86 +10556,86 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Help</source>
-        <translation>Hjälp</translation>
+        <translation type="unfinished">Hjälp</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; Till&amp;baka</translation>
+        <translation type="unfinished">&lt; Till&amp;baka</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Färdigställ</translation>
+        <translation type="unfinished">&amp;Färdig</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <translation type="unfinished">Avbryt</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Hjälp</translation>
+        <translation type="unfinished">&amp;Hjälp</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>&amp;Nästa</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Nästa &gt;</translation>
+        <translation type="unfinished">&amp;Nästa &gt;</translation>
     </message>
 </context>
 <context>
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>Åte&amp;rställ</translation>
+        <translation type="vanished">Åte&amp;rställ</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Flytta</translation>
+        <translation type="vanished">&amp;Flytta</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Storlek</translation>
+        <translation type="vanished">&amp;Storlek</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Mi&amp;nimera</translation>
+        <translation type="vanished">Mi&amp;nimera</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Ma&amp;ximera</translation>
+        <translation type="vanished">Ma&amp;ximera</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Stäng</translation>
+        <translation type="vanished">&amp;Stäng</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Stanna kvar övers&amp;t</translation>
+        <translation type="vanished">Stanna kvar övers&amp;t</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>Skugg&amp;a</translation>
+        <translation type="vanished">Skugg&amp;a</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimera</translation>
+        <translation type="vanished">Minimera</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Återställ nedåt</translation>
+        <translation type="vanished">Återställ nedåt</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Stäng</translation>
+        <translation type="vanished">Stäng</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>A&amp;vskugga</translation>
+        <translation type="vanished">A&amp;vskugga</translation>
     </message>
 </context>
 <context>
@@ -10735,46 +10737,46 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QXmlPatternistCLI</name>
     <message>
         <source>Warning in %1, at line %2, column %3: %4</source>
-        <translation>Varning i %1, på rad %2, kolumn %3: %4</translation>
+        <translation type="vanished">Varning i %1, på rad %2, kolumn %3: %4</translation>
     </message>
     <message>
         <source>Warning in %1: %2</source>
-        <translation>Varning i %1: %2</translation>
+        <translation type="vanished">Varning i %1: %2</translation>
     </message>
     <message>
         <source>Unknown location</source>
-        <translation>Okänt plats</translation>
+        <translation type="vanished">Okänt plats</translation>
     </message>
     <message>
         <source>Error %1 in %2, at line %3, column %4: %5</source>
-        <translation>Fel %1 i %2 på rad %3, kolumn %4: %5</translation>
+        <translation type="vanished">Fel %1 i %2 på rad %3, kolumn %4: %5</translation>
     </message>
     <message>
         <source>Error %1 in %2: %3</source>
-        <translation>Fel %1 i %2: %3</translation>
+        <translation type="vanished">Fel %1 i %2: %3</translation>
     </message>
 </context>
 <context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation>Extra innehåll vid dokumentslutet.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
-        <translation>Ogiltigt entitetsvärde.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid XML character.</source>
-        <translation>Ogiltigt XML-tecken.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation>Sekvensen \&quot;]]&gt;\&quot; tillåts inte i innehåll.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation>Namnrymdsprefixet \&quot;%1\&quot; inte deklarerat</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Attribute redefined.</source>
@@ -10782,119 +10784,119 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translation>Oväntat tecken \&quot;%1\&quot; i publik id-literal.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translation>Ogiltig XML-versionssträng.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translation>XML-versionen stöds inte.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translation>%1 är ett ogiltigt teckenkodningsnamn.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translation>Teckenkodningen %1 stöds inte</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation>Standalone tillåter endast yes eller no.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
-        <translation>Ogiltigt attribut i XML-deklaration.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Premature end of document.</source>
-        <translation>För tidigt dokumentslut.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid document.</source>
-        <translation>Ogiltigt dokument.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Expected </source>
-        <translation>Förväntade </translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translation>, men fick &apos;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translation>Oväntat &apos;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Expected character data.</source>
-        <translation>Förväntade teckendata.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
-        <translation>Rekursiv entitet upptäcktes.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translation>Start-tagg förväntades.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translation>XML-deklaration inte i början av dokument.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>NDATA in parameter entity declaration.</source>
-        <translation>NDATA i parameterentitetdeklaration.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation>%1 är ett ogiltigt namn på en processinstruktion.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation>Ogiltigt namn på processinstruktion.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translation>Otillåten namnrymdsdeklaration.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
-        <translation>Ogiltigt XML-namn.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation>Taggar för början och slut stämmer inte.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Referens till otolkad entitet \&quot;%1\&quot;.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translation>Entitet \&quot;%1\&quot; inte deklarerad.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translation>Referens till extern entitet \&quot;%1\&quot; i attributvärde.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid character reference.</source>
-        <translation>Ogiltig teckenreferens.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translation>Påträffade felaktigt kodat innehåll.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation>Pseudoattributet standalone måste finnas efter teckenkodningen.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation>%1 är en ogiltig PUBLIC-identifierare.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Attribute &apos;%1&apos; redefined.</source>
@@ -10909,7 +10911,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The target name in a processing instruction cannot be %1 in any combination of upper and lower case. Therefore, %2 is invalid.</source>
-        <translation>Målnamnet i en processinstruktion kan inte vara %1 i någon kombination av gemener och versaler. Därför är %2 ogiltig.</translation>
+        <translation type="vanished">Målnamnet i en processinstruktion kan inte vara %1 i någon kombination av gemener och versaler. Därför är %2 ogiltig.</translation>
     </message>
     <message>
         <source>%1 is not a valid target name in a processing instruction. It must be a %2 value, e.g. %3.</source>
@@ -10917,19 +10919,19 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>W3C XML Schema identity constraint selector</source>
-        <translation>W3C XML Schema identitetsbegränsningsväljare</translation>
+        <translation type="vanished">W3C XML Schema identitetsbegränsningsväljare</translation>
     </message>
     <message>
         <source>W3C XML Schema identity constraint field</source>
-        <translation>W3C XML Schema identitetsbegränsningsfält</translation>
+        <translation type="vanished">W3C XML Schema identitetsbegränsningsfält</translation>
     </message>
     <message>
         <source>A construct was encountered which is disallowed in the current language(%1).</source>
-        <translation>En skapelse påträffades som inte är tillåten i nuvarande språk (%1).</translation>
+        <translation type="vanished">En skapelse påträffades som inte är tillåten i nuvarande språk (%1).</translation>
     </message>
     <message>
         <source>A template with name %1 has already been declared.</source>
-        <translation>En mall med namnet %1 har redan deklarerats.</translation>
+        <translation type="vanished">En mall med namnet %1 har redan deklarerats.</translation>
     </message>
     <message>
         <source>%1 is not a valid numeric literal.</source>
@@ -10937,7 +10939,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>No variable with name %1 exists</source>
-        <translation>Ingen variabel med namnet %1 finns</translation>
+        <translation type="vanished">Ingen variabel med namnet %1 finns</translation>
     </message>
     <message>
         <source>Version %1 is not supported. The supported XQuery version is 1.0.</source>
@@ -10969,7 +10971,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The value of attribute %1 must be of type %2, which %3 isn&apos;t.</source>
-        <translation>Värdet av egenskapen %1 måste ha typen %2, vilket %3 inte har.</translation>
+        <translation type="vanished">Värdet av egenskapen %1 måste ha typen %2, vilket %3 inte har.</translation>
     </message>
     <message>
         <source>It is not possible to redeclare prefix %1.</source>
@@ -10977,7 +10979,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The prefix %1 cannot be bound. By default, it is already bound to the namespace %2.</source>
-        <translation>Prefixet %1 kan inte bindas. Normalt är det redan bundet till namnrymden %2.</translation>
+        <translation type="vanished">Prefixet %1 kan inte bindas. Normalt är det redan bundet till namnrymden %2.</translation>
     </message>
     <message>
         <source>Prefix %1 is already declared in the prolog.</source>
@@ -11001,11 +11003,11 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>A variable with name %1 has already been declared.</source>
-        <translation>En variabel med namnet %1 har redan deklarerats.</translation>
+        <translation type="vanished">En variabel med namnet %1 har redan deklarerats.</translation>
     </message>
     <message>
         <source>No value is available for the external variable with name %1.</source>
-        <translation>Något värde är inte tillgängligt för den externa variabeln med namnet %1.</translation>
+        <translation type="vanished">Något värde är inte tillgängligt för den externa variabeln med namnet %1.</translation>
     </message>
     <message>
         <source>A stylesheet function must have a prefixed name.</source>
@@ -11033,7 +11035,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>An argument with name %1 has already been declared. Every argument name must be unique.</source>
-        <translation>Ett argument med namnet %1 har redan deklarerats. Varje argumentnamn måste vara unikt.</translation>
+        <translation type="vanished">Ett argument med namnet %1 har redan deklarerats. Varje argumentnamn måste vara unikt.</translation>
     </message>
     <message>
         <source>When function %1 is used for matching inside a pattern, the argument must be a variable reference or a string literal.</source>
@@ -11085,7 +11087,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>No function with name %1 is available.</source>
-        <translation>Någon funktion med namnet %1 är inte tillgänglig.</translation>
+        <translation type="vanished">Någon funktion med namnet %1 är inte tillgänglig.</translation>
     </message>
     <message>
         <source>The namespace URI cannot be the empty string when binding to a prefix, %1.</source>
@@ -11117,7 +11119,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>An attribute with name %1 has already appeared on this element.</source>
-        <translation>En egenskap med namnet %1 har redan funnits för den här komponenten.</translation>
+        <translation type="vanished">En egenskap med namnet %1 har redan funnits för den här komponenten.</translation>
     </message>
     <message>
         <source>A direct element constructor is not well-formed. %1 is ended with %2.</source>
@@ -11165,1075 +11167,1075 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Empty particle cannot be derived from non-empty particle.</source>
-        <translation>Tom partikel kan inte härledas från icke-tom partikel.</translation>
+        <translation type="vanished">Tom partikel kan inte härledas från icke-tom partikel.</translation>
     </message>
     <message>
         <source>Derived particle is missing element %1.</source>
-        <translation>Härledd partikel saknar komponenten %1.</translation>
+        <translation type="vanished">Härledd partikel saknar komponenten %1.</translation>
     </message>
     <message>
         <source>Derived element %1 is missing value constraint as defined in base particle.</source>
-        <translation>Härledd komponent %1 saknar värdebegränsning som definierad i baspartikeln.</translation>
+        <translation type="vanished">Härledd komponent %1 saknar värdebegränsning som definierad i baspartikeln.</translation>
     </message>
     <message>
         <source>Derived element %1 has weaker value constraint than base particle.</source>
-        <translation>Härledd komponent %1 har svagare värdebegränsning än baspartikeln.</translation>
+        <translation type="vanished">Härledd komponent %1 har svagare värdebegränsning än baspartikeln.</translation>
     </message>
     <message>
         <source>Fixed value constraint of element %1 differs from value constraint in base particle.</source>
-        <translation>Fast värdebegränsning i komponenten %1 skiljer sig från värdebegränsning i baspartikeln.</translation>
+        <translation type="vanished">Fast värdebegränsning i komponenten %1 skiljer sig från värdebegränsning i baspartikeln.</translation>
     </message>
     <message>
         <source>Derived element %1 cannot be nillable as base element is not nillable.</source>
-        <translation>Härledd komponent %1 kan inte tilldelas noll, eftersom baskomponenten inte kan det.</translation>
+        <translation type="vanished">Härledd komponent %1 kan inte tilldelas noll, eftersom baskomponenten inte kan det.</translation>
     </message>
     <message>
         <source>Block constraints of derived element %1 must not be more weaker than in the base element.</source>
-        <translation>Blockbegränsning för härledd komponent %1 får inte vara mycket svagare än i baskomponenten.</translation>
+        <translation type="vanished">Blockbegränsning för härledd komponent %1 får inte vara mycket svagare än i baskomponenten.</translation>
     </message>
     <message>
         <source>Simple type of derived element %1 cannot be validly derived from base element.</source>
-        <translation>Enkel typ av härledd komponent %1 kan inte giltigt härledas från baskomponent.</translation>
+        <translation type="vanished">Enkel typ av härledd komponent %1 kan inte giltigt härledas från baskomponent.</translation>
     </message>
     <message>
         <source>Complex type of derived element %1 cannot be validly derived from base element.</source>
-        <translation>Komplex typ av härledd komponent %1 kan inte giltigt härledas från baskomponent.</translation>
+        <translation type="vanished">Komplex typ av härledd komponent %1 kan inte giltigt härledas från baskomponent.</translation>
     </message>
     <message>
         <source>Element %1 is missing in derived particle.</source>
-        <translation>Komponenten %1 saknas i härledd partikel.</translation>
+        <translation type="vanished">Komponenten %1 saknas i härledd partikel.</translation>
     </message>
     <message>
         <source>Element %1 does not match namespace constraint of wildcard in base particle.</source>
-        <translation>Komponenten %1 motsvarar inte namnrymdsbegränsning för jokertecken i baspartikel.</translation>
+        <translation type="vanished">Komponenten %1 motsvarar inte namnrymdsbegränsning för jokertecken i baspartikel.</translation>
     </message>
     <message>
         <source>Wildcard in derived particle is not a valid subset of wildcard in base particle.</source>
-        <translation>Jokertecken i härledd partikel är inte en giltig delmängd av jokertecknen i baspartikeln.</translation>
+        <translation type="vanished">Jokertecken i härledd partikel är inte en giltig delmängd av jokertecknen i baspartikeln.</translation>
     </message>
     <message>
         <source>processContent of wildcard in derived particle is weaker than wildcard in base particle.</source>
-        <translation>Processinnehåll i jokertecken för härledd partikel är svagare än jokertecken i baspartikeln.</translation>
+        <translation type="vanished">Processinnehåll i jokertecken för härledd partikel är svagare än jokertecken i baspartikeln.</translation>
     </message>
     <message>
         <source>Derived particle allows content that is not allowed in the base particle.</source>
-        <translation>Härledd partikel tillåter innehåll som inte tillåts i baspartikeln.</translation>
+        <translation type="vanished">Härledd partikel tillåter innehåll som inte tillåts i baspartikeln.</translation>
     </message>
     <message>
         <source>%1 has inheritance loop in its base type %2.</source>
-        <translation>%1 har ett cirkulärt arv i dess bastyp %2.</translation>
+        <translation type="vanished">%1 har ett cirkulärt arv i dess bastyp %2.</translation>
     </message>
     <message>
         <source>Circular inheritance of base type %1.</source>
-        <translation>Cirkulärt arv för bastyp %1.</translation>
+        <translation type="vanished">Cirkulärt arv för bastyp %1.</translation>
     </message>
     <message>
         <source>Circular inheritance of union %1.</source>
-        <translation>Cirkulärt arv av union %1.</translation>
+        <translation type="vanished">Cirkulärt arv av union %1.</translation>
     </message>
     <message>
         <source>%1 is not allowed to derive from %2 by restriction as the latter defines it as final.</source>
-        <translation>%1 tillåts inte härleda från %2 med begränsning, eftersom den senare definierar den som slutgiltig.</translation>
+        <translation type="vanished">%1 tillåts inte härleda från %2 med begränsning, eftersom den senare definierar den som slutgiltig.</translation>
     </message>
     <message>
         <source>%1 is not allowed to derive from %2 by extension as the latter defines it as final.</source>
-        <translation>%1 tillåts inte härleda från %2 med begränsning, eftersom den senare definierar den som slutgiltig.</translation>
+        <translation type="vanished">%1 tillåts inte härleda från %2 med begränsning, eftersom den senare definierar den som slutgiltig.</translation>
     </message>
     <message>
         <source>Base type of simple type %1 cannot be complex type %2.</source>
-        <translation>Bastyp av enkel typ %1 kan inte vara en komplex typ %2.</translation>
+        <translation type="vanished">Bastyp av enkel typ %1 kan inte vara en komplex typ %2.</translation>
     </message>
     <message>
         <source>Simple type %1 cannot have direct base type %2.</source>
-        <translation>Enkel typ %1 kan inte ha direkt bastyp %2.</translation>
+        <translation type="vanished">Enkel typ %1 kan inte ha direkt bastyp %2.</translation>
     </message>
     <message>
         <source>Simple type %1 is not allowed to have base type %2.</source>
-        <translation>Enkel typ %1 tillåts inte ha bastyp %2.</translation>
+        <translation type="vanished">Enkel typ %1 tillåts inte ha bastyp %2.</translation>
     </message>
     <message>
         <source>Simple type %1 can only have simple atomic type as base type.</source>
-        <translation>Enkel typ %1 kan bara ha enkel atomär typ som bastyp.</translation>
+        <translation type="vanished">Enkel typ %1 kan bara ha enkel atomär typ som bastyp.</translation>
     </message>
     <message>
         <source>Simple type %1 cannot derive from %2 as the latter defines restriction as final.</source>
-        <translation>Enkel typ %1 kan inte härleda från %2 eftersom den senare definierar begränsning som slutgiltig.</translation>
+        <translation type="vanished">Enkel typ %1 kan inte härleda från %2 eftersom den senare definierar begränsning som slutgiltig.</translation>
     </message>
     <message>
         <source>Variety of item type of %1 must be either atomic or union.</source>
-        <translation>Variation av objekttyp för %1 måste antingen vara atomär eller union.</translation>
+        <translation type="vanished">Variation av objekttyp för %1 måste antingen vara atomär eller union.</translation>
     </message>
     <message>
         <source>Variety of member types of %1 must be atomic.</source>
-        <translation>Variation av medlemstyper för %1 måste vara atomära.</translation>
+        <translation type="vanished">Variation av medlemstyper för %1 måste vara atomära.</translation>
     </message>
     <message>
         <source>%1 is not allowed to derive from %2 by list as the latter defines it as final.</source>
-        <translation>%1 tillåts inte härleda från %2 med lista, eftersom den senare definierar den som slutgiltig.</translation>
+        <translation type="vanished">%1 tillåts inte härleda från %2 med lista, eftersom den senare definierar den som slutgiltig.</translation>
     </message>
     <message>
         <source>Simple type %1 is only allowed to have %2 facet.</source>
-        <translation>Enkel typ %1 tillåts bara ha aspekten %2.</translation>
+        <translation type="vanished">Enkel typ %1 tillåts bara ha aspekten %2.</translation>
     </message>
     <message>
         <source>Base type of simple type %1 must have variety of type list.</source>
-        <translation>Bastyp av enkel typ %1 måste ha variation av typ lista.</translation>
+        <translation type="vanished">Bastyp av enkel typ %1 måste ha variation av typ lista.</translation>
     </message>
     <message>
         <source>Base type of simple type %1 has defined derivation by restriction as final.</source>
-        <translation>Bastyp av enkel typ %1 har definierat härledning med begränsning som slutgiltig.</translation>
+        <translation type="vanished">Bastyp av enkel typ %1 har definierat härledning med begränsning som slutgiltig.</translation>
     </message>
     <message>
         <source>Item type of base type does not match item type of %1.</source>
-        <translation>Objekttyp av bastyp motsvarar inte objekttyp av %1.</translation>
+        <translation type="vanished">Objekttyp av bastyp motsvarar inte objekttyp av %1.</translation>
     </message>
     <message>
         <source>Simple type %1 contains not allowed facet type %2.</source>
-        <translation>Enkel typ %1 innehåller aspekttyp %2 som inte tillåts.</translation>
+        <translation type="vanished">Enkel typ %1 innehåller aspekttyp %2 som inte tillåts.</translation>
     </message>
     <message>
         <source>%1 is not allowed to derive from %2 by union as the latter defines it as final.</source>
-        <translation>%1 tillåts inte härleda från %2 med union, eftersom den senare definierar den som slutgiltig.</translation>
+        <translation type="vanished">%1 tillåts inte härleda från %2 med union, eftersom den senare definierar den som slutgiltig.</translation>
     </message>
     <message>
         <source>%1 is not allowed to have any facets.</source>
-        <translation>%1 tillåts inte ha några aspekter.</translation>
+        <translation type="vanished">%1 tillåts inte ha några aspekter.</translation>
     </message>
     <message>
         <source>Base type %1 of simple type %2 must have variety of union.</source>
-        <translation>Bastyp %1 av enkel typ %2 måste ha variationen union.</translation>
+        <translation type="vanished">Bastyp %1 av enkel typ %2 måste ha variationen union.</translation>
     </message>
     <message>
         <source>Base type %1 of simple type %2 is not allowed to have restriction in %3 attribute.</source>
-        <translation>Bastyp %1 av enkel typ %2 tillåts inte ha begränsning i egenskap %3.</translation>
+        <translation type="vanished">Bastyp %1 av enkel typ %2 tillåts inte ha begränsning i egenskap %3.</translation>
     </message>
     <message>
         <source>Member type %1 cannot be derived from member type %2 of %3&apos;s base type %4.</source>
-        <translation>Medlemstypen %1 kan inte härledas från medlemstypen %2 av bastypen %4 för %3.</translation>
+        <translation type="vanished">Medlemstypen %1 kan inte härledas från medlemstypen %2 av bastypen %4 för %3.</translation>
     </message>
     <message>
         <source>Derivation method of %1 must be extension because the base type %2 is a simple type.</source>
-        <translation>Härledningsmetod för %1 måste vara utökning, eftersom bastypen %2 är en enkel typ.</translation>
+        <translation type="vanished">Härledningsmetod för %1 måste vara utökning, eftersom bastypen %2 är en enkel typ.</translation>
     </message>
     <message>
         <source>Complex type %1 has duplicated element %2 in its content model.</source>
-        <translation>Komplex typ %1 har duplicerade komponenten %2 i sin innehållsmodell.</translation>
+        <translation type="vanished">Komplex typ %1 har duplicerade komponenten %2 i sin innehållsmodell.</translation>
     </message>
     <message>
         <source>Complex type %1 has non-deterministic content.</source>
-        <translation>Komplex typ %1 har icke-deterministiskt innehåll.</translation>
+        <translation type="vanished">Komplex typ %1 har icke-deterministiskt innehåll.</translation>
     </message>
     <message>
         <source>Attributes of complex type %1 are not a valid extension of the attributes of base type %2: %3.</source>
-        <translation>Egenskapen för den komplexa typen %1 är inte en giltig utökning av egenskaperna för bastypen %2: %3.</translation>
+        <translation type="vanished">Egenskapen för den komplexa typen %1 är inte en giltig utökning av egenskaperna för bastypen %2: %3.</translation>
     </message>
     <message>
         <source>Content model of complex type %1 is not a valid extension of content model of %2.</source>
-        <translation>Innehållsmodellen för komplex typ %1 är inte en giltig utökning av innehållsmodellen för %2.</translation>
+        <translation type="vanished">Innehållsmodellen för komplex typ %1 är inte en giltig utökning av innehållsmodellen för %2.</translation>
     </message>
     <message>
         <source>Complex type %1 must have simple content.</source>
-        <translation>Komplex typ %1 måste ha enkelt innehåll.</translation>
+        <translation type="vanished">Komplex typ %1 måste ha enkelt innehåll.</translation>
     </message>
     <message>
         <source>Complex type %1 must have the same simple type as its base class %2.</source>
-        <translation>Komplex typ %1 måste ha samma enkla typ som dess basklass %2.</translation>
+        <translation type="vanished">Komplex typ %1 måste ha samma enkla typ som dess basklass %2.</translation>
     </message>
     <message>
         <source>Complex type %1 cannot be derived from base type %2%3.</source>
-        <translation>Komplex typ %1 kan inte härledas från bastyp %2%3.</translation>
+        <translation type="vanished">Komplex typ %1 kan inte härledas från bastyp %2%3.</translation>
     </message>
     <message>
         <source>Attributes of complex type %1 are not a valid restriction from the attributes of base type %2: %3.</source>
-        <translation>Egenskaper för komplex typ %1 är inte en giltig begränsning från egenskaper för bastypen %2: %3.</translation>
+        <translation type="vanished">Egenskaper för komplex typ %1 är inte en giltig begränsning från egenskaper för bastypen %2: %3.</translation>
     </message>
     <message>
         <source>Complex type %1 with simple content cannot be derived from complex base type %2.</source>
-        <translation>Komplex typ %1 med enkelt innehåll kan inte härledas från komplex bastyp %2.</translation>
+        <translation type="vanished">Komplex typ %1 med enkelt innehåll kan inte härledas från komplex bastyp %2.</translation>
     </message>
     <message>
         <source>Item type of simple type %1 cannot be a complex type.</source>
-        <translation>Objekttyp av enkel typ %1 kan inte vara en komplex typ.</translation>
+        <translation type="vanished">Objekttyp av enkel typ %1 kan inte vara en komplex typ.</translation>
     </message>
     <message>
         <source>Member type of simple type %1 cannot be a complex type.</source>
-        <translation>Medlemstyp av enkel typ %1 kan inte vara en komplex typ.</translation>
+        <translation type="vanished">Medlemstyp av enkel typ %1 kan inte vara en komplex typ.</translation>
     </message>
     <message>
         <source>%1 is not allowed to have a member type with the same name as itself.</source>
-        <translation>%1 tillåts inte ha en medlemstyp av samma namn som den själv.</translation>
+        <translation type="vanished">%1 tillåts inte ha en medlemstyp av samma namn som den själv.</translation>
     </message>
     <message>
         <source>%1 facet collides with %2 facet.</source>
-        <translation>Aspekt %1 kolliderar med aspekt %2.</translation>
+        <translation type="vanished">Aspekt %1 kolliderar med aspekt %2.</translation>
     </message>
     <message>
         <source>%1 facet must have the same value as %2 facet of base type.</source>
-        <translation>Aspekt %1 måste ha samma värde som aspekt %2 av bastypen.</translation>
+        <translation type="vanished">Aspekt %1 måste ha samma värde som aspekt %2 av bastypen.</translation>
     </message>
     <message>
         <source>%1 facet must be equal or greater than %2 facet of base type.</source>
-        <translation>Aspekt %1 måste vara större än eller lika med aspekt %2 av bastypen.</translation>
+        <translation type="vanished">Aspekt %1 måste vara större än eller lika med aspekt %2 av bastypen.</translation>
     </message>
     <message>
         <source>%1 facet must be less than or equal to %2 facet of base type.</source>
-        <translation>Aspekt %1 måste vara mindre än eller lika med aspekt %2 av bastypen.</translation>
+        <translation type="vanished">Aspekt %1 måste vara mindre än eller lika med aspekt %2 av bastypen.</translation>
     </message>
     <message>
         <source>%1 facet contains invalid regular expression</source>
-        <translation>Aspekt %1 innehåller ogiltigt reguljärt uttryck</translation>
+        <translation type="vanished">Aspekt %1 innehåller ogiltigt reguljärt uttryck</translation>
     </message>
     <message>
         <source>Unknown notation %1 used in %2 facet.</source>
-        <translation>Okänd notation %1 använd i aspekten %2.</translation>
+        <translation type="vanished">Okänd notation %1 använd i aspekten %2.</translation>
     </message>
     <message>
         <source>%1 facet contains invalid value %2: %3.</source>
-        <translation>Aspekten %1 innehåller ogiltigt värde %2: %3.</translation>
+        <translation type="vanished">Aspekten %1 innehåller ogiltigt värde %2: %3.</translation>
     </message>
     <message>
         <source>%1 facet cannot be %2 or %3 if %4 facet of base type is %5.</source>
-        <translation>Aspekten %1 kan inte vara %2 eller %3 om aspekten %4 av bastypen är %5.</translation>
+        <translation type="vanished">Aspekten %1 kan inte vara %2 eller %3 om aspekten %4 av bastypen är %5.</translation>
     </message>
     <message>
         <source>%1 facet cannot be %2 if %3 facet of base type is %4.</source>
-        <translation>Aspekten %1 kan inte vara %2 om aspekten %3 av bastypen är %4.</translation>
+        <translation type="vanished">Aspekten %1 kan inte vara %2 om aspekten %3 av bastypen är %4.</translation>
     </message>
     <message>
         <source>%1 facet must be less than or equal to %2 facet.</source>
-        <translation>Aspekten %1 måste vara mindre än eller lika med aspekten %2.</translation>
+        <translation type="vanished">Aspekten %1 måste vara mindre än eller lika med aspekten %2.</translation>
     </message>
     <message>
         <source>%1 facet must be less than %2 facet of base type.</source>
-        <translation>Aspekten %1 måste vara mindre än bastypens aspekt %2.</translation>
+        <translation type="vanished">Aspekten %1 måste vara mindre än bastypens aspekt %2.</translation>
     </message>
     <message>
         <source>%1 facet and %2 facet cannot appear together.</source>
-        <translation>Aspekten %1 och aspekten %2 kan inte uppträda tillsammans.</translation>
+        <translation type="vanished">Aspekten %1 och aspekten %2 kan inte uppträda tillsammans.</translation>
     </message>
     <message>
         <source>%1 facet must be greater than %2 facet of base type.</source>
-        <translation>Aspekten %1 måste vara större än bastypens aspekt %2.</translation>
+        <translation type="vanished">Aspekten %1 måste vara större än bastypens aspekt %2.</translation>
     </message>
     <message>
         <source>%1 facet must be less than %2 facet.</source>
-        <translation>Aspekten %1 måste vara mindre än aspekten %2.</translation>
+        <translation type="vanished">Aspekten %1 måste vara mindre än aspekten %2.</translation>
     </message>
     <message>
         <source>%1 facet must be greater than or equal to %2 facet of base type.</source>
-        <translation>Aspekten %1 måste vara större än eller lika med bastypens aspekt %2.</translation>
+        <translation type="vanished">Aspekten %1 måste vara större än eller lika med bastypens aspekt %2.</translation>
     </message>
     <message>
         <source>Simple type contains not allowed facet %1.</source>
-        <translation>Enkel typ innehåller aspekten %1 som inte är tillåten.</translation>
+        <translation type="vanished">Enkel typ innehåller aspekten %1 som inte är tillåten.</translation>
     </message>
     <message>
         <source>%1, %2, %3, %4, %5 and %6 facets are not allowed when derived by list.</source>
-        <translation>Aspekterna %1, %2, %3, %4, %5 och %6 är inte tillåtna vid härledning från lista.</translation>
+        <translation type="vanished">Aspekterna %1, %2, %3, %4, %5 och %6 är inte tillåtna vid härledning från lista.</translation>
     </message>
     <message>
         <source>Only %1 and %2 facets are allowed when derived by union.</source>
-        <translation>Bara aspekterna %1 och %2 är tillåtna vid härledning från union.</translation>
+        <translation type="vanished">Bara aspekterna %1 och %2 är tillåtna vid härledning från union.</translation>
     </message>
     <message>
         <source>%1 contains %2 facet with invalid data: %3.</source>
-        <translation>%1 innehåller aspekten %2 med ogiltig data: %3.</translation>
+        <translation type="vanished">%1 innehåller aspekten %2 med ogiltig data: %3.</translation>
     </message>
     <message>
         <source>Attribute group %1 contains attribute %2 twice.</source>
-        <translation>Egenskapsgruppen %1 innehåller egenskapen %2 två gånger.</translation>
+        <translation type="vanished">Egenskapsgruppen %1 innehåller egenskapen %2 två gånger.</translation>
     </message>
     <message>
         <source>Attribute group %1 contains two different attributes that both have types derived from %2.</source>
-        <translation>Egenskapsgruppen %1 innehåller två olika egenskaper som båda har typer härledda från %2.</translation>
+        <translation type="vanished">Egenskapsgruppen %1 innehåller två olika egenskaper som båda har typer härledda från %2.</translation>
     </message>
     <message>
         <source>Attribute group %1 contains attribute %2 that has value constraint but type that inherits from %3.</source>
-        <translation>Egenskapsgruppen %1 innehåller egenskapen %2 som har en värdebegränsning men en typ som ärver från %3.</translation>
+        <translation type="vanished">Egenskapsgruppen %1 innehåller egenskapen %2 som har en värdebegränsning men en typ som ärver från %3.</translation>
     </message>
     <message>
         <source>Complex type %1 contains attribute %2 twice.</source>
-        <translation>Komplex typ %1 innehåller egenskapen %2 två gånger.</translation>
+        <translation type="vanished">Komplex typ %1 innehåller egenskapen %2 två gånger.</translation>
     </message>
     <message>
         <source>Complex type %1 contains two different attributes that both have types derived from %2.</source>
-        <translation>Komplex typ %1 innehåller två olika egenskaper som båda har typer härledda från %2.</translation>
+        <translation type="vanished">Komplex typ %1 innehåller två olika egenskaper som båda har typer härledda från %2.</translation>
     </message>
     <message>
         <source>Complex type %1 contains attribute %2 that has value constraint but type that inherits from %3.</source>
-        <translation>Komplex typ %1 innehåller egenskapen %2 som har en värdebegränsning men en typ som ärver från %3.</translation>
+        <translation type="vanished">Komplex typ %1 innehåller egenskapen %2 som har en värdebegränsning men en typ som ärver från %3.</translation>
     </message>
     <message>
         <source>Element %1 is not allowed to have a value constraint if its base type is complex.</source>
-        <translation>Komponenten %1 tillåts inte ha en värdebegränsning om dess bastyp är komplex.</translation>
+        <translation type="vanished">Komponenten %1 tillåts inte ha en värdebegränsning om dess bastyp är komplex.</translation>
     </message>
     <message>
         <source>Element %1 is not allowed to have a value constraint if its type is derived from %2.</source>
-        <translation>Komponenten %1 tillåts inte ha en värdebegränsning om dess typ är härledd från %2.</translation>
+        <translation type="vanished">Komponenten %1 tillåts inte ha en värdebegränsning om dess typ är härledd från %2.</translation>
     </message>
     <message>
         <source>Value constraint of element %1 is not of elements type: %2.</source>
-        <translation>Värdebegränsning för komponenten %1 har inte komponentens typ: %2.</translation>
+        <translation type="vanished">Värdebegränsning för komponenten %1 har inte komponentens typ: %2.</translation>
     </message>
     <message>
         <source>Element %1 is not allowed to have substitution group affiliation as it is no global element.</source>
-        <translation>Komponenten %1 tillåts inte ha tillhörighet som ersättningsgrupp eftersom den inte är en global komponent.</translation>
+        <translation type="vanished">Komponenten %1 tillåts inte ha tillhörighet som ersättningsgrupp eftersom den inte är en global komponent.</translation>
     </message>
     <message>
         <source>Type of element %1 cannot be derived from type of substitution group affiliation.</source>
-        <translation>Typ för komponenten %1 kan inte härledas från typ för ersättningsgruppens tillhörighet.</translation>
+        <translation type="vanished">Typ för komponenten %1 kan inte härledas från typ för ersättningsgruppens tillhörighet.</translation>
     </message>
     <message>
         <source>Value constraint of attribute %1 is not of attributes type: %2.</source>
-        <translation>Värdebegränsning för egenskapen %1 har inte egenskapens typ: %2.</translation>
+        <translation type="vanished">Värdebegränsning för egenskapen %1 har inte egenskapens typ: %2.</translation>
     </message>
     <message>
         <source>Attribute %1 has value constraint but has type derived from %2.</source>
-        <translation>Egenskapen %1 har en värdebegränsning men har en typ härledd från %2.</translation>
+        <translation type="vanished">Egenskapen %1 har en värdebegränsning men har en typ härledd från %2.</translation>
     </message>
     <message>
         <source>%1 attribute in derived complex type must be %2 like in base type.</source>
-        <translation>Egenskapen %1 i härledd komplex typ måste vara %2 som i bastypen.</translation>
+        <translation type="vanished">Egenskapen %1 i härledd komplex typ måste vara %2 som i bastypen.</translation>
     </message>
     <message>
         <source>Attribute %1 in derived complex type must have %2 value constraint like in base type.</source>
-        <translation>Egenskapen %1 i härledd komplex typ måste ha värdebegränsningen %2 som i bastypen.</translation>
+        <translation type="vanished">Egenskapen %1 i härledd komplex typ måste ha värdebegränsningen %2 som i bastypen.</translation>
     </message>
     <message>
         <source>Attribute %1 in derived complex type must have the same %2 value constraint like in base type.</source>
-        <translation>Egenskapen %1 i härledd komplex typ måste ha samma värdebegränsning %2 som i bastypen.</translation>
+        <translation type="vanished">Egenskapen %1 i härledd komplex typ måste ha samma värdebegränsning %2 som i bastypen.</translation>
     </message>
     <message>
         <source>Attribute %1 in derived complex type must have %2 value constraint.</source>
-        <translation>Egenskapen %1 i härledd komplex typ måste ha värdebegränsningen %2.</translation>
+        <translation type="vanished">Egenskapen %1 i härledd komplex typ måste ha värdebegränsningen %2.</translation>
     </message>
     <message>
         <source>processContent of base wildcard must be weaker than derived wildcard.</source>
-        <translation>Processinnehåll i basjokertecken måste vara svagare än härledda jokertecken.</translation>
+        <translation type="vanished">Processinnehåll i basjokertecken måste vara svagare än härledda jokertecken.</translation>
     </message>
     <message>
         <source>Element %1 exists twice with different types.</source>
-        <translation>Komponenten %1 finns två gånger med olika typer.</translation>
+        <translation type="vanished">Komponenten %1 finns två gånger med olika typer.</translation>
     </message>
     <message>
         <source>Particle contains non-deterministic wildcards.</source>
-        <translation>Partikel innehåller icke-deterministiska jokertecken.</translation>
+        <translation type="vanished">Partikel innehåller icke-deterministiska jokertecken.</translation>
     </message>
     <message>
         <source>Base attribute %1 is required but derived attribute is not.</source>
-        <translation>Basegenskap %1 krävs men härledd egenskap gör inte det.</translation>
+        <translation type="vanished">Basegenskap %1 krävs men härledd egenskap gör inte det.</translation>
     </message>
     <message>
         <source>Type of derived attribute %1 cannot be validly derived from type of base attribute.</source>
-        <translation>Typ av härledd egenskap %1 kan inte giltigt härledas från typen hos basegenskapen.</translation>
+        <translation type="vanished">Typ av härledd egenskap %1 kan inte giltigt härledas från typen hos basegenskapen.</translation>
     </message>
     <message>
         <source>Value constraint of derived attribute %1 does not match value constraint of base attribute.</source>
-        <translation>Värdebegränsning för härledd egenskap %1 motsvarar inte värdebegränsning för basegenskapen.</translation>
+        <translation type="vanished">Värdebegränsning för härledd egenskap %1 motsvarar inte värdebegränsning för basegenskapen.</translation>
     </message>
     <message>
         <source>Derived attribute %1 does not exist in the base definition.</source>
-        <translation>Härledd egenskap %1 finns inte i basdefinitionen.</translation>
+        <translation type="vanished">Härledd egenskap %1 finns inte i basdefinitionen.</translation>
     </message>
     <message>
         <source>Derived attribute %1 does not match the wildcard in the base definition.</source>
-        <translation>Härledd egenskap %1 motsvarar inte jokertecknen i basdefinitionen.</translation>
+        <translation type="vanished">Härledd egenskap %1 motsvarar inte jokertecknen i basdefinitionen.</translation>
     </message>
     <message>
         <source>Base attribute %1 is required but missing in derived definition.</source>
-        <translation>Basegenskap %1 krävs, men saknas i härledd definition.</translation>
+        <translation type="vanished">Basegenskap %1 krävs, men saknas i härledd definition.</translation>
     </message>
     <message>
         <source>Derived definition contains an %1 element that does not exists in the base definition</source>
-        <translation>Härledd definition innehåller komponenten %1 som inte finns i basdefinitionen</translation>
+        <translation type="vanished">Härledd definition innehåller komponenten %1 som inte finns i basdefinitionen</translation>
     </message>
     <message>
         <source>Derived wildcard is not a subset of the base wildcard.</source>
-        <translation>Härledda jokertecken är inte en delmängd av basjokertecken.</translation>
+        <translation type="vanished">Härledda jokertecken är inte en delmängd av basjokertecken.</translation>
     </message>
     <message>
         <source>%1 of derived wildcard is not a valid restriction of %2 of base wildcard</source>
-        <translation>%1 i härledda jokertecken är inte en giltig begränsning för %2 i basjokertecken</translation>
+        <translation type="vanished">%1 i härledda jokertecken är inte en giltig begränsning för %2 i basjokertecken</translation>
     </message>
     <message>
         <source>Attribute %1 from base type is missing in derived type.</source>
-        <translation>Egenskapen %1 från bastypen saknas i härledd typ.</translation>
+        <translation type="vanished">Egenskapen %1 från bastypen saknas i härledd typ.</translation>
     </message>
     <message>
         <source>Type of derived attribute %1 differs from type of base attribute.</source>
-        <translation>Typ för härledd egenskap %1 skiljer sig från basegenskapens typ.</translation>
+        <translation type="vanished">Typ för härledd egenskap %1 skiljer sig från basegenskapens typ.</translation>
     </message>
     <message>
         <source>Base definition contains an %1 element that is missing in the derived definition</source>
-        <translation>Basdefinitionen innehåller komponenten %1 som saknas i den härledda definitionen</translation>
+        <translation type="vanished">Basdefinitionen innehåller komponenten %1 som saknas i den härledda definitionen</translation>
     </message>
     <message>
         <source>Can not process unknown element %1, expected elements are: %2.</source>
-        <translation>Kan inte behandla okänd komponent %1, förväntade komponenter är: %2.</translation>
+        <translation type="vanished">Kan inte behandla okänd komponent %1, förväntade komponenter är: %2.</translation>
     </message>
     <message>
         <source>Element %1 is not allowed in this scope, possible elements are: %2.</source>
-        <translation>Komponenten %1 är inte tillåten i det här synliga området, möjliga komponenter är: %2.</translation>
+        <translation type="vanished">Komponenten %1 är inte tillåten i det här synliga området, möjliga komponenter är: %2.</translation>
     </message>
     <message>
         <source>Child element is missing in that scope, possible child elements are: %1.</source>
-        <translation>Underliggande komponent saknas i det synliga området, möjliga underliggande komponenter är: %1.</translation>
+        <translation type="vanished">Underliggande komponent saknas i det synliga området, möjliga underliggande komponenter är: %1.</translation>
     </message>
     <message>
         <source>Document is not a XML schema.</source>
-        <translation>Dokumentet är inte XML-schema.</translation>
+        <translation type="vanished">Dokumentet är inte XML-schema.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element contains invalid content: {%3} is not a value of type %4.</source>
-        <translation>Egenskapen %1 i komponenten %2 har ogiltigt innehåll: {%3} är inte ett värde av typen %4.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 har ogiltigt innehåll: {%3} är inte ett värde av typen %4.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element contains invalid content: {%3}.</source>
-        <translation>Egenskapen %1 i komponenten %2 har ogiltigt innehåll: {%3}.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 har ogiltigt innehåll: {%3}.</translation>
     </message>
     <message>
         <source>Target namespace %1 of included schema is different from the target namespace %2 as defined by the including schema.</source>
-        <translation>Målnamnrymden %1 av inkluderat schema skiljer sig från målnamnrymden %2 som definieras av schemat som inkluderar det.</translation>
+        <translation type="vanished">Målnamnrymden %1 av inkluderat schema skiljer sig från målnamnrymden %2 som definieras av schemat som inkluderar det.</translation>
     </message>
     <message>
         <source>Target namespace %1 of imported schema is different from the target namespace %2 as defined by the importing schema.</source>
-        <translation>Målnamnrymden %1 av importerat schema skiljer sig från målnamnrymden %2 som definieras av schemat som importerar det.</translation>
+        <translation type="vanished">Målnamnrymden %1 av importerat schema skiljer sig från målnamnrymden %2 som definieras av schemat som importerar det.</translation>
     </message>
     <message>
         <source>%1 element is not allowed to have the same %2 attribute value as the target namespace %3.</source>
-        <translation>Komponenten %1 tillåts inte ha samma egenskapsvärde %2 som målnamnrymden %3.</translation>
+        <translation type="vanished">Komponenten %1 tillåts inte ha samma egenskapsvärde %2 som målnamnrymden %3.</translation>
     </message>
     <message>
         <source>%1 element without %2 attribute is not allowed inside schema without target namespace.</source>
-        <translation>Komponenten %1 utan egenskapen %2 tillåts inte inne i schema utan målnamnrymd.</translation>
+        <translation type="vanished">Komponenten %1 utan egenskapen %2 tillåts inte inne i schema utan målnamnrymd.</translation>
     </message>
     <message>
         <source>%1 element is not allowed inside %2 element if %3 attribute is present.</source>
-        <translation>Komponenten %1 tillåts inte inne i komponenten %2 om egenskapen %3 är närvarande.</translation>
+        <translation type="vanished">Komponenten %1 tillåts inte inne i komponenten %2 om egenskapen %3 är närvarande.</translation>
     </message>
     <message>
         <source>%1 element has neither %2 attribute nor %3 child element.</source>
-        <translation>Komponenten %1 har varken egenskapen %2 eller den underliggande komponenten %3.</translation>
+        <translation type="vanished">Komponenten %1 har varken egenskapen %2 eller den underliggande komponenten %3.</translation>
     </message>
     <message>
         <source>%1 element with %2 child element must not have a %3 attribute.</source>
-        <translation>Komponenten %1 med den underliggande komponenten %2 får inte ha egenskapen %3.</translation>
+        <translation type="vanished">Komponenten %1 med den underliggande komponenten %2 får inte ha egenskapen %3.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element must be %3 or %4.</source>
-        <translation>Egenskapen %1 i komponenten %2 måste vara %3 eller %4.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 måste vara %3 eller %4.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element must have a value of %3.</source>
-        <translation>Egenskapen %1 i komponenten %2 måste ha värdet %3.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 måste ha värdet %3.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element must have a value of %3 or %4.</source>
-        <translation>Egenskapen %1 i komponenten %2 måste ha värdet %3 eller %4.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 måste ha värdet %3 eller %4.</translation>
     </message>
     <message>
         <source>%1 element must not have %2 and %3 attribute together.</source>
-        <translation>Komponenten %1 får inte ha egenskaperna %2 och %3 tillsammans.</translation>
+        <translation type="vanished">Komponenten %1 får inte ha egenskaperna %2 och %3 tillsammans.</translation>
     </message>
     <message>
         <source>Content of %1 attribute of %2 element must not be from namespace %3.</source>
-        <translation>Innehållet i egenskapen %1 för komponenten %2 får inte komma från namnrymden %3.</translation>
+        <translation type="vanished">Innehållet i egenskapen %1 för komponenten %2 får inte komma från namnrymden %3.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element must not be %3.</source>
-        <translation>Egenskapen %1 i komponenten %2 får inte vara %3.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 får inte vara %3.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element must have the value %3 because the %4 attribute is set.</source>
-        <translation>Egenskapen %1 i komponenten %2 måste ha värdet %3, eftersom egenskapen %4 är tilldelad.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 måste ha värdet %3, eftersom egenskapen %4 är tilldelad.</translation>
     </message>
     <message>
         <source>Specifying use=&apos;prohibited&apos; inside an attribute group has no effect.</source>
-        <translation>Att ange use=&apos;prohibited&apos; inne i en egenskapsgrupp får ingen effekt.</translation>
+        <translation type="vanished">Att ange use=&apos;prohibited&apos; inne i en egenskapsgrupp får ingen effekt.</translation>
     </message>
     <message>
         <source>%1 element must have either %2 or %3 attribute.</source>
-        <translation>Komponenten %1 måste antingen ha egenskapen %2 eller %3.</translation>
+        <translation type="vanished">Komponenten %1 måste antingen ha egenskapen %2 eller %3.</translation>
     </message>
     <message>
         <source>%1 element must have either %2 attribute or %3 or %4 as child element.</source>
-        <translation>Komponenten %1 måste antingen ha egenskapen %2 eller underliggande komponenten %3 eller %4.</translation>
+        <translation type="vanished">Komponenten %1 måste antingen ha egenskapen %2 eller underliggande komponenten %3 eller %4.</translation>
     </message>
     <message>
         <source>%1 element requires either %2 or %3 attribute.</source>
-        <translation>Komponenten %1 kräver antingen egenskapen %2 eller %3.</translation>
+        <translation type="vanished">Komponenten %1 kräver antingen egenskapen %2 eller %3.</translation>
     </message>
     <message>
         <source>Text or entity references not allowed inside %1 element</source>
-        <translation>Text eller objektreferenser tillåts inte inne i komponenten %1</translation>
+        <translation type="vanished">Text eller objektreferenser tillåts inte inne i komponenten %1</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element must contain %3, %4 or a list of URIs.</source>
-        <translation>Egenskapen %1 i komponenten %2 måste innehålla %3, %4 eller en lista med webbadresser.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 måste innehålla %3, %4 eller en lista med webbadresser.</translation>
     </message>
     <message>
         <source>%1 element is not allowed in this context.</source>
-        <translation>Komponenten %1 är inte tillåten i det här sammanhanget.</translation>
+        <translation type="vanished">Komponenten %1 är inte tillåten i det här sammanhanget.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element has larger value than %3 attribute.</source>
-        <translation>Egenskapen %1 i komponenten %2 har ett större värde än egenskapen %3.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 har ett större värde än egenskapen %3.</translation>
     </message>
     <message>
         <source>Prefix of qualified name %1 is not defined.</source>
-        <translation>Prefix av kvalificerat namn %1 är inte definierat.</translation>
+        <translation type="vanished">Prefix av kvalificerat namn %1 är inte definierat.</translation>
     </message>
     <message>
         <source>%1 attribute of %2 element must either contain %3 or the other values.</source>
-        <translation>Egenskapen %1 i komponenten %2 måste antingen innehålla %3 eller övriga värden.</translation>
+        <translation type="vanished">Egenskapen %1 i komponenten %2 måste antingen innehålla %3 eller övriga värden.</translation>
     </message>
     <message>
         <source>Component with ID %1 has been defined previously.</source>
-        <translation>Komponent med ID %1 har definierats tidigare.</translation>
+        <translation type="vanished">Komponent med ID %1 har definierats tidigare.</translation>
     </message>
     <message>
         <source>Element %1 already defined.</source>
-        <translation>Komponent %1 redan definierad.</translation>
+        <translation type="vanished">Komponent %1 redan definierad.</translation>
     </message>
     <message>
         <source>Attribute %1 already defined.</source>
-        <translation>Egenskap %1 redan definierad.</translation>
+        <translation type="vanished">Egenskap %1 redan definierad.</translation>
     </message>
     <message>
         <source>Type %1 already defined.</source>
-        <translation>Typ %1 redan definierad.</translation>
+        <translation type="vanished">Typ %1 redan definierad.</translation>
     </message>
     <message>
         <source>Attribute group %1 already defined.</source>
-        <translation>Egenskapsgrupp %1 redan definierad.</translation>
+        <translation type="vanished">Egenskapsgrupp %1 redan definierad.</translation>
     </message>
     <message>
         <source>Element group %1 already defined.</source>
-        <translation>Komponentgrupp %1 redan definierad.</translation>
+        <translation type="vanished">Komponentgrupp %1 redan definierad.</translation>
     </message>
     <message>
         <source>Notation %1 already defined.</source>
-        <translation>Notation %1 redan definierad.</translation>
+        <translation type="vanished">Notation %1 redan definierad.</translation>
     </message>
     <message>
         <source>Identity constraint %1 already defined.</source>
-        <translation>Identitetsbegränsning %1 redan definierad.</translation>
+        <translation type="vanished">Identitetsbegränsning %1 redan definierad.</translation>
     </message>
     <message>
         <source>Duplicated facets in simple type %1.</source>
-        <translation>Duplicerade aspekter i enkel typ %1.</translation>
+        <translation type="vanished">Duplicerade aspekter i enkel typ %1.</translation>
     </message>
     <message>
         <source>%1 references unknown %2 or %3 element %4.</source>
-        <translation>%1 refererar till okänd %2 eller %3 komponent %4.</translation>
+        <translation type="vanished">%1 refererar till okänd %2 eller %3 komponent %4.</translation>
     </message>
     <message>
         <source>%1 references identity constraint %2 that is no %3 or %4 element.</source>
-        <translation>%1 refererar till identitetsbegränsning %2 som inte är en %3 eller %4 komponent.</translation>
+        <translation type="vanished">%1 refererar till identitetsbegränsning %2 som inte är en %3 eller %4 komponent.</translation>
     </message>
     <message>
         <source>%1 has a different number of fields from the identity constraint %2 that it references.</source>
-        <translation>%1 har ett annat antal fält än identitetsbegränsningen %2 som den refererar till.</translation>
+        <translation type="vanished">%1 har ett annat antal fält än identitetsbegränsningen %2 som den refererar till.</translation>
     </message>
     <message>
         <source>Base type %1 of %2 element cannot be resolved.</source>
-        <translation>Bastypen %1 av komponenten %2 kan inte lösas upp.</translation>
+        <translation type="vanished">Bastypen %1 av komponenten %2 kan inte lösas upp.</translation>
     </message>
     <message>
         <source>Item type %1 of %2 element cannot be resolved.</source>
-        <translation>Objekttypen %1 av komponenten %2 kan inte lösas upp.</translation>
+        <translation type="vanished">Objekttypen %1 av komponenten %2 kan inte lösas upp.</translation>
     </message>
     <message>
         <source>Member type %1 of %2 element cannot be resolved.</source>
-        <translation>Medlemstypen %1 av komponenten %2 kan inte lösas upp.</translation>
+        <translation type="vanished">Medlemstypen %1 av komponenten %2 kan inte lösas upp.</translation>
     </message>
     <message>
         <source>Type %1 of %2 element cannot be resolved.</source>
-        <translation>Bastypen %1 av komponenten %2 kan inte lösas upp.</translation>
+        <translation type="vanished">Bastypen %1 av komponenten %2 kan inte lösas upp.</translation>
     </message>
     <message>
         <source>Base type %1 of complex type cannot be resolved.</source>
-        <translation>Bastypen %1 av komplex typ kan inte lösas upp.</translation>
+        <translation type="vanished">Bastypen %1 av komplex typ kan inte lösas upp.</translation>
     </message>
     <message>
         <source>%1 cannot have complex base type that has a %2.</source>
-        <translation>%1 kan inte ha komplex bastyp som har en %2.</translation>
+        <translation type="vanished">%1 kan inte ha komplex bastyp som har en %2.</translation>
     </message>
     <message>
         <source>Content model of complex type %1 contains %2 element so it cannot be derived by extension from a non-empty type.</source>
-        <translation>Innehållsmodellen för den komplexa typen %1 innehåller %2 komponenter, så den kan inte härledas med utökning från en icke-tom typ.</translation>
+        <translation type="vanished">Innehållsmodellen för den komplexa typen %1 innehåller %2 komponenter, så den kan inte härledas med utökning från en icke-tom typ.</translation>
     </message>
     <message>
         <source>Complex type %1 cannot be derived by extension from %2 as the latter contains %3 element in its content model.</source>
-        <translation>Komplex typ %1 kan inte härledas med utökning från %2, eftersom den senare innehåller %3 komponenter i sin innehållsmodell.</translation>
+        <translation type="vanished">Komplex typ %1 kan inte härledas med utökning från %2, eftersom den senare innehåller %3 komponenter i sin innehållsmodell.</translation>
     </message>
     <message>
         <source>Type of %1 element must be a simple type, %2 is not.</source>
-        <translation>Typ för komponenten %1 måste vara en enkel typ, %2 är inte det.</translation>
+        <translation type="vanished">Typ för komponenten %1 måste vara en enkel typ, %2 är inte det.</translation>
     </message>
     <message>
         <source>Substitution group %1 of %2 element cannot be resolved.</source>
-        <translation>Ersättningsgrupp %1 av komponenten %2 kan inte lösas upp.</translation>
+        <translation type="vanished">Ersättningsgrupp %1 av komponenten %2 kan inte lösas upp.</translation>
     </message>
     <message>
         <source>Substitution group %1 has circular definition.</source>
-        <translation>Ersättningsgrupp %1 har en cirkulär definition.</translation>
+        <translation type="vanished">Ersättningsgrupp %1 har en cirkulär definition.</translation>
     </message>
     <message>
         <source>Duplicated element names %1 in %2 element.</source>
-        <translation>Duplicerade komponentnamn %1 i komponent %2.</translation>
+        <translation type="vanished">Duplicerade komponentnamn %1 i komponent %2.</translation>
     </message>
     <message>
         <source>Reference %1 of %2 element cannot be resolved.</source>
-        <translation>Referens %1 av komponent %2 kan inte lösas upp.</translation>
+        <translation type="vanished">Referens %1 av komponent %2 kan inte lösas upp.</translation>
     </message>
     <message>
         <source>Circular group reference for %1.</source>
-        <translation>Cirkulär gruppreferens för %1.</translation>
+        <translation type="vanished">Cirkulär gruppreferens för %1.</translation>
     </message>
     <message>
         <source>%1 element is not allowed in this scope</source>
-        <translation>Komponenten %1 är inte tillåten i det här synliga området</translation>
+        <translation type="vanished">Komponenten %1 är inte tillåten i det här synliga området</translation>
     </message>
     <message>
         <source>%1 element cannot have %2 attribute with value other than %3.</source>
-        <translation>Komponenten %1 kan inte ha egenskapen %2 med ett värde skilt från %3.</translation>
+        <translation type="vanished">Komponenten %1 kan inte ha egenskapen %2 med ett värde skilt från %3.</translation>
     </message>
     <message>
         <source>%1 element cannot have %2 attribute with value other than %3 or %4.</source>
-        <translation>Komponenten %1 kan inte ha egenskapen %2 med ett värde skilt från %3 eller %4.</translation>
+        <translation type="vanished">Komponenten %1 kan inte ha egenskapen %2 med ett värde skilt från %3 eller %4.</translation>
     </message>
     <message>
         <source>%1 or %2 attribute of reference %3 does not match with the attribute declaration %4.</source>
-        <translation>Egenskapen %1 eller %2 av referensen %3 motsvarar inte egenskapsdeklarationen %4.</translation>
+        <translation type="vanished">Egenskapen %1 eller %2 av referensen %3 motsvarar inte egenskapsdeklarationen %4.</translation>
     </message>
     <message>
         <source>Attribute group %1 has circular reference.</source>
-        <translation>Egenskapsgruppen %1 har cirkulär referens.</translation>
+        <translation type="vanished">Egenskapsgruppen %1 har cirkulär referens.</translation>
     </message>
     <message>
         <source>%1 attribute in %2 must have %3 use like in base type %4.</source>
-        <translation>Egenskapen %1 i %2 måste ha %3 användning som i bastypen %4.</translation>
+        <translation type="vanished">Egenskapen %1 i %2 måste ha %3 användning som i bastypen %4.</translation>
     </message>
     <message>
         <source>Attribute wildcard of %1 is not a valid restriction of attribute wildcard of base type %2.</source>
-        <translation>Egenskapens jokertecken för %1 är inte en giltig begränsning av egenskapens jokertecken för bastypen %2.</translation>
+        <translation type="vanished">Egenskapens jokertecken för %1 är inte en giltig begränsning av egenskapens jokertecken för bastypen %2.</translation>
     </message>
     <message>
         <source>%1 has attribute wildcard but its base type %2 has not.</source>
-        <translation>%1 har ett egenskapsjokertecken men dess bastyp %2 har det inte.</translation>
+        <translation type="vanished">%1 har ett egenskapsjokertecken men dess bastyp %2 har det inte.</translation>
     </message>
     <message>
         <source>Union of attribute wildcard of type %1 and attribute wildcard of its base type %2 is not expressible.</source>
-        <translation>En union av egenskapsjokertecken med typ %1 och egenskapsjokertecken av dess bastyp %2 går inte att uttrycka.</translation>
+        <translation type="vanished">En union av egenskapsjokertecken med typ %1 och egenskapsjokertecken av dess bastyp %2 går inte att uttrycka.</translation>
     </message>
     <message>
         <source>Enumeration facet contains invalid content: {%1} is not a value of type %2.</source>
-        <translation>Uppräkningsaspekt har ogiltigt innehåll: {%1} är inte ett värde av typen %2.</translation>
+        <translation type="vanished">Uppräkningsaspekt har ogiltigt innehåll: {%1} är inte ett värde av typen %2.</translation>
     </message>
     <message>
         <source>Namespace prefix of qualified name %1 is not defined.</source>
-        <translation>Namnrymdens prefix för det kvalificerade namnet %1 är inte definierat.</translation>
+        <translation type="vanished">Namnrymdens prefix för det kvalificerade namnet %1 är inte definierat.</translation>
     </message>
     <message>
         <source>%1 element %2 is not a valid restriction of the %3 element it redefines: %4.</source>
-        <translation>%1 komponent %2 är inte en giltig begränsning av komponenten %3 som den definierar om: %4.</translation>
+        <translation type="vanished">%1 komponent %2 är inte en giltig begränsning av komponenten %3 som den definierar om: %4.</translation>
     </message>
     <message>
         <source>%1 is not valid according to %2.</source>
-        <translation>%1 är inte giltig enligt %2.</translation>
+        <translation type="vanished">%1 är inte giltig enligt %2.</translation>
     </message>
     <message>
         <source>String content does not match the length facet.</source>
-        <translation>Stränginnehåll motsvarar inte längdaspekten.</translation>
+        <translation type="vanished">Stränginnehåll motsvarar inte längdaspekten.</translation>
     </message>
     <message>
         <source>String content does not match the minLength facet.</source>
-        <translation>Stränginnehåll motsvarar inte aspekten minLength.</translation>
+        <translation type="vanished">Stränginnehåll motsvarar inte aspekten minLength.</translation>
     </message>
     <message>
         <source>String content does not match the maxLength facet.</source>
-        <translation>Stränginnehåll motsvarar inte aspekten maxLength.</translation>
+        <translation type="vanished">Stränginnehåll motsvarar inte aspekten maxLength.</translation>
     </message>
     <message>
         <source>String content does not match pattern facet.</source>
-        <translation>Stränginnehåll motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Stränginnehåll motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>String content is not listed in the enumeration facet.</source>
-        <translation>Stränginnehåll listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Stränginnehåll listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>Signed integer content does not match the maxInclusive facet.</source>
-        <translation>Innehåll i heltal med tecken motsvarar inte aspekten maxInclusive.</translation>
+        <translation type="vanished">Innehåll i heltal med tecken motsvarar inte aspekten maxInclusive.</translation>
     </message>
     <message>
         <source>Signed integer content does not match the maxExclusive facet.</source>
-        <translation>Innehåll i heltal med tecken motsvarar inte aspekten maxExclusive.</translation>
+        <translation type="vanished">Innehåll i heltal med tecken motsvarar inte aspekten maxExclusive.</translation>
     </message>
     <message>
         <source>Signed integer content does not match the minInclusive facet.</source>
-        <translation>Innehåll i heltal med tecken motsvarar inte aspekten minInclusive.</translation>
+        <translation type="vanished">Innehåll i heltal med tecken motsvarar inte aspekten minInclusive.</translation>
     </message>
     <message>
         <source>Signed integer content does not match the minExclusive facet.</source>
-        <translation>Innehåll i heltal med tecken motsvarar inte aspekten minExclusive.</translation>
+        <translation type="vanished">Innehåll i heltal med tecken motsvarar inte aspekten minExclusive.</translation>
     </message>
     <message>
         <source>Signed integer content is not listed in the enumeration facet.</source>
-        <translation>Innehåll i heltal med tecken listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Innehåll i heltal med tecken listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>Signed integer content does not match pattern facet.</source>
-        <translation>Innehåll i heltal med tecken motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Innehåll i heltal med tecken motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Signed integer content does not match in the totalDigits facet.</source>
-        <translation>Innehåll i heltal med tecken motsvarar inte aspekten totalDigits.</translation>
+        <translation type="vanished">Innehåll i heltal med tecken motsvarar inte aspekten totalDigits.</translation>
     </message>
     <message>
         <source>Unsigned integer content does not match the maxInclusive facet.</source>
-        <translation>Innehåll i heltal utan tecken motsvarar inte aspekten maxInclusive.</translation>
+        <translation type="vanished">Innehåll i heltal utan tecken motsvarar inte aspekten maxInclusive.</translation>
     </message>
     <message>
         <source>Unsigned integer content does not match the maxExclusive facet.</source>
-        <translation>Innehåll i heltal utan tecken motsvarar inte aspekten maxExclusive.</translation>
+        <translation type="vanished">Innehåll i heltal utan tecken motsvarar inte aspekten maxExclusive.</translation>
     </message>
     <message>
         <source>Unsigned integer content does not match the minInclusive facet.</source>
-        <translation>Innehåll i heltal utan tecken motsvarar inte aspekten minInclusive.</translation>
+        <translation type="vanished">Innehåll i heltal utan tecken motsvarar inte aspekten minInclusive.</translation>
     </message>
     <message>
         <source>Unsigned integer content does not match the minExclusive facet.</source>
-        <translation>Innehåll i heltal utan tecken motsvarar inte aspekten minExclusive.</translation>
+        <translation type="vanished">Innehåll i heltal utan tecken motsvarar inte aspekten minExclusive.</translation>
     </message>
     <message>
         <source>Unsigned integer content is not listed in the enumeration facet.</source>
-        <translation>Innehåll i heltal utan tecken listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Innehåll i heltal utan tecken listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>Unsigned integer content does not match pattern facet.</source>
-        <translation>Innehåll i heltal utan tecken motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Innehåll i heltal utan tecken motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Unsigned integer content does not match in the totalDigits facet.</source>
-        <translation>Innehåll i heltal utan tecken motsvarar inte aspekten totalDigits.</translation>
+        <translation type="vanished">Innehåll i heltal utan tecken motsvarar inte aspekten totalDigits.</translation>
     </message>
     <message>
         <source>Double content does not match the maxInclusive facet.</source>
-        <translation>Innehåll i flyttal med dubbel precision motsvarar inte aspekten maxInclusive.</translation>
+        <translation type="vanished">Innehåll i flyttal med dubbel precision motsvarar inte aspekten maxInclusive.</translation>
     </message>
     <message>
         <source>Double content does not match the maxExclusive facet.</source>
-        <translation>Innehåll i flyttal med dubbel precision motsvarar inte aspekten maxExclusive.</translation>
+        <translation type="vanished">Innehåll i flyttal med dubbel precision motsvarar inte aspekten maxExclusive.</translation>
     </message>
     <message>
         <source>Double content does not match the minInclusive facet.</source>
-        <translation>Innehåll i flyttal med dubbel precision motsvarar inte aspekten minInclusive.</translation>
+        <translation type="vanished">Innehåll i flyttal med dubbel precision motsvarar inte aspekten minInclusive.</translation>
     </message>
     <message>
         <source>Double content does not match the minExclusive facet.</source>
-        <translation>Innehåll i flyttal med dubbel precision motsvarar inte aspekten minExclusive.</translation>
+        <translation type="vanished">Innehåll i flyttal med dubbel precision motsvarar inte aspekten minExclusive.</translation>
     </message>
     <message>
         <source>Double content is not listed in the enumeration facet.</source>
-        <translation>Innehåll i flyttal med dubbel precision listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Innehåll i flyttal med dubbel precision listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>Double content does not match pattern facet.</source>
-        <translation>Innehåll i flyttal med dubbel precision motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Innehåll i flyttal med dubbel precision motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Decimal content does not match in the fractionDigits facet.</source>
-        <translation>Decimalt innehåll motsvarar inte i aspekten fractionDigits.</translation>
+        <translation type="vanished">Decimalt innehåll motsvarar inte i aspekten fractionDigits.</translation>
     </message>
     <message>
         <source>Decimal content does not match in the totalDigits facet.</source>
-        <translation>Decimalt innehåll motsvarar inte i aspekten totalDigits.</translation>
+        <translation type="vanished">Decimalt innehåll motsvarar inte i aspekten totalDigits.</translation>
     </message>
     <message>
         <source>Date time content does not match the maxInclusive facet.</source>
-        <translation>Datum- och tidinnehåll motsvarar inte aspekten maxInclusive.</translation>
+        <translation type="vanished">Datum- och tidinnehåll motsvarar inte aspekten maxInclusive.</translation>
     </message>
     <message>
         <source>Date time content does not match the maxExclusive facet.</source>
-        <translation>Datum- och tidinnehåll motsvarar inte aspekten maxExclusive.</translation>
+        <translation type="vanished">Datum- och tidinnehåll motsvarar inte aspekten maxExclusive.</translation>
     </message>
     <message>
         <source>Date time content does not match the minInclusive facet.</source>
-        <translation>Datum- och tidinnehåll motsvarar inte aspekten minInclusive.</translation>
+        <translation type="vanished">Datum- och tidinnehåll motsvarar inte aspekten minInclusive.</translation>
     </message>
     <message>
         <source>Date time content does not match the minExclusive facet.</source>
-        <translation>Datum- och tidinnehåll motsvarar inte aspekten minExclusive.</translation>
+        <translation type="vanished">Datum- och tidinnehåll motsvarar inte aspekten minExclusive.</translation>
     </message>
     <message>
         <source>Date time content is not listed in the enumeration facet.</source>
-        <translation>Datum- och tidinnehåll listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Datum- och tidinnehåll listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>Date time content does not match pattern facet.</source>
-        <translation>Datum- och tidinnehåll motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Datum- och tidinnehåll motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Duration content does not match the maxInclusive facet.</source>
-        <translation>Tidslängdens innehåll motsvarar inte aspekten maxInclusive.</translation>
+        <translation type="vanished">Tidslängdens innehåll motsvarar inte aspekten maxInclusive.</translation>
     </message>
     <message>
         <source>Duration content does not match the maxExclusive facet.</source>
-        <translation>Tidslängdens innehåll motsvarar inte aspekten maxExclusive.</translation>
+        <translation type="vanished">Tidslängdens innehåll motsvarar inte aspekten maxExclusive.</translation>
     </message>
     <message>
         <source>Duration content does not match the minInclusive facet.</source>
-        <translation>Tidslängdens innehåll motsvarar inte aspekten minInclusive.</translation>
+        <translation type="vanished">Tidslängdens innehåll motsvarar inte aspekten minInclusive.</translation>
     </message>
     <message>
         <source>Duration content does not match the minExclusive facet.</source>
-        <translation>Tidslängdens innehåll motsvarar inte aspekten minExclusive.</translation>
+        <translation type="vanished">Tidslängdens innehåll motsvarar inte aspekten minExclusive.</translation>
     </message>
     <message>
         <source>Duration content is not listed in the enumeration facet.</source>
-        <translation>Tidslängdens innehåll listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Tidslängdens innehåll listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>Duration content does not match pattern facet.</source>
-        <translation>Tidslängdens innehåll motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Tidslängdens innehåll motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Boolean content does not match pattern facet.</source>
-        <translation>Booleskt innehåll motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Booleskt innehåll motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Binary content does not match the length facet.</source>
-        <translation>Binärt innehåll motsvarar inte längdaspekten.</translation>
+        <translation type="vanished">Binärt innehåll motsvarar inte längdaspekten.</translation>
     </message>
     <message>
         <source>Binary content does not match the minLength facet.</source>
-        <translation>Binärt innehåll motsvarar inte aspekten minLength.</translation>
+        <translation type="vanished">Binärt innehåll motsvarar inte aspekten minLength.</translation>
     </message>
     <message>
         <source>Binary content does not match the maxLength facet.</source>
-        <translation>Binärt innehåll motsvarar inte aspekten maxLength.</translation>
+        <translation type="vanished">Binärt innehåll motsvarar inte aspekten maxLength.</translation>
     </message>
     <message>
         <source>Binary content is not listed in the enumeration facet.</source>
-        <translation>Binärt innehåll listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Binärt innehåll listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>Invalid QName content: %1.</source>
-        <translation>Ogiltigt innehåll i QName: %1.</translation>
+        <translation type="vanished">Ogiltigt innehåll i QName: %1.</translation>
     </message>
     <message>
         <source>QName content is not listed in the enumeration facet.</source>
-        <translation>Innehåll i QName listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Innehåll i QName listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>QName content does not match pattern facet.</source>
-        <translation>Innehåll i QName motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Innehåll i QName motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Notation content is not listed in the enumeration facet.</source>
-        <translation>Notationsinnehåll listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Notationsinnehåll listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>List content does not match length facet.</source>
-        <translation>Listinnehåll motsvarar inte längdaspekten.</translation>
+        <translation type="vanished">Listinnehåll motsvarar inte längdaspekten.</translation>
     </message>
     <message>
         <source>List content does not match minLength facet.</source>
-        <translation>Listinnehåll motsvarar inte aspekten minLength.</translation>
+        <translation type="vanished">Listinnehåll motsvarar inte aspekten minLength.</translation>
     </message>
     <message>
         <source>List content does not match maxLength facet.</source>
-        <translation>Listinnehåll motsvarar inte aspekten maxLength.</translation>
+        <translation type="vanished">Listinnehåll motsvarar inte aspekten maxLength.</translation>
     </message>
     <message>
         <source>List content is not listed in the enumeration facet.</source>
-        <translation>Listinnehåll listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Listinnehåll listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>List content does not match pattern facet.</source>
-        <translation>Listinnehåll motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Listinnehåll motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Union content is not listed in the enumeration facet.</source>
-        <translation>Innehåll i union listas inte i uppräkningsaspekten.</translation>
+        <translation type="vanished">Innehåll i union listas inte i uppräkningsaspekten.</translation>
     </message>
     <message>
         <source>Union content does not match pattern facet.</source>
-        <translation>Innehåll i union motsvarar inte mönsteraspekt.</translation>
+        <translation type="vanished">Innehåll i union motsvarar inte mönsteraspekt.</translation>
     </message>
     <message>
         <source>Data of type %1 are not allowed to be empty.</source>
-        <translation>Data av typen %1 tillåts inte vara tomt.</translation>
+        <translation type="vanished">Data av typen %1 tillåts inte vara tomt.</translation>
     </message>
     <message>
         <source>Element %1 is missing child element.</source>
-        <translation>Komponenten %1 saknar underliggande komponent.</translation>
+        <translation type="vanished">Komponenten %1 saknar underliggande komponent.</translation>
     </message>
     <message>
         <source>There is one IDREF value with no corresponding ID: %1.</source>
-        <translation>Det finns ett IDREF värde utan motsvarande ID: %1.</translation>
+        <translation type="vanished">Det finns ett IDREF värde utan motsvarande ID: %1.</translation>
     </message>
     <message>
         <source>Loaded schema file is invalid.</source>
-        <translation>Laddad schema-fil är ogiltig.</translation>
+        <translation type="vanished">Laddad schema-fil är ogiltig.</translation>
     </message>
     <message>
         <source>%1 contains invalid data.</source>
-        <translation>%1 innehåller ogiltig data.</translation>
+        <translation type="vanished">%1 innehåller ogiltig data.</translation>
     </message>
     <message>
         <source>xsi:schemaLocation namespace %1 has already appeared earlier in the instance document.</source>
-        <translation>xsi:schemaLocation namnrymd %1 har redan funnits tidigare i instansdokumentet.</translation>
+        <translation type="vanished">xsi:schemaLocation namnrymd %1 har redan funnits tidigare i instansdokumentet.</translation>
     </message>
     <message>
         <source>xsi:noNamespaceSchemaLocation cannot appear after the first no-namespace element or attribute.</source>
-        <translation>xsi:noNamespaceSchemaLocation kan inte finnas efter den första komponenten eller egenskapen som inte är en namnrymd.</translation>
+        <translation type="vanished">xsi:noNamespaceSchemaLocation kan inte finnas efter den första komponenten eller egenskapen som inte är en namnrymd.</translation>
     </message>
     <message>
         <source>No schema defined for validation.</source>
-        <translation>Inget schema definierat för validering.</translation>
+        <translation type="vanished">Inget schema definierat för validering.</translation>
     </message>
     <message>
         <source>No definition for element %1 available.</source>
-        <translation>Ingen definition av komponent %1 tillgänglig.</translation>
+        <translation type="vanished">Ingen definition av komponent %1 tillgänglig.</translation>
     </message>
     <message>
         <source>Specified type %1 is not known to the schema.</source>
-        <translation>Angiven typ %1 är inte känd av schemat.</translation>
+        <translation type="vanished">Angiven typ %1 är inte känd av schemat.</translation>
     </message>
     <message>
         <source>Element %1 is not defined in this scope.</source>
-        <translation>Komponenten %1 är inte definierade i det här synliga området.</translation>
+        <translation type="vanished">Komponenten %1 är inte definierade i det här synliga området.</translation>
     </message>
     <message>
         <source>Declaration for element %1 does not exist.</source>
-        <translation>Deklaration för komponenten %1 finns inte.</translation>
+        <translation type="vanished">Deklaration för komponenten %1 finns inte.</translation>
     </message>
     <message>
         <source>Element %1 contains invalid content.</source>
-        <translation>Komponenten %1 har ogiltigt innehåll.</translation>
+        <translation type="vanished">Komponenten %1 har ogiltigt innehåll.</translation>
     </message>
     <message>
         <source>Element %1 is declared as abstract.</source>
-        <translation>Komponenten %1 är deklarerad som abstrakt.</translation>
+        <translation type="vanished">Komponenten %1 är deklarerad som abstrakt.</translation>
     </message>
     <message>
         <source>Element %1 is not nillable.</source>
-        <translation>Komponenten %1 kan inte tilldelas noll.</translation>
+        <translation type="vanished">Komponenten %1 kan inte tilldelas noll.</translation>
     </message>
     <message>
         <source>Attribute %1 contains invalid data: %2</source>
-        <translation>Egenskapen %1 innehåller ogiltig data: %2</translation>
+        <translation type="vanished">Egenskapen %1 innehåller ogiltig data: %2</translation>
     </message>
     <message>
         <source>Element contains content although it is nillable.</source>
-        <translation>Komponenten har innehåll trots att den kan tilldelas noll.</translation>
+        <translation type="vanished">Komponenten har innehåll trots att den kan tilldelas noll.</translation>
     </message>
     <message>
         <source>Fixed value constraint not allowed if element is nillable.</source>
-        <translation>Fast värdebegränsning ej tillåten om komponenten kan tilldelas noll.</translation>
+        <translation type="vanished">Fast värdebegränsning ej tillåten om komponenten kan tilldelas noll.</translation>
     </message>
     <message>
         <source>Specified type %1 is not validly substitutable with element type %2.</source>
-        <translation>Angiven typ %1 kan inte ersättas av komponenttypen %2 med giltigt resultat.</translation>
+        <translation type="vanished">Angiven typ %1 kan inte ersättas av komponenttypen %2 med giltigt resultat.</translation>
     </message>
     <message>
         <source>Complex type %1 is not allowed to be abstract.</source>
-        <translation>Komplex typ %1 tillåts inte vara abstrakt.</translation>
+        <translation type="vanished">Komplex typ %1 tillåts inte vara abstrakt.</translation>
     </message>
     <message>
         <source>Element %1 contains not allowed attributes.</source>
-        <translation>Komponenten %1 innehåller egenskaper som inte tillåts.</translation>
+        <translation type="vanished">Komponenten %1 innehåller egenskaper som inte tillåts.</translation>
     </message>
     <message>
         <source>Element %1 contains not allowed child element.</source>
-        <translation>Komponenten %1 innehåller en underliggande komponent som inte tillåts.</translation>
+        <translation type="vanished">Komponenten %1 innehåller en underliggande komponent som inte tillåts.</translation>
     </message>
     <message>
         <source>Content of element %1 does not match its type definition: %2.</source>
-        <translation>Innehållet i komponenten %1 motsvarar inte dess typdefinition: %2.</translation>
+        <translation type="vanished">Innehållet i komponenten %1 motsvarar inte dess typdefinition: %2.</translation>
     </message>
     <message>
         <source>Content of element %1 does not match defined value constraint.</source>
-        <translation>Innehållet i komponenten %1 motsvarar inte definierad värdebegränsning.</translation>
+        <translation type="vanished">Innehållet i komponenten %1 motsvarar inte definierad värdebegränsning.</translation>
     </message>
     <message>
         <source>Element %1 contains not allowed child content.</source>
-        <translation>Komponenten %1 innehåller underliggande komponentinnehåll som inte tillåts.</translation>
+        <translation type="vanished">Komponenten %1 innehåller underliggande komponentinnehåll som inte tillåts.</translation>
     </message>
     <message>
         <source>Element %1 contains not allowed text content.</source>
-        <translation>Komponenten %1 innehåller textinnehåll som inte tillåts.</translation>
+        <translation type="vanished">Komponenten %1 innehåller textinnehåll som inte tillåts.</translation>
     </message>
     <message>
         <source>Element %1 cannot contain other elements, as it has a fixed content.</source>
-        <translation>Komponenten %1 kan inte innehålla andra komponenter, eftersom den har ett fast innehåll.</translation>
+        <translation type="vanished">Komponenten %1 kan inte innehålla andra komponenter, eftersom den har ett fast innehåll.</translation>
     </message>
     <message>
         <source>Element %1 is missing required attribute %2.</source>
-        <translation>Komponenten %1 saknar nödvändig egenskap %2.</translation>
+        <translation type="vanished">Komponenten %1 saknar nödvändig egenskap %2.</translation>
     </message>
     <message>
         <source>Attribute %1 does not match the attribute wildcard.</source>
-        <translation>Egenskapen %1 motsvarar inte egenskapens jokertecken.</translation>
+        <translation type="vanished">Egenskapen %1 motsvarar inte egenskapens jokertecken.</translation>
     </message>
     <message>
         <source>Declaration for attribute %1 does not exist.</source>
-        <translation>Deklaration av egenskapen %1 finns inte.</translation>
+        <translation type="vanished">Deklaration av egenskapen %1 finns inte.</translation>
     </message>
     <message>
         <source>Element %1 contains two attributes of type %2.</source>
-        <translation>Komponenten %1 innehåller två egenskaper av typ %2.</translation>
+        <translation type="vanished">Komponenten %1 innehåller två egenskaper av typ %2.</translation>
     </message>
     <message>
         <source>Attribute %1 contains invalid content.</source>
-        <translation>Egenskapen %1 har ogiltigt innehåll.</translation>
+        <translation type="vanished">Egenskapen %1 har ogiltigt innehåll.</translation>
     </message>
     <message>
         <source>Element %1 contains unknown attribute %2.</source>
-        <translation>Komponenten %1 innehåller okänd egenskap %2.</translation>
+        <translation type="vanished">Komponenten %1 innehåller okänd egenskap %2.</translation>
     </message>
     <message>
         <source>Content of attribute %1 does not match its type definition: %2.</source>
-        <translation>Innehållet i egenskapen %1 motsvarar inte dess typdefinition: %2.</translation>
+        <translation type="vanished">Innehållet i egenskapen %1 motsvarar inte dess typdefinition: %2.</translation>
     </message>
     <message>
         <source>Content of attribute %1 does not match defined value constraint.</source>
-        <translation>Innehållet i komponenten %1 motsvarar inte definierad värdebegränsning.</translation>
+        <translation type="vanished">Innehållet i komponenten %1 motsvarar inte definierad värdebegränsning.</translation>
     </message>
     <message>
         <source>Non-unique value found for constraint %1.</source>
-        <translation>Icke-unikt värde hittades för begränsning %1.</translation>
+        <translation type="vanished">Icke-unikt värde hittades för begränsning %1.</translation>
     </message>
     <message>
         <source>Key constraint %1 contains absent fields.</source>
-        <translation>Nyckelbegränsningen %1 innehåller saknade fält.</translation>
+        <translation type="vanished">Nyckelbegränsningen %1 innehåller saknade fält.</translation>
     </message>
     <message>
         <source>Key constraint %1 contains references nillable element %2.</source>
-        <translation>Nyckelbegränsningen %1 innehåller referenser till komponenten %2 som kan tilldelas noll.</translation>
+        <translation type="vanished">Nyckelbegränsningen %1 innehåller referenser till komponenten %2 som kan tilldelas noll.</translation>
     </message>
     <message>
         <source>No referenced value found for key reference %1.</source>
-        <translation>Inget referensvärde hittades för nyckelreferens %1.</translation>
+        <translation type="vanished">Inget referensvärde hittades för nyckelreferens %1.</translation>
     </message>
     <message>
         <source>More than one value found for field %1.</source>
-        <translation>Mer än ett värde hittades för fältet %1.</translation>
+        <translation type="vanished">Mer än ett värde hittades för fältet %1.</translation>
     </message>
     <message>
         <source>Field %1 has no simple type.</source>
-        <translation>Fältet %1 har ingen enkel typ.</translation>
+        <translation type="vanished">Fältet %1 har ingen enkel typ.</translation>
     </message>
     <message>
         <source>ID value &apos;%1&apos; is not unique.</source>
-        <translation>ID-värdet &apos;%1&apos; är inte unikt.</translation>
+        <translation type="vanished">ID-värdet &apos;%1&apos; är inte unikt.</translation>
     </message>
     <message>
         <source>&apos;%1&apos; attribute contains invalid QName content: %2.</source>
-        <translation>Egenskapen &apos;%1&apos; innehåller ogiltigt QName innehåll: %2.</translation>
+        <translation type="vanished">Egenskapen &apos;%1&apos; innehåller ogiltigt QName innehåll: %2.</translation>
     </message>
     <message>
         <source>An %1-attribute with value %2 has already been declared.</source>

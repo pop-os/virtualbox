@@ -3,6 +3,40 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.30 (2017-10-16)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: translation updates</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed double mouse cursor when using mouse integration
+          without Guest Additions, actually a Qt 5.6 bug fixed with QT 5.6.3 
+          (Mac OS X hosts only; bug #15610)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: allow increasing MTU size for host-only adapter to
+          9706 bytes to support jumbo frames</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: glibc 2.26 compile fix</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: 3D related crash fix (bugs #17082, #17092)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.1.28 (2017-09-13)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -45,7 +79,7 @@
 
       <listitem>
         <para>OVF: when importing an appliance with XHCI controller, don't
-          add an OHCI controller.</para>
+          add an OHCI controller</para>
       </listitem>
 
       <listitem>
@@ -65,7 +99,7 @@
 
       <listitem>
         <para>Bridged networking: align outgoing packet at word boundary,
-          preventing Windows host crash in MsLbfoProvider.</para>
+          preventing Windows host crash in MsLbfoProvider</para>
       </listitem>
 
       <listitem>
@@ -873,7 +907,7 @@
 
       <listitem>
         <para>NAT: don't exceed the maximum number of "search" suffixes.
-          Patch from bug #15948.</para>
+          Patch from bug #15948</para>
       </listitem>
 
       <listitem>
@@ -885,7 +919,7 @@
         <para>NAT Network: when the host has only loopback nameserver
           that cannot be mapped to the guests (e.g. dnsmasq running on
           127.0.1.1), make DHCP supply NAT Network DNS proxy as
-          nameserver.</para>
+          nameserver</para>
       </listitem>
 
       <listitem>
@@ -1530,7 +1564,7 @@
         <para>VMM: reverted to the old I/O-APIC code for now to fix certain
           regressions with 5.0.22 (bug #15529). This means that the networking
           performance with certain guests will drop to the 5.0.20 level
-          (bug #15295). One workaround is to disable GRO for Linux guests.</para>
+          (bug #15295). One workaround is to disable GRO for Linux guests</para>
       </listitem>
 
       <listitem>
@@ -1615,7 +1649,7 @@
         <para>Main: when monitoring DNS configuration changes on Windows hosts
           avoid false positives from competing DHCP renewals.  This should fix
           NAT link flaps when host has multiple DHCP configured interfaces, in
-          particular when the host uses OpnVPN.</para>
+          particular when the host uses OpnVPN</para>
       </listitem>
 
       <listitem>
@@ -2430,7 +2464,7 @@
           (it was hidden in previous release to avoid native full-screen issues).
           For Yosemite and El Capitan this button should work accordingly to the
           Apple HIG: Full-screen by default, maximize if the user holds the
-          Option key.</para>
+          Option key</para>
       </listitem>
 
       <listitem>
@@ -2523,7 +2557,7 @@
 
       <listitem>
         <para>Bridged Networking: fixed handling of guest DHCP requests without UDP
-          checksum when bridging to a wireless interface (bug #14615).</para>
+          checksum when bridging to a wireless interface (bug #14615)</para>
       </listitem>
 
       <listitem>
@@ -2813,7 +2847,7 @@
 
       <listitem>
         <para>X11 Additions: fixed a number of small issues with dynamic
-           resizing and full-screen and seamless modes.</para>
+           resizing and full-screen and seamless modes</para>
       </listitem>
 
     </itemizedlist>
@@ -2860,7 +2894,7 @@
       <listitem>
         <para>VMM: This release has AVX2 passthrough disabled on every host and
           AVX passthrough disabled for 64-bit VMs on 32-bit hosts. This will be
-          properly fixed in a future 5.0.x maintenance release (see e.g. bug #14262).</para>
+          properly fixed in a future 5.0.x maintenance release (see e.g. bug #14262)</para>
       </listitem>
 
       <listitem>
@@ -3018,7 +3052,7 @@
 
       <listitem>
         <para>X11 Additions: various seamless mode fixes, including
-           invisible windows under LXDE.</para>
+           invisible windows under LXDE</para>
       </listitem>
 
     </itemizedlist>
@@ -3061,7 +3095,7 @@
       <listitem>
         <para>VMs can now be started in <emphasis>separate mode</emphasis>. The VM
           process is started headless while the frontend runs as a separate process
-          which can be terminated without stopping the VM.</para>
+          which can be terminated without stopping the VM</para>
       </listitem>
 
       <listitem>
@@ -3128,7 +3162,7 @@
 
       <listitem>
         <para>GUI: improved HID LEDs synchronization for Mac and Windows hosts.
-          The physical LEDs state now restored together with the VM state.</para>
+          The physical LEDs state now restored together with the VM state</para>
       </listitem>
 
       <listitem>
@@ -3813,7 +3847,7 @@
       <listitem>
         <para>Windows Additions: prevent VBox WDDM driver from loading if host
           reports weak OpenGL capabilities. 3D content now can be shown over
-          Remote Desktop connection.</para>
+          Remote Desktop connection</para>
       </listitem>
 
       <listitem>

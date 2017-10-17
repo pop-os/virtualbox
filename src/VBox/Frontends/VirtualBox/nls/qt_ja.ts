@@ -16,7 +16,7 @@
     </message>
     <message>
         <source>Hide %1</source>
-        <translation>%1を隠す</translation>
+        <translation>%1 を隠す</translation>
     </message>
     <message>
         <source>Hide Others</source>
@@ -24,11 +24,11 @@
     </message>
     <message>
         <source>Show All</source>
-        <translation>すべてを表示</translation>
+        <translation>すべて表示</translation>
     </message>
     <message>
         <source>Preferences...</source>
-        <translation>環境設定...</translation>
+        <translation>設定...</translation>
     </message>
     <message>
         <source>Quit %1</source>
@@ -43,275 +43,275 @@
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 は定義されていません</translation>
+        <translation type="vanished">%1, %2 は定義されていません</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>曖昧な %1 は扱えません</translation>
+        <translation type="vanished">曖昧な %1 は扱えません</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>True</translation>
+        <translation type="vanished">True</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>False</translation>
+        <translation type="vanished">False</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>挿入</translation>
+        <translation type="vanished">挿入</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>アップデート</translation>
+        <translation type="vanished">アップデート</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>削除</translation>
+        <translation type="vanished">削除</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>ファイルをコピーまたは移動</translation>
+        <translation type="vanished">ファイルをコピーまたは移動</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>読み込み: %1</translation>
+        <translation type="vanished">読み込み: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>書き込み: %1</translation>
+        <translation type="vanished">書き込み: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>キャンセル</translation>
+        <translation type="vanished">キャンセル</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>すべてのファイル(*)</translation>
+        <translation type="vanished">すべてのファイル(*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>名前</translation>
+        <translation type="vanished">名前</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>サイズ</translation>
+        <translation type="vanished">サイズ</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>タイプ</translation>
+        <translation type="vanished">タイプ</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>日付</translation>
+        <translation type="vanished">日付</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>属性</translation>
+        <translation type="vanished">属性</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>OK(&amp;O)</translation>
+        <translation type="vanished">OK(&amp;O)</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>検索する場所(&amp;I):</translation>
+        <translation type="vanished">検索する場所(&amp;I):</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>ファイル名(&amp;N):</translation>
+        <translation type="vanished">ファイル名(&amp;N):</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>ファイルタイプ(&amp;T):</translation>
+        <translation type="vanished">ファイルタイプ(&amp;T):</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>戻る</translation>
+        <translation type="vanished">戻る</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>1つ上のディレクトリへ移動</translation>
+        <translation type="vanished">1つ上のディレクトリへ移動</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>新しいフォルダの作成</translation>
+        <translation type="vanished">新しいフォルダの作成</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>一覧表示</translation>
+        <translation type="vanished">一覧表示</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>詳細表示</translation>
+        <translation type="vanished">詳細表示</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>ファイル情報のプレビュー</translation>
+        <translation type="vanished">ファイル情報のプレビュー</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>ファイルの内容のプレビュー</translation>
+        <translation type="vanished">ファイルの内容のプレビュー</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>読み込み/書き込み</translation>
+        <translation type="vanished">読み込み/書き込み</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>読み込み専用</translation>
+        <translation type="vanished">読み込み専用</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>書き込み専用</translation>
+        <translation type="vanished">書き込み専用</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>アクセス不可</translation>
+        <translation type="vanished">アクセス不可</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>ファイルへのSymlink</translation>
+        <translation type="vanished">ファイルへのSymlink</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>ディレクトリへのSymlink</translation>
+        <translation type="vanished">ディレクトリへのSymlink</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>スペシャルへのSymlink</translation>
+        <translation type="vanished">スペシャルへのSymlink</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>ファイル</translation>
+        <translation type="vanished">ファイル</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>ディレクトリ</translation>
+        <translation type="vanished">ディレクトリ</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>スペシャル</translation>
+        <translation type="vanished">スペシャル</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>開く</translation>
+        <translation type="vanished">開く</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>名前を付けて保存</translation>
+        <translation type="vanished">名前を付けて保存</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>開く(&amp;O)</translation>
+        <translation type="vanished">開く(&amp;O)</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>保存(&amp;S)</translation>
+        <translation type="vanished">保存(&amp;S)</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>名前の変更(&amp;R)</translation>
+        <translation type="vanished">名前の変更(&amp;R)</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>削除(&amp;D)</translation>
+        <translation type="vanished">削除(&amp;D)</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>リロード(&amp;E)</translation>
+        <translation type="vanished">リロード(&amp;E)</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>名前順にソート(&amp;N)</translation>
+        <translation type="vanished">名前順にソート(&amp;N)</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>サイズ順にソート(&amp;S)</translation>
+        <translation type="vanished">サイズ順にソート(&amp;S)</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>日付順にソート(&amp;D)</translation>
+        <translation type="vanished">日付順にソート(&amp;D)</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>ソート解除(&amp;U)</translation>
+        <translation type="vanished">ソート解除(&amp;U)</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>ソート</translation>
+        <translation type="vanished">ソート</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>隠しファイルの表示(&amp;H)</translation>
+        <translation type="vanished">隠しファイルの表示(&amp;H)</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>ファイル</translation>
+        <translation type="vanished">ファイル</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>ディレクトリ</translation>
+        <translation type="vanished">ディレクトリ</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>Symlink</translation>
+        <translation type="vanished">Symlink</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>%1 の削除</translation>
+        <translation type="vanished">%1 の削除</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;%1「%2」を削除しますか?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;%1「%2」を削除しますか?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>はい(&amp;Y)</translation>
+        <translation type="vanished">はい(&amp;Y)</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>いいえ(&amp;N)</translation>
+        <translation type="vanished">いいえ(&amp;N)</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>新しいフォルダ1</translation>
+        <translation type="vanished">新しいフォルダ1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>新しいフォルダ</translation>
+        <translation type="vanished">新しいフォルダ</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>新しいフォルダ %1</translation>
+        <translation type="vanished">新しいフォルダ %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>ディレクトリの検索</translation>
+        <translation type="vanished">ディレクトリの検索</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>ディレクトリ</translation>
+        <translation type="vanished">ディレクトリ</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>ディレクトリ:</translation>
+        <translation type="vanished">ディレクトリ:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>エラー</translation>
+        <translation type="vanished">エラー</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
+        <translation type="vanished">%1
 ファイルが見つかりませんでした。
 パスおよびファイル名を確認してください。</translation>
     </message>
@@ -321,19 +321,19 @@ Check path and filename.</source>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>ディレクトリを読み込めませんでした
+        <translation type="vanished">ディレクトリを読み込めませんでした
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>ディレクトリを作成できませんでした
+        <translation type="vanished">ディレクトリを作成できませんでした
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>ファイルまたはディレクトリを削除できませんでした
+        <translation type="vanished">ファイルまたはディレクトリを削除できませんでした
 %1</translation>
     </message>
     <message>
@@ -341,7 +341,7 @@ Check path and filename.</source>
 %1
 to
 %2</source>
-        <translation>名前を変更できませんでした
+        <translation type="vanished">名前を変更できませんでした
 %1
 へ
 %2</translation>
@@ -349,13 +349,13 @@ to
     <message>
         <source>Could not open
 %1</source>
-        <translation>開けませんでした
+        <translation type="vanished">開けませんでした
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>書き込めませんでした
+        <translation type="vanished">書き込めませんでした
 %1</translation>
     </message>
 </context>
@@ -363,210 +363,210 @@ to
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>整列</translation>
+        <translation type="vanished">整列</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>カスタマイズ...</translation>
+        <translation type="vanished">カスタマイズ...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>操作がユーザによって停止されました</translation>
+        <translation type="vanished">操作がユーザによって停止されました</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>キャンセル</translation>
+        <translation type="vanished">キャンセル</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation type="vanished">OK</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>適用</translation>
+        <translation type="vanished">適用</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>ヘルプ</translation>
+        <translation type="vanished">ヘルプ</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>デフォルト</translation>
+        <translation type="vanished">デフォルト</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>キャンセル</translation>
+        <translation type="vanished">キャンセル</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>元に戻す(&amp;U)</translation>
+        <translation type="vanished">元に戻す(&amp;U)</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>やり直す(&amp;R)</translation>
+        <translation type="vanished">やり直す(&amp;R)</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>切り取り(&amp;T)</translation>
+        <translation type="vanished">切り取り(&amp;T)</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>コピー(&amp;C)</translation>
+        <translation type="vanished">コピー(&amp;C)</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>貼り付け(&amp;P)</translation>
+        <translation type="vanished">貼り付け(&amp;P)</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>消去</translation>
+        <translation type="vanished">消去</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>すべてを選択</translation>
+        <translation type="vanished">すべてを選択</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>システム</translation>
+        <translation type="vanished">システム</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>元に戻す</translation>
+        <translation type="vanished">元に戻す</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>最小化</translation>
+        <translation type="vanished">最小化</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>元に戻す</translation>
+        <translation type="vanished">元に戻す</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>最大化</translation>
+        <translation type="vanished">最大化</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>閉じる</translation>
+        <translation type="vanished">閉じる</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>ウィンドウを操作するコマンドを含みます</translation>
+        <translation type="vanished">ウィンドウを操作するコマンドを含みます</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>最小化されたウィンドウを元のサイズに戻します</translation>
+        <translation type="vanished">最小化されたウィンドウを元のサイズに戻します</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>ウィンドウを隠します</translation>
+        <translation type="vanished">ウィンドウを隠します</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>最大化されたウィンドウを元のサイズに戻します</translation>
+        <translation type="vanished">最大化されたウィンドウを元のサイズに戻します</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>ウィンドウをフルスクリーンにします</translation>
+        <translation type="vanished">ウィンドウをフルスクリーンにします</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>ウィンドウを閉じます</translation>
+        <translation type="vanished">ウィンドウを閉じます</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>ウィンドウの名前を表示し、ウィンドウを操作するコントロールを含みます</translation>
+        <translation type="vanished">ウィンドウの名前を表示し、ウィンドウを操作するコントロールを含みます</translation>
     </message>
 </context>
 <context>
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>その他...</translation>
+        <translation type="vanished">その他...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>プロトコル「%1」はサポートされていません</translation>
+        <translation type="vanished">プロトコル「%1」はサポートされていません</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>プロトコル「%1」ではディレクトリのリストをサポートしていません</translation>
+        <translation type="vanished">プロトコル「%1」ではディレクトリのリストをサポートしていません</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>プロトコル「%1」では新しいディレクトリの作成をサポートしていません</translation>
+        <translation type="vanished">プロトコル「%1」では新しいディレクトリの作成をサポートしていません</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>プロトコル「%1」ではファイルまたはディレクトリの削除をサポートしていません</translation>
+        <translation type="vanished">プロトコル「%1」ではファイルまたはディレクトリの削除をサポートしていません</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>プロトコル「%1」ではファイルまたはディレクトリの名前の変更をサポートしていません</translation>
+        <translation type="vanished">プロトコル「%1」ではファイルまたはディレクトリの名前の変更をサポートしていません</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>プロトコル「%1」ではファイルの取得をサポートしていません</translation>
+        <translation type="vanished">プロトコル「%1」ではファイルの取得をサポートしていません</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>プロトコル「%1」ではファイルの送信をサポートしていません</translation>
+        <translation type="vanished">プロトコル「%1」ではファイルの送信をサポートしていません</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>プロトコル「%1」ではファイルまたはディレクトリのコピーまたは移動をサポートしていません</translation>
+        <translation type="vanished">プロトコル「%1」ではファイルまたはディレクトリのコピーまたは移動をサポートしていません</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(不明)</translation>
+        <translation type="vanished">(不明)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>キャンセル(&amp;C)</translation>
+        <translation type="vanished">キャンセル(&amp;C)</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; 戻る(&amp;B)</translation>
+        <translation type="vanished">&lt; 戻る(&amp;B)</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>次へ(&amp;N) &gt;</translation>
+        <translation type="vanished">次へ(&amp;N) &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>完了(&amp;F)</translation>
+        <translation type="vanished">完了(&amp;F)</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>ヘルプ(&amp;H)</translation>
+        <translation type="vanished">ヘルプ(&amp;H)</translation>
     </message>
 </context>
 <context>
     <name>QAbstractSocket</name>
     <message>
         <source>Host not found</source>
-        <translation>ホストが見つかりませんでした</translation>
+        <translation>ホストが見つかりません</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -609,7 +609,7 @@ to
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation type="unfinished"></translation>
+        <translation>すべてを選択(&amp;S)</translation>
     </message>
 </context>
 <context>
@@ -734,39 +734,39 @@ to
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>アクティブに</translation>
+        <translation type="vanished">アクティブに</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>メインウィンドウをアクティブにする</translation>
+        <translation type="vanished">メインウィンドウをアクティブにする</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>実行可能ファイル &apos;%1&apos; には Qt %2 が必要です。Qt %3 が見つかりました。</translation>
+        <translation>実行可能ファイル &apos;%1&apos; には Qt %2 が必要ですが Qt %3 が見つかりました。</translation>
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation>互換性のないQtライブラリエラー</translation>
+        <translation>互換性のない Qt ライブラリエラー</translation>
     </message>
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
 </context>
 <context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>選択解除</translation>
+        <translation type="vanished">選択解除</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>選択</translation>
+        <translation type="vanished">選択</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>反転</translation>
+        <translation type="vanished">反転</translation>
     </message>
 </context>
 <context>
@@ -863,7 +863,7 @@ to
     </message>
     <message>
         <source>&amp;Basic colors</source>
-        <translation>基本的なカラー(&amp;B)</translation>
+        <translation>基本カラー(&amp;B)</translation>
     </message>
     <message>
         <source>&amp;Custom colors</source>
@@ -875,7 +875,7 @@ to
     </message>
     <message>
         <source>Select color</source>
-        <translation>カラーの選択</translation>
+        <translation type="vanished">カラーの選択</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -900,19 +900,19 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>開く</translation>
+        <translation type="vanished">開く</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>False</translation>
+        <translation>偽</translation>
     </message>
     <message>
         <source>True</source>
-        <translation>True</translation>
+        <translation>真</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>閉じる</translation>
+        <translation type="vanished">閉じる</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -967,17 +967,17 @@ Press ESC to cancel</source>
     <message>
         <source>%1: key is empty</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: キーが空です</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: キーを作成できません</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: ftok に失敗しました</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
@@ -1125,7 +1125,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Unable to set autocommit</source>
-        <translation>オートコミットを設定できません</translation>
+        <translation>自動コミットを設定できません</translation>
     </message>
 </context>
 <context>
@@ -1136,7 +1136,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>プリペアステートメントを使えません</translation>
+        <translation>プリペアドステートメントを作成できません</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
@@ -1166,19 +1166,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>AM</translation>
+        <translation type="vanished">AM</translation>
     </message>
     <message>
         <source>am</source>
-        <translation>am</translation>
+        <translation type="vanished">am</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation>PM</translation>
+        <translation type="vanished">PM</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation>pm</translation>
+        <translation type="vanished">pm</translation>
     </message>
 </context>
 <context>
@@ -1208,7 +1208,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Done</source>
-        <translation>終了</translation>
+        <translation type="vanished">終了</translation>
     </message>
 </context>
 <context>
@@ -1219,83 +1219,83 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>キャンセル</translation>
+        <translation type="vanished">キャンセル</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>適用</translation>
+        <translation type="vanished">適用</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>無視</translation>
+        <translation type="vanished">無視</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>再試行</translation>
+        <translation type="vanished">再試行</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>中止</translation>
+        <translation type="vanished">中止</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>ヘルプ</translation>
+        <translation type="vanished">ヘルプ</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>保存</translation>
+        <translation type="vanished">保存</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>開く</translation>
+        <translation type="vanished">開く</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>閉じる</translation>
+        <translation type="vanished">閉じる</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>リセット</translation>
+        <translation type="vanished">リセット</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>保存しない</translation>
+        <translation type="vanished">保存しない</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>保存せずに閉じる</translation>
+        <translation type="vanished">保存せずに閉じる</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>変更を破棄</translation>
+        <translation type="vanished">変更を破棄</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>はい(&amp;Y)</translation>
+        <translation type="vanished">はい(&amp;Y)</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>全てにはい(&amp;A)</translation>
+        <translation type="vanished">全てにはい(&amp;A)</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>いいえ(&amp;N)</translation>
+        <translation type="vanished">いいえ(&amp;N)</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>全てにいいえ(&amp;O)</translation>
+        <translation type="vanished">全てにいいえ(&amp;O)</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>すべて保存</translation>
+        <translation type="vanished">すべて保存</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>デフォルトに戻す</translation>
+        <translation type="vanished">デフォルトに戻す</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>OK(&amp;O)</translation>
+        <translation type="vanished">OK(&amp;O)</translation>
     </message>
 </context>
 <context>
@@ -1433,11 +1433,13 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>閉じる</translation>
     </message>
     <message>
         <source>Float</source>
-        <translation type="unfinished"></translation>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
+        <translation>フロート</translation>
     </message>
     <message>
         <source>Undocks and re-attaches the dock widget</source>
@@ -1456,11 +1458,11 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>増やす</translation>
+        <translation type="vanished">増やす</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>減らす</translation>
+        <translation type="vanished">減らす</translation>
     </message>
 </context>
 <context>
@@ -1475,7 +1477,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Fatal Error:</source>
-        <translation>致命的エラー:</translation>
+        <translation>致命的なエラー:</translation>
     </message>
     <message>
         <source>&amp;Show this message again</source>
@@ -1483,7 +1485,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>OK(&amp;O)</translation>
+        <translation>&amp;OK</translation>
     </message>
 </context>
 <context>
@@ -1573,7 +1575,7 @@ Press ESC to cancel</source>
     <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
-        <translation>%1はすでに存在します。
+        <translation>%1 は既に存在します。
 置き換えますか?</translation>
     </message>
     <message>
@@ -1582,11 +1584,11 @@ File not found.
 Please verify the correct file name was given.</source>
         <translation>%1
 ファイルが見つかりません。
-正しいファイル名が入力されたかどうか確認してください。</translation>
+正しいファイル名が入力されているかを確認してください。</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation>マイ コンピュータ</translation>
+        <translation>マイコンピュータ</translation>
     </message>
     <message>
         <source>%1
@@ -1594,7 +1596,7 @@ Directory not found.
 Please verify the correct directory name was given.</source>
         <translation>%1
 ディレクトリが見つかりません。
-正しいディレクトリ名が入力されたかどうか確認してください。</translation>
+正しいディレクトリ名が入力されているかを確認してください。</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
@@ -1630,7 +1632,7 @@ Please verify the correct directory name was given.</source>
     </message>
     <message>
         <source>Look in:</source>
-        <translation>検索する場所:</translation>
+        <translation>アドレス:</translation>
     </message>
     <message>
         <source>Files of type:</source>
@@ -1656,11 +1658,11 @@ Please verify the correct directory name was given.</source>
         <source>&apos;%1&apos; is write protected.
 Do you want to delete it anyway?</source>
         <translation>&apos;%1&apos; は書き込みが禁止されています。
-本当に削除しますか？</translation>
+本当に削除しますか?</translation>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>&apos;%1&apos; を本当に削除しますか？</translation>
+        <translation type="vanished">&apos;%1&apos; を本当に削除しますか？</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
@@ -1692,7 +1694,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Remove</source>
-        <translation>除去</translation>
+        <translation>削除</translation>
     </message>
     <message>
         <source>Go back</source>
@@ -1810,39 +1812,39 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>%1 TB</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 TB</translation>
     </message>
     <message>
         <source>%1 GB</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 GB</translation>
     </message>
     <message>
         <source>%1 MB</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 MB</translation>
     </message>
     <message>
         <source>%1 KB</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 KB</translation>
     </message>
     <message>
         <source>%1 bytes</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 バイト</translation>
     </message>
     <message>
         <source>Invalid filename</source>
-        <translation type="unfinished"></translation>
+        <translation>無効なファイル名</translation>
     </message>
     <message>
         <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;ファイル名 &quot;%1&quot; は使用できません。&lt;/b&gt;&lt;p&gt;名前を短くしたり、アクセント記号などを削除して再度試してください。</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation type="unfinished">マイ コンピュータ</translation>
+        <translation>マイコンピュータ</translation>
     </message>
     <message>
         <source>Computer</source>
-        <translation type="unfinished"></translation>
+        <translation>コンピュータ</translation>
     </message>
     <message>
         <source>%1 byte(s)</source>
@@ -1853,163 +1855,164 @@ Do you want to delete it anyway?</source>
     <name>QFontDatabase</name>
     <message>
         <source>Bold</source>
-        <translation type="unfinished"></translation>
+        <translation>太字</translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation type="unfinished"></translation>
+        <translation>中太</translation>
     </message>
     <message>
         <source>Black</source>
-        <translation type="unfinished"></translation>
+        <translation>超極太</translation>
     </message>
     <message>
         <source>Demi</source>
-        <translation type="unfinished"></translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation>中</translation>
     </message>
     <message>
         <source>Light</source>
-        <translation type="unfinished"></translation>
+        <translation>細字</translation>
     </message>
     <message>
         <source>Italic</source>
-        <translation type="unfinished"></translation>
+        <translation>斜体</translation>
     </message>
     <message>
         <source>Oblique</source>
-        <translation type="unfinished"></translation>
+        <translation>斜体</translation>
     </message>
     <message>
         <source>Any</source>
-        <translation type="unfinished"></translation>
+        <translation>すべて</translation>
     </message>
     <message>
         <source>Latin</source>
-        <translation type="unfinished"></translation>
+        <translation>ラテン</translation>
     </message>
     <message>
         <source>Greek</source>
-        <translation type="unfinished"></translation>
+        <translation>ギリシャ</translation>
     </message>
     <message>
         <source>Cyrillic</source>
-        <translation type="unfinished"></translation>
+        <translation>キリル</translation>
     </message>
     <message>
         <source>Armenian</source>
-        <translation type="unfinished"></translation>
+        <translation>アルメニア</translation>
     </message>
     <message>
         <source>Hebrew</source>
-        <translation type="unfinished"></translation>
+        <translation>ヘブライ</translation>
     </message>
     <message>
         <source>Arabic</source>
-        <translation type="unfinished"></translation>
+        <translation>アラビア</translation>
     </message>
     <message>
         <source>Syriac</source>
-        <translation type="unfinished"></translation>
+        <translation>シリア</translation>
     </message>
     <message>
         <source>Thaana</source>
-        <translation type="unfinished"></translation>
+        <translation>ターナ</translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation type="unfinished"></translation>
+        <translation>デーヴァナーガリー</translation>
     </message>
     <message>
         <source>Bengali</source>
-        <translation type="unfinished"></translation>
+        <translation>ベンガル</translation>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation type="unfinished"></translation>
+        <translation>グルムキー</translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation type="unfinished"></translation>
+        <translation>グジャラート</translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation type="unfinished"></translation>
+        <translation>オリヤー</translation>
     </message>
     <message>
         <source>Tamil</source>
-        <translation type="unfinished"></translation>
+        <translation>タミル</translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation type="unfinished"></translation>
+        <translation>テルグ</translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation type="unfinished"></translation>
+        <translation>カンナダ</translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation type="unfinished"></translation>
+        <translation>マラヤーラム</translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation type="unfinished"></translation>
+        <translation>シンハラ</translation>
     </message>
     <message>
         <source>Thai</source>
-        <translation type="unfinished"></translation>
+        <translation>タイ</translation>
     </message>
     <message>
         <source>Lao</source>
-        <translation type="unfinished"></translation>
+        <translation>ラーオ</translation>
     </message>
     <message>
         <source>Tibetan</source>
-        <translation type="unfinished"></translation>
+        <translation>チベット</translation>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation type="unfinished"></translation>
+        <translation>ビルマ</translation>
     </message>
     <message>
         <source>Georgian</source>
-        <translation type="unfinished"></translation>
+        <translation>グルジア</translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation type="unfinished"></translation>
+        <translation>クメール</translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>簡体中国</translation>
     </message>
     <message>
         <source>Traditional Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>繁体中国</translation>
     </message>
     <message>
         <source>Japanese</source>
-        <translation type="unfinished"></translation>
+        <translation>日本</translation>
     </message>
     <message>
         <source>Korean</source>
-        <translation type="unfinished"></translation>
+        <translation>ハングル</translation>
     </message>
     <message>
         <source>Vietnamese</source>
-        <translation type="unfinished"></translation>
+        <translation>ベトナム</translation>
     </message>
     <message>
         <source>Symbol</source>
-        <translation type="unfinished"></translation>
+        <translation>記号</translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation type="unfinished"></translation>
+        <translation>オガム</translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation type="unfinished"></translation>
+        <translation>ルーン</translation>
     </message>
     <message>
         <source>Normal</source>
@@ -2094,7 +2097,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation>ホスト %1 が見つかりませんでした</translation>
+        <translation>ホスト %1 が見つかりません</translation>
     </message>
     <message>
         <source>Connection refused to host %1</source>
@@ -2106,11 +2109,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>データ接続のための接続が拒否されました</translation>
+        <translation type="vanished">データ接続のための接続が拒否されました</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation>未知のエラー</translation>
     </message>
     <message>
         <source>Connecting to host failed:
@@ -2127,7 +2130,7 @@ Do you want to delete it anyway?</source>
     <message>
         <source>Listing directory failed:
 %1</source>
-        <translation>ディレクトリのリストに失敗しました:
+        <translation>ディレクトリのファイル一覧が取得できません:
 %1</translation>
     </message>
     <message>
@@ -2172,19 +2175,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>ホスト %1 が見つかりました</translation>
+        <translation type="vanished">ホスト %1 が見つかりました</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>%1 への接続が閉じられました</translation>
+        <translation type="vanished">%1 への接続が閉じられました</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>ホストが見つかりました</translation>
+        <translation type="vanished">ホストが見つかりました</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>ホストに接続しました</translation>
+        <translation type="vanished">ホストに接続しました</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -2230,7 +2233,7 @@ Do you want to delete it anyway?</source>
     <name>QHostInfo</name>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation>未知のエラー</translation>
     </message>
     <message>
         <source>No host name given</source>
@@ -2245,11 +2248,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unknown address type</source>
-        <translation>不明なアドレス型です</translation>
+        <translation>未知のアドレス型です</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation>未知のエラー</translation>
     </message>
     <message>
         <source>No host name given</source>
@@ -2268,23 +2271,23 @@ Do you want to delete it anyway?</source>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation type="vanished">不明なエラー</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>要求が中止されました</translation>
+        <translation type="vanished">要求が中止されました</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>接続が設定されているサーバがありません</translation>
+        <translation type="vanished">接続が設定されているサーバがありません</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>コンテンツの長さが正しくありません</translation>
+        <translation type="vanished">コンテンツの長さが正しくありません</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>サーバの接続が予期せず閉じられました</translation>
+        <translation type="vanished">サーバの接続が予期せず閉じられました</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -2292,39 +2295,39 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation>ホスト %1 が見つかりませんでした</translation>
+        <translation>ホスト %1 が見つかりません</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>HTTP要求に失敗しました</translation>
+        <translation type="vanished">HTTP要求に失敗しました</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>無効なHTTP応答ヘッダです</translation>
+        <translation type="vanished">無効なHTTP応答ヘッダです</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>無効なHTTPチャンクドボディです</translation>
+        <translation type="vanished">無効なHTTPチャンクドボディです</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>ホスト %1 が見つかりました</translation>
+        <translation type="vanished">ホスト %1 が見つかりました</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>ホスト %1 に接続しました</translation>
+        <translation type="vanished">ホスト %1 に接続しました</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>%1 への接続が閉じられました</translation>
+        <translation type="vanished">%1 への接続が閉じられました</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>ホストが見つかりました</translation>
+        <translation type="vanished">ホストが見つかりました</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>ホストに接続しました</translation>
+        <translation type="vanished">ホストに接続しました</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2332,23 +2335,23 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Proxy requires authentication</source>
-        <translation type="unfinished"></translation>
+        <translation>プロキシでの認証が必要です</translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translation type="unfinished"></translation>
+        <translation>ホストの認証が必要です</translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translation type="unfinished"></translation>
+        <translation>データが破損しています</translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation type="unfinished"></translation>
+        <translation>未対応のプロトコルです</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translation type="unfinished"></translation>
+        <translation>SSLのハンドシェークに失敗しました</translation>
     </message>
     <message>
         <source>Too many redirects</source>
@@ -2379,7 +2382,7 @@ Do you want to delete it anyway?</source>
     <name>QHttpSocketEngine</name>
     <message>
         <source>Authentication required</source>
-        <translation type="unfinished"></translation>
+        <translation>認証が必要です</translation>
     </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
@@ -2418,7 +2421,7 @@ Do you want to delete it anyway?</source>
     <name>QIBaseDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation type="unfinished">データベースを開く際にエラーが発生しました</translation>
+        <translation>データベースのオープン時にエラーが発生しました</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
@@ -2437,23 +2440,23 @@ Do you want to delete it anyway?</source>
     <name>QIBaseResult</name>
     <message>
         <source>Unable to create BLOB</source>
-        <translation>バイナリラージオブジェクトを作成できません</translation>
+        <translation>バイナリラージオブジェクト(BLOB)を作成できません</translation>
     </message>
     <message>
         <source>Unable to write BLOB</source>
-        <translation>バイナリラージオブジェクトを書き込めません</translation>
+        <translation>バイナリラージオブジェクト(BLOB)を書き込めません</translation>
     </message>
     <message>
         <source>Unable to open BLOB</source>
-        <translation>バイナリラージオブジェクトを開けません</translation>
+        <translation>バイナリラージオブジェクト(BLOB)を開けません</translation>
     </message>
     <message>
         <source>Unable to read BLOB</source>
-        <translation>バイナリラージオブジェクトを読み込めません</translation>
+        <translation>バイナリラージオブジェクト(BLOB)を読み込めません</translation>
     </message>
     <message>
         <source>Could not find array</source>
-        <translation>配列が見つかりませんでした</translation>
+        <translation>配列が見つけられませんでした</translation>
     </message>
     <message>
         <source>Could not get array data</source>
@@ -2477,7 +2480,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Could not prepare statement</source>
-        <translation>プリペアステートメントを使えませんでした</translation>
+        <translation>プリペアドステートメントを作成できませんでした</translation>
     </message>
     <message>
         <source>Could not describe input statement</source>
@@ -2520,11 +2523,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>No space left on device</source>
-        <translation>デバイスの残り容量がありません</translation>
+        <translation>デバイスに空き容量がありません</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation>未知のエラー</translation>
     </message>
     <message>
         <source>file to open is a directory</source>
@@ -2577,19 +2580,19 @@ Do you want to delete it anyway?</source>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="vanished">XIM</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>XIM 入力メソッド</translation>
+        <translation type="vanished">XIM 入力メソッド</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Windows 入力メソッド</translation>
+        <translation type="vanished">Windows 入力メソッド</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Mac OS X 入力メソッド</translation>
+        <translation type="vanished">Mac OS X 入力メソッド</translation>
     </message>
 </context>
 <context>
@@ -2678,15 +2681,15 @@ Do you want to delete it anyway?</source>
     <name>QLibrary</name>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>&apos;%1&apos; をメモリにマッピングできませんでした: %2</translation>
+        <translation type="vanished">&apos;%1&apos; をメモリにマッピングできませんでした: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>&apos;%1&apos; でプラグイン検証データが一致しません</translation>
+        <translation type="vanished">&apos;%1&apos; でプラグイン検証データが一致しません</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>&apos;%1&apos; のマッピングを解除できませんでした: %2</translation>
+        <translation type="vanished">&apos;%1&apos; のマッピングを解除できませんでした: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
@@ -2694,35 +2697,35 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>プラグイン &apos;%1&apos; は、互換性のない Qt ライブラリを使用しています。ビルドキー　&quot;%2&quot;　が必要ですが、&quot;%3&quot; しかありません </translation>
+        <translation type="vanished">プラグイン &apos;%1&apos; は、互換性のない Qt ライブラリを使用しています。ビルドキー　&quot;%2&quot;　が必要ですが、&quot;%3&quot; しかありません </translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation>未知のエラー</translation>
     </message>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: %1 をロードできません (%2)</translation>
+        <translation type="vanished">QLibrary::load_sys: %1 をロードできません (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys: %1 をアンロードできません (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys: %1 をアンロードできません (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::resolve_sys: シンボル &quot;%1&quot; は %2 で定義されていません (%3)</translation>
+        <translation type="vanished">QLibrary::resolve_sys: シンボル &quot;%1&quot; は %2 で定義されていません (%3)</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>共有ライブラリが見つかりませんでした。</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイル &apos;%1&apos; は有効な Qt プラグインではありません。</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation type="unfinished"></translation>
+        <translation>プラグイン &apos;%1&apos; はこの Qt と互換性のないライブラリを使用しています。 (デバック版とリリース版のライブラリを同時に使用することはできません)</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not an ELF object (%2)</source>
@@ -2820,62 +2823,62 @@ Do you want to delete it anyway?</source>
     <name>QLocalServer</name>
     <message>
         <source>%1: Name error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 名前の解決に失敗</translation>
     </message>
     <message>
         <source>%1: Permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 許可されていません</translation>
     </message>
     <message>
         <source>%1: Address in use</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: アドレスは既に使用されています</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 未知のエラー %2</translation>
     </message>
 </context>
 <context>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 接続が拒否されました</translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: リモートにより接続が閉じられました</translation>
     </message>
     <message>
         <source>%1: Invalid name</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 無効な名前です</translation>
     </message>
     <message>
         <source>%1: Socket access error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: ソケットアクセスのエラーです</translation>
     </message>
     <message>
         <source>%1: Socket resource error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: ソケットリソースのエラーです</translation>
     </message>
     <message>
         <source>%1: Socket operation timed out</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: ソケット操作がタイムアウトしました</translation>
     </message>
     <message>
         <source>%1: Datagram too large</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: データグラムが大きすぎます</translation>
     </message>
     <message>
         <source>%1: Connection error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 接続のエラーが発生しました</translation>
     </message>
     <message>
         <source>%1: The socket operation is not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: そのソケット操作はサポートされていません</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 未知のエラー %2</translation>
     </message>
     <message>
         <source>%1: Operation not permitted when socket is in this state</source>
@@ -2898,7 +2901,7 @@ Do you want to delete it anyway?</source>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>データベースを開くことができません &apos;</translation>
+        <translation type="vanished">データベースを開くことができません &apos;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
@@ -2941,7 +2944,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>プリペアステートメントを使えません</translation>
+        <translation>プリペアドステートメントを作成できません</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
@@ -2965,25 +2968,25 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to execute next query</source>
-        <translation type="unfinished"></translation>
+        <translation>次のクエリーを実行できません</translation>
     </message>
     <message>
         <source>Unable to store next result</source>
-        <translation type="unfinished"></translation>
+        <translation>次の結果を記録できません</translation>
     </message>
 </context>
 <context>
     <name>QMdiArea</name>
     <message>
         <source>(Untitled)</source>
-        <translation type="unfinished"></translation>
+        <translation>(タイトルなし)</translation>
     </message>
 </context>
 <context>
     <name>QMdiSubWindow</name>
     <message>
         <source>%1 - [%2]</source>
-        <translation type="unfinished">%1 - [%2]</translation>
+        <translation>%1 - [%2]</translation>
     </message>
     <message>
         <source>Close</source>
@@ -2991,35 +2994,35 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Minimize</source>
-        <translation type="unfinished">最小化</translation>
+        <translation>最小化</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation type="unfinished">元に戻す</translation>
+        <translation>元に戻す</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation type="unfinished">元に戻す(&amp;R)</translation>
+        <translation>元に戻す(&amp;R)</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation type="unfinished">移動(&amp;M)</translation>
+        <translation>移動(&amp;M)</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation type="unfinished"></translation>
+        <translation>サイズ(&amp;S)</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation type="unfinished">最小化(&amp;N)</translation>
+        <translation>最小化(&amp;N)</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation type="unfinished">最大化(&amp;X)</translation>
+        <translation>最大化(&amp;X)</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation type="unfinished">常に手前に表示(&amp;T)</translation>
+        <translation>常に手前に表示(&amp;T)</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -3027,46 +3030,46 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>- [%1]</source>
-        <translation type="unfinished"></translation>
+        <translation>- [%1]</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation type="unfinished">最大化</translation>
+        <translation>最大化</translation>
     </message>
     <message>
         <source>Unshade</source>
-        <translation type="unfinished"></translation>
+        <translation>展開する</translation>
     </message>
     <message>
         <source>Shade</source>
-        <translation type="unfinished"></translation>
+        <translation>折りたたむ</translation>
     </message>
     <message>
         <source>Restore</source>
-        <translation type="unfinished"></translation>
+        <translation>元に戻す</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">ヘルプ</translation>
+        <translation>ヘルプ</translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation type="unfinished">メニュー</translation>
+        <translation>メニュー</translation>
     </message>
 </context>
 <context>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>閉じる</translation>
+        <translation type="vanished">閉じる</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>開く</translation>
+        <translation type="vanished">開く</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>実行</translation>
+        <translation type="vanished">実行</translation>
     </message>
 </context>
 <context>
@@ -3081,11 +3084,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;このプログラムは Qt バージョン %1 を使用しています。&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;このプログラムは Qt バージョン %1 を使用しています。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;このプログラムは Qt オープンソース版バージョン %1 を使用しています。&lt;/p&gt;
+        <translation type="vanished">&lt;p&gt;このプログラムは Qt オープンソース版バージョン %1 を使用しています。&lt;/p&gt;
 &lt;p&gt;Qt オープンソース版はオープンソースのアプリケーションの開発用です。ソースコードを公開しない商用アプリケーションを開発するには商用版のライセンスが必要です。&lt;/p&gt;&lt;p&gt;Qtのライセンスについては&lt;tt&gt;http://www.trolltech.com/company/model.html&lt;/tt&gt;を参照してください。&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3117,25 +3120,25 @@ Do you want to delete it anyway?</source>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>入力メソッドを選択</translation>
+        <translation type="vanished">入力メソッドを選択</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>複数の入力メソッドを切り替え</translation>
+        <translation type="vanished">複数の入力メソッドを切り替え</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>テキストウィジェットのコンテキストメニューを使った複数の入力メソッドの切り替えです</translation>
+        <translation type="vanished">テキストウィジェットのコンテキストメニューを使った複数の入力メソッドの切り替えです</translation>
     </message>
 </context>
 <context>
     <name>QNativeSocketEngine</name>
     <message>
         <source>Unable to initialize non-blocking socket</source>
-        <translation>ノンブロッキングソケットを初期化できません</translation>
+        <translation>非ブロック型ソケットを初期化できません</translation>
     </message>
     <message>
         <source>Unable to initialize broadcast socket</source>
@@ -3159,11 +3162,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unsupported socket operation</source>
-        <translation>サポートされていないソケット操作です</translation>
+        <translation>サポートされていないソケットの操作です</translation>
     </message>
     <message>
         <source>Protocol type not supported</source>
-        <translation>プロトコル型がサポートされていません</translation>
+        <translation>サポートされていないプロトコル型です</translation>
     </message>
     <message>
         <source>Invalid socket descriptor</source>
@@ -3203,7 +3206,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Datagram was too large to send</source>
-        <translation>データグラムが大き過ぎて送信できませんでした</translation>
+        <translation>データグラムが大きすぎるため送信できませんでした</translation>
     </message>
     <message>
         <source>Unable to send a message</source>
@@ -3231,11 +3234,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation>未知のエラー</translation>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
-        <translation type="unfinished"></translation>
+        <translation>このプロキシは、この操作に対応していません</translation>
     </message>
     <message>
         <source>Temporary error</source>
@@ -3283,42 +3286,42 @@ Do you want to delete it anyway?</source>
     <name>QNetworkAccessFileBackend</name>
     <message>
         <source>Request for opening non-local file %1</source>
-        <translation type="unfinished"></translation>
+        <translation>非ローカルファイル %1 をオープンするよう要求されましたが、ローカルファイルのみオープンできます</translation>
     </message>
     <message>
         <source>Error opening %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 のオープン時にエラーが発生しました: %2</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 への書き込み時にエラーが発生しました: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 を開けません。指定されたパスはディレクトリです</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 の読み込み時にエラーが発生しました: %2</translation>
     </message>
 </context>
 <context>
     <name>QNetworkAccessFtpBackend</name>
     <message>
         <source>Cannot open %1: is a directory</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 を開けません: 指定されたパスはディレクトリです</translation>
     </message>
     <message>
         <source>Logging in to %1 failed: authentication required</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 へのログインに失敗しました: 認証が必要です</translation>
     </message>
     <message>
         <source>Error while downloading %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 のダウンロード中にエラーが発生しました: %2</translation>
     </message>
     <message>
         <source>Error while uploading %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 のアップロード中にエラーが発生しました: %2</translation>
     </message>
     <message>
         <source>No suitable proxy found</source>
@@ -3336,7 +3339,7 @@ Do you want to delete it anyway?</source>
     <name>QNetworkReply</name>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>プロトコル &quot;%1&quot; はサポートされていません</translation>
     </message>
     <message>
         <source>Background request not allowed.</source>
@@ -3378,7 +3381,7 @@ Do you want to delete it anyway?</source>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation type="unfinished"></translation>
+        <translation>操作がキャンセルされました</translation>
     </message>
 </context>
 <context>
@@ -3424,15 +3427,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation type="unfinished">トランザクションを開始できません</translation>
+        <translation>トランザクションを開始できません</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished">トランザクションをコミットできません</translation>
+        <translation>トランザクションをコミットできません</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished">トランザクションをロールバックできません</translation>
+        <translation>トランザクションをロールバックできません</translation>
     </message>
 </context>
 <context>
@@ -3455,7 +3458,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>プリペアステートメントを使えません</translation>
+        <translation>プリペアドステートメントを作成できません</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
@@ -3463,7 +3466,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>SELECT ステートメントを実行できません</translation>
+        <translation type="vanished">SELECT ステートメントを実行できません</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
@@ -3482,11 +3485,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>接続できません - ドライバは全ての必要な機能をサポートしていません</translation>
+        <translation type="vanished">接続できません - ドライバは全ての必要な機能をサポートしていません</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
-        <translation>オートコミットを無効にできません</translation>
+        <translation>自動コミットを無効にできません</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
@@ -3498,7 +3501,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
-        <translation>オートコミットを有効にできません</translation>
+        <translation>自動コミットを有効にできません</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
@@ -3517,7 +3520,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>プリペアステートメントを使えません</translation>
+        <translation>プリペアドステートメントを作成できません</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
@@ -3525,34 +3528,34 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation>QODBCResult::reset: ステートメントの属性として &apos;SQL_CURSOR_STATUS&apos; を設定できません。ODBC ドライバの構成をチェックしてください。</translation>
+        <translation>QODBCResult::reset: ステートメントの属性として &apos;SQL_CURSOR_STATUS&apos; を設定できません。ODBC ドライバの構成を確認してください</translation>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translation type="unfinished"></translation>
+        <translation>ラストレコードをフェッチできません</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation type="unfinished"></translation>
+        <translation>フェッチできません</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation type="unfinished">最初のレコードをフェッチできません</translation>
+        <translation>最初のレコードをフェッチできません</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translation type="unfinished"></translation>
+        <translation>前のレコードをフェッチできません</translation>
     </message>
 </context>
 <context>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>名前</translation>
+        <translation type="vanished">名前</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>値</translation>
+        <translation type="vanished">値</translation>
     </message>
 </context>
 <context>
@@ -3575,11 +3578,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>サブスクライブできません</translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>サブスクリプションを削除できません</translation>
     </message>
 </context>
 <context>
@@ -3590,86 +3593,86 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>プリペアステートメントを使えません</translation>
+        <translation>プリペアドステートメントを作成できません</translation>
     </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
     <message>
         <source>Millimeters (mm)</source>
-        <translation type="unfinished"></translation>
+        <translation>ミリメートル (mm)</translation>
     </message>
     <message>
         <source>Inches (in)</source>
-        <translation type="unfinished"></translation>
+        <translation>インチ (in)</translation>
     </message>
     <message>
         <source>Points (pt)</source>
-        <translation type="unfinished"></translation>
+        <translation>ポイント (pt)</translation>
     </message>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>書式設定</translation>
     </message>
     <message>
         <source>Paper</source>
-        <translation type="unfinished"></translation>
+        <translation>用紙</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation type="unfinished">ページサイズ:</translation>
+        <translation>用紙サイズ:</translation>
     </message>
     <message>
         <source>Width:</source>
-        <translation type="unfinished"></translation>
+        <translation>幅:</translation>
     </message>
     <message>
         <source>Height:</source>
-        <translation type="unfinished"></translation>
+        <translation>高さ:</translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation type="unfinished">給紙装置:</translation>
+        <translation>給紙装置:</translation>
     </message>
     <message>
         <source>Orientation</source>
-        <translation type="unfinished"></translation>
+        <translation>印刷の向き</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation type="unfinished">縦</translation>
+        <translation>縦 (ポートレート)</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation type="unfinished">横</translation>
+        <translation>横 (ランドスケープ)</translation>
     </message>
     <message>
         <source>Reverse landscape</source>
-        <translation type="unfinished"></translation>
+        <translation>横 反転 (リバースランドスケープ)</translation>
     </message>
     <message>
         <source>Reverse portrait</source>
-        <translation type="unfinished"></translation>
+        <translation>縦 反転 (リバースポートレート)</translation>
     </message>
     <message>
         <source>Margins</source>
-        <translation type="unfinished"></translation>
+        <translation>余白</translation>
     </message>
     <message>
         <source>top margin</source>
-        <translation type="unfinished"></translation>
+        <translation>上端余白</translation>
     </message>
     <message>
         <source>left margin</source>
-        <translation type="unfinished"></translation>
+        <translation>左端余白</translation>
     </message>
     <message>
         <source>right margin</source>
-        <translation type="unfinished"></translation>
+        <translation>右端余白</translation>
     </message>
     <message>
         <source>bottom margin</source>
-        <translation type="unfinished"></translation>
+        <translation>下端余白</translation>
     </message>
     <message>
         <source>Page Layout</source>
@@ -4291,26 +4294,26 @@ Do you want to delete it anyway?</source>
     <name>QPluginLoader</name>
     <message>
         <source>Unknown error</source>
-        <translation>不明なエラー</translation>
+        <translation>未知のエラー</translation>
     </message>
     <message>
         <source>The plugin was not loaded.</source>
-        <translation type="unfinished"></translation>
+        <translation>そのプラグインはロードされていません。</translation>
     </message>
 </context>
 <context>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>ローカルに接続しています</translation>
+        <translation type="vanished">ローカルに接続しています</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>エイリアス: %1</translation>
+        <translation type="vanished">エイリアス: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>不明</translation>
+        <translation type="vanished">不明</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -4320,38 +4323,39 @@ Do you want to delete it anyway?</source>
         <source>File %1 is not writable.
 Please choose a different file name.</source>
         <translation>ファイル %1 は書き込み可能ではありません。
-別のファイル名を選んでください。</translation>
+別のファイル名を指定してください。</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to overwrite it?</source>
-        <translation>%1 はすでに存在します。
+        <translation>%1 は既に存在します。
 上書きしますか?</translation>
     </message>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 はディレクトリです。
+別のファイル名を指定してください。</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>オプション(&amp;O) &gt;&gt;</translation>
     </message>
     <message>
         <source>&amp;Print</source>
-        <translation type="unfinished"></translation>
+        <translation>印刷(&amp;P)</translation>
     </message>
     <message>
         <source>&amp;Options &lt;&lt;</source>
-        <translation type="unfinished"></translation>
+        <translation>オプション(&amp;O) &lt;&lt;</translation>
     </message>
     <message>
         <source>Print to File (PDF)</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF ファイルに出力</translation>
     </message>
     <message>
         <source>Local file</source>
-        <translation type="unfinished"></translation>
+        <translation>ローカルファイル</translation>
     </message>
     <message>
         <source>Print</source>
@@ -4584,75 +4588,75 @@ Please turn one of those options off.</source>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
-        <translation type="unfinished"></translation>
+        <translation>ページ設定</translation>
     </message>
     <message>
         <source>Print Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>印刷のプレビュー</translation>
     </message>
     <message>
         <source>Next page</source>
-        <translation type="unfinished"></translation>
+        <translation>次のページ</translation>
     </message>
     <message>
         <source>Previous page</source>
-        <translation type="unfinished"></translation>
+        <translation>前のページ</translation>
     </message>
     <message>
         <source>First page</source>
-        <translation type="unfinished"></translation>
+        <translation>最初のページ</translation>
     </message>
     <message>
         <source>Last page</source>
-        <translation type="unfinished"></translation>
+        <translation>最後のページ</translation>
     </message>
     <message>
         <source>Fit width</source>
-        <translation type="unfinished"></translation>
+        <translation>幅をあわせる</translation>
     </message>
     <message>
         <source>Fit page</source>
-        <translation type="unfinished"></translation>
+        <translation>ページ全体を表示</translation>
     </message>
     <message>
         <source>Zoom in</source>
-        <translation type="unfinished"></translation>
+        <translation>拡大</translation>
     </message>
     <message>
         <source>Zoom out</source>
-        <translation type="unfinished"></translation>
+        <translation>縮小</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation type="unfinished">縦</translation>
+        <translation>縦</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation type="unfinished">横</translation>
+        <translation>横</translation>
     </message>
     <message>
         <source>Show single page</source>
-        <translation type="unfinished"></translation>
+        <translation>単一ページで表示する</translation>
     </message>
     <message>
         <source>Show facing pages</source>
-        <translation type="unfinished"></translation>
+        <translation>見開きページで表示する</translation>
     </message>
     <message>
         <source>Show overview of all pages</source>
-        <translation type="unfinished"></translation>
+        <translation>すべてのページの概要を表示する</translation>
     </message>
     <message>
         <source>Print</source>
-        <translation type="unfinished">Print</translation>
+        <translation>印刷</translation>
     </message>
     <message>
         <source>Page setup</source>
-        <translation type="unfinished"></translation>
+        <translation>ページ設定</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>閉じる</translation>
+        <translation type="vanished">閉じる</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -4678,11 +4682,11 @@ Please turn one of those options off.</source>
     <name>QPrintPropertiesWidget</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>書式</translation>
     </message>
     <message>
         <source>Page</source>
-        <translation type="unfinished"></translation>
+        <translation>ページ</translation>
     </message>
     <message>
         <source>Advanced</source>
@@ -4693,79 +4697,79 @@ Please turn one of those options off.</source>
     <name>QPrintSettingsOutput</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>書式</translation>
     </message>
     <message>
         <source>Copies</source>
-        <translation type="unfinished">印刷部数</translation>
+        <translation>印刷部数</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation type="unfinished">印刷範囲</translation>
+        <translation>印刷範囲</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation type="unfinished">すべて印刷</translation>
+        <translation>すべて印刷</translation>
     </message>
     <message>
         <source>Pages from</source>
-        <translation type="unfinished">先頭のページ:</translation>
+        <translation>先頭のページ</translation>
     </message>
     <message>
         <source>to</source>
-        <translation type="unfinished">末尾のページ:</translation>
+        <translation>末尾のページ</translation>
     </message>
     <message>
         <source>Selection</source>
-        <translation type="unfinished">選択した部分を印刷</translation>
+        <translation>選択した部分を印刷</translation>
     </message>
     <message>
         <source>Output Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>出力設定</translation>
     </message>
     <message>
         <source>Copies:</source>
-        <translation type="unfinished"></translation>
+        <translation>印刷部数:</translation>
     </message>
     <message>
         <source>Collate</source>
-        <translation type="unfinished">丁合い</translation>
+        <translation>丁合い</translation>
     </message>
     <message>
         <source>Reverse</source>
-        <translation type="unfinished"></translation>
+        <translation>逆順</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation>オプション</translation>
     </message>
     <message>
         <source>Color Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>カラーモード</translation>
     </message>
     <message>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>カラー</translation>
     </message>
     <message>
         <source>Grayscale</source>
-        <translation type="unfinished"></translation>
+        <translation>グレースケール</translation>
     </message>
     <message>
         <source>Duplex Printing</source>
-        <translation type="unfinished"></translation>
+        <translation>両面印刷</translation>
     </message>
     <message>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>なし</translation>
     </message>
     <message>
         <source>Long side</source>
-        <translation type="unfinished"></translation>
+        <translation>長辺綴じ</translation>
     </message>
     <message>
         <source>Short side</source>
-        <translation type="unfinished"></translation>
+        <translation>短辺綴じ</translation>
     </message>
     <message>
         <source>Current Page</source>
@@ -4780,39 +4784,39 @@ Please turn one of those options off.</source>
     <name>QPrintWidget</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>書式</translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation type="unfinished">プリンタ</translation>
+        <translation>プリンタ</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished"></translation>
+        <translation>名前(&amp;N):</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
-        <translation type="unfinished"></translation>
+        <translation>プロパティ(&amp;R)</translation>
     </message>
     <message>
         <source>Location:</source>
-        <translation type="unfinished"></translation>
+        <translation>設置場所:</translation>
     </message>
     <message>
         <source>Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>プレビュー</translation>
     </message>
     <message>
         <source>Type:</source>
-        <translation type="unfinished"></translation>
+        <translation>タイプ:</translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation type="unfinished"></translation>
+        <translation>出力ファイル名(&amp;F):</translation>
     </message>
     <message>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation>...</translation>
     </message>
 </context>
 <context>
@@ -4873,7 +4877,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>開く</translation>
+        <translation type="vanished">開く</translation>
     </message>
 </context>
 <context>
@@ -4894,7 +4898,7 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>選択</translation>
+        <translation type="vanished">選択</translation>
     </message>
 </context>
 <context>
@@ -4909,7 +4913,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>bad char class syntax</source>
-        <translation>不正なcharクラス構文</translation>
+        <translation>不正な文字クラス構文</translation>
     </message>
     <message>
         <source>bad lookahead syntax</source>
@@ -5287,7 +5291,7 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation type="unfinished">データベースを開く際にエラーが発生しました</translation>
+        <translation type="obsolete">データベースを開く際にエラーが発生しました</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -5299,7 +5303,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>トランザクションをロールバックできません</translation>
+        <translation type="vanished">トランザクションをロールバックできません</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -5325,11 +5329,11 @@ Please turn one of those options off.</source>
     <name>QSQLiteDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation type="unfinished">データベースを開く際にエラーが発生しました</translation>
+        <translation>データベースのオープン時にエラーが発生しました</translation>
     </message>
     <message>
         <source>Error closing database</source>
-        <translation>データベースのクローズでエラーが発生しました</translation>
+        <translation>データベースのクローズ時にエラーが発生しました</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -5341,7 +5345,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished">トランザクションをロールバックできません</translation>
+        <translation>トランザクションをロールバックできません</translation>
     </message>
 </context>
 <context>
@@ -5368,7 +5372,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>No query</source>
-        <translation type="unfinished"></translation>
+        <translation>クエリーがありません</translation>
     </message>
     <message>
         <source>Unable to execute multiple statements at a time</source>
@@ -5398,19 +5402,19 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>左端</translation>
+        <translation>左端にスクロール</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>上端</translation>
+        <translation>上端にスクロール</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>右端</translation>
+        <translation>右端にスクロール</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>下端</translation>
+        <translation>下端にスクロール</translation>
     </message>
     <message>
         <source>Page left</source>
@@ -5446,70 +5450,70 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Line up</source>
-        <translation>１行上へ</translation>
+        <translation type="vanished">１行上へ</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>位置</translation>
+        <translation type="vanished">位置</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>１行下へ</translation>
+        <translation type="vanished">１行下へ</translation>
     </message>
 </context>
 <context>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: ロックするためのキーを設定できません</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 0 より小さいサイズの共有メモリは作成できません</translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: ロックできません</translation>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: アンロックできません</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 許可されていません</translation>
     </message>
     <message>
         <source>%1: already exists</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 既に存在します</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: リソース不足です</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 未知のエラー %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: キーが空です</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: ftok に失敗しました</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: キーを作成できません</translation>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 指定されたサイズはシステムにより拒否されました</translation>
     </message>
     <message>
         <source>%1: not attached</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: アタッチしていません</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exist</source>
@@ -5548,6 +5552,7 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation>Space</translation>
     </message>
     <message>
@@ -5564,7 +5569,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Backspace</source>
-        <translation>Backspace</translation>
+        <translation>Backspae</translation>
     </message>
     <message>
         <source>Return</source>
@@ -5604,7 +5609,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Left</source>
-        <translation>→</translation>
+        <translation>←</translation>
     </message>
     <message>
         <source>Up</source>
@@ -5612,7 +5617,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Right</source>
-        <translation>←</translation>
+        <translation>→</translation>
     </message>
     <message>
         <source>Down</source>
@@ -5640,11 +5645,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Menu</source>
-        <translation>メニュー</translation>
+        <translation>Menu</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>ヘルプ</translation>
+        <translation>Help</translation>
     </message>
     <message>
         <source>Back</source>
@@ -5660,7 +5665,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Refresh</source>
-        <translation>更新間隔</translation>
+        <translation>更新</translation>
     </message>
     <message>
         <source>Volume Down</source>
@@ -5732,7 +5737,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Open URL</source>
-        <translation>URLを開く</translation>
+        <translation>URL を開く</translation>
     </message>
     <message>
         <source>Launch Mail</source>
@@ -5808,51 +5813,51 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Print Screen</source>
-        <translation>Print Screen</translation>
+        <translation>プリントスクリーン</translation>
     </message>
     <message>
         <source>Page Up</source>
-        <translation>Page Up</translation>
+        <translation>ページアップ</translation>
     </message>
     <message>
         <source>Page Down</source>
-        <translation>Page Down</translation>
+        <translation>ページダウン</translation>
     </message>
     <message>
         <source>Caps Lock</source>
-        <translation>Caps Lock</translation>
+        <translation>キャプスロック</translation>
     </message>
     <message>
         <source>Num Lock</source>
-        <translation>Num Lock</translation>
+        <translation>ナムロック</translation>
     </message>
     <message>
         <source>Number Lock</source>
-        <translation>Number Lock</translation>
+        <translation>ナンバーロック</translation>
     </message>
     <message>
         <source>Scroll Lock</source>
-        <translation>Scroll Lock</translation>
+        <translation>スクロールロック</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Insert</translation>
+        <translation>挿入</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Delete</translation>
+        <translation>削除</translation>
     </message>
     <message>
         <source>Escape</source>
-        <translation>Escape</translation>
+        <translation>エスケープ</translation>
     </message>
     <message>
         <source>System Request</source>
-        <translation>System Request</translation>
+        <translation>システムリクエスト</translation>
     </message>
     <message>
         <source>Select</source>
-        <translation>Select</translation>
+        <translation>選択</translation>
     </message>
     <message>
         <source>Yes</source>
@@ -5864,31 +5869,33 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Context1</source>
-        <translation>Context1</translation>
+        <translation>コンテキスト1</translation>
     </message>
     <message>
         <source>Context2</source>
-        <translation>Context2</translation>
+        <translation>コンテキスト2</translation>
     </message>
     <message>
         <source>Context3</source>
-        <translation>Context3</translation>
+        <translation>コンテキスト3</translation>
     </message>
     <message>
         <source>Context4</source>
-        <translation>Context4</translation>
+        <translation>コンテキスト4</translation>
     </message>
     <message>
         <source>Call</source>
-        <translation>Call</translation>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
+        <translation>通話</translation>
     </message>
     <message>
         <source>Hangup</source>
-        <translation>Hangup</translation>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
+        <translation>終話</translation>
     </message>
     <message>
         <source>Flip</source>
-        <translation>Flip</translation>
+        <translation>フリップ</translation>
     </message>
     <message>
         <source>Ctrl</source>
@@ -6542,35 +6549,35 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>１ページ左へスクロール</translation>
+        <translation type="vanished">１ページ左へスクロール</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>１ページ戻る</translation>
+        <translation type="vanished">１ページ戻る</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>位置</translation>
+        <translation type="vanished">位置</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>1ページ右へスクロール
+        <translation type="vanished">1ページ右へスクロール
 </translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>１ページ進む</translation>
+        <translation type="vanished">１ページ進む</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>Socks5 はソックスサーバ接続しようとしてタイムアウトになりました</translation>
+        <translation type="vanished">Socks5 はソックスサーバ接続しようとしてタイムアウトになりました</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation type="unfinished">ネットワーク操作がタイムアウトしました</translation>
+        <translation>ネットワーク操作がタイムアウトしました</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -6989,97 +6996,97 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>増やす</translation>
+        <translation type="vanished">増やす</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>減らす</translation>
+        <translation type="vanished">減らす</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>削除</translation>
+        <translation type="vanished">削除</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>このレコードを削除しますか?</translation>
+        <translation type="vanished">このレコードを削除しますか?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>はい</translation>
+        <translation type="vanished">はい</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>いいえ</translation>
+        <translation type="vanished">いいえ</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>挿入</translation>
+        <translation type="vanished">挿入</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>アップデート</translation>
+        <translation type="vanished">アップデート</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>編集内容を保存しますか?</translation>
+        <translation type="vanished">編集内容を保存しますか?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>キャンセル</translation>
+        <translation type="vanished">キャンセル</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>確認</translation>
+        <translation type="vanished">確認</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>編集をキャンセルしますか?</translation>
+        <translation type="vanished">編集をキャンセルしますか?</translation>
     </message>
 </context>
 <context>
     <name>QSslSocket</name>
     <message>
         <source>Error creating SSL context (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>SSL context の作成に失敗しました (%1)</translation>
     </message>
     <message>
         <source>Invalid or empty cipher list (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>暗号方式リストが不正または空です (%1)</translation>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
-        <translation type="unfinished"></translation>
+        <translation>秘密鍵のない証明書は利用できません: %1</translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
-        <translation type="unfinished"></translation>
+        <translation>ローカルの証明書をロードできません。 %1</translation>
     </message>
     <message>
         <source>Error loading private key, %1</source>
-        <translation type="unfinished"></translation>
+        <translation>秘密鍵をロードできません。 %1</translation>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
-        <translation type="unfinished"></translation>
+        <translation>SSL セッションを作成できません。 %1</translation>
     </message>
     <message>
         <source>Error creating SSL session: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>SSL セッションを作成できません: %1</translation>
     </message>
     <message>
         <source>Unable to write data: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>データを書き込みできません: %1</translation>
     </message>
     <message>
         <source>Error while reading: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>読み込み時にエラーが発生しました: %1</translation>
     </message>
     <message>
         <source>Error during SSL handshake: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>SSL ハンドシェーク時にエラーが発生しました: %1</translation>
     </message>
     <message>
         <source>Error when setting the elliptic curves (%1)</source>
@@ -7331,7 +7338,7 @@ Role of an accessible object</extracomment>
     <name>QTDSDriver</name>
     <message>
         <source>Unable to open connection</source>
-        <translation>接続できません</translation>
+        <translation>接続を開けません</translation>
     </message>
     <message>
         <source>Unable to use database</source>
@@ -7360,35 +7367,35 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>元に戻す(&amp;U)</translation>
+        <translation type="vanished">元に戻す(&amp;U)</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>やり直す(&amp;R)</translation>
+        <translation type="vanished">やり直す(&amp;R)</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>切り取り(&amp;T)</translation>
+        <translation type="vanished">切り取り(&amp;T)</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>コピー(&amp;C)</translation>
+        <translation type="vanished">コピー(&amp;C)</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>リンクの場所をコピー(&amp;L)</translation>
+        <translation type="vanished">リンクの場所をコピー(&amp;L)</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>貼り付け(&amp;P)</translation>
+        <translation type="vanished">貼り付け(&amp;P)</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>削除</translation>
+        <translation type="vanished">削除</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>すべてを選択</translation>
+        <translation type="vanished">すべてを選択</translation>
     </message>
 </context>
 <context>
@@ -7438,29 +7445,29 @@ Role of an accessible object</extracomment>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>押す</translation>
+        <translation type="vanished">押す</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>開く</translation>
+        <translation type="vanished">開く</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>このプラットフォームは IPv6 をサポートしていません</translation>
+        <translation type="vanished">このプラットフォームは IPv6 をサポートしていません</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>元に戻す</translation>
+        <translation type="vanished">元に戻す</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>やり直す</translation>
+        <translation type="vanished">やり直す</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7492,11 +7499,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>元に戻す</translation>
+        <translation type="vanished">元に戻す</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>やり直す</translation>
+        <translation type="vanished">やり直す</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7521,43 +7528,43 @@ Role of an accessible object</extracomment>
     <name>QUnicodeControlCharacterMenu</name>
     <message>
         <source>LRM Left-to-right mark</source>
-        <translation type="unfinished"></translation>
+        <translation>LRM(Left-to-right mark)</translation>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation type="unfinished"></translation>
+        <translation>RLM(Right-to-left mark)</translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation type="unfinished"></translation>
+        <translation>ZWJ(幅0の接続文字)</translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation type="unfinished"></translation>
+        <translation>ZWNJ(幅0の非接続文字)</translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation type="unfinished"></translation>
+        <translation>ZWSP(幅0の空白)</translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation type="unfinished"></translation>
+        <translation>LRE(Start of left-to-right embedding)</translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation type="unfinished"></translation>
+        <translation>RLE(Start of right-to-left embedding)</translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation type="unfinished"></translation>
+        <translation>LRO(Start of left-to-right override)</translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation type="unfinished"></translation>
+        <translation>RLO(Start of right-to-left override)</translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF(Pop directional formatting)</translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
@@ -7585,27 +7592,27 @@ Role of an accessible object</extracomment>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation type="unfinished">リセット</translation>
+        <translation type="obsolete">リセット</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation type="unfinished">停止</translation>
+        <translation type="obsolete">停止</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation type="unfinished">無視</translation>
+        <translation type="obsolete">無視</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation type="unfinished">無視</translation>
+        <translation type="obsolete">無視</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation type="unfinished">不明</translation>
+        <translation type="obsolete">不明</translation>
     </message>
     <message>
         <source>Bad HTTP request</source>
@@ -7903,11 +7910,11 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Continue</source>
-        <translation>続ける</translation>
+        <translation>続き</translation>
     </message>
     <message>
         <source>Commit</source>
-        <translation>コミット</translation>
+        <translation>適用</translation>
     </message>
     <message>
         <source>Done</source>
@@ -7915,7 +7922,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Quit</source>
-        <translation>終了</translation>
+        <translation type="vanished">終了</translation>
     </message>
     <message>
         <source>Help</source>
@@ -7950,55 +7957,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>元に戻す(&amp;R)</translation>
+        <translation type="vanished">元に戻す(&amp;R)</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>移動(&amp;M)</translation>
+        <translation type="vanished">移動(&amp;M)</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>サイズを変更(&amp;S)</translation>
+        <translation type="vanished">サイズを変更(&amp;S)</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>最小化(&amp;N)</translation>
+        <translation type="vanished">最小化(&amp;N)</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>最大化(&amp;X)</translation>
+        <translation type="vanished">最大化(&amp;X)</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>閉じる(&amp;C)</translation>
+        <translation type="vanished">閉じる(&amp;C)</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>常に手前に表示(&amp;T)</translation>
+        <translation type="vanished">常に手前に表示(&amp;T)</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>シェード(&amp;A)</translation>
+        <translation type="vanished">シェード(&amp;A)</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>最小化</translation>
+        <translation type="vanished">最小化</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>元に戻す</translation>
+        <translation type="vanished">元に戻す</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>閉じる</translation>
+        <translation type="vanished">閉じる</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>シェードを解除(&amp;U)</translation>
+        <translation type="vanished">シェードを解除(&amp;U)</translation>
     </message>
 </context>
 <context>
@@ -8009,11 +8016,11 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation>消費者によってエラーが誘発されました</translation>
+        <translation>コンシューマによってエラーが誘発されました</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
-        <translation>予期せぬファイルの終りです</translation>
+        <translation>予期しないファイルの終りです</translation>
     </message>
     <message>
         <source>more than one document type definition</source>
@@ -8037,11 +8044,11 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation>処理の指示に無効な名前です</translation>
+        <translation>無効な処理命令名です</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation>XML宣言を読み込むにはバージョンが必要です</translation>
+        <translation>XML 宣言にはバージョンが必要です</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
@@ -8049,11 +8056,11 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>XML宣言を読み込むにはエンコーディング宣言かスタンドアローン宣言が必要です</translation>
+        <translation>XML宣言にはエンコーディング宣言かスタンドアローン宣言が必要です</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>XML宣言を読み込むにはスタンドアローン宣言が必要です</translation>
+        <translation>XML宣言にはスタンドアローン宣言が必要です</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
@@ -8073,166 +8080,166 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
-        <translation>内部一般エンティティ参照はDTDで許されていません</translation>
+        <translation>DTDでの内部一般実体への参照は許可されていません</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>解析された外部一般エンティティ参照は属性値で許されていません</translation>
+        <translation>属性値での外部一般解析対象実体への参照は許可されていません</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>解析された外部一般エンティティ参照はDTDで許されていません</translation>
+        <translation>DTDでの外部一般解析対象実体への参照は許可されていません</translation>
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translation>不正な文脈で解析されないエンティティ参照です</translation>
+        <translation>不正な文脈で解析対象外実体を参照しました</translation>
     </message>
     <message>
         <source>recursive entities</source>
-        <translation>再帰的エンティティ</translation>
+        <translation>実体が再帰しています</translation>
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation>外部エンティティのテキスト宣言にエラーがあります</translation>
+        <translation>外部実体のテキスト宣言にエラーがあります</translation>
     </message>
 </context>
 <context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation type="unfinished"></translation>
+        <translation>ドキュメントの末尾に余計なものがついています。</translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
-        <translation type="unfinished"></translation>
+        <translation>実体の値が無効です。</translation>
     </message>
     <message>
         <source>Invalid XML character.</source>
-        <translation type="unfinished"></translation>
+        <translation>無効な XML 文字です。</translation>
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation type="unfinished"></translation>
+        <translation>このコンテンツでは、&apos;]]&gt;&apos; は許可されていません。</translation>
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translation type="unfinished"></translation>
+        <translation>正しくないエンコードの文脈に遭遇しました。</translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation type="unfinished"></translation>
+        <translation>名前空間のブリフィックス &apos;%1&apos; は宣言されていません</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translation type="unfinished"></translation>
+        <translation>公開 ID に使用できない文字 &apos;%1&apos; が使用されています。</translation>
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translation type="unfinished"></translation>
+        <translation>無効な XML バージョン指定です。</translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translation type="unfinished"></translation>
+        <translation>この XML のバージョンはサポートされていません。</translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation type="unfinished"></translation>
+        <translation>仮想属性指定は、エンコーディング指定の後にのみ使用できます。</translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 は無効なエンコーディングの名前です。</translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translation type="unfinished"></translation>
+        <translation>エンコーディング &apos;%1&apos; はサポートされていません</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation type="unfinished"></translation>
+        <translation>standalone には yes または no のみ指定できます。</translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
-        <translation type="unfinished"></translation>
+        <translation>XML 宣言に無効な属性があります。</translation>
     </message>
     <message>
         <source>Premature end of document.</source>
-        <translation type="unfinished"></translation>
+        <translation>ドキュメントが途中で終わっています。</translation>
     </message>
     <message>
         <source>Invalid document.</source>
-        <translation type="unfinished"></translation>
+        <translation>無効なドキュメントです。</translation>
     </message>
     <message>
         <source>Expected </source>
-        <translation type="unfinished"></translation>
+        <translation>予期していた表現は、</translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>ですが、取得した表現は以下のものでした &apos;</translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>予期していなかった表現 &apos;</translation>
     </message>
     <message>
         <source>Expected character data.</source>
-        <translation type="unfinished"></translation>
+        <translation>予期していた文字列。</translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
-        <translation type="unfinished"></translation>
+        <translation>再帰しているエンティティを発見しました。</translation>
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translation type="unfinished"></translation>
+        <translation>開始タグを予期していましたが、見つかりません。</translation>
     </message>
     <message>
         <source>NDATA in parameter entity declaration.</source>
-        <translation type="unfinished"></translation>
+        <translation>パラメータ実体の宣言において NDATA があります。</translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translation type="unfinished"></translation>
+        <translation>XML 宣言がドキュメントの先頭にありません。</translation>
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 は無効な処理命令名です。</translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation type="unfinished"></translation>
+        <translation>無効な処理命令名です。</translation>
     </message>
     <message>
         <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 は、公開 (PUBLIC) 識別子として無効です。</translation>
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translation type="unfinished"></translation>
+        <translation>無効な名前空間の宣言です。</translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
-        <translation type="unfinished"></translation>
+        <translation>無効な XML 名です。</translation>
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation type="unfinished"></translation>
+        <translation>開始タグと、終了タグがマッチしません。</translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>解析対象外実体 &apos;%1&apos; を参照しています。</translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translation type="unfinished"></translation>
+        <translation>実体 &apos;%1&apos; は宣言されていません。</translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translation type="unfinished"></translation>
+        <translation>属性値として、外部実体 &apos;%1&apos; を参照しています。</translation>
     </message>
     <message>
         <source>Invalid character reference.</source>
-        <translation type="unfinished"></translation>
+        <translation>無効な文字への参照です。</translation>
     </message>
     <message>
         <source>Attribute &apos;%1&apos; redefined.</source>
@@ -8247,55 +8254,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation>ここにスクロール</translation>
+        <translation type="vanished">ここにスクロール</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>左端</translation>
+        <translation type="vanished">左端</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>上端</translation>
+        <translation type="vanished">上端</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>右端</translation>
+        <translation type="vanished">右端</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>下端</translation>
+        <translation type="vanished">下端</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>1ページ左へスクロール</translation>
+        <translation type="vanished">1ページ左へスクロール</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>1ページ戻る</translation>
+        <translation type="vanished">1ページ戻る</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>1ページ右へスクロール</translation>
+        <translation type="vanished">1ページ右へスクロール</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>1ページ進む</translation>
+        <translation type="vanished">1ページ進む</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>左へスクロール</translation>
+        <translation type="vanished">左へスクロール</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>上へスクロール</translation>
+        <translation type="vanished">上へスクロール</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>右へスクロール</translation>
+        <translation type="vanished">右へスクロール</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>下へスクロール</translation>
+        <translation type="vanished">下へスクロール</translation>
     </message>
 </context>
 <context>

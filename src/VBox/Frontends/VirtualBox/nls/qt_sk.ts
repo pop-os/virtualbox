@@ -43,275 +43,275 @@
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 nie je definované</translation>
+        <translation type="vanished">%1, %2 nie je definované</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>Nejednoznačné %1 neobslúžené</translation>
+        <translation type="vanished">Nejednoznačné %1 neobslúžené</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Pravda</translation>
+        <translation type="vanished">Pravda</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Nepravda</translation>
+        <translation type="vanished">Nepravda</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Vložiť</translation>
+        <translation type="vanished">Vložiť</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Aktualizovať</translation>
+        <translation type="vanished">Aktualizovať</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Odstrániť</translation>
+        <translation type="vanished">Odstrániť</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Kopírovať alebo presunúť súbor</translation>
+        <translation type="vanished">Kopírovať alebo presunúť súbor</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Čítanie: %1</translation>
+        <translation type="vanished">Čítanie: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Zápis: %1</translation>
+        <translation type="vanished">Zápis: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Storno</translation>
+        <translation type="vanished">Storno</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Všetky súbory (*)</translation>
+        <translation type="vanished">Všetky súbory (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Meno</translation>
+        <translation type="vanished">Meno</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Veľkosť</translation>
+        <translation type="vanished">Veľkosť</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>Typ</translation>
+        <translation type="vanished">Typ</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Dátum</translation>
+        <translation type="vanished">Dátum</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Atribúty</translation>
+        <translation type="vanished">Atribúty</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="vanished">&amp;OK</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Hľadať &amp;v:</translation>
+        <translation type="vanished">Hľadať &amp;v:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Me&amp;no súboru:</translation>
+        <translation type="vanished">Me&amp;no súboru:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>&amp;Typ súboru:</translation>
+        <translation type="vanished">&amp;Typ súboru:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Späť</translation>
+        <translation type="vanished">Späť</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>O úroveň vyššie</translation>
+        <translation type="vanished">O úroveň vyššie</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Vytvoriť nový priečinok</translation>
+        <translation type="vanished">Vytvoriť nový priečinok</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Zoznam</translation>
+        <translation type="vanished">Zoznam</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Detaily</translation>
+        <translation type="vanished">Detaily</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>Náhľad informácií o súbore</translation>
+        <translation type="vanished">Náhľad informácií o súbore</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>Náhľad obsahu súboru</translation>
+        <translation type="vanished">Náhľad obsahu súboru</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Čítanie a zápis</translation>
+        <translation type="vanished">Čítanie a zápis</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Len na čítanie</translation>
+        <translation type="vanished">Len na čítanie</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Len pre zápis</translation>
+        <translation type="vanished">Len pre zápis</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Neprístupné</translation>
+        <translation type="vanished">Neprístupné</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Symbolický odkaz na súbor</translation>
+        <translation type="vanished">Symbolický odkaz na súbor</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Symbolický odkaz na priečinok</translation>
+        <translation type="vanished">Symbolický odkaz na priečinok</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Symbolický odkaz na špeciálny súbor</translation>
+        <translation type="vanished">Symbolický odkaz na špeciálny súbor</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Súbor</translation>
+        <translation type="vanished">Súbor</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Priečinok</translation>
+        <translation type="vanished">Priečinok</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Špeciálny súbor</translation>
+        <translation type="vanished">Špeciálny súbor</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Otvoriť</translation>
+        <translation type="vanished">Otvoriť</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Uložiť ako</translation>
+        <translation type="vanished">Uložiť ako</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Otvoriť</translation>
+        <translation type="vanished">&amp;Otvoriť</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Uložiť</translation>
+        <translation type="vanished">&amp;Uložiť</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>P&amp;remenovať</translation>
+        <translation type="vanished">P&amp;remenovať</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>O&amp;dstrániť</translation>
+        <translation type="vanished">O&amp;dstrániť</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>O&amp;bnoviť</translation>
+        <translation type="vanished">O&amp;bnoviť</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Triediť podľa me&amp;na</translation>
+        <translation type="vanished">Triediť podľa me&amp;na</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Triediť podľa &amp;veľkosti</translation>
+        <translation type="vanished">Triediť podľa &amp;veľkosti</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Triediť podľa &amp;dátumu</translation>
+        <translation type="vanished">Triediť podľa &amp;dátumu</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Netriediť</translation>
+        <translation type="vanished">&amp;Netriediť</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Triediť</translation>
+        <translation type="vanished">Triediť</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Zobraziť &amp;skryté súbory</translation>
+        <translation type="vanished">Zobraziť &amp;skryté súbory</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>súbor</translation>
+        <translation type="vanished">súbor</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>priečinok</translation>
+        <translation type="vanished">priečinok</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>symbolický odkaz</translation>
+        <translation type="vanished">symbolický odkaz</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>Odstrániť %1</translation>
+        <translation type="vanished">Odstrániť %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Naozaj chcete odstrániť %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Naozaj chcete odstrániť %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>Án&amp;o</translation>
+        <translation type="vanished">Án&amp;o</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Nie</translation>
+        <translation type="vanished">&amp;Nie</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Nový priečinok 1</translation>
+        <translation type="vanished">Nový priečinok 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Nový priečinok</translation>
+        <translation type="vanished">Nový priečinok</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Nový priečinok %1</translation>
+        <translation type="vanished">Nový priečinok %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Nájsť priečinok</translation>
+        <translation type="vanished">Nájsť priečinok</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Priečinky</translation>
+        <translation type="vanished">Priečinky</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Priečinok:</translation>
+        <translation type="vanished">Priečinok:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Chyba</translation>
+        <translation type="vanished">Chyba</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
+        <translation type="vanished">%1
 Súbor nenájdený.
 Overte cestu a meno súboru.</translation>
     </message>
@@ -321,19 +321,19 @@ Overte cestu a meno súboru.</translation>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Nie je možné prečítať priečinok
+        <translation type="vanished">Nie je možné prečítať priečinok
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Nie je možné vytvoriť priečinok
+        <translation type="vanished">Nie je možné vytvoriť priečinok
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Nie je možné odstrániť súbor alebo priečinok
+        <translation type="vanished">Nie je možné odstrániť súbor alebo priečinok
 %1</translation>
     </message>
     <message>
@@ -341,7 +341,7 @@ Overte cestu a meno súboru.</translation>
 %1
 to
 %2</source>
-        <translation>Nie je možné premenovať
+        <translation type="vanished">Nie je možné premenovať
 %1
 na
 %2</translation>
@@ -349,13 +349,13 @@ na
     <message>
         <source>Could not open
 %1</source>
-        <translation>Nie je možné otvoriť
+        <translation type="vanished">Nie je možné otvoriť
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Nie je možné zapísať
+        <translation type="vanished">Nie je možné zapísať
 %1</translation>
     </message>
 </context>
@@ -363,222 +363,222 @@ na
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>Vyrovnať</translation>
+        <translation type="vanished">Vyrovnať</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>Prispôsobiť...</translation>
+        <translation type="vanished">Prispôsobiť...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>Operácia zastavená užívateľom</translation>
+        <translation type="vanished">Operácia zastavená užívateľom</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Storno</translation>
+        <translation type="vanished">Storno</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation type="vanished">OK</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Použiť</translation>
+        <translation type="vanished">Použiť</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Pomocník</translation>
+        <translation type="vanished">Pomocník</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Štandardné</translation>
+        <translation type="vanished">Štandardné</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Storno</translation>
+        <translation type="vanished">Storno</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>V&amp;rátiť späť</translation>
+        <translation type="vanished">V&amp;rátiť späť</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Opakovať vrátené</translation>
+        <translation type="vanished">&amp;Opakovať vrátené</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Vys&amp;trihnúť</translation>
+        <translation type="vanished">Vys&amp;trihnúť</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopírovať</translation>
+        <translation type="vanished">&amp;Kopírovať</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>V&amp;ložiť</translation>
+        <translation type="vanished">V&amp;ložiť</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Vyčistiť</translation>
+        <translation type="vanished">Vyčistiť</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Vybrať všetko</translation>
+        <translation type="vanished">Vybrať všetko</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>Systém</translation>
+        <translation type="vanished">Systém</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>Zväčšiť</translation>
+        <translation type="vanished">Zväčšiť</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimalizovať</translation>
+        <translation type="vanished">Minimalizovať</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Zmenšiť</translation>
+        <translation type="vanished">Zmenšiť</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Maximalizovať</translation>
+        <translation type="vanished">Maximalizovať</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Zavrieť</translation>
+        <translation type="vanished">Zavrieť</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Obsahuje príkazy na manipuláciu s oknom</translation>
+        <translation type="vanished">Obsahuje príkazy na manipuláciu s oknom</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>Vráti minimalizované okno späť na normálnu veľkosť</translation>
+        <translation type="vanished">Vráti minimalizované okno späť na normálnu veľkosť</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>Posunie okno z cesty</translation>
+        <translation type="vanished">Posunie okno z cesty</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Vráti maximalizované okno späť na normálnu veľkosť</translation>
+        <translation type="vanished">Vráti maximalizované okno späť na normálnu veľkosť</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Zväčší okno na celú obrazovku</translation>
+        <translation type="vanished">Zväčší okno na celú obrazovku</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Zavrie okno</translation>
+        <translation type="vanished">Zavrie okno</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Zobrazí meno okna a obsahuje riadiace prvky na manipuláciu s ním</translation>
+        <translation type="vanished">Zobrazí meno okna a obsahuje riadiace prvky na manipuláciu s ním</translation>
     </message>
 </context>
 <context>
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Viac...</translation>
+        <translation type="vanished">Viac...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>Protokol &apos;%1&apos; nie je podporovaný</translation>
+        <translation type="vanished">Protokol &apos;%1&apos; nie je podporovaný</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>Protokol &apos;%1&apos; nepodporuje výpis priečinkov</translation>
+        <translation type="vanished">Protokol &apos;%1&apos; nepodporuje výpis priečinkov</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Protokol &apos;%1&apos; nepodporuje vytváranie nových priečinkov</translation>
+        <translation type="vanished">Protokol &apos;%1&apos; nepodporuje vytváranie nových priečinkov</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Protokol &apos;%1&apos; nepodporuje odstránenie súborov alebo priečinkov</translation>
+        <translation type="vanished">Protokol &apos;%1&apos; nepodporuje odstránenie súborov alebo priečinkov</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Protokol &apos;%1&apos; nepodporuje premenovanie súborov alebo priečinkov</translation>
+        <translation type="vanished">Protokol &apos;%1&apos; nepodporuje premenovanie súborov alebo priečinkov</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>Protokol &apos;%1&apos; nepodporuje získavanie súborov</translation>
+        <translation type="vanished">Protokol &apos;%1&apos; nepodporuje získavanie súborov</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>Protokol &apos;%1&apos; nepodporuje ukladanie súborov</translation>
+        <translation type="vanished">Protokol &apos;%1&apos; nepodporuje ukladanie súborov</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Protokol &apos;%1&apos; nepodporuje kopírovanie alebo presun súborov alebo priečinkov</translation>
+        <translation type="vanished">Protokol &apos;%1&apos; nepodporuje kopírovanie alebo presun súborov alebo priečinkov</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(neznáme)</translation>
+        <translation type="vanished">(neznáme)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>S&amp;torno</translation>
+        <translation type="vanished">S&amp;torno</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Späť</translation>
+        <translation type="vanished">&lt; &amp;Späť</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>Ďa&amp;lej &gt;</translation>
+        <translation type="vanished">Ďa&amp;lej &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Dokončiť</translation>
+        <translation type="vanished">&amp;Dokončiť</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Pomocník</translation>
+        <translation type="vanished">&amp;Pomocník</translation>
     </message>
 </context>
 <context>
     <name>QAbstractSocket</name>
     <message>
         <source>Host not found</source>
-        <translation>Počítač nenájdený</translation>
+        <translation>Hostiteľ nebol nájdený</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation>Spojenie odmietnuté</translation>
+        <translation>Spojenie bolo odmietnuté</translation>
     </message>
     <message>
         <source>Socket operation timed out</source>
-        <translation>Vypršal čas pre operáciu so soketom</translation>
+        <translation>Prekročenie času pri práci so soketom</translation>
     </message>
     <message>
         <source>Socket is not connected</source>
-        <translation>Soket nie je pripojený</translation>
+        <translation>Socket nie je pripojený</translation>
     </message>
     <message>
         <source>Operation on socket is not supported</source>
@@ -601,15 +601,15 @@ na
     <name>QAbstractSpinBox</name>
     <message>
         <source>&amp;Step up</source>
-        <translation>Krok na&amp;hor</translation>
+        <translation>Krok &amp;hore</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
-        <translation>Krok na&amp;dol</translation>
+        <translation>Krok &amp;dole</translation>
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation>Vy&amp;brať všetko</translation>
+        <translation>&amp;Vybrať všetko</translation>
     </message>
 </context>
 <context>
@@ -735,7 +735,7 @@ na
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -747,11 +747,11 @@ na
     </message>
     <message>
         <source>Activate</source>
-        <translation>Aktivovať</translation>
+        <translation type="vanished">Aktivovať</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Aktivuje hlavné okno programu</translation>
+        <translation type="vanished">Aktivuje hlavné okno programu</translation>
     </message>
 </context>
 <context>
@@ -777,15 +777,15 @@ na
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Odškrtnúť</translation>
+        <translation type="vanished">Odškrtnúť</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Zaškrtnúť</translation>
+        <translation type="vanished">Zaškrtnúť</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Prepnúť</translation>
+        <translation type="vanished">Prepnúť</translation>
     </message>
 </context>
 <context>
@@ -858,7 +858,7 @@ na
     </message>
     <message>
         <source>&amp;Sat:</source>
-        <translation>Na&amp;s:</translation>
+        <translation>&amp;Sýt:</translation>
     </message>
     <message>
         <source>&amp;Val:</source>
@@ -894,7 +894,7 @@ na
     </message>
     <message>
         <source>Select color</source>
-        <translation>Vybrať farbu</translation>
+        <translation type="vanished">Vybrať farbu</translation>
     </message>
     <message>
         <source>Select Color</source>
@@ -918,7 +918,7 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Otvoriť</translation>
+        <translation type="vanished">Otvoriť</translation>
     </message>
     <message>
         <source>False</source>
@@ -930,7 +930,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Zavrieť</translation>
+        <translation type="vanished">Zavrieť</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -985,27 +985,27 @@ Press ESC to cancel</source>
     <message>
         <source>%1: permission denied</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: prístup zamietnutý</translation>
+        <translation type="vanished">%1: prístup zamietnutý</translation>
     </message>
     <message>
         <source>%1: already exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: už existuje</translation>
+        <translation type="vanished">%1: už existuje</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: neexistuje</translation>
+        <translation type="vanished">%1: neexistuje</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: nedostatok zdrojov</translation>
+        <translation type="vanished">%1: nedostatok zdrojov</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: neznáma chyba %2</translation>
+        <translation type="vanished">%1: neznáma chyba %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
@@ -1015,12 +1015,12 @@ Press ESC to cancel</source>
     <message>
         <source>%1: unable to make key</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: nepodarilo sa vytvoriť kľúč</translation>
+        <translation>%1: nedá sa vytvoriť kľúč</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: ftok zlyhal</translation>
     </message>
 </context>
 <context>
@@ -1131,46 +1131,46 @@ Press ESC to cancel</source>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Nedá sa pripojiť</translation>
+        <translation>Nepodarilo sa pripojiť</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Transakcia sa nedá potvrdiť</translation>
+        <translation>Nepodarilo sa zapísať transakciu</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Transakcia sa nedá vrátiť späť</translation>
+        <translation>Nepodarilo sa odvolať transakciu</translation>
     </message>
     <message>
         <source>Unable to set autocommit</source>
-        <translation>Nedá sa nastaviť automatické potvrdzovanie</translation>
+        <translation>Nepodarilo sa nastaviť automatické zapisovanie (autocommit)</translation>
     </message>
 </context>
 <context>
     <name>QDB2Result</name>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Príkaz sa nedá vykonať</translation>
+        <translation>Príkaz sa neporadilo vykonať</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Príkaz sa nedá pripraviť na vykonanie</translation>
+        <translation>Príkaz sa neporadilo pripraviť</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation>Premenná sa nedá naviazať</translation>
+        <translation>Premennú sa nepodarilo priradiť</translation>
     </message>
     <message>
         <source>Unable to fetch record %1</source>
-        <translation>Záznam %1 sa nedá získať</translation>
+        <translation>Záznam %1 sa nepodarilo natiahnuť</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>Nedá sa získať nasledujúci záznam</translation>
+        <translation>Ďalší záznam sa nepodarilo natiahnuť</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation>Nedá sa získať prvý záznam</translation>
+        <translation>Prvý záznam sa nepodarilo natiahnuť</translation>
     </message>
 </context>
 <context>
@@ -1184,19 +1184,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>AM</translation>
+        <translation type="vanished">AM</translation>
     </message>
     <message>
         <source>am</source>
-        <translation>am</translation>
+        <translation type="vanished">am</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation>PM</translation>
+        <translation type="vanished">PM</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation>pm</translation>
+        <translation type="vanished">pm</translation>
     </message>
 </context>
 <context>
@@ -1222,26 +1222,26 @@ Press ESC to cancel</source>
     <name>QDial</name>
     <message>
         <source>QDial</source>
-        <translation>QDial</translation>
+        <translation type="vanished">QDial</translation>
     </message>
     <message>
         <source>SpeedoMeter</source>
-        <translation>Merač rýchlosti</translation>
+        <translation type="vanished">Merač rýchlosti</translation>
     </message>
     <message>
         <source>SliderHandle</source>
-        <translation>SliderHandle</translation>
+        <translation type="vanished">SliderHandle</translation>
     </message>
 </context>
 <context>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
-        <translation>Čo je to?</translation>
+        <translation>Čo je toto?</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Dokončené</translation>
+        <translation type="vanished">Dokončené</translation>
     </message>
 </context>
 <context>
@@ -1252,83 +1252,83 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Save</source>
-        <translation>Uložiť</translation>
+        <translation type="vanished">Uložiť</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Otvoriť</translation>
+        <translation type="vanished">Otvoriť</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Storno</translation>
+        <translation type="vanished">Zrušiť</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Zavrieť</translation>
+        <translation type="vanished">Zavrieť</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Použiť</translation>
+        <translation type="vanished">Použiť</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Nastaviť pôvodné</translation>
+        <translation type="vanished">Nastaviť pôvodné</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Pomocník</translation>
+        <translation type="vanished">Pomocník</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Neuložiť</translation>
+        <translation type="vanished">Neuložiť</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Zahodiť</translation>
+        <translation type="vanished">Zahodiť</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>Án&amp;o</translation>
+        <translation type="vanished">Án&amp;o</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Áno pre &amp;všetko</translation>
+        <translation type="vanished">Áno pre &amp;všetko</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Nie</translation>
+        <translation type="vanished">&amp;Nie</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>Nie pre všetk&amp;o</translation>
+        <translation type="vanished">Nie pre všetk&amp;o</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Uložiť všetko</translation>
+        <translation type="vanished">Uložiť všetko</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Prerušiť</translation>
+        <translation type="vanished">Prerušiť</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Skúsiť znova</translation>
+        <translation type="vanished">Skúsiť znova</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Ignorovať</translation>
+        <translation type="vanished">Ignorovať</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Obnoviť štandardné</translation>
+        <translation type="vanished">Obnoviť štandardné</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>Zavrieť bez uloženia</translation>
+        <translation type="vanished">Zavrieť bez uloženia</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="vanished">&amp;OK</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -1347,7 +1347,7 @@ Press ESC to cancel</source>
     <name>QDirModel</name>
     <message>
         <source>Name</source>
-        <translation>Meno</translation>
+        <translation>Názov</translation>
     </message>
     <message>
         <source>Size</source>
@@ -1365,7 +1365,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation>Dátum zmeny</translation>
+        <translation>Dátum úpravy</translation>
     </message>
 </context>
 <context>
@@ -1478,14 +1478,16 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>Zavrieť</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translation>Ukotviť</translation>
+        <translation type="vanished">Ukotviť</translation>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation>Plávať</translation>
     </message>
     <message>
@@ -1501,18 +1503,18 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Viac</translation>
+        <translation type="vanished">Viac</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Menej</translation>
+        <translation type="vanished">Menej</translation>
     </message>
 </context>
 <context>
     <name>QErrorMessage</name>
     <message>
         <source>&amp;Show this message again</source>
-        <translation>&amp;Zobraziť túto správu aj nabudúce</translation>
+        <translation>&amp;Zobraziť znova túto správu</translation>
     </message>
     <message>
         <source>&amp;OK</source>
@@ -1625,7 +1627,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>O&amp;dstrániť</translation>
+        <translation>Z&amp;mazať</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
@@ -1638,15 +1640,15 @@ Press ESC to cancel</source>
     <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
-        <translation>%1 už existuje. 
+        <translation>%1 už existuje.
 Chcete ho nahradiť?</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Please verify the correct file name was given.</source>
-        <translation>%1 
-Súbor nenájdený. 
+        <translation>%1
+Súbor nenájdený.
 Prosím overte správnosť zadaného mena súboru.</translation>
     </message>
     <message>
@@ -1655,7 +1657,7 @@ Prosím overte správnosť zadaného mena súboru.</translation>
     </message>
     <message>
         <source>Parent Directory</source>
-        <translation>Rodičovský priečinok</translation>
+        <translation>Nadradený priečinok</translation>
     </message>
     <message>
         <source>Look in:</source>
@@ -1673,8 +1675,8 @@ Prosím overte správnosť zadaného mena súboru.</translation>
         <source>%1
 Directory not found.
 Please verify the correct directory name was given.</source>
-        <translation>%1 
-Priečinok nenájdený. 
+        <translation>%1
+Priečinok nenájdený.
 Prosím overte správnosť zadaného mena priečinku.</translation>
     </message>
     <message>
@@ -1685,7 +1687,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Naozaj chcete zmazať &apos;%1&apos;?</translation>
+        <translation type="vanished">Naozaj chcete zmazať &apos;%1&apos;?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
@@ -1697,7 +1699,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Drive</source>
-        <translation>Oddiel</translation>
+        <translation>Disková jednotka</translation>
     </message>
     <message>
         <source>File</source>
@@ -1721,11 +1723,11 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>&amp;Choose</source>
-        <translation>&amp;Zvoliť</translation>
+        <translation>&amp;Vybrať</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Me&amp;no súboru:</translation>
+        <translation>&amp;Názov súboru:</translation>
     </message>
     <message>
         <source>New Folder</source>
@@ -1733,7 +1735,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Dopredu</translation>
+        <translation>Vpred</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -1854,19 +1856,19 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>%1 bytes</source>
-        <translation>%1 bajtov</translation>
+        <translation>%1 bytov</translation>
     </message>
     <message>
         <source>Invalid filename</source>
-        <translation>Neplatné meno súboru</translation>
+        <translation>Neplatný názov súboru</translation>
     </message>
     <message>
         <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
-        <translation>&lt;b&gt;Meno &quot;%1&quot; sa nedá použiť.&lt;/b&gt;&lt;p&gt;Skúste použiť iné meno s menej písmenami alebo bez interpunkčných znamienok.</translation>
+        <translation>&lt;b&gt;Názov &quot;%1&quot; nie je možné použiť.&lt;/b&gt;&lt;p&gt;Skúste použiť iný názov s menším počtom znakov, alebo bez interpunkcie.</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Meno</translation>
+        <translation>Názov</translation>
     </message>
     <message>
         <source>Size</source>
@@ -1884,7 +1886,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation>Dátum zmeny</translation>
+        <translation>Dátum úpravy</translation>
     </message>
     <message>
         <source>My Computer</source>
@@ -1903,7 +1905,7 @@ Chcete ho aj tak zmazať?</translation>
     <name>QFontDatabase</name>
     <message>
         <source>Normal</source>
-        <translation>Normálne</translation>
+        <translation type="vanished">Normálne</translation>
     </message>
     <message>
         <source>Bold</source>
@@ -1911,7 +1913,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation type="unfinished"></translation>
+        <translation>Polotučné</translation>
     </message>
     <message>
         <source>Black</source>
@@ -1919,7 +1921,8 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Demi</source>
-        <translation type="unfinished"></translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation>Polo</translation>
     </message>
     <message>
         <source>Light</source>
@@ -1927,19 +1930,19 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Italic</source>
-        <translation>Italika</translation>
+        <translation>Kurzíva</translation>
     </message>
     <message>
         <source>Oblique</source>
-        <translation type="unfinished"></translation>
+        <translation>Sklonené</translation>
     </message>
     <message>
         <source>Any</source>
-        <translation>Akýkoľvek</translation>
+        <translation>Všetky</translation>
     </message>
     <message>
         <source>Latin</source>
-        <translation>Latinka</translation>
+        <translation>Latinské</translation>
     </message>
     <message>
         <source>Greek</source>
@@ -1947,123 +1950,123 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Cyrillic</source>
-        <translation>Cyrilika</translation>
+        <translation>Cyrilské</translation>
     </message>
     <message>
         <source>Armenian</source>
-        <translation>Arménčina</translation>
+        <translation>Arménske</translation>
     </message>
     <message>
         <source>Hebrew</source>
-        <translation>Hebrejština</translation>
+        <translation>Hebrejské</translation>
     </message>
     <message>
         <source>Arabic</source>
-        <translation>Arabština</translation>
+        <translation>Arabské</translation>
     </message>
     <message>
         <source>Syriac</source>
-        <translation type="unfinished"></translation>
+        <translation>Sýrske</translation>
     </message>
     <message>
         <source>Thaana</source>
-        <translation type="unfinished"></translation>
+        <translation>Thaana</translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation type="unfinished"></translation>
+        <translation>Dévanágarí</translation>
     </message>
     <message>
         <source>Bengali</source>
-        <translation type="unfinished"></translation>
+        <translation>Bengálske</translation>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation type="unfinished"></translation>
+        <translation>Gurmukhé</translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation type="unfinished"></translation>
+        <translation>Gudžarátí</translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation type="unfinished"></translation>
+        <translation>Oriya</translation>
     </message>
     <message>
         <source>Tamil</source>
-        <translation type="unfinished"></translation>
+        <translation>Tamilské</translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation type="unfinished"></translation>
+        <translation>Telugské</translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation type="unfinished"></translation>
+        <translation>Kannada</translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation type="unfinished"></translation>
+        <translation>Malajálamské</translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation type="unfinished"></translation>
+        <translation>Sinhálské</translation>
     </message>
     <message>
         <source>Thai</source>
-        <translation type="unfinished"></translation>
+        <translation>Thajské</translation>
     </message>
     <message>
         <source>Lao</source>
-        <translation type="unfinished"></translation>
+        <translation>Laoské</translation>
     </message>
     <message>
         <source>Tibetan</source>
-        <translation type="unfinished"></translation>
+        <translation>Tibetské</translation>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation type="unfinished"></translation>
+        <translation>Myanmarské</translation>
     </message>
     <message>
         <source>Georgian</source>
-        <translation type="unfinished"></translation>
+        <translation>Gruzínske</translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation type="unfinished"></translation>
+        <translation>Khmerské</translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>Zjednodušené čínske</translation>
     </message>
     <message>
         <source>Traditional Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>Tradičné čínske</translation>
     </message>
     <message>
         <source>Japanese</source>
-        <translation type="unfinished"></translation>
+        <translation>Japonské</translation>
     </message>
     <message>
         <source>Korean</source>
-        <translation type="unfinished"></translation>
+        <translation>Hangŭl (Kórejské)</translation>
     </message>
     <message>
         <source>Vietnamese</source>
-        <translation type="unfinished"></translation>
+        <translation>Vietnamské</translation>
     </message>
     <message>
         <source>Symbol</source>
-        <translation>Symboly</translation>
+        <translation>Symbol</translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation type="unfinished"></translation>
+        <translation>Ogamské</translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation type="unfinished"></translation>
+        <translation>Runové</translation>
     </message>
     <message>
         <source>N&apos;Ko</source>
@@ -2105,7 +2108,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Font st&amp;yle</source>
-        <translation>Š&amp;týl písma</translation>
+        <translation>Štýl pís&amp;ma</translation>
     </message>
     <message>
         <source>&amp;Size</source>
@@ -2117,15 +2120,15 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation>Prečiar&amp;knuť</translation>
+        <translation>Preš&amp;krtnuté</translation>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation>&amp;Podčiarknuť</translation>
+        <translation>&amp;Podčiarknuté</translation>
     </message>
     <message>
         <source>Sample</source>
-        <translation>Náhľad</translation>
+        <translation>Vzorka</translation>
     </message>
     <message>
         <source>Select Font</source>
@@ -2133,42 +2136,42 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation>Systém písan&amp;ia</translation>
+        <translation>Systém &amp;písania</translation>
     </message>
 </context>
 <context>
     <name>QFtp</name>
     <message>
         <source>Host %1 found</source>
-        <translation>Počítač %1 nenájdený</translation>
+        <translation type="vanished">Počítač %1 nenájdený</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Počítač nájdený</translation>
+        <translation type="vanished">Počítač nájdený</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Pripojený k počítaču %1</translation>
+        <translation>Pripojený k hostiteľovi %1</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Pripojený k počítaču</translation>
+        <translation type="vanished">Pripojený k počítaču</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Spojenie s %1 uzavreté</translation>
+        <translation type="vanished">Spojenie s %1 uzavreté</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation>Spojenie uzavreté</translation>
+        <translation>Spojenie ukončené</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation>Počítač %1 nenájdený</translation>
+        <translation>Hostiteľ %1 nenájdený</translation>
     </message>
     <message>
         <source>Connection refused to host %1</source>
-        <translation>Spojenie s počítačom %1 odmietnuté</translation>
+        <translation>Spojenie s hostiteľom %1 odmietnuté</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2177,13 +2180,13 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Connecting to host failed:
 %1</source>
-        <translation>Spojenie s počítačom zlyhalo:
+        <translation>Spojenie s hostiteľom zlyhalo:
 %1</translation>
     </message>
     <message>
         <source>Login failed:
 %1</source>
-        <translation>Prihlásenie zlyhalo:
+        <translation>Prihlásenie sa nepodarilo:
 %1</translation>
     </message>
     <message>
@@ -2201,7 +2204,7 @@ Chcete ho aj tak zmazať?</translation>
     <message>
         <source>Downloading file failed:
 %1</source>
-        <translation>Stiahnutie súboru zlyhalo:
+        <translation>Stiahnutie súboru sa nepodarilo:
 %1</translation>
     </message>
     <message>
@@ -2230,11 +2233,11 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Not connected</source>
-        <translation>Nepripojený</translation>
+        <translation>Nepripojené</translation>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>Dátové spojenie odmietnuté</translation>
+        <translation type="vanished">Dátové spojenie odmietnuté</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -2291,7 +2294,7 @@ Chcete ho aj tak zmazať?</translation>
     <name>QHostInfoAgent</name>
     <message>
         <source>Host not found</source>
-        <translation>Počítač nenájdený</translation>
+        <translation>Hostiteľ nenájdený</translation>
     </message>
     <message>
         <source>Unknown address type</source>
@@ -2318,95 +2321,95 @@ Chcete ho aj tak zmazať?</translation>
     <name>QHttp</name>
     <message>
         <source>Connection refused</source>
-        <translation>Spojenie odmietnuté</translation>
+        <translation>Spojenie bolo odmietnuté</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation>Počítač %1 nenájdený</translation>
+        <translation>Hostiteľ %1 nenájdený</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>Neplatná dĺžka obsahu</translation>
+        <translation type="vanished">Neplatná dĺžka obsahu</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>Požiadavka HTTP zlyhala</translation>
+        <translation type="vanished">Požiadavka HTTP zlyhala</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Počítač %1 nenájdený</translation>
+        <translation type="vanished">Počítač %1 nenájdený</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Počítač nájdený</translation>
+        <translation type="vanished">Počítač nájdený</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Pripojený k počítaču %1</translation>
+        <translation type="vanished">Pripojený k počítaču %1</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Pripojený k počítaču</translation>
+        <translation type="vanished">Pripojený k počítaču</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation>Spojenie uzavreté</translation>
+        <translation>Spojenie ukončené</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Neznáma chyba</translation>
+        <translation type="vanished">Neznáma chyba</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>Požiadavka prerušená</translation>
+        <translation type="vanished">Požiadavka prerušená</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>Nenastavený server na pripojenie</translation>
+        <translation type="vanished">Nenastavený server na pripojenie</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>Server neočakávane uzavrel spojenie</translation>
+        <translation type="vanished">Server neočakávane uzavrel spojenie</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>Neplatná hlavička odpovede HTTP</translation>
+        <translation type="vanished">Neplatná hlavička odpovede HTTP</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>Neplatné časti tela HTTP</translation>
+        <translation type="vanished">Neplatné časti tela HTTP</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Spojenie s %1 uzavreté</translation>
+        <translation type="vanished">Spojenie s %1 uzavreté</translation>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>Proxy vyžaduje overenie</translation>
+        <translation type="vanished">Proxy vyžaduje overenie</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Vyžaduje sa overenie</translation>
+        <translation type="vanished">Vyžaduje sa overenie</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
-        <translation>Proxy vyžaduje overenie</translation>
+        <translation>Proxy vyžaduje autentifikáciu</translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translation>Hostiteľ vyžaduje overenie</translation>
+        <translation>Hostiteľský počítač vyžaduje autentifikáciu</translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translation>Poškodené dáta</translation>
+        <translation>Dáta sú poškodené</translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation>Špecifikovaný neznámy protokol</translation>
+        <translation>Bol zadaný neznámy protokol</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translation>Zlyhal SSL handshake</translation>
+        <translation>Počas štartu SSL protokola sa vyskytla chyba</translation>
     </message>
     <message>
         <source>Too many redirects</source>
@@ -2429,7 +2432,7 @@ Chcete ho aj tak zmazať?</translation>
     <name>QHttpSocketEngine</name>
     <message>
         <source>Authentication required</source>
-        <translation>Vyžaduje sa overenie</translation>
+        <translation>Požaduje sa autentifikácia</translation>
     </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
@@ -2472,86 +2475,86 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>Transakcia sa nedá spustiť</translation>
+        <translation>Nie je možné spustiť transakciu</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Transakcia sa nedá potvrdiť</translation>
+        <translation>Nepodarilo sa zapísať transakciu</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Transakcia sa nedá vrátiť späť</translation>
+        <translation>Nepodarilo sa odvolať transakciu</translation>
     </message>
 </context>
 <context>
     <name>QIBaseResult</name>
     <message>
         <source>Unable to create BLOB</source>
-        <translation>BLOB sa nedá vytvoriť</translation>
+        <translation>Nepodarilo sa vytvoriť BLOB</translation>
     </message>
     <message>
         <source>Unable to write BLOB</source>
-        <translation>BLOB sa nedá zapísať</translation>
+        <translation>Nepodarilo sa zapísať BLOBu</translation>
     </message>
     <message>
         <source>Unable to open BLOB</source>
-        <translation>BLOB sa nedá otvoriť</translation>
+        <translation>Nepodarilo sa otvoriť BLOB</translation>
     </message>
     <message>
         <source>Unable to read BLOB</source>
-        <translation>BLOB sa nedá čítať</translation>
+        <translation>Nepodarilo sa prečítať BLOB</translation>
     </message>
     <message>
         <source>Could not find array</source>
-        <translation>Pole sa nedá nájsť</translation>
+        <translation>Nepodarilo sa nájsť pole</translation>
     </message>
     <message>
         <source>Could not get array data</source>
-        <translation>Pole dát sa nedá získať</translation>
+        <translation>Nepodarilo sa získať dáta pola</translation>
     </message>
     <message>
         <source>Could not get query info</source>
-        <translation>Informácie o hľadaní sa nedajú získať</translation>
+        <translation>Nepodarilo sa získať info dopytu</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>Transakcia sa nedá spustiť</translation>
+        <translation>Nepodarilo sa spustiť transakciu</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Transakcia sa nedá potvrdiť</translation>
+        <translation>Nepodarilo sa zapísať transakciu</translation>
     </message>
     <message>
         <source>Could not allocate statement</source>
-        <translation>Príkaz sa nedá alokovať</translation>
+        <translation>Nepodarilo sa alokovať príkaz</translation>
     </message>
     <message>
         <source>Could not prepare statement</source>
-        <translation>Príkaz sa nedá pripraviť</translation>
+        <translation>Nepodarilo sa pripraviť príkaz</translation>
     </message>
     <message>
         <source>Could not describe input statement</source>
-        <translation>Vstupný príkaz sa nedá popísať</translation>
+        <translation>Nepodarilo sa popísať vstupný príkaz</translation>
     </message>
     <message>
         <source>Could not describe statement</source>
-        <translation>Príkaz sa nedá popísať</translation>
+        <translation>Nepodarilo sa popísať príkaz</translation>
     </message>
     <message>
         <source>Unable to close statement</source>
-        <translation>Príkaz sa nedá uzavrieť</translation>
+        <translation>Nepodarilo sa zavrieť príkaz</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
-        <translation>Hľadanie sa nedá vykonať</translation>
+        <translation>Nepodarilo sa vykonať dopyt</translation>
     </message>
     <message>
         <source>Could not fetch next item</source>
-        <translation>Nedá sa získať ďaľšia položka</translation>
+        <translation>Nepodarilo sa stiahnuť ďalšiu položku</translation>
     </message>
     <message>
         <source>Could not get statement info</source>
-        <translation>Informácie o príkaze sa nedajú získať</translation>
+        <translation>Nepodarilo sa získať info k príkazu</translation>
     </message>
 </context>
 <context>
@@ -2566,11 +2569,11 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>No such file or directory</source>
-        <translation>Žiadny taký súbor alebo priečinok</translation>
+        <translation>Neexistuje taký súbor alebo priečinok</translation>
     </message>
     <message>
         <source>No space left on device</source>
-        <translation>Na zariadení nie je voľné miesto</translation>
+        <translation>Na zariadení už nie je voľné miesto</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2627,19 +2630,19 @@ Chcete ho aj tak zmazať?</translation>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="vanished">XIM</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>Metóda vstupu XIM</translation>
+        <translation type="vanished">Metóda vstupu XIM</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Metóda vstupu Windows</translation>
+        <translation type="vanished">Metóda vstupu Windows</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Metóda vstupu Mac OS X</translation>
+        <translation type="vanished">Metóda vstupu Mac OS X</translation>
     </message>
 </context>
 <context>
@@ -2728,27 +2731,27 @@ Chcete ho aj tak zmazať?</translation>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: Nedá sa načítať %1 (%2)</translation>
+        <translation type="vanished">QLibrary::load_sys: Nedá sa načítať %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys: Nedá sa uvoľniť %1 (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys: Nedá sa uvoľniť %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::resolve_sys: Symbol &quot;%1&quot; nie je definovaný v %2 (%3)</translation>
+        <translation type="vanished">QLibrary::resolve_sys: Symbol &quot;%1&quot; nie je definovaný v %2 (%3)</translation>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>Nedá sa mmap &apos;%1&apos;: %2</translation>
+        <translation type="vanished">Nedá sa mmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>Overovacie dáta modulu v &apos;%1&apos; nesúhlasia</translation>
+        <translation type="vanished">Overenie dát modulu nesúhlasí v &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>Nedá sa unmap &apos;%1&apos;: %2</translation>
+        <translation type="vanished">Nedá sa unmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
@@ -2756,7 +2759,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>Modul &apos;%1&apos; používa nekompatibilnú Qt knižnicu. Očakávaný kľúč &quot;%2&quot;, nájdený &quot;%3&quot;</translation>
+        <translation type="vanished">Modul &apos;%1&apos; používa nekompatibilnú Qt knižnicu. Očakávaný kľúč &quot;%2&quot;, nájdený &quot;%3&quot;</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2764,15 +2767,15 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translation>Zdieľaná knižnica nebola nájdená.</translation>
+        <translation>Nepodarilo sa nájsť zdielanú knižnica.</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
-        <translation>Súbor &apos;%1&apos; nie je platný Qt modul.</translation>
+        <translation>Súbor &apos;%1&apos; nie je platným modulom Qt.</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation>Modul &apos;%1&apos; používa nekompatibilnú Qt knižnicu. (Nedajú sa miešať debug a release knižnice.)</translation>
+        <translation>Modul &apos;%1&apos; používa nekompatibilnú knižnicu Qt. (Knižnice vytvorené pre režim ladenie a vydania sa nemôžu používať spoločne.)</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not an ELF object (%2)</source>
@@ -2839,11 +2842,11 @@ Chcete ho aj tak zmazať?</translation>
     <name>QLineEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>V&amp;rátiť späť</translation>
+        <translation>&amp;Späť</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Opakovať vrátené</translation>
+        <translation>Zn&amp;ovu</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
@@ -2870,62 +2873,62 @@ Chcete ho aj tak zmazať?</translation>
     <name>QLocalServer</name>
     <message>
         <source>%1: Name error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Chyba názvu</translation>
     </message>
     <message>
         <source>%1: Permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Prístup zamietnutý</translation>
     </message>
     <message>
         <source>%1: Address in use</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Adresa sa používa</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Neznáma chyba %2</translation>
     </message>
 </context>
 <context>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Spojenie odmietnuté</translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Spojenie bolo druhou stranou uzatvorené</translation>
     </message>
     <message>
         <source>%1: Invalid name</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Neplatný názov</translation>
     </message>
     <message>
         <source>%1: Socket access error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Chyba pri prístupe ku soketu</translation>
     </message>
     <message>
         <source>%1: Socket resource error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Chyba zdroja soketu</translation>
     </message>
     <message>
         <source>%1: Socket operation timed out</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Prekročenie času pri práci so soketom</translation>
     </message>
     <message>
         <source>%1: Datagram too large</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Datagram je príliš veľký</translation>
     </message>
     <message>
         <source>%1: Connection error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Chyba spojenia</translation>
     </message>
     <message>
         <source>%1: The socket operation is not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Operácia so soketom nie je podporovaná</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Neznáma chyba %2</translation>
     </message>
     <message>
         <source>%1: Operation not permitted when socket is in this state</source>
@@ -2948,23 +2951,23 @@ Chcete ho aj tak zmazať?</translation>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Databáza sa nedá otvoriť &apos;</translation>
+        <translation type="vanished">Databáza sa nedá otvoriť &apos;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
-        <translation>Nedá sa pripojiť</translation>
+        <translation>Nepodarilo sa nadviazanie spojenia</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Transakcia sa nedá spustiť</translation>
+        <translation>Transakciu sa nepodarilo spustiť</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Transakcia sa nedá potvrdiť</translation>
+        <translation>Transakciu sa nepodarilo zapísať</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Transakcia sa nedá vrátiť späť</translation>
+        <translation>Nepodarilo sa odvolať transakciu</translation>
     </message>
     <message>
         <source>Unable to open database &apos;%1&apos;</source>
@@ -2979,54 +2982,54 @@ Chcete ho aj tak zmazať?</translation>
     <name>QMYSQLResult</name>
     <message>
         <source>Unable to fetch data</source>
-        <translation>Dáta sa nedajú získať</translation>
+        <translation>Nepodarilo natiahnuť dáta</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
-        <translation>Hľadanie sa nedá vykonať</translation>
+        <translation>Dopyt sa neporadilo vykonať</translation>
     </message>
     <message>
         <source>Unable to store result</source>
-        <translation>Výsledok sa nedá uložiť</translation>
+        <translation>Nepodarilo sa uložiť výsledok</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Príkaz sa nedá pripraviť</translation>
+        <translation>Príkaz sa neporadilo pripraviť</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation>Príkaz sa nedá vrátiť späť</translation>
+        <translation>Príkaz sa neporadilo znovu nastaviť</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation>Hodnota sa nedá naviazať</translation>
+        <translation>Hodnotu sa nepodarilo priradiť</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Príkaz sa nedá vykonať</translation>
+        <translation>Príkaz sa neporadilo vykonať</translation>
     </message>
     <message>
         <source>Unable to bind outvalues</source>
-        <translation>Výstupná hodnota sa nedá naviazať</translation>
+        <translation>Výstupné hodnoty sa nepodarilo priradiť</translation>
     </message>
     <message>
         <source>Unable to store statement results</source>
-        <translation>Výsledky príkazu sa nedajú uložiť</translation>
+        <translation>Výsledky príkazu sa nepodarilo uložiť</translation>
     </message>
     <message>
         <source>Unable to execute next query</source>
-        <translation type="unfinished"></translation>
+        <translation>Ďalší dopyt nie je možné spustiť</translation>
     </message>
     <message>
         <source>Unable to store next result</source>
-        <translation type="unfinished"></translation>
+        <translation>Ďalší výsledok nie je možné uložiť</translation>
     </message>
 </context>
 <context>
     <name>QMdiArea</name>
     <message>
         <source>(Untitled)</source>
-        <translation type="unfinished"></translation>
+        <translation>(Nepomenovaný)</translation>
     </message>
 </context>
 <context>
@@ -3045,7 +3048,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Obnoviť dolu</translation>
+        <translation>Obnoviť dole</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
@@ -3053,7 +3056,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Presunúť</translation>
+        <translation>Pres&amp;unúť</translation>
     </message>
     <message>
         <source>&amp;Size</source>
@@ -3069,7 +3072,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Nechať navr&amp;chu</translation>
+        <translation>Zos&amp;tať navrchu</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -3077,46 +3080,46 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>- [%1]</source>
-        <translation type="unfinished"></translation>
+        <translation>- [%1]</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation type="unfinished">Maximalizovať</translation>
+        <translation>Maximalizovať</translation>
     </message>
     <message>
         <source>Unshade</source>
-        <translation type="unfinished"></translation>
+        <translation>Vyrolovať</translation>
     </message>
     <message>
         <source>Shade</source>
-        <translation type="unfinished"></translation>
+        <translation>Zarolovať</translation>
     </message>
     <message>
         <source>Restore</source>
-        <translation type="unfinished"></translation>
+        <translation>Obnoviť</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Pomocník</translation>
+        <translation>Pomocník</translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation type="unfinished">Menu</translation>
+        <translation>Menu</translation>
     </message>
 </context>
 <context>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Zavrieť</translation>
+        <translation type="vanished">Zavrieť</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Otvoriť</translation>
+        <translation type="vanished">Otvoriť</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Vykonať</translation>
+        <translation type="vanished">Vykonať</translation>
     </message>
 </context>
 <context>
@@ -3127,7 +3130,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>About Qt</source>
-        <translation>Informácie o Qt</translation>
+        <translation>O Qt</translation>
     </message>
     <message>
         <source>Help</source>
@@ -3135,19 +3138,19 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tento program používa Qt verziu %1.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Tento program používa Qt verziu %1.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
-        <translation>Zobraziť detaily...</translation>
+        <translation>Zobraziť detaily…</translation>
     </message>
     <message>
         <source>Hide Details...</source>
-        <translation>Skryť detaily...</translation>
+        <translation>Skryť detaily…</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tento program používa Qt Open Source Edition verziu %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition je určená pre vývoj Open Source aplikácií. Pre vývoj vlastnených (closed source) aplikácií potrebujete komerčnú Qt licenciu.&lt;/p&gt;&lt;p&gt;Prosím pozrite &lt;a href=&quot;http://www.trolltech.com/company/model.html&quot;&gt;www.trolltech.com/company/model.html&lt;/a&gt; pre prehľad Qt licencovania.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Tento program používa Qt Open Source Edition verziu %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition je určená pre vývoj Open Source aplikácií. Pre vývoj vlastnených (closed source) aplikácií potrebujete komerčnú Qt licenciu.&lt;/p&gt;&lt;p&gt;Prosím pozrite &lt;a href=&quot;http://www.trolltech.com/company/model.html&quot;&gt;www.trolltech.com/company/model.html&lt;/a&gt; pre prehľad Qt licencovania.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -3170,18 +3173,18 @@ Chcete ho aj tak zmazať?</translation>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>Vybrať IM</translation>
+        <translation type="vanished">Vybrať IM</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>Prepínač metódy viacnásobného vstupu</translation>
+        <translation type="vanished">Prepínač metódy viacnásobného vstupu</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>Prepínač metódy viacnásobného vstupu, ktorý používa kontextové menu textových prvkov</translation>
+        <translation type="vanished">Prepínač metódy viacnásobného vstupu, ktorý používa kontextové menu textových prvkov</translation>
     </message>
 </context>
 <context>
@@ -3192,11 +3195,11 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation>Vypršal čas pre sieťovú operáciu</translation>
+        <translation>Časový limit pre sieťovú operáciu bol prekročený</translation>
     </message>
     <message>
         <source>Out of resources</source>
-        <translation>Nedostatok zdrojov</translation>
+        <translation>Nie sú dostupné voľné zdroje</translation>
     </message>
     <message>
         <source>Unsupported socket operation</source>
@@ -3204,15 +3207,15 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Protocol type not supported</source>
-        <translation>Nepodporovaný typ protokolu</translation>
+        <translation>Typ protokolu nie je podporovaný</translation>
     </message>
     <message>
         <source>Invalid socket descriptor</source>
-        <translation>Neplatný popis soketu</translation>
+        <translation>Neplatný descriptor soketu</translation>
     </message>
     <message>
         <source>Network unreachable</source>
-        <translation>Sieť nedostupná</translation>
+        <translation>Sieť je nedosiahnuteľná</translation>
     </message>
     <message>
         <source>Permission denied</source>
@@ -3220,15 +3223,15 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Connection timed out</source>
-        <translation>Vypršal čas pre spojenie</translation>
+        <translation>Časový limit spojenia bol prekročený</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation>Spojenie odmietnuté</translation>
+        <translation>Spojenie bolo odmietnuté</translation>
     </message>
     <message>
         <source>The bound address is already in use</source>
-        <translation>Hraničná adresa je už použitá</translation>
+        <translation>Viazaná adresa sa už používa</translation>
     </message>
     <message>
         <source>The address is not available</source>
@@ -3240,15 +3243,15 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Unable to send a message</source>
-        <translation>Správa sa nedá poslať</translation>
+        <translation>Nepodarilo sa odoslať správu</translation>
     </message>
     <message>
         <source>Unable to receive a message</source>
-        <translation>Správa sa nedá prijať</translation>
+        <translation>Nepodarilo sa prijať správu</translation>
     </message>
     <message>
         <source>Unable to write</source>
-        <translation>Nedá sa zapísať</translation>
+        <translation>Zápis sa nepodaril</translation>
     </message>
     <message>
         <source>Network error</source>
@@ -3260,11 +3263,11 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Unable to initialize non-blocking socket</source>
-        <translation>Nedá sa inicializovať neblokujúci soket</translation>
+        <translation>Neporadilo sa inicializovať neblokujúci soket</translation>
     </message>
     <message>
         <source>Unable to initialize broadcast socket</source>
-        <translation>Nedá sa inicializovať vysielací soket</translation>
+        <translation>Neporadilo sa inicializovať soket pre vysielanie</translation>
     </message>
     <message>
         <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
@@ -3272,15 +3275,15 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Host unreachable</source>
-        <translation>Počítač je nedostupný</translation>
+        <translation>Hostiteľ je nedosiahnuteľný</translation>
     </message>
     <message>
         <source>Datagram was too large to send</source>
-        <translation>Datagram je pre poslanie príliš veľký</translation>
+        <translation>Datagram je príliš veľký pre odoslanie</translation>
     </message>
     <message>
         <source>Operation on non-socket</source>
-        <translation>Operácia na non-sokete</translation>
+        <translation>Operácia mimo soketu</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3288,7 +3291,7 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
-        <translation type="unfinished"></translation>
+        <translation>Túto operáciu nie je možný vykonať s týmto typom proxy servera</translation>
     </message>
     <message>
         <source>Temporary error</source>
@@ -3336,42 +3339,42 @@ Chcete ho aj tak zmazať?</translation>
     <name>QNetworkAccessFileBackend</name>
     <message>
         <source>Request for opening non-local file %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Požiadavka na otvorenie ne-lokálneho súboru %1</translation>
     </message>
     <message>
         <source>Error opening %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Chyba pri otváraní %1: %2</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Chyba pri zapisovaní do %1: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Nie je možné otvoriť %1: Cesta je priečinok</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Chyba pri čítaní z %1: %2</translation>
     </message>
 </context>
 <context>
     <name>QNetworkAccessFtpBackend</name>
     <message>
         <source>Cannot open %1: is a directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Nemôžem otvoriť %1: je to priečinok</translation>
     </message>
     <message>
         <source>Logging in to %1 failed: authentication required</source>
-        <translation type="unfinished"></translation>
+        <translation>Prihlásenie sa do %1 zlyhalo: požaduje sa autentifikácia</translation>
     </message>
     <message>
         <source>Error while downloading %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Chyba počas sťahovania %1: %2</translation>
     </message>
     <message>
         <source>Error while uploading %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Chyba počas nahrávania %1: %2</translation>
     </message>
     <message>
         <source>No suitable proxy found</source>
@@ -3389,11 +3392,11 @@ Chcete ho aj tak zmazať?</translation>
     <name>QNetworkReply</name>
     <message>
         <source>Error downloading %1 - server replied: %2</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Chyba pri sťahovaní %1 - server odpovedal: %2</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>Protokol &quot;%1&quot; je neznámy</translation>
     </message>
     <message>
         <source>Background request not allowed.</source>
@@ -3438,7 +3441,7 @@ Chcete ho aj tak zmazať?</translation>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation type="unfinished"></translation>
+        <translation>Operácia zrušená</translation>
     </message>
 </context>
 <context>
@@ -3475,59 +3478,59 @@ Chcete ho aj tak zmazať?</translation>
     <name>QOCIDriver</name>
     <message>
         <source>Unable to logon</source>
-        <translation>Nedá sa prihlásiť</translation>
+        <translation>Nepodarilo sa prihlásiť</translation>
     </message>
     <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
-        <translation>Nedá sa inicializovať</translation>
+        <translation>Inicializácia sa nepodarila</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation type="unfinished">Transakcia sa nedá spustiť</translation>
+        <translation>Nepodarilo sa spustiť transakciu</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished">Transakcia sa nedá potvrdiť</translation>
+        <translation>Nepodarilo sa zapísať transakciu</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished">Transakcia sa nedá vrátiť späť</translation>
+        <translation>Nepodarilo sa odvolať transakciu</translation>
     </message>
 </context>
 <context>
     <name>QOCIResult</name>
     <message>
         <source>Unable to bind column for batch execute</source>
-        <translation>Pre dávkové spustenie sa nedá naviazať stĺpec</translation>
+        <translation>Neporadilo sa priradiť stĺpec pre vykonanie dávkového príkazu</translation>
     </message>
     <message>
         <source>Unable to execute batch statement</source>
-        <translation>Nedá sa vykonať dávkový príkaz</translation>
+        <translation>Nepodarilo sa spustiť dávkový príkaz</translation>
     </message>
     <message>
         <source>Unable to goto next</source>
-        <translation>Nedá sa prejsť ďalej</translation>
+        <translation>Nie je možné prejsť ďalej</translation>
     </message>
     <message>
         <source>Unable to alloc statement</source>
-        <translation>Príkaz sa nedá alokovať</translation>
+        <translation>Nie je možné alokovať príkaz</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Príkaz sa nedá pripraviť</translation>
+        <translation>Príkaz sa neporadilo pripraviť</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation>Hodnota sa nedá previazať</translation>
+        <translation>Hodnotu sa nepodarilo priradiť</translation>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>Príkaz select sa nedá vykonať</translation>
+        <translation type="vanished">Príkaz select sa nedá vykonať</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Príkaz sa nedá vykonať</translation>
+        <translation>Príkaz sa neporadilo vykonať</translation>
     </message>
     <message>
         <source>Unable to get statement type</source>
@@ -3542,23 +3545,23 @@ Chcete ho aj tak zmazať?</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>Nedá sa pripojiť - ovládač neposkytuje všetku požadovanú funkcionalitu</translation>
+        <translation type="vanished">Nedá sa pripojiť - ovládač neposkytuje všetku požadovanú funkcionalitu</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
-        <translation>Nedá sa zakázať automatické potvrdzovanie</translation>
+        <translation>Nepodarilo sa zakázať automatické zapisovanie (autocommit)</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Transakcia sa nedá potvrdiť</translation>
+        <translation>Nepodarilo sa zapísať transakciu</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Transakcia sa nedá vrátiť späť</translation>
+        <translation>Nepodarilo sa odvolať transakciu</translation>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
-        <translation>Nedá sa povoliť automatické potvrdzovanie</translation>
+        <translation>Nepodarilo sa nastaviť automatické zapisovanie (autocommit)</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
@@ -3569,39 +3572,39 @@ Chcete ho aj tak zmazať?</translation>
     <name>QODBCResult</name>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation>QODBCResult::reset: Pre príkaz sa nedá nastaviť atribút &apos;SQL_CURSOR_STATIC&apos;. Prosím skontrolujte konfiguráciu ovládača ODBC</translation>
+        <translation>QODBCResult::reset: &apos;SQL_CURSOR_STATIC&apos; sa nepodarilo nastaviť ako atribút príkazu. Overte, prosím vaše nastavenia ODBC ovládača</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Príkaz sa nedá vykonať</translation>
+        <translation>Príkaz sa neporadilo vykonať</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>Nedá sa získať ďaľší záznam</translation>
+        <translation>Ďalší záznam sa nepodarilo natiahnuť</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Príkaz sa nedá pripraviť</translation>
+        <translation>Príkaz sa neporadilo pripraviť</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation>Premenná sa nedá previazať</translation>
+        <translation>Premennú sa nepodarilo priradiť</translation>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translation type="unfinished"></translation>
+        <translation>Posledný záznam sa nepodarilo natiahnuť</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation type="unfinished"></translation>
+        <translation>Nepodarilo sa natiahnuť dáta</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation type="unfinished">Nedá sa získať prvý záznam</translation>
+        <translation>Prvý záznam sa nepodarilo natiahnuť</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translation type="unfinished"></translation>
+        <translation>Predchádzajúci záznam sa nepodarilo natiahnuť</translation>
     </message>
 </context>
 <context>
@@ -3679,132 +3682,132 @@ Chcete ho aj tak zmazať?</translation>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Meno</translation>
+        <translation type="obsolete">Meno</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation type="unfinished">Hodnota</translation>
+        <translation type="obsolete">Hodnota</translation>
     </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Nedá sa pripojiť</translation>
+        <translation>Nepodarilo sa pripojiť</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
-        <translation>Transakcia sa nedá spustiť</translation>
+        <translation>Transakciu sa nepodarilo spustiť</translation>
     </message>
     <message>
         <source>Could not commit transaction</source>
-        <translation>Transakcia sa nedá potvrdiť</translation>
+        <translation>Nie je možné zapísať transakciu</translation>
     </message>
     <message>
         <source>Could not rollback transaction</source>
-        <translation>Transakcia sa nedá vrátiť späť</translation>
+        <translation>Nie je možné odvolať transakciu</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>Registrácia sa nepodarila</translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>Registráciu sa nepodarilo zrušiť</translation>
     </message>
 </context>
 <context>
     <name>QPSQLResult</name>
     <message>
         <source>Unable to create query</source>
-        <translation>Nedá sa vytvoriť hľadanie</translation>
+        <translation>Nepodarilo sa vytvoriť dopyt</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation type="unfinished"></translation>
+        <translation>Príkaz sa neporadilo pripraviť</translation>
     </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
     <message>
         <source>Centimeters (cm)</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Centimetre (cm)</translation>
     </message>
     <message>
         <source>Millimeters (mm)</source>
-        <translation type="unfinished"></translation>
+        <translation>Milimetre (mm)</translation>
     </message>
     <message>
         <source>Inches (in)</source>
-        <translation type="unfinished"></translation>
+        <translation>Palce (in)</translation>
     </message>
     <message>
         <source>Points (pt)</source>
-        <translation type="unfinished"></translation>
+        <translation>Body (pt)</translation>
     </message>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Formulár</translation>
     </message>
     <message>
         <source>Paper</source>
-        <translation type="unfinished"></translation>
+        <translation>Papier</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation type="unfinished">Veľkosť strany:</translation>
+        <translation>Veľkosť strany:</translation>
     </message>
     <message>
         <source>Width:</source>
-        <translation type="unfinished"></translation>
+        <translation>Šírka:</translation>
     </message>
     <message>
         <source>Height:</source>
-        <translation type="unfinished"></translation>
+        <translation>Výška:</translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation type="unfinished">Zdroj papiera:</translation>
+        <translation>Zdroj papiera:</translation>
     </message>
     <message>
         <source>Orientation</source>
-        <translation type="unfinished"></translation>
+        <translation>Orientácia</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation type="unfinished">Na výšku</translation>
+        <translation>Na výšku</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation type="unfinished">Na šírku</translation>
+        <translation>Na šírku</translation>
     </message>
     <message>
         <source>Reverse landscape</source>
-        <translation type="unfinished"></translation>
+        <translation>Opačne na šírku</translation>
     </message>
     <message>
         <source>Reverse portrait</source>
-        <translation type="unfinished"></translation>
+        <translation>Opačne na výšku</translation>
     </message>
     <message>
         <source>Margins</source>
-        <translation type="unfinished"></translation>
+        <translation>Okraje</translation>
     </message>
     <message>
         <source>top margin</source>
-        <translation type="unfinished"></translation>
+        <translation>horný okraj</translation>
     </message>
     <message>
         <source>left margin</source>
-        <translation type="unfinished"></translation>
+        <translation>ľavý okraj</translation>
     </message>
     <message>
         <source>right margin</source>
-        <translation type="unfinished"></translation>
+        <translation>pravý okraj</translation>
     </message>
     <message>
         <source>bottom margin</source>
-        <translation type="unfinished"></translation>
+        <translation>dolný okraj</translation>
     </message>
     <message>
         <source>Page Layout</source>
@@ -4433,181 +4436,181 @@ Chcete ho aj tak zmazať?</translation>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>lokálne pripojená</translation>
+        <translation type="vanished">lokálne pripojená</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Aliasy: %1</translation>
+        <translation type="vanished">Aliasy: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>neznáme</translation>
+        <translation type="vanished">neznáme</translation>
     </message>
     <message>
         <source>Print To File ...</source>
-        <translation>Tlačiť do súboru ...</translation>
+        <translation>Tlačiť do súboru…</translation>
     </message>
     <message>
         <source>File %1 is not writable.
 Please choose a different file name.</source>
-        <translation>Do súboru %1 sa nedá zapisovať. 
-Prosím vyberte si iné meno súboru.</translation>
+        <translation>Súboru %1 je chránený proti zápisu.
+Prosím vyberte si iný názov súboru.</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to overwrite it?</source>
-        <translation>%1 už existuje. 
-Chcete ho prepísať?</translation>
+        <translation>%1 už existuje.
+Má sa prepísať?</translation>
     </message>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
         <translation>%1 je priečinok. 
-Prosím zvoľte iné meno súboru.</translation>
+Prosím zvoľte iný názov súboru.</translation>
     </message>
     <message>
         <source>A0</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A0</translation>
     </message>
     <message>
         <source>A1</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A1</translation>
     </message>
     <message>
         <source>A2</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A2</translation>
     </message>
     <message>
         <source>A3</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A3</translation>
     </message>
     <message>
         <source>A4</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A4</translation>
     </message>
     <message>
         <source>A5</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A5</translation>
     </message>
     <message>
         <source>A6</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A6</translation>
     </message>
     <message>
         <source>A7</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A7</translation>
     </message>
     <message>
         <source>A8</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A8</translation>
     </message>
     <message>
         <source>A9</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">A9</translation>
     </message>
     <message>
         <source>B0</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B0</translation>
     </message>
     <message>
         <source>B1</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B1</translation>
     </message>
     <message>
         <source>B2</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B2</translation>
     </message>
     <message>
         <source>B3</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B3</translation>
     </message>
     <message>
         <source>B4</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B4</translation>
     </message>
     <message>
         <source>B5</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B5</translation>
     </message>
     <message>
         <source>B6</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B6</translation>
     </message>
     <message>
         <source>B7</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B7</translation>
     </message>
     <message>
         <source>B8</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B8</translation>
     </message>
     <message>
         <source>B9</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B9</translation>
     </message>
     <message>
         <source>B10</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">B10</translation>
     </message>
     <message>
         <source>C5E</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">C5E</translation>
     </message>
     <message>
         <source>DLE</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">DLE</translation>
     </message>
     <message>
         <source>Executive</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Executive</translation>
     </message>
     <message>
         <source>Folio</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Folio</translation>
     </message>
     <message>
         <source>Ledger</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Ledger</translation>
     </message>
     <message>
         <source>Legal</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Legal</translation>
     </message>
     <message>
         <source>Letter</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Letter</translation>
     </message>
     <message>
         <source>Tabloid</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Tabloid</translation>
     </message>
     <message>
         <source>US Common #10 Envelope</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">US Bežná #10 Obálka</translation>
     </message>
     <message>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Vlastné</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>M&amp;ožnosti &gt;&gt;</translation>
     </message>
     <message>
         <source>&amp;Print</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tlačiť</translation>
     </message>
     <message>
         <source>&amp;Options &lt;&lt;</source>
-        <translation type="unfinished"></translation>
+        <translation>M&amp;ožnosti &lt;&lt;</translation>
     </message>
     <message>
         <source>Print to File (PDF)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tlač do súboru (PDF)</translation>
     </message>
     <message>
         <source>Local file</source>
-        <translation type="unfinished"></translation>
+        <translation>Lokálny súbor</translation>
     </message>
     <message>
         <source>Print</source>
@@ -4715,75 +4718,75 @@ Please turn one of those options off.</source>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastavenie stránky</translation>
     </message>
     <message>
         <source>Print Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>Ukážka pred tlačou</translation>
     </message>
     <message>
         <source>Next page</source>
-        <translation type="unfinished"></translation>
+        <translation>Nasledujúca strana</translation>
     </message>
     <message>
         <source>Previous page</source>
-        <translation type="unfinished"></translation>
+        <translation>Predchádzajúca strana</translation>
     </message>
     <message>
         <source>First page</source>
-        <translation type="unfinished"></translation>
+        <translation>Prvá strana</translation>
     </message>
     <message>
         <source>Last page</source>
-        <translation type="unfinished"></translation>
+        <translation>Posledná strana</translation>
     </message>
     <message>
         <source>Fit width</source>
-        <translation type="unfinished"></translation>
+        <translation>Prispôsobiť šírke</translation>
     </message>
     <message>
         <source>Fit page</source>
-        <translation type="unfinished"></translation>
+        <translation>Prispôsobiť strane</translation>
     </message>
     <message>
         <source>Zoom in</source>
-        <translation type="unfinished"></translation>
+        <translation>Priblížiť</translation>
     </message>
     <message>
         <source>Zoom out</source>
-        <translation type="unfinished"></translation>
+        <translation>Oddialiť</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation type="unfinished">Na výšku</translation>
+        <translation>Na výšku</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation type="unfinished">Na šírku</translation>
+        <translation>Na šírku</translation>
     </message>
     <message>
         <source>Show single page</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobraziť jednotlivé strany</translation>
     </message>
     <message>
         <source>Show facing pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobraziť protiľahlé strany</translation>
     </message>
     <message>
         <source>Show overview of all pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobraziť náhľad na všetky strany</translation>
     </message>
     <message>
         <source>Print</source>
-        <translation type="unfinished">Print</translation>
+        <translation>Tlač</translation>
     </message>
     <message>
         <source>Page setup</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastavenie strany</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Zavrieť</translation>
+        <translation type="obsolete">Zavrieť</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -4813,11 +4816,11 @@ Please turn one of those options off.</source>
     <name>QPrintPropertiesWidget</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Formulár</translation>
     </message>
     <message>
         <source>Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Strana</translation>
     </message>
     <message>
         <source>Advanced</source>
@@ -4828,79 +4831,79 @@ Please turn one of those options off.</source>
     <name>QPrintSettingsOutput</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Formulár</translation>
     </message>
     <message>
         <source>Copies</source>
-        <translation type="unfinished">Kópie</translation>
+        <translation>Počet exemplárov</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation type="unfinished">Rozsah tlače</translation>
+        <translation>Rozsah tlače</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation type="unfinished">Tlačiť všetko</translation>
+        <translation>Tlačiť všetko</translation>
     </message>
     <message>
         <source>Pages from</source>
-        <translation type="unfinished">Strany od</translation>
+        <translation>Strany od</translation>
     </message>
     <message>
         <source>to</source>
-        <translation type="unfinished">do</translation>
+        <translation>do</translation>
     </message>
     <message>
         <source>Selection</source>
-        <translation type="unfinished">Výber</translation>
+        <translation>Výber</translation>
     </message>
     <message>
         <source>Output Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastavenia výstupu</translation>
     </message>
     <message>
         <source>Copies:</source>
-        <translation type="unfinished"></translation>
+        <translation>Kópie:</translation>
     </message>
     <message>
         <source>Collate</source>
-        <translation type="unfinished">Triediť</translation>
+        <translation>Triediť</translation>
     </message>
     <message>
         <source>Reverse</source>
-        <translation type="unfinished"></translation>
+        <translation>Obrátene</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation type="unfinished">Možnosti</translation>
+        <translation>Možnosti</translation>
     </message>
     <message>
         <source>Color Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Farebný režim</translation>
     </message>
     <message>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Farba</translation>
     </message>
     <message>
         <source>Grayscale</source>
-        <translation type="unfinished"></translation>
+        <translation>Odtiene šedej</translation>
     </message>
     <message>
         <source>Duplex Printing</source>
-        <translation type="unfinished"></translation>
+        <translation>Obojstranná tlač</translation>
     </message>
     <message>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Žiadne</translation>
     </message>
     <message>
         <source>Long side</source>
-        <translation type="unfinished"></translation>
+        <translation>Dlhá strana</translation>
     </message>
     <message>
         <source>Short side</source>
-        <translation type="unfinished"></translation>
+        <translation>Krátka strana</translation>
     </message>
     <message>
         <source>Current Page</source>
@@ -4915,39 +4918,39 @@ Please turn one of those options off.</source>
     <name>QPrintWidget</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Formulár</translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation type="unfinished">Tlačiareň</translation>
+        <translation>Tlačiareň</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Názov:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Vlastnosti</translation>
     </message>
     <message>
         <source>Location:</source>
-        <translation type="unfinished"></translation>
+        <translation>Umiestnenie:</translation>
     </message>
     <message>
         <source>Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>Náhľad</translation>
     </message>
     <message>
         <source>Type:</source>
-        <translation type="unfinished"></translation>
+        <translation>Typ:</translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation type="unfinished"></translation>
+        <translation>Výstupný &amp;súbor:</translation>
     </message>
     <message>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation>…</translation>
     </message>
 </context>
 <context>
@@ -4997,14 +5000,14 @@ Please turn one of those options off.</source>
     <name>QProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Storno</translation>
+        <translation>Zrušiť</translation>
     </message>
 </context>
 <context>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Otvoriť</translation>
+        <translation type="vanished">Otvoriť</translation>
     </message>
 </context>
 <context>
@@ -5033,38 +5036,38 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Zaškrtnúť</translation>
+        <translation type="vanished">Zaškrtnúť</translation>
     </message>
 </context>
 <context>
     <name>QRegExp</name>
     <message>
         <source>no error occurred</source>
-        <translation>nevyskytli sa žiadne chyby</translation>
+        <translation>nevyskytla sa žiadna chyba</translation>
     </message>
     <message>
         <source>disabled feature used</source>
-        <translation>použitá vypnutá funkcia</translation>
+        <translation>bola použitá zakázaná vlastnosť</translation>
     </message>
     <message>
         <source>bad char class syntax</source>
-        <translation>neplatný zápis triedy znakov</translation>
+        <translation>nesprávna syntax pre triedu znakov</translation>
     </message>
     <message>
         <source>bad lookahead syntax</source>
-        <translation>neplatný zápis výhľadu</translation>
+        <translation>nesprávna syntax pre smerové vyhľadávanie (lookahead)</translation>
     </message>
     <message>
         <source>bad repetition syntax</source>
-        <translation>neplatný zápis opakovania</translation>
+        <translation>nesprávna syntax pre opakovanie</translation>
     </message>
     <message>
         <source>invalid octal value</source>
-        <translation>neplatná osmičková hodnota</translation>
+        <translation>neplatná oktálová hodnota</translation>
     </message>
     <message>
         <source>missing left delim</source>
-        <translation>chýbajúci pravý oddeľovač</translation>
+        <translation>chýba ľavý oddeľovač</translation>
     </message>
     <message>
         <source>unexpected end</source>
@@ -5072,7 +5075,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>met internal limit</source>
-        <translation>dosiahnutý interný limit</translation>
+        <translation>dosiahnutý vnútorný limit</translation>
     </message>
     <message>
         <source>lookbehinds not supported, see QTBUG-2371</source>
@@ -5426,19 +5429,19 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>Chyba pri otváraní databázy</translation>
+        <translation type="vanished">Chyba pri otváraní databázy</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Transakcia sa nedá spustiť</translation>
+        <translation>Transakciu sa nepodarilo spustiť</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Transakcia sa nedá potvrdiť</translation>
+        <translation>Nepodarilo sa zapísať transakciu</translation>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>Transakcia sa nedá vrátiť späť</translation>
+        <translation type="vanished">Transakcia sa nedá vrátiť späť</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -5453,11 +5456,11 @@ Please turn one of those options off.</source>
     <name>QSQLite2Result</name>
     <message>
         <source>Unable to fetch results</source>
-        <translation>Výsledky sa nedajú získať</translation>
+        <translation>Výsledky sa nepodarilo natiahnuť</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Príkaz sa nedá vykonať</translation>
+        <translation>Príkaz sa neporadilo vykonať</translation>
     </message>
 </context>
 <context>
@@ -5472,34 +5475,34 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Transakcia sa nedá spustiť</translation>
+        <translation>Transakciu sa nepodarilo spustiť</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Transakcia sa nedá potvrdiť</translation>
+        <translation>Nepodarilo sa zapísať transakciu</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished">Transakcia sa nedá vrátiť späť</translation>
+        <translation>Nepodarilo sa odvolať transakciu</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteResult</name>
     <message>
         <source>Unable to fetch row</source>
-        <translation>Riadok sa nedá získať</translation>
+        <translation>Riadok sa nepodarilo natiahnuť</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Príkaz sa nedá spustiť</translation>
+        <translation>Príkaz sa neporadilo vykonať</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation>Príkaz sa nedá vrátiť späť</translation>
+        <translation>Príkaz sa neporadilo znovu nastaviť</translation>
     </message>
     <message>
         <source>Unable to bind parameters</source>
-        <translation>Parametre sa nedajú previazať</translation>
+        <translation>Parametre sa nepodarilo priradiť</translation>
     </message>
     <message>
         <source>Parameter count mismatch</source>
@@ -5507,7 +5510,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>No query</source>
-        <translation type="unfinished"></translation>
+        <translation>Žiadny dopyt</translation>
     </message>
     <message>
         <source>Unable to execute multiple statements at a time</source>
@@ -5533,122 +5536,122 @@ Please turn one of those options off.</source>
     <name>QScrollBar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Posunúť sem</translation>
+        <translation>Rolovať až sem</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Ľavá hrana</translation>
+        <translation>Ľavý okraj</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>Vrch</translation>
+        <translation>Začiatok</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Pravá hrana</translation>
+        <translation>Pravý okraj</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>Spodok</translation>
+        <translation>Koniec</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Strana naľavo</translation>
+        <translation>O stranu doľava</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Strana nahor</translation>
+        <translation>O strana hore</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Strana napravo</translation>
+        <translation>O stranu doprava</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Strana nadol</translation>
+        <translation>O stranu dole</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Posunúť naľavo</translation>
+        <translation>Rolovať doľava</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Posunúť nahor</translation>
+        <translation>Rolovať hore</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Posunúť napravo</translation>
+        <translation>Rolovať doprava</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Posunúť nadol</translation>
+        <translation>Rolovať dole</translation>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Vyrovnať</translation>
+        <translation type="vanished">Vyrovnať</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Pozícia</translation>
+        <translation type="vanished">Pozícia</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Vyrovnať</translation>
+        <translation type="vanished">Vyrovnať</translation>
     </message>
 </context>
 <context>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: nepodarilo sa nastaviť kľúč na uzamknutie</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: vytvorená veľkosť je menšia než 0</translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: nedá sa zamknúť</translation>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: nedá sa odomknúť</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: prístup zamietnutý</translation>
     </message>
     <message>
         <source>%1: already exists</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: už existuje</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: bez použiteľných zdrojov</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: neznáma chyba %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translation type="unfinished"></translation>
+        <translation>%1:kľúč je prázdny</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: ftok zlyhal</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: nepodarilo sa vytvoriť kľúč</translation>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: systémom vynútený veľkostný limit</translation>
     </message>
     <message>
         <source>%1: not attached</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: nepripojený</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exist</source>
@@ -5687,11 +5690,12 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
-        <translation>Medzera</translation>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
+        <translation>Medzerník</translation>
     </message>
     <message>
         <source>Esc</source>
-        <translation>Esc</translation>
+        <translation>Escape</translation>
     </message>
     <message>
         <source>Tab</source>
@@ -5699,7 +5703,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Backtab</source>
-        <translation>Backtab</translation>
+        <translation>Spätný tabulátor</translation>
     </message>
     <message>
         <source>Backspace</source>
@@ -5715,15 +5719,15 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Ins</source>
-        <translation>Ins</translation>
+        <translation>Insert</translation>
     </message>
     <message>
         <source>Del</source>
-        <translation>Del</translation>
+        <translation>Delete</translation>
     </message>
     <message>
         <source>Pause</source>
-        <translation>Pause</translation>
+        <translation>Pauza</translation>
     </message>
     <message>
         <source>Print</source>
@@ -5755,7 +5759,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Down</source>
-        <translation>Dolu</translation>
+        <translation>Dole</translation>
     </message>
     <message>
         <source>PgUp</source>
@@ -5787,11 +5791,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Back</source>
-        <translation>Dozadu</translation>
+        <translation>Späť</translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Dopredu</translation>
+        <translation>Vpred</translation>
     </message>
     <message>
         <source>Stop</source>
@@ -5803,11 +5807,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Volume Down</source>
-        <translation>Stíšiť hlasitosť</translation>
+        <translation>Znížiť hlasitosť</translation>
     </message>
     <message>
         <source>Volume Mute</source>
-        <translation>Bez zvuku</translation>
+        <translation>Stlmiť hlasitosť</translation>
     </message>
     <message>
         <source>Volume Up</source>
@@ -5815,23 +5819,23 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translation>Zosilňovač basových tónov</translation>
+        <translation>Zosilnenie basov</translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translation>Zvýrazniť basové tóny</translation>
+        <translation>Pridať basy</translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translation>Potlačiť basové tóny</translation>
+        <translation>Ubrať basy</translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation>Zvýrazniť výsoké tóny</translation>
+        <translation>Pridať výšky</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation>Potlačiť vysoké tóny</translation>
+        <translation>Ubrať výšky</translation>
     </message>
     <message>
         <source>Media Play</source>
@@ -5851,7 +5855,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Media Record</source>
-        <translation>Nahráť médiá</translation>
+        <translation>Zaznamenať médiá</translation>
     </message>
     <message>
         <source>Favorites</source>
@@ -5871,7 +5875,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Launch Mail</source>
-        <translation>Spustiť poštového klienta</translation>
+        <translation>Spustiť e-mail</translation>
     </message>
     <message>
         <source>Launch Media</source>
@@ -5943,7 +5947,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Print Screen</source>
-        <translation>Vytlačiť obrazovku</translation>
+        <translation>Print Screen</translation>
     </message>
     <message>
         <source>Page Up</source>
@@ -5971,11 +5975,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Insert</translation>
+        <translation>Vložiť</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Delete</translation>
+        <translation>Zmazať</translation>
     </message>
     <message>
         <source>Escape</source>
@@ -5983,11 +5987,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>System Request</source>
-        <translation>System Request</translation>
+        <translation>SysReq</translation>
     </message>
     <message>
         <source>Select</source>
-        <translation>Select</translation>
+        <translation>Vybrať</translation>
     </message>
     <message>
         <source>Yes</source>
@@ -6015,15 +6019,17 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation>Zavolať</translation>
     </message>
     <message>
         <source>Hangup</source>
-        <translation>Zložiť</translation>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
+        <translation>Zavesiť</translation>
     </message>
     <message>
         <source>Flip</source>
-        <translation>Otočiť</translation>
+        <translation>Obrátiť</translation>
     </message>
     <message>
         <source>Ctrl</source>
@@ -6689,34 +6695,34 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Strana naľavo</translation>
+        <translation type="vanished">Strana naľavo</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Strana nahor</translation>
+        <translation type="vanished">Strana nahor</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Pozícia</translation>
+        <translation type="vanished">Pozícia</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Strana napravo</translation>
+        <translation type="vanished">Strana napravo</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Strana nadol</translation>
+        <translation type="vanished">Strana nadol</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>Chyba vypršania času pre socks5 pripojenia na socks server</translation>
+        <translation type="vanished">Chyba vypršania času pre socks5 pripojenia na socks server</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation type="unfinished">Vypršal čas pre sieťovú operáciu</translation>
+        <translation>Vypršal čas pre sieťovú operáciu</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -7135,54 +7141,54 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Viac</translation>
+        <translation type="vanished">Viac</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Menej</translation>
+        <translation type="vanished">Menej</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>Odstrániť</translation>
+        <translation type="vanished">Odstrániť</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Odstrániť tento záznam?</translation>
+        <translation type="vanished">Odstrániť tento záznam?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Áno</translation>
+        <translation type="vanished">Áno</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Nie</translation>
+        <translation type="vanished">Nie</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Vložiť</translation>
+        <translation type="vanished">Vložiť</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Aktualizovať</translation>
+        <translation type="vanished">Aktualizovať</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Uložiť zmeny?</translation>
+        <translation type="vanished">Uložiť zmeny?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Storno</translation>
+        <translation type="vanished">Storno</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Potvrdenie</translation>
+        <translation type="vanished">Potvrdenie</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Stornovať zmeny?</translation>
+        <translation type="vanished">Stornovať zmeny?</translation>
     </message>
 </context>
 <context>
@@ -7197,35 +7203,35 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Nedá sa poskytnúť certifikát bez kľúča, %1</translation>
+        <translation>Nemôžem poskytnúť certifikát bez kľúča, %1</translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
-        <translation>Chyba čítania lokálneho certifikátu, %1</translation>
+        <translation>Chyba pri načítaní lokálneho certifikátu, %1</translation>
     </message>
     <message>
         <source>Error loading private key, %1</source>
-        <translation>Chyba čítania súkromného kľúča, %1</translation>
+        <translation>Chyba pri načítaní súkromného kľúča, %1</translation>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
-        <translation>Chyba pri vytváraní SSL sedenia, %1</translation>
+        <translation>Chyba pri vytváraní sedenia SSL, %1</translation>
     </message>
     <message>
         <source>Error creating SSL session: %1</source>
-        <translation>Chyba pri vytváraní SSL sedenia: %1</translation>
+        <translation>Chyba pri vytváraní sedenia SSL: %1</translation>
     </message>
     <message>
         <source>Unable to write data: %1</source>
-        <translation>Nedajú sa zapísať dáta: %1</translation>
+        <translation>Nepodarilo sa zapísať dáta: %1</translation>
     </message>
     <message>
         <source>Error while reading: %1</source>
-        <translation>Chyba počas čítania: %1</translation>
+        <translation>Chyba pri čítaní: %1</translation>
     </message>
     <message>
         <source>Error during SSL handshake: %1</source>
-        <translation>Chyba počas SSL handshake: %1</translation>
+        <translation>Chyba počas štartu SSL: %1</translation>
     </message>
     <message>
         <source>No error</source>
@@ -7507,64 +7513,64 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>V&amp;rátiť späť</translation>
+        <translation type="vanished">V&amp;rátiť späť</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Opakovať vrátené</translation>
+        <translation type="vanished">&amp;Opakovať vrátené</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Vys&amp;trihnúť</translation>
+        <translation type="vanished">Vys&amp;trihnúť</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopírovať</translation>
+        <translation type="vanished">&amp;Kopírovať</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Kopírovať cieľ o&amp;dkazu</translation>
+        <translation type="vanished">Kopírovať cieľ o&amp;dkazu</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>V&amp;ložiť</translation>
+        <translation type="vanished">V&amp;ložiť</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Zmazať</translation>
+        <translation type="vanished">Zmazať</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Vybrať všetko</translation>
+        <translation type="vanished">Vybrať všetko</translation>
     </message>
 </context>
 <context>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Stlačiť</translation>
+        <translation type="vanished">Stlačiť</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Otvoriť</translation>
+        <translation type="vanished">Otvoriť</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>Táto platforma nepodporuje IPv6</translation>
+        <translation type="vanished">Táto platforma nepodporuje IPv6</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>Vrátiť späť</translation>
+        <translation type="vanished">Vrátiť späť</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Opakovať vrátené</translation>
+        <translation type="vanished">Opakovať vrátené</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7596,11 +7602,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Vrátiť späť</translation>
+        <translation type="vanished">Vrátiť späť</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Opakovať vrátené</translation>
+        <translation type="vanished">Opakovať vrátené</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7629,43 +7635,43 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation>RLM značka zprava-doľava</translation>
+        <translation>RLM značka sprava-doľava</translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation>ZWJ spájadlo nulovej šírky</translation>
+        <translation>ZWJ Nulová spojovacia medzera</translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation>ZWNJ ne-spájadlo nulovej šírky</translation>
+        <translation>ZWNJ Nulová nespojovacia medzera</translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation>ZWSP medzera nulovej šírky</translation>
+        <translation>ZWSP Nulová medzera</translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation>LRE začiatok zľava-doprava vložky</translation>
+        <translation>LRE Začiatok vkladania zľava-doprava</translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation>RLE začiatok zprava-doľava vložky</translation>
+        <translation>RLE Začiatok vkladania sprava-doľava</translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation>LRO začiatok zľava-doprava prepisu</translation>
+        <translation>LRO Začiatok prepisovania zľava-doprava</translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation>RLO začiatok zprava-doľava prepisu</translation>
+        <translation>RLO Začiatok prepisovania sprava-doľava</translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation>PDF formátovanie pop smerom</translation>
+        <translation>PDF Pop directional formatting</translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
-        <translation>Vložiť Unicode riadiaci znak</translation>
+        <translation>Vložiť kontrolný znak Unicode</translation>
     </message>
     <message>
         <source>LRI Left-to-right isolate</source>
@@ -7689,32 +7695,32 @@ Role of an accessible object</extracomment>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation type="unfinished">Nastaviť pôvodné</translation>
+        <translation type="obsolete">Nastaviť pôvodné</translation>
     </message>
     <message>
         <source>Go Back</source>
         <comment>Back context menu item</comment>
-        <translation type="unfinished">Vrátiť sa späť</translation>
+        <translation type="obsolete">Vrátiť sa späť</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation type="unfinished">Stop</translation>
+        <translation type="obsolete">Stop</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation type="unfinished">Ignorovať</translation>
+        <translation type="obsolete">Ignorovať</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation type="unfinished">Ignorovať</translation>
+        <translation type="obsolete">Ignorovať</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation type="unfinished">Neznáme</translation>
+        <translation type="obsolete">Neznáme</translation>
     </message>
     <message>
         <source>Bad HTTP request</source>
@@ -7939,7 +7945,7 @@ Role of an accessible object</extracomment>
     <name>QWhatsThisAction</name>
     <message>
         <source>What&apos;s This?</source>
-        <translation>Čo je to?</translation>
+        <translation>Čo je toto?</translation>
     </message>
 </context>
 <context>
@@ -8001,7 +8007,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWizard</name>
     <message>
         <source>Go Back</source>
-        <translation>Vrátiť sa späť</translation>
+        <translation>Choď späť</translation>
     </message>
     <message>
         <source>Continue</source>
@@ -8009,15 +8015,15 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Commit</source>
-        <translation>Odovzdať</translation>
+        <translation>Potvrdiť</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Dokončené</translation>
+        <translation>Hotovo</translation>
     </message>
     <message>
         <source>Quit</source>
-        <translation>Opustiť</translation>
+        <translation type="vanished">Opustiť</translation>
     </message>
     <message>
         <source>Help</source>
@@ -8029,11 +8035,11 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Dokončiť</translation>
+        <translation>Do&amp;končiť</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Storno</translation>
+        <translation>Zrušiť</translation>
     </message>
     <message>
         <source>&amp;Help</source>
@@ -8041,77 +8047,77 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation type="unfinished"></translation>
+        <translation>Ď&amp;alší</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation type="unfinished">Ďa&amp;lej &gt;</translation>
+        <translation>Ď&amp;alší &gt;</translation>
     </message>
 </context>
 <context>
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Obnoviť</translation>
+        <translation type="vanished">&amp;Obnoviť</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Presunúť</translation>
+        <translation type="vanished">&amp;Presunúť</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Veľkosť</translation>
+        <translation type="vanished">&amp;Veľkosť</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Mi&amp;nimalizovať</translation>
+        <translation type="vanished">Mi&amp;nimalizovať</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Ma&amp;ximalizovať</translation>
+        <translation type="vanished">Ma&amp;ximalizovať</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Zavrieť</translation>
+        <translation type="vanished">&amp;Zavrieť</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Nechať navr&amp;chu</translation>
+        <translation type="vanished">Nechať navr&amp;chu</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>Za&amp;baliť</translation>
+        <translation type="vanished">Za&amp;baliť</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimalizovať</translation>
+        <translation type="vanished">Minimalizovať</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Obnoviť dolu</translation>
+        <translation type="vanished">Obnoviť dolu</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Zavrieť</translation>
+        <translation type="vanished">Zavrieť</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>&amp;Rozbaliť</translation>
+        <translation type="vanished">&amp;Rozbaliť</translation>
     </message>
 </context>
 <context>
     <name>QXml</name>
     <message>
         <source>no error occurred</source>
-        <translation>nevyskytla sa žiadna chyba</translation>
+        <translation>bez chyby</translation>
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation>chyba vyvolaná zákazníkom</translation>
+        <translation>chyba spustená spotrebiteľom</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
@@ -8119,19 +8125,19 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>more than one document type definition</source>
-        <translation>viac ako jedna definícia typu dokumentu</translation>
+        <translation>viac než jedna definícia typu dokumentu</translation>
     </message>
     <message>
         <source>error occurred while parsing element</source>
-        <translation>chyba počas spracovania elementu</translation>
+        <translation>vyskytla sa chyba pri analýze elementu</translation>
     </message>
     <message>
         <source>tag mismatch</source>
-        <translation>nezodpovedajúca značka</translation>
+        <translation>nezhoda značky</translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
-        <translation>chyba počas spracovania obsahu</translation>
+        <translation>vyskytla sa chyba pri analýze obsahu</translation>
     </message>
     <message>
         <source>unexpected character</source>
@@ -8139,27 +8145,27 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation>neplatné meno pre inštrukciu spracovania</translation>
+        <translation>neplatný názov pre pokyny na spracovanie</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation>očakávaná verzia počas čítania deklarácie XML</translation>
+        <translation>bola očakávaná verzia pri čítaní XML deklarácie</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation>neplatná hodnota pre samostatnú deklaráciu</translation>
+        <translation>chybná hodnota pre samostatnú deklarácia</translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>očakávané kódovanie deklarácie alebo samostatnej deklarácie počas čítania deklarácie XML</translation>
+        <translation>deklarácia kódovania alebo samostatná deklarácia bola očakávaná pri čítaní deklarácie XML</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>očakávaná samostatná deklarácia počas čítania deklarácie XML</translation>
+        <translation>samostatná deklarácia bola očakávaná pri čítaní deklarácie XML</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translation>chyba počas spracovania definície typu dokumentu</translation>
+        <translation>vyskytla sa chyba pri analýze definície typu dokumentu</translation>
     </message>
     <message>
         <source>letter is expected</source>
@@ -8167,27 +8173,27 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>error occurred while parsing comment</source>
-        <translation>chyba počas spracovania dokumentu</translation>
+        <translation>vyskytla sa chyba pri analýze komentára</translation>
     </message>
     <message>
         <source>error occurred while parsing reference</source>
-        <translation>chyba počas spracovania odkazu</translation>
+        <translation>vyskytla sa chyba pri analýze odkazu</translation>
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
-        <translation>v DTD nie je možný interný všeobecný odkaz na entitu</translation>
+        <translation>v DTD nie je povolený odkaz na vnútornú štandardnú entitu</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>v hodnote atribútu nie je možný externý spracovaný odkaz na všeobecnú entitu</translation>
+        <translation>v hodnote atribútu nie je povolený odkaz na externú všeobecnú entitu</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>v DTD nie je možný externý spracovaný odkaz na všeobecnú entitu</translation>
+        <translation>v DTD nie je povolený odkaz na externú všeobecnú entitu</translation>
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translation>nespracovaný odkaz na entitu v neplatnom kontexte</translation>
+        <translation>neanalyzovaný odkaz na entitu v zlom kontexte</translation>
     </message>
     <message>
         <source>recursive entities</source>
@@ -8195,14 +8201,14 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation>chyba v deklarácii textu externej entity</translation>
+        <translation>chyba v textovej deklarácii externej entity</translation>
     </message>
 </context>
 <context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation>Obsah naviac na konci dokumentu.</translation>
+        <translation>Extra obsah na konci dokumentu.</translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
@@ -8210,51 +8216,51 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Invalid XML character.</source>
-        <translation>Neplatný XML znak.</translation>
+        <translation>Neplatný znak XML.</translation>
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation>Postupnosť &apos;]]&gt;&apos; nie je v obsahu prípustná.</translation>
+        <translation>Sekvencia &apos;]]&gt;&apos; nie je povolená v obsahu.</translation>
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translation>Nájdený nesprávne kódovaný obsah.</translation>
+        <translation>Bol nájdený obsah s neplatným kódovaní.</translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation>Predpona &apos;%1&apos; priestoru mien nie je deklarovaná</translation>
+        <translation>Prefix oblasti mien &apos;%1&apos; nebol deklarovaný</translation>
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>Atribút predefinovaný.</translation>
+        <translation type="vanished">Atribút preddefinovaný.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translation>Neočakávaný znak &apos;%1&apos; vo verejnom literálnom id.</translation>
+        <translation>Neočakávaný znak &apos;%1&apos; vo verejnom id literálu.</translation>
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translation>Neplatný reťazec verzie XML.</translation>
+        <translation>Chybný reťazec verzie XML.</translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translation>Nepodporovaná XML veriza.</translation>
+        <translation>Nepodporovaná verzia XML.</translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation>Samostatný pseudo atribút sa musí objaviť za kódovaním.</translation>
+        <translation>Samostatný pseudoatribút musí nasledovať bezprostredne po kódovaní.</translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translation>%1 je neplatné meno kódovania.</translation>
+        <translation>%1 je neplatný názov kódovania.</translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translation>Kódovanie %1 nie podporované</translation>
+        <translation>Kódovanie %1 nie je podporované</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation>Samostatný pripúšťa iba áno alebo nie.</translation>
+        <translation>Vlastnosť samostatný (standalone) akceptuje len áno alebo nie.</translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
@@ -8266,23 +8272,23 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Invalid document.</source>
-        <translation>Neplatný dokument.</translation>
+        <translation>Chybný dokument.</translation>
     </message>
     <message>
         <source>Expected </source>
-        <translation>Očakávalo sa</translation>
+        <translation>Očakávané </translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translation>, ale prišlo &apos;</translation>
+        <translation>, ale vrátené je &apos;</translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translation>Neočákavané &apos;</translation>
+        <translation>Neočakávané &apos;</translation>
     </message>
     <message>
         <source>Expected character data.</source>
-        <translation>Očakávané znakové dáta.</translation>
+        <translation>Boli očakávané znakové údaje.</translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
@@ -8298,15 +8304,15 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translation>XML dekláracia nie je na začiatku dokumentu.</translation>
+        <translation>XML deklarácia nie je na začiatku dokumentu.</translation>
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation>%1 je neplatné meno výkonnej inštrukcie.</translation>
+        <translation>%1 je neplatný názov inštrukcie spracovania.</translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation>Neplatné meno výkonnej inštrukcie.</translation>
+        <translation>Neplatný názov inštrukcie spracovania.</translation>
     </message>
     <message>
         <source>%1 is an invalid PUBLIC identifier.</source>
@@ -8314,19 +8320,19 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translation>Neprípustná deklarácia priestoru mien.</translation>
+        <translation>Zlá deklarácia mennom priestore.</translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
-        <translation>Neplatné XML meno.</translation>
+        <translation>Neplatný názov XML.</translation>
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation>Nesúhlasia otváracia a koncová značka.</translation>
+        <translation>Počet otváracích a uzavieracích značiek nesúhlasí.</translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Odkaz na nespracovanú entitu &apos;%1&apos;.</translation>
+        <translation>Odkaz na neanalyzovanú entitu &apos;%1&apos;.</translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
@@ -8349,55 +8355,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation type="unfinished">Posunúť sem</translation>
+        <translation type="obsolete">Posunúť sem</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation type="unfinished">Ľavá hrana</translation>
+        <translation type="obsolete">Ľavá hrana</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation type="unfinished">Vrch</translation>
+        <translation type="obsolete">Vrch</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation type="unfinished">Pravá hrana</translation>
+        <translation type="obsolete">Pravá hrana</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation type="unfinished">Spodok</translation>
+        <translation type="obsolete">Spodok</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation type="unfinished">Strana naľavo</translation>
+        <translation type="obsolete">Strana naľavo</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation type="unfinished">Strana nahor</translation>
+        <translation type="obsolete">Strana nahor</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation type="unfinished">Strana napravo</translation>
+        <translation type="obsolete">Strana napravo</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation type="unfinished">Strana nadol</translation>
+        <translation type="obsolete">Strana nadol</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation type="unfinished">Posunúť naľavo</translation>
+        <translation type="obsolete">Posunúť naľavo</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation type="unfinished">Posunúť nahor</translation>
+        <translation type="obsolete">Posunúť nahor</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation type="unfinished">Posunúť napravo</translation>
+        <translation type="obsolete">Posunúť napravo</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation type="unfinished">Posunúť nadol</translation>
+        <translation type="obsolete">Posunúť nadol</translation>
     </message>
 </context>
 <context>
