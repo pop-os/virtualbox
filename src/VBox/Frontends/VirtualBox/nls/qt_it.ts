@@ -5,15 +5,15 @@
     <name>AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;Il dispositivo di riproduzione audio &lt;b&gt;%1&lt;/b&gt; non funziona.&lt;br/&gt;Ripiego su &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;Il dispositivo di riproduzione audio &lt;b&gt;%1&lt;/b&gt; non funziona.&lt;br/&gt;Ripiego su &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;Commutazione del dispositivo di riproduzione audio &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;che è diventato disponibile e ha una preferenza maggiore.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;Commutazione del dispositivo di riproduzione audio &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;che è diventato disponibile e ha una preferenza maggiore.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Revert back to device &apos;%1&apos;</source>
-        <translation>Ripristino del dispositivo &apos;%1&apos;</translation>
+        <translation type="vanished">Ripristino del dispositivo &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -47,7 +47,7 @@
     </message>
     <message>
         <source>Quit %1</source>
-        <translation>Chiudi %1</translation>
+        <translation>Esci da %1</translation>
     </message>
     <message>
         <source>About %1</source>
@@ -58,27 +58,27 @@
     <name>Phonon::</name>
     <message>
         <source>Notifications</source>
-        <translation>Notifiche</translation>
+        <translation type="vanished">Notifiche</translation>
     </message>
     <message>
         <source>Music</source>
-        <translation>Musica</translation>
+        <translation type="vanished">Musica</translation>
     </message>
     <message>
         <source>Video</source>
-        <translation>Video</translation>
+        <translation type="vanished">Video</translation>
     </message>
     <message>
         <source>Communication</source>
-        <translation>Comunicazione</translation>
+        <translation type="vanished">Comunicazione</translation>
     </message>
     <message>
         <source>Games</source>
-        <translation>Giochi</translation>
+        <translation type="vanished">Giochi</translation>
     </message>
     <message>
         <source>Accessibility</source>
-        <translation>Accessibilità</translation>
+        <translation type="vanished">Accessibilità</translation>
     </message>
 </context>
 <context>
@@ -86,13 +86,13 @@
     <message>
         <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
           Some video features have been disabled.</source>
-        <translation>Avviso: sembra che il pacchetto gstreamer0.10-plugins-good non sia installato.
+        <translation type="vanished">Avviso: sembra che il pacchetto gstreamer0.10-plugins-good non sia installato.
           Alcune funzionalità video sono state disabilitate.</translation>
     </message>
     <message>
         <source>Warning: You do not seem to have the base GStreamer plugins installed.
           All audio and video support has been disabled</source>
-        <translation>Avviso: sembra che il componente GStreamer di base non sia installato.
+        <translation type="vanished">Avviso: sembra che il componente GStreamer di base non sia installato.
           Tutti i supporti audio e video sono stati disabilitati</translation>
     </message>
 </context>
@@ -103,318 +103,318 @@
 
 Check your Gstreamer installation and make sure you 
 have libgstreamer-plugins-base installed.</source>
-        <translation>Impossibile avviare la riproduzione.
+        <translation type="vanished">Impossibile avviare la riproduzione.
 Controlla l&apos;installazione di Gstreamer e assicurati che
 libgstreamer-plugins-base sia installato.</translation>
     </message>
     <message numerus="yes">
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>Manca un codificatore richiesto. Devi installare il seguente codificatore per riprodurre questo contenuto: %0</numerusform>
             <numerusform>Manca un codificatore richiesto. Devi installare i seguenti codificatori per riprodurre questo contenuto: %0</numerusform>
         </translation>
     </message>
     <message>
         <source>Could not open media source.</source>
-        <translation>Impossibile aprire la sorgente multimediale.</translation>
+        <translation type="vanished">Impossibile aprire la sorgente multimediale.</translation>
     </message>
     <message>
         <source>Invalid source type.</source>
-        <translation>Tipo di sorgente non valido.</translation>
+        <translation type="vanished">Tipo di sorgente non valido.</translation>
     </message>
     <message>
         <source>Could not locate media source.</source>
-        <translation>Impossibile individuare la sorgente multimediale.</translation>
+        <translation type="vanished">Impossibile individuare la sorgente multimediale.</translation>
     </message>
     <message>
         <source>Could not open audio device. The device is already in use.</source>
-        <translation>Impossibile aprire il dispositivo audio. Il dispositivo è già in uso.</translation>
+        <translation type="vanished">Impossibile aprire il dispositivo audio. Il dispositivo è già in uso.</translation>
     </message>
     <message>
         <source>Could not decode media source.</source>
-        <translation>Impossibile decodificare la sorgente multimediale.</translation>
+        <translation type="vanished">Impossibile decodificare la sorgente multimediale.</translation>
     </message>
 </context>
 <context>
     <name>Phonon::VolumeSlider</name>
     <message>
         <source>Volume: %1%</source>
-        <translation>Volume: %1%</translation>
+        <translation type="vanished">Volume: %1%</translation>
     </message>
     <message>
         <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
-        <translation>Utilizza questo cursore per regolare il volume. La posizione all&apos;estrema sinistra è 0%, a destra è %1%</translation>
+        <translation type="vanished">Utilizza questo cursore per regolare il volume. La posizione all&apos;estrema sinistra è 0%, a destra è %1%</translation>
     </message>
 </context>
 <context>
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 non definito</translation>
+        <translation type="vanished">%1, %2 non definito</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>Ambiguità di %1 non gestita</translation>
+        <translation type="vanished">Ambiguità di %1 non gestita</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Vero</translation>
+        <translation type="vanished">Vero</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Falso</translation>
+        <translation type="vanished">Falso</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Inserisci</translation>
+        <translation type="vanished">Inserisci</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Aggiorna</translation>
+        <translation type="vanished">Aggiorna</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Elimina</translation>
+        <translation type="vanished">Elimina</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Copia o sposta un file</translation>
+        <translation type="vanished">Copia o sposta un file</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Lettura: %1</translation>
+        <translation type="vanished">Lettura: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Scrittura: %1</translation>
+        <translation type="vanished">Scrittura: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annulla</translation>
+        <translation type="vanished">Annulla</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Tutti i file (*)</translation>
+        <translation type="vanished">Tutti i file (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Nome</translation>
+        <translation type="vanished">Nome</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Dimensione</translation>
+        <translation type="vanished">Dimensione</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>Tipo</translation>
+        <translation type="vanished">Tipo</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Data</translation>
+        <translation type="vanished">Data</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Attributi</translation>
+        <translation type="vanished">Attributi</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="vanished">&amp;OK</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Cerca &amp;in:</translation>
+        <translation type="vanished">Cerca &amp;in:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>&amp;Nome file:</translation>
+        <translation type="vanished">&amp;Nome file:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>&amp;Tipo file:</translation>
+        <translation type="vanished">&amp;Tipo file:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Indietro</translation>
+        <translation type="vanished">Indietro</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>Livello superiore</translation>
+        <translation type="vanished">Livello superiore</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Crea una nuova cartella</translation>
+        <translation type="vanished">Crea una nuova cartella</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Vista a elenco</translation>
+        <translation type="vanished">Vista a elenco</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Vista dettagliata</translation>
+        <translation type="vanished">Vista dettagliata</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>Informazioni anteprima file</translation>
+        <translation type="vanished">Informazioni anteprima file</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>Anteprima del contenuto dei file</translation>
+        <translation type="vanished">Anteprima del contenuto dei file</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Lettura-scrittura</translation>
+        <translation type="vanished">Lettura-scrittura</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Sola lettura</translation>
+        <translation type="vanished">Sola lettura</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Sola scrittura</translation>
+        <translation type="vanished">Sola scrittura</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Inaccessibile</translation>
+        <translation type="vanished">Inaccessibile</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Collegamento simbolico a un file</translation>
+        <translation type="vanished">Collegamento simbolico a un file</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Collegamento simbolico a una cartella</translation>
+        <translation type="vanished">Collegamento simbolico a una cartella</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Collegamento simbolico a speciale</translation>
+        <translation type="vanished">Collegamento simbolico a speciale</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Cartella</translation>
+        <translation type="vanished">Cartella</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Speciale</translation>
+        <translation type="vanished">Speciale</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Apri</translation>
+        <translation type="vanished">Apri</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Salva come</translation>
+        <translation type="vanished">Salva come</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Apri</translation>
+        <translation type="vanished">&amp;Apri</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Salva</translation>
+        <translation type="vanished">&amp;Salva</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Rinomina</translation>
+        <translation type="vanished">&amp;Rinomina</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Elimina</translation>
+        <translation type="vanished">&amp;Elimina</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>Ri&amp;carica</translation>
+        <translation type="vanished">Ri&amp;carica</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Ordina per &amp;nome</translation>
+        <translation type="vanished">Ordina per &amp;nome</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Ordina per dimen&amp;sione</translation>
+        <translation type="vanished">Ordina per dimen&amp;sione</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Ordina per &amp;data</translation>
+        <translation type="vanished">Ordina per &amp;data</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Non ordinati</translation>
+        <translation type="vanished">&amp;Non ordinati</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Ordina</translation>
+        <translation type="vanished">Ordina</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Mos&amp;tra file nascosti</translation>
+        <translation type="vanished">Mos&amp;tra file nascosti</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>il file</translation>
+        <translation type="vanished">il file</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>la cartella</translation>
+        <translation type="vanished">la cartella</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>il collegamento simbolico</translation>
+        <translation type="vanished">il collegamento simbolico</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>Elimina %1</translation>
+        <translation type="vanished">Elimina %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Sei sicuro di voler eliminare %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Sei sicuro di voler eliminare %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Sì</translation>
+        <translation type="vanished">&amp;Sì</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;No</translation>
+        <translation type="vanished">&amp;No</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Nuova cartella 1</translation>
+        <translation type="vanished">Nuova cartella 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Nuova cartella</translation>
+        <translation type="vanished">Nuova cartella</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Nuova cartella %1</translation>
+        <translation type="vanished">Nuova cartella %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Trova cartella</translation>
+        <translation type="vanished">Trova cartella</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Cartelle</translation>
+        <translation type="vanished">Cartelle</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Cartella:</translation>
+        <translation type="vanished">Cartella:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Errore</translation>
+        <translation type="vanished">Errore</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
+        <translation type="vanished">%1
 File non trovato.
 Controlla il percorso e il nome del file.</translation>
     </message>
@@ -428,19 +428,19 @@ Controlla il percorso e il nome del file.</translation>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Impossibile leggere la cartella
+        <translation type="vanished">Impossibile leggere la cartella
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Impossibile creare la cartella
+        <translation type="vanished">Impossibile creare la cartella
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Impossibile rimuovere il file o la cartella
+        <translation type="vanished">Impossibile rimuovere il file o la cartella
 %1</translation>
     </message>
     <message>
@@ -448,7 +448,7 @@ Controlla il percorso e il nome del file.</translation>
 %1
 to
 %2</source>
-        <translation>Impossibile rinominare
+        <translation type="vanished">Impossibile rinominare
 %1
 in
 %2</translation>
@@ -456,13 +456,13 @@ in
     <message>
         <source>Could not open
 %1</source>
-        <translation>Impossibile aprire
+        <translation type="vanished">Impossibile aprire
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Impossibile scrivere
+        <translation type="vanished">Impossibile scrivere
 %1</translation>
     </message>
 </context>
@@ -470,44 +470,44 @@ in
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>Allinea in alto</translation>
+        <translation type="vanished">Allinea in alto</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>Personalizza...</translation>
+        <translation type="vanished">Personalizza...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>Operazione fermata dall&apos;utente</translation>
+        <translation type="vanished">Operazione fermata dall&apos;utente</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Annulla</translation>
+        <translation type="vanished">Annulla</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>Apply</source>
-        <translation>Applica</translation>
+        <translation type="vanished">Applica</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Aiuto</translation>
+        <translation type="vanished">Aiuto</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Predefiniti</translation>
+        <translation type="vanished">Predefiniti</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annulla</translation>
+        <translation type="vanished">Annulla</translation>
     </message>
     <message>
         <source>OK</source>
@@ -518,155 +518,155 @@ in
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>A&amp;nnulla</translation>
+        <translation type="vanished">A&amp;nnulla</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Rifai</translation>
+        <translation type="vanished">&amp;Rifai</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Taglia</translation>
+        <translation type="vanished">&amp;Taglia</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Copia</translation>
+        <translation type="vanished">&amp;Copia</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Incolla</translation>
+        <translation type="vanished">&amp;Incolla</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Pulisci</translation>
+        <translation type="vanished">Pulisci</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Seleziona tutto</translation>
+        <translation type="vanished">Seleziona tutto</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>Sistema</translation>
+        <translation type="vanished">Sistema</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>Ripristina</translation>
+        <translation type="vanished">Ripristina</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimizza</translation>
+        <translation type="vanished">Minimizza</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Minimizza</translation>
+        <translation type="vanished">Minimizza</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Massimizza</translation>
+        <translation type="vanished">Massimizza</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Chiudi</translation>
+        <translation type="vanished">Chiudi</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Contiene comandi per manipolare la finestra</translation>
+        <translation type="vanished">Contiene comandi per manipolare la finestra</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>Riporta una finestra minimizzata alla normalità</translation>
+        <translation type="vanished">Riporta una finestra minimizzata alla normalità</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>Sposta altrove una finestra</translation>
+        <translation type="vanished">Sposta altrove una finestra</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Riporta una finestra massimizzata alla normalità</translation>
+        <translation type="vanished">Riporta una finestra massimizzata alla normalità</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Rende la finestra a schermo intero</translation>
+        <translation type="vanished">Rende la finestra a schermo intero</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Chiude la finestra</translation>
+        <translation type="vanished">Chiude la finestra</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Visualizza il nome della finestra e contiene i controlli per manipolarla</translation>
+        <translation type="vanished">Visualizza il nome della finestra e contiene i controlli per manipolarla</translation>
     </message>
 </context>
 <context>
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Altro...</translation>
+        <translation type="vanished">Altro...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>Il protocollo «%1» non è supportato</translation>
+        <translation type="vanished">Il protocollo «%1» non è supportato</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>Il protocollo «%1» non supporta l&apos;elencazione delle cartelle</translation>
+        <translation type="vanished">Il protocollo «%1» non supporta l&apos;elencazione delle cartelle</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Il protocollo «%1» non supporta la creazione di nuove cartelle</translation>
+        <translation type="vanished">Il protocollo «%1» non supporta la creazione di nuove cartelle</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Il protocollo «%1» non supporta la rimozione di file o cartelle</translation>
+        <translation type="vanished">Il protocollo «%1» non supporta la rimozione di file o cartelle</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Il protocollo «%1» non supporta la rinomina di file o cartelle</translation>
+        <translation type="vanished">Il protocollo «%1» non supporta la rinomina di file o cartelle</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>Il protocollo «%1» non supporta la ricezione di file</translation>
+        <translation type="vanished">Il protocollo «%1» non supporta la ricezione di file</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>Il protocollo «%1» non supporta l&apos;invio di file</translation>
+        <translation type="vanished">Il protocollo «%1» non supporta l&apos;invio di file</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Il protocollo «%1» non supporta la copia o lo spostamento di file o cartelle</translation>
+        <translation type="vanished">Il protocollo «%1» non supporta la copia o lo spostamento di file o cartelle</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(sconosciuto)</translation>
+        <translation type="vanished">(sconosciuto)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>A&amp;nnulla</translation>
+        <translation type="vanished">A&amp;nnulla</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Indietro</translation>
+        <translation type="vanished">&lt; &amp;Indietro</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Avanti &gt;</translation>
+        <translation type="vanished">&amp;Avanti &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Fine</translation>
+        <translation type="vanished">&amp;Fine</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>Ai&amp;uto</translation>
+        <translation type="vanished">Ai&amp;uto</translation>
     </message>
 </context>
 <context>
@@ -681,11 +681,11 @@ in
     </message>
     <message>
         <source>Socket operation timed out</source>
-        <translation>Operazione di socket scaduta</translation>
+        <translation>Operazione sul socket scaduta</translation>
     </message>
     <message>
         <source>Socket is not connected</source>
-        <translation>Il socket non è connesso</translation>
+        <translation>Socket non connesso</translation>
     </message>
     <message>
         <source>Operation on socket is not supported</source>
@@ -708,7 +708,7 @@ in
     <name>QAbstractSpinBox</name>
     <message>
         <source>&amp;Step up</source>
-        <translation>A&amp;umenta</translation>
+        <translation>&amp;Aumenta</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
@@ -841,39 +841,39 @@ in
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Attiva</translation>
+        <translation type="vanished">Attiva</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>L&apos;eseguibile «%1» richiede Qt %2, trovate Qt %3.</translation>
+        <translation>L&apos;eseguibile &apos;%1&apos; richiede Qt %2, trovata Qt %3.</translation>
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation>Errore di libreria Qt incompatibile</translation>
+        <translation>Errore: libreria Qt non compatibile</translation>
     </message>
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Attiva la finestra principale del programma</translation>
+        <translation type="vanished">Attiva la finestra principale del programma</translation>
     </message>
 </context>
 <context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Deseleziona</translation>
+        <translation type="vanished">Deseleziona</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Seleziona</translation>
+        <translation type="vanished">Seleziona</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Commuta</translation>
+        <translation type="vanished">Commuta</translation>
     </message>
 </context>
 <context>
@@ -942,7 +942,7 @@ in
     <name>QColorDialog</name>
     <message>
         <source>Hu&amp;e:</source>
-        <translation>T&amp;on:</translation>
+        <translation>Tint&amp;a:</translation>
     </message>
     <message>
         <source>&amp;Sat:</source>
@@ -966,7 +966,7 @@ in
     </message>
     <message>
         <source>A&amp;lpha channel:</source>
-        <translation>Canale a&amp;lpha:</translation>
+        <translation>Canale a&amp;lfa:</translation>
     </message>
     <message>
         <source>&amp;Basic colors</source>
@@ -982,7 +982,7 @@ in
     </message>
     <message>
         <source>Select color</source>
-        <translation>Seleziona colore</translation>
+        <translation type="vanished">Seleziona colore</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -1017,7 +1017,7 @@ Premi ESC per annullare</translation>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Apri</translation>
+        <translation type="vanished">Apri</translation>
     </message>
     <message>
         <source>False</source>
@@ -1029,7 +1029,7 @@ Premi ESC per annullare</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Chiudi</translation>
+        <translation type="vanished">Chiudi</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1084,27 +1084,27 @@ Premi ESC per annullare</translation>
     <message>
         <source>%1: permission denied</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: permesso negato</translation>
+        <translation type="vanished">%1: permesso negato</translation>
     </message>
     <message>
         <source>%1: already exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: esiste già</translation>
+        <translation type="vanished">%1: esiste già</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: non esiste</translation>
+        <translation type="vanished">%1: non esiste</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: risorse insufficienti</translation>
+        <translation type="vanished">%1: risorse insufficienti</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: errore sconosciuto %2</translation>
+        <translation type="vanished">%1: errore sconosciuto %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
@@ -1230,15 +1230,15 @@ Premi ESC per annullare</translation>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Impossibile connettersi</translation>
+        <translation>Connessione non riuscita</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Impossibile applicare la transazione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Impossibile effettuare il rollback della transazione</translation>
+        <translation>Impossibile annullare la transazione</translation>
     </message>
     <message>
         <source>Unable to set autocommit</source>
@@ -1249,15 +1249,15 @@ Premi ESC per annullare</translation>
     <name>QDB2Result</name>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Impossibile eseguire l&apos;istruzione</translation>
+        <translation>Impossibile eseguire il comando</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Impossibile preparare l&apos;istruzione</translation>
+        <translation>Impossibile preparare il comando</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation>Impossibile associare la variabile</translation>
+        <translation>Impossibile effettuare il bind della variabile</translation>
     </message>
     <message>
         <source>Unable to fetch record %1</source>
@@ -1265,7 +1265,7 @@ Premi ESC per annullare</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>Impossibile recuperare il prossimo</translation>
+        <translation>Impossibile recuperare il successivo</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
@@ -1283,19 +1283,19 @@ Premi ESC per annullare</translation>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation></translation>
+        <translation type="vanished">AM</translation>
     </message>
     <message>
         <source>am</source>
-        <translation></translation>
+        <translation type="vanished">am</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation></translation>
+        <translation type="vanished">PM</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation></translation>
+        <translation type="vanished">pm</translation>
     </message>
 </context>
 <context>
@@ -1321,11 +1321,11 @@ Premi ESC per annullare</translation>
     <name>QDial</name>
     <message>
         <source>SpeedoMeter</source>
-        <translation>SpeedoMeter</translation>
+        <translation type="vanished">SpeedoMeter</translation>
     </message>
     <message>
         <source>SliderHandle</source>
-        <translation>SliderHandle</translation>
+        <translation type="vanished">SliderHandle</translation>
     </message>
     <message>
         <source>QDial</source>
@@ -1336,98 +1336,98 @@ Premi ESC per annullare</translation>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
-        <translation>Cos&apos;è?</translation>
+        <translation>Che cos&apos;è?</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation>Completato</translation>
+        <translation type="vanished">Completato</translation>
     </message>
 </context>
 <context>
     <name>QDialogButtonBox</name>
     <message>
         <source>OK</source>
-        <translation></translation>
+        <translation>OK</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>Salva</translation>
+        <translation type="vanished">Salva</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Apri</translation>
+        <translation type="vanished">Apri</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annulla</translation>
+        <translation type="vanished">Annulla</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Chiudi</translation>
+        <translation type="vanished">Chiudi</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Applica</translation>
+        <translation type="vanished">Applica</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Ripristina</translation>
+        <translation type="vanished">Ripristina</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Aiuto</translation>
+        <translation type="vanished">Aiuto</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Non salvare</translation>
+        <translation type="vanished">Non salvare</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Scarta</translation>
+        <translation type="vanished">Tralascia</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Sì</translation>
+        <translation type="vanished">&amp;Sì</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Sì &amp;a tutti </translation>
+        <translation type="vanished">Sì &amp;a tutti</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;No</translation>
+        <translation type="vanished">&amp;No</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>N&amp;o a tutti</translation>
+        <translation type="vanished">N&amp;o a tutti</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Salva tutto</translation>
+        <translation type="vanished">Salva tutti</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Interrompi</translation>
+        <translation type="vanished">Interrompi</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Riprova</translation>
+        <translation type="vanished">Riprova</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Ignora</translation>
+        <translation type="vanished">Ignora</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Ripristina valori predefiniti</translation>
+        <translation type="vanished">Ripristina valori predefiniti</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>Chiudi senza salvare</translation>
+        <translation type="vanished">Chiudi senza salvare</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="vanished">&amp;OK</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -1455,7 +1455,7 @@ Premi ESC per annullare</translation>
     <message>
         <source>Kind</source>
         <comment>Match OS X Finder</comment>
-        <translation>Specie</translation>
+        <translation>Tipo</translation>
     </message>
     <message>
         <source>Type</source>
@@ -1581,15 +1581,17 @@ Premi ESC per annullare</translation>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>Chiudi</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translation>Aggancia</translation>
+        <translation type="vanished">Aggancia</translation>
     </message>
     <message>
         <source>Float</source>
-        <translation>Mobile</translation>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
+        <translation>Fluttua</translation>
     </message>
     <message>
         <source>Undocks and re-attaches the dock widget</source>
@@ -1604,11 +1606,11 @@ Premi ESC per annullare</translation>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Più</translation>
+        <translation type="vanished">Più</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Meno</translation>
+        <translation type="vanished">Meno</translation>
     </message>
 </context>
 <context>
@@ -1619,11 +1621,11 @@ Premi ESC per annullare</translation>
     </message>
     <message>
         <source>Warning:</source>
-        <translation>Avviso:</translation>
+        <translation>Avvertimento:</translation>
     </message>
     <message>
         <source>Fatal Error:</source>
-        <translation>Errore grave:</translation>
+        <translation>Errore fatale:</translation>
     </message>
     <message>
         <source>&amp;Show this message again</source>
@@ -1631,7 +1633,7 @@ Premi ESC per annullare</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation></translation>
+        <translation>&amp;OK</translation>
     </message>
 </context>
 <context>
@@ -1713,7 +1715,7 @@ Premi ESC per annullare</translation>
     <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
-        <translation>%1 già esiste.
+        <translation>%1 esiste già.
 Vuoi sostituirlo?</translation>
     </message>
     <message>
@@ -1722,11 +1724,11 @@ File not found.
 Please verify the correct file name was given.</source>
         <translation>%1
 File non trovato.
-Verifica che sia stato fornito il nome file corretto.</translation>
+Verifica che sia stato inserito il nome corretto del file.</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation>Risorse del computer</translation>
+        <translation>Il mio computer</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
@@ -1738,7 +1740,7 @@ Verifica che sia stato fornito il nome file corretto.</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Mos&amp;tra file nascosti</translation>
+        <translation>Mostra i &amp;file nascosti</translation>
     </message>
     <message>
         <source>Back</source>
@@ -1746,7 +1748,7 @@ Verifica che sia stato fornito il nome file corretto.</translation>
     </message>
     <message>
         <source>Parent Directory</source>
-        <translation>Cartella genitrice</translation>
+        <translation>Cartella superiore</translation>
     </message>
     <message>
         <source>List View</source>
@@ -1770,21 +1772,21 @@ Directory not found.
 Please verify the correct directory name was given.</source>
         <translation>%1
 Cartella non trovata.
-Verifica che sia stato fornito il nome corretto della cartella.</translation>
+Verifica che sia stato inserito il nome corretto della cartella.</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is write protected.
 Do you want to delete it anyway?</source>
-        <translation>«%1» è protetto da scrittura.
+        <translation>&apos;%1&apos; è protetto da scrittura.
 Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Sei sicuro di voler eliminare &apos;%1&apos;?</translation>
+        <translation type="vanished">Sei sicuro di voler eliminare &apos;%1&apos;?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
-        <translation>Impossibile eliminare la cartella.</translation>
+        <translation>Impossibile rimuovere la cartella.</translation>
     </message>
     <message>
         <source>Save As</source>
@@ -1792,11 +1794,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Drive</source>
-        <translation>Disco</translation>
+        <translation>Unità</translation>
     </message>
     <message>
         <source>File</source>
-        <translation></translation>
+        <translation>File</translation>
     </message>
     <message>
         <source>Unknown</source>
@@ -1808,11 +1810,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Show </source>
-        <translation>Mostra</translation>
+        <translation>Mostra </translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation>Avanti</translation>
+        <translation>Vai avanti</translation>
     </message>
     <message>
         <source>New Folder</source>
@@ -1828,11 +1830,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation>Rimuovi</translation>
+        <translation>Elimina</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>&amp;Nome file:</translation>
+        <translation>&amp;Nome del file:</translation>
     </message>
     <message>
         <source>Look in:</source>
@@ -1941,11 +1943,11 @@ Vuoi eliminarlo comunque?</translation>
     <name>QFileSystemModel</name>
     <message>
         <source>Invalid filename</source>
-        <translation>Nome file non valido</translation>
+        <translation>Nome del file non valido</translation>
     </message>
     <message>
         <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
-        <translation>&lt;b&gt;Il nome &quot;%1&quot; non può essere utilizzato.&lt;/b&gt;&lt;p&gt;Prova a utilizzare un altro nome, con meno caratteri e nessun segno di punteggiatura.</translation>
+        <translation>&lt;b&gt;Il nome &quot;%1&quot; non può essere usato.&lt;/b&gt;&lt;p&gt;Prova ad utilizzare un altro nome, con meno caratteri o senza punteggiatura.</translation>
     </message>
     <message>
         <source>Name</source>
@@ -1958,7 +1960,7 @@ Vuoi eliminarlo comunque?</translation>
     <message>
         <source>Kind</source>
         <comment>Match OS X Finder</comment>
-        <translation>Specie</translation>
+        <translation>Tipo</translation>
     </message>
     <message>
         <source>Type</source>
@@ -1971,11 +1973,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation>Risorse del computer</translation>
+        <translation>Il mio computer</translation>
     </message>
     <message>
         <source>Computer</source>
-        <translation></translation>
+        <translation>Computer</translation>
     </message>
     <message>
         <source>%1 TB</source>
@@ -2006,7 +2008,7 @@ Vuoi eliminarlo comunque?</translation>
     <name>QFontDatabase</name>
     <message>
         <source>Normal</source>
-        <translation>Normale</translation>
+        <translation type="vanished">Normale</translation>
     </message>
     <message>
         <source>Bold</source>
@@ -2014,15 +2016,16 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation>Demi grassetto</translation>
+        <translation>Semigrassetto</translation>
     </message>
     <message>
         <source>Black</source>
-        <translation>Nero</translation>
+        <translation>Marcato</translation>
     </message>
     <message>
         <source>Demi</source>
-        <translation></translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation>Semi</translation>
     </message>
     <message>
         <source>Light</source>
@@ -2038,7 +2041,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Any</source>
-        <translation>Qualunque</translation>
+        <translation>Qualsiasi</translation>
     </message>
     <message>
         <source>Latin</source>
@@ -2058,7 +2061,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Hebrew</source>
-        <translation>Ebreo</translation>
+        <translation>Ebraico</translation>
     </message>
     <message>
         <source>Arabic</source>
@@ -2066,15 +2069,15 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Syriac</source>
-        <translation>Siriano</translation>
+        <translation>Siriaco</translation>
     </message>
     <message>
         <source>Thaana</source>
-        <translation></translation>
+        <translation>Thaana</translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation></translation>
+        <translation>Devanagari</translation>
     </message>
     <message>
         <source>Bengali</source>
@@ -2082,43 +2085,43 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation></translation>
+        <translation>Gurmukhi</translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation></translation>
+        <translation>Gujarati</translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation></translation>
+        <translation>Oriya</translation>
     </message>
     <message>
         <source>Tamil</source>
-        <translation></translation>
+        <translation>Tamil</translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation></translation>
+        <translation>Telugu</translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation></translation>
+        <translation>Kannada</translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation></translation>
+        <translation>Malayalam</translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation></translation>
+        <translation>Singalese</translation>
     </message>
     <message>
         <source>Thai</source>
-        <translation>Thai</translation>
+        <translation>Thailandese</translation>
     </message>
     <message>
         <source>Lao</source>
-        <translation></translation>
+        <translation>Lao</translation>
     </message>
     <message>
         <source>Tibetan</source>
@@ -2126,7 +2129,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation></translation>
+        <translation>Birmano</translation>
     </message>
     <message>
         <source>Georgian</source>
@@ -2134,7 +2137,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation></translation>
+        <translation>Khmer</translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
@@ -2162,7 +2165,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation></translation>
+        <translation>Ogamico</translation>
     </message>
     <message>
         <source>Runic</source>
@@ -2208,7 +2211,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Font st&amp;yle</source>
-        <translation>S&amp;tile del carattere</translation>
+        <translation>St&amp;ile del carattere</translation>
     </message>
     <message>
         <source>&amp;Size</source>
@@ -2220,11 +2223,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation>S&amp;barrato</translation>
+        <translation>Ba&amp;rrato</translation>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation>S&amp;ottolineato</translation>
+        <translation>Sottolineat&amp;o</translation>
     </message>
     <message>
         <source>Sample</source>
@@ -2232,7 +2235,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation>S&amp;istema di scrittura</translation>
+        <translation>Sistema di scr&amp;ittura</translation>
     </message>
     <message>
         <source>Select Font</source>
@@ -2255,11 +2258,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Connessione all&apos;host %1</translation>
+        <translation>Connesso all&apos;host %1</translation>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>Connessione rifiutata per la connessione dati</translation>
+        <translation type="vanished">Connessione rifiutata per trasferimento dati</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2274,70 +2277,70 @@ Vuoi eliminarlo comunque?</translation>
     <message>
         <source>Login failed:
 %1</source>
-        <translation>Accesso non riuscito:
+        <translation>Login non riuscito:
 %1</translation>
     </message>
     <message>
         <source>Listing directory failed:
 %1</source>
-        <translation>Elencazione della cartella non riuscita:
+        <translation>Recupero del contenuto della cartella non riuscito:
 %1</translation>
     </message>
     <message>
         <source>Changing directory failed:
 %1</source>
-        <translation>Cambiamento cartella non riuscito:
+        <translation>Cambio della cartella non riuscito:
 %1</translation>
     </message>
     <message>
         <source>Downloading file failed:
 %1</source>
-        <translation>Scaricamento file non riuscito:
+        <translation>Scaricamento del file non riuscito:
 %1</translation>
     </message>
     <message>
         <source>Uploading file failed:
 %1</source>
-        <translation>Invio file non riuscito:
+        <translation>Caricamento del file non riuscito:
 %1</translation>
     </message>
     <message>
         <source>Removing file failed:
 %1</source>
-        <translation>Rimozione file non riuscita:
+        <translation>Eliminazione del file non riuscita:
 %1</translation>
     </message>
     <message>
         <source>Creating directory failed:
 %1</source>
-        <translation>Creazione cartella non riuscita:
+        <translation>Creazione della cartella non riuscita:
 %1</translation>
     </message>
     <message>
         <source>Removing directory failed:
 %1</source>
-        <translation>Rimozione cartella non riuscita:
+        <translation>Eliminazione della cartella non riuscita:
 %1</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation>Connessione chiusa</translation>
+        <translation>Connessione interrotta</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Trovato l&apos;host %1</translation>
+        <translation type="vanished">Trovato l&apos;host %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Connessione a %1 chiusa</translation>
+        <translation type="vanished">Connessione a %1 chiusa</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Host trovato</translation>
+        <translation type="vanished">Host trovato</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Connessione all&apos;host</translation>
+        <translation type="vanished">Connessione all&apos;host</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -2421,23 +2424,23 @@ Vuoi eliminarlo comunque?</translation>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>Errore sconosciuto</translation>
+        <translation type="vanished">Errore sconosciuto</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>Richiesta interrotta</translation>
+        <translation type="vanished">Richiesta interrotta</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>Nessun server impostato per la connessione</translation>
+        <translation type="vanished">Nessun server impostato per la connessione</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>Lunghezza del contenuto non corretta</translation>
+        <translation type="vanished">Lunghezza del contenuto non corretta</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>Il server ha terminato inaspettatamente la connessione</translation>
+        <translation type="vanished">Il server ha terminato inaspettatamente la connessione</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -2449,75 +2452,75 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>Richiesta HTTP non riuscita</translation>
+        <translation type="vanished">Richiesta HTTP non riuscita</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>Intestazione della risposta HTTP non valida</translation>
+        <translation type="vanished">Intestazione della risposta HTTP non valida</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>Contenuto HTTP spezzettato non valido</translation>
+        <translation type="vanished">Contenuto HTTP spezzettato non valido</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Host %1 trovato</translation>
+        <translation type="vanished">Host %1 trovato</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Connessione all&apos;host %1</translation>
+        <translation type="vanished">Connessione all&apos;host %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Connessione a %1 chiusa</translation>
+        <translation type="vanished">Connessione a %1 chiusa</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Host trovato</translation>
+        <translation type="vanished">Host trovato</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Connessione all&apos;host</translation>
+        <translation type="vanished">Connessione all&apos;host</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation>Connessione chiusa</translation>
+        <translation>Connessione interrotta</translation>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>Richiesta autenticazione proxy</translation>
+        <translation type="vanished">Richiesta autenticazione proxy</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Autenticazione richiesta</translation>
+        <translation type="vanished">Autenticazione richiesta</translation>
     </message>
     <message>
         <source>HTTPS connection requested but SSL support not compiled in</source>
-        <translation>Richiesta una connessione HTTPS, ma il supporto SSL non è stato compilato</translation>
+        <translation type="vanished">Richiesta una connessione HTTPS, ma il supporto SSL non è stato compilato</translation>
     </message>
     <message>
         <source>Connection refused (or timed out)</source>
-        <translation>Connessione rifiutata (o tempo scaduto)</translation>
+        <translation type="vanished">Connessione rifiutata (o tempo scaduto)</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
-        <translation>Il proxy richiede l&apos;autenticazione</translation>
+        <translation>Il proxy richiede autenticazione</translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translation>L&apos;host richiede l&apos;autenticazione</translation>
+        <translation>L&apos;host richiede autenticazione</translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translation>Dati danneggiati</translation>
+        <translation>Dati corrotti</translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation>Protocollo specificato sconosciuto</translation>
+        <translation>Protocollo sconosciuto specificato</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translation>Negoziazione SSL non riuscita</translation>
+        <translation>Handshake SSL non riuscito</translation>
     </message>
     <message>
         <source>Too many redirects</source>
@@ -2579,70 +2582,70 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Impossibile applicare la transazione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Impossibile effettuare il rollback della transazione</translation>
+        <translation>Impossibile annullare la transazione</translation>
     </message>
 </context>
 <context>
     <name>QIBaseResult</name>
     <message>
         <source>Unable to create BLOB</source>
-        <translation>Impossibile creare BLOB</translation>
+        <translation>Impossibile creare il BLOB</translation>
     </message>
     <message>
         <source>Unable to write BLOB</source>
-        <translation>Impossibile scrivere BLOB</translation>
+        <translation>Impossibile scrivere il BLOB</translation>
     </message>
     <message>
         <source>Unable to open BLOB</source>
-        <translation>Impossibile aprire BLOB</translation>
+        <translation>Impossibile aprire il BLOB</translation>
     </message>
     <message>
         <source>Unable to read BLOB</source>
-        <translation>Impossibile leggere BLOB</translation>
+        <translation>Impossibile leggere il BLOB</translation>
     </message>
     <message>
         <source>Could not find array</source>
-        <translation>Impossibile trovare il vettore</translation>
+        <translation>Array non trovato</translation>
     </message>
     <message>
         <source>Could not get array data</source>
-        <translation>Impossibile ottenere il vettore di dati</translation>
+        <translation>Impossibile ottenere i dati dell&apos;array</translation>
     </message>
     <message>
         <source>Could not get query info</source>
-        <translation>Impossibile ottenere informazioni sulla query</translation>
+        <translation>Impossibile ottenere le informazione della query</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>Impossibile iniziare la transazione</translation>
+        <translation>Impossibile avviare la transazione</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Impossibile applicare la transazione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Could not allocate statement</source>
-        <translation>Impossibile allocare l&apos;istruzione</translation>
+        <translation>Impossibile allocare il comando</translation>
     </message>
     <message>
         <source>Could not prepare statement</source>
-        <translation>Impossibile preparare l&apos;istruzione</translation>
+        <translation>Impossibile preparare il comando</translation>
     </message>
     <message>
         <source>Could not describe input statement</source>
-        <translation>Impossibile descrivere l&apos;istruzione in ingresso</translation>
+        <translation>Impossibile descrivere il comando di input</translation>
     </message>
     <message>
         <source>Could not describe statement</source>
-        <translation>Impossibile descrivere l&apos;istruzione</translation>
+        <translation>Impossibile descrivere il comando</translation>
     </message>
     <message>
         <source>Unable to close statement</source>
-        <translation>Impossibile chiudere l&apos;istruzione</translation>
+        <translation>Impossibile chiudere il comando</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
@@ -2650,11 +2653,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Could not fetch next item</source>
-        <translation>Impossibile recuperare il prossimo elemento</translation>
+        <translation>Impossibile recuperare l&apos;elemento successivo</translation>
     </message>
     <message>
         <source>Could not get statement info</source>
-        <translation>Impossibile ottenere informazioni sull&apos;istruzione</translation>
+        <translation>Impossibile ottenere le informazione del comando</translation>
     </message>
 </context>
 <context>
@@ -2669,11 +2672,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>No such file or directory</source>
-        <translation>Nessun file o cartella</translation>
+        <translation>File o cartella non trovati</translation>
     </message>
     <message>
         <source>No space left on device</source>
-        <translation>Spazio insufficiente sul dispositivo</translation>
+        <translation>Spazio esaurito sul dispositivo</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2730,15 +2733,15 @@ Vuoi eliminarlo comunque?</translation>
     <name>QInputContext</name>
     <message>
         <source>XIM input method</source>
-        <translation>Metodo di inserimento XIM</translation>
+        <translation type="vanished">Metodo di inserimento XIM</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Metodo di inserimento Windows</translation>
+        <translation type="vanished">Metodo di inserimento Windows</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Metodo di inserimento Mac OS X</translation>
+        <translation type="vanished">Metodo di inserimento Mac OS X</translation>
     </message>
     <message>
         <source>XIM</source>
@@ -2832,35 +2835,35 @@ Vuoi eliminarlo comunque?</translation>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: Impossibile caricare %1 (%2)</translation>
+        <translation type="vanished">QLibrary::load_sys: Impossibile caricare %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys: Impossibile rimuovere %1 (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys: Impossibile rimuovere %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::resolve_sys: Simbolo &quot;%1&quot; non definito in %2 (%3)</translation>
+        <translation type="vanished">QLibrary::resolve_sys: Simbolo &quot;%1&quot; non definito in %2 (%3)</translation>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>mmap di &apos;%1&apos; non possibile: %2</translation>
+        <translation type="vanished">mmap di &apos;%1&apos; non possibile: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>Mancata corrispondenza dei dati di verifica dell&apos;estensione in &apos;%1&apos;</translation>
+        <translation type="vanished">Dati di verifica del plugin non corrispondenti in &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>unmap di &apos;%1&apos; non possibile: %2</translation>
+        <translation type="vanished">unmap di &apos;%1&apos; non possibile: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
-        <translation>Il plugin &apos;%1&apos; utilizza librerie QT non compatibili. (%2.%3.%4) [%5]</translation>
+        <translation>Il plugin &apos;%1&apos; usa una versione di Qt incompatibile (%2.%3.%4) [%5]</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>Il plugin &apos;%1&apos; utilizza librerie QT non compatibili. Versione di compilazione attesa &quot;%2&quot;, ottenuta &quot;%3&quot;</translation>
+        <translation type="vanished">Il plugin &apos;%1&apos; utilizza librerie QT non compatibili. Versione di compilazione attesa &quot;%2&quot;, ottenuta &quot;%3&quot;</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2868,15 +2871,15 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translation>La libreria condivisa non è stata trovata.</translation>
+        <translation>La libreria dinamica non è stata trovata.</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
-        <translation>Il file &apos;%1&apos; non è un&apos;estensione Qt valida.</translation>
+        <translation>Il file &apos;%1&apos; non è un plugin Qt valido.</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation>L&apos;estensione &apos;%1&apos; utilizza una libreria Qt incompatibile. (Non è possibile mischiare librerie di debug e di rilascio.)</translation>
+        <translation>Il plugin &apos;%1&apos; usa una versione di Qt incompatibile (non si possono usare librerie di debug e di release assieme)</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not an ELF object (%2)</source>
@@ -2943,7 +2946,7 @@ Vuoi eliminarlo comunque?</translation>
     <name>QLineEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>A&amp;nnulla</translation>
+        <translation>Ann&amp;ulla</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
@@ -2974,62 +2977,62 @@ Vuoi eliminarlo comunque?</translation>
     <name>QLocalServer</name>
     <message>
         <source>%1: Name error</source>
-        <translation>%1: Errore nel nome</translation>
+        <translation>%1: errore nel nome</translation>
     </message>
     <message>
         <source>%1: Permission denied</source>
-        <translation>%1: Permesso negato</translation>
+        <translation>%1: permesso negato</translation>
     </message>
     <message>
         <source>%1: Address in use</source>
-        <translation>%1: Indirizzo in uso</translation>
+        <translation>%1: indirizzo già in uso</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation>%1: Errore sconosciuto %2</translation>
+        <translation>%1: errore sconosciuto %2</translation>
     </message>
 </context>
 <context>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation>%1: Connessione rifiutata</translation>
+        <translation>%1: connessione rifiutata</translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
-        <translation>%1: terminazione remota</translation>
+        <translation>%1: connessione interrotta</translation>
     </message>
     <message>
         <source>%1: Invalid name</source>
-        <translation>%1: Nome non valido</translation>
+        <translation>%1: nome non valido</translation>
     </message>
     <message>
         <source>%1: Socket access error</source>
-        <translation>%1: Errore di accesso al socket</translation>
+        <translation>%1: errore di accesso al socket</translation>
     </message>
     <message>
         <source>%1: Socket resource error</source>
-        <translation>%1: errore risorsa socket</translation>
+        <translation>%1: errore di risorsa del socket</translation>
     </message>
     <message>
         <source>%1: Socket operation timed out</source>
-        <translation>%1: operazione socket scaduta</translation>
+        <translation>%1: operazione sul socket scaduta</translation>
     </message>
     <message>
         <source>%1: Datagram too large</source>
-        <translation>%1: Datagramma troppo grande</translation>
+        <translation>%1: pacchetto troppo grande</translation>
     </message>
     <message>
         <source>%1: Connection error</source>
-        <translation>%1: Errore di connessione</translation>
+        <translation>%1: errore di connessione</translation>
     </message>
     <message>
         <source>%1: The socket operation is not supported</source>
-        <translation>%1: l&apos;operazione di socket non è supportata</translation>
+        <translation>%1: operazione sul socket non supportata</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation>%1: Errore sconosciuto %2</translation>
+        <translation>%1: errore sconosciuto %2</translation>
     </message>
     <message>
         <source>%1: Operation not permitted when socket is in this state</source>
@@ -3052,11 +3055,11 @@ Vuoi eliminarlo comunque?</translation>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Impossibile aprire il database &apos;</translation>
+        <translation type="vanished">Impossibile aprire il database &apos;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
-        <translation>Impossibile connettersi</translation>
+        <translation>Connessione non riuscita</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -3064,11 +3067,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Impossibile effettuare il commit della transazione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Impossibile effettuare il rollback della transazione</translation>
+        <translation>Impossibile annullare la transazione</translation>
     </message>
     <message>
         <source>Unable to allocate a MYSQL object</source>
@@ -3091,39 +3094,39 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Unable to store result</source>
-        <translation>Impossibile memorizzare i risultati</translation>
+        <translation>Impossibile memorizzare il risultato</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Impossibile preparare l&apos;istruzione</translation>
+        <translation>Impossibile preparare il comando</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation>Impossibile ripristinare l&apos;istruzione</translation>
+        <translation>Impossibile azzerare il comando</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation>Impossibile associare il valore</translation>
+        <translation>Impossibile effettuare il bind del valore</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Impossibile eseguire l&apos;istruzione</translation>
+        <translation>Impossibile eseguire il comando</translation>
     </message>
     <message>
         <source>Unable to bind outvalues</source>
-        <translation>Impossibile associare i valori di uscita</translation>
+        <translation>Impossibile agganciare i valore di uscita</translation>
     </message>
     <message>
         <source>Unable to store statement results</source>
-        <translation>Impossibile memorizzare i risultati dell&apos;istruzione</translation>
+        <translation>Impossibile memorizzare i risultati del comando</translation>
     </message>
     <message>
         <source>Unable to execute next query</source>
-        <translation>Impossibile eseguire la query successiva</translation>
+        <translation>Impossibile eseguire la prossima query</translation>
     </message>
     <message>
         <source>Unable to store next result</source>
-        <translation>Impossibile memorizzare il risultato successivo</translation>
+        <translation>Impossibile memorizzare il prossimo risultato</translation>
     </message>
 </context>
 <context>
@@ -3157,7 +3160,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>S&amp;posta</translation>
+        <translation>&amp;Sposta</translation>
     </message>
     <message>
         <source>&amp;Size</source>
@@ -3169,7 +3172,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Massimi&amp;zza</translation>
+        <translation>Ma&amp;ssimizza</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
@@ -3212,15 +3215,15 @@ Vuoi eliminarlo comunque?</translation>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Chiudi</translation>
+        <translation type="vanished">Chiudi</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Apri</translation>
+        <translation type="vanished">Apri</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Esegui</translation>
+        <translation type="vanished">Esegui</translation>
     </message>
 </context>
 <context>
@@ -3231,7 +3234,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation></translation>
+        <translation>OK</translation>
     </message>
     <message>
         <source>About Qt</source>
@@ -3239,7 +3242,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Questo programma utilizza la versione %1 di Qt.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Questo programma utilizza la versione %1 di Qt.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
@@ -3251,11 +3254,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Questo programma utilizza la versione Qt Open Source Edition %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition è destinata allo sviluppo di applicazioni Open Source. Per lo sviluppo di applicazioni proprietarie (sorgente chiuso) è necessario disporre di una licenza Qt commerciale.&lt;/p&gt;&lt;p&gt;Vedere &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; per una panoramica del sistema di licenze Qt.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Questo programma utilizza la versione Qt Open Source Edition %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition è destinata allo sviluppo di applicazioni Open Source. Per lo sviluppo di applicazioni proprietarie (sorgente chiuso) è necessario disporre di una licenza Qt commerciale.&lt;/p&gt;&lt;p&gt;Vedere &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; per una panoramica del sistema di licenze Qt.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Informazioni su Qt&lt;/h3&gt;%1&lt;p&gt;Qt è un toolkit C++ per lo sviluppo multipiattaforma di applicazioni.&lt;/p&gt;&lt;p&gt;Qt fornisce la portabilità degli stessi sorgenti tra MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux e tutte le varianti commerciali di Unix. Qt è disponibile anche per dispositivi integrati come Qt per Linux Embedded e Qt per Windows CE.&lt;/p&gt;&lt;p&gt;Qt è un prodotto Nokia. Vedi &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; per ulteriori informazioni.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;Informazioni su Qt&lt;/h3&gt;%1&lt;p&gt;Qt è un toolkit C++ per lo sviluppo multipiattaforma di applicazioni.&lt;/p&gt;&lt;p&gt;Qt fornisce la portabilità degli stessi sorgenti tra MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux e tutte le varianti commerciali di Unix. Qt è disponibile anche per dispositivi integrati come Qt per Linux Embedded e Qt per Windows CE.&lt;/p&gt;&lt;p&gt;Qt è un prodotto Nokia. Vedi &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; per ulteriori informazioni.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -3270,33 +3273,33 @@ Vuoi eliminarlo comunque?</translation>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>Seleziona IM</translation>
+        <translation type="vanished">Seleziona IM</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>Commutatore di metodi di inserimento</translation>
+        <translation type="vanished">Commutatore di metodi di inserimento</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>Commutatore di metodi di inserimento multipli che utilizza il menu contestuale per gli oggetti testuali</translation>
+        <translation type="vanished">Commutatore di metodi di inserimento multipli che utilizza il menu contestuale per gli oggetti testuali</translation>
     </message>
 </context>
 <context>
     <name>QNativeSocketEngine</name>
     <message>
         <source>The remote host closed the connection</source>
-        <translation>L&apos;host remoto ha terminato la connessione</translation>
+        <translation>L&apos;host remoto ha chiuso la connessione</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation>Operazione di rete fuori tempo massimo</translation>
+        <translation>Operazione di rete scaduta</translation>
     </message>
     <message>
         <source>Out of resources</source>
-        <translation>Risorse insufficienti</translation>
+        <translation>Risorse esaurite</translation>
     </message>
     <message>
         <source>Unsupported socket operation</source>
@@ -3308,7 +3311,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Invalid socket descriptor</source>
-        <translation>Descrittore di socket non valido</translation>
+        <translation>Descrittore del socket non valido</translation>
     </message>
     <message>
         <source>Network unreachable</source>
@@ -3320,7 +3323,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Connection timed out</source>
-        <translation>Connessione fuori tempo massimo</translation>
+        <translation>Connessione scaduta</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -3328,7 +3331,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>The bound address is already in use</source>
-        <translation>L&apos;indirizzo associato è già utilizzato</translation>
+        <translation>L&apos;indirizzo selezionato è già in uso</translation>
     </message>
     <message>
         <source>The address is not available</source>
@@ -3360,15 +3363,15 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Unable to initialize non-blocking socket</source>
-        <translation>Impossibile inizializzare il socket asincrono</translation>
+        <translation>Impossibile inizializzare un socket non bloccante</translation>
     </message>
     <message>
         <source>Unable to initialize broadcast socket</source>
-        <translation>Impossibile inizializzare il socket di trasmissione</translation>
+        <translation>Impossibile inizializzare un socket broadcast</translation>
     </message>
     <message>
         <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
-        <translation>Tentativo di utilizzare un socket IPv6 su una piattaforma che non supporta IPv6</translation>
+        <translation>Tentativo di utilizzo di un socket IPv6 su una piattaforma che non supporta IPv6</translation>
     </message>
     <message>
         <source>Host unreachable</source>
@@ -3376,11 +3379,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Datagram was too large to send</source>
-        <translation>Datagramma troppo grande per l&apos;invio</translation>
+        <translation>Il pacchetto è troppo grande per l&apos;invio</translation>
     </message>
     <message>
         <source>Operation on non-socket</source>
-        <translation>Operazione su non-socket</translation>
+        <translation>Operazione su un non-socket</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3436,15 +3439,15 @@ Vuoi eliminarlo comunque?</translation>
     <name>QNetworkAccessFileBackend</name>
     <message>
         <source>Request for opening non-local file %1</source>
-        <translation>Richiesta di apertura del file non locale %1</translation>
+        <translation>Richiesta di apertura di un file non locale %1</translation>
     </message>
     <message>
         <source>Error opening %1: %2</source>
-        <translation>Errore in fase di apertura di %1: %2</translation>
+        <translation>Errore durante l&apos;apertura di %1: %2</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Errore in fase di scrittura di %1: %2</translation>
+        <translation>Errore di scrittura su %1: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
@@ -3463,7 +3466,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Logging in to %1 failed: authentication required</source>
-        <translation>Accesso a %1 non riuscito: autenticazione richiesta</translation>
+        <translation>Log su %1 non riuscito: richiesta autenticazione</translation>
     </message>
     <message>
         <source>Error while downloading %1: %2</source>
@@ -3471,7 +3474,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Error while uploading %1: %2</source>
-        <translation>Errore durante l&apos;invio di %1: %2</translation>
+        <translation>Errore durante il caricamento di %1: %2</translation>
     </message>
     <message>
         <source>No suitable proxy found</source>
@@ -3489,7 +3492,7 @@ Vuoi eliminarlo comunque?</translation>
     <name>QNetworkReply</name>
     <message>
         <source>Error downloading %1 - server replied: %2</source>
-        <translation>Errore durante lo scaricamento di %1 - il server ha risposto: %2</translation>
+        <translation type="vanished">Errore durante lo scaricamento %1 - il server ha risposto: %2</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
@@ -3575,7 +3578,7 @@ Vuoi eliminarlo comunque?</translation>
     <name>QOCIDriver</name>
     <message>
         <source>Unable to logon</source>
-        <translation>Impossibile accedere</translation>
+        <translation>Autenticazione non riuscita</translation>
     </message>
     <message>
         <source>Unable to initialize</source>
@@ -3588,46 +3591,46 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Impossibile effettuare il commit della transazione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Impossibile effettuare il rollback della transazione</translation>
+        <translation>Impossibile annullare la transazione</translation>
     </message>
 </context>
 <context>
     <name>QOCIResult</name>
     <message>
         <source>Unable to bind column for batch execute</source>
-        <translation>Impossibile associare la colonna per l&apos;esecuzione sequenziale</translation>
+        <translation>Impossibile effettuare il bind della colonna per l&apos;esecuzione non interattiva</translation>
     </message>
     <message>
         <source>Unable to execute batch statement</source>
-        <translation>Impossibile eseguire l&apos;istruzione sequenziale</translation>
+        <translation>Impossibile eseguire il comando non interattivo</translation>
     </message>
     <message>
         <source>Unable to goto next</source>
-        <translation>Impossibile spostarsi al successivo</translation>
+        <translation>Impossibile andare al successivo</translation>
     </message>
     <message>
         <source>Unable to alloc statement</source>
-        <translation>Impossibile allocare l&apos;istruzione</translation>
+        <translation>Impossibile allocare il comando</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Impossibile preparare l&apos;istruzione</translation>
+        <translation>Impossibile preparare il comando</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation>Impossibile associare il valore</translation>
+        <translation>Impossibile effettuare il bind del valore</translation>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>Impossibile eseguire l&apos;istruzione di selezione</translation>
+        <translation type="vanished">Impossibile eseguire l&apos;istruzione di selezione</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Impossibile eseguire l&apos;istruzione</translation>
+        <translation>Impossibile eseguire il comando</translation>
     </message>
     <message>
         <source>Unable to get statement type</source>
@@ -3638,11 +3641,11 @@ Vuoi eliminarlo comunque?</translation>
     <name>QODBCDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Impossibile connettersi</translation>
+        <translation>Connessione non riuscita</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>Impossibile connettersi - Il driver non supporta tutte le funzionalità richieste</translation>
+        <translation type="vanished">Impossibile connettersi - Il driver non supporta tutte le funzionalità richieste</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
@@ -3650,11 +3653,11 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Impossibile effettuare il commit della transazione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Impossibile effettuare il rollback della transazione</translation>
+        <translation>Impossibile annullare la transazione</translation>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
@@ -3669,7 +3672,7 @@ Vuoi eliminarlo comunque?</translation>
     <name>QODBCResult</name>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation>QODBCResult::reset: Impossibile impostare &apos;SQL_CURSOR_STATIC&apos; come attributo dell&apos;istruzione. Controlla la configurazione del driver ODBC</translation>
+        <translation>QODBCResult::reset: Impossibile impostare &apos;SQL_CURSOR_STATIC&apos; come attributo del comando. Verifica la configurazione del driver ODBC</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
@@ -3677,7 +3680,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>Impossibile recuperare il successivo</translation>
+        <translation>Impossibile ottenere il successivo</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
@@ -3685,99 +3688,99 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation>Impossibile associare la variabile</translation>
+        <translation>Impossibile agganciare la variabile</translation>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translation>Impossibile recuperare l&apos;ultimo</translation>
+        <translation>Impossibile ottenere l&apos;ultimo</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation>Impossibile recuperare</translation>
+        <translation>Impossibile ottenere i dati</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation>Impossibile recuperare il primo</translation>
+        <translation>Impossibile ottenere il primo</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translation>Impossibile recuperare il precedente</translation>
+        <translation>Impossibile ottenere il precedente</translation>
     </message>
 </context>
 <context>
     <name>QObject</name>
     <message>
         <source>Operation not supported on %1</source>
-        <translation>Operazione non supportata su %1</translation>
+        <translation type="vanished">Operazione non supportata su %1</translation>
     </message>
     <message>
         <source>Invalid URI: %1</source>
-        <translation>URI non valido: %1</translation>
+        <translation type="vanished">URI non valido: %1</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Errore di scrittura su %1: %2</translation>
+        <translation type="vanished">Errore di scrittura su %1: %2</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation>Errore di lettura da %1: %2</translation>
+        <translation type="vanished">Errore di lettura da %1: %2</translation>
     </message>
     <message>
         <source>Socket error on %1: %2</source>
-        <translation>Errore socket su %1: %2</translation>
+        <translation type="vanished">Errore socket su %1: %2</translation>
     </message>
     <message>
         <source>Remote host closed the connection prematurely on %1</source>
-        <translation>L&apos;host remoto ha terminato prematuramente la connessione su %1</translation>
+        <translation type="vanished">L&apos;host remoto ha terminato prematuramente la connessione su %1</translation>
     </message>
     <message>
         <source>Protocol error: packet of size 0 received</source>
-        <translation>Errore di protocollo: ricevuto un pacchetto di dimensione 0</translation>
+        <translation type="vanished">Errore di protocollo: ricevuto un pacchetto di dimensione 0</translation>
     </message>
 </context>
 <context>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>Nome</translation>
+        <translation type="vanished">Nome</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Valore</translation>
+        <translation type="vanished">Valore</translation>
     </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Impossibile connettersi</translation>
+        <translation>Connessione non riuscita</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
-        <translation>Impossibile iniziare la transazione</translation>
+        <translation>Impossibile avviare la transazione</translation>
     </message>
     <message>
         <source>Could not commit transaction</source>
-        <translation>Impossibile effettuare il commit dell&apos;istruzione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Could not rollback transaction</source>
-        <translation>Impossibile effettuare il rollback della transazione</translation>
+        <translation>Impossibile annullare la transazione</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation>Impossibile registrarsi</translation>
+        <translation>Registrazione non riuscita</translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translation>Impossibile cancellarsi</translation>
+        <translation>Deregistrazione non riuscita</translation>
     </message>
 </context>
 <context>
     <name>QPSQLResult</name>
     <message>
         <source>Unable to create query</source>
-        <translation>Impossibile creare query</translation>
+        <translation>Impossibile creare la query</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
@@ -3788,7 +3791,7 @@ Vuoi eliminarlo comunque?</translation>
     <name>QPageSetupWidget</name>
     <message>
         <source>Centimeters (cm)</source>
-        <translation>Centimetri (cm)</translation>
+        <translation type="vanished">Centimetri (cm)</translation>
     </message>
     <message>
         <source>Millimeters (mm)</source>
@@ -3812,7 +3815,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation>Dimensioni pagina:</translation>
+        <translation>Dimensione della pagina:</translation>
     </message>
     <message>
         <source>Width:</source>
@@ -3824,7 +3827,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation>Alimentazione carta:</translation>
+        <translation>Alimentazione della carta:</translation>
     </message>
     <message>
         <source>Orientation</source>
@@ -4486,22 +4489,22 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>The plugin was not loaded.</source>
-        <translation>L&apos;estensione non è stata caricata.</translation>
+        <translation>Il plugin non è stata caricato.</translation>
     </message>
 </context>
 <context>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>connessa localmente</translation>
+        <translation type="vanished">connessa localmente</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Alias: %1</translation>
+        <translation type="vanished">Alias: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>sconosciuto</translation>
+        <translation type="vanished">sconosciuto</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -4511,143 +4514,143 @@ Vuoi eliminarlo comunque?</translation>
         <source>File %1 is not writable.
 Please choose a different file name.</source>
         <translation>Il file %1 non è scrivibile.
-Scegli un nome file diverso.</translation>
+Seleziona un nome diverso per il file.</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to overwrite it?</source>
         <translation>%1 esiste già.
-Vuoi sovrascriverlo?</translation>
+Vuoi sostituirlo?</translation>
     </message>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
         <translation>%1 è una cartella.
-Scegli un nome diverso.</translation>
+Seleziona un nome diverso per il file.</translation>
     </message>
     <message>
         <source>A0</source>
-        <translation></translation>
+        <translation type="vanished">A0</translation>
     </message>
     <message>
         <source>A1</source>
-        <translation></translation>
+        <translation type="vanished">A1</translation>
     </message>
     <message>
         <source>A2</source>
-        <translation></translation>
+        <translation type="vanished">A2</translation>
     </message>
     <message>
         <source>A3</source>
-        <translation></translation>
+        <translation type="vanished">A3</translation>
     </message>
     <message>
         <source>A4</source>
-        <translation></translation>
+        <translation type="vanished">A4</translation>
     </message>
     <message>
         <source>A5</source>
-        <translation></translation>
+        <translation type="vanished">A5</translation>
     </message>
     <message>
         <source>A6</source>
-        <translation></translation>
+        <translation type="vanished">A6</translation>
     </message>
     <message>
         <source>A7</source>
-        <translation></translation>
+        <translation type="vanished">A7</translation>
     </message>
     <message>
         <source>A8</source>
-        <translation></translation>
+        <translation type="vanished">A8</translation>
     </message>
     <message>
         <source>A9</source>
-        <translation></translation>
+        <translation type="vanished">A9</translation>
     </message>
     <message>
         <source>B0</source>
-        <translation></translation>
+        <translation type="vanished">B0</translation>
     </message>
     <message>
         <source>B1</source>
-        <translation></translation>
+        <translation type="vanished">B1</translation>
     </message>
     <message>
         <source>B2</source>
-        <translation></translation>
+        <translation type="vanished">B2</translation>
     </message>
     <message>
         <source>B3</source>
-        <translation></translation>
+        <translation type="vanished">B3</translation>
     </message>
     <message>
         <source>B4</source>
-        <translation></translation>
+        <translation type="vanished">B4</translation>
     </message>
     <message>
         <source>B5</source>
-        <translation></translation>
+        <translation type="vanished">B5</translation>
     </message>
     <message>
         <source>B6</source>
-        <translation></translation>
+        <translation type="vanished">B6</translation>
     </message>
     <message>
         <source>B7</source>
-        <translation></translation>
+        <translation type="vanished">B7</translation>
     </message>
     <message>
         <source>B8</source>
-        <translation></translation>
+        <translation type="vanished">B8</translation>
     </message>
     <message>
         <source>B9</source>
-        <translation></translation>
+        <translation type="vanished">B9</translation>
     </message>
     <message>
         <source>B10</source>
-        <translation></translation>
+        <translation type="vanished">B10</translation>
     </message>
     <message>
         <source>C5E</source>
-        <translation></translation>
+        <translation type="vanished">C5E</translation>
     </message>
     <message>
         <source>DLE</source>
-        <translation></translation>
+        <translation type="vanished">DLE</translation>
     </message>
     <message>
         <source>Executive</source>
-        <translation></translation>
+        <translation type="vanished">Esecutivo</translation>
     </message>
     <message>
         <source>Folio</source>
-        <translation></translation>
+        <translation type="vanished">Foglio</translation>
     </message>
     <message>
         <source>Ledger</source>
-        <translation></translation>
+        <translation type="vanished">Registro</translation>
     </message>
     <message>
         <source>Legal</source>
-        <translation></translation>
+        <translation type="vanished">Legale</translation>
     </message>
     <message>
         <source>Letter</source>
-        <translation>Lettera</translation>
+        <translation type="vanished">Lettera</translation>
     </message>
     <message>
         <source>Tabloid</source>
-        <translation></translation>
+        <translation type="vanished">Tabloid</translation>
     </message>
     <message>
         <source>US Common #10 Envelope</source>
-        <translation></translation>
+        <translation type="vanished">Busta comune #10 USA</translation>
     </message>
     <message>
         <source>Custom</source>
-        <translation>Personalizzato</translation>
+        <translation type="vanished">Personalizzato</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
@@ -4667,7 +4670,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>Print to File (Postscript)</source>
-        <translation>Stampa su file (Postscript)</translation>
+        <translation type="vanished">Stampa su file (Postscript)</translation>
     </message>
     <message>
         <source>Local file</source>
@@ -4675,7 +4678,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>Write %1 file</source>
-        <translation>Scrivi %1 file</translation>
+        <translation type="vanished">Scrivi %1 file</translation>
     </message>
     <message>
         <source>Print</source>
@@ -4776,7 +4779,7 @@ Disattiva una di queste opzioni.</translation>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
-        <translation>Impostazioni di pagina</translation>
+        <translation>Impostazione pagina</translation>
     </message>
     <message>
         <source>Print Preview</source>
@@ -4808,11 +4811,11 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Zoom in</source>
-        <translation>Aumenta zoom</translation>
+        <translation>Ingrandisci</translation>
     </message>
     <message>
         <source>Zoom out</source>
-        <translation>Riduci zoom</translation>
+        <translation>Rimpicciolisci</translation>
     </message>
     <message>
         <source>Portrait</source>
@@ -4832,7 +4835,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Show overview of all pages</source>
-        <translation>Mostra l&apos;anteprima di tutte le pagine</translation>
+        <translation>Mostra anteprima di tutte le pagine</translation>
     </message>
     <message>
         <source>Print</source>
@@ -4840,11 +4843,11 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Page setup</source>
-        <translation>Impostazioni pagina</translation>
+        <translation>Impostazione pagina</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Chiudi</translation>
+        <translation type="vanished">Chiudi</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -4882,7 +4885,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Advanced</source>
-        <translation>Avanzate</translation>
+        <translation type="vanished">Avanzate</translation>
     </message>
 </context>
 <context>
@@ -4897,7 +4900,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation>Intervallo di stampa</translation>
+        <translation>Stampa intervallo</translation>
     </message>
     <message>
         <source>Print all</source>
@@ -4917,7 +4920,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Output Settings</source>
-        <translation>Impostazioni d&apos;uscita</translation>
+        <translation>Impostazioni di uscita</translation>
     </message>
     <message>
         <source>Copies:</source>
@@ -4929,7 +4932,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Reverse</source>
-        <translation>Inversa</translation>
+        <translation>Ordine inverso</translation>
     </message>
     <message>
         <source>Options</source>
@@ -4945,7 +4948,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Grayscale</source>
-        <translation>Scala di grigio</translation>
+        <translation>Scala di grigi</translation>
     </message>
     <message>
         <source>Duplex Printing</source>
@@ -4953,7 +4956,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>None</source>
-        <translation>Nessuna</translation>
+        <translation>Nessuno</translation>
     </message>
     <message>
         <source>Long side</source>
@@ -5004,7 +5007,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation>&amp;File di uscita:</translation>
+        <translation>&amp;File di output:</translation>
     </message>
     <message>
         <source>...</source>
@@ -5065,7 +5068,7 @@ Disattiva una di queste opzioni.</translation>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Apri</translation>
+        <translation type="vanished">Apri</translation>
     </message>
 </context>
 <context>
@@ -5094,30 +5097,30 @@ Disattiva una di queste opzioni.</translation>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Seleziona</translation>
+        <translation type="vanished">Seleziona</translation>
     </message>
 </context>
 <context>
     <name>QRegExp</name>
     <message>
         <source>no error occurred</source>
-        <translation>non si è verificato alcun errore</translation>
+        <translation>nessun errore rilevato</translation>
     </message>
     <message>
         <source>disabled feature used</source>
-        <translation>utilizzata una funzionalità disabilitata</translation>
+        <translation>usata funzionalità disabilitata</translation>
     </message>
     <message>
         <source>bad char class syntax</source>
-        <translation>sintassi della classe di caratteri errata</translation>
+        <translation>sintassi della classe di caratteri non corretta</translation>
     </message>
     <message>
         <source>bad lookahead syntax</source>
-        <translation>sintassi di lookahead non valida</translation>
+        <translation>sintassi della ricerca in avanti non corretta</translation>
     </message>
     <message>
         <source>bad repetition syntax</source>
-        <translation>sintassi di ripetizione non valida</translation>
+        <translation>sintassi di ripetizione non corretta</translation>
     </message>
     <message>
         <source>invalid octal value</source>
@@ -5129,7 +5132,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>unexpected end</source>
-        <translation>fine inattesa</translation>
+        <translation>fine non prevista</translation>
     </message>
     <message>
         <source>met internal limit</source>
@@ -5487,7 +5490,7 @@ Disattiva una di queste opzioni.</translation>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>Errore in fase di apertura del database</translation>
+        <translation type="vanished">Errore in fase di apertura del database</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -5495,11 +5498,11 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Impossibile applicare l&apos;istruzione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>Impossibile effettuare il rollback della transazione</translation>
+        <translation type="vanished">Impossibile effettuare il rollback della transazione</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -5514,22 +5517,22 @@ Disattiva una di queste opzioni.</translation>
     <name>QSQLite2Result</name>
     <message>
         <source>Unable to fetch results</source>
-        <translation>Impossibile ottenere risultati</translation>
+        <translation>Impossibile ottenere i risultati</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Impossibile eseguire l&apos;istruzione</translation>
+        <translation>Impossibile eseguire il comando</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation>Errore in fase di apertura del database</translation>
+        <translation>Errore di apertura del database</translation>
     </message>
     <message>
         <source>Error closing database</source>
-        <translation>Errore in fase di chiusura del database</translation>
+        <translation>Errore di chiusura del database</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -5537,11 +5540,11 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Impossibile applicare l&apos;istruzione</translation>
+        <translation>Impossibile effettuare la transazione</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Impossibile effettuare il rollback della transazione</translation>
+        <translation>Impossibile annullare la transazione</translation>
     </message>
 </context>
 <context>
@@ -5552,19 +5555,19 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Impossibile eseguire l&apos;istruzione</translation>
+        <translation>Impossibile eseguire il comando</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation>Impossibile ripristinare l&apos;istruzione</translation>
+        <translation>Impossibile reinizializzare il comando</translation>
     </message>
     <message>
         <source>Unable to bind parameters</source>
-        <translation>Impossibile associare i parametri</translation>
+        <translation>Impossibile effettuare il bind dei parametri</translation>
     </message>
     <message>
         <source>Parameter count mismatch</source>
-        <translation>Il numero dei parametri non corrisponde</translation>
+        <translation>Numero di parametri non corrispondente</translation>
     </message>
     <message>
         <source>No query</source>
@@ -5598,23 +5601,23 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Bordo sinistro</translation>
+        <translation>Margine sinistro</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>In alto</translation>
+        <translation>Cima</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Bordo destro</translation>
+        <translation>Margine destro</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>In basso</translation>
+        <translation>Fondo</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Pagina sinistra</translation>
+        <translation>Pagina a sinistra</translation>
     </message>
     <message>
         <source>Page up</source>
@@ -5622,7 +5625,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Pagina destra</translation>
+        <translation>Pagina a destra</translation>
     </message>
     <message>
         <source>Page down</source>
@@ -5630,38 +5633,38 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Scorrimento a sinistra</translation>
+        <translation>Scorri a sinistra</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Scorrimento in alto</translation>
+        <translation>Scorri in alto</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Scorrimento a destra</translation>
+        <translation>Scorri a destra</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Scorrimento in basso</translation>
+        <translation>Scorri in basso</translation>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Allinea in alto</translation>
+        <translation type="vanished">Allinea in alto</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Posizione</translation>
+        <translation type="vanished">Posizione</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Allinea in basso</translation>
+        <translation type="vanished">Allinea in basso</translation>
     </message>
 </context>
 <context>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation>%1: impossibile impostare la chiave sul blocco</translation>
+        <translation>%1: impossibile impostare la chiave sul lock</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
@@ -5685,11 +5688,11 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
-        <translation>%1: non esiste</translation>
+        <translation type="vanished">%1: non esiste</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
-        <translation>%1: risorse insufficienti</translation>
+        <translation>%1: risorse esaurite</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
@@ -5701,7 +5704,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>%1: unix key file doesn&apos;t exists</source>
-        <translation>%1: il file della chiave UNIX non esiste</translation>
+        <translation type="vanished">%1: il file della chiave UNIX non esiste</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
@@ -5713,7 +5716,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
-        <translation>%1: restrizione delle dimensioni imposte dal sistema</translation>
+        <translation>%1: il sistema impone restrizioni di dimensione</translation>
     </message>
     <message>
         <source>%1: not attached</source>
@@ -5748,11 +5751,12 @@ Disattiva una di queste opzioni.</translation>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation>Spazio</translation>
     </message>
     <message>
         <source>Esc</source>
-        <translation></translation>
+        <translation>Esc</translation>
     </message>
     <message>
         <source>Tab</source>
@@ -5760,7 +5764,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Backtab</source>
-        <translation>Tab inverso</translation>
+        <translation>Tab indietro</translation>
     </message>
     <message>
         <source>Backspace</source>
@@ -5776,7 +5780,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Ins</source>
-        <translation></translation>
+        <translation>Ins</translation>
     </message>
     <message>
         <source>Del</source>
@@ -5788,15 +5792,15 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Print</source>
-        <translation>Stamp</translation>
+        <translation>Stampa</translation>
     </message>
     <message>
         <source>SysReq</source>
-        <translation>R sist</translation>
+        <translation>R Sist</translation>
     </message>
     <message>
         <source>Home</source>
-        <translation>Home</translation>
+        <translation>↖</translation>
     </message>
     <message>
         <source>End</source>
@@ -5820,27 +5824,27 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>PgUp</source>
-        <translation>PagSu</translation>
+        <translation>Pag↑</translation>
     </message>
     <message>
         <source>PgDown</source>
-        <translation>PagGiù</translation>
+        <translation>Pag↓</translation>
     </message>
     <message>
         <source>CapsLock</source>
-        <translation>BlocMaiusc</translation>
+        <translation>Bloc Maiusc</translation>
     </message>
     <message>
         <source>NumLock</source>
-        <translation>BlocNum</translation>
+        <translation>Bloc Num</translation>
     </message>
     <message>
         <source>ScrollLock</source>
-        <translation>BlocScorr</translation>
+        <translation>Bloc Scorr</translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation></translation>
+        <translation>Menu</translation>
     </message>
     <message>
         <source>Help</source>
@@ -5856,7 +5860,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Stop</source>
-        <translation>Ferma</translation>
+        <translation>Stop</translation>
     </message>
     <message>
         <source>Refresh</source>
@@ -5864,55 +5868,55 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Volume Down</source>
-        <translation>Riduci volume</translation>
+        <translation>Diminuisci il volume</translation>
     </message>
     <message>
         <source>Volume Mute</source>
-        <translation>Silenzia volume</translation>
+        <translation>Muto</translation>
     </message>
     <message>
         <source>Volume Up</source>
-        <translation>Aumenta volume</translation>
+        <translation>Aumenta il volume</translation>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translation>Esalta bassi</translation>
+        <translation>Amplifica i bassi</translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translation>Aumenta bassi</translation>
+        <translation>Più bassi</translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translation>Riduci bassi</translation>
+        <translation>Meno bassi</translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation>Aumenta alti</translation>
+        <translation>Più alti</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation>Riduci alti</translation>
+        <translation>Meno alti</translation>
     </message>
     <message>
         <source>Media Play</source>
-        <translation>Media Riproduci</translation>
+        <translation>Riproduci media</translation>
     </message>
     <message>
         <source>Media Stop</source>
-        <translation>Media Ferma</translation>
+        <translation>Interrompi media</translation>
     </message>
     <message>
         <source>Media Previous</source>
-        <translation>Media Precedente</translation>
+        <translation>Media precedente</translation>
     </message>
     <message>
         <source>Media Next</source>
-        <translation>Media Successivo</translation>
+        <translation>Media successivo</translation>
     </message>
     <message>
         <source>Media Record</source>
-        <translation>Media Registra</translation>
+        <translation>Registrazione</translation>
     </message>
     <message>
         <source>Favorites</source>
@@ -5920,7 +5924,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Search</source>
-        <translation>Cerca</translation>
+        <translation>Ricerca</translation>
     </message>
     <message>
         <source>Standby</source>
@@ -5932,11 +5936,11 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Launch Mail</source>
-        <translation>Avvia Posta</translation>
+        <translation>Avvia mail</translation>
     </message>
     <message>
         <source>Launch Media</source>
-        <translation>Avvia Media</translation>
+        <translation>Avvia media</translation>
     </message>
     <message>
         <source>Launch (0)</source>
@@ -6008,11 +6012,11 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Page Up</source>
-        <translation>Pag Su</translation>
+        <translation>Pagina precedente</translation>
     </message>
     <message>
         <source>Page Down</source>
-        <translation>Pag Giù</translation>
+        <translation>Pagina successiva</translation>
     </message>
     <message>
         <source>Caps Lock</source>
@@ -6020,11 +6024,11 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Num Lock</source>
-        <translation>Blocc Num</translation>
+        <translation>Bloc Num</translation>
     </message>
     <message>
         <source>Number Lock</source>
-        <translation>Blocco tast numerico</translation>
+        <translation>Blocco numeri</translation>
     </message>
     <message>
         <source>Scroll Lock</source>
@@ -6032,19 +6036,19 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Ins</translation>
+        <translation>Inserisci</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Canc</translation>
+        <translation>Cancella</translation>
     </message>
     <message>
         <source>Escape</source>
-        <translation>Esc</translation>
+        <translation>Escape</translation>
     </message>
     <message>
         <source>System Request</source>
-        <translation>R sist</translation>
+        <translation>Richiesta di sistema</translation>
     </message>
     <message>
         <source>Select</source>
@@ -6056,7 +6060,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>No</source>
-        <translation></translation>
+        <translation>No</translation>
     </message>
     <message>
         <source>Context1</source>
@@ -6076,27 +6080,29 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation>Chiama</translation>
     </message>
     <message>
         <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
         <translation>Riaggancia</translation>
     </message>
     <message>
         <source>Flip</source>
-        <translation>Ribalta</translation>
+        <translation>Gira</translation>
     </message>
     <message>
         <source>Ctrl</source>
-        <translation></translation>
+        <translation>Ctrl</translation>
     </message>
     <message>
         <source>Shift</source>
-        <translation>Maiusc</translation>
+        <translation>Shift</translation>
     </message>
     <message>
         <source>Alt</source>
-        <translation></translation>
+        <translation>Alt</translation>
     </message>
     <message>
         <source>Meta</source>
@@ -6104,7 +6110,7 @@ Disattiva una di queste opzioni.</translation>
     </message>
     <message>
         <source>+</source>
-        <translation></translation>
+        <translation>+</translation>
     </message>
     <message>
         <source>F%1</source>
@@ -6750,34 +6756,34 @@ Disattiva una di queste opzioni.</translation>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Pagina sinistra</translation>
+        <translation type="vanished">Pagina sinistra</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Pagina su</translation>
+        <translation type="vanished">Pagina su</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Posizione</translation>
+        <translation type="vanished">Posizione</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Pagina destra</translation>
+        <translation type="vanished">Pagina destra</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Pagina giù</translation>
+        <translation type="vanished">Pagina giù</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>Connessione al server Socks5 fuori tempo massimo</translation>
+        <translation type="vanished">Connessione al server Socks5 fuori tempo massimo</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation>Operazione di rete fuori tempo massimo</translation>
+        <translation>Operazione di rete scaduta</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -7201,50 +7207,50 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Più</translation>
+        <translation type="vanished">Più</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Meno</translation>
+        <translation type="vanished">Meno</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>Elimina</translation>
+        <translation type="vanished">Elimina</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Eliminare questa registrazione?</translation>
+        <translation type="vanished">Eliminare questa registrazione?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Sì</translation>
+        <translation type="vanished">Sì</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Inserisci</translation>
+        <translation type="vanished">Inserisci</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Aggiorna</translation>
+        <translation type="vanished">Aggiorna</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Salvare le modifiche?</translation>
+        <translation type="vanished">Salvare le modifiche?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annulla</translation>
+        <translation type="vanished">Annulla</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Conferma</translation>
+        <translation type="vanished">Conferma</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Annullare le modifiche?</translation>
+        <translation type="vanished">Annullare le modifiche?</translation>
     </message>
     <message>
         <source>No</source>
@@ -7259,7 +7265,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error while reading: %1</source>
-        <translation>Errore in fase di lettura: %1</translation>
+        <translation>Errore di lettura: %1</translation>
     </message>
     <message>
         <source>Error during SSL handshake: %1</source>
@@ -7267,19 +7273,19 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error creating SSL context (%1)</source>
-        <translation>Errore in fase di creazione del contesto SSL (%1)</translation>
+        <translation>Errore di creazione del contesto SSL (%1)</translation>
     </message>
     <message>
         <source>Invalid or empty cipher list (%1)</source>
-        <translation>Elenco dei cifrari non valido o vuoto (%1)</translation>
+        <translation>Elenco di cifrari non valido o vuoto (%1)</translation>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
-        <translation>Errore durante la creazione della sessione SSL, %1</translation>
+        <translation>Errore di creazione della sessione SSL, %1</translation>
     </message>
     <message>
         <source>Error creating SSL session: %1</source>
-        <translation>Errore durante la creazione della sessione SSL: %1</translation>
+        <translation>Errore di creazione della sessione SSL: %1</translation>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
@@ -7287,7 +7293,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
-        <translation>Errore di caricamento del certificato locale, %1</translation>
+        <translation>Errore di caricamento del certificato, %1</translation>
     </message>
     <message>
         <source>Error loading private key, %1</source>
@@ -7295,7 +7301,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Private key does not certificate public key, %1</source>
-        <translation>La chiave privata non certifica la chiave pubblica, %1</translation>
+        <translation type="vanished">La chiave privata non certifica la chiave pubblica, %1</translation>
     </message>
     <message>
         <source>No error</source>
@@ -7547,22 +7553,22 @@ Role of an accessible object</extracomment>
     <name>QTDSDriver</name>
     <message>
         <source>Unable to open connection</source>
-        <translation>Impossibile aprire la connessione</translation>
+        <translation>Impossibile stabilire una connessione</translation>
     </message>
     <message>
         <source>Unable to use database</source>
-        <translation>Impossibile utilizzare il database</translation>
+        <translation>Impossibile usare il database</translation>
     </message>
 </context>
 <context>
     <name>QTabBar</name>
     <message>
         <source>Scroll Left</source>
-        <translation>Scorrimento a sinistra</translation>
+        <translation>Scorri a sinistra</translation>
     </message>
     <message>
         <source>Scroll Right</source>
-        <translation>Scorrimento a destra</translation>
+        <translation>Scorri a destra</translation>
     </message>
 </context>
 <context>
@@ -7576,35 +7582,35 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>A&amp;nnulla</translation>
+        <translation type="vanished">A&amp;nnulla</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Rifai</translation>
+        <translation type="vanished">&amp;Rifai</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Taglia</translation>
+        <translation type="vanished">&amp;Taglia</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Copia</translation>
+        <translation type="vanished">&amp;Copia</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Copia posizione del co&amp;llegamento</translation>
+        <translation type="vanished">Copia posizione del co&amp;llegamento</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Incolla</translation>
+        <translation type="vanished">&amp;Incolla</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Elimina</translation>
+        <translation type="vanished">Elimina</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Seleziona tutto</translation>
+        <translation type="vanished">Seleziona tutto</translation>
     </message>
 </context>
 <context>
@@ -7654,29 +7660,29 @@ Role of an accessible object</extracomment>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Premi</translation>
+        <translation type="vanished">Premi</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Apri</translation>
+        <translation type="vanished">Apri</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>Questa piattaforma non supporta IPv6</translation>
+        <translation type="vanished">Questa piattaforma non supporta IPv6</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>Annulla</translation>
+        <translation type="vanished">Annulla</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Rifai</translation>
+        <translation type="vanished">Rifai</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7708,11 +7714,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Annulla</translation>
+        <translation type="vanished">Annulla</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Rifai</translation>
+        <translation type="vanished">Rifai</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7737,43 +7743,43 @@ Role of an accessible object</extracomment>
     <name>QUnicodeControlCharacterMenu</name>
     <message>
         <source>LRM Left-to-right mark</source>
-        <translation>LRM Contrassegno sinistra-destra</translation>
+        <translation>LRM Left-to-right mark</translation>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation>RLM Contrassegno destra-sinistra</translation>
+        <translation>RLM Right-to-left mark</translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation>ZWJ Spazio di unione a larghezza nulla</translation>
+        <translation>ZWJ Zero width joiner</translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation>ZWNJ Spazio non di unione a larghezza nulla</translation>
+        <translation>ZWNJ Zero width non-joiner</translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation>ZWSP Spazio a larghezza nulla</translation>
+        <translation>ZWSP Zero width space</translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation>LRE Inserimento sinistra-destra</translation>
+        <translation>LRE Start of left-to-right embedding</translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation>RLE Inserimento destra-sinistra</translation>
+        <translation>RLE Start of right-to-left embedding</translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation>LRO Forza sinistra-destra</translation>
+        <translation>LRO Start of left-to-right override</translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation>RLO Forza destra-sinistra</translation>
+        <translation>RLO Start of right-to-left override</translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation>PDF Cattura formattazione direzionale</translation>
+        <translation>PDF Pop directional formatting</translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
@@ -7800,292 +7806,292 @@ Role of an accessible object</extracomment>
     <name>QWebFrame</name>
     <message>
         <source>Request cancelled</source>
-        <translation>Richiesta annullata</translation>
+        <translation type="vanished">Richiesta annullata</translation>
     </message>
     <message>
         <source>Request blocked</source>
-        <translation>Richiesta bloccata</translation>
+        <translation type="vanished">Richiesta bloccata</translation>
     </message>
     <message>
         <source>Cannot show URL</source>
-        <translation>Impossibile visualizzare l&apos;URL</translation>
+        <translation type="vanished">Impossibile visualizzare l&apos;URL</translation>
     </message>
     <message>
         <source>Frame load interruped by policy change</source>
-        <translation>Caricamento frame interrotto da un cambiamento di regole</translation>
+        <translation type="vanished">Caricamento frame interrotto da un cambiamento di regole</translation>
     </message>
     <message>
         <source>Cannot show mimetype</source>
-        <translation>Impossibile visualizzare il tipo mime</translation>
+        <translation type="vanished">Impossibile visualizzare il tipo mime</translation>
     </message>
     <message>
         <source>File does not exist</source>
-        <translation>Il file non esiste</translation>
+        <translation type="vanished">Il file non esiste</translation>
     </message>
 </context>
 <context>
     <name>QWebPage</name>
     <message>
         <source>Bad HTTP request</source>
-        <translation>Richiesta HTTP non valida</translation>
+        <translation type="vanished">Richiesta HTTP non valida</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>default label for Submit buttons in forms on web pages</comment>
-        <translation>Invia</translation>
+        <translation type="vanished">Invia</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>Submit (input element) alt text for &lt;input&gt; elements with no alt, title, or value</comment>
-        <translation>Invia</translation>
+        <translation type="vanished">Invia</translation>
     </message>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation>Ripristina</translation>
+        <translation type="vanished">Ripristina</translation>
     </message>
     <message>
         <source>This is a searchable index. Enter search keywords: </source>
         <comment>text that appears at the start of nearly-obsolete web pages in the form of a &apos;searchable index&apos;</comment>
-        <translation>Questo è l&apos;indice ricercabile. Digita la parola chiave di ricerca: </translation>
+        <translation type="vanished">Questo è l&apos;indice ricercabile. Digita la parola chiave di ricerca: </translation>
     </message>
     <message>
         <source>Choose File</source>
         <comment>title for file button used in HTML forms</comment>
-        <translation>Scegli file</translation>
+        <translation type="vanished">Scegli file</translation>
     </message>
     <message>
         <source>No file selected</source>
         <comment>text to display in file button used in HTML forms when no file is selected</comment>
-        <translation>Nessun file selezionato</translation>
+        <translation type="vanished">Nessun file selezionato</translation>
     </message>
     <message>
         <source>Open in New Window</source>
         <comment>Open in New Window context menu item</comment>
-        <translation>Apri in una nuova finestra</translation>
+        <translation type="vanished">Apri in una nuova finestra</translation>
     </message>
     <message>
         <source>Save Link...</source>
         <comment>Download Linked File context menu item</comment>
-        <translation>Salva collegamento...</translation>
+        <translation type="vanished">Salva collegamento...</translation>
     </message>
     <message>
         <source>Copy Link</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Copia collegamento</translation>
+        <translation type="vanished">Copia collegamento</translation>
     </message>
     <message>
         <source>Open Image</source>
         <comment>Open Image in New Window context menu item</comment>
-        <translation>Apri immagine</translation>
+        <translation type="vanished">Apri immagine</translation>
     </message>
     <message>
         <source>Save Image</source>
         <comment>Download Image context menu item</comment>
-        <translation>Salva immagine</translation>
+        <translation type="vanished">Salva immagine</translation>
     </message>
     <message>
         <source>Copy Image</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Copia immagine</translation>
+        <translation type="vanished">Copia immagine</translation>
     </message>
     <message>
         <source>Open Frame</source>
         <comment>Open Frame in New Window context menu item</comment>
-        <translation>Apri riquadro</translation>
+        <translation type="vanished">Apri riquadro</translation>
     </message>
     <message>
         <source>Copy</source>
         <comment>Copy context menu item</comment>
-        <translation>Copia</translation>
+        <translation type="vanished">Copia</translation>
     </message>
     <message>
         <source>Go Back</source>
         <comment>Back context menu item</comment>
-        <translation>Indietro</translation>
+        <translation type="vanished">Indietro</translation>
     </message>
     <message>
         <source>Go Forward</source>
         <comment>Forward context menu item</comment>
-        <translation>Avanti</translation>
+        <translation type="vanished">Avanti</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation>Ferma</translation>
+        <translation type="vanished">Ferma</translation>
     </message>
     <message>
         <source>Reload</source>
         <comment>Reload context menu item</comment>
-        <translation>Ricarica</translation>
+        <translation type="vanished">Ricarica</translation>
     </message>
     <message>
         <source>Cut</source>
         <comment>Cut context menu item</comment>
-        <translation>Taglia</translation>
+        <translation type="vanished">Taglia</translation>
     </message>
     <message>
         <source>Paste</source>
         <comment>Paste context menu item</comment>
-        <translation>Incolla</translation>
+        <translation type="vanished">Incolla</translation>
     </message>
     <message>
         <source>No Guesses Found</source>
         <comment>No Guesses Found context menu item</comment>
-        <translation>Nessuna stima trovata</translation>
+        <translation type="vanished">Nessuna stima trovata</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation>Ignora</translation>
+        <translation type="vanished">Ignora</translation>
     </message>
     <message>
         <source>Add To Dictionary</source>
         <comment>Learn Spelling context menu item</comment>
-        <translation>Aggiungi al dizionario</translation>
+        <translation type="vanished">Aggiungi al dizionario</translation>
     </message>
     <message>
         <source>Search The Web</source>
         <comment>Search The Web context menu item</comment>
-        <translation>Cerca nel Web</translation>
+        <translation type="vanished">Cerca nel Web</translation>
     </message>
     <message>
         <source>Look Up In Dictionary</source>
         <comment>Look Up in Dictionary context menu item</comment>
-        <translation>Cerca nel dizionario</translation>
+        <translation type="vanished">Cerca nel dizionario</translation>
     </message>
     <message>
         <source>Open Link</source>
         <comment>Open Link context menu item</comment>
-        <translation>Apri collegamento</translation>
+        <translation type="vanished">Apri collegamento</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation>Ignora</translation>
+        <translation type="vanished">Ignora</translation>
     </message>
     <message>
         <source>Spelling</source>
         <comment>Spelling and Grammar context sub-menu item</comment>
-        <translation>Ortografia</translation>
+        <translation type="vanished">Ortografia</translation>
     </message>
     <message>
         <source>Show Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Mostra ortografia e grammatica</translation>
+        <translation type="vanished">Mostra ortografia e grammatica</translation>
     </message>
     <message>
         <source>Hide Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Nascondi ortografia e grammatica</translation>
+        <translation type="vanished">Nascondi ortografia e grammatica</translation>
     </message>
     <message>
         <source>Check Spelling</source>
         <comment>Check spelling context menu item</comment>
-        <translation>Controlla ortografia</translation>
+        <translation type="vanished">Controlla ortografia</translation>
     </message>
     <message>
         <source>Check Spelling While Typing</source>
         <comment>Check spelling while typing context menu item</comment>
-        <translation>Controlla l&apos;ortografia durante la digitazione</translation>
+        <translation type="vanished">Controlla l&apos;ortografia durante la digitazione</translation>
     </message>
     <message>
         <source>Check Grammar With Spelling</source>
         <comment>Check grammar with spelling context menu item</comment>
-        <translation>Controlla grammatica durante il controllo ortografico</translation>
+        <translation type="vanished">Controlla grammatica durante il controllo ortografico</translation>
     </message>
     <message>
         <source>Fonts</source>
         <comment>Font context sub-menu item</comment>
-        <translation>Caratteri</translation>
+        <translation type="vanished">Caratteri</translation>
     </message>
     <message>
         <source>Bold</source>
         <comment>Bold context menu item</comment>
-        <translation>Grassetto</translation>
+        <translation type="vanished">Grassetto</translation>
     </message>
     <message>
         <source>Italic</source>
         <comment>Italic context menu item</comment>
-        <translation>Corsivo</translation>
+        <translation type="vanished">Corsivo</translation>
     </message>
     <message>
         <source>Underline</source>
         <comment>Underline context menu item</comment>
-        <translation>Sottolineato</translation>
+        <translation type="vanished">Sottolineato</translation>
     </message>
     <message>
         <source>Outline</source>
         <comment>Outline context menu item</comment>
-        <translation>Bordatura</translation>
+        <translation type="vanished">Bordatura</translation>
     </message>
     <message>
         <source>Direction</source>
         <comment>Writing direction context sub-menu item</comment>
-        <translation>Direzione</translation>
+        <translation type="vanished">Direzione</translation>
     </message>
     <message>
         <source>Default</source>
         <comment>Default writing direction context menu item</comment>
-        <translation>Predefinita</translation>
+        <translation type="vanished">Predefinita</translation>
     </message>
     <message>
         <source>LTR</source>
         <comment>Left to Right context menu item</comment>
-        <translation>Da sinistra a destra</translation>
+        <translation type="vanished">Da sinistra a destra</translation>
     </message>
     <message>
         <source>RTL</source>
         <comment>Right to Left context menu item</comment>
-        <translation>Da destra a sinistra</translation>
+        <translation type="vanished">Da destra a sinistra</translation>
     </message>
     <message>
         <source>Inspect</source>
         <comment>Inspect Element context menu item</comment>
-        <translation>Ispeziona</translation>
+        <translation type="vanished">Ispeziona</translation>
     </message>
     <message>
         <source>No recent searches</source>
         <comment>Label for only item in menu that appears when clicking on the search field image, when no searches have been performed</comment>
-        <translation>Nessuna ricerca recente</translation>
+        <translation type="vanished">Nessuna ricerca recente</translation>
     </message>
     <message>
         <source>Recent searches</source>
         <comment>label for first item in the menu that appears when clicking on the search field image, used as embedded menu title</comment>
-        <translation>Ricerche recenti</translation>
+        <translation type="vanished">Ricerche recenti</translation>
     </message>
     <message>
         <source>Clear recent searches</source>
         <comment>menu item in Recent Searches menu that empties menu&apos;s contents</comment>
-        <translation>Cancella le ricerche recenti</translation>
+        <translation type="vanished">Cancella le ricerche recenti</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation>Sconosciuta</translation>
+        <translation type="vanished">Sconosciuta</translation>
     </message>
     <message>
         <source>%1 (%2x%3 pixels)</source>
         <comment>Title string for images</comment>
-        <translation>%1 (%2x%3 pixel)</translation>
+        <translation type="vanished">%1 (%2x%3 pixel)</translation>
     </message>
     <message>
         <source>Web Inspector - %2</source>
-        <translation>Analizzatore web - %2</translation>
+        <translation type="vanished">Analizzatore web - %2</translation>
     </message>
 </context>
 <context>
     <name>QWhatsThisAction</name>
     <message>
         <source>What&apos;s This?</source>
-        <translation>Cos&apos;è?</translation>
+        <translation>Che cos&apos;è?</translation>
     </message>
 </context>
 <context>
     <name>QWidget</name>
     <message>
         <source>*</source>
-        <translation></translation>
+        <translation>*</translation>
     </message>
 </context>
 <context>
@@ -8154,11 +8160,11 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>Done</source>
-        <translation>Completato</translation>
+        <translation>Fatto</translation>
     </message>
     <message>
         <source>Quit</source>
-        <translation>Esci</translation>
+        <translation type="vanished">Esci</translation>
     </message>
     <message>
         <source>Help</source>
@@ -8166,7 +8172,7 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Indietro</translation>
+        <translation>&lt; &amp;Precedente</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
@@ -8178,93 +8184,93 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>Ai&amp;uto</translation>
+        <translation>&amp;Aiuto</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>Ava&amp;nti</translation>
+        <translation>&amp;Successivo</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>Ava&amp;nti &gt;</translation>
+        <translation>&amp;Successivo &gt;</translation>
     </message>
 </context>
 <context>
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Ripristina</translation>
+        <translation type="vanished">&amp;Ripristina</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Sposta</translation>
+        <translation type="vanished">&amp;Sposta</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Dimensioni</translation>
+        <translation type="vanished">&amp;Dimensioni</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Mi&amp;nimizza</translation>
+        <translation type="vanished">Mi&amp;nimizza</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Ma&amp;ssimizza</translation>
+        <translation type="vanished">Ma&amp;ssimizza</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Chiudi</translation>
+        <translation type="vanished">&amp;Chiudi</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Sempre in &amp;primo piano</translation>
+        <translation type="vanished">Sempre in &amp;primo piano</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>&amp;Arrotola</translation>
+        <translation type="vanished">&amp;Arrotola</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Minimizza</translation>
+        <translation type="vanished">Minimizza</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Ripristina in basso</translation>
+        <translation type="vanished">Ripristina in basso</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Chiudi</translation>
+        <translation type="vanished">Chiudi</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>&amp;Srotola</translation>
+        <translation type="vanished">&amp;Srotola</translation>
     </message>
 </context>
 <context>
     <name>QXml</name>
     <message>
         <source>no error occurred</source>
-        <translation>non si è verificato alcun errore</translation>
+        <translation>nessun errore rilevato</translation>
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation>errore innescato da utente</translation>
+        <translation>errore causato dal consumatore</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
-        <translation>fine file inattesa</translation>
+        <translation>fine del file inattesa</translation>
     </message>
     <message>
         <source>more than one document type definition</source>
-        <translation>più di una definizione del tipo di documento</translation>
+        <translation>definizione di più di un tipo di documento</translation>
     </message>
     <message>
         <source>error occurred while parsing element</source>
-        <translation>riscontrato errore durante l&apos;analisi dell&apos;elemento</translation>
+        <translation>errore durante l&apos;analisi dell&apos;elemento</translation>
     </message>
     <message>
         <source>tag mismatch</source>
@@ -8272,63 +8278,63 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>error occurred while parsing content</source>
-        <translation>riscontrato errore durante l&apos;analisi del contenuto</translation>
+        <translation>errore durante l&apos;analisi del contenuto</translation>
     </message>
     <message>
         <source>unexpected character</source>
-        <translation>carattere inatteso</translation>
+        <translation>carattere non previsto</translation>
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation>nome dell&apos;istruzione di elaborazione non valido</translation>
+        <translation>nome non valido per l&apos;istruzione di elaborazione</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation>versione attesa durante la lettura della dichiarazione XML</translation>
+        <translation>prevista versione nella lettura della dichiarazione XML</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation>valore errato per la dichiarazione autonoma</translation>
+        <translation>valore errato per la dichiarazione standalone</translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>dichiarazione di codifica o dichiarazione autonoma attesa durante la lettura della dichiarazione XML</translation>
+        <translation>prevista dichiarazione di codifica o dichiarazione standalone durante la lettura della dichiarazione XML</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>dichiarazione autonoma attesa durante la lettura della dichiarazione XML</translation>
+        <translation>prevista dichiarazione standalone durante la lettura della dichiarazione XML</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translation>riscontrato errore durante l&apos;analisi della definizione del tipo di documento</translation>
+        <translation>si è verificato un errore nell&apos;analisi della definizione del documento</translation>
     </message>
     <message>
         <source>letter is expected</source>
-        <translation>lettera attesa</translation>
+        <translation>lettera prevista</translation>
     </message>
     <message>
         <source>error occurred while parsing comment</source>
-        <translation>riscontrato errore durante l&apos;analisi del commento</translation>
+        <translation>errore durante l&apos;analisi del commento</translation>
     </message>
     <message>
         <source>error occurred while parsing reference</source>
-        <translation>riscontrato errore durante l&apos;analisi dei riferimenti</translation>
+        <translation>errore durante l&apos;analisi del riferimento</translation>
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
-        <translation>riferimento interno a entità generica non consentito in DTD</translation>
+        <translation>riferimento all&apos;entità generale interna non consentito nella DTD</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>riferimento esterno a entità generale analizzata non consentito nel valore dell&apos;attributo</translation>
+        <translation>riferimento ad entità esterna generale analizzata non consentito in un valore di attributo</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>riferimento esterno a entità generale analizzata non consentito in DTD</translation>
+        <translation>riferimento a entità esterna generale analizzata non consetito nella DTD</translation>
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translation>riferimento entità non analizzata nel contesto errato</translation>
+        <translation>riferimento ad entità non analizzato nel contesto errato</translation>
     </message>
     <message>
         <source>recursive entities</source>
@@ -8336,14 +8342,14 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation>errore nella dichiarazione di testo di un&apos;entità esterna</translation>
+        <translation>errore nella dichiarazione testuale di una entità esterna</translation>
     </message>
 </context>
 <context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation>Contenuto aggiuntivo alla fine del documento.</translation>
+        <translation>Contenuti aggiuntivi alla fine del documento.</translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
@@ -8355,15 +8361,15 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation>Sequenza &apos;]]&gt;&apos; non consentita nel  contenuto.</translation>
+        <translation>La sequenza &apos;]]&gt;&apos; non è permessa nel contenuto.</translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation>Prefisso di spazio dei nomi &apos;%1&apos; non dichiarato</translation>
+        <translation>Il prefisso &apos;%1&apos; del namespace non è stato dichiarato</translation>
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>Attributo ridefinito.</translation>
+        <translation type="vanished">Attributo ridefinito.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
@@ -8375,7 +8381,7 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translation>Versione XML non supportata.</translation>
+        <translation>Versione di XML non supportata.</translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
@@ -8387,7 +8393,7 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation>Standalone accetta solo yes o no.</translation>
+        <translation>Standalone accetta solo si o no.</translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
@@ -8395,7 +8401,7 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>Premature end of document.</source>
-        <translation>Fine imprevista del documento.</translation>
+        <translation>Fine del documento prematura.</translation>
     </message>
     <message>
         <source>Invalid document.</source>
@@ -8403,31 +8409,31 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>Expected </source>
-        <translation>Atteso </translation>
+        <translation>Previsto </translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translation>, ma ricevuto &apos;</translation>
+        <translation>, ma ottenuto &apos;</translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translation>Inatteso &apos;</translation>
+        <translation>Imprevisto &apos;</translation>
     </message>
     <message>
         <source>Expected character data.</source>
-        <translation>Dati di carattere inattesi.</translation>
+        <translation>Previsti dati a carattere.</translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
-        <translation>Rilevata entità ricorsiva.</translation>
+        <translation>Entità ricorsiva rilevata.</translation>
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translation>Atteso tag iniziale.</translation>
+        <translation>Previsto tag di inizio.</translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translation>La dichiarazione XML non è all&apos;inizio del documento.</translation>
+        <translation>Dichiarazione XML non all&apos;inizio del documento.</translation>
     </message>
     <message>
         <source>NDATA in parameter entity declaration.</source>
@@ -8435,15 +8441,15 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation>%1 non è un nome valido dell&apos;istruzione di elaborazione.</translation>
+        <translation>%1 non è un nome di elaborazione dell&apos;istruzione valido.</translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation>Nome dell&apos;istruzione di elaborazione non valido.</translation>
+        <translation>nome non valido per l&apos;istruzione di elaborazione.</translation>
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translation>Dichiarazione dello spazio dei nomi non consentita.</translation>
+        <translation>Dichiarazione di namespace non valida.</translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
@@ -8451,15 +8457,15 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation>Mancata corrispondenza tra tag di apertura e chiusura.</translation>
+        <translation>Apertura e chiusura del tag non corrispondenti.</translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Riferimento all&apos;identità non analizzata &apos;%1&apos;.</translation>
+        <translation>Riferimento all&apos;entità &apos;%1&apos; non analizzata.</translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translation>Entità &apos;%1&apos; non dichiarata.</translation>
+        <translation>L&apos;entità &apos;%1&apos; non è stata dichiarata.</translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
@@ -8467,11 +8473,11 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     </message>
     <message>
         <source>Invalid character reference.</source>
-        <translation>Riferimento di carattere non valido.</translation>
+        <translation>Riferimento al carattere non valido.</translation>
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translation>Riscontrato contenuto non codificato correttamente.</translation>
+        <translation>Rilevato contenuto non codificato correttamente.</translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
@@ -8490,397 +8496,397 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     <name>QtXmlPatterns</name>
     <message>
         <source>An %1-attribute with value %2 has already been declared.</source>
-        <translation>Un attributo %1 con valore %2 è già stato dichiarato.</translation>
+        <translation type="vanished">Un attributo %1 con valore %2 è già stato dichiarato.</translation>
     </message>
     <message>
         <source>An %1-attribute must have a valid %2 as value, which %3 isn&apos;t.</source>
-        <translation>Un valore %1 deve avere un %2 valido come valore, che %3 non rappresenta.</translation>
+        <translation type="vanished">Un valore %1 deve avere un %2 valido come valore, che %3 non rappresenta.</translation>
     </message>
     <message>
         <source>Network timeout.</source>
-        <translation>Timeout di rete.</translation>
+        <translation type="vanished">Timeout di rete.</translation>
     </message>
     <message>
         <source>Year %1 is invalid because it begins with %2.</source>
-        <translation>L&apos;anno %1 non è valido poiché inizia con %2.</translation>
+        <translation type="vanished">L&apos;anno %1 non è valido poiché inizia con %2.</translation>
     </message>
     <message>
         <source>Day %1 is outside the range %2..%3.</source>
-        <translation>Il giorno %1 è fuori dall&apos;intervallo %2..%3.</translation>
+        <translation type="vanished">Il giorno %1 è fuori dall&apos;intervallo %2..%3.</translation>
     </message>
     <message>
         <source>Month %1 is outside the range %2..%3.</source>
-        <translation>Il mese %1 è fuori dall&apos;intervallo %2..%3.</translation>
+        <translation type="vanished">Il mese %1 è fuori dall&apos;intervallo %2..%3.</translation>
     </message>
     <message>
         <source>Overflow: Can&apos;t represent date %1.</source>
-        <translation>Overflow: impossibile rappresentare la data %1.</translation>
+        <translation type="vanished">Overflow: impossibile rappresentare la data %1.</translation>
     </message>
     <message>
         <source>Day %1 is invalid for month %2.</source>
-        <translation>Il giorno %1 non è valido per il mese %2.</translation>
+        <translation type="vanished">Il giorno %1 non è valido per il mese %2.</translation>
     </message>
     <message>
         <source>Time %1:%2:%3.%4 is invalid.</source>
-        <translation>L&apos;ora %1:%2:%3.%4 non è valida.</translation>
+        <translation type="vanished">L&apos;ora %1:%2:%3.%4 non è valida.</translation>
     </message>
     <message>
         <source>Overflow: Date can&apos;t be represented.</source>
-        <translation>Overflow: la data non può essere rappresentata.</translation>
+        <translation type="vanished">Overflow: la data non può essere rappresentata.</translation>
     </message>
     <message>
         <source>At least one component must be present.</source>
-        <translation>Deve essere presente almeno un componente.</translation>
+        <translation type="vanished">Deve essere presente almeno un componente.</translation>
     </message>
     <message>
         <source>At least one time component must appear after the %1-delimiter.</source>
-        <translation>Almeno un componente deve apparire dopo il delimitatore %1.</translation>
+        <translation type="vanished">Almeno un componente deve apparire dopo il delimitatore %1.</translation>
     </message>
     <message>
         <source>No operand in an integer division, %1, can be %2.</source>
-        <translation>Nessun operando in una divisione intera, %1, può essere %2.</translation>
+        <translation type="vanished">Nessun operando in una divisione intera, %1, può essere %2.</translation>
     </message>
     <message>
         <source>The first operand in an integer division, %1, cannot be infinity (%2).</source>
-        <translation>Il primo operando in una divisione intera, %1, non può essere infinito (%2).</translation>
+        <translation type="vanished">Il primo operando in una divisione intera, %1, non può essere infinito (%2).</translation>
     </message>
     <message>
         <source>The second operand in a division, %1, cannot be zero (%2).</source>
-        <translation>Il secondo operando in una divisione, %1, non può essere zero (%2).</translation>
+        <translation type="vanished">Il secondo operando in una divisione, %1, non può essere zero (%2).</translation>
     </message>
     <message>
         <source>%1 is not a valid value of type %2.</source>
-        <translation>%1 non è un valore valido di tipo %2.</translation>
+        <translation type="vanished">%1 non è un valore valido di tipo %2.</translation>
     </message>
     <message>
         <source>When casting to %1 from %2, the source value cannot be %3.</source>
-        <translation>Quando si esegue il cast da %1 a %2, il valore di origine non può essere %3.</translation>
+        <translation type="vanished">Quando si esegue il cast da %1 a %2, il valore di origine non può essere %3.</translation>
     </message>
     <message>
         <source>Integer division (%1) by zero (%2) is undefined.</source>
-        <translation>La divisione intera (%1) per zero (%2) non è definita.</translation>
+        <translation type="vanished">La divisione intera (%1) per zero (%2) non è definita.</translation>
     </message>
     <message>
         <source>Division (%1) by zero (%2) is undefined.</source>
-        <translation>La divisione (%1) per zero (%2) non è definita.</translation>
+        <translation type="vanished">La divisione (%1) per zero (%2) non è definita.</translation>
     </message>
     <message>
         <source>Modulus division (%1) by zero (%2) is undefined.</source>
-        <translation>La divisione del modulo (%1) per zero (%2) non è definita.</translation>
+        <translation type="vanished">La divisione del modulo (%1) per zero (%2) non è definita.</translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 (not-a-number) is not allowed.</source>
-        <translation>La divisione di un valore di tipo %1 per %2 (non un numero) non è consentita.</translation>
+        <translation type="vanished">La divisione di un valore di tipo %1 per %2 (non un numero) non è consentita.</translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 or %3 (plus or minus zero) is not allowed.</source>
-        <translation>La divisione di un valore di tipo %1 per %2 o%3 (più o meno zero) non è consentita.</translation>
+        <translation type="vanished">La divisione di un valore di tipo %1 per %2 o%3 (più o meno zero) non è consentita.</translation>
     </message>
     <message>
         <source>Multiplication of a value of type %1 by %2 or %3 (plus or minus infinity) is not allowed.</source>
-        <translation>La moltiplicazione di un valore di tipo %1 per %2 o%3 (più o meno infinito) non è consentita.</translation>
+        <translation type="vanished">La moltiplicazione di un valore di tipo %1 per %2 o%3 (più o meno infinito) non è consentita.</translation>
     </message>
     <message>
         <source>A value of type %1 cannot have an Effective Boolean Value.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">Un valore di tipo %1 non può essere un Effective Boolean Value.</translation>
     </message>
     <message>
         <source>Value %1 of type %2 exceeds maximum (%3).</source>
-        <translation>Il valore %1 di tipo %2 supera il massimo (%3).</translation>
+        <translation type="vanished">Il valore %1 di tipo %2 supera il massimo (%3).</translation>
     </message>
     <message>
         <source>Value %1 of type %2 is below minimum (%3).</source>
-        <translation>Il valore %1 di tipo %2 è sotto il minimo (%3).</translation>
+        <translation type="vanished">Il valore %1 di tipo %2 è sotto il minimo (%3).</translation>
     </message>
     <message>
         <source>A value of type %1 must contain an even number of digits. The value %2 does not.</source>
-        <translation>Un valore di tipo %1 deve contenere un numero di cifre pari. Il valore %2 non è corretto.</translation>
+        <translation type="vanished">Un valore di tipo %1 deve contenere un numero di cifre pari. Il valore %2 non è corretto.</translation>
     </message>
     <message>
         <source>%1 is not valid as a value of type %2.</source>
-        <translation>%1 non è un valore valido di tipo %2.</translation>
+        <translation type="vanished">%1 non è un valore valido di tipo %2.</translation>
     </message>
     <message>
         <source>Operator %1 cannot be used on type %2.</source>
-        <translation>L&apos;operatore %1 non può essere utilizzato per il tipo %2.</translation>
+        <translation type="vanished">L&apos;operatore %1 non può essere utilizzato per il tipo %2.</translation>
     </message>
     <message>
         <source>Operator %1 cannot be used on atomic values of type %2 and %3.</source>
-        <translation>L&apos;operatore %1 non può essere utilizzato su valori atomici di tipo %2 e %3.</translation>
+        <translation type="vanished">L&apos;operatore %1 non può essere utilizzato su valori atomici di tipo %2 e %3.</translation>
     </message>
     <message>
         <source>The namespace URI in the name for a computed attribute cannot be %1.</source>
-        <translation>L&apos;URI dello spazio dei nomi nel nome per un attributo calcolato non può essere %1.</translation>
+        <translation type="vanished">L&apos;URI dello spazio dei nomi nel nome per un attributo calcolato non può essere %1.</translation>
     </message>
     <message>
         <source>Type error in cast, expected %1, received %2.</source>
-        <translation>Errore di tipo nel cast, atteso %1, ricevuto %2.</translation>
+        <translation type="vanished">Errore di tipo nel cast, atteso %1, ricevuto %2.</translation>
     </message>
     <message>
         <source>No casting is possible with %1 as the target type.</source>
-        <translation>Non è possibile alcun cast con %1 come tipo di destinazione.</translation>
+        <translation type="vanished">Non è possibile alcun cast con %1 come tipo di destinazione.</translation>
     </message>
     <message>
         <source>It is not possible to cast from %1 to %2.</source>
-        <translation>Impossibile eseguire il cast da %1 a %2.</translation>
+        <translation type="vanished">Impossibile eseguire il cast da %1 a %2.</translation>
     </message>
     <message>
         <source>It&apos;s not possible to cast the value %1 of type %2 to %3</source>
-        <translation>Impossibile effettuare il cast di un valore %1 del tipo %2 in %3</translation>
+        <translation type="vanished">Impossibile effettuare il cast di un valore %1 del tipo %2 in %3</translation>
     </message>
     <message>
         <source>Failure when casting from %1 to %2: %3</source>
-        <translation>Problema durante il cast di %1 in %2: %3</translation>
+        <translation type="vanished">Problema durante il cast di %1 in %2: %3</translation>
     </message>
     <message>
         <source>A comment cannot contain %1</source>
-        <translation>Un commento non può contenere %1</translation>
+        <translation type="vanished">Un commento non può contenere %1</translation>
     </message>
     <message>
         <source>A comment cannot end with a %1.</source>
-        <translation>Un commento non può terminare con un %1.</translation>
+        <translation type="vanished">Un commento non può terminare con un %1.</translation>
     </message>
     <message>
         <source>No comparisons can be done involving the type %1.</source>
-        <translation>Non è possibile alcuna comparazione che includa il tipo %1.</translation>
+        <translation type="vanished">Non è possibile alcuna comparazione che includa il tipo %1.</translation>
     </message>
     <message>
         <source>Operator %1 is not available between atomic values of type %2 and %3.</source>
-        <translation>L&apos;operatore %1 non è disponibile tra i valori atomici di tipo %2 e %3.</translation>
+        <translation type="vanished">L&apos;operatore %1 non è disponibile tra i valori atomici di tipo %2 e %3.</translation>
     </message>
     <message>
         <source>A library module cannot be evaluated directly. It must be imported from a main module.</source>
-        <translation>Un modulo di libreria non può essere valutato direttamente. Deve essere importato da un modulo principale.</translation>
+        <translation type="vanished">Un modulo di libreria non può essere valutato direttamente. Deve essere importato da un modulo principale.</translation>
     </message>
     <message>
         <source>%1 is not a valid target name in a processing instruction. It must be a %2 value, e.g. %3.</source>
-        <translation>%1 non è un valore di destinazione valido in un&apos;istruzione di elaborazione. Deve essere un valore %2, ad es. %3.</translation>
+        <translation type="vanished">%1 non è un valore di destinazione valido in un&apos;istruzione di elaborazione. Deve essere un valore %2, ad es. %3.</translation>
     </message>
     <message>
         <source>The last step in a path must contain either nodes or atomic values. It cannot be a mixture between the two.</source>
-        <translation>L&apos;ultimo passo in un percorso deve contenere nodi o valori atomici. Non può essere un misto dei due.</translation>
+        <translation type="vanished">L&apos;ultimo passo in un percorso deve contenere nodi o valori atomici. Non può essere un misto dei due.</translation>
     </message>
     <message>
         <source>The data of a processing instruction cannot contain the string %1</source>
-        <translation>I dati dell&apos;istruzione di elaborazione non possono contenere la stringa %1</translation>
+        <translation type="vanished">I dati dell&apos;istruzione di elaborazione non possono contenere la stringa %1</translation>
     </message>
     <message>
         <source>%1 is an invalid %2</source>
-        <translation>%1 è un %2 non valido</translation>
+        <translation type="vanished">%1 è un %2 non valido</translation>
     </message>
     <message numerus="yes">
         <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%1 richiede almeno un argomento. %2 non è perciò valido.</numerusform>
             <numerusform>%1 richiede almeno %n argomenti. %2 non è perciò valido.</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%1 richiede almeno un argomento. %2 non è perciò valido.</numerusform>
             <numerusform>%1 richiede almeno %n argomenti. %2 non è perciò valido.</numerusform>
         </translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2. It must be a numeric type, xs:yearMonthDuration or xs:dayTimeDuration.</source>
-        <translation>Il primo argomento di %1 non può essere di tipo %2. Deve essere un tipo numerico, xs:yearMonthDuration o xs:dayTimeDuration.</translation>
+        <translation type="vanished">Il primo argomento di %1 non può essere di tipo %2. Deve essere un tipo numerico, xs:yearMonthDuration o xs:dayTimeDuration.</translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>Il primo argomento di %1 non può essere di tipo %2. Deve essere di tipo%3, %4, o %5.</translation>
+        <translation type="vanished">Il primo argomento di %1 non può essere di tipo %2. Deve essere di tipo%3, %4, o %5.</translation>
     </message>
     <message>
         <source>The second argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>Il secondo argomento di %1 non può essere di tipo %2. Deve essere di tipo%3, %4, o %5.</translation>
+        <translation type="vanished">Il secondo argomento di %1 non può essere di tipo %2. Deve essere di tipo%3, %4, o %5.</translation>
     </message>
     <message>
         <source>%1 is not a valid XML 1.0 character.</source>
-        <translation>%1 non è un carattere XML 1.0 valido.</translation>
+        <translation type="vanished">%1 non è un carattere XML 1.0 valido.</translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2.</source>
-        <translation>Il primo argomento di %1 non può essere di tipo %2.</translation>
+        <translation type="vanished">Il primo argomento di %1 non può essere di tipo %2.</translation>
     </message>
     <message>
         <source>%1 was called.</source>
-        <translation>%1 è stato invocato.</translation>
+        <translation type="vanished">%1 è stato invocato.</translation>
     </message>
     <message>
         <source>%1 must be followed by %2 or %3, not at the end of the replacement string.</source>
-        <translation>%1 deve essere seguito da %2 o %3, non alla fine della stringa di sostituzione.</translation>
+        <translation type="vanished">%1 deve essere seguito da %2 o %3, non alla fine della stringa di sostituzione.</translation>
     </message>
     <message>
         <source>In the replacement string, %1 must be followed by at least one digit when not escaped.</source>
-        <translation>Nella stringa di sostituzione, %1 deve essere seguito da almeno una cifra se non è presente un carattere di escape.</translation>
+        <translation type="vanished">Nella stringa di sostituzione, %1 deve essere seguito da almeno una cifra se non è presente un carattere di escape.</translation>
     </message>
     <message>
         <source>In the replacement string, %1 can only be used to escape itself or %2, not %3</source>
-        <translation>Nella stringa di sostituzione, %1 può essere utilizzato come sequenza di escape di se stesso o %2, non %3</translation>
+        <translation type="vanished">Nella stringa di sostituzione, %1 può essere utilizzato come sequenza di escape di se stesso o %2, non %3</translation>
     </message>
     <message>
         <source>%1 matches newline characters</source>
-        <translation>%1 verifica i caratteri di fine riga</translation>
+        <translation type="vanished">%1 verifica i caratteri di fine riga</translation>
     </message>
     <message>
         <source>%1 and %2 match the start and end of a line.</source>
-        <translation>%1 e %2 corrispondo all&apos;inizio e alla fine di una riga.</translation>
+        <translation type="vanished">%1 e %2 corrispondo all&apos;inizio e alla fine di una riga.</translation>
     </message>
     <message>
         <source>Matches are case insensitive</source>
-        <translation>Le corrispondenze non tengono conto delle maiuscole</translation>
+        <translation type="vanished">Le corrispondenze non tengono conto delle maiuscole</translation>
     </message>
     <message>
         <source>Whitespace characters are removed, except when they appear in character classes</source>
-        <translation>I caratteri di spaziatura sono rimossi, eccetto quando compaiono in classi di caratteri</translation>
+        <translation type="vanished">I caratteri di spaziatura sono rimossi, eccetto quando compaiono in classi di caratteri</translation>
     </message>
     <message>
         <source>%1 is an invalid regular expression pattern: %2</source>
-        <translation>%1 è un modello di espressione regolare non valido: %2</translation>
+        <translation type="vanished">%1 è un modello di espressione regolare non valido: %2</translation>
     </message>
     <message>
         <source>It will not be possible to retrieve %1.</source>
-        <translation>Non sarà possibile recuperare %1.</translation>
+        <translation type="vanished">Non sarà possibile recuperare %1.</translation>
     </message>
     <message>
         <source>The default collection is undefined</source>
-        <translation>La raccolta predefinita non è specificata</translation>
+        <translation type="vanished">La raccolta predefinita non è specificata</translation>
     </message>
     <message>
         <source>%1 cannot be retrieved</source>
-        <translation>%1 non può essere recuperato</translation>
+        <translation type="vanished">%1 non può essere recuperato</translation>
     </message>
     <message>
         <source>%1 is not a whole number of minutes.</source>
-        <translation>%1 non è un numero intero di minuti.</translation>
+        <translation type="vanished">%1 non è un numero intero di minuti.</translation>
     </message>
     <message>
         <source>Required cardinality is %1; got cardinality %2.</source>
-        <translation>La cardinalità richiesta è %1, la cardinalità ottenuta è %2.</translation>
+        <translation type="vanished">La cardinalità richiesta è %1, la cardinalità ottenuta è %2.</translation>
     </message>
     <message>
         <source>The item %1 did not match the required type %2.</source>
-        <translation>L&apos;elemento %1 non corrisponde al tipo %2 richiesto.</translation>
+        <translation type="vanished">L&apos;elemento %1 non corrisponde al tipo %2 richiesto.</translation>
     </message>
     <message>
         <source>%1 is an unknown schema type.</source>
-        <translation>%1 è un tipo di schema sconosciuto.</translation>
+        <translation type="vanished">%1 è un tipo di schema sconosciuto.</translation>
     </message>
     <message>
         <source>The initialization of variable %1 depends on itself</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">L&apos;inizializzazione della variabile %1 dipende da se stessa</translation>
     </message>
     <message>
         <source>No variable by name %1 exists</source>
-        <translation>Non esiste alcuna variabile con il nome %1</translation>
+        <translation type="vanished">Non esiste alcuna variabile con il nome %1</translation>
     </message>
     <message>
         <source>The variable %1 is unused</source>
-        <translation>La variabile %1 è inutilizzata</translation>
+        <translation type="vanished">La variabile %1 è inutilizzata</translation>
     </message>
     <message>
         <source>Version %1 is not supported. The supported XQuery version is 1.0.</source>
-        <translation>La versione %1 non è supportata. La versione di XQuery supportata è la 1.0.</translation>
+        <translation type="vanished">La versione %1 non è supportata. La versione di XQuery supportata è la 1.0.</translation>
     </message>
     <message>
         <source>The encoding %1 is invalid. It must contain Latin characters only, must not contain whitespace, and must match the regular expression %2.</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">La codifica %1 non è valida. Deve contenere solo caratteri Latin, non deve contenere spazi bianchi e deve verificare l&apos;espressione regolare %2.</translation>
     </message>
     <message>
         <source>No function with signature %1 is available</source>
-        <translation>Non è disponibile alcuna funzione con firma &apos;%1&apos;</translation>
+        <translation type="vanished">Non è disponibile alcuna funzione con firma &apos;%1&apos;</translation>
     </message>
     <message>
         <source>It is not possible to redeclare prefix %1.</source>
-        <translation>Non è possibile dichiarare nuovamente il prefisso %1.</translation>
+        <translation type="vanished">Non è possibile dichiarare nuovamente il prefisso %1.</translation>
     </message>
     <message>
         <source>The target namespace of a %1 cannot be empty.</source>
-        <translation>Lo spazio dei nomi di destinazione di un %1 non può essere vuoto.</translation>
+        <translation type="vanished">Lo spazio dei nomi di destinazione di un %1 non può essere vuoto.</translation>
     </message>
     <message>
         <source>The module import feature is not supported</source>
-        <translation>La funzione di importazione dei moduli non è supportata</translation>
+        <translation type="vanished">La funzione di importazione dei moduli non è supportata</translation>
     </message>
     <message>
         <source>No value is available for the external variable by name %1.</source>
-        <translation>Non è disponibile alcun valore per la variabile esterna con nome %1.</translation>
+        <translation type="vanished">Non è disponibile alcun valore per la variabile esterna con nome %1.</translation>
     </message>
     <message>
         <source>A function already exists with the signature %1.</source>
-        <translation>Una funzione con firma %1 esiste già.</translation>
+        <translation type="vanished">Una funzione con firma %1 esiste già.</translation>
     </message>
     <message>
         <source>An argument by name %1 has already been declared. Every argument name must be unique.</source>
-        <translation>Un argomento con nome %1 è già stato dichiarato. Ogni nome di argomento deve essere unico.</translation>
+        <translation type="vanished">Un argomento con nome %1 è già stato dichiarato. Ogni nome di argomento deve essere unico.</translation>
     </message>
     <message>
         <source>The %1-axis is unsupported in XQuery</source>
-        <translation>L&apos;asse %1 non è supportato in XQuery</translation>
+        <translation type="vanished">L&apos;asse %1 non è supportato in XQuery</translation>
     </message>
     <message>
         <source>No function by name %1 is available.</source>
-        <translation>Non è disponibile alcuna variabile con il nome %1.</translation>
+        <translation type="vanished">Non è disponibile alcuna variabile con il nome %1.</translation>
     </message>
     <message>
         <source>%1 is an invalid namespace URI.</source>
-        <translation>%1 è un URI di spazio dei nomi non valido.</translation>
+        <translation type="vanished">%1 è un URI di spazio dei nomi non valido.</translation>
     </message>
     <message>
         <source>It is not possible to bind to the prefix %1</source>
-        <translation>Impossibile associare al prefisso %1</translation>
+        <translation type="vanished">Impossibile associare al prefisso %1</translation>
     </message>
     <message>
         <source>The name %1 does not refer to any schema type.</source>
-        <translation>Il nome %1 non si riferisce a nessun tipo di schema.</translation>
+        <translation type="vanished">Il nome %1 non si riferisce a nessun tipo di schema.</translation>
     </message>
     <message>
         <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
-        <translation>%1 non è un tipo atomico. Il cast è possibile solo con tipi atomici.</translation>
+        <translation type="vanished">%1 non è un tipo atomico. Il cast è possibile solo con tipi atomici.</translation>
     </message>
     <message>
         <source>The name of an extension expression must be in a namespace.</source>
-        <translation>Il nome di un&apos;espressione di estensione deve essere in uno spazio dei nomi.</translation>
+        <translation type="vanished">Il nome di un&apos;espressione di estensione deve essere in uno spazio dei nomi.</translation>
     </message>
     <message>
         <source>empty</source>
-        <translation>vuoto</translation>
+        <translation type="vanished">vuoto</translation>
     </message>
     <message>
         <source>zero or one</source>
-        <translation>zero o uno</translation>
+        <translation type="vanished">zero o uno</translation>
     </message>
     <message>
         <source>exactly one</source>
-        <translation>esattamente uno</translation>
+        <translation type="vanished">esattamente uno</translation>
     </message>
     <message>
         <source>one or more</source>
-        <translation>uno o più</translation>
+        <translation type="vanished">uno o più</translation>
     </message>
     <message>
         <source>zero or more</source>
-        <translation>zero o più</translation>
+        <translation type="vanished">zero o più</translation>
     </message>
     <message>
         <source>Required type is %1, but %2 was found.</source>
-        <translation>Il tipo richiesto è «%1», ma è stato trovato %2.</translation>
+        <translation type="vanished">Il tipo richiesto è «%1», ma è stato trovato %2.</translation>
     </message>
     <message>
         <source>Promoting %1 to %2 may cause loss of precision.</source>
-        <translation>La promozione di %1 a %2 potrebbe causare una perdita di precisione.</translation>
+        <translation type="vanished">La promozione di %1 a %2 potrebbe causare una perdita di precisione.</translation>
     </message>
     <message>
         <source>The focus is undefined.</source>
-        <translation>Il fuoco non è definito.</translation>
+        <translation type="vanished">Il fuoco non è definito.</translation>
     </message>
     <message>
         <source>It&apos;s not possible to add attributes after any other kind of node.</source>
-        <translation>Non è possibile aggiungere attributi dopo qualsiasi altro tipo di nodo.</translation>
+        <translation type="vanished">Non è possibile aggiungere attributi dopo qualsiasi altro tipo di nodo.</translation>
     </message>
     <message>
         <source>An attribute by name %1 has already been created.</source>
-        <translation>Un attributo con nome %1 è già stato creato.</translation>
+        <translation type="vanished">Un attributo con nome %1 è già stato creato.</translation>
     </message>
     <message>
         <source>Element %1 can&apos;t be serialized because it appears outside the document element.</source>
@@ -9075,66 +9081,66 @@ La versione minima di Direct2D richiesta è %1.%2.%3.%4. La versione di Direct2D
     <name>VolumeSlider</name>
     <message>
         <source>Muted</source>
-        <translation>Silenziato</translation>
+        <translation type="vanished">Silenziato</translation>
     </message>
     <message>
         <source>Volume: %1%</source>
-        <translation>Volume: %1%</translation>
+        <translation type="vanished">Volume: %1%</translation>
     </message>
 </context>
 <context>
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Scorri qui</translation>
+        <translation type="vanished">Scorri qui</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Bordo sinistro</translation>
+        <translation type="vanished">Bordo sinistro</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>In alto</translation>
+        <translation type="vanished">In alto</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Bordo destro</translation>
+        <translation type="vanished">Bordo destro</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>In basso</translation>
+        <translation type="vanished">In basso</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Pagina sinistra</translation>
+        <translation type="vanished">Pagina sinistra</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Pagina su</translation>
+        <translation type="vanished">Pagina su</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Pagina destra</translation>
+        <translation type="vanished">Pagina destra</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Pagina giù</translation>
+        <translation type="vanished">Pagina giù</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Scorri a sinistra</translation>
+        <translation type="vanished">Scorri a sinistra</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Scorri in alto</translation>
+        <translation type="vanished">Scorri in alto</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Scorri a destra</translation>
+        <translation type="vanished">Scorri a destra</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Scorri in basso</translation>
+        <translation type="vanished">Scorri in basso</translation>
     </message>
 </context>
 </TS>

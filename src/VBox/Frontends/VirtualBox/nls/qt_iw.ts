@@ -43,260 +43,260 @@
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation type="unfinished">אמת</translation>
+        <translation type="obsolete">אמת</translation>
     </message>
     <message>
         <source>False</source>
-        <translation type="unfinished">שקר</translation>
+        <translation type="obsolete">שקר</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation type="unfinished">הוסף</translation>
+        <translation type="obsolete">הוסף</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation type="unfinished">עדכן</translation>
+        <translation type="obsolete">עדכן</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation type="unfinished">מחק</translation>
+        <translation type="obsolete">מחק</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation type="unfinished">העתק או העבר קובץ</translation>
+        <translation type="obsolete">העתק או העבר קובץ</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation type="unfinished">קרא: %1</translation>
+        <translation type="obsolete">קרא: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation type="unfinished">כתוב: %1</translation>
+        <translation type="obsolete">כתוב: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">ביטול</translation>
+        <translation type="obsolete">ביטול</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation type="unfinished">כל הקבצים (*)</translation>
+        <translation type="obsolete">כל הקבצים (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">שם</translation>
+        <translation type="obsolete">שם</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished">גודל</translation>
+        <translation type="obsolete">גודל</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation type="unfinished">סוג</translation>
+        <translation type="obsolete">סוג</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation type="unfinished">תאריך</translation>
+        <translation type="obsolete">תאריך</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation type="unfinished">מאפיינים</translation>
+        <translation type="obsolete">מאפיינים</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation type="unfinished">&amp;אישור</translation>
+        <translation type="obsolete">&amp;אישור</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation type="unfinished">&amp;חפש ב:</translation>
+        <translation type="obsolete">&amp;חפש ב:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation type="unfinished">&amp;שם הקובץ:</translation>
+        <translation type="obsolete">&amp;שם הקובץ:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation type="unfinished">&amp;סוג הקובץ:</translation>
+        <translation type="obsolete">&amp;סוג הקובץ:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation type="unfinished">אחורה</translation>
+        <translation type="obsolete">אחורה</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation type="unfinished">ספריה אחת למעלה</translation>
+        <translation type="obsolete">ספריה אחת למעלה</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation type="unfinished">צור תיקיה חדשה</translation>
+        <translation type="obsolete">צור תיקיה חדשה</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation type="unfinished">תצוגת רשימה</translation>
+        <translation type="obsolete">תצוגת רשימה</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation type="unfinished">תצוגת פרטים</translation>
+        <translation type="obsolete">תצוגת פרטים</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation type="unfinished">תצוגה מקדימה של פרטי הקובץ</translation>
+        <translation type="obsolete">תצוגה מקדימה של פרטי הקובץ</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation type="unfinished">תצוגה מקדימה של תוכן הקובץ</translation>
+        <translation type="obsolete">תצוגה מקדימה של תוכן הקובץ</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation type="unfinished">קריאה-כתיבה</translation>
+        <translation type="obsolete">קריאה-כתיבה</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation type="unfinished">קריאה-בלבד</translation>
+        <translation type="obsolete">קריאה-בלבד</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation type="unfinished">כתיבה-בלבד</translation>
+        <translation type="obsolete">כתיבה-בלבד</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished">לא נגיש</translation>
+        <translation type="obsolete">לא נגיש</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation type="unfinished">קישור סמלי לקובץ</translation>
+        <translation type="obsolete">קישור סמלי לקובץ</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation type="unfinished">קישור סמלי לספריה</translation>
+        <translation type="obsolete">קישור סמלי לספריה</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation type="unfinished">קישור סמלי לפריט מיוחד</translation>
+        <translation type="obsolete">קישור סמלי לפריט מיוחד</translation>
     </message>
     <message>
         <source>File</source>
-        <translation type="unfinished">קובץ</translation>
+        <translation type="obsolete">קובץ</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation type="unfinished">ספריה</translation>
+        <translation type="obsolete">ספריה</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation type="unfinished">מיוחד</translation>
+        <translation type="obsolete">מיוחד</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation type="unfinished">פתח</translation>
+        <translation type="obsolete">פתח</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation type="unfinished">שמירה בשם</translation>
+        <translation type="obsolete">שמירה בשם</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation type="unfinished">&amp;פתח</translation>
+        <translation type="obsolete">&amp;פתח</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation type="unfinished">&amp;שמור</translation>
+        <translation type="obsolete">&amp;שמור</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation type="unfinished">ש&amp;נה שם</translation>
+        <translation type="obsolete">ש&amp;נה שם</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation type="unfinished">&amp;מחק</translation>
+        <translation type="obsolete">&amp;מחק</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation type="unfinished">&amp;טען מחדש</translation>
+        <translation type="obsolete">&amp;טען מחדש</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation type="unfinished">סדר לפי ש&amp;ם</translation>
+        <translation type="obsolete">סדר לפי ש&amp;ם</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation type="unfinished">סדר לפי &amp;גודל</translation>
+        <translation type="obsolete">סדר לפי &amp;גודל</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation type="unfinished">סדר לפי &amp;תאריך</translation>
+        <translation type="obsolete">סדר לפי &amp;תאריך</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation type="unfinished">&amp;ללא סדר</translation>
+        <translation type="obsolete">&amp;ללא סדר</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation type="unfinished">סדר</translation>
+        <translation type="obsolete">סדר</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation type="unfinished">הצג קבצים &amp;מוסתרים</translation>
+        <translation type="obsolete">הצג קבצים &amp;מוסתרים</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation type="unfinished">הקובץ</translation>
+        <translation type="obsolete">הקובץ</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation type="unfinished">הספריה</translation>
+        <translation type="obsolete">הספריה</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation type="unfinished">הקישור הסמלי</translation>
+        <translation type="obsolete">הקישור הסמלי</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation type="unfinished">מחק את %1</translation>
+        <translation type="obsolete">מחק את %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation type="unfinished">&lt;qt&gt;האם אתה בטוח שברצונך למחוק %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;האם אתה בטוח שברצונך למחוק %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation type="unfinished">&amp;כן</translation>
+        <translation type="obsolete">&amp;כן</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation type="unfinished">&amp;לא</translation>
+        <translation type="obsolete">&amp;לא</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation type="unfinished">תיקיה חדשה 1</translation>
+        <translation type="obsolete">תיקיה חדשה 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation type="unfinished">תיקיה חדשה</translation>
+        <translation type="obsolete">תיקיה חדשה</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation type="unfinished">תיקיה חדשה %1</translation>
+        <translation type="obsolete">תיקיה חדשה %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation type="unfinished">חפש ספריה</translation>
+        <translation type="obsolete">חפש ספריה</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation type="unfinished">ספריות</translation>
+        <translation type="obsolete">ספריות</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation type="unfinished">שגיאה</translation>
+        <translation type="obsolete">שגיאה</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation type="unfinished">%1
+        <translation type="obsolete">%1
 הקובץ לא נמצא.
 בדוק את הנתיב ואת שם הקובץ.</translation>
     </message>
@@ -312,7 +312,7 @@ Check path and filename.</source>
 %1
 to
 %2</source>
-        <translation type="unfinished">לא ניתן לשנות את השם של
+        <translation type="obsolete">לא ניתן לשנות את השם של
 %1
 אל
 %2</translation>
@@ -320,13 +320,13 @@ to
     <message>
         <source>Could not open
 %1</source>
-        <translation type="unfinished">לא ניתן לפתוח את
+        <translation type="obsolete">לא ניתן לפתוח את
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation type="unfinished">לא ניתן לכתוב את
+        <translation type="obsolete">לא ניתן לכתוב את
 %1</translation>
     </message>
     <message>
@@ -349,94 +349,94 @@ to
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation type="unfinished">סדר בשורה</translation>
+        <translation type="obsolete">סדר בשורה</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation type="unfinished">התאמה אישית...</translation>
+        <translation type="obsolete">התאמה אישית...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation type="unfinished">הפעולה הופסקה על ידי המשתמש</translation>
+        <translation type="obsolete">הפעולה הופסקה על ידי המשתמש</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">ביטול</translation>
+        <translation type="obsolete">ביטול</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation type="unfinished">אישור</translation>
+        <translation type="obsolete">אישור</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="unfinished">החל</translation>
+        <translation type="obsolete">החל</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">עזרה</translation>
+        <translation type="obsolete">עזרה</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation type="unfinished">ברירות מחדל</translation>
+        <translation type="obsolete">ברירות מחדל</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">ביטול</translation>
+        <translation type="obsolete">ביטול</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation type="unfinished">&amp;בטל</translation>
+        <translation type="obsolete">&amp;בטל</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation type="unfinished">בצע &amp;שוב</translation>
+        <translation type="obsolete">בצע &amp;שוב</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation type="unfinished">&amp;גזור</translation>
+        <translation type="obsolete">&amp;גזור</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation type="unfinished">הע&amp;תק</translation>
+        <translation type="obsolete">הע&amp;תק</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation type="unfinished">ה&amp;דבק</translation>
+        <translation type="obsolete">ה&amp;דבק</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation type="unfinished">נקה</translation>
+        <translation type="obsolete">נקה</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation type="unfinished">בחר הכל</translation>
+        <translation type="obsolete">בחר הכל</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>Minimize</source>
-        <translation type="unfinished">מזער</translation>
+        <translation type="obsolete">מזער</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation type="unfinished">הגדל</translation>
+        <translation type="obsolete">הגדל</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">סגור</translation>
+        <translation type="obsolete">סגור</translation>
     </message>
     <message>
         <source>System</source>
@@ -483,39 +483,39 @@ to
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation type="unfinished">הפרוטוקול &quot;%1&quot; אינו נתמך</translation>
+        <translation type="obsolete">הפרוטוקול &quot;%1&quot; אינו נתמך</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation type="unfinished">הפרוטוקול &quot;%1&quot; לא תומך בהצגת ספריות</translation>
+        <translation type="obsolete">הפרוטוקול &quot;%1&quot; לא תומך בהצגת ספריות</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation type="unfinished">הפרוטוקול &quot;%1&quot; לא תומך ביצירת ספריית חדשות</translation>
+        <translation type="obsolete">הפרוטוקול &quot;%1&quot; לא תומך ביצירת ספריית חדשות</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation type="unfinished">הפרוטוקול &quot;%1&quot; לא תומך בהסרת קבצים או ספריות</translation>
+        <translation type="obsolete">הפרוטוקול &quot;%1&quot; לא תומך בהסרת קבצים או ספריות</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation type="unfinished">הפרוטוקול &quot;%1&quot; לא תומך בשינוי שמותיהם של קבצים או ספריות</translation>
+        <translation type="obsolete">הפרוטוקול &quot;%1&quot; לא תומך בשינוי שמותיהם של קבצים או ספריות</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation type="unfinished">הפרוטוקול &quot;%1&quot; לא תומך בהורדת קבצים</translation>
+        <translation type="obsolete">הפרוטוקול &quot;%1&quot; לא תומך בהורדת קבצים</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation type="unfinished">הפרוטוקול &quot;%1&quot; לא תומך בהעלאת קבצים</translation>
+        <translation type="obsolete">הפרוטוקול &quot;%1&quot; לא תומך בהעלאת קבצים</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation type="unfinished">הפרוטוקול &quot;%1&quot; לא תומך בהעתקה או העברה של קבצים או ספריות</translation>
+        <translation type="obsolete">הפרוטוקול &quot;%1&quot; לא תומך בהעתקה או העברה של קבצים או ספריות</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation type="unfinished">(לא ידוע)</translation>
+        <translation type="obsolete">(לא ידוע)</translation>
     </message>
 </context>
 <context>
@@ -691,7 +691,7 @@ to
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>RTL</translation>
+        <translation type="vanished">RTL</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -816,7 +816,7 @@ to
     </message>
     <message>
         <source>Select color</source>
-        <translation>בחירת צבע</translation>
+        <translation type="vanished">בחירת צבע</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -840,7 +840,7 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation type="unfinished">פתח</translation>
+        <translation type="obsolete">פתח</translation>
     </message>
     <message>
         <source>False</source>
@@ -852,7 +852,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">סגור</translation>
+        <translation type="obsolete">סגור</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1140,39 +1140,39 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Save</source>
-        <translation type="unfinished">שמור</translation>
+        <translation type="obsolete">שמור</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation type="unfinished">פתח</translation>
+        <translation type="obsolete">פתח</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">ביטול</translation>
+        <translation type="obsolete">ביטול</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">סגור</translation>
+        <translation type="obsolete">סגור</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="unfinished">החל</translation>
+        <translation type="obsolete">החל</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">עזרה</translation>
+        <translation type="obsolete">עזרה</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation type="unfinished">&amp;כן</translation>
+        <translation type="obsolete">&amp;כן</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation type="unfinished">&amp;לא</translation>
+        <translation type="obsolete">&amp;לא</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation type="unfinished">&amp;אישור</translation>
+        <translation type="obsolete">&amp;אישור</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -1354,10 +1354,12 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation type="unfinished">סגור</translation>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1769,6 +1771,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Demi</source>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1994,11 +1997,11 @@ Do you want to delete it anyway?</source>
     <name>QFtp</name>
     <message>
         <source>Host %1 found</source>
-        <translation type="unfinished">המארח %1 נמצא</translation>
+        <translation type="obsolete">המארח %1 נמצא</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation type="unfinished">המארח נמצא</translation>
+        <translation type="obsolete">המארח נמצא</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
@@ -2006,11 +2009,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation type="unfinished">מחובר למארח</translation>
+        <translation type="obsolete">מחובר למארח</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation type="unfinished">החיבור אל %1 נסגר</translation>
+        <translation type="obsolete">החיבור אל %1 נסגר</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2171,31 +2174,31 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>אורך תוכן שגוי</translation>
+        <translation type="vanished">אורך תוכן שגוי</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>בקשת ה-HTTP נכשלה</translation>
+        <translation type="vanished">בקשת ה-HTTP נכשלה</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation type="unfinished">המארח %1 נמצא</translation>
+        <translation type="obsolete">המארח %1 נמצא</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation type="unfinished">המארח נמצא</translation>
+        <translation type="obsolete">המארח נמצא</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation type="unfinished">מחובר למארח %1</translation>
+        <translation type="obsolete">מחובר למארח %1</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation type="unfinished">מחובר למארח</translation>
+        <translation type="obsolete">מחובר למארח</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation type="unfinished">החיבור אל %1 נסגר</translation>
+        <translation type="obsolete">החיבור אל %1 נסגר</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2934,11 +2937,11 @@ Do you want to delete it anyway?</source>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation type="unfinished">סגור</translation>
+        <translation type="obsolete">סגור</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation type="unfinished">פתח</translation>
+        <translation type="obsolete">פתח</translation>
     </message>
     <message>
         <source>Execute</source>
@@ -3405,7 +3408,7 @@ Do you want to delete it anyway?</source>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation type="unfinished">שם</translation>
+        <translation type="obsolete">שם</translation>
     </message>
     <message>
         <source>Value</source>
@@ -4159,15 +4162,15 @@ Do you want to delete it anyway?</source>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>מחוברת מקומית</translation>
+        <translation type="vanished">מחוברת מקומית</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>שמות נוספים: %1</translation>
+        <translation type="vanished">שמות נוספים: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>לא ידוע</translation>
+        <translation type="vanished">לא ידוע</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -4506,7 +4509,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">סגור</translation>
+        <translation type="obsolete">סגור</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -4723,7 +4726,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation type="unfinished">פתח</translation>
+        <translation type="obsolete">פתח</translation>
     </message>
 </context>
 <context>
@@ -5289,7 +5292,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Line up</source>
-        <translation type="unfinished">סדר בשורה</translation>
+        <translation type="obsolete">סדר בשורה</translation>
     </message>
     <message>
         <source>Position</source>
@@ -5391,6 +5394,7 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation type="unfinished">רווח</translation>
     </message>
     <message>
@@ -5719,10 +5723,12 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -6808,43 +6814,43 @@ Role of an accessible object</extracomment>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation type="unfinished">מחק</translation>
+        <translation type="obsolete">מחק</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation type="unfinished">האם למחוק רשומה זו?</translation>
+        <translation type="obsolete">האם למחוק רשומה זו?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation type="unfinished">כן</translation>
+        <translation type="obsolete">כן</translation>
     </message>
     <message>
         <source>No</source>
-        <translation type="unfinished">לא</translation>
+        <translation type="obsolete">לא</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation type="unfinished">הוסף</translation>
+        <translation type="obsolete">הוסף</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation type="unfinished">עדכן</translation>
+        <translation type="obsolete">עדכן</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation type="unfinished">האם לשמור את העריכה?</translation>
+        <translation type="obsolete">האם לשמור את העריכה?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">ביטול</translation>
+        <translation type="obsolete">ביטול</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation type="unfinished">אישור</translation>
+        <translation type="obsolete">אישור</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation type="unfinished">האם לבטל את העריכה שלך?</translation>
+        <translation type="obsolete">האם לבטל את העריכה שלך?</translation>
     </message>
 </context>
 <context>
@@ -7168,31 +7174,31 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation type="unfinished">&amp;בטל</translation>
+        <translation type="obsolete">&amp;בטל</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation type="unfinished">בצע &amp;שוב</translation>
+        <translation type="obsolete">בצע &amp;שוב</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation type="unfinished">&amp;גזור</translation>
+        <translation type="obsolete">&amp;גזור</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation type="unfinished">הע&amp;תק</translation>
+        <translation type="obsolete">הע&amp;תק</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation type="unfinished">ה&amp;דבק</translation>
+        <translation type="obsolete">ה&amp;דבק</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation type="unfinished">מחק</translation>
+        <translation type="obsolete">מחק</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation type="unfinished">בחר הכל</translation>
+        <translation type="obsolete">בחר הכל</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
@@ -7203,7 +7209,7 @@ Role of an accessible object</extracomment>
     <name>QToolButton</name>
     <message>
         <source>Open</source>
-        <translation type="unfinished">פתח</translation>
+        <translation type="obsolete">פתח</translation>
     </message>
     <message>
         <source>Press</source>
@@ -7214,11 +7220,11 @@ Role of an accessible object</extracomment>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation type="unfinished">בטל</translation>
+        <translation type="obsolete">בטל</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation type="unfinished">שחזר</translation>
+        <translation type="obsolete">שחזר</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7250,11 +7256,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation type="unfinished">בטל</translation>
+        <translation type="obsolete">בטל</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation type="unfinished">שחזר</translation>
+        <translation type="obsolete">שחזר</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7455,55 +7461,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation type="unfinished">ש&amp;חזר</translation>
+        <translation type="obsolete">ש&amp;חזר</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation type="unfinished">ה&amp;זז</translation>
+        <translation type="obsolete">ה&amp;זז</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation type="unfinished">&amp;שנה גודל</translation>
+        <translation type="obsolete">&amp;שנה גודל</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation type="unfinished">&amp;מזער</translation>
+        <translation type="obsolete">&amp;מזער</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation type="unfinished">&amp;הגדל</translation>
+        <translation type="obsolete">&amp;הגדל</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation type="unfinished">&amp;סגור</translation>
+        <translation type="obsolete">&amp;סגור</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation type="unfinished">&amp;תמיד עליון</translation>
+        <translation type="obsolete">&amp;תמיד עליון</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation type="unfinished">&amp;גלול</translation>
+        <translation type="obsolete">&amp;גלול</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation type="unfinished">מזער</translation>
+        <translation type="obsolete">מזער</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation type="unfinished">שחזר למטה</translation>
+        <translation type="obsolete">שחזר למטה</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">סגור</translation>
+        <translation type="obsolete">סגור</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation type="unfinished">&amp;בטל גלילה</translation>
+        <translation type="obsolete">&amp;בטל גלילה</translation>
     </message>
 </context>
 <context>

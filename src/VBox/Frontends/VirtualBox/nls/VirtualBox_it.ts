@@ -1434,7 +1434,7 @@
     </message>
     <message>
         <source>Take guest display screenshot</source>
-        <translation>Acquisisce una scherma dello schermo del guest</translation>
+        <translation>Acquisisce una schermata dello schermo del guest</translation>
     </message>
     <message>
         <source>Display virtual machine settings window to configure video capture</source>
@@ -2999,6 +2999,34 @@
             <numerusform>&lt;nobr&gt;Utilizzato dal seguente disco fisso:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
             <numerusform>&lt;nobr&gt;Utilizzato dai seguenti %n dischi fissi:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
         </translation>
+    </message>
+</context>
+<context>
+    <name>UIErrorString</name>
+    <message>
+        <source>Result&amp;nbsp;Code: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Codice&amp;nbsp;di&amp;nbsp;uscita:</translation>
+    </message>
+    <message>
+        <source>Component: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Componente: </translation>
+    </message>
+    <message>
+        <source>Interface: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Interfaccia: </translation>
+    </message>
+    <message>
+        <source>Callee: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Chiamante: </translation>
+    </message>
+    <message>
+        <source>Callee&amp;nbsp;RC: </source>
+        <comment>error info</comment>
+        <translation type="vanished">RC&amp;nbsp;chiamante: </translation>
     </message>
 </context>
 <context>
@@ -6177,6 +6205,14 @@ p, li { white-space: pre-wrap; }
         <source>Networking</source>
         <translation type="vanished">Rete</translation>
     </message>
+    <message>
+        <source>Adding network...</source>
+        <translation type="vanished">Aggiunta rete...</translation>
+    </message>
+    <message>
+        <source>Removing network...</source>
+        <translation type="vanished">Rimozione rete...</translation>
+    </message>
 </context>
 <context>
     <name>UIHotKeyEditor</name>
@@ -7770,6 +7806,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>When checked, enables video recording for screen %1.</source>
         <translation>Se marcata, abilita la registrazione video per lo schermo %1.</translation>
+    </message>
+    <message>
+        <source>When checked, VirtualBox will record the audio stream to video file as well.</source>
+        <translation type="vanished">Se marcata, VirtualBox registrerà anche il flusso audio sul file video.</translation>
+    </message>
+    <message>
+        <source>&amp;Record Audio</source>
+        <translation type="vanished">&amp;Registra audio</translation>
     </message>
 </context>
 <context>
@@ -10603,6 +10647,26 @@ p, li { white-space: pre-wrap; }
         <source>Close Window (%1)</source>
         <translation type="vanished">Chiudi finestra (%1)</translation>
     </message>
+    <message>
+        <source>Copy Disk Image File (%1)</source>
+        <translation type="vanished">Copia file immagine del disco (%1)</translation>
+    </message>
+    <message>
+        <source>Remove Disk Image File (%1)</source>
+        <translation type="vanished">Rimuovi file immagine del disco (%1)</translation>
+    </message>
+    <message>
+        <source>Release Disk Image File (%1)</source>
+        <translation type="vanished">Rilascia file immagine del disco (%1)</translation>
+    </message>
+    <message>
+        <source>Open Disk Image File Properties (%1)</source>
+        <translation type="vanished">Apri proprietà del file immagine del disco (%1)</translation>
+    </message>
+    <message>
+        <source>Refresh Disk Image Files (%1)</source>
+        <translation type="vanished">Aggiorna i file immagine dei dischi (%1)</translation>
+    </message>
 </context>
 <context>
     <name>UIMediumManagerWidget</name>
@@ -12828,6 +12892,10 @@ p, li { white-space: pre-wrap; }
         <source>&lt;p&gt;Could not insert the &lt;b&gt;%1&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%2&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
         <translation type="vanished">&lt;p&gt;Impossibile inserire il file dell&apos;immagine del disco di &lt;b&gt;%1&lt;/b&gt; nella macchina virtuale&lt;b&gt;%2&lt;/b&gt;, poiché la macchina non ha un lettore ottico. Aggiungi un lettore dalla pagina di archiviazione della finestra delle impostazioni della macchina virtuale.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>Failed to change the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="vanished">Modifica dell&apos;istantanea &lt;b&gt;%1&lt;/b&gt; della macchina virtuale &lt;b&gt;%2&lt;/b&gt; non riuscita.</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -14482,6 +14550,26 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     <message>
         <source>Snapshot name is empty</source>
         <translation type="vanished">Il nome dell&apos;istantanea è vuoto</translation>
+    </message>
+    <message>
+        <source>Take Snapshot (%1)</source>
+        <translation type="vanished">Crea istantanea (%1)</translation>
+    </message>
+    <message>
+        <source>Enter a name for the new snapshot...</source>
+        <translation type="vanished">Digita un nome per la nuova istantanea...</translation>
+    </message>
+    <message>
+        <source>Enter a name for this snapshot...</source>
+        <translation type="vanished">Digita un nome per questa istantanea...</translation>
+    </message>
+    <message>
+        <source>Take</source>
+        <translation type="vanished">Crea</translation>
+    </message>
+    <message>
+        <source>Take snapshot on the basis of current machine state</source>
+        <translation type="vanished">Crea un&apos;istantanea in base dello stato attuale della macchina</translation>
     </message>
 </context>
 <context>
@@ -21288,7 +21376,7 @@ per accedervi da un sistema Linux. Questa funzionalità richiede Guest Additions
     </message>
     <message>
         <source>Taken:</source>
-        <translation>Acquisita:</translation>
+        <translation>Creata:</translation>
     </message>
     <message>
         <source>&amp;Description:</source>
@@ -21385,12 +21473,12 @@ per accedervi da un sistema Linux. Questa funzionalità richiede Guest Additions
     <message>
         <source>Taken at %1</source>
         <comment>Snapshot (time)</comment>
-        <translation>Presa alle %1</translation>
+        <translation>Creata alle %1</translation>
     </message>
     <message>
         <source>Taken on %1</source>
         <comment>Snapshot (date + time)</comment>
-        <translation>Presa il %1</translation>
+        <translation>Creata il %1</translation>
     </message>
     <message>
         <source>%1 since %2</source>
@@ -21411,7 +21499,7 @@ per accedervi da un sistema Linux. Questa funzionalità richiede Guest Additions
     </message>
     <message>
         <source>Take a snapshot of the current virtual machine state</source>
-        <translation>Cattura un&apos;istantanea dello stato corrente della macchina virtuale</translation>
+        <translation>Crea un&apos;istantanea dello stato corrente della macchina virtuale</translation>
     </message>
     <message>
         <source>Show the details of the selected snapshot</source>
@@ -21621,7 +21709,7 @@ per accedervi da un sistema Linux. Questa funzionalità richiede Guest Additions
     <name>VBoxTakeSnapshotDlg</name>
     <message>
         <source>Take Snapshot of Virtual Machine</source>
-        <translation>Crea una istantanea della macchina virtuale</translation>
+        <translation>Crea un&apos;istantanea della macchina virtuale</translation>
     </message>
     <message>
         <source>Snapshot &amp;Name</source>

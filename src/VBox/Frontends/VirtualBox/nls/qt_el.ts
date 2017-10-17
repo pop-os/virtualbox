@@ -20,7 +20,7 @@
     <name>CloseButton</name>
     <message>
         <source>Close Tab</source>
-        <translation type="unfinished"></translation>
+        <translation>Κλείσιμο καρτέλας</translation>
     </message>
 </context>
 <context>
@@ -51,15 +51,15 @@
     </message>
     <message>
         <source>About %1</source>
-        <translatorcomment>2017-05-04</translatorcomment>
-        <translation>Σχετικά με %1</translation>
+        <translatorcomment>2017-09-16</translatorcomment>
+        <translation>Σχετικά με το %1</translation>
     </message>
 </context>
 <context>
     <name>Phonon::</name>
     <message>
         <source>Notifications</source>
-        <translation>Ειδοποιήσεις</translation>
+        <translation>Γνωστοποιήσεις</translation>
     </message>
     <message>
         <source>Music</source>
@@ -104,7 +104,7 @@
 
 Check your Gstreamer installation and make sure you 
 have libgstreamer-plugins-base installed.</source>
-        <translation>Αδυναμία αναπαραγωγής. 
+        <translation>Δεν είναι δυνατή η αναπαραγωγή. 
 
 Ελέξτε την εγκατάσταση του Gstreamer και σιγουρευτείτε οτι
 έχετε εγκαταστήσει το  libgstreamer-plugins-base.</translation>
@@ -122,7 +122,7 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>Invalid source type.</source>
-        <translation>Μη έγκυρος τύπος πηγής.</translation>
+        <translation>Μή έγκυρος τύπος πηγής.</translation>
     </message>
     <message>
         <source>Could not locate media source.</source>
@@ -134,7 +134,7 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>Could not decode media source.</source>
-        <translation>Αδυναμία αποκωδικοποίησης της πηγής μέσου.</translation>
+        <translation>Δεν ήταν δυνατή η αποκωδικοποίηση της πηγής μέσου.</translation>
     </message>
 </context>
 <context>
@@ -152,11 +152,11 @@ have libgstreamer-plugins-base installed.</source>
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 δεν έχουν καθοριστεί</translation>
+        <translation>%1, %2 δεν έχει καθοριστεί</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>Αμφίβολο %1 δεν μπορεί να χρησιμοποιηθεί</translation>
+        <translation>Αμφίβολο %1 δεν μπορεί να χειριστεί</translation>
     </message>
 </context>
 <context>
@@ -186,7 +186,7 @@ have libgstreamer-plugins-base installed.</source>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Αντιγραφή ή Μετακίνηση ενός αρχείου</translation>
+        <translation>Αντιγραφή ή Μετακίνηση αρχείου</translation>
     </message>
     <message>
         <source>Read: %1</source>
@@ -226,19 +226,19 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>Εντάξει</translation>
+        <translation>&amp;Εντάξει</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Αναζήτηση σε:</translation>
+        <translation>Ψάξε &amp;in :</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Όνομα αρχεiου:</translation>
+        <translation>&amp;Όνομα αρχεiου:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>Τύπος αρχείου:</translation>
+        <translation>&amp;Τύπος αρχείου:</translation>
     </message>
     <message>
         <source>Back</source>
@@ -246,7 +246,7 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>Ένας κατάλογος επάνω</translation>
+        <translation>Επάνω</translation>
     </message>
     <message>
         <source>Create New Folder</source>
@@ -274,11 +274,11 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Μόνο Ανάγνωση</translation>
+        <translation>Ανάγνωση μόνο</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Μόνο Εγγραφή</translation>
+        <translation>Εγγραφή-μόνο</translation>
     </message>
     <message>
         <source>Inaccessible</source>
@@ -290,11 +290,11 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Σύνδεσμος σε Κατάλογο</translation>
+        <translation>Σύνδεσμος σε φάκελλο</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Σύνδεσμος σε Ειδικό</translation>
+        <translation>Σύνδεσμος σε ειδικό</translation>
     </message>
     <message>
         <source>File</source>
@@ -318,39 +318,39 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>Άνοιγμα</translation>
+        <translation>&amp;Άνοιγμα</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>Αποθήκευση</translation>
+        <translation>&amp;Αποθήκευση</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>Μετονομασία</translation>
+        <translation>&amp;Μετονομασία</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>Διαγραφή</translation>
+        <translation>&amp;Διαγραφή</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>Επαναφόρτωση</translation>
+        <translation>Φ&amp;όρτωμα</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Ταξινόμηση κατά Όνομα</translation>
+        <translation>Ταξινόμηση κατά &amp;Όνομα</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Ταξινόμηση κατά Μέγεθος</translation>
+        <translation>Ταξινόμηση κατά &amp;Μέγεθος</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Ταξινόμηση κατά Ημερομηνία</translation>
+        <translation>Ταξινόμηση κατά &amp;Ημερομηνία</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>Αταξινόμητα</translation>
+        <translation>&amp;Αταξινόμητα</translation>
     </message>
     <message>
         <source>Sort</source>
@@ -358,7 +358,7 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Εμφάνιση κρυφών αρχείων</translation>
+        <translation>Εμφάνιση &amp;Κρυφών Αρχείων</translation>
     </message>
     <message>
         <source>the file</source>
@@ -366,7 +366,7 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>the directory</source>
-        <translation>ο κατάλογος</translation>
+        <translation>ο φάκελος</translation>
     </message>
     <message>
         <source>the symlink</source>
@@ -382,11 +382,11 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>Ναι</translation>
+        <translation>&amp;Ναι</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>Όχι</translation>
+        <translation>&amp;Όχι</translation>
     </message>
     <message>
         <source>New Folder 1</source>
@@ -402,15 +402,15 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Εύρεση Καταλόγου</translation>
+        <translation>Εύρεση Φακέλου</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Κατάλογοι</translation>
+        <translation>Φάκελοι</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Κατάλογος:</translation>
+        <translation>Φάκελος:</translation>
     </message>
     <message>
         <source>Error</source>
@@ -422,7 +422,7 @@ File not found.
 Check path and filename.</source>
         <translation>%1
 Το αρχείο δεν βρέθηκε.
-Ελέγξτε τη διαδρομή και το όνομα του αρχείου.</translation>
+Ελέγξτε την διαδρομή και το όνομα του αρχείου.</translation>
     </message>
 </context>
 <context>
@@ -430,19 +430,19 @@ Check path and filename.</source>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Αδυναμία ανάγνωσης του καταλόγου
+        <translation>Δεν ήταν δυνατή η ανάγνωση του φακέλου
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Αδυναμία δημιουργίας του καταλόγου
+        <translation>Δεν ήταν δυνατή η δημιουργία του φακέλου
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Αδυναμία διαγραφής του αρχείου ή του καταλόγου
+        <translation>Δεν ήταν δυνατή η διαγραφή του αρχείου ή του φακέλου
 %1</translation>
     </message>
     <message>
@@ -450,7 +450,7 @@ Check path and filename.</source>
 %1
 to
 %2</source>
-        <translation>Αδυναμία μετονομασίας
+        <translation>Δεν ήταν δυνατή η μετονομασία
 %1
 σε
 %2</translation>
@@ -458,13 +458,13 @@ to
     <message>
         <source>Could not open
 %1</source>
-        <translation>Αδυναμία ανοίγματος
+        <translation>Δεν ήταν δυνατό το άνοιγμα
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Αδυναμία εγγραφής
+        <translation>Δεν ήταν δυνατή η εγγραφή
 %1</translation>
     </message>
 </context>
@@ -490,7 +490,7 @@ to
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Ακύρωση</translation>
+        <translation>Άκυρο</translation>
     </message>
 </context>
 <context>
@@ -509,34 +509,34 @@ to
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Προκαθορισμένα</translation>
+        <translation>Επαναφορά σε αρχικά</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Ακύρωση</translation>
+        <translation>Άκυρο</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>Αναίρεση</translation>
+        <translation>&amp;Αναίρεση</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Επαναφορά</translation>
+        <translation>&amp;Ακύρωση Αναίρεσης</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Αποκοπή</translation>
+        <translation>Αποκοπ&amp;ή</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>Αντιγραφή</translation>
+        <translation>&amp;Αντιγραφή</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>Επικόλληση</translation>
+        <translation>&amp;Επικόλληση</translation>
     </message>
     <message>
         <source>Clear</source>
@@ -575,11 +575,11 @@ to
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Περιέχει εντολές για τη ρύθμιση του παραθύρου</translation>
+        <translation>Περιέχει εντολές για τον έλεγχο του παραθύρου</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>Επαναφορά από ελαχιστοποιημένη σε κανονική μορφή</translation>
+        <translation>Θετεί από ελαχιστοποίηση σε κανονικό μέγεθος</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
@@ -587,19 +587,19 @@ to
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Επαναφορά παραθύρου από μεγιστοποιημένη σε κανονική μορφή</translation>
+        <translation>Θέτει το παράθυρο από μεγιστοποίηση σε κανονικό μέγεθος</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Παράθυρο σε πλήρη οθόνη</translation>
+        <translation>Θέτει το παράθυρο σε πλήρη οθόνη</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Κλείσιμο παραθύρου</translation>
+        <translation>Κλείνει το παράθυρο</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Εμφανίζει το όνομα του παραθύρου και περιέχει εντολές για τη ρύθμισή του</translation>
+        <translation>Εμφανίζει το όνομα του παραθύρου και περιέχει εντολές για τον έλεγχο του</translation>
     </message>
 </context>
 <context>
@@ -617,19 +617,19 @@ to
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την εμφάνιση σε λίστα των καταλόγων</translation>
+        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει τον κατάλογο φακέλων</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την δημιουργία νέων καταλόγων</translation>
+        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την δημιουργία νέων φακέλων</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την μετακίνηση αρχείων ή καταλόγων</translation>
+        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την μετακίνηση αρχείων ή φακέλων</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την μετονομασία αρχείων ή καταλόγων</translation>
+        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την μετονομασία αρχείων ή φακέλων</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
@@ -641,7 +641,7 @@ to
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την αντιγραφή ή μεταφορά αρχείων ή καταλόγων</translation>
+        <translation>Το πρωτόκολλο &apos;%1&apos; δεν υποστηρίζει την αντιγραφή ή μεταφορά αρχείων ή φακέλων</translation>
     </message>
     <message>
         <source>(unknown)</source>
@@ -652,23 +652,23 @@ to
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>Ακύρωση</translation>
+        <translation>&amp;Άκυρο</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; Πίσω</translation>
+        <translation>&lt; &amp;Πίσω</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>Επόμενο &gt;</translation>
+        <translation>&amp;Επόμενο &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>Τέλος</translation>
+        <translation>&amp;Τέλος</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>Βοήθεια</translation>
+        <translation>&amp;Βοήθεια</translation>
     </message>
 </context>
 <context>
@@ -691,41 +691,41 @@ to
     </message>
     <message>
         <source>Operation on socket is not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>Η λειτουργεία στο socket δεν υποστηρίζεται</translation>
     </message>
     <message>
         <source>Connection timed out</source>
-        <translation type="unfinished">Η σύνδεση τερματίστηκε λόγω καθυστέρησης</translation>
+        <translation>Η σύνδεση τερματίστηκε λόγω καθυστέρησης</translation>
     </message>
     <message>
         <source>Trying to connect while connection is in progress</source>
-        <translation type="unfinished"></translation>
+        <translation>Προσπάθεια σύνδεσης ενώ η σύνδεση είναι σε διαδικασία</translation>
     </message>
     <message>
         <source>Network unreachable</source>
-        <translation type="unfinished">Απροσπέλαστο δίκτυο</translation>
+        <translation>Απροσπέλαστο δίκτυο</translation>
     </message>
 </context>
 <context>
     <name>QAbstractSpinBox</name>
     <message>
         <source>&amp;Step up</source>
-        <translation>Βήμα πάνω</translation>
+        <translation>&amp;Βήμα πάνω</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
-        <translation>Βήμα κάτω</translation>
+        <translation>Βήμα &amp;κάτω</translation>
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation>Επιλογή Όλων</translation>
+        <translation>&amp;Επιλογή Όλων</translation>
     </message>
 </context>
 <context>
     <name>QAccessibleActionInterface</name>
     <message>
         <source>Press</source>
-        <translation type="unfinished">Πιέστε</translation>
+        <translation>Πιέστε</translation>
     </message>
     <message>
         <source>Increase</source>
@@ -745,31 +745,31 @@ to
     </message>
     <message>
         <source>Toggle</source>
-        <translation type="unfinished">Αντιστροφή</translation>
+        <translation>Εναλλαγή</translation>
     </message>
     <message>
         <source>Scroll Left</source>
-        <translation type="unfinished">Κύλιση αριστερά</translation>
+        <translation>Κύλιση αριστερά</translation>
     </message>
     <message>
         <source>Scroll Right</source>
-        <translation type="unfinished">Κύλιση δεξιά</translation>
+        <translation>Κύλιση δεξιά</translation>
     </message>
     <message>
         <source>Scroll Up</source>
-        <translation type="unfinished"></translation>
+        <translation>Κύλισε Πάνω</translation>
     </message>
     <message>
         <source>Scroll Down</source>
-        <translation type="unfinished"></translation>
+        <translation>Κύλισε Κάτω</translation>
     </message>
     <message>
         <source>Previous Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Προηγούμενη Σελίδα</translation>
     </message>
     <message>
         <source>Next Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Επόμενη Σελίδα</translation>
     </message>
     <message>
         <source>Triggers the action</source>
@@ -824,19 +824,19 @@ to
     <name>QAndroidPlatformTheme</name>
     <message>
         <source>Yes</source>
-        <translation type="unfinished">Ναι</translation>
+        <translation>Ναι</translation>
     </message>
     <message>
         <source>Yes to All</source>
-        <translation type="unfinished"></translation>
+        <translation>Ναι σε Όλα</translation>
     </message>
     <message>
         <source>No</source>
-        <translation type="unfinished">Όχι</translation>
+        <translation>Όχι</translation>
     </message>
     <message>
         <source>No to All</source>
-        <translation type="unfinished"></translation>
+        <translation>Όχι σε Όλα</translation>
     </message>
 </context>
 <context>
@@ -860,14 +860,14 @@ to
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Ενεργοποιεί το κύριο παράθυρο της εφαρμογής</translation>
+        <translation>Ενεργοποιεί το κεντρικό παράθυρο της εφαρμογής</translation>
     </message>
 </context>
 <context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Αποεπιλογή</translation>
+        <translation>Απεπιλογή</translation>
     </message>
     <message>
         <source>Check</source>
@@ -882,11 +882,11 @@ to
     <name>QCocoaMenuItem</name>
     <message>
         <source>About Qt</source>
-        <translation type="unfinished">Πληροφορίες για το Qt</translation>
+        <translation>Πληροφορίες για το Qt</translation>
     </message>
     <message>
         <source>About</source>
-        <translation type="unfinished"></translation>
+        <translation>Πληροφορίες</translation>
     </message>
     <message>
         <source>Config</source>
@@ -894,11 +894,11 @@ to
     </message>
     <message>
         <source>Preference</source>
-        <translation type="unfinished"></translation>
+        <translation>Προτιμήσεις</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation type="unfinished">Επιλογές</translation>
+        <translation>Επιλογές</translation>
     </message>
     <message>
         <source>Setting</source>
@@ -910,27 +910,27 @@ to
     </message>
     <message>
         <source>Quit</source>
-        <translation type="unfinished">Έξοδος</translation>
+        <translation>Έξοδος</translation>
     </message>
     <message>
         <source>Exit</source>
-        <translation type="unfinished"></translation>
+        <translation>Έξοδος</translation>
     </message>
     <message>
         <source>Cut</source>
-        <translation type="unfinished">Αποκοπή</translation>
+        <translation>Αποκοπή</translation>
     </message>
     <message>
         <source>Copy</source>
-        <translation type="unfinished">Αντιγραφή</translation>
+        <translation>Αντιγραφή</translation>
     </message>
     <message>
         <source>Paste</source>
-        <translation type="unfinished">Επικόλληση</translation>
+        <translation>Επικόλληση</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation type="unfinished">Επιλογή Όλων</translation>
+        <translation>Επιλογή Όλων</translation>
     </message>
 </context>
 <context>
@@ -944,47 +944,47 @@ to
     <name>QColorDialog</name>
     <message>
         <source>Hu&amp;e:</source>
-        <translation>Απόχρωση:</translation>
+        <translation>Απόχρωσ&amp;η:</translation>
     </message>
     <message>
         <source>&amp;Sat:</source>
-        <translation>Κορεσμός:</translation>
+        <translation>&amp;Κορεσμός:</translation>
     </message>
     <message>
         <source>&amp;Val:</source>
-        <translation>Φωτεινότητα:</translation>
+        <translation>&amp;Φωτεινότητα:</translation>
     </message>
     <message>
         <source>&amp;Red:</source>
-        <translation>Κόκκινο:</translation>
+        <translation>&amp;Κόκκινο:</translation>
     </message>
     <message>
         <source>&amp;Green:</source>
-        <translation>Πράσινο:</translation>
+        <translation>&amp;Πράσινο:</translation>
     </message>
     <message>
         <source>Bl&amp;ue:</source>
-        <translation>Μπλε:</translation>
+        <translation>Μπ&amp;λε:</translation>
     </message>
     <message>
         <source>A&amp;lpha channel:</source>
-        <translation>Άλφα κανάλι:</translation>
+        <translation>Ά&amp;λφα κανάλι:</translation>
     </message>
     <message>
         <source>&amp;Basic colors</source>
-        <translation>Βασικά χρώματα</translation>
+        <translation>&amp;Βασικά χρώματα</translation>
     </message>
     <message>
         <source>&amp;Custom colors</source>
-        <translation>Ειδικά χρώματα</translation>
+        <translation>&amp;Ειδικά χρώματα</translation>
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
-        <translation>Προσθήκη σε ειδικά χρώματα</translation>
+        <translation>&amp;Πρόσθεση σε ειδικά χρώματα</translation>
     </message>
     <message>
         <source>Select color</source>
-        <translation>Επιλογή χρώματος</translation>
+        <translation>Επιλέξτε χρώμα</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -1100,7 +1100,7 @@ Press ESC to cancel</source>
     <message>
         <source>%1: key is empty</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: το κλειδί είναι κενό</translation>
+        <translation>%1: το κλειδί είναι άδειο</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
@@ -1221,46 +1221,46 @@ Press ESC to cancel</source>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Αδυναμία σύνδεσης</translation>
+        <translation>Δεν ήταν δυνατή η σύνδεση</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Αδυναμία εκτέλεσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Αδυναμία ακύρωσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η ακύρωση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to set autocommit</source>
-        <translation>Αδυναμία ορισμού αυτόματης αντιστοίχησης</translation>
+        <translation>Δεν ήταν δυνατος ο ορισμός της αυτόματης αντιστοίχησης</translation>
     </message>
 </context>
 <context>
     <name>QDB2Result</name>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Αδυναμία εκτέλεσης πρότασης</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της πρότασης</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Αδυναμία προετοιμασίας πρότασης</translation>
+        <translation>Δεν ήταν δυνατή η προετοιμασία της πρότασης</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation>Αδυναμία δέσμευσης μεταβλητής</translation>
+        <translation>Δεν ήταν δυνατή η δέσμευση της μεταβλητής</translation>
     </message>
     <message>
         <source>Unable to fetch record %1</source>
-        <translation>Αδυναμία προσκόμισης εγγραφής %1</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση της εγγραφής %1</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>Αδυναμία προσκόμισης επόμενου</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση του επόμενου</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation>Αδυναμία προσκόμισης του πρώτου</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση του πρώτου</translation>
     </message>
 </context>
 <context>
@@ -1274,19 +1274,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>ΠΜ</translation>
-    </message>
-    <message>
-        <source>am</source>
-        <translation>πμ</translation>
-    </message>
-    <message>
-        <source>PM</source>
         <translation>ΜΜ</translation>
     </message>
     <message>
-        <source>pm</source>
+        <source>am</source>
         <translation>μμ</translation>
+    </message>
+    <message>
+        <source>PM</source>
+        <translation>ΠΜ</translation>
+    </message>
+    <message>
+        <source>pm</source>
+        <translation>πμ</translation>
     </message>
 </context>
 <context>
@@ -1350,7 +1350,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Ακύρωση</translation>
+        <translation>Άκυρο</translation>
     </message>
     <message>
         <source>Close</source>
@@ -1362,7 +1362,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Επαναφορά στα προκαθορισμένα</translation>
+        <translation>Επανέναρξη</translation>
     </message>
     <message>
         <source>Help</source>
@@ -1370,27 +1370,27 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Όχι αποθήκευση</translation>
+        <translation>Μην αποθηκεύσεις</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Αποβολή αλλαγών</translation>
+        <translation>Αποβολή</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>Ναι</translation>
+        <translation>&amp;Ναι</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Ναι σε Όλα</translation>
+        <translation>Ναι σε &amp;Όλα</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>Όχι</translation>
+        <translation>&amp;Όχι</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>Όχι σε Όλα</translation>
+        <translation>Ό&amp;χι σε Όλα</translation>
     </message>
     <message>
         <source>Save All</source>
@@ -1402,7 +1402,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Προσπάθεια πάλι</translation>
+        <translation>Προσπάθησε πάλι</translation>
     </message>
     <message>
         <source>Ignore</source>
@@ -1410,7 +1410,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Επαναφορά Προκαθορισμένων</translation>
+        <translation>Επανέφορα Προκαθορισμένων</translation>
     </message>
     <message>
         <source>Close without Saving</source>
@@ -1418,7 +1418,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>Ναι</translation>
+        <translation>&amp;Ναι</translation>
     </message>
 </context>
 <context>
@@ -1556,6 +1556,7 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>Κλείσιμο</translation>
     </message>
     <message>
@@ -1564,6 +1565,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation>Επίπλευση</translation>
     </message>
     <message>
@@ -1602,11 +1604,11 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>&amp;Show this message again</source>
-        <translation>Προβολή αυτού του μηνύματος πάλι</translation>
+        <translation>&amp;Προβολή αυτού του μηνύματος πάλι</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>Ναι</translation>
+        <translation>&amp;Ναι</translation>
     </message>
 </context>
 <context>
@@ -1671,15 +1673,15 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Κατάλογοι</translation>
+        <translation>Φάκελοι</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>Άνοιγμα</translation>
+        <translation>&amp;Άνοιγμα</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>Αποθήκευση</translation>
+        <translation>&amp;Αποθήκευση</translation>
     </message>
     <message>
         <source>Open</source>
@@ -1705,15 +1707,15 @@ Please verify the correct file name was given.</source>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>Μετονομασία</translation>
+        <translation>&amp;Μετονομασία</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>Διαγραφή</translation>
+        <translation>&amp;Διαγραφή</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Εμφάνιση κρυφών αρχείων</translation>
+        <translation>Εμφάνιση &amp;κρυφών αρχείων</translation>
     </message>
     <message>
         <source>Back</source>
@@ -1729,7 +1731,7 @@ Please verify the correct file name was given.</source>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Λεπτομερής Προβολή</translation>
+        <translation>Προβολή με Λεπτομέρειες</translation>
     </message>
     <message>
         <source>Files of type:</source>
@@ -1737,15 +1739,15 @@ Please verify the correct file name was given.</source>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Κατάλογος:</translation>
+        <translation>Φάκελος:</translation>
     </message>
     <message>
         <source>%1
 Directory not found.
 Please verify the correct directory name was given.</source>
         <translation>%1
-Ο κατάλογος δεν βρέθηκε.
-Παρακαλώ επιβεβαιώστε το όνομα του καταλόγου.</translation>
+Ο φάκελος δεν βρέθηκε.
+Παρακαλώ επιβεβαιώστε το όνομα του φακέλου.</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is write protected.
@@ -1759,7 +1761,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Could not delete directory.</source>
-        <translation>Δεν ήταν δυνατή η διαγραφή του καταλόγου.</translation>
+        <translation>Δεν ήταν δυνατή η διαγραφή του φακέλου.</translation>
     </message>
     <message>
         <source>Save As</source>
@@ -1779,7 +1781,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Εύρεση καταλόγου</translation>
+        <translation>Εύρεση φακέλου</translation>
     </message>
     <message>
         <source>Show </source>
@@ -1791,15 +1793,15 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Νέος Κατάλογος</translation>
-    </message>
-    <message>
-        <source>&amp;New Folder</source>
         <translation>Νέος Φάκελος</translation>
     </message>
     <message>
+        <source>&amp;New Folder</source>
+        <translation>&amp;Νέος Φάκελος</translation>
+    </message>
+    <message>
         <source>&amp;Choose</source>
-        <translation>Επιλογή</translation>
+        <translation>&amp;Επιλογή</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -1807,43 +1809,43 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Όνομα αρχείου  :</translation>
+        <translation>Όνομα &amp;αρχείου  :</translation>
     </message>
     <message>
         <source>Look in:</source>
-        <translation>Αναζήτηση σε :</translation>
+        <translation>Ψάξιμο σε :</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Δημιουργία Νέου Καταλόγου</translation>
+        <translation>Δημιουργία Νέου Φακέλου</translation>
     </message>
     <message>
         <source>Go back</source>
-        <translation type="unfinished"></translation>
+        <translation>Πίσω</translation>
     </message>
     <message>
         <source>Alt+Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt+Αριστερά</translation>
     </message>
     <message>
         <source>Go forward</source>
-        <translation type="unfinished"></translation>
+        <translation>Μπροστά</translation>
     </message>
     <message>
         <source>Alt+Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt+Δεξιά</translation>
     </message>
     <message>
         <source>Go to the parent directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Στο γονικό φάκελο</translation>
     </message>
     <message>
         <source>Alt+Up</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt+Πάνω</translation>
     </message>
     <message>
         <source>Create a New Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Δημιουργία Νέου Φακέλου</translation>
     </message>
     <message>
         <source>Change to list view mode</source>
@@ -1863,38 +1865,38 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Αρχεία</translation>
     </message>
     <message>
         <source>All files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>Όλα τα Αρχεία (*)</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>Διαγραφή</translation>
     </message>
     <message>
         <source>Are you sure you want to delete &apos;%1&apos;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Είστε σίγουροι οτι θέλετε να διαγράψετε το &apos;%1&apos;?</translation>
     </message>
     <message>
         <source>Recent Places</source>
-        <translation type="unfinished"></translation>
+        <translation>Πρόσφατα Μέρη</translation>
     </message>
     <message>
         <source>%1 File</source>
         <extracomment>%1 is a file name suffix, for example txt</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Αρχείο %1</translation>
     </message>
     <message>
         <source>File Folder</source>
         <comment>Match Windows Explorer</comment>
-        <translation type="unfinished"></translation>
+        <translation>Αρχείο Φάκελος</translation>
     </message>
     <message>
         <source>Folder</source>
         <comment>All other platforms</comment>
-        <translation type="unfinished"></translation>
+        <translation>Φάκελος</translation>
     </message>
     <message>
         <source>Alias</source>
@@ -1992,6 +1994,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Demi</source>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
         <translation>Μεσαία</translation>
     </message>
     <message>
@@ -2174,15 +2177,15 @@ Do you want to delete it anyway?</source>
     <name>QFontDialog</name>
     <message>
         <source>&amp;Font</source>
-        <translation>Γραμματοσειρά</translation>
+        <translation>&amp;Γραμματοσειρά</translation>
     </message>
     <message>
         <source>Font st&amp;yle</source>
-        <translation>Στυλ γραμματοσειράς</translation>
+        <translation>Στυλ γρ&amp;αμματοσειράς</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>Μέγεθος</translation>
+        <translation>&amp;Μέγεθος</translation>
     </message>
     <message>
         <source>Effects</source>
@@ -2190,11 +2193,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation>Διαγράμμιση</translation>
+        <translation>Γρά&amp;μμιση</translation>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation>Υπογράμμιση</translation>
+        <translation>&amp;Υπογράμμιση</translation>
     </message>
     <message>
         <source>Sample</source>
@@ -2202,7 +2205,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation>Σύστημα γραφής</translation>
+        <translation>Σύ&amp;στημα εγγραφής</translation>
     </message>
     <message>
         <source>Select Font</source>
@@ -2244,49 +2247,49 @@ Do you want to delete it anyway?</source>
     <message>
         <source>Login failed:
 %1</source>
-        <translation>Η είσοδος απέτυχε :
+        <translation>Η είσοδςο απέτυχε :
 %1</translation>
     </message>
     <message>
         <source>Listing directory failed:
 %1</source>
-        <translation>Η λίστα καταλόγων απέτυχε :
+        <translation>Η λίστα φακέλων απέτυχε :
 %1</translation>
     </message>
     <message>
         <source>Changing directory failed:
 %1</source>
-        <translation>Η αλλαγή καταλόγου απέτυχε :
+        <translation>Η αλλαγή φακέλου απέτυχε :
 %1</translation>
     </message>
     <message>
         <source>Downloading file failed:
 %1</source>
-        <translation>Η λήψη αρχείου απέτυχε :
+        <translation>Το κατέβασμα του αρχείου απέτυχε :
 %1</translation>
     </message>
     <message>
         <source>Uploading file failed:
 %1</source>
-        <translation>Το ανέβασμα αρχείου απέτυχε :
+        <translation>Το ανέβασμα του αρχείου απέτυχε :
 %1</translation>
     </message>
     <message>
         <source>Removing file failed:
 %1</source>
-        <translation>Η διαγραφή αρχείου απέτυχε:
+        <translation>Η διαγραφή του αρχείου απέτυχε :
 %1</translation>
     </message>
     <message>
         <source>Creating directory failed:
 %1</source>
-        <translation>Η δημιουργία καταλόγου απέτυχε:
+        <translation>Η δημιουργία του φακέλου απέτυχε:
 %1</translation>
     </message>
     <message>
         <source>Removing directory failed:
 %1</source>
-        <translation>Η διαγραφή καταλόγου απέτυχε:
+        <translation>Η διαγραφή του φακέλου απέτυχε:
 %1</translation>
     </message>
     <message>
@@ -2455,11 +2458,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>Ο διαμεσολαβητής απαιτεί πιστοποίηση</translation>
+        <translation>Ο διαμεσολαβητής απαιτεί αυθεντικοποίηση</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Απαιτείται πιστοποίηση</translation>
+        <translation>Απαιτείται αυθεντικοποίηση</translation>
     </message>
     <message>
         <source>Connection refused (or timed out)</source>
@@ -2467,23 +2470,23 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Proxy requires authentication</source>
-        <translation>Ο διαμεσολαβητής απαιτεί πιστοποίηση</translation>
+        <translation>Ο διαμεσολαβητής απαιτεί αυθεντικοποίηση</translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translation>Ο διακομιστής απαιτεί πιστοποίηση</translation>
+        <translation>Ο διακομιστής απαιτεί αυθεντικοποίηση</translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translation>Κατεστραμένα δεδομένα</translation>
+        <translation>Διαβρωμένα δεδομένα</translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation>Επιλέχθηκεε άγνωστο πρωτόκολλο</translation>
+        <translation>Προσδιορίστηκε άγνωστο πρωτόκολλο</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translation>Η πιστοποίηση SSL απέτυχε</translation>
+        <translation>Η χειραψία SSL απέτυχε</translation>
     </message>
     <message>
         <source>HTTPS connection requested but SSL support not compiled in</source>
@@ -2502,7 +2505,7 @@ Do you want to delete it anyway?</source>
     <name>QHttpSocketEngine</name>
     <message>
         <source>Authentication required</source>
-        <translation>Απαιτείται πιστοποίηση</translation>
+        <translation>Απαιτείται αυθεντικοποίηση</translation>
     </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
@@ -2545,38 +2548,38 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation>Αδυναμία εκκίνησης της συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκκίνηση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Αδυναμία εκτέλεσης της συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Αδυναμία ακύρωσης της συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η ακύρωση της συνδιαλλαγής</translation>
     </message>
 </context>
 <context>
     <name>QIBaseResult</name>
     <message>
         <source>Unable to create BLOB</source>
-        <translation>Αδυναμία δημιουργίας BLOB</translation>
+        <translation>Δεν ήταν δυνατή η δημιουργία BLOB</translation>
     </message>
     <message>
         <source>Unable to write BLOB</source>
-        <translation>Αδυναμία εγγραφής BLOB</translation>
+        <translation>Δεν ήταν δυνατή η εγγραφή BLOB</translation>
     </message>
     <message>
         <source>Unable to open BLOB</source>
-        <translation>Αδυναμία ανοίγματος BLOB</translation>
+        <translation>Δεν ήταν δυνατό το άνοιγμα BLOB</translation>
     </message>
     <message>
         <source>Unable to read BLOB</source>
-        <translation>Αδυναμία ανάγνωσης BLOB</translation>
+        <translation>Δεν ήταν δυνατή η ανάγνωση BLOB</translation>
     </message>
     <message>
         <source>Could not find array</source>
-        <translation>Αδυναμία εύρεσης πίνακα</translation>
+        <translation>Δεν ήταν δυνατή η εύρεση του πίνακα</translation>
     </message>
     <message>
         <source>Could not get array data</source>
@@ -2719,14 +2722,14 @@ Do you want to delete it anyway?</source>
     <name>QInputDialog</name>
     <message>
         <source>Enter a value:</source>
-        <translation type="unfinished"></translation>
+        <translation>Εισαγωγή τιμής:</translation>
     </message>
 </context>
 <context>
     <name>QJsonParseError</name>
     <message>
         <source>no error occurred</source>
-        <translation type="unfinished">δεν δημιουργήθηκαν προβλήματα</translation>
+        <translation>δεν δημιουργήθηκαν προβλήματα</translation>
     </message>
     <message>
         <source>unterminated object</source>
@@ -2805,7 +2808,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::load_sys: Δεν μπορεί να αποφορτωθεί %1 (%2)</translation>
+        <translation>QLibrary::load_sys: Δεν μπορεί να ξεφορτωθεί %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
@@ -2912,23 +2915,23 @@ Do you want to delete it anyway?</source>
     <name>QLineEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>Αναίρεση</translation>
+        <translation>&amp;Αναίρεση</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Επαναφορά</translation>
+        <translation>&amp;Ακύρωση Αναίρεσης</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Αποκοπή</translation>
+        <translation>Αποκοπ&amp;ή</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>Αντιγραφή</translation>
+        <translation>&amp;Αντιγραφή</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>Επικόλληση</translation>
+        <translation>&amp;Επικόλληση</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -3006,7 +3009,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>%1: Unknown error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Άγνωστο λάθος</translation>
     </message>
     <message>
         <source>Trying to connect while connection is in progress</source>
@@ -3014,7 +3017,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>%1: Access denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: Άρνηση πρόσβασης</translation>
     </message>
 </context>
 <context>
@@ -3122,31 +3125,31 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation>Επαναφορά</translation>
+        <translation>&amp;Επαναφορά</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>Μετακίνηση</translation>
+        <translation>&amp;Μετακίνηση</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>Μέγεθος</translation>
+        <translation>&amp;Μέγεθος</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Ελαχιστοποίηση</translation>
+        <translation>Ε&amp;λαχιστοποίηση</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Μεγιστοποίηση</translation>
+        <translation>Μ&amp;εγιστοποίηση</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Παραμονή σε πρώτο πλάνο</translation>
+        <translation>Παραμονή στην &amp;επιφάνεια</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>Κλείσιμο</translation>
+        <translation>&amp;Κλείσιμο</translation>
     </message>
     <message>
         <source>- [%1]</source>
@@ -3204,7 +3207,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>About Qt</source>
-        <translation>Σχετικά με το Qt</translation>
+        <translation>Πληροφορίες για το Qt</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -3220,7 +3223,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Αυτο το πρόγραμμα χρησιμοποιεί την Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Το Qt Open Source Edition αποσκοπεί στην ανάπτυξη Open Source εφαρμογών. Για την ανάπτυξη ιδιωτικών (closed source) εφαρμογών απαιτείται η εμπορική άδεια Qt&lt;/p&gt;&lt;p&gt;Για την εμφάνιση της Qt άδειας χρήσης δείτε &lt;a  href=&quot;http://www.trolltech.com/company/model/&apos; www.trolltech.com/company/model&lt;/a&gt;.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Αυτο το πρόγραμμα χρησιμοποιεί την Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Το Qt Open Source Edition αποσκοπεί στην ανάπτυξη Open Source εφαρμογών. Για την ανάπτυξη ιδιωτικών (closed source) εφαρμογών απαιτείται η εμπορική άδεια Qt&lt;/p&gt;&lt;p&gt;Για την επισκόπηση της Qt άδειας χρήσης δείτε &lt;a  href=&quot;http://www.trolltech.com/company/model/&apos; www.trolltech.com/company/model&lt;/a&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
@@ -3277,7 +3280,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Invalid socket descriptor</source>
-        <translation>Μη έγκυρη περιγραφή socket</translation>
+        <translation>Μη έγκυρη οπεριγραφή socket</translation>
     </message>
     <message>
         <source>Network unreachable</source>
@@ -3537,59 +3540,59 @@ Do you want to delete it anyway?</source>
     <name>QOCIDriver</name>
     <message>
         <source>Unable to logon</source>
-        <translation>Αδυναμία σύνδεσης</translation>
+        <translation>Αδύνατη η σύνδεση</translation>
     </message>
     <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
-        <translation>Αδυναμία εκκίνησης</translation>
+        <translation>Αδύνατη η αρχικοποίηση</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Αδυναμία εκκίνησης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκκίνηση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Αδυναμία εκτέλεσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Αδυναμία ακύρωσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η ακύρωση της συνδιαλλαγής</translation>
     </message>
 </context>
 <context>
     <name>QOCIResult</name>
     <message>
         <source>Unable to bind column for batch execute</source>
-        <translation>Αδυναμία δέσμευσης στήλης για εκτέλεση δέσμης</translation>
+        <translation>Δεν ήταν δυνατή η δέσμευση της στήλης για την εκτέλεση της δέσμης</translation>
     </message>
     <message>
         <source>Unable to execute batch statement</source>
-        <translation>Αδυναμία εκτέλεσης πρότασης δέσμης</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της πρότασης της δέσμης</translation>
     </message>
     <message>
         <source>Unable to goto next</source>
-        <translation>Αδυναμία συνέχισης στο επόμενο</translation>
+        <translation>Δεν ήταν δυνατή η συνέχιση στο επόμενο</translation>
     </message>
     <message>
         <source>Unable to alloc statement</source>
-        <translation>Αδυναμία εντοπισμού της πρότασης</translation>
+        <translation>Δεν ήταν δυνατός ο εντοπισμός της πρότασης</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Αδυναμία προετοιμασίας πρότασης</translation>
+        <translation>Δεν ήταν δυνατή η προετοιμασία της πρότασης</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation>Αδυναμία δέσμευσης τιμής</translation>
+        <translation>Δεν ήταν δυνατή η δέσμευση της τιμής</translation>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>Αδυναμία εκτέλεσης πρότασης επιλογής</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της πρότασης επιλογής</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Αδυναμία εκτέλεσης πρότασης</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της πρότασης</translation>
     </message>
     <message>
         <source>Unable to get statement type</source>
@@ -3600,27 +3603,27 @@ Do you want to delete it anyway?</source>
     <name>QODBCDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Αδυναμία σύνδεσης</translation>
+        <translation>Δεν ήταν δυνατή η σύνδεση</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>Αδυναμία σύνδεσης - Ο οδηγός δεν υποστηρίζει την απαραίτητη λειτουργικότητα</translation>
+        <translation>Δεν ήταν δυνατή η σύνδεση - Ο οδηγός δεν υποστηρίζει την απαραίτητη λειτουργικότητα</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
-        <translation>Αδυναμία απενεργοποίησης αυτόματου ορισμού</translation>
+        <translation>Δεν ήταν δυνατή η απενεργοποίηση του αυτόματου ορισμού</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Αδυναμία εκτέλεσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation>Αδυναμία ακύρωσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η ακύρωση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
-        <translation>Αδυναμία ενεργοποίησης αυτόματου ορισμού</translation>
+        <translation>Δεν ήταν δυνατή η ενεργοποίηση του αυτόματου ορισμού</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
@@ -3631,39 +3634,39 @@ Do you want to delete it anyway?</source>
     <name>QODBCResult</name>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation>QODBCResult: Αδυναμία ορισμού του &apos;SQL_CURSOS_STATIC&apos; σαν παράμετρο της πρότασης. Ελέγξτε τις ρυθμίσεις του οδηγού ODBC</translation>
+        <translation>QODBCResult: Δεν ήταν δυνατός ο ορισμός του &apos;SQL_CURSOS_STATIC&apos; σαν παράμετρο της πρότασης. Ελέγξτε τις ρυθμίσεις του οδηγού ODBC</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Αδυναμία εκτέλεσης πρότασης</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της πρότασης</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation>Αδυναμία προσκόμισης επόμενου</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση του επόμενου</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Αδυναμία προετοιμασίας πρότασης</translation>
+        <translation>Δεν ήταν δυνατή η προετοιμασία της πρότασης</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation>Αδυναμία δέσμευσης τιμής</translation>
+        <translation>Δεν ήταν δυνατή η δέσμευση της τιμής</translation>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translation>Αδυναμία προσκόμισης τελευταίου</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση του τελευταίου</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation>Αδυναμία προσκόμισης</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation>Αδυναμία προσκόμισης πρώτου</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση του πρώτου</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translation>Αδυναμία προσκόμισης προηγούμενου</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση του προηγούμενου</translation>
     </message>
 </context>
 <context>
@@ -3712,38 +3715,38 @@ Do you want to delete it anyway?</source>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation>Αδυναμία σύνδεσης</translation>
+        <translation>Δεν ήταν δυνατή η σύνδεση</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
-        <translation>Αδυναμία εκκίνησης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκκίνηση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Could not commit transaction</source>
-        <translation>Αδυναμία εκτέλεσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Could not rollback transaction</source>
-        <translation>Αδυναμία ακύρωσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η ακύρωση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation>Αδυναμία συνδρομής</translation>
+        <translation>Δεν ήταν δυνατή η συνδρομή</translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translation>Αδυναμία αποσυνδρομής</translation>
+        <translation>Δεν ήταν δυνατή η αποσυνδρομή</translation>
     </message>
 </context>
 <context>
     <name>QPSQLResult</name>
     <message>
         <source>Unable to create query</source>
-        <translation>Αδυναμία δημιουργίας ερωτήματος</translation>
+        <translation>Δεν ήταν δυνατή η δημιουργία του ερωτήματος</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation>Αδυναμία προετοιμασίας πρότασης</translation>
+        <translation>Δεν ήταν δυνατή η προετοιμασία της πρότασης</translation>
     </message>
 </context>
 <context>
@@ -3854,37 +3857,37 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Custom</source>
-        <translation type="unfinished">Προσαρμοσμένο</translation>
+        <translation>Προσαρμοσμένο</translation>
     </message>
     <message>
         <source>mm</source>
         <extracomment>Unit &apos;Millimeter&apos;</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>mm</translation>
     </message>
     <message>
         <source>pt</source>
         <extracomment>Unit &apos;Points&apos;</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>pt</translation>
     </message>
     <message>
         <source>in</source>
         <extracomment>Unit &apos;Inch&apos;</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>in</translation>
     </message>
     <message>
         <source>P̸</source>
         <extracomment>Unit &apos;Pica&apos;</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>P̸</translation>
     </message>
     <message>
         <source>DD</source>
         <extracomment>Unit &apos;Didot&apos;</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>DD</translation>
     </message>
     <message>
         <source>CC</source>
         <extracomment>Unit &apos;Cicero&apos;</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>CC</translation>
     </message>
 </context>
 <context>
@@ -3892,277 +3895,277 @@ Do you want to delete it anyway?</source>
     <message>
         <source>Custom (%1mm x %2mm)</source>
         <extracomment>Custom size name in millimeters</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Προσαρμοσμένο (%1mm x %2mm)</translation>
     </message>
     <message>
         <source>Custom (%1pt x %2pt)</source>
         <extracomment>Custom size name in points</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Προσαρμοσμένο (%1pt x %2pt)</translation>
     </message>
     <message>
         <source>Custom (%1in x %2in)</source>
         <extracomment>Custom size name in inches</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Προσαρμοσμένο (%1in x %2in)</translation>
     </message>
     <message>
         <source>Custom (%1pc x %2pc)</source>
         <extracomment>Custom size name in picas</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Προσαρμοσμένο (%1pc x %2pc)</translation>
     </message>
     <message>
         <source>Custom (%1DD x %2DD)</source>
         <extracomment>Custom size name in didots</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Προσαρμοσμένο (%1DD x %2DD)</translation>
     </message>
     <message>
         <source>Custom (%1CC x %2CC)</source>
         <extracomment>Custom size name in ciceros</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Προσαρμοσμένο (%1CC x %2CC)</translation>
     </message>
     <message>
         <source>%1 x %2 in</source>
         <extracomment>Page size in &apos;Inch&apos;.</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>%1 x %2 in</translation>
     </message>
     <message>
         <source>A0</source>
-        <translation type="unfinished">A0</translation>
+        <translation>A0</translation>
     </message>
     <message>
         <source>A1</source>
-        <translation type="unfinished">A1</translation>
+        <translation>A1</translation>
     </message>
     <message>
         <source>A2</source>
-        <translation type="unfinished">A2</translation>
+        <translation>A2</translation>
     </message>
     <message>
         <source>A3</source>
-        <translation type="unfinished">A3</translation>
+        <translation>A3</translation>
     </message>
     <message>
         <source>A4</source>
-        <translation type="unfinished">A4</translation>
+        <translation>A4</translation>
     </message>
     <message>
         <source>A5</source>
-        <translation type="unfinished">A5</translation>
+        <translation>A5</translation>
     </message>
     <message>
         <source>A6</source>
-        <translation type="unfinished">A6</translation>
+        <translation>A6</translation>
     </message>
     <message>
         <source>A7</source>
-        <translation type="unfinished">A7</translation>
+        <translation>A7</translation>
     </message>
     <message>
         <source>A8</source>
-        <translation type="unfinished">A8</translation>
+        <translation>A8</translation>
     </message>
     <message>
         <source>A9</source>
-        <translation type="unfinished">A9</translation>
+        <translation>A9</translation>
     </message>
     <message>
         <source>A10</source>
-        <translation type="unfinished">A10</translation>
+        <translation>A10</translation>
     </message>
     <message>
         <source>B0</source>
-        <translation type="unfinished">B0</translation>
+        <translation>B0</translation>
     </message>
     <message>
         <source>B1</source>
-        <translation type="unfinished">B1</translation>
+        <translation>B1</translation>
     </message>
     <message>
         <source>B2</source>
-        <translation type="unfinished">B2</translation>
+        <translation>B2</translation>
     </message>
     <message>
         <source>B3</source>
-        <translation type="unfinished">B3</translation>
+        <translation>B3</translation>
     </message>
     <message>
         <source>B4</source>
-        <translation type="unfinished">B4</translation>
+        <translation>B4</translation>
     </message>
     <message>
         <source>B5</source>
-        <translation type="unfinished">B5</translation>
+        <translation>B5</translation>
     </message>
     <message>
         <source>B6</source>
-        <translation type="unfinished">B6</translation>
+        <translation>B6</translation>
     </message>
     <message>
         <source>B7</source>
-        <translation type="unfinished">B7</translation>
+        <translation>B7</translation>
     </message>
     <message>
         <source>B8</source>
-        <translation type="unfinished">B8</translation>
+        <translation>B8</translation>
     </message>
     <message>
         <source>B9</source>
-        <translation type="unfinished">B9</translation>
+        <translation>B9</translation>
     </message>
     <message>
         <source>B10</source>
-        <translation type="unfinished">B10</translation>
+        <translation>B10</translation>
     </message>
     <message>
         <source>Executive (7.5 x 10 in)</source>
-        <translation type="unfinished"></translation>
+        <translation>Executive (7.5 x 10 in)</translation>
     </message>
     <message>
         <source>Executive (7.25 x 10.5 in)</source>
-        <translation type="unfinished"></translation>
+        <translation>Executive (7.25 x 10.5 in)</translation>
     </message>
     <message>
         <source>Folio (8.27 x 13 in)</source>
-        <translation type="unfinished"></translation>
+        <translation>Folio (8.27 x 13 in)</translation>
     </message>
     <message>
         <source>Legal</source>
-        <translation type="unfinished">US Legal</translation>
+        <translation>Legal</translation>
     </message>
     <message>
         <source>Letter / ANSI A</source>
-        <translation type="unfinished"></translation>
+        <translation>Letter / ANSI A</translation>
     </message>
     <message>
         <source>Tabloid / ANSI B</source>
-        <translation type="unfinished"></translation>
+        <translation>Tabloid / ANSI B</translation>
     </message>
     <message>
         <source>Ledger / ANSI B</source>
-        <translation type="unfinished"></translation>
+        <translation>Ledger / ANSI B</translation>
     </message>
     <message>
         <source>Custom</source>
-        <translation type="unfinished">Προσαρμοσμένο</translation>
+        <translation>Προσαρμοσμένο</translation>
     </message>
     <message>
         <source>A3 Extra</source>
-        <translation type="unfinished"></translation>
+        <translation>A3 Extra</translation>
     </message>
     <message>
         <source>A4 Extra</source>
-        <translation type="unfinished"></translation>
+        <translation>A4 Extra</translation>
     </message>
     <message>
         <source>A4 Plus</source>
-        <translation type="unfinished"></translation>
+        <translation>A4 Plus</translation>
     </message>
     <message>
         <source>A4 Small</source>
-        <translation type="unfinished"></translation>
+        <translation>A4 Small</translation>
     </message>
     <message>
         <source>A5 Extra</source>
-        <translation type="unfinished"></translation>
+        <translation>A5 Extra</translation>
     </message>
     <message>
         <source>B5 Extra</source>
-        <translation type="unfinished"></translation>
+        <translation>B5 Extra</translation>
     </message>
     <message>
         <source>JIS B0</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B0</translation>
     </message>
     <message>
         <source>JIS B1</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B1</translation>
     </message>
     <message>
         <source>JIS B2</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B2</translation>
     </message>
     <message>
         <source>JIS B3</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B3</translation>
     </message>
     <message>
         <source>JIS B4</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B4</translation>
     </message>
     <message>
         <source>JIS B5</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B5</translation>
     </message>
     <message>
         <source>JIS B6</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B6</translation>
     </message>
     <message>
         <source>JIS B7</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B7</translation>
     </message>
     <message>
         <source>JIS B8</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B8</translation>
     </message>
     <message>
         <source>JIS B9</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B9</translation>
     </message>
     <message>
         <source>JIS B10</source>
-        <translation type="unfinished"></translation>
+        <translation>JIS B10</translation>
     </message>
     <message>
         <source>ANSI C</source>
-        <translation type="unfinished"></translation>
+        <translation>ANSI C</translation>
     </message>
     <message>
         <source>ANSI D</source>
-        <translation type="unfinished"></translation>
+        <translation>ANSI D</translation>
     </message>
     <message>
         <source>ANSI E</source>
-        <translation type="unfinished"></translation>
+        <translation>ANSI E</translation>
     </message>
     <message>
         <source>Legal Extra</source>
-        <translation type="unfinished"></translation>
+        <translation>Legal Extra</translation>
     </message>
     <message>
         <source>Letter Extra</source>
-        <translation type="unfinished"></translation>
+        <translation>Letter Extra</translation>
     </message>
     <message>
         <source>Letter Plus</source>
-        <translation type="unfinished"></translation>
+        <translation>Letter Plus</translation>
     </message>
     <message>
         <source>Letter Small</source>
-        <translation type="unfinished"></translation>
+        <translation>Letter Small</translation>
     </message>
     <message>
         <source>Tabloid Extra</source>
-        <translation type="unfinished"></translation>
+        <translation>Tabloid Extra</translation>
     </message>
     <message>
         <source>Architect A</source>
-        <translation type="unfinished"></translation>
+        <translation>Architect A</translation>
     </message>
     <message>
         <source>Architect B</source>
-        <translation type="unfinished"></translation>
+        <translation>Architect B</translation>
     </message>
     <message>
         <source>Architect C</source>
-        <translation type="unfinished"></translation>
+        <translation>Architect C</translation>
     </message>
     <message>
         <source>Architect D</source>
-        <translation type="unfinished"></translation>
+        <translation>Architect D</translation>
     </message>
     <message>
         <source>Architect E</source>
-        <translation type="unfinished"></translation>
+        <translation>Architect E</translation>
     </message>
     <message>
         <source>Note</source>
@@ -4369,75 +4372,75 @@ Do you want to delete it anyway?</source>
     <name>QPlatformTheme</name>
     <message>
         <source>OK</source>
-        <translation type="unfinished">Ναι</translation>
+        <translation>Ναι</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation type="unfinished">Αποθήκευση</translation>
+        <translation>Αποθήκευση</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation type="unfinished">Αποθήκευση Όλων</translation>
+        <translation>Αποθήκευση Όλων</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation type="unfinished">Άνοιγμα</translation>
+        <translation>Άνοιγμα</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation type="unfinished">&amp;Ναι</translation>
+        <translation>&amp;Ναι</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation type="unfinished">Ναι σε &amp;Όλα</translation>
+        <translation>Ναι σε &amp;Όλα</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation type="unfinished">&amp;Όχι</translation>
+        <translation>&amp;Όχι</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation type="unfinished">Ό&amp;χι σε Όλα</translation>
+        <translation>Ό&amp;χι σε Όλα</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation type="unfinished">Ματαίωσε</translation>
+        <translation>Ματαίωση</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation type="unfinished">Προσπάθησε πάλι</translation>
+        <translation>Προσπάθησε πάλι</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation type="unfinished">Αγνόησε</translation>
+        <translation>Αγνόηση</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Κλείσιμο</translation>
+        <translation>Κλείσιμο</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished"></translation>
+        <translation>Άκυρο</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation type="unfinished">Αποβολή αλλαγών</translation>
+        <translation>Αποβολή</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">Βοήθεια</translation>
+        <translation>Βοήθεια</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="unfinished">Εφαρμογή</translation>
+        <translation>Εφαρμογή</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation type="unfinished">Επανέναρξη</translation>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation type="unfinished">Επανέφερε τα αρχικά</translation>
+        <translation>Επαναφορά αρχικών</translation>
     </message>
 </context>
 <context>
@@ -4455,11 +4458,11 @@ Do you want to delete it anyway?</source>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>Τοπική σύνδεση</translation>
+        <translation>Συνδεδεμένος τοπικά</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Αναγνωριστικά : %1</translation>
+        <translation>Αναγνωριστικό : %1</translation>
     </message>
     <message>
         <source>unknown</source>
@@ -4467,7 +4470,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Print To File ...</source>
-        <translation>Εκτύπωση στο αρχείο ...</translation>
+        <translation>Εκτύπωση σε αρχείο ...</translation>
     </message>
     <message>
         <source>File %1 is not writable.
@@ -4479,13 +4482,13 @@ Please choose a different file name.</source>
         <source>%1 already exists.
 Do you want to overwrite it?</source>
         <translation>%1 υπάρχει ήδη.
-Θέλετε να επαναεγγραφεί;</translation>
+Θέλετε να επαναγραφτεί ?</translation>
     </message>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
         <translation>%1 είναι φάκελος.
-Παρακαλώ επιλέξτε άλλο όνομα αρχείου.</translation>
+Παρακαλώ διαλέξτε άλλο όνομα αρχείου.</translation>
     </message>
     <message>
         <source>A0</source>
@@ -4641,7 +4644,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Print</source>
-        <translation type="unfinished"></translation>
+        <translation>Εκτύπωση</translation>
     </message>
     <message>
         <source>Left to Right, Top to Bottom</source>
@@ -4941,7 +4944,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation>Όνομα:</translation>
+        <translation>&amp;Όνομα:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
@@ -4961,7 +4964,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation>Εξαγώμενο αρχείο:</translation>
+        <translation>Όνομα αρχείου:</translation>
     </message>
     <message>
         <source>...</source>
@@ -5015,7 +5018,7 @@ Please turn one of those options off.</source>
     <name>QProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Ακύρωση</translation>
+        <translation>Άκυρο</translation>
     </message>
 </context>
 <context>
@@ -5050,7 +5053,7 @@ Please turn one of those options off.</source>
     <name>QRegExp</name>
     <message>
         <source>no error occurred</source>
-        <translation>δεν προέκυψαν προβλήματα</translation>
+        <translation>δεν δημιουργήθηκαν προβλήματα</translation>
     </message>
     <message>
         <source>disabled feature used</source>
@@ -5436,15 +5439,15 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>Λάθος ανοίγματος βάσης δεδομένων</translation>
+        <translation>Λάθος στο άνοιγμα της βάσης δεδομένων</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation>Αδυναμία εκκίνησης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκκίνηση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation>Αδυναμία εκτέλεσης συνδιαλλαγής</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της συνδιαλλαγής</translation>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
@@ -5463,11 +5466,11 @@ Please turn one of those options off.</source>
     <name>QSQLite2Result</name>
     <message>
         <source>Unable to fetch results</source>
-        <translation>Αδυναμία προσκόμισης αποτελεσμάτων</translation>
+        <translation>Δεν ήταν δυνατή η προσκόμιση των αποτελεσμάτων</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation>Αδυναμία εκτέλεσης πρότασης</translation>
+        <translation>Δεν ήταν δυνατή η εκτέλεση της πρότασης</translation>
     </message>
 </context>
 <context>
@@ -5543,7 +5546,7 @@ Please turn one of those options off.</source>
     <name>QScrollBar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Κύλιση εδώ</translation>
+        <translation>Κύλισε εδώ</translation>
     </message>
     <message>
         <source>Left edge</source>
@@ -5610,7 +5613,7 @@ Please turn one of those options off.</source>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation>%1: αδυναμία ορισμού κλειδιού κατά το κλείδωμα</translation>
+        <translation>%1: αδύνατο να τεθεί το κλειδί</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
@@ -5618,11 +5621,11 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: unable to lock</source>
-        <translation>%1: αδυναμία κλειδώματος</translation>
+        <translation>%1: αδύνατο το κλείδωμα</translation>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translation>%1: αδυναμία ξεκλειδώματος</translation>
+        <translation>%1: αδύνατο το ξεκλείδωμα</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
@@ -5634,7 +5637,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
-        <translation>%1: δεν υπάρχει</translation>
+        <translation>%1: υπάρχει ήδη</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
@@ -5646,7 +5649,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translation>%1: το κλειδί είναι κενό</translation>
+        <translation>%1: το κλειδί είναι άδειο</translation>
     </message>
     <message>
         <source>%1: unix key file doesn&apos;t exists</source>
@@ -5658,7 +5661,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: unable to make key</source>
-        <translation>%1: αδυναμία δημιουργίας κλειδιού</translation>
+        <translation>%1: αδύνατη η δημιουργία κλειδιού</translation>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
@@ -5666,7 +5669,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: not attached</source>
-        <translation>%1: Μη συνδεδεμένο</translation>
+        <translation></translation>
     </message>
     <message>
         <source>%1: bad name</source>
@@ -5697,6 +5700,7 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation>Space</translation>
     </message>
     <message>
@@ -6025,10 +6029,12 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation>Κλήση</translation>
     </message>
     <message>
         <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
         <translation>Κλείσιμο</translation>
     </message>
     <message>
@@ -7152,7 +7158,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Διαγραφή εγγραφής;</translation>
+        <translation>Θέλετε να διαγράψετε αυτή την εγγραφή ?</translation>
     </message>
     <message>
         <source>Yes</source>
@@ -7172,7 +7178,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Αποθήκευση αλλαγών;</translation>
+        <translation>Αποθήκευση αλλαγών ?</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -7508,27 +7514,27 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>Αναίρεση</translation>
+        <translation>&amp;Αναίρεση</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>Ακύρωση Αναίρεσης</translation>
+        <translation>&amp;Ακύρωση Αναίρεσης</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Αποκοπή</translation>
+        <translation>Αποκοπ&amp;ή</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>Αντιγραφή</translation>
+        <translation>&amp;Αντιγραφή</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Αντιγραφή Θέσης Δεσμού</translation>
+        <translation>Αντιγραφή &amp;Θέσης Δεσμού</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>Επικόλληση</translation>
+        <translation>&amp;Επικόλληση</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -7554,7 +7560,7 @@ Role of an accessible object</extracomment>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>Αυτή η πλατφόρμα δεν υποστηρίζει IPv6</translation>
+        <translation>Η πλατφόρμα δεν υποστηρίζει το IPv6</translation>
     </message>
 </context>
 <context>
@@ -7697,11 +7703,11 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Cannot show URL</source>
-        <translation>Αδυναμία εμφάνισης URL</translation>
+        <translation>Δεν μπορεί να εμφανιστεί το URL</translation>
     </message>
     <message>
         <source>Frame load interruped by policy change</source>
-        <translation>Η φόρτωση του πλαισίου διακόπηκε λόγω αλλαγής κανόνων</translation>
+        <translation>Η φόρτωση του πλαισίου διακόπηκε λόγω αλλαγής πολιτικής</translation>
     </message>
     <message>
         <source>Cannot show mimetype</source>
@@ -8053,11 +8059,11 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; Πίσω</translation>
+        <translation>&lt; &amp;Πίσω</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>Τέλος</translation>
+        <translation>&amp;Τέλος</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -8065,46 +8071,46 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>Βοήθεια</translation>
+        <translation>&amp;Βοήθεια</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>Επόμενο</translation>
+        <translation>&amp;Επόμενο</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>Επόμενο &gt;</translation>
+        <translation>&amp;Επόμενο &gt;</translation>
     </message>
 </context>
 <context>
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>Επαναφορά</translation>
+        <translation>&amp;Επαναφορά</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>Μετακίνηση</translation>
+        <translation>&amp;Μετακίνηση</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>Μέγεθος</translation>
+        <translation>&amp;Μέγεθος</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Ελαχιστοποίηση</translation>
+        <translation>Ε&amp;λαχιστοποίηση</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Μεγιστοποίηση</translation>
+        <translation>Μ&amp;εγιστοποίηση</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>Κλείσιμο</translation>
+        <translation>&amp;Κλείσιμο</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Παραμονή στην επιφάνεια</translation>
+        <translation>Παραμονή στην &amp;επιφάνεια</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
@@ -8139,7 +8145,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation>σφάλμα ενεργοποιημένο από τον καταναλωτή</translation>
+        <translation>σφάλμα ενεργοποιήθηκε από τον καταναλωτή</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
@@ -8171,7 +8177,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation>αναμενόταν η έκδοση κατά την ανάγνωση της δήλωσης XML</translation>
+        <translation>αναμενόταν η έκδοση ενώ διαβαζόταν η δήλωση XML</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
@@ -8962,7 +8968,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>VolumeSlider</name>
     <message>
         <source>Muted</source>
-        <translation>Αθόρυβο</translation>
+        <translation>Σιώπηση</translation>
     </message>
     <message>
         <source>Volume: %1%</source>
@@ -8973,7 +8979,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Κύλιση εδώ</translation>
+        <translation>Κύλισε εδώ</translation>
     </message>
     <message>
         <source>Left edge</source>
@@ -9009,19 +9015,19 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Κύλιση αριστερά</translation>
+        <translation>Κύλισε αριστερά</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Κύλιση πάνω</translation>
+        <translation>Κύλισε πάνω</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Κύλιση δεξιά</translation>
+        <translation>Κύλισε δεξιά</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Κύλιση κάτω</translation>
+        <translation>Κύλισε κάτω</translation>
     </message>
 </context>
 </TS>

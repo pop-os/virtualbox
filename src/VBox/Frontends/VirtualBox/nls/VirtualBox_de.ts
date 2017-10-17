@@ -491,7 +491,7 @@
     </message>
     <message>
         <source>Show Menu &amp;Bar</source>
-        <translation>Zeige &amp;Menüleiste</translation>
+        <translation>&amp;Menüleiste zeigen</translation>
     </message>
     <message>
         <source>&amp;Status Bar</source>
@@ -503,7 +503,7 @@
     </message>
     <message>
         <source>Show Status &amp;Bar</source>
-        <translation>Zeige &amp;Statusleiste</translation>
+        <translation>&amp;Statusleiste zeigen</translation>
     </message>
     <message>
         <source>&amp;Input</source>
@@ -1379,6 +1379,34 @@
     <message>
         <source>Choose...</source>
         <translation>Auswählen...</translation>
+    </message>
+</context>
+<context>
+    <name>UIErrorString</name>
+    <message>
+        <source>Result&amp;nbsp;Code: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Fehlercode:</translation>
+    </message>
+    <message>
+        <source>Component: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Komponente:</translation>
+    </message>
+    <message>
+        <source>Interface: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Interface:</translation>
+    </message>
+    <message>
+        <source>Callee: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Callee:</translation>
+    </message>
+    <message>
+        <source>Callee&amp;nbsp;RC: </source>
+        <comment>error info</comment>
+        <translation type="vanished">Callee&amp;nbsp;RC:</translation>
     </message>
 </context>
 <context>
@@ -3202,6 +3230,14 @@
         <source>Networking</source>
         <translation type="vanished">Netzwerk</translation>
     </message>
+    <message>
+        <source>Adding network...</source>
+        <translation type="vanished">Netzwerk hinzufügen ...</translation>
+    </message>
+    <message>
+        <source>Removing network...</source>
+        <translation type="vanished">Netzwerk entfernen ...</translation>
+    </message>
 </context>
 <context>
     <name>UIHotKeyEditor</name>
@@ -4289,6 +4325,14 @@
         <source>When checked, enables video recording for screen %1.</source>
         <translation>Videoaufzeichnung für Bildschirm %1 aktivieren.</translation>
     </message>
+    <message>
+        <source>When checked, VirtualBox will record the audio stream to video file as well.</source>
+        <translation type="vanished">Aktiviert die Audioaufnahme.</translation>
+    </message>
+    <message>
+        <source>&amp;Record Audio</source>
+        <translation type="vanished">&amp;Audio aufnehmen</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsGeneral</name>
@@ -4522,7 +4566,7 @@
     </message>
     <message>
         <source>No host-only network adapter is currently selected.</source>
-        <translation>Es wurde kein Host-Netzinterface-Adapter ausgewählt.</translation>
+        <translation>Es wurde kein Host-only Netzwerkadapter ausgewählt.</translation>
     </message>
     <message>
         <source>No generic driver is currently selected.</source>
@@ -4946,7 +4990,7 @@
     </message>
     <message>
         <source>Location:</source>
-        <translation>gespeichert wo:</translation>
+        <translation>abgespeichert wo:</translation>
     </message>
     <message>
         <source>Type (Format):</source>
@@ -5008,7 +5052,7 @@
     </message>
     <message>
         <source>Details:</source>
-        <translation>gespeichert wie:</translation>
+        <translation>abgespeichert wie:</translation>
     </message>
     <message>
         <source>&amp;Port Count:</source>
@@ -5891,6 +5935,26 @@
         <source>Close Window (%1)</source>
         <translation type="vanished">Fenster schließen (%1)</translation>
     </message>
+    <message>
+        <source>Copy Disk Image File (%1)</source>
+        <translation type="vanished">Plattenabbild kopieren (%1)</translation>
+    </message>
+    <message>
+        <source>Remove Disk Image File (%1)</source>
+        <translation type="vanished">Plattenabbild löschen (%1)</translation>
+    </message>
+    <message>
+        <source>Release Disk Image File (%1)</source>
+        <translation type="vanished">Plattenabbild von der VM lösen (%1)</translation>
+    </message>
+    <message>
+        <source>Open Disk Image File Properties (%1)</source>
+        <translation type="vanished">Eigenschaften des Plattenabbilds öffnen (%1)</translation>
+    </message>
+    <message>
+        <source>Refresh Disk Image Files (%1)</source>
+        <translation type="vanished">Plattenabbilder aktualisieren (%1)</translation>
+    </message>
 </context>
 <context>
     <name>UIMediumManagerWidget</name>
@@ -5954,7 +6018,7 @@
     </message>
     <message>
         <source>This type of medium is attached directly, and can be used by several machines.</source>
-        <translation type="unfinished"></translation>
+        <translation>Das Medium ist direkt angeschlossen und kann von mehreren Maschinen benutzt werden.</translation>
     </message>
     <message>
         <source>This type of medium is attached indirectly, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications.</source>
@@ -6243,7 +6307,7 @@
     </message>
     <message>
         <source>Failed to save the settings of the virtual machine &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</source>
-        <translation>Die Einstellungen der virtuellen Maschine &lt;b&gt;%1&lt;/b&gt; konnten nicht in &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; gespeichert werden.</translation>
+        <translation>Die Einstellungen der virtuellen Maschine &lt;b&gt;%1&lt;/b&gt; konnten nicht nach &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; abgespeichert werden.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not enter seamless mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
@@ -6436,7 +6500,7 @@
     </message>
     <message>
         <source>Failed to update Guest Additions. The Guest Additions disk image file will be inserted for user installation.</source>
-        <translation>Die Gasterweiterungen konnten nicht aktualisiert werden. Das Abbild mit den Gasterweiterungen wird jetzt für eine manuelle Installation gemountet.</translation>
+        <translation>Die Gasterweiterungen konnten nicht aktualisiert werden. Das ISO-Abbild mit den Erweiterungen wird jetzt für eine manuelle gemountet.</translation>
     </message>
     <message>
         <source>Failed to install the Extension Pack &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -6568,7 +6632,7 @@
     </message>
     <message>
         <source>The virtual machine that you are changing has been started. Only certain settings can be changed while a machine is running. All other changes will be lost if you close this window now.</source>
-        <translation>Der Zustand der virtuellen Maschine hat sich in der Zwischenzeit geändert. Durch Bestätigen werden nur die zur Laufzeit änderbaren Einstellungen gespeichert. Alle anderen Änderungen gehen verloren.</translation>
+        <translation>Der Zustand der virtuellen Maschine hat sich in der Zwischenzeit geändert. Durch Bestätigen werden nur die zur Laufzeit änderbaren Einstellungen abgespeichert. Alle anderen Änderungen gehen verloren.</translation>
     </message>
     <message>
         <source>Can&apos;t find snapshot named &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -6827,7 +6891,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das Abbild mit den &lt;b&gt;VirtualBox-Gasterweiterungen&lt;/b&gt; wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; heruntergeladen, konnte aber nicht unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;gespeichert werden.&lt;/p&gt;&lt;p&gt;Bitte wählen Sie einen anderen Ordner für diese Datei.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Das CD-Abbild mit den &lt;b&gt;VirtualBox-Gasterweiterungen&lt;/b&gt; wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; heruntergeladen, konnte aber nicht unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;gespeichert werden.&lt;/p&gt;&lt;p&gt;Bitte wählen Sie einen anderen Ordner für diese Datei.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
@@ -6940,7 +7004,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual optical drive?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das Abbild mit den &lt;b&gt;VirtualBox-Gasterweiterungen&lt;/b&gt; wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; heruntergeladen und lokal unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; gespeichert.&lt;/p&gt;&lt;p&gt;Möchten Sie dieses Abbild in VirtualBox registrieren und in das virtuelle optische Laufwerk einlegen?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Das CD-Abbild mit den &lt;b&gt;VirtualBox-Gasterweiterungen&lt;/b&gt; wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; heruntergeladen und lokal unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; gespeichert.&lt;/p&gt;&lt;p&gt;Möchten Sie dieses Abbild in VirtualBox registrieren und in das virtuelle optische Laufwerk einlegen?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Bad password or authentication failure.</source>
@@ -7076,7 +7140,7 @@
     </message>
     <message>
         <source>Failed to remove the DHCP server for the network interface &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Der DHCP-server für das Netzwerkinterface &lt;b&gt;%1&lt;/b&gt; konnte nicht gelöscht werden.</translation>
+        <translation type="vanished">Der DHCP-Server für das Netzwerkinterface &lt;b&gt;%1&lt;/b&gt; konnte nicht gelöscht werden.</translation>
     </message>
     <message>
         <source>Failed to acquire DHCP server parameter.</source>
@@ -7138,6 +7202,26 @@
     <message>
         <source>Failed to disable the audio adapter input for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation type="vanished">Die Audioeingabe für die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; konnte nicht deaktiviert werden.</translation>
+    </message>
+    <message>
+        <source>Failed to acquire host network interface parameter.</source>
+        <translation type="vanished">Netzwerkinterface-Parameter konnten nicht ermittelt werden.</translation>
+    </message>
+    <message>
+        <source>Failed to save host network interface parameter.</source>
+        <translation type="vanished">Netzwerkinterface-Parameter konnten nicht gespeichert werden.</translation>
+    </message>
+    <message>
+        <source>Failed to create a DHCP server for the network interface &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="vanished">DHCP-Server für das Netzwerkinterface &lt;b&gt;%1&lt;/b&gt; konnte nicht erzeugt werden.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the &lt;b&gt;%1&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%2&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
+        <translation type="vanished">Konnte das Abbild &lt;b&gt;%1&lt;/b&gt; nicht zur virtuellen Maschine lt;b&gt;%2&lt;/b&gt; hinzufügen, da diese kein optisches Laufwerk enthält. Bitte ein optisches Laufwerk in den VM-Einstellungen hinzufügen.</translation>
+    </message>
+    <message>
+        <source>Failed to change the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="vanished">Ändern des Sicherungspunktes &lt;b&gt;%1&lt;/b&gt; der virtuellen Maschine lt;b&gt;%2&lt;/b&gt; fehlgeschlagen.</translation>
     </message>
 </context>
 <context>
@@ -7331,6 +7415,17 @@
     </message>
 </context>
 <context>
+    <name>UIPopupPane</name>
+    <message>
+        <source>&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt;</source>
+        <translation type="vanished">&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt; (%1 of %2)</source>
+        <translation type="vanished">&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt; (%1 von %2)</translation>
+    </message>
+</context>
+<context>
     <name>UIPortForwardingTable</name>
     <message>
         <source>Name</source>
@@ -7437,7 +7532,7 @@
     </message>
     <message>
         <source>Show Statusbar</source>
-        <translation>Statusleiste-Zeigen</translation>
+        <translation>Statusleiste zeigen</translation>
     </message>
     <message>
         <source>Select a virtual machine file</source>
@@ -7536,6 +7631,10 @@
     <message>
         <source>Preferences</source>
         <translation>Einstellungen</translation>
+    </message>
+    <message>
+        <source>Allows to navigate through Global Property categories</source>
+        <translation type="vanished">Erlaubt das Navigieren durch die globalen Eigenschaftskategorien</translation>
     </message>
 </context>
 <context>
@@ -7685,6 +7784,26 @@
     <message>
         <source>&lt;p&gt;You have the &lt;b&gt;Current State&lt;/b&gt; item selected.&lt;br&gt;Press the &lt;b&gt;Take&lt;/b&gt; button if you wish to take a new snapshot.&lt;/p&gt;</source>
         <translation type="vanished">&lt;p&gt;Der &lt;b&gt;aktuelle Zustand&lt;/b&gt; ist ausgewählt.&lt;br&gt;Wählen Sie &lt;b&gt;Erzeugen&lt;/b&gt;, um einen neuen Sicherungspunkt zu erzeugen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Take Snapshot (%1)</source>
+        <translation type="vanished">Sicherungspunkt erzeugen (%1)</translation>
+    </message>
+    <message>
+        <source>Enter a name for the new snapshot...</source>
+        <translation type="vanished">Name für den neuen Sicherungspunkt eingeben...</translation>
+    </message>
+    <message>
+        <source>Enter a name for this snapshot...</source>
+        <translation type="vanished">Name für diesen Sicherungspunkt eingeben...</translation>
+    </message>
+    <message>
+        <source>Take</source>
+        <translation type="vanished">Erzeugen</translation>
+    </message>
+    <message>
+        <source>Take snapshot on the basis of current machine state</source>
+        <translation type="vanished">Einen Sicherungspunkt für den aktuellen Maschinen-Status erzeugen</translation>
     </message>
 </context>
 <context>
@@ -7858,6 +7977,10 @@
         <source>Taken</source>
         <comment>snapshot</comment>
         <translation type="vanished">Erzeugt</translation>
+    </message>
+    <message>
+        <source>Open pane with the selected snapshot properties</source>
+        <translation type="vanished">Öffnet die Eigenschaften des ausgewählten Sicherungspunktes</translation>
     </message>
 </context>
 <context>
@@ -8853,11 +8976,11 @@
     </message>
     <message>
         <source>Storage on physical hard disk</source>
-        <translation>Art der Speicherung</translation>
+        <translation></translation>
     </message>
     <message>
         <source>Please choose whether the new virtual hard disk file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation>Bitte wählen Sie, ob die neue virtuelle Festplatte erst nach und nach zur Laufzeit (dynamisch) alloziert werden soll oder ob die Platte jetzt sofort vollständig alloziert werden soll (feste Größe).</translation>
+        <translation></translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard disk file will only use space on your physical hard disk as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>

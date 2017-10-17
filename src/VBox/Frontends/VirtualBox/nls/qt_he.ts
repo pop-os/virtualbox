@@ -12,50 +12,50 @@
     <name>MAC_APPLICATION_MENU</name>
     <message>
         <source>Services</source>
-        <translation type="unfinished"></translation>
+        <translation>שירותים</translation>
     </message>
     <message>
         <source>Hide %1</source>
-        <translation type="unfinished"></translation>
+        <translation>הסתר את %1</translation>
     </message>
     <message>
         <source>Hide Others</source>
-        <translation type="unfinished"></translation>
+        <translation>הסתר את האחרים</translation>
     </message>
     <message>
         <source>Show All</source>
-        <translation type="unfinished"></translation>
+        <translation>הצג הכל</translation>
     </message>
     <message>
         <source>Preferences...</source>
-        <translation type="unfinished"></translation>
+        <translation>העדפות...</translation>
     </message>
     <message>
         <source>Quit %1</source>
-        <translation type="unfinished"></translation>
+        <translation>צא מתוך %1</translation>
     </message>
     <message>
         <source>About %1</source>
-        <translation type="unfinished"></translation>
+        <translation>אודות %1</translation>
     </message>
 </context>
 <context>
     <name>QAbstractSocket</name>
     <message>
         <source>Host not found</source>
-        <translation type="unfinished"></translation>
+        <translation>מארח לא נמצא</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>חיבור נדחה</translation>
     </message>
     <message>
         <source>Socket operation timed out</source>
-        <translation type="unfinished"></translation>
+        <translation>פג זמן פעולת שקע</translation>
     </message>
     <message>
         <source>Socket is not connected</source>
-        <translation type="unfinished"></translation>
+        <translation>שקע לא מחובר</translation>
     </message>
     <message>
         <source>Operation on socket is not supported</source>
@@ -78,15 +78,15 @@
     <name>QAbstractSpinBox</name>
     <message>
         <source>&amp;Step up</source>
-        <translation type="unfinished"></translation>
+        <translation>הע&amp;לה</translation>
     </message>
     <message>
         <source>Step &amp;down</source>
-        <translation type="unfinished"></translation>
+        <translation>הו&amp;רד</translation>
     </message>
     <message>
         <source>&amp;Select All</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;בחר הכל</translation>
     </message>
 </context>
 <context>
@@ -211,11 +211,11 @@
     <name>QApplication</name>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation type="unfinished"></translation>
+        <translation>קובץ הפעלה &quot;%1&quot; דורש את Qt %2, נמצא Qt %3.</translation>
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאת תאימות ספריית Qt</translation>
     </message>
     <message>
         <source>Activate</source>
@@ -297,43 +297,43 @@
     <name>QColorDialog</name>
     <message>
         <source>Hu&amp;e:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;גוון:</translation>
     </message>
     <message>
         <source>&amp;Sat:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;רוויה:</translation>
     </message>
     <message>
         <source>&amp;Val:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;ערך:</translation>
     </message>
     <message>
         <source>&amp;Red:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;אדום:</translation>
     </message>
     <message>
         <source>&amp;Green:</source>
-        <translation type="unfinished"></translation>
+        <translation>ירו&amp;ק:</translation>
     </message>
     <message>
         <source>Bl&amp;ue:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;כחול:</translation>
     </message>
     <message>
         <source>A&amp;lpha channel:</source>
-        <translation type="unfinished"></translation>
+        <translation>ע&amp;רוץ אלפא:</translation>
     </message>
     <message>
         <source>&amp;Basic colors</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;צבעים בסיסיים</translation>
     </message>
     <message>
         <source>&amp;Custom colors</source>
-        <translation type="unfinished"></translation>
+        <translation>צבעים &amp;מותאמים אישית</translation>
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;הוסף לצבעים מותאמים אישית</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -362,11 +362,11 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>False</source>
-        <translation type="unfinished"></translation>
+        <translation>שקר</translation>
     </message>
     <message>
         <source>True</source>
-        <translation type="unfinished"></translation>
+        <translation>אמת</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -429,17 +429,17 @@ Press ESC to cancel</source>
     <message>
         <source>%1: key is empty</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: המפתח הוא ריק</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: אין אפשרות ליצור מפתח</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
         <comment>QSystemSemaphore</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: פעולת ftok נכשלה</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
@@ -575,46 +575,46 @@ Press ESC to cancel</source>
     <name>QDB2Driver</name>
     <message>
         <source>Unable to connect</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחבר</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להחזיר לאחור טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to set autocommit</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לקבוע ביצוע ממוכן</translation>
     </message>
 </context>
 <context>
     <name>QDB2Result</name>
     <message>
         <source>Unable to execute statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע הוראה</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להכין הוראה</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכרוך משתנה</translation>
     </message>
     <message>
         <source>Unable to fetch record %1</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא את הרשומה %1</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא את הבא</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא את הראשון</translation>
     </message>
 </context>
 <context>
@@ -647,7 +647,7 @@ Press ESC to cancel</source>
     <name>QDialog</name>
     <message>
         <source>What&apos;s This?</source>
-        <translation type="unfinished"></translation>
+        <translation>מה זה?</translation>
     </message>
     <message>
         <source>Done</source>
@@ -658,7 +658,7 @@ Press ESC to cancel</source>
     <name>QDialogButtonBox</name>
     <message>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>אישור</translation>
     </message>
     <message>
         <source>Save</source>
@@ -745,25 +745,25 @@ Press ESC to cancel</source>
     <name>QDirModel</name>
     <message>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>שם</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished"></translation>
+        <translation>גודל</translation>
     </message>
     <message>
         <source>Kind</source>
         <comment>Match OS X Finder</comment>
-        <translation type="unfinished"></translation>
+        <translation>סוג</translation>
     </message>
     <message>
         <source>Type</source>
         <comment>All other platforms</comment>
-        <translation type="unfinished"></translation>
+        <translation>סוג</translation>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation type="unfinished"></translation>
+        <translation>תאריך שינוי</translation>
     </message>
 </context>
 <context>
@@ -876,11 +876,13 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
+        <translation>סגור</translation>
     </message>
     <message>
         <source>Float</source>
-        <translation type="unfinished"></translation>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
+        <translation>הצף</translation>
     </message>
     <message>
         <source>Undocks and re-attaches the dock widget</source>
@@ -899,23 +901,23 @@ Press ESC to cancel</source>
     <name>QErrorMessage</name>
     <message>
         <source>Debug Message:</source>
-        <translation type="unfinished"></translation>
+        <translation>הודעת דיבאג:</translation>
     </message>
     <message>
         <source>Warning:</source>
-        <translation type="unfinished"></translation>
+        <translation>אזהרה:</translation>
     </message>
     <message>
         <source>Fatal Error:</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה קריטית:</translation>
     </message>
     <message>
         <source>&amp;Show this message again</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;הצג הודעה זו שנית</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;אישור</translation>
     </message>
 </context>
 <context>
@@ -976,145 +978,151 @@ Press ESC to cancel</source>
     <name>QFileDialog</name>
     <message>
         <source>All Files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>כל הקבצים (*)</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation type="unfinished"></translation>
+        <translation>ספריות</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;פתח</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;שמור</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation type="unfinished"></translation>
+        <translation>פתיחה</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
-        <translation type="unfinished"></translation>
+        <translation>‏%1 כבר קיים.
+האם ברצונך להחליף אותו?</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Please verify the correct file name was given.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1
+הקובץ לא נמצא.
+אנא ודא כי שם הקובץ הנכון הוזן.</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation type="unfinished"></translation>
+        <translation>המחשב שלי</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation type="unfinished"></translation>
+        <translation>ש&amp;נה שם</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;מחק</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation type="unfinished"></translation>
+        <translation>ה&amp;צג קבצים מוסתרים</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation type="unfinished"></translation>
+        <translation>אחורה</translation>
     </message>
     <message>
         <source>Parent Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>ספרייה מעלה</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation type="unfinished"></translation>
+        <translation>תצוגת רשימה</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation type="unfinished"></translation>
+        <translation>תצוגת פרטים</translation>
     </message>
     <message>
         <source>Files of type:</source>
-        <translation type="unfinished"></translation>
+        <translation>קבצים מסוג:</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation type="unfinished"></translation>
+        <translation>ספרייה:</translation>
     </message>
     <message>
         <source>%1
 Directory not found.
 Please verify the correct directory name was given.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1
+ספרייה לא נמצאה.
+אנא ודא כי ניתן שם ספרייה מדויק.</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is write protected.
 Do you want to delete it anyway?</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 מוגן בפני כתיבה.
+האם ברצונך למחוק אותו בכל זאת?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות למחוק ספרייה.</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation type="unfinished"></translation>
+        <translation>שמירה בשם</translation>
     </message>
     <message>
         <source>Drive</source>
-        <translation type="unfinished"></translation>
+        <translation>כונן</translation>
     </message>
     <message>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation>קובץ</translation>
     </message>
     <message>
         <source>Unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>לא ידוע</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>חפש ספרייה</translation>
     </message>
     <message>
         <source>Show </source>
-        <translation type="unfinished"></translation>
+        <translation>הצג </translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation type="unfinished"></translation>
+        <translation>קדימה</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>תיקייה חדשה</translation>
     </message>
     <message>
         <source>&amp;New Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>תיקייה &amp;חדשה</translation>
     </message>
     <message>
         <source>&amp;Choose</source>
-        <translation type="unfinished"></translation>
+        <translation>בח&amp;ר</translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation>הסר</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;שם קובץ:</translation>
     </message>
     <message>
         <source>Look in:</source>
-        <translation type="unfinished"></translation>
+        <translation>חפש בתוך:</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>צור תיקייה חדשה</translation>
     </message>
     <message>
         <source>Go back</source>
@@ -1214,61 +1222,61 @@ Do you want to delete it anyway?</source>
     <name>QFileSystemModel</name>
     <message>
         <source>Invalid filename</source>
-        <translation type="unfinished"></translation>
+        <translation>שם קובץ לא תקין</translation>
     </message>
     <message>
         <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;אין אפשרות להשתמש בשם &quot;%1&quot;.&lt;/b&gt;&lt;p&gt;נסה שם אחר, עם פחות תווים או בלי סימני פיסוק.</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>שם</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished"></translation>
+        <translation>גודל</translation>
     </message>
     <message>
         <source>Kind</source>
         <comment>Match OS X Finder</comment>
-        <translation type="unfinished"></translation>
+        <translation>סוג</translation>
     </message>
     <message>
         <source>Type</source>
         <comment>All other platforms</comment>
-        <translation type="unfinished"></translation>
+        <translation>סוג</translation>
     </message>
     <message>
         <source>Date Modified</source>
-        <translation type="unfinished"></translation>
+        <translation>תאריך שינוי</translation>
     </message>
     <message>
         <source>My Computer</source>
-        <translation type="unfinished"></translation>
+        <translation>המחשב שלי</translation>
     </message>
     <message>
         <source>Computer</source>
-        <translation type="unfinished"></translation>
+        <translation>מחשב</translation>
     </message>
     <message>
         <source>%1 TB</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 ט&quot;ב</translation>
     </message>
     <message>
         <source>%1 GB</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 ג&quot;ב</translation>
     </message>
     <message>
         <source>%1 MB</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 מ&quot;ב</translation>
     </message>
     <message>
         <source>%1 KB</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 ק&quot;ב</translation>
     </message>
     <message>
         <source>%1 bytes</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 בתים</translation>
     </message>
     <message>
         <source>%1 byte(s)</source>
@@ -1279,163 +1287,164 @@ Do you want to delete it anyway?</source>
     <name>QFontDatabase</name>
     <message>
         <source>Bold</source>
-        <translation type="unfinished"></translation>
+        <translation>מודגש</translation>
     </message>
     <message>
         <source>Demi Bold</source>
-        <translation type="unfinished"></translation>
+        <translation>מודגש למחצה</translation>
     </message>
     <message>
         <source>Black</source>
-        <translation type="unfinished"></translation>
+        <translation>שחור</translation>
     </message>
     <message>
         <source>Demi</source>
-        <translation type="unfinished"></translation>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
+        <translation>למחצה</translation>
     </message>
     <message>
         <source>Light</source>
-        <translation type="unfinished"></translation>
+        <translation>קל</translation>
     </message>
     <message>
         <source>Italic</source>
-        <translation type="unfinished"></translation>
+        <translation>נטוי</translation>
     </message>
     <message>
         <source>Oblique</source>
-        <translation type="unfinished"></translation>
+        <translation>אלכסוני</translation>
     </message>
     <message>
         <source>Any</source>
-        <translation type="unfinished"></translation>
+        <translation>כולם</translation>
     </message>
     <message>
         <source>Latin</source>
-        <translation type="unfinished"></translation>
+        <translation>לטינית</translation>
     </message>
     <message>
         <source>Greek</source>
-        <translation type="unfinished"></translation>
+        <translation>יוונית</translation>
     </message>
     <message>
         <source>Cyrillic</source>
-        <translation type="unfinished"></translation>
+        <translation>קירילית</translation>
     </message>
     <message>
         <source>Armenian</source>
-        <translation type="unfinished"></translation>
+        <translation>ארמנית</translation>
     </message>
     <message>
         <source>Hebrew</source>
-        <translation type="unfinished"></translation>
+        <translation>עברית</translation>
     </message>
     <message>
         <source>Arabic</source>
-        <translation type="unfinished"></translation>
+        <translation>ערבית</translation>
     </message>
     <message>
         <source>Syriac</source>
-        <translation type="unfinished"></translation>
+        <translation>סורית</translation>
     </message>
     <message>
         <source>Thaana</source>
-        <translation type="unfinished"></translation>
+        <translation>טאנה</translation>
     </message>
     <message>
         <source>Devanagari</source>
-        <translation type="unfinished"></translation>
+        <translation>דוונאגרי</translation>
     </message>
     <message>
         <source>Bengali</source>
-        <translation type="unfinished"></translation>
+        <translation>בנגלית</translation>
     </message>
     <message>
         <source>Gurmukhi</source>
-        <translation type="unfinished"></translation>
+        <translation>גורמוכי</translation>
     </message>
     <message>
         <source>Gujarati</source>
-        <translation type="unfinished"></translation>
+        <translation>גוג&apos;ראטית</translation>
     </message>
     <message>
         <source>Oriya</source>
-        <translation type="unfinished"></translation>
+        <translation>אוריה</translation>
     </message>
     <message>
         <source>Tamil</source>
-        <translation type="unfinished"></translation>
+        <translation>טמילית</translation>
     </message>
     <message>
         <source>Telugu</source>
-        <translation type="unfinished"></translation>
+        <translation>טלוגו</translation>
     </message>
     <message>
         <source>Kannada</source>
-        <translation type="unfinished"></translation>
+        <translation>קאנאדה</translation>
     </message>
     <message>
         <source>Malayalam</source>
-        <translation type="unfinished"></translation>
+        <translation>מליאלאם</translation>
     </message>
     <message>
         <source>Sinhala</source>
-        <translation type="unfinished"></translation>
+        <translation>סינהלזית</translation>
     </message>
     <message>
         <source>Thai</source>
-        <translation type="unfinished"></translation>
+        <translation>תאילנדית</translation>
     </message>
     <message>
         <source>Lao</source>
-        <translation type="unfinished"></translation>
+        <translation>לאו</translation>
     </message>
     <message>
         <source>Tibetan</source>
-        <translation type="unfinished"></translation>
+        <translation>טיבטי</translation>
     </message>
     <message>
         <source>Myanmar</source>
-        <translation type="unfinished"></translation>
+        <translation>מיאנמר</translation>
     </message>
     <message>
         <source>Georgian</source>
-        <translation type="unfinished"></translation>
+        <translation>גרוזינית</translation>
     </message>
     <message>
         <source>Khmer</source>
-        <translation type="unfinished"></translation>
+        <translation>חמר</translation>
     </message>
     <message>
         <source>Simplified Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>סינית מפושטת</translation>
     </message>
     <message>
         <source>Traditional Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>סינית מסורתית</translation>
     </message>
     <message>
         <source>Japanese</source>
-        <translation type="unfinished"></translation>
+        <translation>יפנית</translation>
     </message>
     <message>
         <source>Korean</source>
-        <translation type="unfinished"></translation>
+        <translation>קוריאנית</translation>
     </message>
     <message>
         <source>Vietnamese</source>
-        <translation type="unfinished"></translation>
+        <translation>ויאטנמית</translation>
     </message>
     <message>
         <source>Symbol</source>
-        <translation type="unfinished"></translation>
+        <translation>סימנים</translation>
     </message>
     <message>
         <source>Ogham</source>
-        <translation type="unfinished"></translation>
+        <translation>אוגם</translation>
     </message>
     <message>
         <source>Runic</source>
-        <translation type="unfinished"></translation>
+        <translation>רוני</translation>
     </message>
     <message>
         <source>Normal</source>
@@ -1477,111 +1486,120 @@ Do you want to delete it anyway?</source>
     <name>QFontDialog</name>
     <message>
         <source>&amp;Font</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;גופן</translation>
     </message>
     <message>
         <source>Font st&amp;yle</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;סגנון גופן</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation type="unfinished"></translation>
+        <translation>גו&amp;דל</translation>
     </message>
     <message>
         <source>Effects</source>
-        <translation type="unfinished"></translation>
+        <translation>אפקטים</translation>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation type="unfinished"></translation>
+        <translation>קו &amp;חוצה</translation>
     </message>
     <message>
         <source>&amp;Underline</source>
-        <translation type="unfinished"></translation>
+        <translation>קו &amp;תחתי</translation>
     </message>
     <message>
         <source>Sample</source>
-        <translation type="unfinished"></translation>
+        <translation>דוגמה</translation>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;מערכת כתיבה</translation>
     </message>
     <message>
         <source>Select Font</source>
-        <translation type="unfinished"></translation>
+        <translation>בחר גופן</translation>
     </message>
 </context>
 <context>
     <name>QFtp</name>
     <message>
         <source>Not connected</source>
-        <translation type="unfinished"></translation>
+        <translation>לא מחובר</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation type="unfinished"></translation>
+        <translation>מארח %1 לא נמצא</translation>
     </message>
     <message>
         <source>Connection refused to host %1</source>
-        <translation type="unfinished"></translation>
+        <translation>חיבור אל מארח %1 נדחה</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation type="unfinished"></translation>
+        <translation>מחובר אל מארח %1</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה לא מוכרת</translation>
     </message>
     <message>
         <source>Connecting to host failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>חיבור אל מארח נכשל:
+%1</translation>
     </message>
     <message>
         <source>Login failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>התחברות נכשלה:
+%1</translation>
     </message>
     <message>
         <source>Listing directory failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>קבלת רשימת הקבצים מתוך ספרייה נכשלה:
+%1</translation>
     </message>
     <message>
         <source>Changing directory failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>שינוי ספרייה נכשל:
+%1</translation>
     </message>
     <message>
         <source>Downloading file failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>הורדת קובץ נכשלה:
+%1</translation>
     </message>
     <message>
         <source>Uploading file failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>העלאת קובץ נכשלה:
+%1</translation>
     </message>
     <message>
         <source>Removing file failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>הסרת קובץ נכשלה:
+%1</translation>
     </message>
     <message>
         <source>Creating directory failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>יצירת ספרייה נכשלה:
+%1</translation>
     </message>
     <message>
         <source>Removing directory failed:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>הסרת ספרייה נכשלה:
+%1</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation type="unfinished"></translation>
+        <translation>חיבור נסגר</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -1647,7 +1665,7 @@ Do you want to delete it anyway?</source>
     <name>QHostInfo</name>
     <message>
         <source>Unknown error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה לא מוכרת</translation>
     </message>
     <message>
         <source>No host name given</source>
@@ -1658,15 +1676,15 @@ Do you want to delete it anyway?</source>
     <name>QHostInfoAgent</name>
     <message>
         <source>Host not found</source>
-        <translation type="unfinished"></translation>
+        <translation>מארח לא נמצא</translation>
     </message>
     <message>
         <source>Unknown address type</source>
-        <translation type="unfinished"></translation>
+        <translation>טיפוס כתובת לא מוכר</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה לא מוכרת</translation>
     </message>
     <message>
         <source>No host name given</source>
@@ -1689,35 +1707,35 @@ Do you want to delete it anyway?</source>
     <name>QHttp</name>
     <message>
         <source>Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>חיבור נדחה</translation>
     </message>
     <message>
         <source>Host %1 not found</source>
-        <translation type="unfinished"></translation>
+        <translation>מארח %1 לא נמצא</translation>
     </message>
     <message>
         <source>Connection closed</source>
-        <translation type="unfinished"></translation>
+        <translation>חיבור נסגר</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
-        <translation type="unfinished"></translation>
+        <translation>תם זמן פעולת שקע</translation>
     </message>
     <message>
         <source>Host requires authentication</source>
-        <translation type="unfinished"></translation>
+        <translation>מארח דורש אימות</translation>
     </message>
     <message>
         <source>Data corrupted</source>
-        <translation type="unfinished"></translation>
+        <translation>מידע משובש</translation>
     </message>
     <message>
         <source>Unknown protocol specified</source>
-        <translation type="unfinished"></translation>
+        <translation>צוין פרוטוקול לא מוכר</translation>
     </message>
     <message>
         <source>SSL handshake failed</source>
-        <translation type="unfinished"></translation>
+        <translation>לחיצת ידיים של SSL נכשלה</translation>
     </message>
     <message>
         <source>Too many redirects</source>
@@ -1800,7 +1818,7 @@ Do you want to delete it anyway?</source>
     <name>QHttpSocketEngine</name>
     <message>
         <source>Authentication required</source>
-        <translation type="unfinished"></translation>
+        <translation>נדרש אימות</translation>
     </message>
     <message>
         <source>Did not receive HTTP response from proxy</source>
@@ -1839,113 +1857,113 @@ Do you want to delete it anyway?</source>
     <name>QIBaseDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה בפתיחת מסד נתונים</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להפעיל טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להחזיר לאחור טרנזקציה</translation>
     </message>
 </context>
 <context>
     <name>QIBaseResult</name>
     <message>
         <source>Unable to create BLOB</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות ליצור BLOB</translation>
     </message>
     <message>
         <source>Unable to write BLOB</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכתוב BLOB</translation>
     </message>
     <message>
         <source>Unable to open BLOB</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לפתוח BLOB</translation>
     </message>
     <message>
         <source>Unable to read BLOB</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לקרוא BLOB</translation>
     </message>
     <message>
         <source>Could not find array</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות למצוא מערך נתונים</translation>
     </message>
     <message>
         <source>Could not get array data</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להשיג מידע מערך נתונים</translation>
     </message>
     <message>
         <source>Could not get query info</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להשיג מידע שאילתא</translation>
     </message>
     <message>
         <source>Could not start transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להפעיל טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Could not allocate statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להקצות הוראה</translation>
     </message>
     <message>
         <source>Could not prepare statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להכין הוראה</translation>
     </message>
     <message>
         <source>Could not describe input statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לתאר הוראת קלט</translation>
     </message>
     <message>
         <source>Could not describe statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לתאר הוראה</translation>
     </message>
     <message>
         <source>Unable to close statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לסגור הוראה</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע שאילתא</translation>
     </message>
     <message>
         <source>Could not fetch next item</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא את הפריט הבא</translation>
     </message>
     <message>
         <source>Could not get statement info</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להשיג מידע הוראה</translation>
     </message>
 </context>
 <context>
     <name>QIODevice</name>
     <message>
         <source>Permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>הרשאה נדחתה</translation>
     </message>
     <message>
         <source>Too many open files</source>
-        <translation type="unfinished"></translation>
+        <translation>יותר מדי קבצים פתוחים</translation>
     </message>
     <message>
         <source>No such file or directory</source>
-        <translation type="unfinished"></translation>
+        <translation>לא קיים קובץ או ספרייה</translation>
     </message>
     <message>
         <source>No space left on device</source>
-        <translation type="unfinished"></translation>
+        <translation>לא נשאר מקום בהתקן</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה לא מוכרת</translation>
     </message>
     <message>
         <source>file to open is a directory</source>
@@ -2080,27 +2098,27 @@ Do you want to delete it anyway?</source>
     <name>QLibrary</name>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation type="vanished">חוסר התאמה במידע אימות תוסף בתוך &apos;%1&apos;</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
-        <translation type="unfinished"></translation>
+        <translation>התוסף &apos;%1&apos; משתמש בספריית Qt שאינה תואמת (%2.%3.%4) [%5]</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה לא מוכרת</translation>
     </message>
     <message>
         <source>The shared library was not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>הספרייה המשותפת לא נמצאה.</translation>
     </message>
     <message>
         <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
-        <translation type="unfinished"></translation>
+        <translation>הקובץ &apos;%1&apos; אינו תוסף Qt תקין.</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation type="unfinished"></translation>
+        <translation>התוסף &apos;%1&apos; משתמש בספריית Qt שאינה תואמת (לא ניתן לערבב ספריית debug וספריית release.)</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is not an ELF object (%2)</source>
@@ -2191,93 +2209,93 @@ Do you want to delete it anyway?</source>
     <name>QLineEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;בטל</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation type="unfinished"></translation>
+        <translation>בצע &amp;שוב</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;גזור</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation type="unfinished"></translation>
+        <translation>הע&amp;תק</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation type="unfinished"></translation>
+        <translation>ה&amp;דבק</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>מחק</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation type="unfinished"></translation>
+        <translation>בחר הכל</translation>
     </message>
 </context>
 <context>
     <name>QLocalServer</name>
     <message>
         <source>%1: Name error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: שגיאת שם</translation>
     </message>
     <message>
         <source>%1: Permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: הרשאה נדחתה</translation>
     </message>
     <message>
         <source>%1: Address in use</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: כתובת בשימוש</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: שגיאה לא מוכרת %2</translation>
     </message>
 </context>
 <context>
     <name>QLocalSocket</name>
     <message>
         <source>%1: Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: חיבור נדחה</translation>
     </message>
     <message>
         <source>%1: Remote closed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: קצה מרוחק סגר</translation>
     </message>
     <message>
         <source>%1: Invalid name</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: שם לא תקין</translation>
     </message>
     <message>
         <source>%1: Socket access error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: שגיאת גישה לשקע</translation>
     </message>
     <message>
         <source>%1: Socket resource error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: שגיאת משאב שקע</translation>
     </message>
     <message>
         <source>%1: Socket operation timed out</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: תם זמן פעולת שקע</translation>
     </message>
     <message>
         <source>%1: Datagram too large</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: צרור נתונים גדול מדי</translation>
     </message>
     <message>
         <source>%1: Connection error</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: שגיאת חיבור</translation>
     </message>
     <message>
         <source>%1: The socket operation is not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: פעולת השקע אינה נתמכת</translation>
     </message>
     <message>
         <source>%1: Unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: שגיאה לא מוכרת %2</translation>
     </message>
     <message>
         <source>%1: Operation not permitted when socket is in this state</source>
@@ -2300,19 +2318,19 @@ Do you want to delete it anyway?</source>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחבר</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחיל טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להחזיר לאחור טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to allocate a MYSQL object</source>
@@ -2331,152 +2349,152 @@ Do you want to delete it anyway?</source>
     <name>QMYSQLResult</name>
     <message>
         <source>Unable to fetch data</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא נתונים</translation>
     </message>
     <message>
         <source>Unable to execute query</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע שאילתא</translation>
     </message>
     <message>
         <source>Unable to store result</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאחסן תוצאה</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להכין הוראה</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאפס הוראה</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכרוך ערך</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע הוראה</translation>
     </message>
     <message>
         <source>Unable to bind outvalues</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכרוך outvalues</translation>
     </message>
     <message>
         <source>Unable to store statement results</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאחסן תוצאות הוראה</translation>
     </message>
     <message>
         <source>Unable to execute next query</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע שאילתא באה</translation>
     </message>
     <message>
         <source>Unable to store next result</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאחסן תוצאה באה</translation>
     </message>
 </context>
 <context>
     <name>QMdiArea</name>
     <message>
         <source>(Untitled)</source>
-        <translation type="unfinished"></translation>
+        <translation>(ללא שם)</translation>
     </message>
 </context>
 <context>
     <name>QMdiSubWindow</name>
     <message>
         <source>%1 - [%2]</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 - [%2]</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>סגור</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation type="unfinished"></translation>
+        <translation>מזער</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation type="unfinished"></translation>
+        <translation>שחזר למטה</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation type="unfinished"></translation>
+        <translation>ש&amp;חזר</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation type="unfinished"></translation>
+        <translation>ה&amp;זז</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation type="unfinished"></translation>
+        <translation>גו&amp;דל</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;מזער</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;הגדל</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;תמיד עליון</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;סגור</translation>
     </message>
     <message>
         <source>- [%1]</source>
-        <translation type="unfinished"></translation>
+        <translation>- [%1]</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation type="unfinished"></translation>
+        <translation>הגדל</translation>
     </message>
     <message>
         <source>Unshade</source>
-        <translation type="unfinished"></translation>
+        <translation>בטל הצללה</translation>
     </message>
     <message>
         <source>Shade</source>
-        <translation type="unfinished"></translation>
+        <translation>הצלל</translation>
     </message>
     <message>
         <source>Restore</source>
-        <translation type="unfinished"></translation>
+        <translation>שחזר</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>עזרה</translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>תפריט</translation>
     </message>
 </context>
 <context>
     <name>QMessageBox</name>
     <message>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>עזרה</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>אישור</translation>
     </message>
     <message>
         <source>About Qt</source>
-        <translation type="unfinished"></translation>
+        <translation>אודות Qt</translation>
     </message>
     <message>
         <source>Show Details...</source>
-        <translation type="unfinished"></translation>
+        <translation>הצג פרטים...</translation>
     </message>
     <message>
         <source>Hide Details...</source>
-        <translation type="unfinished"></translation>
+        <translation>הסתר פרטים...</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -2503,107 +2521,107 @@ Do you want to delete it anyway?</source>
     <name>QNativeSocketEngine</name>
     <message>
         <source>The remote host closed the connection</source>
-        <translation type="unfinished"></translation>
+        <translation>המארח המרוחק סגר את החיבור</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
-        <translation type="unfinished"></translation>
+        <translation>תם זמן פעולת רשת</translation>
     </message>
     <message>
         <source>Out of resources</source>
-        <translation type="unfinished"></translation>
+        <translation>לא נותרו משאבים</translation>
     </message>
     <message>
         <source>Unsupported socket operation</source>
-        <translation type="unfinished"></translation>
+        <translation>פעולת שקע לא נתמכת</translation>
     </message>
     <message>
         <source>Protocol type not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>טיפוס פרוטוקול לא נתמך</translation>
     </message>
     <message>
         <source>Invalid socket descriptor</source>
-        <translation type="unfinished"></translation>
+        <translation>מתאר שקע לא תקין</translation>
     </message>
     <message>
         <source>Network unreachable</source>
-        <translation type="unfinished"></translation>
+        <translation>רשת לא ניתנת להשגה</translation>
     </message>
     <message>
         <source>Permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>הרשאה נדחתה</translation>
     </message>
     <message>
         <source>Connection timed out</source>
-        <translation type="unfinished"></translation>
+        <translation>פג זמן חיבור</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>חיבור נדחה</translation>
     </message>
     <message>
         <source>The bound address is already in use</source>
-        <translation type="unfinished"></translation>
+        <translation>הכתובת הכרוכה כבר מצויה בשימוש</translation>
     </message>
     <message>
         <source>The address is not available</source>
-        <translation type="unfinished"></translation>
+        <translation>הכתובת אינה זמינה</translation>
     </message>
     <message>
         <source>The address is protected</source>
-        <translation type="unfinished"></translation>
+        <translation>הכתובת מוגנת</translation>
     </message>
     <message>
         <source>Unable to send a message</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לשלוח הודעה</translation>
     </message>
     <message>
         <source>Unable to receive a message</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לקבל הודעה</translation>
     </message>
     <message>
         <source>Unable to write</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכתוב</translation>
     </message>
     <message>
         <source>Network error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאת רשת</translation>
     </message>
     <message>
         <source>Another socket is already listening on the same port</source>
-        <translation type="unfinished"></translation>
+        <translation>שקע אחר כבר מאזין על אותו הפורט</translation>
     </message>
     <message>
         <source>Unable to initialize non-blocking socket</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאתחל שקע לא-חוסם</translation>
     </message>
     <message>
         <source>Unable to initialize broadcast socket</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאתחל שקע broadcast</translation>
     </message>
     <message>
         <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
-        <translation type="unfinished"></translation>
+        <translation>ניסיון להשתמש בשקע IPv6 על פלטפורמה אשר לא תומכת IPv6</translation>
     </message>
     <message>
         <source>Host unreachable</source>
-        <translation type="unfinished"></translation>
+        <translation>מארח לא ניתן להשגה</translation>
     </message>
     <message>
         <source>Datagram was too large to send</source>
-        <translation type="unfinished"></translation>
+        <translation>צרור הנתונים היה גדול מדי בכדי להישלח</translation>
     </message>
     <message>
         <source>Operation on non-socket</source>
-        <translation type="unfinished"></translation>
+        <translation>פעולה על אובייקט שאינו שקע</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה לא מוכרת</translation>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
-        <translation type="unfinished"></translation>
+        <translation>טיפוס שרת מתווך אינו תקין לפעולה זו</translation>
     </message>
     <message>
         <source>Temporary error</source>
@@ -2651,42 +2669,42 @@ Do you want to delete it anyway?</source>
     <name>QNetworkAccessFileBackend</name>
     <message>
         <source>Request for opening non-local file %1</source>
-        <translation type="unfinished"></translation>
+        <translation>בקשה לפתיחת קובץ שאינו מקומי %1</translation>
     </message>
     <message>
         <source>Error opening %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה בפתיחת %1: ‏%2</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאת כתיבה בעת כתיבה אל %1: %2</translation>
     </message>
     <message>
         <source>Cannot open %1: Path is a directory</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לפתוח את %1: נתיב הינו ספרייה</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאת קריאה בעת קריאה מתוך %1: %2</translation>
     </message>
 </context>
 <context>
     <name>QNetworkAccessFtpBackend</name>
     <message>
         <source>Cannot open %1: is a directory</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לפתוח את %1: הינו ספרייה</translation>
     </message>
     <message>
         <source>Logging in to %1 failed: authentication required</source>
-        <translation type="unfinished"></translation>
+        <translation>כניסה אל %1 נכשלה: נדרש אימות</translation>
     </message>
     <message>
         <source>Error while downloading %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה במהלך הורדת %1: %2</translation>
     </message>
     <message>
         <source>Error while uploading %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה במהלך העלאת %1: %2</translation>
     </message>
     <message>
         <source>No suitable proxy found</source>
@@ -2704,7 +2722,7 @@ Do you want to delete it anyway?</source>
     <name>QNetworkReply</name>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>פרוטוקול &quot;%1&quot; אינו מוכר</translation>
     </message>
     <message>
         <source>Background request not allowed.</source>
@@ -2746,7 +2764,7 @@ Do you want to delete it anyway?</source>
     <name>QNetworkReplyImpl</name>
     <message>
         <source>Operation canceled</source>
-        <translation type="unfinished"></translation>
+        <translation>פעולה בוטלה</translation>
     </message>
 </context>
 <context>
@@ -2783,55 +2801,55 @@ Do you want to delete it anyway?</source>
     <name>QOCIDriver</name>
     <message>
         <source>Unable to logon</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחבר</translation>
     </message>
     <message>
         <source>Unable to initialize</source>
         <comment>QOCIDriver</comment>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאתחל</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחיל טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להחזיר לאחור טרנזקציה</translation>
     </message>
 </context>
 <context>
     <name>QOCIResult</name>
     <message>
         <source>Unable to bind column for batch execute</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכרוך טור עבור הרצת אצווה</translation>
     </message>
     <message>
         <source>Unable to execute batch statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע הוראת אצווה</translation>
     </message>
     <message>
         <source>Unable to goto next</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להמשיך הלאה</translation>
     </message>
     <message>
         <source>Unable to alloc statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להקצות הוראה</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להכין הוראה</translation>
     </message>
     <message>
         <source>Unable to bind value</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכרוך ערך</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע הוראה</translation>
     </message>
     <message>
         <source>Unable to get statement type</source>
@@ -2846,23 +2864,23 @@ Do you want to delete it anyway?</source>
     <name>QODBCDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחבר</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לנטרל ביצוע ממוכן</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להחזיר לאחור טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to enable autocommit</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאפשר ביצוע ממוכן</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all functionality required</source>
@@ -2877,156 +2895,156 @@ Do you want to delete it anyway?</source>
     <name>QODBCResult</name>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>QODBCResult::reset: לא ניתן לקבוע את &apos;SQL_CURSOR_STATIC&apos; כתכונת הוראה. נא לבדוק את תצורת דרייבר ה־ODBC</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע הוראה</translation>
     </message>
     <message>
         <source>Unable to fetch next</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא את הבא</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להכין הוראה</translation>
     </message>
     <message>
         <source>Unable to bind variable</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכרוך משתנה</translation>
     </message>
     <message>
         <source>Unable to fetch last</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא את האחרון</translation>
     </message>
     <message>
         <source>Unable to fetch</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא</translation>
     </message>
     <message>
         <source>Unable to fetch first</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא את הראשון</translation>
     </message>
     <message>
         <source>Unable to fetch previous</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא את הקודם</translation>
     </message>
 </context>
 <context>
     <name>QPSQLDriver</name>
     <message>
         <source>Unable to connect</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחבר</translation>
     </message>
     <message>
         <source>Could not begin transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחיל טרנזקציה</translation>
     </message>
     <message>
         <source>Could not commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Could not rollback transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להחזיר לאחור טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to subscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להירשם</translation>
     </message>
     <message>
         <source>Unable to unsubscribe</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבטל הרשמה</translation>
     </message>
 </context>
 <context>
     <name>QPSQLResult</name>
     <message>
         <source>Unable to create query</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות ליצור שאילתא</translation>
     </message>
     <message>
         <source>Unable to prepare statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להכין הוראה</translation>
     </message>
 </context>
 <context>
     <name>QPageSetupWidget</name>
     <message>
         <source>Millimeters (mm)</source>
-        <translation type="unfinished"></translation>
+        <translation>מילימטרים (מ״מ)</translation>
     </message>
     <message>
         <source>Inches (in)</source>
-        <translation type="unfinished"></translation>
+        <translation>אינצ&apos;ים (אינ)</translation>
     </message>
     <message>
         <source>Points (pt)</source>
-        <translation type="unfinished"></translation>
+        <translation>נקודות (נק)</translation>
     </message>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>טופס</translation>
     </message>
     <message>
         <source>Paper</source>
-        <translation type="unfinished"></translation>
+        <translation>נייר</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation type="unfinished"></translation>
+        <translation>מידת עמוד:</translation>
     </message>
     <message>
         <source>Width:</source>
-        <translation type="unfinished"></translation>
+        <translation>רוחב:</translation>
     </message>
     <message>
         <source>Height:</source>
-        <translation type="unfinished"></translation>
+        <translation>גובה:</translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation type="unfinished"></translation>
+        <translation>מקור נייר:</translation>
     </message>
     <message>
         <source>Orientation</source>
-        <translation type="unfinished"></translation>
+        <translation>כיוון הדפסה</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation type="unfinished"></translation>
+        <translation>לאורך</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation type="unfinished"></translation>
+        <translation>לרוחב</translation>
     </message>
     <message>
         <source>Reverse landscape</source>
-        <translation type="unfinished"></translation>
+        <translation>במהופך לרוחב</translation>
     </message>
     <message>
         <source>Reverse portrait</source>
-        <translation type="unfinished"></translation>
+        <translation>במהופך לאורך</translation>
     </message>
     <message>
         <source>Margins</source>
-        <translation type="unfinished"></translation>
+        <translation>שוליים</translation>
     </message>
     <message>
         <source>top margin</source>
-        <translation type="unfinished"></translation>
+        <translation>קצה עליון</translation>
     </message>
     <message>
         <source>left margin</source>
-        <translation type="unfinished"></translation>
+        <translation>קצה שמאלי</translation>
     </message>
     <message>
         <source>right margin</source>
-        <translation type="unfinished"></translation>
+        <translation>קצה ימני</translation>
     </message>
     <message>
         <source>bottom margin</source>
-        <translation type="unfinished"></translation>
+        <translation>קצה תחתון</translation>
     </message>
     <message>
         <source>Page Layout</source>
@@ -3648,53 +3666,56 @@ Do you want to delete it anyway?</source>
     <name>QPluginLoader</name>
     <message>
         <source>Unknown error</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה לא מוכרת</translation>
     </message>
     <message>
         <source>The plugin was not loaded.</source>
-        <translation type="unfinished"></translation>
+        <translation>התוסף לא נטען.</translation>
     </message>
 </context>
 <context>
     <name>QPrintDialog</name>
     <message>
         <source>Print To File ...</source>
-        <translation type="unfinished"></translation>
+        <translation>הדפסה אל קובץ...</translation>
     </message>
     <message>
         <source>File %1 is not writable.
 Please choose a different file name.</source>
-        <translation type="unfinished"></translation>
+        <translation>הקובץ %1 אינו בר כתיבה.
+אנא בחר שם קובץ אחר.</translation>
     </message>
     <message>
         <source>%1 already exists.
 Do you want to overwrite it?</source>
-        <translation type="unfinished"></translation>
+        <translation>‏%1 כבר קיים.
+האם ברצונך להחליף אותו?</translation>
     </message>
     <message>
         <source>%1 is a directory.
 Please choose a different file name.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 הינו ספרייה.
+אנא בחר שם קובץ אחר.</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;אפשרויות &gt;&gt;</translation>
     </message>
     <message>
         <source>&amp;Print</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;הדפס</translation>
     </message>
     <message>
         <source>&amp;Options &lt;&lt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;אפשרויות &lt;&lt;</translation>
     </message>
     <message>
         <source>Print to File (PDF)</source>
-        <translation type="unfinished"></translation>
+        <translation>הדפס לקובץ (PDF)</translation>
     </message>
     <message>
         <source>Local file</source>
-        <translation type="unfinished"></translation>
+        <translation>קובץ מקומי</translation>
     </message>
     <message>
         <source>Print</source>
@@ -3939,71 +3960,71 @@ Please turn one of those options off.</source>
     <name>QPrintPreviewDialog</name>
     <message>
         <source>Page Setup</source>
-        <translation type="unfinished"></translation>
+        <translation>הגדרת עמוד</translation>
     </message>
     <message>
         <source>Print Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>תצוגה מקדימה</translation>
     </message>
     <message>
         <source>Next page</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד הבא</translation>
     </message>
     <message>
         <source>Previous page</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד קודם</translation>
     </message>
     <message>
         <source>First page</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד ראשון</translation>
     </message>
     <message>
         <source>Last page</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד אחרון</translation>
     </message>
     <message>
         <source>Fit width</source>
-        <translation type="unfinished"></translation>
+        <translation>התאם רוחב</translation>
     </message>
     <message>
         <source>Fit page</source>
-        <translation type="unfinished"></translation>
+        <translation>התאם עמוד</translation>
     </message>
     <message>
         <source>Zoom in</source>
-        <translation type="unfinished"></translation>
+        <translation>זום פנימה</translation>
     </message>
     <message>
         <source>Zoom out</source>
-        <translation type="unfinished"></translation>
+        <translation>זום החוצה</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation type="unfinished"></translation>
+        <translation>לאורך</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation type="unfinished"></translation>
+        <translation>לרוחב</translation>
     </message>
     <message>
         <source>Show single page</source>
-        <translation type="unfinished"></translation>
+        <translation>הצג עמוד בודד</translation>
     </message>
     <message>
         <source>Show facing pages</source>
-        <translation type="unfinished"></translation>
+        <translation>הצג עמודים facing</translation>
     </message>
     <message>
         <source>Show overview of all pages</source>
-        <translation type="unfinished"></translation>
+        <translation>הצג סקירה כללית של כל העמודים</translation>
     </message>
     <message>
         <source>Print</source>
-        <translation type="unfinished"></translation>
+        <translation>הדפסה</translation>
     </message>
     <message>
         <source>Page setup</source>
-        <translation type="unfinished"></translation>
+        <translation>הגדרת עמוד</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -4033,11 +4054,11 @@ Please turn one of those options off.</source>
     <name>QPrintPropertiesWidget</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>טופס</translation>
     </message>
     <message>
         <source>Page</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד</translation>
     </message>
     <message>
         <source>Advanced</source>
@@ -4048,79 +4069,79 @@ Please turn one of those options off.</source>
     <name>QPrintSettingsOutput</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>טופס</translation>
     </message>
     <message>
         <source>Copies</source>
-        <translation type="unfinished"></translation>
+        <translation>עותקים</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation type="unfinished"></translation>
+        <translation>טווח הדפסה</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation type="unfinished"></translation>
+        <translation>הדפס הכל</translation>
     </message>
     <message>
         <source>Pages from</source>
-        <translation type="unfinished"></translation>
+        <translation>מעמוד</translation>
     </message>
     <message>
         <source>to</source>
-        <translation type="unfinished"></translation>
+        <translation>עד</translation>
     </message>
     <message>
         <source>Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>בחירה</translation>
     </message>
     <message>
         <source>Output Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>הגדרות פלט</translation>
     </message>
     <message>
         <source>Copies:</source>
-        <translation type="unfinished"></translation>
+        <translation>עותקים:</translation>
     </message>
     <message>
         <source>Collate</source>
-        <translation type="unfinished"></translation>
+        <translation>השווה</translation>
     </message>
     <message>
         <source>Reverse</source>
-        <translation type="unfinished"></translation>
+        <translation>הפוך</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation>אפשרויות</translation>
     </message>
     <message>
         <source>Color Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>מצב צבע</translation>
     </message>
     <message>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>צבע</translation>
     </message>
     <message>
         <source>Grayscale</source>
-        <translation type="unfinished"></translation>
+        <translation>גווני אפור</translation>
     </message>
     <message>
         <source>Duplex Printing</source>
-        <translation type="unfinished"></translation>
+        <translation>הדפסה דו כיוונית</translation>
     </message>
     <message>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>ללא</translation>
     </message>
     <message>
         <source>Long side</source>
-        <translation type="unfinished"></translation>
+        <translation>צד ארוך</translation>
     </message>
     <message>
         <source>Short side</source>
-        <translation type="unfinished"></translation>
+        <translation>צד קצר</translation>
     </message>
     <message>
         <source>Current Page</source>
@@ -4135,39 +4156,39 @@ Please turn one of those options off.</source>
     <name>QPrintWidget</name>
     <message>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>טופס</translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation type="unfinished"></translation>
+        <translation>מדפסת</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;שם:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;מאפיינים</translation>
     </message>
     <message>
         <source>Location:</source>
-        <translation type="unfinished"></translation>
+        <translation>מיקום:</translation>
     </message>
     <message>
         <source>Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>תצוגה מקדימה</translation>
     </message>
     <message>
         <source>Type:</source>
-        <translation type="unfinished"></translation>
+        <translation>טיפוס:</translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;קובץ פלט:</translation>
     </message>
     <message>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation>...</translation>
     </message>
 </context>
 <context>
@@ -4221,7 +4242,7 @@ Please turn one of those options off.</source>
     <name>QProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished"></translation>
+        <translation>ביטול</translation>
     </message>
 </context>
 <context>
@@ -4242,39 +4263,39 @@ Please turn one of those options off.</source>
     <name>QRegExp</name>
     <message>
         <source>no error occurred</source>
-        <translation type="unfinished"></translation>
+        <translation>לא אירעה כל שגיאה</translation>
     </message>
     <message>
         <source>disabled feature used</source>
-        <translation type="unfinished"></translation>
+        <translation>נעשה שימוש בתכונה מנוטרלת</translation>
     </message>
     <message>
         <source>bad char class syntax</source>
-        <translation type="unfinished"></translation>
+        <translation>תחביר רע למחלקת תו</translation>
     </message>
     <message>
         <source>bad lookahead syntax</source>
-        <translation type="unfinished"></translation>
+        <translation>תחביר lookahead שגוי</translation>
     </message>
     <message>
         <source>bad repetition syntax</source>
-        <translation type="unfinished"></translation>
+        <translation>תחביר הישנות שגוי</translation>
     </message>
     <message>
         <source>invalid octal value</source>
-        <translation type="unfinished"></translation>
+        <translation>ערך אוקטלי לא תקין</translation>
     </message>
     <message>
         <source>missing left delim</source>
-        <translation type="unfinished"></translation>
+        <translation>חסר תוחם שמאלי</translation>
     </message>
     <message>
         <source>unexpected end</source>
-        <translation type="unfinished"></translation>
+        <translation>סוף לא צפוי</translation>
     </message>
     <message>
         <source>met internal limit</source>
-        <translation type="unfinished"></translation>
+        <translation>גבול פנימי עבר</translation>
     </message>
     <message>
         <source>lookbehinds not supported, see QTBUG-2371</source>
@@ -4628,11 +4649,11 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Unable to begin transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחיל טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -4655,61 +4676,61 @@ Please turn one of those options off.</source>
     <name>QSQLite2Result</name>
     <message>
         <source>Unable to fetch results</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא תוצאות</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע הוראה</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteDriver</name>
     <message>
         <source>Error opening database</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה בפתיחת מסד נתונים</translation>
     </message>
     <message>
         <source>Error closing database</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה בסגירת מסד נתונים</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להתחיל טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to commit transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע טרנזקציה</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להחזיר לאחור טרנזקציה</translation>
     </message>
 </context>
 <context>
     <name>QSQLiteResult</name>
     <message>
         <source>Unable to fetch row</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להביא שורה</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לבצע הוראה</translation>
     </message>
     <message>
         <source>Unable to reset statement</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לאפס הוראה</translation>
     </message>
     <message>
         <source>Unable to bind parameters</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לכרוך פרמטרים</translation>
     </message>
     <message>
         <source>Parameter count mismatch</source>
-        <translation type="unfinished"></translation>
+        <translation>ספירת פרמטרים לא מתאימה</translation>
     </message>
     <message>
         <source>No query</source>
-        <translation type="unfinished"></translation>
+        <translation>אין שאילתא</translation>
     </message>
     <message>
         <source>Unable to execute multiple statements at a time</source>
@@ -4735,55 +4756,55 @@ Please turn one of those options off.</source>
     <name>QScrollBar</name>
     <message>
         <source>Scroll here</source>
-        <translation type="unfinished"></translation>
+        <translation>גלול לכאן</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation type="unfinished"></translation>
+        <translation>קצה שמאלי</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation type="unfinished"></translation>
+        <translation>קצה עליון</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation type="unfinished"></translation>
+        <translation>קצה ימני</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation type="unfinished"></translation>
+        <translation>קצה תחתון</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד שמאלה</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד מעלה</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד ימינה</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation type="unfinished"></translation>
+        <translation>עמוד מטה</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation type="unfinished"></translation>
+        <translation>גלול שמאלה</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation type="unfinished"></translation>
+        <translation>גלול מעלה</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation type="unfinished"></translation>
+        <translation>גלול ימינה</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation type="unfinished"></translation>
+        <translation>גלול מטה</translation>
     </message>
     <message>
         <source>Line up</source>
@@ -4802,55 +4823,55 @@ Please turn one of those options off.</source>
     <name>QSharedMemory</name>
     <message>
         <source>%1: unable to set key on lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: לא ניתן לקבוע מפתח במנעול</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: גודל יצירה הוא פחות מ־0</translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: אין אפשרות לנעול</translation>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: אין אפשרות לבטל נעילה</translation>
     </message>
     <message>
         <source>%1: permission denied</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: הרשאה נדחתה</translation>
     </message>
     <message>
         <source>%1: already exists</source>
-        <translation type="unfinished"></translation>
+        <translation>‏%1: כבר קיים</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: לא נותרו משאבים</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: שגיאה לא מוכרת %2</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: מפתח ריק</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: ftok נכשלה</translation>
     </message>
     <message>
         <source>%1: unable to make key</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: אין אפשרות לייצר מפתח</translation>
     </message>
     <message>
         <source>%1: system-imposed size restrictions</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: מגבלות גודל נקבעו ע״י המערכת</translation>
     </message>
     <message>
         <source>%1: not attached</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: לא מחובר</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exist</source>
@@ -4889,371 +4910,374 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
-        <translation type="unfinished"></translation>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
+        <translation>רווח</translation>
     </message>
     <message>
         <source>Esc</source>
-        <translation type="unfinished"></translation>
+        <translation>Esc</translation>
     </message>
     <message>
         <source>Tab</source>
-        <translation type="unfinished"></translation>
+        <translation>Tab</translation>
     </message>
     <message>
         <source>Backtab</source>
-        <translation type="unfinished"></translation>
+        <translation>Backtab</translation>
     </message>
     <message>
         <source>Backspace</source>
-        <translation type="unfinished"></translation>
+        <translation>Backspace</translation>
     </message>
     <message>
         <source>Return</source>
-        <translation type="unfinished"></translation>
+        <translation>Return</translation>
     </message>
     <message>
         <source>Enter</source>
-        <translation type="unfinished"></translation>
+        <translation>Enter</translation>
     </message>
     <message>
         <source>Ins</source>
-        <translation type="unfinished"></translation>
+        <translation>Ins</translation>
     </message>
     <message>
         <source>Del</source>
-        <translation type="unfinished"></translation>
+        <translation>Del</translation>
     </message>
     <message>
         <source>Pause</source>
-        <translation type="unfinished"></translation>
+        <translation>Pause</translation>
     </message>
     <message>
         <source>Print</source>
-        <translation type="unfinished"></translation>
+        <translation>Print</translation>
     </message>
     <message>
         <source>SysReq</source>
-        <translation type="unfinished"></translation>
+        <translation>SysReq</translation>
     </message>
     <message>
         <source>Home</source>
-        <translation type="unfinished"></translation>
+        <translation>Home</translation>
     </message>
     <message>
         <source>End</source>
-        <translation type="unfinished"></translation>
+        <translation>End</translation>
     </message>
     <message>
         <source>Left</source>
-        <translation type="unfinished"></translation>
+        <translation>שמאלה</translation>
     </message>
     <message>
         <source>Up</source>
-        <translation type="unfinished"></translation>
+        <translation>למעלה</translation>
     </message>
     <message>
         <source>Right</source>
-        <translation type="unfinished"></translation>
+        <translation>ימינה</translation>
     </message>
     <message>
         <source>Down</source>
-        <translation type="unfinished"></translation>
+        <translation>למטה</translation>
     </message>
     <message>
         <source>PgUp</source>
-        <translation type="unfinished"></translation>
+        <translation>PgUp</translation>
     </message>
     <message>
         <source>PgDown</source>
-        <translation type="unfinished"></translation>
+        <translation>PgDown</translation>
     </message>
     <message>
         <source>CapsLock</source>
-        <translation type="unfinished"></translation>
+        <translation>CapsLock</translation>
     </message>
     <message>
         <source>NumLock</source>
-        <translation type="unfinished"></translation>
+        <translation>NumLock</translation>
     </message>
     <message>
         <source>ScrollLock</source>
-        <translation type="unfinished"></translation>
+        <translation>ScrollLock</translation>
     </message>
     <message>
         <source>Menu</source>
-        <translation type="unfinished"></translation>
+        <translation>תפריט</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>עזרה</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation type="unfinished"></translation>
+        <translation>אחורה</translation>
     </message>
     <message>
         <source>Forward</source>
-        <translation type="unfinished"></translation>
+        <translation>קדימה</translation>
     </message>
     <message>
         <source>Stop</source>
-        <translation type="unfinished"></translation>
+        <translation>עצור</translation>
     </message>
     <message>
         <source>Refresh</source>
-        <translation type="unfinished"></translation>
+        <translation>רענן</translation>
     </message>
     <message>
         <source>Volume Down</source>
-        <translation type="unfinished"></translation>
+        <translation>עוצמת שמע: הנמך</translation>
     </message>
     <message>
         <source>Volume Mute</source>
-        <translation type="unfinished"></translation>
+        <translation>עוצמת שמע: השתק</translation>
     </message>
     <message>
         <source>Volume Up</source>
-        <translation type="unfinished"></translation>
+        <translation>עוצמת שמע: הגבר</translation>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translation type="unfinished"></translation>
+        <translation>בס: הרם</translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translation type="unfinished"></translation>
+        <translation>בס: הגבר</translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translation type="unfinished"></translation>
+        <translation>בס: הנמך</translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation type="unfinished"></translation>
+        <translation>טרבל: הגבר</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation type="unfinished"></translation>
+        <translation>טרבל: הנמך</translation>
     </message>
     <message>
         <source>Media Play</source>
-        <translation type="unfinished"></translation>
+        <translation>מדיה: נגן</translation>
     </message>
     <message>
         <source>Media Stop</source>
-        <translation type="unfinished"></translation>
+        <translation>מדיה: עצור</translation>
     </message>
     <message>
         <source>Media Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>מדיה: קודם</translation>
     </message>
     <message>
         <source>Media Next</source>
-        <translation type="unfinished"></translation>
+        <translation>מדיה: הבא</translation>
     </message>
     <message>
         <source>Media Record</source>
-        <translation type="unfinished"></translation>
+        <translation>מדיה: הקלט</translation>
     </message>
     <message>
         <source>Favorites</source>
-        <translation type="unfinished"></translation>
+        <translation>מועדפים</translation>
     </message>
     <message>
         <source>Search</source>
-        <translation type="unfinished"></translation>
+        <translation>חפש</translation>
     </message>
     <message>
         <source>Standby</source>
-        <translation type="unfinished"></translation>
+        <translation>Standby</translation>
     </message>
     <message>
         <source>Open URL</source>
-        <translation type="unfinished"></translation>
+        <translation>פתח URL</translation>
     </message>
     <message>
         <source>Launch Mail</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר דואר</translation>
     </message>
     <message>
         <source>Launch Media</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר מדיה</translation>
     </message>
     <message>
         <source>Launch (0)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (0)</translation>
     </message>
     <message>
         <source>Launch (1)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (1)</translation>
     </message>
     <message>
         <source>Launch (2)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (2)</translation>
     </message>
     <message>
         <source>Launch (3)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (3)</translation>
     </message>
     <message>
         <source>Launch (4)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (4)</translation>
     </message>
     <message>
         <source>Launch (5)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (5)</translation>
     </message>
     <message>
         <source>Launch (6)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (6)</translation>
     </message>
     <message>
         <source>Launch (7)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (7)</translation>
     </message>
     <message>
         <source>Launch (8)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (8)</translation>
     </message>
     <message>
         <source>Launch (9)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (9)</translation>
     </message>
     <message>
         <source>Launch (A)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (A)</translation>
     </message>
     <message>
         <source>Launch (B)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (B)</translation>
     </message>
     <message>
         <source>Launch (C)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (C)</translation>
     </message>
     <message>
         <source>Launch (D)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (D)</translation>
     </message>
     <message>
         <source>Launch (E)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (E)</translation>
     </message>
     <message>
         <source>Launch (F)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגר (F)</translation>
     </message>
     <message>
         <source>Print Screen</source>
-        <translation type="unfinished"></translation>
+        <translation>Print Screen</translation>
     </message>
     <message>
         <source>Page Up</source>
-        <translation type="unfinished"></translation>
+        <translation>Page Up</translation>
     </message>
     <message>
         <source>Page Down</source>
-        <translation type="unfinished"></translation>
+        <translation>Page Down</translation>
     </message>
     <message>
         <source>Caps Lock</source>
-        <translation type="unfinished"></translation>
+        <translation>Caps Lock</translation>
     </message>
     <message>
         <source>Num Lock</source>
-        <translation type="unfinished"></translation>
+        <translation>Num Lock</translation>
     </message>
     <message>
         <source>Number Lock</source>
-        <translation type="unfinished"></translation>
+        <translation>Number Lock</translation>
     </message>
     <message>
         <source>Scroll Lock</source>
-        <translation type="unfinished"></translation>
+        <translation>Scroll Lock</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>Insert</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>Delete</translation>
     </message>
     <message>
         <source>Escape</source>
-        <translation type="unfinished"></translation>
+        <translation>Escape</translation>
     </message>
     <message>
         <source>System Request</source>
-        <translation type="unfinished"></translation>
+        <translation>System Request</translation>
     </message>
     <message>
         <source>Select</source>
-        <translation type="unfinished"></translation>
+        <translation>בחר</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation>כן</translation>
     </message>
     <message>
         <source>No</source>
-        <translation type="unfinished"></translation>
+        <translation>לא</translation>
     </message>
     <message>
         <source>Context1</source>
-        <translation type="unfinished"></translation>
+        <translation>הקשר1</translation>
     </message>
     <message>
         <source>Context2</source>
-        <translation type="unfinished"></translation>
+        <translation>הקשר2</translation>
     </message>
     <message>
         <source>Context3</source>
-        <translation type="unfinished"></translation>
+        <translation>הקשר3</translation>
     </message>
     <message>
         <source>Context4</source>
-        <translation type="unfinished"></translation>
+        <translation>הקשר4</translation>
     </message>
     <message>
         <source>Call</source>
-        <translation type="unfinished"></translation>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
+        <translation>התקשר</translation>
     </message>
     <message>
         <source>Hangup</source>
-        <translation type="unfinished"></translation>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
+        <translation>נתק</translation>
     </message>
     <message>
         <source>Flip</source>
-        <translation type="unfinished"></translation>
+        <translation>הפוך</translation>
     </message>
     <message>
         <source>Ctrl</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl</translation>
     </message>
     <message>
         <source>Shift</source>
-        <translation type="unfinished"></translation>
+        <translation>Shift</translation>
     </message>
     <message>
         <source>Alt</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt</translation>
     </message>
     <message>
         <source>Meta</source>
-        <translation type="unfinished"></translation>
+        <translation>מטא</translation>
     </message>
     <message>
         <source>+</source>
-        <translation type="unfinished"></translation>
+        <translation>+‪</translation>
     </message>
     <message>
         <source>F%1</source>
-        <translation type="unfinished"></translation>
+        <translation>F%1</translation>
     </message>
     <message>
         <source>Home Page</source>
-        <translation type="unfinished"></translation>
+        <translation>דף בית</translation>
     </message>
     <message>
         <source>Media Pause</source>
@@ -5883,7 +5907,7 @@ Please turn one of those options off.</source>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Network operation timed out</source>
-        <translation type="unfinished"></translation>
+        <translation>תם זמן פעולת רשת</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -6306,43 +6330,43 @@ Role of an accessible object</extracomment>
     <name>QSslSocket</name>
     <message>
         <source>Unable to write data: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לרשום נתונים: %1</translation>
     </message>
     <message>
         <source>Error while reading: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה במהלך קריאה: %1</translation>
     </message>
     <message>
         <source>Error during SSL handshake: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה בעת לחיצת יד SSL‏: %1</translation>
     </message>
     <message>
         <source>Error creating SSL context (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה ביצירת הקשר SSL‏ (%1)</translation>
     </message>
     <message>
         <source>Invalid or empty cipher list (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>רשימת צופן לא תקינה או ריקה (%1)</translation>
     </message>
     <message>
         <source>Error creating SSL session, %1</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה ביצירת פגישת SSL‏, %1</translation>
     </message>
     <message>
         <source>Error creating SSL session: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה ביצירת פגישת SSL‏: %1</translation>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לספק תעודה בלי מפתח, %1</translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה בטעינת תעודה מקומית, %1</translation>
     </message>
     <message>
         <source>Error loading private key, %1</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה בטעינת מפתח פרטי, %1</translation>
     </message>
     <message>
         <source>Error when setting the elliptic curves (%1)</source>
@@ -6594,22 +6618,22 @@ Role of an accessible object</extracomment>
     <name>QTDSDriver</name>
     <message>
         <source>Unable to open connection</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות לפתוח חיבור</translation>
     </message>
     <message>
         <source>Unable to use database</source>
-        <translation type="unfinished"></translation>
+        <translation>אין אפשרות להשתמש במסד נתונים</translation>
     </message>
 </context>
 <context>
     <name>QTabBar</name>
     <message>
         <source>Scroll Left</source>
-        <translation type="unfinished"></translation>
+        <translation>גלול שמאלה</translation>
     </message>
     <message>
         <source>Scroll Right</source>
-        <translation type="unfinished"></translation>
+        <translation>גלול ימינה</translation>
     </message>
 </context>
 <context>
@@ -6695,7 +6719,7 @@ Role of an accessible object</extracomment>
     <name>QUndoModel</name>
     <message>
         <source>&lt;empty&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;ריק&gt;</translation>
     </message>
 </context>
 <context>
@@ -6731,47 +6755,47 @@ Role of an accessible object</extracomment>
     <name>QUnicodeControlCharacterMenu</name>
     <message>
         <source>LRM Left-to-right mark</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
-        <translation type="unfinished"></translation>
+        <translation>הוסף תו בקרה של Unicode</translation>
     </message>
     <message>
         <source>LRI Left-to-right isolate</source>
@@ -6794,14 +6818,14 @@ Role of an accessible object</extracomment>
     <name>QWhatsThisAction</name>
     <message>
         <source>What&apos;s This?</source>
-        <translation type="unfinished"></translation>
+        <translation>מה זה?</translation>
     </message>
 </context>
 <context>
     <name>QWidget</name>
     <message>
         <source>*</source>
-        <translation type="unfinished"></translation>
+        <translation>*</translation>
     </message>
 </context>
 <context>
@@ -6858,47 +6882,47 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWizard</name>
     <message>
         <source>Go Back</source>
-        <translation type="unfinished"></translation>
+        <translation>אחורה</translation>
     </message>
     <message>
         <source>Continue</source>
-        <translation type="unfinished"></translation>
+        <translation>המשך</translation>
     </message>
     <message>
         <source>Commit</source>
-        <translation type="unfinished"></translation>
+        <translation>בצע</translation>
     </message>
     <message>
         <source>Done</source>
-        <translation type="unfinished"></translation>
+        <translation>סיום</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>עזרה</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt; &amp;אחורה</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;סיים</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished"></translation>
+        <translation>ביטול</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;עזרה</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;קדימה</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;קדימה &gt;</translation>
     </message>
     <message>
         <source>Quit</source>
@@ -6909,234 +6933,234 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QXml</name>
     <message>
         <source>no error occurred</source>
-        <translation type="unfinished"></translation>
+        <translation>לא אירעה כל שגיאה</translation>
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation type="unfinished"></translation>
+        <translation>נגרמה שגיאה על ידי הצרכן</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
-        <translation type="unfinished"></translation>
+        <translation>סוף קובץ לא צפוי</translation>
     </message>
     <message>
         <source>more than one document type definition</source>
-        <translation type="unfinished"></translation>
+        <translation>יותר מאשר הגדרת טיפוס מסמך אחת</translation>
     </message>
     <message>
         <source>error occurred while parsing element</source>
-        <translation type="unfinished"></translation>
+        <translation>אירעה שגיאה במהלך פענוח מרכיב</translation>
     </message>
     <message>
         <source>tag mismatch</source>
-        <translation type="unfinished"></translation>
+        <translation>אי-התאמה בתגית</translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
-        <translation type="unfinished"></translation>
+        <translation>אירעה שגיאה במהלך פענוח תוכן</translation>
     </message>
     <message>
         <source>unexpected character</source>
-        <translation type="unfinished"></translation>
+        <translation>תו לא צפוי</translation>
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation type="unfinished"></translation>
+        <translation>שם לא תקין עבור הוראת העיבוד</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>צפויה גירסה במהלך קריאת הצהרת XML</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>ערך שגוי עבור ההגדרה העצמאית</translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>צפויה הצהרה על קידוד או הצהרה עצמאית במהלך קריאת הצהרת XML</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation type="unfinished"></translation>
+        <translation>צפויה הצהרה עצמאית במהלך קריאת הצהרת XML</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translation type="unfinished"></translation>
+        <translation>אירעה שגיאה במהלך פענוח הגדרת טיפוס מסמך</translation>
     </message>
     <message>
         <source>letter is expected</source>
-        <translation type="unfinished"></translation>
+        <translation>צפויה אות</translation>
     </message>
     <message>
         <source>error occurred while parsing comment</source>
-        <translation type="unfinished"></translation>
+        <translation>אירעה שגיאה במהלך פענוח הערה</translation>
     </message>
     <message>
         <source>error occurred while parsing reference</source>
-        <translation type="unfinished"></translation>
+        <translation>אירעה שגיאה במהלך פענוח התייחסות</translation>
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
-        <translation type="unfinished"></translation>
+        <translation>התייחסות לישות כללית פנימית אסורה בתוך DTD</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation type="unfinished"></translation>
+        <translation>התייחסות לישות כללית מפוענחת חיצונית אסורה בתוך ערך מאפיין</translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in DTD</source>
-        <translation type="unfinished"></translation>
+        <translation>התייחסות לישות כללית מפוענחת חיצונית אסורה בתוך DTD</translation>
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translation type="unfinished"></translation>
+        <translation>התייחסות לישות לא מפוענחת בהקשר שגוי</translation>
     </message>
     <message>
         <source>recursive entities</source>
-        <translation type="unfinished"></translation>
+        <translation>ישויות רקורסיביות</translation>
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation type="unfinished"></translation>
+        <translation>שגיאה בהצהרת טקסט של ישות חיצונית</translation>
     </message>
 </context>
 <context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation type="unfinished"></translation>
+        <translation>תוכן נוסף בסוף מסמך.</translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
-        <translation type="unfinished"></translation>
+        <translation>ערך ישות לא תקין.</translation>
     </message>
     <message>
         <source>Invalid XML character.</source>
-        <translation type="unfinished"></translation>
+        <translation>תו XML לא תקין.</translation>
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation type="unfinished"></translation>
+        <translation>רצף &apos;]]&gt;&apos; אסור בתוכן.</translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation type="unfinished"></translation>
+        <translation>קידומת namespace‏ &apos;%1&apos; לא הוצהרה</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translation type="unfinished"></translation>
+        <translation>תו לא צפוי &apos;%1&apos; בליטראל מזהה ציבורי.</translation>
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translation type="unfinished"></translation>
+        <translation>מחרוזת גירסת XML לא תקינה.</translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translation type="unfinished"></translation>
+        <translation>גירסת XML לא נתמכת.</translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 אינו שם קידוד תקין.</translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translation type="unfinished"></translation>
+        <translation>קידוד %1 אינו נתמך</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation type="unfinished"></translation>
+        <translation>‏Standalone מקבל רק כן או לא.</translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
-        <translation type="unfinished"></translation>
+        <translation>מאפיין לא תקין בתוך הצהרת XML.</translation>
     </message>
     <message>
         <source>Premature end of document.</source>
-        <translation type="unfinished"></translation>
+        <translation>סיום מסמך מוקדם מדי.</translation>
     </message>
     <message>
         <source>Invalid document.</source>
-        <translation type="unfinished"></translation>
+        <translation>מסמך לא תקין.</translation>
     </message>
     <message>
         <source>Expected </source>
-        <translation type="unfinished"></translation>
+        <translation>צפוי </translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>, אך נמצא &apos;</translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>לא צפוי &apos;</translation>
     </message>
     <message>
         <source>Expected character data.</source>
-        <translation type="unfinished"></translation>
+        <translation>צפוי מידע תו.</translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
-        <translation type="unfinished"></translation>
+        <translation>נמצאה ישות רקורסיבית.</translation>
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translation type="unfinished"></translation>
+        <translation>צפוי תג התחלה.</translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translation type="unfinished"></translation>
+        <translation>הצהרת XML לא בתחילת מסמך.</translation>
     </message>
     <message>
         <source>NDATA in parameter entity declaration.</source>
-        <translation type="unfinished"></translation>
+        <translation>‏NDATA בהצהרת יישות פרמטר.</translation>
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 הוא שם לא תקין להוראת עיבוד.</translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation type="unfinished"></translation>
+        <translation>שם לא תקין להוראת עיבוד.</translation>
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translation type="unfinished"></translation>
+        <translation>הצהרת namespace לא חוקית.</translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
-        <translation type="unfinished"></translation>
+        <translation>שם XML לא תקין.</translation>
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation type="unfinished"></translation>
+        <translation>חוסר התאמה בין תג פותח לסוגר.</translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>התייחסות אל ישות לא מפוענחת &apos;%1&apos;.</translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translation type="unfinished"></translation>
+        <translation>ישות &apos;%1&apos; לא מוצהרת.</translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translation type="unfinished"></translation>
+        <translation>התייחסות אל ישות חיצונית &apos;%1&apos; בתוך ערך מאפיין.</translation>
     </message>
     <message>
         <source>Invalid character reference.</source>
-        <translation type="unfinished"></translation>
+        <translation>התייחסות לתו לא תקינה.</translation>
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translation type="unfinished"></translation>
+        <translation>נמצא תוכן בקידוד לא נכון.</translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation type="unfinished"></translation>
+        <translation>מאפיין הדמה standalone חייב להופיע אחרי הקידוד.</translation>
     </message>
     <message>
         <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 הוא מזהה PUBLIC לא חוקי.</translation>
     </message>
     <message>
         <source>Attribute &apos;%1&apos; redefined.</source>

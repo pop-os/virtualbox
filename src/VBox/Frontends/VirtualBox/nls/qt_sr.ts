@@ -32,309 +32,309 @@
     </message>
     <message>
         <source>Quit %1</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Затвори %1</translation>
     </message>
     <message>
         <source>About %1</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">О %1</translation>
     </message>
 </context>
 <context>
     <name>PPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>Име</translation>
+        <translation type="vanished">Име</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Вредност</translation>
+        <translation type="vanished">Вредност</translation>
     </message>
 </context>
 <context>
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 није дефинисано</translation>
+        <translation type="vanished">%1, %2 није дефинисано</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>Нејасан %1 није подржано</translation>
+        <translation type="vanished">Нејасан %1 није подржано</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Да</translation>
+        <translation type="vanished">Да</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Не</translation>
+        <translation type="vanished">Не</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Убаци</translation>
+        <translation type="vanished">Убаци</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Ажурирај</translation>
+        <translation type="vanished">Ажурирај</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Избриши</translation>
+        <translation type="vanished">Избриши</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Копирај или Премести датотеку</translation>
+        <translation type="vanished">Копирај или Премести датотеку</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Чита: %1</translation>
+        <translation type="vanished">Чита: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Пише: %1</translation>
+        <translation type="vanished">Пише: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Поништи</translation>
+        <translation type="vanished">Поништи</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Све датотеке (*)</translation>
+        <translation type="vanished">Све датотеке (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Име</translation>
+        <translation type="vanished">Име</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Величина</translation>
+        <translation type="vanished">Величина</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>Тип</translation>
+        <translation type="vanished">Тип</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Датум</translation>
+        <translation type="vanished">Датум</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Атрибути</translation>
+        <translation type="vanished">Атрибути</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;У реду</translation>
+        <translation type="vanished">&amp;У реду</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Тражи &amp;у:</translation>
+        <translation type="vanished">Тражи &amp;у:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>&amp;Име датотеке:</translation>
+        <translation type="vanished">&amp;Име датотеке:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>&amp;Тип датотеке:</translation>
+        <translation type="vanished">&amp;Тип датотеке:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Назад</translation>
+        <translation type="vanished">Назад</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>Једна фасцикла горе</translation>
+        <translation type="vanished">Једна фасцикла горе</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Креирај нову фасциклу</translation>
+        <translation type="vanished">Креирај нову фасциклу</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Лсита</translation>
+        <translation type="vanished">Лсита</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Детаљно</translation>
+        <translation type="vanished">Детаљно</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>Преглед инфо датотеке</translation>
+        <translation type="vanished">Преглед инфо датотеке</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>Преглед садржај датотеке</translation>
+        <translation type="vanished">Преглед садржај датотеке</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Чита-пише</translation>
+        <translation type="vanished">Чита-пише</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Само читљиво</translation>
+        <translation type="vanished">Само читљиво</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Само писљиво</translation>
+        <translation type="vanished">Само писљиво</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Недоступно</translation>
+        <translation type="vanished">Недоступно</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Symlink на датотеку</translation>
+        <translation type="vanished">Symlink на датотеку</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Symlink на фасциклу</translation>
+        <translation type="vanished">Symlink на фасциклу</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Symlink на специјално</translation>
+        <translation type="vanished">Symlink на специјално</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Датотека</translation>
+        <translation type="vanished">Датотека</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Фасц</translation>
+        <translation type="vanished">Фасц</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Специјално</translation>
+        <translation type="vanished">Специјално</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Отвори</translation>
+        <translation type="vanished">Отвори</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Сачувај као</translation>
+        <translation type="vanished">Сачувај као</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Отвори</translation>
+        <translation type="vanished">&amp;Отвори</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;сачувај</translation>
+        <translation type="vanished">&amp;сачувај</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Преименуј</translation>
+        <translation type="vanished">&amp;Преименуј</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Избриши</translation>
+        <translation type="vanished">&amp;Избриши</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>П&amp;оново учитај</translation>
+        <translation type="vanished">П&amp;оново учитај</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Сортиј па &amp;Име</translation>
+        <translation type="vanished">Сортиј па &amp;Име</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Сортиј по &amp;величини</translation>
+        <translation type="vanished">Сортиј по &amp;величини</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Сортирај по &amp;датум</translation>
+        <translation type="vanished">Сортирај по &amp;датум</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Не сортирано</translation>
+        <translation type="vanished">&amp;Не сортирано</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Сортирај</translation>
+        <translation type="vanished">Сортирај</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Покажи сакривене датотеке</translation>
+        <translation type="vanished">Покажи сакривене датотеке</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>датотека</translation>
+        <translation type="vanished">датотека</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>фсацикла</translation>
+        <translation type="vanished">фсацикла</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>symlink</translation>
+        <translation type="vanished">symlink</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>Избриши %1</translation>
+        <translation type="vanished">Избриши %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Стварно желите да обришете %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Стварно желите да обришете %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Да</translation>
+        <translation type="vanished">&amp;Да</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Не</translation>
+        <translation type="vanished">&amp;Не</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Нова фасцикла 1</translation>
+        <translation type="vanished">Нова фасцикла 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Нова фасцикла</translation>
+        <translation type="vanished">Нова фасцикла</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Нова фасцикла %1</translation>
+        <translation type="vanished">Нова фасцикла %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Наћи фасциклу</translation>
+        <translation type="vanished">Наћи фасциклу</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Фасцикле</translation>
+        <translation type="vanished">Фасцикле</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Фасцикла:</translation>
+        <translation type="vanished">Фасцикла:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Грешка</translation>
+        <translation type="vanished">Грешка</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1Ненађена датотека.Проверити путању и име датотеке.</translation>
+        <translation type="vanished">%1Ненађена датотека.Проверити путању и име датотеке.</translation>
     </message>
     <message>
         <source>All Files (*.*)</source>
-        <translation>Све датотеке (*.*)</translation>
+        <translation type="vanished">Све датотеке (*.*)</translation>
     </message>
     <message>
         <source>Open </source>
-        <translation>Отвори</translation>
+        <translation type="vanished">Отвори</translation>
     </message>
     <message>
         <source>Select a Directory</source>
-        <translation>Одабрати фасциклу</translation>
+        <translation type="vanished">Одабрати фасциклу</translation>
     </message>
 </context>
 <context>
@@ -342,19 +342,19 @@ Check path and filename.</source>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Неуспешно читање фасцикле
+        <translation type="vanished">Неуспешно читање фасцикле
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Неуспешна креација фасцикле
+        <translation type="vanished">Неуспешна креација фасцикле
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Неуспешно брисање датотеке или фасцикле
+        <translation type="vanished">Неуспешно брисање датотеке или фасцикле
 %1</translation>
     </message>
     <message>
@@ -362,7 +362,7 @@ Check path and filename.</source>
 %1
 to
 %2</source>
-        <translation>Неуспешно преименовање
+        <translation type="vanished">Неуспешно преименовање
 %1
 у
 %2</translation>
@@ -370,13 +370,13 @@ to
     <message>
         <source>Could not open
 %1</source>
-        <translation>Неуспешно отварање
+        <translation type="vanished">Неуспешно отварање
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Неуспешно писање
+        <translation type="vanished">Неуспешно писање
 %1</translation>
     </message>
 </context>
@@ -384,203 +384,203 @@ to
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>Линија горе</translation>
+        <translation type="vanished">Линија горе</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>Прилагоди...</translation>
+        <translation type="vanished">Прилагоди...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>Рад зауставио корисник</translation>
+        <translation type="vanished">Рад зауставио корисник</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Поништи</translation>
+        <translation type="vanished">Поништи</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>У реду</translation>
+        <translation type="vanished">У реду</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Примени</translation>
+        <translation type="vanished">Примени</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Помоћ</translation>
+        <translation type="vanished">Помоћ</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Стандардно</translation>
+        <translation type="vanished">Стандардно</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Поништи</translation>
+        <translation type="vanished">Поништи</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Врати</translation>
+        <translation type="vanished">&amp;Врати</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Понови</translation>
+        <translation type="vanished">&amp;Понови</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Исеци</translation>
+        <translation type="vanished">&amp;Исеци</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Копирај</translation>
+        <translation type="vanished">&amp;Копирај</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>П&amp;рилепи</translation>
+        <translation type="vanished">П&amp;рилепи</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Избриши</translation>
+        <translation type="vanished">Избриши</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Одабрери све</translation>
+        <translation type="vanished">Одабрери све</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>Систем</translation>
+        <translation type="vanished">Систем</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>Врати горе</translation>
+        <translation type="vanished">Врати горе</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Минимизуј</translation>
+        <translation type="vanished">Минимизуј</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Врати доле</translation>
+        <translation type="vanished">Врати доле</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Максимизирај</translation>
+        <translation type="vanished">Максимизирај</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Затвори</translation>
+        <translation type="vanished">Затвори</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Садржава команде за рад са прозорима</translation>
+        <translation type="vanished">Садржава команде за рад са прозорима</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>Врати минимизирано на нормално</translation>
+        <translation type="vanished">Врати минимизирано на нормално</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>Премести прозор вам вида</translation>
+        <translation type="vanished">Премести прозор вам вида</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Врати максимизиран прозор на нормално</translation>
+        <translation type="vanished">Врати максимизиран прозор на нормално</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Постави прозор у пуном екрану</translation>
+        <translation type="vanished">Постави прозор у пуном екрану</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Затвара прозор</translation>
+        <translation type="vanished">Затвара прозор</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Показује име прозора и контроле за његово руковање</translation>
+        <translation type="vanished">Показује име прозора и контроле за његово руковање</translation>
     </message>
 </context>
 <context>
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Више...</translation>
+        <translation type="vanished">Више...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>Протокол &apos;%1&apos; није подржан</translation>
+        <translation type="vanished">Протокол &apos;%1&apos; није подржан</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>Протокол &apos;%1&apos; не подржава листовање фасцикла</translation>
+        <translation type="vanished">Протокол &apos;%1&apos; не подржава листовање фасцикла</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Протокол &apos;%1&apos; не подржава креацију нових фасцикла</translation>
+        <translation type="vanished">Протокол &apos;%1&apos; не подржава креацију нових фасцикла</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Протокол &apos;%1&apos; не подржава брисање датотека или фасцикла</translation>
+        <translation type="vanished">Протокол &apos;%1&apos; не подржава брисање датотека или фасцикла</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Протокол &apos;%1&apos; не подржава преименовање</translation>
+        <translation type="vanished">Протокол &apos;%1&apos; не подржава преименовање</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>Протокол &apos;%1&apos; не подржава преузимање датотеке</translation>
+        <translation type="vanished">Протокол &apos;%1&apos; не подржава преузимање датотеке</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>Протокол &apos;%1&apos; не подржава слање датотеке</translation>
+        <translation type="vanished">Протокол &apos;%1&apos; не подржава слање датотеке</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Протокол &apos;%1&apos; не подржавакопирање или премештање</translation>
+        <translation type="vanished">Протокол &apos;%1&apos; не подржавакопирање или премештање</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(непознато)</translation>
+        <translation type="vanished">(непознато)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Поништи</translation>
+        <translation type="vanished">&amp;Поништи</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Назад</translation>
+        <translation type="vanished">&lt; &amp;Назад</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Даље &gt;</translation>
+        <translation type="vanished">&amp;Даље &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>&amp;Заврши</translation>
+        <translation type="vanished">&amp;Заврши</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>Помо&amp;ћ</translation>
+        <translation type="vanished">Помо&amp;ћ</translation>
     </message>
 </context>
 <context>
@@ -755,7 +755,7 @@ to
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Активирај</translation>
+        <translation type="vanished">Активирај</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -768,45 +768,45 @@ to
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <translation type="vanished">LTR</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Активира главни прозор програма</translation>
+        <translation type="vanished">Активира главни прозор програма</translation>
     </message>
 </context>
 <context>
     <name>QAxSelect</name>
     <message>
         <source>Select ActiveX Control</source>
-        <translation>одабрати ActiveX контрол</translation>
+        <translation type="vanished">одабрати ActiveX контрол</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>У реду</translation>
+        <translation type="vanished">У реду</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
-        <translation>&amp;Поништи</translation>
+        <translation type="vanished">&amp;Поништи</translation>
     </message>
     <message>
         <source>COM &amp;Object:</source>
-        <translation>COM &amp;Објекат:</translation>
+        <translation type="vanished">COM &amp;Објекат:</translation>
     </message>
 </context>
 <context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Скини одабир</translation>
+        <translation type="vanished">Скини одабир</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Одабери</translation>
+        <translation type="vanished">Одабери</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Преокрени</translation>
+        <translation type="vanished">Преокрени</translation>
     </message>
 </context>
 <context>
@@ -911,15 +911,15 @@ to
     </message>
     <message>
         <source>&amp;Define Custom Colors &gt;&gt;</source>
-        <translation>Дефинирати боје &gt;&gt;</translation>
+        <translation type="vanished">Дефинирати боје &gt;&gt;</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>У реду</translation>
+        <translation type="vanished">У реду</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Поништи</translation>
+        <translation type="vanished">Поништи</translation>
     </message>
     <message>
         <source>&amp;Add to Custom Colors</source>
@@ -927,7 +927,7 @@ to
     </message>
     <message>
         <source>Select color</source>
-        <translation>Одабрати боју</translation>
+        <translation type="vanished">Одабрати боју</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -951,7 +951,7 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Отвори</translation>
+        <translation type="vanished">Отвори</translation>
     </message>
     <message>
         <source>False</source>
@@ -963,7 +963,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Затвори</translation>
+        <translation type="vanished">Затвори</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1192,19 +1192,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>AM</translation>
+        <translation type="vanished">AM</translation>
     </message>
     <message>
         <source>am</source>
-        <translation>am</translation>
+        <translation type="vanished">am</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation>PM</translation>
+        <translation type="vanished">PM</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation>pm</translation>
+        <translation type="vanished">pm</translation>
     </message>
 </context>
 <context>
@@ -1230,15 +1230,15 @@ Press ESC to cancel</source>
     <name>QDial</name>
     <message>
         <source>QDial</source>
-        <translation>QDial</translation>
+        <translation type="vanished">QDial</translation>
     </message>
     <message>
         <source>SpeedoMeter</source>
-        <translation>SpeedoMeter</translation>
+        <translation type="vanished">SpeedoMeter</translation>
     </message>
     <message>
         <source>SliderHandle</source>
-        <translation>SliderHandle</translation>
+        <translation type="vanished">SliderHandle</translation>
     </message>
 </context>
 <context>
@@ -1256,79 +1256,79 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Save</source>
-        <translation>Сачувај</translation>
+        <translation type="vanished">Сачувај</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Отвори</translation>
+        <translation type="vanished">Отвори</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Поништи</translation>
+        <translation type="vanished">Поништи</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Затвори</translation>
+        <translation type="vanished">Затвори</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Примени</translation>
+        <translation type="vanished">Примени</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Рисет</translation>
+        <translation type="vanished">Рисет</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Помоћ</translation>
+        <translation type="vanished">Помоћ</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Не сачувај</translation>
+        <translation type="vanished">Не сачувај</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Одбаци</translation>
+        <translation type="vanished">Одбаци</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Да</translation>
+        <translation type="vanished">&amp;Да</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Да за &amp;све</translation>
+        <translation type="vanished">Да за &amp;све</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Не</translation>
+        <translation type="vanished">&amp;Не</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>Н&amp;е за све</translation>
+        <translation type="vanished">Н&amp;е за све</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Сачувај све</translation>
+        <translation type="vanished">Сачувај све</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Поништи</translation>
+        <translation type="vanished">Поништи</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Понови</translation>
+        <translation type="vanished">Понови</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Игнориши</translation>
+        <translation type="vanished">Игнориши</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Врати иницијално</translation>
+        <translation type="vanished">Врати иницијално</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>Затвори без сачувавања</translation>
+        <translation type="vanished">Затвори без сачувавања</translation>
     </message>
 </context>
 <context>
@@ -1466,14 +1466,16 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>Затвори</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translation>Фиксно</translation>
+        <translation type="vanished">Фиксно</translation>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation>Померљиво</translation>
     </message>
     <message>
@@ -1489,11 +1491,11 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Више</translation>
+        <translation type="vanished">Више</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Мање</translation>
+        <translation type="vanished">Мање</translation>
     </message>
 </context>
 <context>
@@ -1653,7 +1655,7 @@ Please verify the correct file name was given.</source>
         <source>
 File not found.
 Please verify the correct file name was given</source>
-        <translation>%1
+        <translation type="vanished">%1
 Датотека није нађена.
 Молимо да проверите дато име.</translation>
     </message>
@@ -1673,7 +1675,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Стварно желите да обришете &apos;%1&apos;?</translation>
+        <translation type="vanished">Стварно желите да обришете &apos;%1&apos;?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
@@ -1681,7 +1683,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>All Files (*.*)</source>
-        <translation>Све датотеке (*.*)</translation>
+        <translation type="vanished">Све датотеке (*.*)</translation>
     </message>
     <message>
         <source>Save As</source>
@@ -2148,7 +2150,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>Прикључак одбијен за везе података</translation>
+        <translation type="vanished">Прикључак одбијен за везе података</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2214,19 +2216,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Хост %1 ненађен</translation>
+        <translation type="vanished">Хост %1 ненађен</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Веза на %1 затворена</translation>
+        <translation type="vanished">Веза на %1 затворена</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Хост нађен</translation>
+        <translation type="vanished">Хост нађен</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Прикачено на хост</translation>
+        <translation type="vanished">Прикачено на хост</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -2310,23 +2312,23 @@ Do you want to delete it anyway?</source>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>Непозната грешка</translation>
+        <translation type="vanished">Непозната грешка</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>Тражење заустављено</translation>
+        <translation type="vanished">Тражење заустављено</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>Без сервера подешен за везу на</translation>
+        <translation type="vanished">Без сервера подешен за везу на</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>Погрешна дужина садржаја</translation>
+        <translation type="vanished">Погрешна дужина садржаја</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>Сервер неочекивано затворио везу</translation>
+        <translation type="vanished">Сервер неочекивано затворио везу</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -2338,35 +2340,35 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>HTTP тражење погрешно</translation>
+        <translation type="vanished">HTTP тражење погрешно</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>Неважан HTTP одговор</translation>
+        <translation type="vanished">Неважан HTTP одговор</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>Invalid HTTP chunked body</translation>
+        <translation type="vanished">Invalid HTTP chunked body</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>Хост %1 ненађен</translation>
+        <translation type="vanished">Хост %1 ненађен</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>Прикачено на хост %1</translation>
+        <translation type="vanished">Прикачено на хост %1</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>Веза на %1 затворена</translation>
+        <translation type="vanished">Веза на %1 затворена</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Хост нађен</translation>
+        <translation type="vanished">Хост нађен</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Прикачено на хост</translation>
+        <translation type="vanished">Прикачено на хост</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2374,11 +2376,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>Потребна аутентификација проксија</translation>
+        <translation type="vanished">Потребна аутентификација проксија</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Потребна аутентификација</translation>
+        <translation type="vanished">Потребна аутентификација</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
@@ -2611,19 +2613,19 @@ Do you want to delete it anyway?</source>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="vanished">XIM</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>Метода уноса XIM</translation>
+        <translation type="vanished">Метода уноса XIM</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Метода уноса Windows</translation>
+        <translation type="vanished">Метода уноса Windows</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Метода уноса Mac OS X</translation>
+        <translation type="vanished">Метода уноса Mac OS X</translation>
     </message>
 </context>
 <context>
@@ -2712,27 +2714,27 @@ Do you want to delete it anyway?</source>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: Cannot load %1 (%2)</translation>
+        <translation type="vanished">QLibrary::load_sys: Cannot load %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys: Cannot unload %1 (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys: Cannot unload %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</translation>
+        <translation type="vanished">QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</translation>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>Could not mmap &apos;%1&apos;: %2</translation>
+        <translation type="vanished">Could not mmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>Plugin verification data mismatch in &apos;%1&apos;</translation>
+        <translation type="vanished">Plugin verification data mismatch in &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>Could not unmap &apos;%1&apos;: %2</translation>
+        <translation type="vanished">Could not unmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
@@ -2740,7 +2742,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</translation>
+        <translation type="vanished">The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2932,7 +2934,7 @@ Do you want to delete it anyway?</source>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Не може да се отвори база &apos;</translation>
+        <translation type="vanished">Не може да се отвори база &apos;</translation>
     </message>
     <message>
         <source>Unable to connect</source>
@@ -3092,66 +3094,66 @@ Do you want to delete it anyway?</source>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Затвори</translation>
+        <translation type="vanished">Затвори</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Отвори</translation>
+        <translation type="vanished">Отвори</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Покрени</translation>
+        <translation type="vanished">Покрени</translation>
     </message>
 </context>
 <context>
     <name>QMenuBar</name>
     <message>
         <source>About</source>
-        <translation>О...</translation>
+        <translation type="vanished">О...</translation>
     </message>
     <message>
         <source>Config</source>
-        <translation>Подеси</translation>
+        <translation type="vanished">Подеси</translation>
     </message>
     <message>
         <source>Preference</source>
-        <translation>Поставка</translation>
+        <translation type="vanished">Поставка</translation>
     </message>
     <message>
         <source>Options</source>
-        <translation>Опције</translation>
+        <translation type="vanished">Опције</translation>
     </message>
     <message>
         <source>Setting</source>
-        <translation>Параметар</translation>
+        <translation type="vanished">Параметар</translation>
     </message>
     <message>
         <source>Setup</source>
-        <translation>Сетап</translation>
+        <translation type="vanished">Сетап</translation>
     </message>
     <message>
         <source>Quit</source>
-        <translation>Затвори</translation>
+        <translation type="vanished">Затвори</translation>
     </message>
     <message>
         <source>Exit</source>
-        <translation>Излаз</translation>
+        <translation type="vanished">Излаз</translation>
     </message>
     <message>
         <source>About %1</source>
-        <translation>О %1</translation>
+        <translation type="vanished">О %1</translation>
     </message>
     <message>
         <source>About Qt</source>
-        <translation>О Qt</translation>
+        <translation type="vanished">О Qt</translation>
     </message>
     <message>
         <source>Preferences</source>
-        <translation>Поставке</translation>
+        <translation type="vanished">Поставке</translation>
     </message>
     <message>
         <source>Quit %1</source>
-        <translation>Затвори %1</translation>
+        <translation type="vanished">Затвори %1</translation>
     </message>
 </context>
 <context>
@@ -3170,11 +3172,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Програм користи Qt верзију %1.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Програм користи Qt верзију %1.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qtopia Core.&lt;/p&gt;&lt;p&gt;Qt is a Trolltech product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qtopia Core.&lt;/p&gt;&lt;p&gt;Qt is a Trolltech product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qtopia Core.&lt;/p&gt;&lt;p&gt;Qt is a Trolltech product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
@@ -3186,7 +3188,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -3201,18 +3203,18 @@ Do you want to delete it anyway?</source>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>Одабери IM</translation>
+        <translation type="vanished">Одабери IM</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>Пребацивач метода више уноса</translation>
+        <translation type="vanished">Пребацивач метода више уноса</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>Пребацивач метода више уноса који користи контекстуелни мени од текст widgets</translation>
+        <translation type="vanished">Пребацивач метода више уноса који користи контекстуелни мени од текст widgets</translation>
     </message>
 </context>
 <context>
@@ -3543,7 +3545,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>Unable to execute select statement</translation>
+        <translation type="vanished">Unable to execute select statement</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
@@ -3562,7 +3564,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>Неуспешно привезивање - Драјвер не подржава све потребне функције</translation>
+        <translation type="vanished">Неуспешно привезивање - Драјвер не подржава све потребне функције</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
@@ -3628,7 +3630,7 @@ Do you want to delete it anyway?</source>
     <name>QObject</name>
     <message>
         <source>Home</source>
-        <translation>Куча</translation>
+        <translation type="vanished">Куча</translation>
     </message>
 </context>
 <context>
@@ -4374,143 +4376,143 @@ Do you want to delete it anyway?</source>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>Локална веза</translation>
+        <translation type="vanished">Локална веза</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Псеудоними: %1</translation>
+        <translation type="vanished">Псеудоними: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>непознато</translation>
+        <translation type="vanished">непознато</translation>
     </message>
     <message>
         <source>Portrait</source>
-        <translation>Portrait</translation>
+        <translation type="vanished">Portrait</translation>
     </message>
     <message>
         <source>Landscape</source>
-        <translation>Landscape</translation>
+        <translation type="vanished">Landscape</translation>
     </message>
     <message>
         <source>A0 (841 x 1189 mm)</source>
-        <translation>A0 (841 x 1189 mm)</translation>
+        <translation type="vanished">A0 (841 x 1189 mm)</translation>
     </message>
     <message>
         <source>A1 (594 x 841 mm)</source>
-        <translation>A1 (594 x 841 mm)</translation>
+        <translation type="vanished">A1 (594 x 841 mm)</translation>
     </message>
     <message>
         <source>A2 (420 x 594 mm)</source>
-        <translation>A2 (420 x 594 mm)</translation>
+        <translation type="vanished">A2 (420 x 594 mm)</translation>
     </message>
     <message>
         <source>A3 (297 x 420 mm)</source>
-        <translation>A3 (297 x 420 mm)</translation>
+        <translation type="vanished">A3 (297 x 420 mm)</translation>
     </message>
     <message>
         <source>A4 (210 x 297 mm, 8.26 x 11.7 inches)</source>
-        <translation>A4 (210 x 297 mm, 8.26 x 11.7 inches)</translation>
+        <translation type="vanished">A4 (210 x 297 mm, 8.26 x 11.7 inches)</translation>
     </message>
     <message>
         <source>A5 (148 x 210 mm)</source>
-        <translation>A5 (148 x 210 mm)</translation>
+        <translation type="vanished">A5 (148 x 210 mm)</translation>
     </message>
     <message>
         <source>A6 (105 x 148 mm)</source>
-        <translation>A6 (105 x 148 mm)</translation>
+        <translation type="vanished">A6 (105 x 148 mm)</translation>
     </message>
     <message>
         <source>A7 (74 x 105 mm)</source>
-        <translation>A7 (74 x 105 mm)</translation>
+        <translation type="vanished">A7 (74 x 105 mm)</translation>
     </message>
     <message>
         <source>A8 (52 x 74 mm)</source>
-        <translation>A8 (52 x 74 mm)</translation>
+        <translation type="vanished">A8 (52 x 74 mm)</translation>
     </message>
     <message>
         <source>A9 (37 x 52 mm)</source>
-        <translation>A9 (37 x 52 mm)</translation>
+        <translation type="vanished">A9 (37 x 52 mm)</translation>
     </message>
     <message>
         <source>B0 (1000 x 1414 mm)</source>
-        <translation>B0 (1000 x 1414 mm)</translation>
+        <translation type="vanished">B0 (1000 x 1414 mm)</translation>
     </message>
     <message>
         <source>B1 (707 x 1000 mm)</source>
-        <translation>B1 (707 x 1000 mm)</translation>
+        <translation type="vanished">B1 (707 x 1000 mm)</translation>
     </message>
     <message>
         <source>B2 (500 x 707 mm)</source>
-        <translation>B2 (500 x 707 mm)</translation>
+        <translation type="vanished">B2 (500 x 707 mm)</translation>
     </message>
     <message>
         <source>B3 (353 x 500 mm)</source>
-        <translation>B3 (353 x 500 mm)</translation>
+        <translation type="vanished">B3 (353 x 500 mm)</translation>
     </message>
     <message>
         <source>B4 (250 x 353 mm)</source>
-        <translation>B4 (250 x 353 mm)</translation>
+        <translation type="vanished">B4 (250 x 353 mm)</translation>
     </message>
     <message>
         <source>B5 (176 x 250 mm, 6.93 x 9.84 inches)</source>
-        <translation>B5 (176 x 250 mm, 6.93 x 9.84 inches)</translation>
+        <translation type="vanished">B5 (176 x 250 mm, 6.93 x 9.84 inches)</translation>
     </message>
     <message>
         <source>B6 (125 x 176 mm)</source>
-        <translation>B6 (125 x 176 mm)</translation>
+        <translation type="vanished">B6 (125 x 176 mm)</translation>
     </message>
     <message>
         <source>B7 (88 x 125 mm)</source>
-        <translation>B7 (88 x 125 mm)</translation>
+        <translation type="vanished">B7 (88 x 125 mm)</translation>
     </message>
     <message>
         <source>B8 (62 x 88 mm)</source>
-        <translation>B8 (62 x 88 mm)</translation>
+        <translation type="vanished">B8 (62 x 88 mm)</translation>
     </message>
     <message>
         <source>B9 (44 x 62 mm)</source>
-        <translation>B9 (44 x 62 mm)</translation>
+        <translation type="vanished">B9 (44 x 62 mm)</translation>
     </message>
     <message>
         <source>B10 (31 x 44 mm)</source>
-        <translation>B10 (31 x 44 mm)</translation>
+        <translation type="vanished">B10 (31 x 44 mm)</translation>
     </message>
     <message>
         <source>C5E (163 x 229 mm)</source>
-        <translation>C5E (163 x 229 mm)</translation>
+        <translation type="vanished">C5E (163 x 229 mm)</translation>
     </message>
     <message>
         <source>DLE (110 x 220 mm)</source>
-        <translation>DLE (110 x 220 mm)</translation>
+        <translation type="vanished">DLE (110 x 220 mm)</translation>
     </message>
     <message>
         <source>Executive (7.5 x 10 inches, 191 x 254 mm)</source>
-        <translation>Executive (7.5 x 10 inches, 191 x 254 mm)</translation>
+        <translation type="vanished">Executive (7.5 x 10 inches, 191 x 254 mm)</translation>
     </message>
     <message>
         <source>Folio (210 x 330 mm)</source>
-        <translation>Folio (210 x 330 mm)</translation>
+        <translation type="vanished">Folio (210 x 330 mm)</translation>
     </message>
     <message>
         <source>Ledger (432 x 279 mm)</source>
-        <translation>Ledger (432 x 279 mm)</translation>
+        <translation type="vanished">Ledger (432 x 279 mm)</translation>
     </message>
     <message>
         <source>Legal (8.5 x 14 inches, 216 x 356 mm)</source>
-        <translation>Legal (8.5 x 14 inches, 216 x 356 mm)</translation>
+        <translation type="vanished">Legal (8.5 x 14 inches, 216 x 356 mm)</translation>
     </message>
     <message>
         <source>Letter (8.5 x 11 inches, 216 x 279 mm)</source>
-        <translation>Letter (8.5 x 11 inches, 216 x 279 mm)</translation>
+        <translation type="vanished">Letter (8.5 x 11 inches, 216 x 279 mm)</translation>
     </message>
     <message>
         <source>Tabloid (279 x 432 mm)</source>
-        <translation>Tabloid (279 x 432 mm)</translation>
+        <translation type="vanished">Tabloid (279 x 432 mm)</translation>
     </message>
     <message>
         <source>US Common #10 Envelope (105 x 241 mm)</source>
-        <translation>US Common #10 Envelope (105 x 241 mm)</translation>
+        <translation type="vanished">US Common #10 Envelope (105 x 241 mm)</translation>
     </message>
     <message>
         <source>OK</source>
@@ -4518,19 +4520,19 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Поништи</translation>
+        <translation type="vanished">Поништи</translation>
     </message>
     <message>
         <source>Page size:</source>
-        <translation>Величина листа:</translation>
+        <translation type="vanished">Величина листа:</translation>
     </message>
     <message>
         <source>Orientation:</source>
-        <translation>Оријентација:</translation>
+        <translation type="vanished">Оријентација:</translation>
     </message>
     <message>
         <source>Paper source:</source>
-        <translation>Извор листа:</translation>
+        <translation type="vanished">Извор листа:</translation>
     </message>
     <message>
         <source>Print</source>
@@ -4538,11 +4540,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>File</source>
-        <translation>Датотека</translation>
+        <translation type="vanished">Датотека</translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation>Штампач</translation>
+        <translation type="vanished">Штампач</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -4550,79 +4552,79 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Print dialog</source>
-        <translation>Дијалог штампања</translation>
+        <translation type="vanished">Дијалог штампања</translation>
     </message>
     <message>
         <source>Paper format</source>
-        <translation>Формат листа</translation>
+        <translation type="vanished">Формат листа</translation>
     </message>
     <message>
         <source>Size:</source>
-        <translation>Величина:</translation>
+        <translation type="vanished">Величина:</translation>
     </message>
     <message>
         <source>Properties</source>
-        <translation>Својства</translation>
+        <translation type="vanished">Својства</translation>
     </message>
     <message>
         <source>Printer info:</source>
-        <translation>Инфо штампача:</translation>
+        <translation type="vanished">Инфо штампача:</translation>
     </message>
     <message>
         <source>Browse</source>
-        <translation>Тражи</translation>
+        <translation type="vanished">Тражи</translation>
     </message>
     <message>
         <source>Print to file</source>
-        <translation>Штампај у датотеци</translation>
+        <translation type="vanished">Штампај у датотеци</translation>
     </message>
     <message>
         <source>Print range</source>
-        <translation>Опсег штампања</translation>
+        <translation type="vanished">Опсег штампања</translation>
     </message>
     <message>
         <source>Print all</source>
-        <translation>Штампај све</translation>
+        <translation type="vanished">Штампај све</translation>
     </message>
     <message>
         <source>Pages from</source>
-        <translation>Листови од</translation>
+        <translation type="vanished">Листови од</translation>
     </message>
     <message>
         <source>to</source>
-        <translation>до</translation>
+        <translation type="vanished">до</translation>
     </message>
     <message>
         <source>Selection</source>
-        <translation>Одабир</translation>
+        <translation type="vanished">Одабир</translation>
     </message>
     <message>
         <source>Copies</source>
-        <translation>Копија</translation>
+        <translation type="vanished">Копија</translation>
     </message>
     <message>
         <source>Number of copies:</source>
-        <translation>Број копија:</translation>
+        <translation type="vanished">Број копија:</translation>
     </message>
     <message>
         <source>Collate</source>
-        <translation>Collate</translation>
+        <translation type="vanished">Collate</translation>
     </message>
     <message>
         <source>Print last page first</source>
-        <translation>Штачпај прво задњи лист</translation>
+        <translation type="vanished">Штачпај прво задњи лист</translation>
     </message>
     <message>
         <source>Other</source>
-        <translation>Остало</translation>
+        <translation type="vanished">Остало</translation>
     </message>
     <message>
         <source>Print in color if available</source>
-        <translation>У боји ако доступно</translation>
+        <translation type="vanished">У боји ако доступно</translation>
     </message>
     <message>
         <source>Double side printing</source>
-        <translation>Штампа на обе стране</translation>
+        <translation type="vanished">Штампа на обе стране</translation>
     </message>
     <message>
         <source>File %1 is not writable.
@@ -4638,15 +4640,15 @@ Do you want to overwrite it?</source>
     </message>
     <message>
         <source>File exists</source>
-        <translation>Датотека постоји</translation>
+        <translation type="vanished">Датотека постоји</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Do you want to overwrite it?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Да ли желите да препишете?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Да ли желите да препишете?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Print selection</source>
-        <translation>Одабир штампања</translation>
+        <translation type="vanished">Одабир штампања</translation>
     </message>
     <message>
         <source>%1 is a directory.
@@ -4843,15 +4845,15 @@ Please turn one of those options off.</source>
     <name>QPrintPropertiesDialog</name>
     <message>
         <source>PPD Properties</source>
-        <translation>PPD својства</translation>
+        <translation type="vanished">PPD својства</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>Сачувај</translation>
+        <translation type="vanished">Сачувај</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>У реду</translation>
+        <translation type="vanished">У реду</translation>
     </message>
     <message>
         <source>Printer Properties</source>
@@ -5053,7 +5055,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Отвори</translation>
+        <translation type="vanished">Отвори</translation>
     </message>
 </context>
 <context>
@@ -5074,7 +5076,7 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Одабери</translation>
+        <translation type="vanished">Одабери</translation>
     </message>
 </context>
 <context>
@@ -5467,7 +5469,7 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>Грешка отварања базе</translation>
+        <translation type="vanished">Грешка отварања базе</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -5479,7 +5481,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>Неуспешно врачање трансакције</translation>
+        <translation type="vanished">Неуспешно врачање трансакције</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -5521,7 +5523,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to roll back transaction</source>
-        <translation>Неуспешно врачање транзакције</translation>
+        <translation type="vanished">Неуспешно врачање транзакције</translation>
     </message>
     <message>
         <source>Unable to rollback transaction</source>
@@ -5630,15 +5632,15 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Линија горе</translation>
+        <translation type="vanished">Линија горе</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Сештај</translation>
+        <translation type="vanished">Сештај</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Линија доле</translation>
+        <translation type="vanished">Линија доле</translation>
     </message>
 </context>
 <context>
@@ -5724,6 +5726,7 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation>Space</translation>
     </message>
     <message>
@@ -6052,10 +6055,12 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation>Call</translation>
     </message>
     <message>
         <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
         <translation>Hangup</translation>
     </message>
     <message>
@@ -6718,30 +6723,30 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Лист лево</translation>
+        <translation type="vanished">Лист лево</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Лист горе</translation>
+        <translation type="vanished">Лист горе</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Смештај</translation>
+        <translation type="vanished">Смештај</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Лист десно</translation>
+        <translation type="vanished">Лист десно</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Лист доле</translation>
+        <translation type="vanished">Лист доле</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>Socks5 timeout error connecting to socks server</translation>
+        <translation type="vanished">Socks5 timeout error connecting to socks server</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
@@ -7164,54 +7169,54 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Више</translation>
+        <translation type="vanished">Више</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Мање</translation>
+        <translation type="vanished">Мање</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>Избриши</translation>
+        <translation type="vanished">Избриши</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Избрисати ову ставку?</translation>
+        <translation type="vanished">Избрисати ову ставку?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Да</translation>
+        <translation type="vanished">Да</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Не</translation>
+        <translation type="vanished">Не</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Убаци</translation>
+        <translation type="vanished">Убаци</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Ажурирај</translation>
+        <translation type="vanished">Ажурирај</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Сачувај промене?</translation>
+        <translation type="vanished">Сачувај промене?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Поништи</translation>
+        <translation type="vanished">Поништи</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Потврди</translation>
+        <translation type="vanished">Потврди</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Одбаци промене?</translation>
+        <translation type="vanished">Одбаци промене?</translation>
     </message>
 </context>
 <context>
@@ -7258,7 +7263,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Private key do not certificate public key, %1</source>
-        <translation>Private key do not certificate public key, %1</translation>
+        <translation type="vanished">Private key do not certificate public key, %1</translation>
     </message>
     <message>
         <source>Error when setting the elliptic curves (%1)</source>
@@ -7528,7 +7533,7 @@ Role of an accessible object</extracomment>
     <name>QTcpServer</name>
     <message>
         <source>Socket operation unsupported</source>
-        <translation>Socket operation unsupported</translation>
+        <translation type="vanished">Socket operation unsupported</translation>
     </message>
     <message>
         <source>Operation on socket is not supported</source>
@@ -7539,64 +7544,64 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Врати</translation>
+        <translation type="vanished">&amp;Врати</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Понови</translation>
+        <translation type="vanished">&amp;Понови</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Исеци</translation>
+        <translation type="vanished">&amp;Исеци</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Копирај</translation>
+        <translation type="vanished">&amp;Копирај</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Копирај смештај линка</translation>
+        <translation type="vanished">Копирај смештај линка</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>П&amp;рилепи</translation>
+        <translation type="vanished">П&amp;рилепи</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Избриши</translation>
+        <translation type="vanished">Избриши</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Одабери све</translation>
+        <translation type="vanished">Одабери све</translation>
     </message>
 </context>
 <context>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Стисни</translation>
+        <translation type="vanished">Стисни</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Отвори</translation>
+        <translation type="vanished">Отвори</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>Ова платформа не  подржава IPv6</translation>
+        <translation type="vanished">Ова платформа не  подржава IPv6</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>&amp;Врати</translation>
+        <translation type="vanished">&amp;Врати</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>&amp;Понови</translation>
+        <translation type="vanished">&amp;Понови</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7628,11 +7633,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Врати</translation>
+        <translation type="vanished">Врати</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Помони</translation>
+        <translation type="vanished">Помони</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7798,7 +7803,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Quit</source>
-        <translation>Излаз</translation>
+        <translation type="vanished">Излаз</translation>
     </message>
     <message>
         <source>Help</source>
@@ -7833,55 +7838,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>Врати</translation>
+        <translation type="vanished">Врати</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>Премести</translation>
+        <translation type="vanished">Премести</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>Величина</translation>
+        <translation type="vanished">Величина</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>Минимизуј</translation>
+        <translation type="vanished">Минимизуј</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>Максимизирај</translation>
+        <translation type="vanished">Максимизирај</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>Затвори</translation>
+        <translation type="vanished">Затвори</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Увек испред</translation>
+        <translation type="vanished">Увек испред</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>Sh&amp;ade</translation>
+        <translation type="vanished">Sh&amp;ade</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Минимизуј</translation>
+        <translation type="vanished">Минимизуј</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Врати доле</translation>
+        <translation type="vanished">Врати доле</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Затвори</translation>
+        <translation type="vanished">Затвори</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>&amp;Unshade</translation>
+        <translation type="vanished">&amp;Unshade</translation>
     </message>
 </context>
 <context>
@@ -8003,7 +8008,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>Attribute redefined.</translation>
+        <translation type="vanished">Attribute redefined.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
@@ -8027,7 +8032,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Invalid XML encoding name.</source>
-        <translation>Invalid XML encoding name.</translation>
+        <translation type="vanished">Invalid XML encoding name.</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>

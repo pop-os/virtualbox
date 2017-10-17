@@ -5,15 +5,15 @@
     <name>AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;b&gt;%1&lt;/b&gt; audio irakurketa gailuak ez du lan egiten.&lt;br/&gt;&lt;b&gt;%2&lt;/b&gt;-ra itzultzen.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;&lt;b&gt;%1&lt;/b&gt; audio irakurketa gailuak ez du lan egiten.&lt;br/&gt;&lt;b&gt;%2&lt;/b&gt;-ra itzultzen.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;b&gt;%1&lt;/b&gt; audio irakurketa gailura aldatzen&lt;br/&gt;eskuragarri dagoena eta hobespentasun handiagoa duena.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;&lt;b&gt;%1&lt;/b&gt; audio irakurketa gailura aldatzen&lt;br/&gt;eskuragarri dagoena eta hobespentasun handiagoa duena.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Revert back to device &apos;%1&apos;</source>
-        <translation>Itzuli atzera &apos;%1&apos; gailura</translation>
+        <translation type="vanished">Itzuli atzera &apos;%1&apos; gailura</translation>
     </message>
 </context>
 <context>
@@ -58,27 +58,27 @@
     <name>Phonon::</name>
     <message>
         <source>Notifications</source>
-        <translation>Jakinarazpenak</translation>
+        <translation type="vanished">Jakinarazpenak</translation>
     </message>
     <message>
         <source>Music</source>
-        <translation>Musika</translation>
+        <translation type="vanished">Musika</translation>
     </message>
     <message>
         <source>Video</source>
-        <translation>Bideoa</translation>
+        <translation type="vanished">Bideoa</translation>
     </message>
     <message>
         <source>Communication</source>
-        <translation>Hedabideak</translation>
+        <translation type="vanished">Hedabideak</translation>
     </message>
     <message>
         <source>Games</source>
-        <translation>Jolasak</translation>
+        <translation type="vanished">Jolasak</translation>
     </message>
     <message>
         <source>Accessibility</source>
-        <translation>Sarbidetasuna</translation>
+        <translation type="vanished">Sarbidetasuna</translation>
     </message>
 </context>
 <context>
@@ -86,13 +86,13 @@
     <message>
         <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
           Some video features have been disabled.</source>
-        <translation>Kontuz: Ez dirudi gstreamer0.10-pluginak ongi ezarrita dituzunik.
+        <translation type="vanished">Kontuz: Ez dirudi gstreamer0.10-pluginak ongi ezarrita dituzunik.
           Zenbait bideo ezaugarri ezgaitu egin dira.</translation>
     </message>
     <message>
         <source>Warning: You do not seem to have the base GStreamer plugins installed.
           All audio and video support has been disabled</source>
-        <translation>Kontuz: Ez dirudi GStreamer pluginak ezarrita dituzunik.          Audio eta bideo sostengu guztiak ezgaitu egin dira</translation>
+        <translation type="vanished">Kontuz: Ez dirudi GStreamer pluginak ezarrita dituzunik.          Audio eta bideo sostengu guztiak ezgaitu egin dira</translation>
     </message>
 </context>
 <context>
@@ -102,323 +102,323 @@
 
 Check your Gstreamer installation and make sure you 
 have libgstreamer-plugins-base installed.</source>
-        <translation>Ezin da irakurketa hasi.
+        <translation type="vanished">Ezin da irakurketa hasi.
 
 Egiaztatu zure Gstreamer ezarpena eta zihurtatu
 libgstreamer-plugins-base ezarrita duzula.</translation>
     </message>
     <message numerus="yes">
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>Beharrezko kodeka ez dago. Hurrengo kodeka ezarri behar duzu eduki hau irakurtzeko: %0</numerusform>
             <numerusform>Beharrezko kodekak ez daude. Hurrengo kodekak ezarri behar dituzu eduki hau irakurtzeko: %0</numerusform>
         </translation>
     </message>
     <message>
         <source>Could not open media source.</source>
-        <translation>Ezinezkoa multimedia ituruburua irekitzea.</translation>
+        <translation type="vanished">Ezinezkoa multimedia ituruburua irekitzea.</translation>
     </message>
     <message>
         <source>Invalid source type.</source>
-        <translation>Iturburu mota baliogabea.</translation>
+        <translation type="vanished">Iturburu mota baliogabea.</translation>
     </message>
     <message>
         <source>Could not locate media source.</source>
-        <translation>Ezinezkoa multimedia iturburua kokatzea.</translation>
+        <translation type="vanished">Ezinezkoa multimedia iturburua kokatzea.</translation>
     </message>
     <message>
         <source>Could not open audio device. The device is already in use.</source>
-        <translation>Ezinezkoa audio gailua irekitzea. Gailua jadanik erabiltzen dago.</translation>
+        <translation type="vanished">Ezinezkoa audio gailua irekitzea. Gailua jadanik erabiltzen dago.</translation>
     </message>
     <message>
         <source>Could not decode media source.</source>
-        <translation>Ezinezkoa multimedia iturburua dekodeatzea.</translation>
+        <translation type="vanished">Ezinezkoa multimedia iturburua dekodeatzea.</translation>
     </message>
 </context>
 <context>
     <name>Phonon::VolumeSlider</name>
     <message>
         <source>Volume: %1%</source>
-        <translation>Bolumena: %1%</translation>
+        <translation type="vanished">Bolumena: %1%</translation>
     </message>
     <message>
         <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
-        <translation>Erabili irristari hau bolumena ezartzeko. Ezkerreneko kopapena 0% da, eskuinekoena %1%</translation>
+        <translation type="vanished">Erabili irristari hau bolumena ezartzeko. Ezkerreneko kopapena 0% da, eskuinekoena %1%</translation>
     </message>
 </context>
 <context>
     <name>Q3Accel</name>
     <message>
         <source>%1, %2 not defined</source>
-        <translation>%1, %2 zehaztu gabe</translation>
+        <translation type="vanished">%1, %2 zehaztu gabe</translation>
     </message>
     <message>
         <source>Ambiguous %1 not handled</source>
-        <translation>%1 zehazgabea kudeatu gabe</translation>
+        <translation type="vanished">%1 zehazgabea kudeatu gabe</translation>
     </message>
 </context>
 <context>
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation>Egia</translation>
+        <translation type="vanished">Egia</translation>
     </message>
     <message>
         <source>False</source>
-        <translation>Faltsua</translation>
+        <translation type="vanished">Faltsua</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Txertatu</translation>
+        <translation type="vanished">Txertatu</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Eguneratu</translation>
+        <translation type="vanished">Eguneratu</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Ezabatu</translation>
+        <translation type="vanished">Ezabatu</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation>Kopiatu edo Mugitu Agiri bat</translation>
+        <translation type="vanished">Kopiatu edo Mugitu Agiri bat</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation>Irakurri: %1</translation>
+        <translation type="vanished">Irakurri: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation>Idatzi: %1</translation>
+        <translation type="vanished">Idatzi: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Ezeztatu</translation>
+        <translation type="vanished">Ezeztatu</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation>Agiri Guztiak (*)</translation>
+        <translation type="vanished">Agiri Guztiak (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Izena</translation>
+        <translation type="vanished">Izena</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Neurria</translation>
+        <translation type="vanished">Neurria</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>Mota</translation>
+        <translation type="vanished">Mota</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>Eguna</translation>
+        <translation type="vanished">Eguna</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation>Ezaugarriak</translation>
+        <translation type="vanished">Ezaugarriak</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Ongi</translation>
+        <translation type="vanished">&amp;Ongi</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation>Bilatu &amp;hemen:</translation>
+        <translation type="vanished">Bilatu &amp;hemen:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>Agiri &amp;izena:</translation>
+        <translation type="vanished">Agiri &amp;izena:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation>Agiri &amp;mota:</translation>
+        <translation type="vanished">Agiri &amp;mota:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation>Atzera</translation>
+        <translation type="vanished">Atzera</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation>Igo zuzenbide bat</translation>
+        <translation type="vanished">Igo zuzenbide bat</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation>Sortu Agiritegi Berria</translation>
+        <translation type="vanished">Sortu Agiritegi Berria</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation>Zerrenda Ikuspegia</translation>
+        <translation type="vanished">Zerrenda Ikuspegia</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation>Xehetasun Ikuspegia</translation>
+        <translation type="vanished">Xehetasun Ikuspegia</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation>Aurreikusi Agiri Argibideak</translation>
+        <translation type="vanished">Aurreikusi Agiri Argibideak</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation>Aurreikusi Agiri Edukiak</translation>
+        <translation type="vanished">Aurreikusi Agiri Edukiak</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation>Irakur-idaztekoa</translation>
+        <translation type="vanished">Irakur-idaztekoa</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Irakurtzekoa-bakarrik</translation>
+        <translation type="vanished">Irakurtzekoa-bakarrik</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation>Idaztekoa-bakarrik</translation>
+        <translation type="vanished">Idaztekoa-bakarrik</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>Eskuraezina</translation>
+        <translation type="vanished">Eskuraezina</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation>Lotura-sinbolikoa Agirira</translation>
+        <translation type="vanished">Lotura-sinbolikoa Agirira</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation>Symlotura Zuzenbidera</translation>
+        <translation type="vanished">Symlotura Zuzenbidera</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation>Symlotura Berezira</translation>
+        <translation type="vanished">Symlotura Berezira</translation>
     </message>
     <message>
         <source>File</source>
-        <translation>Agiria</translation>
+        <translation type="vanished">Agiria</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation>Zuzenbidea</translation>
+        <translation type="vanished">Zuzenbidea</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation>Berezia</translation>
+        <translation type="vanished">Berezia</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Ireki</translation>
+        <translation type="vanished">Ireki</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation>Gorde Honela</translation>
+        <translation type="vanished">Gorde Honela</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation>&amp;Ireki</translation>
+        <translation type="vanished">&amp;Ireki</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Gorde</translation>
+        <translation type="vanished">&amp;Gorde</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation>&amp;Berreizendatu</translation>
+        <translation type="vanished">&amp;Berreizendatu</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>E&amp;zabatu</translation>
+        <translation type="vanished">E&amp;zabatu</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation>&amp;Birgertatu</translation>
+        <translation type="vanished">&amp;Birgertatu</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation>Antolatu &amp;Izenez</translation>
+        <translation type="vanished">Antolatu &amp;Izenez</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation>Antolatu &amp;Neurriz</translation>
+        <translation type="vanished">Antolatu &amp;Neurriz</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation>Antolatu &amp;Egunez</translation>
+        <translation type="vanished">Antolatu &amp;Egunez</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation>&amp;Antolatugabe</translation>
+        <translation type="vanished">&amp;Antolatugabe</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation>Antolatu</translation>
+        <translation type="vanished">Antolatu</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation>Eraklutsi e&amp;zkutuko agiriak</translation>
+        <translation type="vanished">Eraklutsi e&amp;zkutuko agiriak</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation>agiria</translation>
+        <translation type="vanished">agiria</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation>zuzenbidea</translation>
+        <translation type="vanished">zuzenbidea</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation>symlotura</translation>
+        <translation type="vanished">symlotura</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation>Ezabatu %1</translation>
+        <translation type="vanished">Ezabatu %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Zihur zaude %1 «%2» ezabatzea nahi duzula?&lt;/qt&gt;</translation>
+        <translation type="vanished">&lt;qt&gt;Zihur zaude %1 «%2» ezabatzea nahi duzula?&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Bai</translation>
+        <translation type="vanished">&amp;Bai</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Ez</translation>
+        <translation type="vanished">&amp;Ez</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation>Agiritegi Berria 1</translation>
+        <translation type="vanished">Agiritegi Berria 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation>Agiritegi Berria</translation>
+        <translation type="vanished">Agiritegi Berria</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation>Agiritegi Berria %1</translation>
+        <translation type="vanished">Agiritegi Berria %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation>Bilatu  Zuzenbidea</translation>
+        <translation type="vanished">Bilatu  Zuzenbidea</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation>Zuzenbideak</translation>
+        <translation type="vanished">Zuzenbideak</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation>Zuzenbidea:</translation>
+        <translation type="vanished">Zuzenbidea:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation>Akatsa</translation>
+        <translation type="vanished">Akatsa</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation>%1
+        <translation type="vanished">%1
 Agiria ez da aurkitu.
 Egiaztatu helburua eta agirizena.</translation>
     </message>
@@ -428,19 +428,19 @@ Egiaztatu helburua eta agirizena.</translation>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation>Ezinezkoa zuzenbidea sortzea
+        <translation type="vanished">Ezinezkoa zuzenbidea sortzea
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation>Ezinezkoa zuzenbidea sortzea
+        <translation type="vanished">Ezinezkoa zuzenbidea sortzea
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation>Ezinezkoa agiria edo zuzenbidea kentzea
+        <translation type="vanished">Ezinezkoa agiria edo zuzenbidea kentzea
 %1</translation>
     </message>
     <message>
@@ -448,7 +448,7 @@ Egiaztatu helburua eta agirizena.</translation>
 %1
 to
 %2</source>
-        <translation>Ezinezkoa berrizendatzea
+        <translation type="vanished">Ezinezkoa berrizendatzea
 %1
 honela
 %2</translation>
@@ -456,13 +456,13 @@ honela
     <message>
         <source>Could not open
 %1</source>
-        <translation>Ezinezkoa irekitzea
+        <translation type="vanished">Ezinezkoa irekitzea
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation>Ezinezkoa idaztea
+        <translation type="vanished">Ezinezkoa idaztea
 %1</translation>
     </message>
 </context>
@@ -470,203 +470,203 @@ honela
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation>Lerroan gora</translation>
+        <translation type="vanished">Lerroan gora</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation>Norbereratu...</translation>
+        <translation type="vanished">Norbereratu...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation>Eragiketa erabiltzaileak geldiarazita</translation>
+        <translation type="vanished">Eragiketa erabiltzaileak geldiarazita</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation>Ezeztatu</translation>
+        <translation type="vanished">Ezeztatu</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation>Ongi</translation>
+        <translation type="vanished">Ongi</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Ezarri</translation>
+        <translation type="vanished">Ezarri</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Laguntza</translation>
+        <translation type="vanished">Laguntza</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation>Berezkoak</translation>
+        <translation type="vanished">Berezkoak</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Ezeztatu</translation>
+        <translation type="vanished">Ezeztatu</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Desegin</translation>
+        <translation type="vanished">&amp;Desegin</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Berregin</translation>
+        <translation type="vanished">&amp;Berregin</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Ebaki</translation>
+        <translation type="vanished">&amp;Ebaki</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopiatu</translation>
+        <translation type="vanished">&amp;Kopiatu</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Itsatsi</translation>
+        <translation type="vanished">&amp;Itsatsi</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation>Garbitu</translation>
+        <translation type="vanished">Garbitu</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Hautatu Denak</translation>
+        <translation type="vanished">Hautatu Denak</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>System</source>
-        <translation>Sistema</translation>
+        <translation type="vanished">Sistema</translation>
     </message>
     <message>
         <source>Restore up</source>
-        <translation>Leheneratu gora</translation>
+        <translation type="vanished">Leheneratu gora</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Txikiengotu</translation>
+        <translation type="vanished">Txikiengotu</translation>
     </message>
     <message>
         <source>Restore down</source>
-        <translation>Leheneratu behera</translation>
+        <translation type="vanished">Leheneratu behera</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation>Handiengotu</translation>
+        <translation type="vanished">Handiengotu</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Itxi</translation>
+        <translation type="vanished">Itxi</translation>
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>Leihoa manipulatzeko komandoak ditu</translation>
+        <translation type="vanished">Leihoa manipulatzeko komandoak ditu</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
-        <translation>Txikiengotua atzera arrunt jartzen du</translation>
+        <translation type="vanished">Txikiengotua atzera arrunt jartzen du</translation>
     </message>
     <message>
         <source>Moves the window out of the way</source>
-        <translation>Leihoa bidetik kanpo mugitzen du</translation>
+        <translation type="vanished">Leihoa bidetik kanpo mugitzen du</translation>
     </message>
     <message>
         <source>Puts a maximized window back to normal</source>
-        <translation>Lehio handiendua atzera arrunt jartzen du</translation>
+        <translation type="vanished">Lehio handiendua atzera arrunt jartzen du</translation>
     </message>
     <message>
         <source>Makes the window full screen</source>
-        <translation>Leihoa ikusleiho-osoko egiten du</translation>
+        <translation type="vanished">Leihoa ikusleiho-osoko egiten du</translation>
     </message>
     <message>
         <source>Closes the window</source>
-        <translation>Leihoa isten du</translation>
+        <translation type="vanished">Leihoa isten du</translation>
     </message>
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
-        <translation>Leihoaren izena eta bere manipulatzeko aginteak ditu</translation>
+        <translation type="vanished">Leihoaren izena eta bere manipulatzeko aginteak ditu</translation>
     </message>
 </context>
 <context>
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation>Gehiago...</translation>
+        <translation type="vanished">Gehiago...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation>`%1&apos; protokoloa ez dago sostengaturik</translation>
+        <translation type="vanished">`%1&apos; protokoloa ez dago sostengaturik</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>`%1&apos; protokoloak ez ditu zerrendaturiko zuzenbideak sostengatzen</translation>
+        <translation type="vanished">`%1&apos; protokoloak ez ditu zerrendaturiko zuzenbideak sostengatzen</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>`%1&apos; protokoloak ez du zuzenbide berriak sortzea sostengatzen</translation>
+        <translation type="vanished">`%1&apos; protokoloak ez du zuzenbide berriak sortzea sostengatzen</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>`%1&apos; protokoloak ez du zuzenbideak edo agiriak kentzea sostengatzen</translation>
+        <translation type="vanished">`%1&apos; protokoloak ez du zuzenbideak edo agiriak kentzea sostengatzen</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>`%1&apos; protokoloak ez du agiriak edo zuzenbideak berrizendatzea sostengatzen</translation>
+        <translation type="vanished">`%1&apos; protokoloak ez du agiriak edo zuzenbideak berrizendatzea sostengatzen</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>`%1&apos; protokoloak ez du agiriak lortzea sostengatzen</translation>
+        <translation type="vanished">`%1&apos; protokoloak ez du agiriak lortzea sostengatzen</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>`%1&apos; protokoloak ez du agiriak jartzea sostengatzen</translation>
+        <translation type="vanished">`%1&apos; protokoloak ez du agiriak jartzea sostengatzen</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>`%1&apos; protokoloak ez du agiriak edo zuzenbideak kopiatzea edo mugitzea sostengatzen</translation>
+        <translation type="vanished">`%1&apos; protokoloak ez du agiriak edo zuzenbideak kopiatzea edo mugitzea sostengatzen</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation>(ezezaguna)</translation>
+        <translation type="vanished">(ezezaguna)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation>E&amp;zeztatu</translation>
+        <translation type="vanished">E&amp;zeztatu</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Atzera</translation>
+        <translation type="vanished">&lt; &amp;Atzera</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation>&amp;Hurrengoa &gt;</translation>
+        <translation type="vanished">&amp;Hurrengoa &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation>A&amp;maitu</translation>
+        <translation type="vanished">A&amp;maitu</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Laguntza</translation>
+        <translation type="vanished">&amp;Laguntza</translation>
     </message>
 </context>
 <context>
@@ -841,7 +841,7 @@ honela
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Eragin</translation>
+        <translation type="vanished">Eragin</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -854,26 +854,26 @@ honela
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>EZES</translation>
+        <translation type="vanished">EZES</translation>
     </message>
     <message>
         <source>Activates the program&apos;s main window</source>
-        <translation>Programaren leiho nagusia eragiten du</translation>
+        <translation type="vanished">Programaren leiho nagusia eragiten du</translation>
     </message>
 </context>
 <context>
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Ez Hautatu</translation>
+        <translation type="vanished">Ez Hautatu</translation>
     </message>
     <message>
         <source>Check</source>
-        <translation>Hautatu</translation>
+        <translation type="vanished">Hautatu</translation>
     </message>
     <message>
         <source>Toggle</source>
-        <translation>Aldatu</translation>
+        <translation type="vanished">Aldatu</translation>
     </message>
 </context>
 <context>
@@ -982,7 +982,7 @@ honela
     </message>
     <message>
         <source>Select color</source>
-        <translation>Hautatu margoa</translation>
+        <translation type="vanished">Hautatu margoa</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -1006,7 +1006,7 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation>Ireki</translation>
+        <translation type="vanished">Ireki</translation>
     </message>
     <message>
         <source>False</source>
@@ -1018,7 +1018,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Itxi</translation>
+        <translation type="vanished">Itxi</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1073,27 +1073,27 @@ Press ESC to cancel</source>
     <message>
         <source>%1: permission denied</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: baimena ukatuta</translation>
+        <translation type="vanished">%1: baimena ukatuta</translation>
     </message>
     <message>
         <source>%1: already exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: jadanik badago</translation>
+        <translation type="vanished">%1: jadanik badago</translation>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: ez dago</translation>
+        <translation type="vanished">%1: ez dago</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: baliabideetatik kanpo</translation>
+        <translation type="vanished">%1: baliabideetatik kanpo</translation>
     </message>
     <message>
         <source>%1: unknown error %2</source>
         <comment>QSystemSemaphore</comment>
-        <translation>%1: %2 akats ezezaguna</translation>
+        <translation type="vanished">%1: %2 akats ezezaguna</translation>
     </message>
     <message>
         <source>%1: key is empty</source>
@@ -1272,19 +1272,19 @@ Press ESC to cancel</source>
     <name>QDateTimeEdit</name>
     <message>
         <source>AM</source>
-        <translation>GO</translation>
+        <translation type="vanished">GO</translation>
     </message>
     <message>
         <source>am</source>
-        <translation>go</translation>
+        <translation type="vanished">go</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation>AR</translation>
+        <translation type="vanished">AR</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation>ar</translation>
+        <translation type="vanished">ar</translation>
     </message>
 </context>
 <context>
@@ -1310,15 +1310,15 @@ Press ESC to cancel</source>
     <name>QDial</name>
     <message>
         <source>QDial</source>
-        <translation>QDial</translation>
+        <translation type="vanished">QDial</translation>
     </message>
     <message>
         <source>SpeedoMeter</source>
-        <translation>Abiadura-Neurgailua</translation>
+        <translation type="vanished">Abiadura-Neurgailua</translation>
     </message>
     <message>
         <source>SliderHandle</source>
-        <translation>Irristari Heldutokia</translation>
+        <translation type="vanished">Irristari Heldutokia</translation>
     </message>
 </context>
 <context>
@@ -1329,7 +1329,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Done</source>
-        <translation>Eginda</translation>
+        <translation type="vanished">Eginda</translation>
     </message>
 </context>
 <context>
@@ -1340,83 +1340,83 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Save</source>
-        <translation>Gorde</translation>
+        <translation type="vanished">Gorde</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Ireki</translation>
+        <translation type="vanished">Ireki</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Ezeztatu</translation>
+        <translation type="vanished">Ezeztatu</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Itxi</translation>
+        <translation type="vanished">Itxi</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation>Ezarri</translation>
+        <translation type="vanished">Ezarri</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation>Berrabiarazi</translation>
+        <translation type="vanished">Berrabiarazi</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation>Laguntza</translation>
+        <translation type="vanished">Laguntza</translation>
     </message>
     <message>
         <source>Don&apos;t Save</source>
-        <translation>Ez Gorde</translation>
+        <translation type="vanished">Ez Gorde</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Baztertu</translation>
+        <translation type="vanished">Baztertu</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation>&amp;Bai</translation>
+        <translation type="vanished">&amp;Bai</translation>
     </message>
     <message>
         <source>Yes to &amp;All</source>
-        <translation>Bai G&amp;uztiari</translation>
+        <translation type="vanished">Bai G&amp;uztiari</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation>&amp;Ez</translation>
+        <translation type="vanished">&amp;Ez</translation>
     </message>
     <message>
         <source>N&amp;o to All</source>
-        <translation>Ez Guz&amp;tiari</translation>
+        <translation type="vanished">Ez Guz&amp;tiari</translation>
     </message>
     <message>
         <source>Save All</source>
-        <translation>Gorde Denak</translation>
+        <translation type="vanished">Gorde Denak</translation>
     </message>
     <message>
         <source>Abort</source>
-        <translation>Utzi</translation>
+        <translation type="vanished">Utzi</translation>
     </message>
     <message>
         <source>Retry</source>
-        <translation>Bersaiatu</translation>
+        <translation type="vanished">Bersaiatu</translation>
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Ezikusi</translation>
+        <translation type="vanished">Ezikusi</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Berrezarri Berezkoak</translation>
+        <translation type="vanished">Berrezarri Berezkoak</translation>
     </message>
     <message>
         <source>Close without Saving</source>
-        <translation>Itxi Gorde gabe</translation>
+        <translation type="vanished">Itxi Gorde gabe</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;Ongi</translation>
+        <translation type="vanished">&amp;Ongi</translation>
     </message>
 </context>
 <context>
@@ -1554,14 +1554,16 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation>Itxi</translation>
     </message>
     <message>
         <source>Dock</source>
-        <translation>Uztartu</translation>
+        <translation type="vanished">Uztartu</translation>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation>Gainean</translation>
     </message>
     <message>
@@ -1577,11 +1579,11 @@ Press ESC to cancel</source>
     <name>QDoubleSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Gehiago</translation>
+        <translation type="vanished">Gehiago</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Gutxiago</translation>
+        <translation type="vanished">Gutxiago</translation>
     </message>
 </context>
 <context>
@@ -1753,7 +1755,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>Are sure you want to delete &apos;%1&apos;?</source>
-        <translation>Zihur zaude &apos;%1&apos; ezabatzea nahi duzula?</translation>
+        <translation type="vanished">Zihur zaude &apos;%1&apos; ezabatzea nahi duzula?</translation>
     </message>
     <message>
         <source>Could not delete directory.</source>
@@ -1974,7 +1976,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QFontDatabase</name>
     <message>
         <source>Normal</source>
-        <translation>Arrunta</translation>
+        <translation type="vanished">Arrunta</translation>
     </message>
     <message>
         <source>Bold</source>
@@ -1990,6 +1992,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>Demi</source>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
         <translation>Erdia</translation>
     </message>
     <message>
@@ -2227,7 +2230,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>Elkarketa ukatua datu elkarketatik</translation>
+        <translation type="vanished">Elkarketa ukatua datu elkarketatik</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -2293,19 +2296,19 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>%1 hostalaria aurkitu da</translation>
+        <translation type="vanished">%1 hostalaria aurkitu da</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>%1-rako elkarketa itxita</translation>
+        <translation type="vanished">%1-rako elkarketa itxita</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Hostalaria aurkitu da</translation>
+        <translation type="vanished">Hostalaria aurkitu da</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Hostalarira elkarketaturik</translation>
+        <translation type="vanished">Hostalarira elkarketaturik</translation>
     </message>
     <message>
         <source>Connection timed out to host %1</source>
@@ -2389,23 +2392,23 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QHttp</name>
     <message>
         <source>Unknown error</source>
-        <translation>Akats ezezaguna</translation>
+        <translation type="vanished">Akats ezezaguna</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>Eskaera utzita</translation>
+        <translation type="vanished">Eskaera utzita</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>Ez da zerbitzaririk ezarri hona elkarketatzeko</translation>
+        <translation type="vanished">Ez da zerbitzaririk ezarri hona elkarketatzeko</translation>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>Eduki luzera okerra</translation>
+        <translation type="vanished">Eduki luzera okerra</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>Zerbitzariak elkarketa itxi du ustekabean</translation>
+        <translation type="vanished">Zerbitzariak elkarketa itxi du ustekabean</translation>
     </message>
     <message>
         <source>Connection refused</source>
@@ -2417,35 +2420,35 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>HTTP eskaera hutsegitea</translation>
+        <translation type="vanished">HTTP eskaera hutsegitea</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>HTTP erantzun idazburu baliogabea</translation>
+        <translation type="vanished">HTTP erantzun idazburu baliogabea</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>HTTP zatiketa gorputz baliogabea</translation>
+        <translation type="vanished">HTTP zatiketa gorputz baliogabea</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation>%1 hostalaria aurkitu da</translation>
+        <translation type="vanished">%1 hostalaria aurkitu da</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation>%1 hostalarira elkarketaturik</translation>
+        <translation type="vanished">%1 hostalarira elkarketaturik</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation>%1-rako elkarketa itxita</translation>
+        <translation type="vanished">%1-rako elkarketa itxita</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation>Hostalaria aurkitu da</translation>
+        <translation type="vanished">Hostalaria aurkitu da</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation>Hostalariari elkarketaturik</translation>
+        <translation type="vanished">Hostalariari elkarketaturik</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2453,19 +2456,19 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>Proxy authentication required</source>
-        <translation>Proxy egiaztapena beharrezkoa</translation>
+        <translation type="vanished">Proxy egiaztapena beharrezkoa</translation>
     </message>
     <message>
         <source>Authentication required</source>
-        <translation>Egiaztapena beharrezkoa</translation>
+        <translation type="vanished">Egiaztapena beharrezkoa</translation>
     </message>
     <message>
         <source>HTTPS connection requested but SSL support not compiled in</source>
-        <translation>HTTPS elkarketa eskatuta baina SSL sostengua ez dago bilduta</translation>
+        <translation type="vanished">HTTPS elkarketa eskatuta baina SSL sostengua ez dago bilduta</translation>
     </message>
     <message>
         <source>Connection refused (or timed out)</source>
-        <translation>Elkarketa baztertuta (edo denboraz kanpo)</translation>
+        <translation type="vanished">Elkarketa baztertuta (edo denboraz kanpo)</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
@@ -2698,19 +2701,19 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QInputContext</name>
     <message>
         <source>XIM</source>
-        <translation>XIM</translation>
+        <translation type="vanished">XIM</translation>
     </message>
     <message>
         <source>XIM input method</source>
-        <translation>XIM sarrera metodoa</translation>
+        <translation type="vanished">XIM sarrera metodoa</translation>
     </message>
     <message>
         <source>Windows input method</source>
-        <translation>Windows sarrera metodoa</translation>
+        <translation type="vanished">Windows sarrera metodoa</translation>
     </message>
     <message>
         <source>Mac OS X input method</source>
-        <translation>Mac OS X sarrera metodoa</translation>
+        <translation type="vanished">Mac OS X sarrera metodoa</translation>
     </message>
 </context>
 <context>
@@ -2799,27 +2802,27 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QLibrary</name>
     <message>
         <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
-        <translation>QLibrary::load_sys: Ezin da gertatu %1 (%2)</translation>
+        <translation type="vanished">QLibrary::load_sys: Ezin da gertatu %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
-        <translation>QLibrary::unload_sys: Ezin da desgertatu %1 (%2)</translation>
+        <translation type="vanished">QLibrary::unload_sys: Ezin da desgertatu %1 (%2)</translation>
     </message>
     <message>
         <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
-        <translation>QLibrary::resolve_sys: &quot;%1&quot; sinboloa zehaztugabe hemen %2 (%3)</translation>
+        <translation type="vanished">QLibrary::resolve_sys: &quot;%1&quot; sinboloa zehaztugabe hemen %2 (%3)</translation>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>Ezin da mmapatu &apos;%1&apos;: %2</translation>
+        <translation type="vanished">Ezin da mmapatu &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>Plugin egiaztapen datuak ez datoz bat hemen, &apos;%1&apos;</translation>
+        <translation type="vanished">Plugin egiaztapen datuak ez datoz bat hemen, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation>Ezin da desmapatu &apos;%1&apos;: %2</translation>
+        <translation type="vanished">Ezin da desmapatu &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
@@ -2827,7 +2830,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>&apos;%1&apos; pluginak Qt liburutegi bateraezina erabiltzen du. Itxarondako eraiketa giltza &quot;%2&quot;, lortua &quot;%3&quot;</translation>
+        <translation type="vanished">&apos;%1&apos; pluginak Qt liburutegi bateraezina erabiltzen du. Itxarondako eraiketa giltza &quot;%2&quot;, lortua &quot;%3&quot;</translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -3019,7 +3022,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QMYSQLDriver</name>
     <message>
         <source>Unable to open database &apos;</source>
-        <translation>Ezinezkoa datubasea irekitzea</translation>
+        <translation type="vanished">Ezinezkoa datubasea irekitzea</translation>
     </message>
     <message>
         <source>Unable to connect</source>
@@ -3179,15 +3182,15 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation>Itxi</translation>
+        <translation type="vanished">Itxi</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Ireki</translation>
+        <translation type="vanished">Ireki</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Exekutatu</translation>
+        <translation type="vanished">Exekutatu</translation>
     </message>
 </context>
 <context>
@@ -3206,7 +3209,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Programa honek Qt %1 bertsio erabiltzen du.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Programa honek Qt %1 bertsio erabiltzen du.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Details...</source>
@@ -3218,11 +3221,11 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Programa honek Qt Iturburu Irekia Edizioa %1 bertsioa erabiltzen du.&lt;/p&gt;&lt;p&gt;Qt Iturburu Irekia Edizioa Iturburu Irekiko aplikazioak garatzeko egina dago. Qt merkatal baimen bat behar duzu jabetzako (iturburu itxiko) aplikazioak garatzeko.&lt;/p&gt;&lt;p&gt;Mesedez ikusi &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; Qt baimenari gainbegirada bat emateko.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Programa honek Qt Iturburu Irekia Edizioa %1 bertsioa erabiltzen du.&lt;/p&gt;&lt;p&gt;Qt Iturburu Irekia Edizioa Iturburu Irekiko aplikazioak garatzeko egina dago. Qt merkatal baimen bat behar duzu jabetzako (iturburu itxiko) aplikazioak garatzeko.&lt;/p&gt;&lt;p&gt;Mesedez ikusi &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; Qt baimenari gainbegirada bat emateko.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Qt-ri buruz&lt;/h3&gt;%1&lt;p&gt;Qt plataforma-anitzeko aplikazioen garapenerako C++ tresna-kit bat da.&lt;/p&gt;&lt;p&gt;Qt-k iturburu-bakarreko eramangarritasuna eskaintzen du MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, etal Unix merkatal aldaera nagusi guztien artean. Qt eskuragarri dago ere barneratutako gailuetarako Barneratutako Linux eta Windows CE-rako Qt-rekin.&lt;/p&gt;&lt;p&gt;Qt Nokia produktu bat da. Ikusi &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; argibide gehiagorako.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;Qt-ri buruz&lt;/h3&gt;%1&lt;p&gt;Qt plataforma-anitzeko aplikazioen garapenerako C++ tresna-kit bat da.&lt;/p&gt;&lt;p&gt;Qt-k iturburu-bakarreko eramangarritasuna eskaintzen du MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, etal Unix merkatal aldaera nagusi guztien artean. Qt eskuragarri dago ere barneratutako gailuetarako Barneratutako Linux eta Windows CE-rako Qt-rekin.&lt;/p&gt;&lt;p&gt;Qt Nokia produktu bat da. Ikusi &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; argibide gehiagorako.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
@@ -3237,18 +3240,18 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QMultiInputContext</name>
     <message>
         <source>Select IM</source>
-        <translation>Hautatu SM</translation>
+        <translation type="vanished">Hautatu SM</translation>
     </message>
 </context>
 <context>
     <name>QMultiInputContextPlugin</name>
     <message>
         <source>Multiple input method switcher</source>
-        <translation>Sarrera anitz metodo aldagailua</translation>
+        <translation type="vanished">Sarrera anitz metodo aldagailua</translation>
     </message>
     <message>
         <source>Multiple input method switcher that uses the context menu of the text widgets</source>
-        <translation>Idazki widgeten hitzingurua erabiltzen duen sarrera metodo anitz aldatzailea</translation>
+        <translation type="vanished">Idazki widgeten hitzingurua erabiltzen duen sarrera metodo anitz aldatzailea</translation>
     </message>
 </context>
 <context>
@@ -3456,7 +3459,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QNetworkReply</name>
     <message>
         <source>Error downloading %1 - server replied: %2</source>
-        <translation>Akatsa %1 jeisterakoan- zerbitzariaren erantzuna: %2</translation>
+        <translation type="vanished">Akatsa %1 jeisterakoan- zerbitzariaren erantzuna: %2</translation>
     </message>
     <message>
         <source>Protocol &quot;%1&quot; is unknown</source>
@@ -3583,7 +3586,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>Unable to execute select statement</source>
-        <translation>Ezinezkoa hautaturiko estametua exekutatzea</translation>
+        <translation type="vanished">Ezinezkoa hautaturiko estametua exekutatzea</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
@@ -3602,7 +3605,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     </message>
     <message>
         <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
-        <translation>Ezinezkoa elkarketatzea - Gidatzaileak ez ditu beharrezko eginkizun guztiak sostengatzen</translation>
+        <translation type="vanished">Ezinezkoa elkarketatzea - Gidatzaileak ez ditu beharrezko eginkizun guztiak sostengatzen</translation>
     </message>
     <message>
         <source>Unable to disable autocommit</source>
@@ -3668,42 +3671,42 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QObject</name>
     <message>
         <source>Operation not supported on %1</source>
-        <translation>Eragiketa ez dago sostengaturik %1-ean</translation>
+        <translation type="vanished">Eragiketa ez dago sostengaturik %1-ean</translation>
     </message>
     <message>
         <source>Invalid URI: %1</source>
-        <translation>URI baliogabea: %1</translation>
+        <translation type="vanished">URI baliogabea: %1</translation>
     </message>
     <message>
         <source>Write error writing to %1: %2</source>
-        <translation>Idazketa akatsa %1-ra idazterakoan: %2</translation>
+        <translation type="vanished">Idazketa akatsa %1-ra idazterakoan: %2</translation>
     </message>
     <message>
         <source>Read error reading from %1: %2</source>
-        <translation>Irakurketa akatsa %1-tik irakurtzerakoan: %2</translation>
+        <translation type="vanished">Irakurketa akatsa %1-tik irakurtzerakoan: %2</translation>
     </message>
     <message>
         <source>Socket error on %1: %2</source>
-        <translation>Socket akatsa %1:%2</translation>
+        <translation type="vanished">Socket akatsa %1:%2</translation>
     </message>
     <message>
         <source>Remote host closed the connection prematurely on %1</source>
-        <translation>Hurruneko hostalariak elkarketa goizegi itxi du %1-ean</translation>
+        <translation type="vanished">Hurruneko hostalariak elkarketa goizegi itxi du %1-ean</translation>
     </message>
     <message>
         <source>Protocol error: packet of size 0 received</source>
-        <translation>Protokolo akatsa: 0 neurriko paketea jaso da</translation>
+        <translation type="vanished">Protokolo akatsa: 0 neurriko paketea jaso da</translation>
     </message>
 </context>
 <context>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation>Izena</translation>
+        <translation type="vanished">Izena</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Balioa</translation>
+        <translation type="vanished">Balioa</translation>
     </message>
 </context>
 <context>
@@ -3748,7 +3751,7 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QPageSetupWidget</name>
     <message>
         <source>Centimeters (cm)</source>
-        <translation>Metroehunen (me)</translation>
+        <translation type="vanished">Metroehunen (me)</translation>
     </message>
     <message>
         <source>Millimeters (mm)</source>
@@ -4453,15 +4456,15 @@ Horrela ere ezabatzea nahi duzu?</translation>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>tokian elkarketaturik</translation>
+        <translation type="vanished">tokian elkarketaturik</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>Izenordea: %1</translation>
+        <translation type="vanished">Izenordea: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>ezezaguna</translation>
+        <translation type="vanished">ezezaguna</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -4487,127 +4490,127 @@ Mesedez hautatu agiri izen ezberdin bat.</translation>
     </message>
     <message>
         <source>A0</source>
-        <translation>A0</translation>
+        <translation type="vanished">A0</translation>
     </message>
     <message>
         <source>A1</source>
-        <translation>A1</translation>
+        <translation type="vanished">A1</translation>
     </message>
     <message>
         <source>A2</source>
-        <translation>A2</translation>
+        <translation type="vanished">A2</translation>
     </message>
     <message>
         <source>A3</source>
-        <translation>A3</translation>
+        <translation type="vanished">A3</translation>
     </message>
     <message>
         <source>A4</source>
-        <translation>A4</translation>
+        <translation type="vanished">A4</translation>
     </message>
     <message>
         <source>A5</source>
-        <translation>A5</translation>
+        <translation type="vanished">A5</translation>
     </message>
     <message>
         <source>A6</source>
-        <translation>A6</translation>
+        <translation type="vanished">A6</translation>
     </message>
     <message>
         <source>A7</source>
-        <translation>A7</translation>
+        <translation type="vanished">A7</translation>
     </message>
     <message>
         <source>A8</source>
-        <translation>A8</translation>
+        <translation type="vanished">A8</translation>
     </message>
     <message>
         <source>A9</source>
-        <translation>A9</translation>
+        <translation type="vanished">A9</translation>
     </message>
     <message>
         <source>B0</source>
-        <translation>B0</translation>
+        <translation type="vanished">B0</translation>
     </message>
     <message>
         <source>B1</source>
-        <translation>B1</translation>
+        <translation type="vanished">B1</translation>
     </message>
     <message>
         <source>B2</source>
-        <translation>B2</translation>
+        <translation type="vanished">B2</translation>
     </message>
     <message>
         <source>B3</source>
-        <translation>B3</translation>
+        <translation type="vanished">B3</translation>
     </message>
     <message>
         <source>B4</source>
-        <translation>B4</translation>
+        <translation type="vanished">B4</translation>
     </message>
     <message>
         <source>B5</source>
-        <translation>B5</translation>
+        <translation type="vanished">B5</translation>
     </message>
     <message>
         <source>B6</source>
-        <translation>B6</translation>
+        <translation type="vanished">B6</translation>
     </message>
     <message>
         <source>B7</source>
-        <translation>B7</translation>
+        <translation type="vanished">B7</translation>
     </message>
     <message>
         <source>B8</source>
-        <translation>B8</translation>
+        <translation type="vanished">B8</translation>
     </message>
     <message>
         <source>B9</source>
-        <translation>B9</translation>
+        <translation type="vanished">B9</translation>
     </message>
     <message>
         <source>B10</source>
-        <translation>B10</translation>
+        <translation type="vanished">B10</translation>
     </message>
     <message>
         <source>C5E</source>
-        <translation>C5E</translation>
+        <translation type="vanished">C5E</translation>
     </message>
     <message>
         <source>DLE</source>
-        <translation>DLE</translation>
+        <translation type="vanished">DLE</translation>
     </message>
     <message>
         <source>Executive</source>
-        <translation>Exekutiboa</translation>
+        <translation type="vanished">Exekutiboa</translation>
     </message>
     <message>
         <source>Folio</source>
-        <translation>Orria</translation>
+        <translation type="vanished">Orria</translation>
     </message>
     <message>
         <source>Ledger</source>
-        <translation>Salerosketa</translation>
+        <translation type="vanished">Salerosketa</translation>
     </message>
     <message>
         <source>Legal</source>
-        <translation>Legezkoa</translation>
+        <translation type="vanished">Legezkoa</translation>
     </message>
     <message>
         <source>Letter</source>
-        <translation>Gutuna</translation>
+        <translation type="vanished">Gutuna</translation>
     </message>
     <message>
         <source>Tabloid</source>
-        <translation>Tabloidea</translation>
+        <translation type="vanished">Tabloidea</translation>
     </message>
     <message>
         <source>US Common #10 Envelope</source>
-        <translation>AEB Arrunta #10 Gutuna</translation>
+        <translation type="vanished">AEB Arrunta #10 Gutuna</translation>
     </message>
     <message>
         <source>Custom</source>
-        <translation>Norberea</translation>
+        <translation type="vanished">Norberea</translation>
     </message>
     <message>
         <source>&amp;Options &gt;&gt;</source>
@@ -4627,7 +4630,7 @@ Mesedez hautatu agiri izen ezberdin bat.</translation>
     </message>
     <message>
         <source>Print to File (Postscript)</source>
-        <translation>Irarkitu Agirira (Postscript)</translation>
+        <translation type="vanished">Irarkitu Agirira (Postscript)</translation>
     </message>
     <message>
         <source>Local file</source>
@@ -4635,7 +4638,7 @@ Mesedez hautatu agiri izen ezberdin bat.</translation>
     </message>
     <message>
         <source>Write %1 file</source>
-        <translation>Idatzi %1 agiria</translation>
+        <translation type="vanished">Idatzi %1 agiria</translation>
     </message>
     <message>
         <source>Print</source>
@@ -4803,7 +4806,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Close</source>
-        <translation>Itxi</translation>
+        <translation type="vanished">Itxi</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -4837,7 +4840,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Advanced</source>
-        <translation>Aurreratua</translation>
+        <translation type="vanished">Aurreratua</translation>
     </message>
 </context>
 <context>
@@ -5020,7 +5023,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation>Ireki</translation>
+        <translation type="vanished">Ireki</translation>
     </message>
 </context>
 <context>
@@ -5041,7 +5044,7 @@ Please turn one of those options off.</source>
     <name>QRadioButton</name>
     <message>
         <source>Check</source>
-        <translation>Hautatu</translation>
+        <translation type="vanished">Hautatu</translation>
     </message>
 </context>
 <context>
@@ -5434,7 +5437,7 @@ Please turn one of those options off.</source>
     <name>QSQLite2Driver</name>
     <message>
         <source>Error to open database</source>
-        <translation>Akatsa datubasea irekitzerakoan</translation>
+        <translation type="vanished">Akatsa datubasea irekitzerakoan</translation>
     </message>
     <message>
         <source>Unable to begin transaction</source>
@@ -5446,7 +5449,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Unable to rollback Transaction</source>
-        <translation>Ezinezkoa Eskualdaketa ezeztatzea</translation>
+        <translation type="vanished">Ezinezkoa Eskualdaketa ezeztatzea</translation>
     </message>
     <message>
         <source>Error opening database</source>
@@ -5593,15 +5596,15 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Line up</source>
-        <translation>Lerroan gora</translation>
+        <translation type="vanished">Lerroan gora</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Kokapena</translation>
+        <translation type="vanished">Kokapena</translation>
     </message>
     <message>
         <source>Line down</source>
-        <translation>Lerroan behera</translation>
+        <translation type="vanished">Lerroan behera</translation>
     </message>
 </context>
 <context>
@@ -5632,7 +5635,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: doesn&apos;t exists</source>
-        <translation>%1: ez dago</translation>
+        <translation type="vanished">%1: ez dago</translation>
     </message>
     <message>
         <source>%1: out of resources</source>
@@ -5648,7 +5651,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: unix key file doesn&apos;t exists</source>
-        <translation>%1: unix giltza agiria ez dago</translation>
+        <translation type="vanished">%1: unix giltza agiria ez dago</translation>
     </message>
     <message>
         <source>%1: ftok failed</source>
@@ -5695,6 +5698,7 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation>Tartea</translation>
     </message>
     <message>
@@ -6023,10 +6027,12 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation>Deitu</translation>
     </message>
     <message>
         <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
         <translation>Eskegi</translation>
     </message>
     <message>
@@ -6689,30 +6695,30 @@ Please turn one of those options off.</source>
     <name>QSlider</name>
     <message>
         <source>Page left</source>
-        <translation>Orrialdean ezkerrera</translation>
+        <translation type="vanished">Orrialdean ezkerrera</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Orraialdean gora</translation>
+        <translation type="vanished">Orraialdean gora</translation>
     </message>
     <message>
         <source>Position</source>
-        <translation>Kokapena</translation>
+        <translation type="vanished">Kokapena</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Orrialdean eskuinera</translation>
+        <translation type="vanished">Orrialdean eskuinera</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Orrialdean behera</translation>
+        <translation type="vanished">Orrialdean behera</translation>
     </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
     <message>
         <source>Socks5 timeout error connecting to socks server</source>
-        <translation>Socks5 epemuga akatsa sock zerbitzariarekin elkarketatzean</translation>
+        <translation type="vanished">Socks5 epemuga akatsa sock zerbitzariarekin elkarketatzean</translation>
     </message>
     <message>
         <source>Network operation timed out</source>
@@ -7135,54 +7141,54 @@ Role of an accessible object</extracomment>
     <name>QSpinBox</name>
     <message>
         <source>More</source>
-        <translation>Gehiago</translation>
+        <translation type="vanished">Gehiago</translation>
     </message>
     <message>
         <source>Less</source>
-        <translation>Gutxiago</translation>
+        <translation type="vanished">Gutxiago</translation>
     </message>
 </context>
 <context>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>Ezabatu</translation>
+        <translation type="vanished">Ezabatu</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>Grabaketa hau ezabatu?</translation>
+        <translation type="vanished">Grabaketa hau ezabatu?</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Bai</translation>
+        <translation type="vanished">Bai</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>Ez</translation>
+        <translation type="vanished">Ez</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Txertatu</translation>
+        <translation type="vanished">Txertatu</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>Eguneratu</translation>
+        <translation type="vanished">Eguneratu</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Editatua gorde?</translation>
+        <translation type="vanished">Editatua gorde?</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Ezeztatu</translation>
+        <translation type="vanished">Ezeztatu</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>Baieztatu</translation>
+        <translation type="vanished">Baieztatu</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Ezeztatu edizioak?</translation>
+        <translation type="vanished">Ezeztatu edizioak?</translation>
     </message>
 </context>
 <context>
@@ -7229,7 +7235,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Private key does not certificate public key, %1</source>
-        <translation>Giltza pribatua ez da giltza publiko egiaztagiritua, %1</translation>
+        <translation type="vanished">Giltza pribatua ez da giltza publiko egiaztagiritua, %1</translation>
     </message>
     <message>
         <source>Error when setting the elliptic curves (%1)</source>
@@ -7506,64 +7512,64 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation>&amp;Desegin</translation>
+        <translation type="vanished">&amp;Desegin</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation>&amp;Berregin</translation>
+        <translation type="vanished">&amp;Berregin</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>&amp;Ebaki</translation>
+        <translation type="vanished">&amp;Ebaki</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopiatu</translation>
+        <translation type="vanished">&amp;Kopiatu</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
-        <translation>Kopiatu &amp;Lotura Helbidea</translation>
+        <translation type="vanished">Kopiatu &amp;Lotura Helbidea</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation>&amp;Itsatsi</translation>
+        <translation type="vanished">&amp;Itsatsi</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Ezabatu</translation>
+        <translation type="vanished">Ezabatu</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Hautatu Dena</translation>
+        <translation type="vanished">Hautatu Dena</translation>
     </message>
 </context>
 <context>
     <name>QToolButton</name>
     <message>
         <source>Press</source>
-        <translation>Sakatu</translation>
+        <translation type="vanished">Sakatu</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation>Ireki</translation>
+        <translation type="vanished">Ireki</translation>
     </message>
 </context>
 <context>
     <name>QUdpSocket</name>
     <message>
         <source>This platform does not support IPv6</source>
-        <translation>Plataforma honek ez du IPv6 sostengatzen</translation>
+        <translation type="vanished">Plataforma honek ez du IPv6 sostengatzen</translation>
     </message>
 </context>
 <context>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation>Desegin</translation>
+        <translation type="vanished">Desegin</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Berregin</translation>
+        <translation type="vanished">Berregin</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7595,11 +7601,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation>Desegin</translation>
+        <translation type="vanished">Desegin</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Berregin</translation>
+        <translation type="vanished">Berregin</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7687,278 +7693,278 @@ Role of an accessible object</extracomment>
     <name>QWebFrame</name>
     <message>
         <source>Request cancelled</source>
-        <translation>Eskabidea ezeztaturik</translation>
+        <translation type="vanished">Eskabidea ezeztaturik</translation>
     </message>
     <message>
         <source>Request blocked</source>
-        <translation>Eskabidea bloketaturik</translation>
+        <translation type="vanished">Eskabidea bloketaturik</translation>
     </message>
     <message>
         <source>Cannot show URL</source>
-        <translation>Ezinezkoa URL-a erakustea</translation>
+        <translation type="vanished">Ezinezkoa URL-a erakustea</translation>
     </message>
     <message>
         <source>Frame load interruped by policy change</source>
-        <translation>Frame gertaketa etenda araudi aldaketagaitik</translation>
+        <translation type="vanished">Frame gertaketa etenda araudi aldaketagaitik</translation>
     </message>
     <message>
         <source>Cannot show mimetype</source>
-        <translation>Ezinezkoa mimemota erakustea</translation>
+        <translation type="vanished">Ezinezkoa mimemota erakustea</translation>
     </message>
     <message>
         <source>File does not exist</source>
-        <translation>Agiria ez dago</translation>
+        <translation type="vanished">Agiria ez dago</translation>
     </message>
 </context>
 <context>
     <name>QWebPage</name>
     <message>
         <source>Bad HTTP request</source>
-        <translation>HTTP eskaera gaitza</translation>
+        <translation type="vanished">HTTP eskaera gaitza</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>default label for Submit buttons in forms on web pages</comment>
-        <translation>Aurkeztu</translation>
+        <translation type="vanished">Aurkeztu</translation>
     </message>
     <message>
         <source>Submit</source>
         <comment>Submit (input element) alt text for &lt;input&gt; elements with no alt, title, or value</comment>
-        <translation>Aurkeztu</translation>
+        <translation type="vanished">Aurkeztu</translation>
     </message>
     <message>
         <source>Reset</source>
         <comment>default label for Reset buttons in forms on web pages</comment>
-        <translation>Berrezarri</translation>
+        <translation type="vanished">Berrezarri</translation>
     </message>
     <message>
         <source>This is a searchable index. Enter search keywords: </source>
         <comment>text that appears at the start of nearly-obsolete web pages in the form of a &apos;searchable index&apos;</comment>
-        <translation>Hau bilaketa aurkibide bat da. Sartu bilaketa hitzak: </translation>
+        <translation type="vanished">Hau bilaketa aurkibide bat da. Sartu bilaketa hitzak: </translation>
     </message>
     <message>
         <source>Choose File</source>
         <comment>title for file button used in HTML forms</comment>
-        <translation>Hautatu Agiria</translation>
+        <translation type="vanished">Hautatu Agiria</translation>
     </message>
     <message>
         <source>No file selected</source>
         <comment>text to display in file button used in HTML forms when no file is selected</comment>
-        <translation>Ez da agiririk hautatu</translation>
+        <translation type="vanished">Ez da agiririk hautatu</translation>
     </message>
     <message>
         <source>Open in New Window</source>
         <comment>Open in New Window context menu item</comment>
-        <translation>Ireki Leiho Berrian</translation>
+        <translation type="vanished">Ireki Leiho Berrian</translation>
     </message>
     <message>
         <source>Save Link...</source>
         <comment>Download Linked File context menu item</comment>
-        <translation>Gorde Lotura...</translation>
+        <translation type="vanished">Gorde Lotura...</translation>
     </message>
     <message>
         <source>Copy Link</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Kopiatu Lotura</translation>
+        <translation type="vanished">Kopiatu Lotura</translation>
     </message>
     <message>
         <source>Open Image</source>
         <comment>Open Image in New Window context menu item</comment>
-        <translation>Ireki Irudia</translation>
+        <translation type="vanished">Ireki Irudia</translation>
     </message>
     <message>
         <source>Save Image</source>
         <comment>Download Image context menu item</comment>
-        <translation>Gorde Irudia</translation>
+        <translation type="vanished">Gorde Irudia</translation>
     </message>
     <message>
         <source>Copy Image</source>
         <comment>Copy Link context menu item</comment>
-        <translation>Kopiatu Irudia</translation>
+        <translation type="vanished">Kopiatu Irudia</translation>
     </message>
     <message>
         <source>Open Frame</source>
         <comment>Open Frame in New Window context menu item</comment>
-        <translation>Ireki Framea</translation>
+        <translation type="vanished">Ireki Framea</translation>
     </message>
     <message>
         <source>Copy</source>
         <comment>Copy context menu item</comment>
-        <translation>Kopiatu</translation>
+        <translation type="vanished">Kopiatu</translation>
     </message>
     <message>
         <source>Go Back</source>
         <comment>Back context menu item</comment>
-        <translation>Joan Atzera</translation>
+        <translation type="vanished">Joan Atzera</translation>
     </message>
     <message>
         <source>Go Forward</source>
         <comment>Forward context menu item</comment>
-        <translation>Joan Aurrera</translation>
+        <translation type="vanished">Joan Aurrera</translation>
     </message>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation>Gelditu</translation>
+        <translation type="vanished">Gelditu</translation>
     </message>
     <message>
         <source>Reload</source>
         <comment>Reload context menu item</comment>
-        <translation>Birgertatu</translation>
+        <translation type="vanished">Birgertatu</translation>
     </message>
     <message>
         <source>Cut</source>
         <comment>Cut context menu item</comment>
-        <translation>Ebaki</translation>
+        <translation type="vanished">Ebaki</translation>
     </message>
     <message>
         <source>Paste</source>
         <comment>Paste context menu item</comment>
-        <translation>Itsatsi</translation>
+        <translation type="vanished">Itsatsi</translation>
     </message>
     <message>
         <source>No Guesses Found</source>
         <comment>No Guesses Found context menu item</comment>
-        <translation>Ez da Gonbidaturik Aurkitu</translation>
+        <translation type="vanished">Ez da Gonbidaturik Aurkitu</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Spelling context menu item</comment>
-        <translation>Ezikusi</translation>
+        <translation type="vanished">Ezikusi</translation>
     </message>
     <message>
         <source>Add To Dictionary</source>
         <comment>Learn Spelling context menu item</comment>
-        <translation>Gehitu Hiztegira</translation>
+        <translation type="vanished">Gehitu Hiztegira</translation>
     </message>
     <message>
         <source>Search The Web</source>
         <comment>Search The Web context menu item</comment>
-        <translation>Bilatu Webean</translation>
+        <translation type="vanished">Bilatu Webean</translation>
     </message>
     <message>
         <source>Look Up In Dictionary</source>
         <comment>Look Up in Dictionary context menu item</comment>
-        <translation>Begiratu Hiztegian</translation>
+        <translation type="vanished">Begiratu Hiztegian</translation>
     </message>
     <message>
         <source>Open Link</source>
         <comment>Open Link context menu item</comment>
-        <translation>Ireki Lotura</translation>
+        <translation type="vanished">Ireki Lotura</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>Ignore Grammar context menu item</comment>
-        <translation>Ezikusi</translation>
+        <translation type="vanished">Ezikusi</translation>
     </message>
     <message>
         <source>Spelling</source>
         <comment>Spelling and Grammar context sub-menu item</comment>
-        <translation>Egiaztapena</translation>
+        <translation type="vanished">Egiaztapena</translation>
     </message>
     <message>
         <source>Show Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Erakutsi Egiaztapena eta Idazkera</translation>
+        <translation type="vanished">Erakutsi Egiaztapena eta Idazkera</translation>
     </message>
     <message>
         <source>Hide Spelling and Grammar</source>
         <comment>menu item title</comment>
-        <translation>Ezkutatu Egiaztapena eta Idazkera</translation>
+        <translation type="vanished">Ezkutatu Egiaztapena eta Idazkera</translation>
     </message>
     <message>
         <source>Check Spelling</source>
         <comment>Check spelling context menu item</comment>
-        <translation>Idaz Egiaztapena</translation>
+        <translation type="vanished">Idaz Egiaztapena</translation>
     </message>
     <message>
         <source>Check Spelling While Typing</source>
         <comment>Check spelling while typing context menu item</comment>
-        <translation>Egiaztatu idazkera Idazterakoan</translation>
+        <translation type="vanished">Egiaztatu idazkera Idazterakoan</translation>
     </message>
     <message>
         <source>Check Grammar With Spelling</source>
         <comment>Check grammar with spelling context menu item</comment>
-        <translation>Egiaztatu Idazkera Egiaztatzailearekin</translation>
+        <translation type="vanished">Egiaztatu Idazkera Egiaztatzailearekin</translation>
     </message>
     <message>
         <source>Fonts</source>
         <comment>Font context sub-menu item</comment>
-        <translation>Hizkiak</translation>
+        <translation type="vanished">Hizkiak</translation>
     </message>
     <message>
         <source>Bold</source>
         <comment>Bold context menu item</comment>
-        <translation>Lodi</translation>
+        <translation type="vanished">Lodi</translation>
     </message>
     <message>
         <source>Italic</source>
         <comment>Italic context menu item</comment>
-        <translation>Etzana</translation>
+        <translation type="vanished">Etzana</translation>
     </message>
     <message>
         <source>Underline</source>
         <comment>Underline context menu item</comment>
-        <translation>Azpimarratuta</translation>
+        <translation type="vanished">Azpimarratuta</translation>
     </message>
     <message>
         <source>Outline</source>
         <comment>Outline context menu item</comment>
-        <translation>Ingurua</translation>
+        <translation type="vanished">Ingurua</translation>
     </message>
     <message>
         <source>Direction</source>
         <comment>Writing direction context sub-menu item</comment>
-        <translation>Norabidea</translation>
+        <translation type="vanished">Norabidea</translation>
     </message>
     <message>
         <source>Default</source>
         <comment>Default writing direction context menu item</comment>
-        <translation>Berezkoa</translation>
+        <translation type="vanished">Berezkoa</translation>
     </message>
     <message>
         <source>LTR</source>
         <comment>Left to Right context menu item</comment>
-        <translation>ESEZ</translation>
+        <translation type="vanished">ESEZ</translation>
     </message>
     <message>
         <source>RTL</source>
         <comment>Right to Left context menu item</comment>
-        <translation>EZES</translation>
+        <translation type="vanished">EZES</translation>
     </message>
     <message>
         <source>Inspect</source>
         <comment>Inspect Element context menu item</comment>
-        <translation>Ikertu</translation>
+        <translation type="vanished">Ikertu</translation>
     </message>
     <message>
         <source>No recent searches</source>
         <comment>Label for only item in menu that appears when clicking on the search field image, when no searches have been performed</comment>
-        <translation>Ez dago bilaketa berririk</translation>
+        <translation type="vanished">Ez dago bilaketa berririk</translation>
     </message>
     <message>
         <source>Recent searches</source>
         <comment>label for first item in the menu that appears when clicking on the search field image, used as embedded menu title</comment>
-        <translation>Bilaketa berriak</translation>
+        <translation type="vanished">Bilaketa berriak</translation>
     </message>
     <message>
         <source>Clear recent searches</source>
         <comment>menu item in Recent Searches menu that empties menu&apos;s contents</comment>
-        <translation>Garbitu bilaketa berriak</translation>
+        <translation type="vanished">Garbitu bilaketa berriak</translation>
     </message>
     <message>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
-        <translation>Ezezaguna</translation>
+        <translation type="vanished">Ezezaguna</translation>
     </message>
     <message>
         <source>%1 (%2x%3 pixels)</source>
         <comment>Title string for images</comment>
-        <translation>%1 (%2x%3 pixel)</translation>
+        <translation type="vanished">%1 (%2x%3 pixel)</translation>
     </message>
     <message>
         <source>Web Inspector - %2</source>
-        <translation>Web Ikerlea: %2</translation>
+        <translation type="vanished">Web Ikerlea: %2</translation>
     </message>
 </context>
 <context>
@@ -8043,7 +8049,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Quit</source>
-        <translation>Utzi</translation>
+        <translation type="vanished">Utzi</translation>
     </message>
     <message>
         <source>Help</source>
@@ -8078,55 +8084,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Leheneratu</translation>
+        <translation type="vanished">&amp;Leheneratu</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation>&amp;Mugitu</translation>
+        <translation type="vanished">&amp;Mugitu</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Neurria</translation>
+        <translation type="vanished">&amp;Neurria</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation>T&amp;xikiengotu</translation>
+        <translation type="vanished">T&amp;xikiengotu</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation>&amp;Handiengotu</translation>
+        <translation type="vanished">&amp;Handiengotu</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>It&amp;xi</translation>
+        <translation type="vanished">It&amp;xi</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Eduki &amp;Gainean</translation>
+        <translation type="vanished">Eduki &amp;Gainean</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation>&amp;Itzala</translation>
+        <translation type="vanished">&amp;Itzala</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation>Txikiengotu</translation>
+        <translation type="vanished">Txikiengotu</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation>Leheneratu Behera</translation>
+        <translation type="vanished">Leheneratu Behera</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Itxi</translation>
+        <translation type="vanished">Itxi</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation>It&amp;zalgabe</translation>
+        <translation type="vanished">It&amp;zalgabe</translation>
     </message>
 </context>
 <context>
@@ -8248,7 +8254,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>Ezaugarria ber-zehaztuta.</translation>
+        <translation type="vanished">Ezaugarria ber-zehaztuta.</translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
@@ -8375,151 +8381,151 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QtXmlPatterns</name>
     <message>
         <source>An %1-attribute with value %2 has already been declared.</source>
-        <translation>%1-ezaugarri bat %2 balioarekin jadanik adierazi da.</translation>
+        <translation type="vanished">%1-ezaugarri bat %2 balioarekin jadanik adierazi da.</translation>
     </message>
     <message>
         <source>An %1-attribute must have a valid %2 as value, which %3 isn&apos;t.</source>
-        <translation>%1-ezaugarri batek %2 baliozkoa izan behar du balio bezala, %3 ez da.</translation>
+        <translation type="vanished">%1-ezaugarri batek %2 baliozkoa izan behar du balio bezala, %3 ez da.</translation>
     </message>
     <message>
         <source>Network timeout.</source>
-        <translation>Sare epemuga.</translation>
+        <translation type="vanished">Sare epemuga.</translation>
     </message>
     <message>
         <source>Element %1 can&apos;t be serialized because it appears outside the document element.</source>
-        <translation>%1 elementoa ezin da serializatu agiri elementutik kanpo agertzen delako.</translation>
+        <translation type="vanished">%1 elementoa ezin da serializatu agiri elementutik kanpo agertzen delako.</translation>
     </message>
     <message>
         <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
-        <translation>%1 ezaugarria ezin da serializatu goiko mailan agertzen delako.</translation>
+        <translation type="vanished">%1 ezaugarria ezin da serializatu goiko mailan agertzen delako.</translation>
     </message>
     <message>
         <source>Year %1 is invalid because it begins with %2.</source>
-        <translation>%1 urtea baliogabea da %2-rekin hasten delako.</translation>
+        <translation type="vanished">%1 urtea baliogabea da %2-rekin hasten delako.</translation>
     </message>
     <message>
         <source>Day %1 is outside the range %2..%3.</source>
-        <translation>%1 eguna mailaz kanpo dago, %2..%3.</translation>
+        <translation type="vanished">%1 eguna mailaz kanpo dago, %2..%3.</translation>
     </message>
     <message>
         <source>Month %1 is outside the range %2..%3.</source>
-        <translation>%1 hilabetea mailaz kanpo dago, %2..%3.</translation>
+        <translation type="vanished">%1 hilabetea mailaz kanpo dago, %2..%3.</translation>
     </message>
     <message>
         <source>Overflow: Can&apos;t represent date %1.</source>
-        <translation>Gainjarioa: Ezin da %1 data adierazi.</translation>
+        <translation type="vanished">Gainjarioa: Ezin da %1 data adierazi.</translation>
     </message>
     <message>
         <source>Day %1 is invalid for month %2.</source>
-        <translation>%1 eguna baliogabea da %2 hilabeterako.</translation>
+        <translation type="vanished">%1 eguna baliogabea da %2 hilabeterako.</translation>
     </message>
     <message>
         <source>Time 24:%1:%2.%3 is invalid. Hour is 24, but minutes, seconds, and milliseconds are not all 0; </source>
-        <translation>Denbora 24:%1:%2.%3 baliogabea da. Ordua 24 da, baina minutuak, segunduak eta segundumilaenak ez dira denak 0; </translation>
+        <translation type="vanished">Denbora 24:%1:%2.%3 baliogabea da. Ordua 24 da, baina minutuak, segunduak eta segundumilaenak ez dira denak 0; </translation>
     </message>
     <message>
         <source>Time %1:%2:%3.%4 is invalid.</source>
-        <translation>Denbora %1:%2:%3.%4 baliogabea da.</translation>
+        <translation type="vanished">Denbora %1:%2:%3.%4 baliogabea da.</translation>
     </message>
     <message>
         <source>Overflow: Date can&apos;t be represented.</source>
-        <translation>Gainjarioa: Data ezin da adierazi.</translation>
+        <translation type="vanished">Gainjarioa: Data ezin da adierazi.</translation>
     </message>
     <message>
         <source>At least one component must be present.</source>
-        <translation>Gutxienez osagi bat egon behar da bertan.</translation>
+        <translation type="vanished">Gutxienez osagi bat egon behar da bertan.</translation>
     </message>
     <message>
         <source>At least one time component must appear after the %1-delimiter.</source>
-        <translation>Gutxienez denbora osagi bat agertu behar da %1-mugatzailearen ondoren.</translation>
+        <translation type="vanished">Gutxienez denbora osagi bat agertu behar da %1-mugatzailearen ondoren.</translation>
     </message>
     <message>
         <source>No operand in an integer division, %1, can be %2.</source>
-        <translation>Ez dago eragilerik zatiketa oso batean, %1 izan behar da %2.</translation>
+        <translation type="vanished">Ez dago eragilerik zatiketa oso batean, %1 izan behar da %2.</translation>
     </message>
     <message>
         <source>The first operand in an integer division, %1, cannot be infinity (%2).</source>
-        <translation>Lehen eragilea zatiketa oso batean, %1 ezin da mugagabea izan (%2).</translation>
+        <translation type="vanished">Lehen eragilea zatiketa oso batean, %1 ezin da mugagabea izan (%2).</translation>
     </message>
     <message>
         <source>The second operand in a division, %1, cannot be zero (%2).</source>
-        <translation>Bigarren eragilea zatiketa batean, %1 ezin da huts izan (%2).</translation>
+        <translation type="vanished">Bigarren eragilea zatiketa batean, %1 ezin da huts izan (%2).</translation>
     </message>
     <message>
         <source>%1 is not a valid value of type %2.</source>
-        <translation>%1 ez da %2 motako baliozko balio bat.</translation>
+        <translation type="vanished">%1 ez da %2 motako baliozko balio bat.</translation>
     </message>
     <message>
         <source>When casting to %1 from %2, the source value cannot be %3.</source>
-        <translation>%1-tik %2-ra bihuratzerakoan, iturburu balioa ezin da %3 izan.</translation>
+        <translation type="vanished">%1-tik %2-ra bihuratzerakoan, iturburu balioa ezin da %3 izan.</translation>
     </message>
     <message>
         <source>Integer division (%1) by zero (%2) is undefined.</source>
-        <translation>Zatiketa osa (%1) hutsrekin (%2) zehaztugabea da.</translation>
+        <translation type="vanished">Zatiketa osa (%1) hutsrekin (%2) zehaztugabea da.</translation>
     </message>
     <message>
         <source>Division (%1) by zero (%2) is undefined.</source>
-        <translation>Zatiketa (%1) hutsrekin (%2) zehaztugabea da.</translation>
+        <translation type="vanished">Zatiketa (%1) hutsrekin (%2) zehaztugabea da.</translation>
     </message>
     <message>
         <source>Modulus division (%1) by zero (%2) is undefined.</source>
-        <translation>Modulo zatiketa (%1) hutsrekin (%2) zehaztugabea da.</translation>
+        <translation type="vanished">Modulo zatiketa (%1) hutsrekin (%2) zehaztugabea da.</translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 (not-a-number) is not allowed.</source>
-        <translation>%1 motako balio bat %2-rekin zatitzea (ez-zenbaki-bat) ez dago ahalbidetuta.</translation>
+        <translation type="vanished">%1 motako balio bat %2-rekin zatitzea (ez-zenbaki-bat) ez dago ahalbidetuta.</translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 or %3 (plus or minus zero) is not allowed.</source>
-        <translation>%1 motako balio bat %2 edo %3-rekin zatitzea (gehi edo ken huts) ez dago ahalbidetuta.</translation>
+        <translation type="vanished">%1 motako balio bat %2 edo %3-rekin zatitzea (gehi edo ken huts) ez dago ahalbidetuta.</translation>
     </message>
     <message>
         <source>Multiplication of a value of type %1 by %2 or %3 (plus or minus infinity) is not allowed.</source>
-        <translation>%1 motako balio bat %2 edo %3-rekin biderkatzea (gehi edo ken mugagabe) ez dago ahalbidetuta.</translation>
+        <translation type="vanished">%1 motako balio bat %2 edo %3-rekin biderkatzea (gehi edo ken mugagabe) ez dago ahalbidetuta.</translation>
     </message>
     <message>
         <source>A value of type %1 cannot have an Effective Boolean Value.</source>
-        <translation>%1 motako balio batek ezin du Effective Boolean Balioa izan.</translation>
+        <translation type="vanished">%1 motako balio batek ezin du Effective Boolean Balioa izan.</translation>
     </message>
     <message>
         <source>Effective Boolean Value cannot be calculated for a sequence containing two or more atomic values.</source>
-        <translation>Effective Boolean Balioa ezin da kalkulatu bi edo gehiago balio atomiko dituen sekuentzia baterako.</translation>
+        <translation type="vanished">Effective Boolean Balioa ezin da kalkulatu bi edo gehiago balio atomiko dituen sekuentzia baterako.</translation>
     </message>
     <message>
         <source>Value %1 of type %2 exceeds maximum (%3).</source>
-        <translation>%2 motako %1 balioak gehinezkoa gainditzen du (%3).</translation>
+        <translation type="vanished">%2 motako %1 balioak gehinezkoa gainditzen du (%3).</translation>
     </message>
     <message>
         <source>Value %1 of type %2 is below minimum (%3).</source>
-        <translation>%2 motako %1 balioak gutxinekotik behera dago (%3).</translation>
+        <translation type="vanished">%2 motako %1 balioak gutxinekotik behera dago (%3).</translation>
     </message>
     <message>
         <source>A value of type %1 must contain an even number of digits. The value %2 does not.</source>
-        <translation>%1 motako balio batek zenbaki kopuru bikoiti bat izan behar du. %2 balioa ez da.</translation>
+        <translation type="vanished">%1 motako balio batek zenbaki kopuru bikoiti bat izan behar du. %2 balioa ez da.</translation>
     </message>
     <message>
         <source>%1 is not valid as a value of type %2.</source>
-        <translation>%1 ez da %2 motako baliozko balio bat.</translation>
+        <translation type="vanished">%1 ez da %2 motako baliozko balio bat.</translation>
     </message>
     <message>
         <source>Operator %1 cannot be used on type %2.</source>
-        <translation>%1 eragilea ezin da %2 motan erabili.</translation>
+        <translation type="vanished">%1 eragilea ezin da %2 motan erabili.</translation>
     </message>
     <message>
         <source>Operator %1 cannot be used on atomic values of type %2 and %3.</source>
-        <translation>%1 eragilea ezin da %2 eta %3 motako balio atomikoetan erabili.</translation>
+        <translation type="vanished">%1 eragilea ezin da %2 eta %3 motako balio atomikoetan erabili.</translation>
     </message>
     <message>
         <source>The namespace URI in the name for a computed attribute cannot be %1.</source>
-        <translation>Izentarte URI-a konputaturiko ezaugarri batentzat ezin da %1 izan.</translation>
+        <translation type="vanished">Izentarte URI-a konputaturiko ezaugarri batentzat ezin da %1 izan.</translation>
     </message>
     <message>
         <source>The name for a computed attribute cannot have the namespace URI %1 with the local name %2.</source>
-        <translation>Konputaturiko ezaugarri batentzako izenak ezin du %1 izentarte URI-a izan %2 tokiko izenarekin.</translation>
+        <translation type="vanished">Konputaturiko ezaugarri batentzako izenak ezin du %1 izentarte URI-a izan %2 tokiko izenarekin.</translation>
     </message>
     <message>
         <source>Type error in cast, expected %1, received %2.</source>
-        <translation>Akatsa bihurketan, itxarondakoa %1, jasotakoa %2.</translation>
+        <translation type="vanished">Akatsa bihurketan, itxarondakoa %1, jasotakoa %2.</translation>
     </message>
     <message>
         <source>When casting to %1 or types derived from it, the source value must be of the same type, or it must be a string literal. Type %2 is not allowed.</source>
@@ -8527,47 +8533,47 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>No casting is possible with %1 as the target type.</source>
-        <translation>Ezin da bihurketarik egin %1 xede mota bezala hartuta.</translation>
+        <translation type="vanished">Ezin da bihurketarik egin %1 xede mota bezala hartuta.</translation>
     </message>
     <message>
         <source>It is not possible to cast from %1 to %2.</source>
-        <translation>Ezin da %1-tik %2-ra bihurtu.</translation>
+        <translation type="vanished">Ezin da %1-tik %2-ra bihurtu.</translation>
     </message>
     <message>
         <source>Casting to %1 is not possible because it is an abstract type, and can therefore never be instantiated.</source>
-        <translation>Ezin da %1-ra bihurtu mota abstraktokoa delako, eta hortaz inoiz ezin da eskabidetu.</translation>
+        <translation type="vanished">Ezin da %1-ra bihurtu mota abstraktokoa delako, eta hortaz inoiz ezin da eskabidetu.</translation>
     </message>
     <message>
         <source>It&apos;s not possible to cast the value %1 of type %2 to %3</source>
-        <translation>Ezin da %2 motako %1 balioa %3-ra bihurtu</translation>
+        <translation type="vanished">Ezin da %2 motako %1 balioa %3-ra bihurtu</translation>
     </message>
     <message>
         <source>Failure when casting from %1 to %2: %3</source>
-        <translation>Hutsegitea %1-tik %2-ra bihurtzerakoan: %3</translation>
+        <translation type="vanished">Hutsegitea %1-tik %2-ra bihurtzerakoan: %3</translation>
     </message>
     <message>
         <source>A comment cannot contain %1</source>
-        <translation>Aipamen batek ezin du %1 eduki</translation>
+        <translation type="vanished">Aipamen batek ezin du %1 eduki</translation>
     </message>
     <message>
         <source>A comment cannot end with a %1.</source>
-        <translation>Aipamen bat ezin da %1 batekin amaitu.</translation>
+        <translation type="vanished">Aipamen bat ezin da %1 batekin amaitu.</translation>
     </message>
     <message>
         <source>No comparisons can be done involving the type %1.</source>
-        <translation>Ezin dira alderaketak egin %1 mota barne hartuta.</translation>
+        <translation type="vanished">Ezin dira alderaketak egin %1 mota barne hartuta.</translation>
     </message>
     <message>
         <source>Operator %1 is not available between atomic values of type %2 and %3.</source>
-        <translation>%1 eragilea ez dago eskuragarri %2 eta %3 motako balio atomikoen artean.</translation>
+        <translation type="vanished">%1 eragilea ez dago eskuragarri %2 eta %3 motako balio atomikoen artean.</translation>
     </message>
     <message>
         <source>An attribute node cannot be a child of a document node. Therefore, the attribute %1 is out of place.</source>
-        <translation>Ezaugarri elkargune bat ezin da agiri elkargune baten azpikoa izan. Hortaz, %1 ezaugarria tokiz kanpo dago.</translation>
+        <translation type="vanished">Ezaugarri elkargune bat ezin da agiri elkargune baten azpikoa izan. Hortaz, %1 ezaugarria tokiz kanpo dago.</translation>
     </message>
     <message>
         <source>A library module cannot be evaluated directly. It must be imported from a main module.</source>
-        <translation>Liburutegi modulo bat ezin da zuzenean aztertu. Modulo nagusi batetik inportatu behar da.</translation>
+        <translation type="vanished">Liburutegi modulo bat ezin da zuzenean aztertu. Modulo nagusi batetik inportatu behar da.</translation>
     </message>
     <message>
         <source>A value of type %1 cannot be a predicate. A predicate must have either a numeric type or an Effective Boolean Value type.</source>
@@ -8579,141 +8585,141 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The target name in a processing instruction cannot be %1 in any combination of upper and lower case. Therefore, is %2 invalid.</source>
-        <translation>Xede izena prosezapen jarraipide batean ezin da %1 izan hizki larri xehe konbinazio batean. Hortaz, %2 baliogabea da.</translation>
+        <translation type="vanished">Xede izena prosezapen jarraipide batean ezin da %1 izan hizki larri xehe konbinazio batean. Hortaz, %2 baliogabea da.</translation>
     </message>
     <message>
         <source>%1 is not a valid target name in a processing instruction. It must be a %2 value, e.g. %3.</source>
-        <translation>%1 ez da baliozko xede izena prozesapen jarraipidean. Izan behar da %2 balio bat, adib. %3.</translation>
+        <translation type="vanished">%1 ez da baliozko xede izena prozesapen jarraipidean. Izan behar da %2 balio bat, adib. %3.</translation>
     </message>
     <message>
         <source>The last step in a path must contain either nodes or atomic values. It cannot be a mixture between the two.</source>
-        <translation>Helburu bateko azken urratsak elkarguneak edo balio atomikoak izan behar ditu. Ezin da bien arteko nahastura bat izan.</translation>
+        <translation type="vanished">Helburu bateko azken urratsak elkarguneak edo balio atomikoak izan behar ditu. Ezin da bien arteko nahastura bat izan.</translation>
     </message>
     <message>
         <source>The data of a processing instruction cannot contain the string %1</source>
-        <translation>Prozesapen jarraipide bateko datuek ezin dute %1 katea izan</translation>
+        <translation type="vanished">Prozesapen jarraipide bateko datuek ezin dute %1 katea izan</translation>
     </message>
     <message>
         <source>No namespace binding exists for the prefix %1</source>
-        <translation>Ez dago izentarte loturarik %1 aurrizkiarentzat</translation>
+        <translation type="vanished">Ez dago izentarte loturarik %1 aurrizkiarentzat</translation>
     </message>
     <message>
         <source>No namespace binding exists for the prefix %1 in %2</source>
-        <translation>Ez dago izentarte loturarik %1 aurrizkiarentzat hemen: %2</translation>
+        <translation type="vanished">Ez dago izentarte loturarik %1 aurrizkiarentzat hemen: %2</translation>
     </message>
     <message>
         <source>%1 is an invalid %2</source>
-        <translation>%1 %2 baliogabe bat da</translation>
+        <translation type="vanished">%1 %2 baliogabe bat da</translation>
     </message>
     <message numerus="yes">
         <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%1-ek gehienez %n argumento hartzen ditu. %2 hortaz baliogabea da.</numerusform>
             <numerusform>%1-ek gehienez %n argumento hartzen ditu. %2 hortaz baliogabea da.</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%1-ek gutxienez %n argumento behar ditu. %2 hortaz baliogabea da.</numerusform>
             <numerusform>%1-ek gutxienez %n argumento behar ditu. %2 hortaz baliogabea da.</numerusform>
         </translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2. It must be a numeric type, xs:yearMonthDuration or xs:dayTimeDuration.</source>
-        <translation>%1-ko lehen argumentoa ezin da %2 motakoa izan. Zenbaki motakoa izan behar da, xs:yearMonthDuration edo xs:dayTimeDuration.</translation>
+        <translation type="vanished">%1-ko lehen argumentoa ezin da %2 motakoa izan. Zenbaki motakoa izan behar da, xs:yearMonthDuration edo xs:dayTimeDuration.</translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>%1-ko lehen argumentoa ezin da %2 motakoa izan. %3, %4, edo %5 motakoa izan behar da.</translation>
+        <translation type="vanished">%1-ko lehen argumentoa ezin da %2 motakoa izan. %3, %4, edo %5 motakoa izan behar da.</translation>
     </message>
     <message>
         <source>The second argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>%1-ko bigarren argumentoa ezin da %2 motakoa izan. %3, %4, edo %5 motakoa izan behar da.</translation>
+        <translation type="vanished">%1-ko bigarren argumentoa ezin da %2 motakoa izan. %3, %4, edo %5 motakoa izan behar da.</translation>
     </message>
     <message>
         <source>%1 is not a valid XML 1.0 character.</source>
-        <translation>%1 ez da baliozko XML 1.0 hizkia.</translation>
+        <translation type="vanished">%1 ez da baliozko XML 1.0 hizkia.</translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2.</source>
-        <translation>%1-ko lehen argumentoa ezin da %2 motakoa izan.</translation>
+        <translation type="vanished">%1-ko lehen argumentoa ezin da %2 motakoa izan.</translation>
     </message>
     <message>
         <source>If both values have zone offsets, they must have the same zone offset. %1 and %2 are not the same.</source>
-        <translation>Bi balioek eremu orekak badituzte, eremu oreka berdina izan behar dute. %1 eta %2 ez dira berdinak.</translation>
+        <translation type="vanished">Bi balioek eremu orekak badituzte, eremu oreka berdina izan behar dute. %1 eta %2 ez dira berdinak.</translation>
     </message>
     <message>
         <source>%1 was called.</source>
-        <translation>%1 deituta.</translation>
+        <translation type="vanished">%1 deituta.</translation>
     </message>
     <message>
         <source>%1 must be followed by %2 or %3, not at the end of the replacement string.</source>
-        <translation>%1 %2 edo %3-z jarraitua izan behar da, ez kate ordezpenaren amaieran.</translation>
+        <translation type="vanished">%1 %2 edo %3-z jarraitua izan behar da, ez kate ordezpenaren amaieran.</translation>
     </message>
     <message>
         <source>In the replacement string, %1 must be followed by at least one digit when not escaped.</source>
-        <translation>Ordezkapen katean, %1 gutxienez zenbaki batez jarraitua izan behar da ez irtetzerakoan.</translation>
+        <translation type="vanished">Ordezkapen katean, %1 gutxienez zenbaki batez jarraitua izan behar da ez irtetzerakoan.</translation>
     </message>
     <message>
         <source>In the replacement string, %1 can only be used to escape itself or %2, not %3</source>
-        <translation>Ordezkapen katean, %1 bera bakarrik edo %2 irtetzeko bakarrik erabili daiteke, ez %3</translation>
+        <translation type="vanished">Ordezkapen katean, %1 bera bakarrik edo %2 irtetzeko bakarrik erabili daiteke, ez %3</translation>
     </message>
     <message>
         <source>%1 matches newline characters</source>
-        <translation>%1 bat dator lerroberri hizkiekin</translation>
+        <translation type="vanished">%1 bat dator lerroberri hizkiekin</translation>
     </message>
     <message>
         <source>%1 and %2 match the start and end of a line.</source>
-        <translation>%1 eta %2 bat datoz lerro baten hasiera eta amaierarekin.</translation>
+        <translation type="vanished">%1 eta %2 bat datoz lerro baten hasiera eta amaierarekin.</translation>
     </message>
     <message>
         <source>Matches are case insensitive</source>
-        <translation>Bat etortzeek hizki larri-xeheak bereizten dituzte</translation>
+        <translation type="vanished">Bat etortzeek hizki larri-xeheak bereizten dituzte</translation>
     </message>
     <message>
         <source>Whitespace characters are removed, except when they appear in character classes</source>
-        <translation>Zuriune hizkiak kendu egiten dira, hizki klaseetan agertzen direnean ezik</translation>
+        <translation type="vanished">Zuriune hizkiak kendu egiten dira, hizki klaseetan agertzen direnean ezik</translation>
     </message>
     <message>
         <source>%1 is an invalid regular expression pattern: %2</source>
-        <translation>%1 adierazpen arrunt eredu baliogabea da: %2</translation>
+        <translation type="vanished">%1 adierazpen arrunt eredu baliogabea da: %2</translation>
     </message>
     <message>
         <source>%1 is an invalid flag for regular expressions. Valid flags are:</source>
-        <translation>%1 ikur baliogabea da adierazpen arruntentzat. Baliozko ikurrak dira:</translation>
+        <translation type="vanished">%1 ikur baliogabea da adierazpen arruntentzat. Baliozko ikurrak dira:</translation>
     </message>
     <message>
         <source>If the first argument is the empty sequence or a zero-length string (no namespace), a prefix cannot be specified. Prefix %1 was specified.</source>
-        <translation>Lehen argumentoa sekuentzia huts bat edo huts-luzerako kate bat bada (ez izentartea), aurrizkia ezin da adierazi. %1 aurrizkia adierazi da.</translation>
+        <translation type="vanished">Lehen argumentoa sekuentzia huts bat edo huts-luzerako kate bat bada (ez izentartea), aurrizkia ezin da adierazi. %1 aurrizkia adierazi da.</translation>
     </message>
     <message>
         <source>It will not be possible to retrieve %1.</source>
-        <translation>Ezingo da %1 berreskuratu.</translation>
+        <translation type="vanished">Ezingo da %1 berreskuratu.</translation>
     </message>
     <message>
         <source>The root node of the second argument to function %1 must be a document node. %2 is not a document node.</source>
-        <translation>%1 funtzioko bigarren argumentoko erro elkargunea agiri elkargune bat izan behar da. %2 ez da agiri elkargune bat.</translation>
+        <translation type="vanished">%1 funtzioko bigarren argumentoko erro elkargunea agiri elkargune bat izan behar da. %2 ez da agiri elkargune bat.</translation>
     </message>
     <message>
         <source>The default collection is undefined</source>
-        <translation>Berezko bilduma zehazgabea da</translation>
+        <translation type="vanished">Berezko bilduma zehazgabea da</translation>
     </message>
     <message>
         <source>%1 cannot be retrieved</source>
-        <translation>%1 ezin da berreskuratu</translation>
+        <translation type="vanished">%1 ezin da berreskuratu</translation>
     </message>
     <message>
         <source>The normalization form %1 is unsupported. The supported forms are %2, %3, %4, and %5, and none, i.e. the empty string (no normalization).</source>
-        <translation>%1 normalkuntza forma ez dago sostengatua. Sostengaturiko formak dira  %2, %3, %4, eta %5, eta ezer ez, adib. kate hutsa (ez normalkuntza).</translation>
+        <translation type="vanished">%1 normalkuntza forma ez dago sostengatua. Sostengaturiko formak dira  %2, %3, %4, eta %5, eta ezer ez, adib. kate hutsa (ez normalkuntza).</translation>
     </message>
     <message>
         <source>A zone offset must be in the range %1..%2 inclusive. %3 is out of range.</source>
-        <translation>Eremu oreka %1..%2 barne mailan egon behar da. %3 mailaz kanpo dago.</translation>
+        <translation type="vanished">Eremu oreka %1..%2 barne mailan egon behar da. %3 mailaz kanpo dago.</translation>
     </message>
     <message>
         <source>%1 is not a whole number of minutes.</source>
-        <translation>%1 ez da minutu zenbateko oso bat.</translation>
+        <translation type="vanished">%1 ez da minutu zenbateko oso bat.</translation>
     </message>
     <message>
         <source>Required cardinality is %1; got cardinality %2.</source>
@@ -8721,111 +8727,111 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The item %1 did not match the required type %2.</source>
-        <translation>%1 gaia ez dator bat beharrezko %2 motarekin.</translation>
+        <translation type="vanished">%1 gaia ez dator bat beharrezko %2 motarekin.</translation>
     </message>
     <message>
         <source>%1 is an unknown schema type.</source>
-        <translation>%1 eskema mota ezezaguna da.</translation>
+        <translation type="vanished">%1 eskema mota ezezaguna da.</translation>
     </message>
     <message>
         <source>Only one %1 declaration can occur in the query prolog.</source>
-        <translation>%1 adierazpen bakarra gertatu daiteke eskaera hitzaurrean.</translation>
+        <translation type="vanished">%1 adierazpen bakarra gertatu daiteke eskaera hitzaurrean.</translation>
     </message>
     <message>
         <source>The initialization of variable %1 depends on itself</source>
-        <translation>%1 aldaeraren abiarazpena bere mende dago</translation>
+        <translation type="vanished">%1 aldaeraren abiarazpena bere mende dago</translation>
     </message>
     <message>
         <source>No variable by name %1 exists</source>
-        <translation>Ez dago %1 izenarentzako aldaerarik</translation>
+        <translation type="vanished">Ez dago %1 izenarentzako aldaerarik</translation>
     </message>
     <message>
         <source>The variable %1 is unused</source>
-        <translation>%1 aldaera erabiligabea da</translation>
+        <translation type="vanished">%1 aldaera erabiligabea da</translation>
     </message>
     <message>
         <source>Version %1 is not supported. The supported XQuery version is 1.0.</source>
-        <translation>%1 bertsioa ez dago sostengatuta. Sostengatutako XQuery bertsioa 1.0 da.</translation>
+        <translation type="vanished">%1 bertsioa ez dago sostengatuta. Sostengatutako XQuery bertsioa 1.0 da.</translation>
     </message>
     <message>
         <source>The encoding %1 is invalid. It must contain Latin characters only, must not contain whitespace, and must match the regular expression %2.</source>
-        <translation>%1 kodeaketa baliogabea da. Latinezko hizkiak bakarrik izan behar ditu, ezin du zurigunerik izan, eta %2 adierazpen arruntarekin bat etorri behar da.</translation>
+        <translation type="vanished">%1 kodeaketa baliogabea da. Latinezko hizkiak bakarrik izan behar ditu, ezin du zurigunerik izan, eta %2 adierazpen arruntarekin bat etorri behar da.</translation>
     </message>
     <message>
         <source>No function with signature %1 is available</source>
-        <translation>Ez dago %1 sinadura duen funtziorik eskuragarri</translation>
+        <translation type="vanished">Ez dago %1 sinadura duen funtziorik eskuragarri</translation>
     </message>
     <message>
         <source>A default namespace declaration must occur before function, variable, and option declarations.</source>
-        <translation>Berezko izentarte adierazpen bat gertatau behar da eginkizunaren aurretik, aldaera, eta aukera aiderazpenak.</translation>
+        <translation type="vanished">Berezko izentarte adierazpen bat gertatau behar da eginkizunaren aurretik, aldaera, eta aukera aiderazpenak.</translation>
     </message>
     <message>
         <source>Namespace declarations must occur before function, variable, and option declarations.</source>
-        <translation>Izentarte adierazpen bat gertatau behar da eginkizunaren aurretik, aldaera, eta aukera aiderazpenak.</translation>
+        <translation type="vanished">Izentarte adierazpen bat gertatau behar da eginkizunaren aurretik, aldaera, eta aukera aiderazpenak.</translation>
     </message>
     <message>
         <source>Module imports must occur before function, variable, and option declarations.</source>
-        <translation>Modulo inportazioak gertatau behar dira eginkizunaren aurretik, aldaera, eta aukera aiderazpenak.</translation>
+        <translation type="vanished">Modulo inportazioak gertatau behar dira eginkizunaren aurretik, aldaera, eta aukera aiderazpenak.</translation>
     </message>
     <message>
         <source>It is not possible to redeclare prefix %1.</source>
-        <translation>Ezin da %1 aurrizkia berradierazi.</translation>
+        <translation type="vanished">Ezin da %1 aurrizkia berradierazi.</translation>
     </message>
     <message>
         <source>Only the prefix %1 can be declared to bind the namespace %2. By default, it is already bound to the prefix %1.</source>
-        <translation>%1 aurrizkia bakarrik adierazi daitek %2 izentartea loturatzeko. Berez, jadanik %1 aurrizkiaren muga da.</translation>
+        <translation type="vanished">%1 aurrizkia bakarrik adierazi daitek %2 izentartea loturatzeko. Berez, jadanik %1 aurrizkiaren muga da.</translation>
     </message>
     <message>
         <source>Prefix %1 is already declared in the prolog.</source>
-        <translation>%1 aurrizkia jadanik hitzaurrean adierazi da.</translation>
+        <translation type="vanished">%1 aurrizkia jadanik hitzaurrean adierazi da.</translation>
     </message>
     <message>
         <source>The name of an option must have a prefix. There is no default namespace for options.</source>
-        <translation>Aukera baten izenak aurrizki bat izan behar du. Ez dago berezko izentarterik aukerentzat.</translation>
+        <translation type="vanished">Aukera baten izenak aurrizki bat izan behar du. Ez dago berezko izentarterik aukerentzat.</translation>
     </message>
     <message>
         <source>The Schema Import feature is not supported, and therefore %1 declarations cannot occur.</source>
-        <translation>Eskema inportazio ezaugarri ez dago sostengatuta, eta hortaz ezin dira %1 adierazpenak gertatu.</translation>
+        <translation type="vanished">Eskema inportazio ezaugarri ez dago sostengatuta, eta hortaz ezin dira %1 adierazpenak gertatu.</translation>
     </message>
     <message>
         <source>The target namespace of a %1 cannot be empty.</source>
-        <translation>%1-ren xede izentartea ezin da hutsik egon.</translation>
+        <translation type="vanished">%1-ren xede izentartea ezin da hutsik egon.</translation>
     </message>
     <message>
         <source>The module import feature is not supported</source>
-        <translation>Modulo inportazio ezaugarria ez dago sostengatuta</translation>
+        <translation type="vanished">Modulo inportazio ezaugarria ez dago sostengatuta</translation>
     </message>
     <message>
         <source>A variable by name %1 has already been declared in the prolog.</source>
-        <translation>%1 izenaren aldaera bat jadanik adierazi da hitzaurrean.</translation>
+        <translation type="vanished">%1 izenaren aldaera bat jadanik adierazi da hitzaurrean.</translation>
     </message>
     <message>
         <source>No value is available for the external variable by name %1.</source>
-        <translation>Ez dago balio eskuragarririk %1 izenaren kanpoko aldaerentzat.</translation>
+        <translation type="vanished">Ez dago balio eskuragarririk %1 izenaren kanpoko aldaerentzat.</translation>
     </message>
     <message>
         <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation>Erabiltzaile batek adierazitako eginkizun baterako izentartea ezin da hutsik egon (saiatu aurrezehazturiko %1 aurrizkiarekin, hau bezalako kasuetarko dagoena)</translation>
+        <translation type="vanished">Erabiltzaile batek adierazitako eginkizun baterako izentartea ezin da hutsik egon (saiatu aurrezehazturiko %1 aurrizkiarekin, hau bezalako kasuetarko dagoena)</translation>
     </message>
     <message>
         <source>The namespace %1 is reserved; therefore user defined functions may not use it. Try the predefined prefix %2, which exists for these cases.</source>
-        <translation>%1 izentartea gordeta dago; hortaz erabiltzaileak adierazitako eginzkizunek badaiteke hura ez erabiltzea. Saiatu aurrezehazturiko %2 aurrizkiarekin, hau bezalako kasuetarko dagoena.</translation>
+        <translation type="vanished">%1 izentartea gordeta dago; hortaz erabiltzaileak adierazitako eginzkizunek badaiteke hura ez erabiltzea. Saiatu aurrezehazturiko %2 aurrizkiarekin, hau bezalako kasuetarko dagoena.</translation>
     </message>
     <message>
         <source>The namespace of a user defined function in a library module must be equivalent to the module namespace. In other words, it should be %1 instead of %2</source>
-        <translation>Liburutegi modulo batean erabiltzaileak adierazitako eginkizun bateko izentartea moduloaren izentartearen baliokidea izan behar da. Beste hitz batzuekin, %1 izan behar da %2-ren ordez</translation>
+        <translation type="vanished">Liburutegi modulo batean erabiltzaileak adierazitako eginkizun bateko izentartea moduloaren izentartearen baliokidea izan behar da. Beste hitz batzuekin, %1 izan behar da %2-ren ordez</translation>
     </message>
     <message>
         <source>A function already exists with the signature %1.</source>
-        <translation>Jadanik badago eginkizun bat %1 sinadurarekin.</translation>
+        <translation type="vanished">Jadanik badago eginkizun bat %1 sinadurarekin.</translation>
     </message>
     <message>
         <source>No external functions are supported. All supported functions can be used directly, without first declaring them as external</source>
-        <translation>Ez da kanpoko eginkizunik sostengatzen. Sostengaturiko eginkizun guztiak zuzenean erabili daitezke, lehenik kanpoko bezala adierazi gabe</translation>
+        <translation type="vanished">Ez da kanpoko eginkizunik sostengatzen. Sostengaturiko eginkizun guztiak zuzenean erabili daitezke, lehenik kanpoko bezala adierazi gabe</translation>
     </message>
     <message>
         <source>An argument by name %1 has already been declared. Every argument name must be unique.</source>
-        <translation>Jadanik adierazi da %1 izena duen argumento bat. Argumento bakoitza bakarra izan behar da.</translation>
+        <translation type="vanished">Jadanik adierazi da %1 izena duen argumento bat. Argumento bakoitza bakarra izan behar da.</translation>
     </message>
     <message>
         <source>The name of a variable bound in a for-expression must be different from the positional variable. Hence, the two variables named %1 collide.</source>
@@ -8833,7 +8839,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The Schema Validation Feature is not supported. Hence, %1-expressions may not be used.</source>
-        <translation>Eskema Balioztapen Ezaugarria ez dago sostengatuta. Hortaz, %1-adierazpena badaiteke ez erabiltzea.</translation>
+        <translation type="vanished">Eskema Balioztapen Ezaugarria ez dago sostengatuta. Hortaz, %1-adierazpena badaiteke ez erabiltzea.</translation>
     </message>
     <message>
         <source>None of the pragma expressions are supported. Therefore, a fallback expression must be present</source>
@@ -8841,55 +8847,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The %1-axis is unsupported in XQuery</source>
-        <translation>%1-ardatza ez dago sostengatua XQueryn</translation>
+        <translation type="vanished">%1-ardatza ez dago sostengatua XQueryn</translation>
     </message>
     <message>
         <source>%1 is not a valid numeric literal.</source>
-        <translation>%1 ez da baliozko zenbaki literala.</translation>
+        <translation type="vanished">%1 ez da baliozko zenbaki literala.</translation>
     </message>
     <message>
         <source>No function by name %1 is available.</source>
-        <translation>Ez dago %1 izenik duen funtziorik eskuragarri.</translation>
+        <translation type="vanished">Ez dago %1 izenik duen funtziorik eskuragarri.</translation>
     </message>
     <message>
         <source>The namespace URI cannot be the empty string when binding to a prefix, %1.</source>
-        <translation>Izentarte URI-a ezin da kate hutsa izan aurrizki bati loturatzerakoan, %1.</translation>
+        <translation type="vanished">Izentarte URI-a ezin da kate hutsa izan aurrizki bati loturatzerakoan, %1.</translation>
     </message>
     <message>
         <source>%1 is an invalid namespace URI.</source>
-        <translation>%1 izentarte URI baliogabe bat da.</translation>
+        <translation type="vanished">%1 izentarte URI baliogabe bat da.</translation>
     </message>
     <message>
         <source>It is not possible to bind to the prefix %1</source>
-        <translation>Ezinezkoa da %1 aurrizkira lotzea</translation>
+        <translation type="vanished">Ezinezkoa da %1 aurrizkira lotzea</translation>
     </message>
     <message>
         <source>Namespace %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation>%1 izentartea %2-rekin bakarrik izan daiteke lotua (eta da, edonola, aurre-adierazita).</translation>
+        <translation type="vanished">%1 izentartea %2-rekin bakarrik izan daiteke lotua (eta da, edonola, aurre-adierazita).</translation>
     </message>
     <message>
         <source>Prefix %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation>%1 aurrizkia %2-rekin bakarrik izan daiteke lotua (eta da, edonola, aurre-adierazita).</translation>
+        <translation type="vanished">%1 aurrizkia %2-rekin bakarrik izan daiteke lotua (eta da, edonola, aurre-adierazita).</translation>
     </message>
     <message>
         <source>Two namespace declaration attributes have the same name: %1.</source>
-        <translation>Bi izentarte adierazpen ezaugarrik izen berdina dute: %1.</translation>
+        <translation type="vanished">Bi izentarte adierazpen ezaugarrik izen berdina dute: %1.</translation>
     </message>
     <message>
         <source>The namespace URI must be a constant and cannot use enclosed expressions.</source>
-        <translation>Izentarte URI-a aldagaitza izan behar da eta ezin ditu itxitako adierazpenak erabili.</translation>
+        <translation type="vanished">Izentarte URI-a aldagaitza izan behar da eta ezin ditu itxitako adierazpenak erabili.</translation>
     </message>
     <message>
         <source>An attribute by name %1 has already appeared on this element.</source>
-        <translation>Jadanik agertzen da %1 izeneko ezaugarri bat elemento honetan.</translation>
+        <translation type="vanished">Jadanik agertzen da %1 izeneko ezaugarri bat elemento honetan.</translation>
     </message>
     <message>
         <source>A direct element constructor is not well-formed. %1 is ended with %2.</source>
-        <translation>Zuzeneko elemento eraikitzaile bat ez dago ongi-osatuta. %1 %2-rekin amaitzen da.</translation>
+        <translation type="vanished">Zuzeneko elemento eraikitzaile bat ez dago ongi-osatuta. %1 %2-rekin amaitzen da.</translation>
     </message>
     <message>
         <source>The name %1 does not refer to any schema type.</source>
-        <translation>%1 izenak ez du eskema motarik adierazten.</translation>
+        <translation type="vanished">%1 izenak ez du eskema motarik adierazten.</translation>
     </message>
     <message>
         <source>%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</source>
@@ -8897,11 +8903,11 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
-        <translation>%1 ez da mota atomiko bat. Bihurketa ez da ahalezkoa mota atomikoentzat.</translation>
+        <translation type="vanished">%1 ez da mota atomiko bat. Bihurketa ez da ahalezkoa mota atomikoentzat.</translation>
     </message>
     <message>
         <source>%1 is not a valid name for a processing-instruction. Therefore this name test will never match.</source>
-        <translation>%1 ez da prozesapen-jarraipide batentzako baliozko izena. Hortaz izen azterketa ez da inoiz berdinduko.</translation>
+        <translation type="vanished">%1 ez da prozesapen-jarraipide batentzako baliozko izena. Hortaz izen azterketa ez da inoiz berdinduko.</translation>
     </message>
     <message>
         <source>%1 is not in the in-scope attribute declarations. Note that the schema import feature is not supported.</source>
@@ -8909,31 +8915,31 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The name of an extension expression must be in a namespace.</source>
-        <translation>Hedapen adierazpen baten izena izentartean egon behar da.</translation>
+        <translation type="vanished">Hedapen adierazpen baten izena izentartean egon behar da.</translation>
     </message>
     <message>
         <source>empty</source>
-        <translation>hutsik</translation>
+        <translation type="vanished">hutsik</translation>
     </message>
     <message>
         <source>zero or one</source>
-        <translation>huts edo bat</translation>
+        <translation type="vanished">huts edo bat</translation>
     </message>
     <message>
         <source>exactly one</source>
-        <translation>bat zehaz-mehatz</translation>
+        <translation type="vanished">bat zehaz-mehatz</translation>
     </message>
     <message>
         <source>one or more</source>
-        <translation>bat edo gehiago</translation>
+        <translation type="vanished">bat edo gehiago</translation>
     </message>
     <message>
         <source>zero or more</source>
-        <translation>huts edo gehiago</translation>
+        <translation type="vanished">huts edo gehiago</translation>
     </message>
     <message>
         <source>Required type is %1, but %2 was found.</source>
-        <translation>Beharrezko mota da %1, baina %2 aurkitu da.</translation>
+        <translation type="vanished">Beharrezko mota da %1, baina %2 aurkitu da.</translation>
     </message>
     <message>
         <source>Promoting %1 to %2 may cause loss of precision.</source>
@@ -8941,85 +8947,85 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>The focus is undefined.</source>
-        <translation>Fokua zehaztugabea da.</translation>
+        <translation type="vanished">Fokua zehaztugabea da.</translation>
     </message>
     <message>
         <source>It&apos;s not possible to add attributes after any other kind of node.</source>
-        <translation>Ezin da ezaugarririk gehitu beste elkargune moten ondoren.</translation>
+        <translation type="vanished">Ezin da ezaugarririk gehitu beste elkargune moten ondoren.</translation>
     </message>
     <message>
         <source>An attribute by name %1 has already been created.</source>
-        <translation>Jadanik sortu da %1 izeneko ezaugarri bat.</translation>
+        <translation type="vanished">Jadanik sortu da %1 izeneko ezaugarri bat.</translation>
     </message>
     <message>
         <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
-        <translation>Unicode Codepoint Collation bakarrik sostengatzen da (%1). %2 ez dago sostengatuta.</translation>
+        <translation type="vanished">Unicode Codepoint Collation bakarrik sostengatzen da (%1). %2 ez dago sostengatuta.</translation>
     </message>
 </context>
 <context>
     <name>VolumeSlider</name>
     <message>
         <source>Muted</source>
-        <translation>Mututurik</translation>
+        <translation type="vanished">Mututurik</translation>
     </message>
     <message>
         <source>Volume: %1%</source>
-        <translation>Bolumena: %1%</translation>
+        <translation type="vanished">Bolumena: %1%</translation>
     </message>
 </context>
 <context>
     <name>WebCore::PlatformScrollbar</name>
     <message>
         <source>Scroll here</source>
-        <translation>Irristatu hemen</translation>
+        <translation type="vanished">Irristatu hemen</translation>
     </message>
     <message>
         <source>Left edge</source>
-        <translation>Ezker hertza</translation>
+        <translation type="vanished">Ezker hertza</translation>
     </message>
     <message>
         <source>Top</source>
-        <translation>Goren</translation>
+        <translation type="vanished">Goren</translation>
     </message>
     <message>
         <source>Right edge</source>
-        <translation>Eskuin hertza</translation>
+        <translation type="vanished">Eskuin hertza</translation>
     </message>
     <message>
         <source>Bottom</source>
-        <translation>Beheren</translation>
+        <translation type="vanished">Beheren</translation>
     </message>
     <message>
         <source>Page left</source>
-        <translation>Orrialdean ezkerrera</translation>
+        <translation type="vanished">Orrialdean ezkerrera</translation>
     </message>
     <message>
         <source>Page up</source>
-        <translation>Orraialdean gora</translation>
+        <translation type="vanished">Orraialdean gora</translation>
     </message>
     <message>
         <source>Page right</source>
-        <translation>Orrialdean eskuinera</translation>
+        <translation type="vanished">Orrialdean eskuinera</translation>
     </message>
     <message>
         <source>Page down</source>
-        <translation>Orrialdean behera</translation>
+        <translation type="vanished">Orrialdean behera</translation>
     </message>
     <message>
         <source>Scroll left</source>
-        <translation>Irristatu ezkerrera</translation>
+        <translation type="vanished">Irristatu ezkerrera</translation>
     </message>
     <message>
         <source>Scroll up</source>
-        <translation>Irristatu gora</translation>
+        <translation type="vanished">Irristatu gora</translation>
     </message>
     <message>
         <source>Scroll right</source>
-        <translation>Irristatu eskuinera</translation>
+        <translation type="vanished">Irristatu eskuinera</translation>
     </message>
     <message>
         <source>Scroll down</source>
-        <translation>Irristatu behera</translation>
+        <translation type="vanished">Irristatu behera</translation>
     </message>
 </context>
 </TS>

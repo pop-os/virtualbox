@@ -50,264 +50,264 @@
     <name>Q3DataTable</name>
     <message>
         <source>True</source>
-        <translation type="unfinished">صحيح</translation>
+        <translation type="obsolete">صحيح</translation>
     </message>
     <message>
         <source>False</source>
-        <translation type="unfinished">خاطئ</translation>
+        <translation type="obsolete">خاطئ</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation type="unfinished">إدراج</translation>
+        <translation type="obsolete">إدراج</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation type="unfinished">تحديث</translation>
+        <translation type="obsolete">تحديث</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation type="unfinished">حذف</translation>
+        <translation type="obsolete">حذف</translation>
     </message>
 </context>
 <context>
     <name>Q3FileDialog</name>
     <message>
         <source>Copy or Move a File</source>
-        <translation type="unfinished">نسخ أو تحريك ملفّ</translation>
+        <translation type="obsolete">نسخ أو تحريك ملفّ</translation>
     </message>
     <message>
         <source>Read: %1</source>
-        <translation type="unfinished">قراءة: %1</translation>
+        <translation type="obsolete">قراءة: %1</translation>
     </message>
     <message>
         <source>Write: %1</source>
-        <translation type="unfinished">كتابة: %1</translation>
+        <translation type="obsolete">كتابة: %1</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">إلغاء</translation>
+        <translation type="obsolete">إلغاء</translation>
     </message>
     <message>
         <source>All Files (*)</source>
-        <translation type="unfinished">جميع الملفّات (*)</translation>
+        <translation type="obsolete">جميع الملفّات (*)</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">الإسم</translation>
+        <translation type="obsolete">الإسم</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished">السّعة</translation>
+        <translation type="obsolete">السّعة</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation type="unfinished">الطّراز</translation>
+        <translation type="obsolete">الطّراز</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation type="unfinished">التّاريخ</translation>
+        <translation type="obsolete">التّاريخ</translation>
     </message>
     <message>
         <source>Attributes</source>
-        <translation type="unfinished">الخاصّيات</translation>
+        <translation type="obsolete">الخاصّيات</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation type="unfinished">&amp;موافقة</translation>
+        <translation type="obsolete">&amp;موافقة</translation>
     </message>
     <message>
         <source>Look &amp;in:</source>
-        <translation type="unfinished">بحث &amp;في:</translation>
+        <translation type="obsolete">بحث &amp;في:</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation type="unfinished">إ&amp;سم الملفّ:</translation>
+        <translation type="obsolete">إ&amp;سم الملفّ:</translation>
     </message>
     <message>
         <source>File &amp;type:</source>
-        <translation type="unfinished">&amp;طراز الملفّ:</translation>
+        <translation type="obsolete">&amp;طراز الملفّ:</translation>
     </message>
     <message>
         <source>Back</source>
-        <translation type="unfinished">رجوع</translation>
+        <translation type="obsolete">رجوع</translation>
     </message>
     <message>
         <source>One directory up</source>
-        <translation type="unfinished">دليل للأعلى</translation>
+        <translation type="obsolete">دليل للأعلى</translation>
     </message>
     <message>
         <source>Create New Folder</source>
-        <translation type="unfinished">صنع دليل جديد</translation>
+        <translation type="obsolete">صنع دليل جديد</translation>
     </message>
     <message>
         <source>List View</source>
-        <translation type="unfinished">معاينة بالقائمة</translation>
+        <translation type="obsolete">معاينة بالقائمة</translation>
     </message>
     <message>
         <source>Detail View</source>
-        <translation type="unfinished">معاينة مفصّلة</translation>
+        <translation type="obsolete">معاينة مفصّلة</translation>
     </message>
     <message>
         <source>Preview File Info</source>
-        <translation type="unfinished">عرض مقدّم لمعلومات الملفّ</translation>
+        <translation type="obsolete">عرض مقدّم لمعلومات الملفّ</translation>
     </message>
     <message>
         <source>Preview File Contents</source>
-        <translation type="unfinished">عرض مقدّم لمحتويات الملفّ</translation>
+        <translation type="obsolete">عرض مقدّم لمحتويات الملفّ</translation>
     </message>
     <message>
         <source>Read-write</source>
-        <translation type="unfinished">قراءة-كتابة</translation>
+        <translation type="obsolete">قراءة-كتابة</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation type="unfinished">قراءة فقط</translation>
+        <translation type="obsolete">قراءة فقط</translation>
     </message>
     <message>
         <source>Write-only</source>
-        <translation type="unfinished">كتابة فقط</translation>
+        <translation type="obsolete">كتابة فقط</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished">مستحيل التّوصّل إليه</translation>
+        <translation type="obsolete">مستحيل التّوصّل إليه</translation>
     </message>
     <message>
         <source>Symlink to File</source>
-        <translation type="unfinished">وصل رمزي لملفّ</translation>
+        <translation type="obsolete">وصل رمزي لملفّ</translation>
     </message>
     <message>
         <source>Symlink to Directory</source>
-        <translation type="unfinished">وصل رمزي لدليل</translation>
+        <translation type="obsolete">وصل رمزي لدليل</translation>
     </message>
     <message>
         <source>Symlink to Special</source>
-        <translation type="unfinished">وصل رمزي لملفّ خاصّ</translation>
+        <translation type="obsolete">وصل رمزي لملفّ خاصّ</translation>
     </message>
     <message>
         <source>File</source>
-        <translation type="unfinished">ملفّ</translation>
+        <translation type="obsolete">ملفّ</translation>
     </message>
     <message>
         <source>Dir</source>
-        <translation type="unfinished">دليل</translation>
+        <translation type="obsolete">دليل</translation>
     </message>
     <message>
         <source>Special</source>
-        <translation type="unfinished">ملفّ خاصّ</translation>
+        <translation type="obsolete">ملفّ خاصّ</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation type="unfinished">فتح</translation>
+        <translation type="obsolete">فتح</translation>
     </message>
     <message>
         <source>Save As</source>
-        <translation type="unfinished">حفظ تحت</translation>
+        <translation type="obsolete">حفظ تحت</translation>
     </message>
     <message>
         <source>&amp;Open</source>
-        <translation type="unfinished">&amp;فتح</translation>
+        <translation type="obsolete">&amp;فتح</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation type="unfinished">&amp;حفظ</translation>
+        <translation type="obsolete">&amp;حفظ</translation>
     </message>
     <message>
         <source>&amp;Rename</source>
-        <translation type="unfinished">ت&amp;غيير الإسم</translation>
+        <translation type="obsolete">ت&amp;غيير الإسم</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation type="unfinished">ح&amp;ذف</translation>
+        <translation type="obsolete">ح&amp;ذف</translation>
     </message>
     <message>
         <source>R&amp;eload</source>
-        <translation type="unfinished">إ&amp;عادة التّحميل</translation>
+        <translation type="obsolete">إ&amp;عادة التّحميل</translation>
     </message>
     <message>
         <source>Sort by &amp;Name</source>
-        <translation type="unfinished">فرز بال&amp;إسم</translation>
+        <translation type="obsolete">فرز بال&amp;إسم</translation>
     </message>
     <message>
         <source>Sort by &amp;Size</source>
-        <translation type="unfinished">فرز بالسّ&amp;عة</translation>
+        <translation type="obsolete">فرز بالسّ&amp;عة</translation>
     </message>
     <message>
         <source>Sort by &amp;Date</source>
-        <translation type="unfinished">فرز بالتّا&amp;ريخ</translation>
+        <translation type="obsolete">فرز بالتّا&amp;ريخ</translation>
     </message>
     <message>
         <source>&amp;Unsorted</source>
-        <translation type="unfinished">غير &amp;مفروز</translation>
+        <translation type="obsolete">غير &amp;مفروز</translation>
     </message>
     <message>
         <source>Sort</source>
-        <translation type="unfinished">فرز</translation>
+        <translation type="obsolete">فرز</translation>
     </message>
     <message>
         <source>Show &amp;hidden files</source>
-        <translation type="unfinished">ع&amp;رض الملفّات المخفية</translation>
+        <translation type="obsolete">ع&amp;رض الملفّات المخفية</translation>
     </message>
     <message>
         <source>the file</source>
-        <translation type="unfinished">الملفّ</translation>
+        <translation type="obsolete">الملفّ</translation>
     </message>
     <message>
         <source>the directory</source>
-        <translation type="unfinished">الدّليل</translation>
+        <translation type="obsolete">الدّليل</translation>
     </message>
     <message>
         <source>the symlink</source>
-        <translation type="unfinished">الوصل الرّمزي</translation>
+        <translation type="obsolete">الوصل الرّمزي</translation>
     </message>
     <message>
         <source>Delete %1</source>
-        <translation type="unfinished">حذف %1</translation>
+        <translation type="obsolete">حذف %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation type="unfinished">&lt;qt&gt;هل تريد فعلا حذف %1 &quot;%2&quot;؟&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;هل تريد فعلا حذف %1 &quot;%2&quot;؟&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation type="unfinished">&amp;نعم</translation>
+        <translation type="obsolete">&amp;نعم</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation type="unfinished">&amp;لا</translation>
+        <translation type="obsolete">&amp;لا</translation>
     </message>
     <message>
         <source>New Folder 1</source>
-        <translation type="unfinished">دليل جديد 1</translation>
+        <translation type="obsolete">دليل جديد 1</translation>
     </message>
     <message>
         <source>New Folder</source>
-        <translation type="unfinished">دليل جديد</translation>
+        <translation type="obsolete">دليل جديد</translation>
     </message>
     <message>
         <source>New Folder %1</source>
-        <translation type="unfinished">دليل جديد %1</translation>
+        <translation type="obsolete">دليل جديد %1</translation>
     </message>
     <message>
         <source>Find Directory</source>
-        <translation type="unfinished">إيجاد الدّليل</translation>
+        <translation type="obsolete">إيجاد الدّليل</translation>
     </message>
     <message>
         <source>Directories</source>
-        <translation type="unfinished">دلائل</translation>
+        <translation type="obsolete">دلائل</translation>
     </message>
     <message>
         <source>Directory:</source>
-        <translation type="unfinished">دليل:</translation>
+        <translation type="obsolete">دليل:</translation>
     </message>
     <message>
         <source>Error</source>
-        <translation type="unfinished">خطأ</translation>
+        <translation type="obsolete">خطأ</translation>
     </message>
     <message>
         <source>%1
 File not found.
 Check path and filename.</source>
-        <translation type="unfinished">%1
+        <translation type="obsolete">%1
 لم يتمّ إيجاد الملفّ.
 تحقّق من المسار و إسم الملفّ.</translation>
     </message>
@@ -329,19 +329,19 @@ Check path and filename.</source>
     <message>
         <source>Could not read directory
 %1</source>
-        <translation type="unfinished">لم أستطع قراءة الدّليل
+        <translation type="obsolete">لم أستطع قراءة الدّليل
 %1</translation>
     </message>
     <message>
         <source>Could not create directory
 %1</source>
-        <translation type="unfinished">لم أستطع صنع الدّليل
+        <translation type="obsolete">لم أستطع صنع الدّليل
 %1</translation>
     </message>
     <message>
         <source>Could not remove file or directory
 %1</source>
-        <translation type="unfinished">لم أستطع نزع الملفّ أو الدّليل
+        <translation type="obsolete">لم أستطع نزع الملفّ أو الدّليل
 %1</translation>
     </message>
     <message>
@@ -349,7 +349,7 @@ Check path and filename.</source>
 %1
 to
 %2</source>
-        <translation type="unfinished">لم أستطع إعادة تسمية
+        <translation type="obsolete">لم أستطع إعادة تسمية
 %1
 إلى
 %2</translation>
@@ -357,13 +357,13 @@ to
     <message>
         <source>Could not open
 %1</source>
-        <translation type="unfinished">لم أستطع فتح
+        <translation type="obsolete">لم أستطع فتح
 %1</translation>
     </message>
     <message>
         <source>Could not write
 %1</source>
-        <translation type="unfinished">لم أستطع كتابة
+        <translation type="obsolete">لم أستطع كتابة
 %1</translation>
     </message>
 </context>
@@ -371,94 +371,94 @@ to
     <name>Q3MainWindow</name>
     <message>
         <source>Line up</source>
-        <translation type="unfinished">تصفيف</translation>
+        <translation type="obsolete">تصفيف</translation>
     </message>
     <message>
         <source>Customize...</source>
-        <translation type="unfinished">تخصيص...</translation>
+        <translation type="obsolete">تخصيص...</translation>
     </message>
 </context>
 <context>
     <name>Q3NetworkProtocol</name>
     <message>
         <source>Operation stopped by the user</source>
-        <translation type="unfinished">أوقفت العمليّة من طرف المستعمل</translation>
+        <translation type="obsolete">أوقفت العمليّة من طرف المستعمل</translation>
     </message>
 </context>
 <context>
     <name>Q3ProgressDialog</name>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">إلغاء</translation>
+        <translation type="obsolete">إلغاء</translation>
     </message>
 </context>
 <context>
     <name>Q3TabDialog</name>
     <message>
         <source>OK</source>
-        <translation type="unfinished">موافقة</translation>
+        <translation type="obsolete">موافقة</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="unfinished">تطبيق</translation>
+        <translation type="obsolete">تطبيق</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">مساعدة</translation>
+        <translation type="obsolete">مساعدة</translation>
     </message>
     <message>
         <source>Defaults</source>
-        <translation type="unfinished">افتراضيات</translation>
+        <translation type="obsolete">افتراضيات</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">إلغاء</translation>
+        <translation type="obsolete">إلغاء</translation>
     </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
     <message>
         <source>&amp;Undo</source>
-        <translation type="unfinished">&amp;تراجع</translation>
+        <translation type="obsolete">&amp;تراجع</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation type="unfinished">إ&amp;عادة</translation>
+        <translation type="obsolete">إ&amp;عادة</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation type="unfinished">&amp;قصّ</translation>
+        <translation type="obsolete">&amp;قصّ</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation type="unfinished">&amp;نسخ</translation>
+        <translation type="obsolete">&amp;نسخ</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation type="unfinished">ت&amp;لصيق</translation>
+        <translation type="obsolete">ت&amp;لصيق</translation>
     </message>
     <message>
         <source>Clear</source>
-        <translation type="unfinished">محو</translation>
+        <translation type="obsolete">محو</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation type="unfinished">انتقاء الجميع</translation>
+        <translation type="obsolete">انتقاء الجميع</translation>
     </message>
 </context>
 <context>
     <name>Q3TitleBar</name>
     <message>
         <source>Minimize</source>
-        <translation type="unfinished">تصغير</translation>
+        <translation type="obsolete">تصغير</translation>
     </message>
     <message>
         <source>Maximize</source>
-        <translation type="unfinished">تكبير</translation>
+        <translation type="obsolete">تكبير</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">إغلاق</translation>
+        <translation type="obsolete">إغلاق</translation>
     </message>
     <message>
         <source>System</source>
@@ -505,69 +505,69 @@ to
     <name>Q3ToolBar</name>
     <message>
         <source>More...</source>
-        <translation type="unfinished">أكثر...</translation>
+        <translation type="obsolete">أكثر...</translation>
     </message>
 </context>
 <context>
     <name>Q3UrlOperator</name>
     <message>
         <source>The protocol `%1&apos; is not supported</source>
-        <translation type="unfinished">المراسم &apos;%1&apos; غير مدعومة</translation>
+        <translation type="obsolete">المراسم &apos;%1&apos; غير مدعومة</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation type="unfinished">المراسم &apos;%1&apos; لا تدعم وضع قوائم الدّلائل</translation>
+        <translation type="obsolete">المراسم &apos;%1&apos; لا تدعم وضع قوائم الدّلائل</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation type="unfinished">المراسم &apos;%1&apos; لا تدعم صنع دلائل جديدة</translation>
+        <translation type="obsolete">المراسم &apos;%1&apos; لا تدعم صنع دلائل جديدة</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation type="unfinished">المراسم &apos;%1&apos; لا تدعم نزع الملفّات أو الدّلائل</translation>
+        <translation type="obsolete">المراسم &apos;%1&apos; لا تدعم نزع الملفّات أو الدّلائل</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation type="unfinished">المراسم &apos;%1&apos; لا تدعم إعادة تسمية الملفّات أو الدّلائل</translation>
+        <translation type="obsolete">المراسم &apos;%1&apos; لا تدعم إعادة تسمية الملفّات أو الدّلائل</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support getting files</source>
-        <translation type="unfinished">المراسم &apos;%1&apos; لا تدعم استخلاص الملفّات</translation>
+        <translation type="obsolete">المراسم &apos;%1&apos; لا تدعم استخلاص الملفّات</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support putting files</source>
-        <translation type="unfinished">المراسم &apos;%1&apos; لا تدعم وضع الملفّات</translation>
+        <translation type="obsolete">المراسم &apos;%1&apos; لا تدعم وضع الملفّات</translation>
     </message>
     <message>
         <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation type="unfinished">المراسم &apos;%1&apos; لا تدعم نسخ أو تحريك الملفّات أو الدّلائل</translation>
+        <translation type="obsolete">المراسم &apos;%1&apos; لا تدعم نسخ أو تحريك الملفّات أو الدّلائل</translation>
     </message>
     <message>
         <source>(unknown)</source>
-        <translation type="unfinished">(مجهول)</translation>
+        <translation type="obsolete">(مجهول)</translation>
     </message>
 </context>
 <context>
     <name>Q3Wizard</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation type="unfinished">&amp;إلغاء</translation>
+        <translation type="obsolete">&amp;إلغاء</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation type="unfinished">&lt; &amp;رجوع</translation>
+        <translation type="obsolete">&lt; &amp;رجوع</translation>
     </message>
     <message>
         <source>&amp;Next &gt;</source>
-        <translation type="unfinished">ال&amp;تّالي &gt;</translation>
+        <translation type="obsolete">ال&amp;تّالي &gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
-        <translation type="unfinished">إ&amp;نهاء</translation>
+        <translation type="obsolete">إ&amp;نهاء</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation type="unfinished">&amp;مساعدة</translation>
+        <translation type="obsolete">&amp;مساعدة</translation>
     </message>
 </context>
 <context>
@@ -743,7 +743,7 @@ to
     <message>
         <source>QT_LAYOUT_DIRECTION</source>
         <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>RTL</translation>
+        <translation type="vanished">RTL</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -883,7 +883,7 @@ to
     </message>
     <message>
         <source>Select color</source>
-        <translation>إنتقاء اللّون</translation>
+        <translation type="obsolete">إنتقاء اللّون</translation>
     </message>
     <message>
         <source>&amp;Define Custom Colors &gt;&gt;</source>
@@ -915,7 +915,7 @@ Press ESC to cancel</source>
     <name>QComboBox</name>
     <message>
         <source>Open</source>
-        <translation type="unfinished">فتح</translation>
+        <translation type="obsolete">فتح</translation>
     </message>
     <message>
         <source>False</source>
@@ -927,7 +927,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">إغلاق</translation>
+        <translation type="obsolete">إغلاق</translation>
     </message>
     <message>
         <source>Open the combo box selection popup</source>
@@ -1215,7 +1215,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Save</source>
-        <translation type="unfinished">حفظ</translation>
+        <translation type="obsolete">حفظ</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -1223,11 +1223,11 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Open</source>
-        <translation type="unfinished">فتح</translation>
+        <translation type="obsolete">فتح</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="unfinished">إلغاء</translation>
+        <translation type="obsolete">إلغاء</translation>
     </message>
     <message>
         <source>&amp;Cancel</source>
@@ -1235,7 +1235,7 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">إغلاق</translation>
+        <translation type="obsolete">إغلاق</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -1243,23 +1243,23 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="unfinished">تطبيق</translation>
+        <translation type="obsolete">تطبيق</translation>
     </message>
     <message>
         <source>Help</source>
-        <translation type="unfinished">مساعدة</translation>
+        <translation type="obsolete">مساعدة</translation>
     </message>
     <message>
         <source>&amp;Yes</source>
-        <translation type="unfinished">&amp;نعم</translation>
+        <translation type="obsolete">&amp;نعم</translation>
     </message>
     <message>
         <source>&amp;No</source>
-        <translation type="unfinished">&amp;لا</translation>
+        <translation type="obsolete">&amp;لا</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation type="unfinished">&amp;موافقة</translation>
+        <translation type="obsolete">&amp;موافقة</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -1441,10 +1441,12 @@ Press ESC to cancel</source>
     <name>QDockWidget</name>
     <message>
         <source>Close</source>
+        <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation type="unfinished">إغلاق</translation>
     </message>
     <message>
         <source>Float</source>
+        <extracomment>Accessible name for button undocking a dock widget (floating state)</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1860,6 +1862,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Demi</source>
+        <extracomment>The word for &quot;Demi&quot; as in &quot;Demi Bold&quot; used as a pattern for string searches</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2085,11 +2088,11 @@ Do you want to delete it anyway?</source>
     <name>QFtp</name>
     <message>
         <source>Host %1 found</source>
-        <translation type="unfinished">تمّ إيجاد المضيف %1</translation>
+        <translation type="obsolete">تمّ إيجاد المضيف %1</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation type="unfinished">تمّ إيجاد المضيف</translation>
+        <translation type="obsolete">تمّ إيجاد المضيف</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
@@ -2097,11 +2100,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation type="unfinished">تمّ وصل المضيف</translation>
+        <translation type="obsolete">تمّ وصل المضيف</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation type="unfinished">تمّ إغلاق الوصل بالمضيف %1</translation>
+        <translation type="obsolete">تمّ إغلاق الوصل بالمضيف %1</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2183,7 +2186,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Connection refused for data connection</source>
-        <translation>رفض وصل المعطيات</translation>
+        <translation type="vanished">رفض وصل المعطيات</translation>
     </message>
     <message>
         <source>Data Connection refused</source>
@@ -2271,31 +2274,31 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Wrong content length</source>
-        <translation>طول المحتوى خاطئ</translation>
+        <translation type="vanished">طول المحتوى خاطئ</translation>
     </message>
     <message>
         <source>HTTP request failed</source>
-        <translation>فشل طلب الHTTP</translation>
+        <translation type="vanished">فشل طلب الHTTP</translation>
     </message>
     <message>
         <source>Host %1 found</source>
-        <translation type="unfinished">تمّ إيجاد المضيف %1</translation>
+        <translation type="obsolete">تمّ إيجاد المضيف %1</translation>
     </message>
     <message>
         <source>Host found</source>
-        <translation type="unfinished">تمّ إيجاد المضيف</translation>
+        <translation type="obsolete">تمّ إيجاد المضيف</translation>
     </message>
     <message>
         <source>Connected to host %1</source>
-        <translation type="unfinished">تمّ وصل المضيف %1</translation>
+        <translation type="obsolete">تمّ وصل المضيف %1</translation>
     </message>
     <message>
         <source>Connected to host</source>
-        <translation type="unfinished">تمّ وصل المضيف</translation>
+        <translation type="obsolete">تمّ وصل المضيف</translation>
     </message>
     <message>
         <source>Connection to %1 closed</source>
-        <translation type="unfinished">تمّ إغلاق الوصل بالمضيف %1</translation>
+        <translation type="obsolete">تمّ إغلاق الوصل بالمضيف %1</translation>
     </message>
     <message>
         <source>Connection closed</source>
@@ -2303,27 +2306,27 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>خطأ مجهول</translation>
+        <translation type="vanished">خطأ مجهول</translation>
     </message>
     <message>
         <source>Request aborted</source>
-        <translation>تمّ إبطال الطّلب</translation>
+        <translation type="vanished">تمّ إبطال الطّلب</translation>
     </message>
     <message>
         <source>No server set to connect to</source>
-        <translation>ليس هناك أيّ خادم للوصل</translation>
+        <translation type="vanished">ليس هناك أيّ خادم للوصل</translation>
     </message>
     <message>
         <source>Server closed connection unexpectedly</source>
-        <translation>الخادم أغلق الوصل بصفة غير متوقّعة</translation>
+        <translation type="vanished">الخادم أغلق الوصل بصفة غير متوقّعة</translation>
     </message>
     <message>
         <source>Invalid HTTP response header</source>
-        <translation>صديرة استجابة الHTTP غير صالحة</translation>
+        <translation type="vanished">صديرة استجابة الHTTP غير صالحة</translation>
     </message>
     <message>
         <source>Invalid HTTP chunked body</source>
-        <translation>مقطع HTTP غير صالح</translation>
+        <translation type="vanished">مقطع HTTP غير صالح</translation>
     </message>
     <message>
         <source>Proxy requires authentication</source>
@@ -3034,11 +3037,11 @@ Do you want to delete it anyway?</source>
     <name>QMenu</name>
     <message>
         <source>Close</source>
-        <translation type="unfinished">إغلاق</translation>
+        <translation type="obsolete">إغلاق</translation>
     </message>
     <message>
         <source>Open</source>
-        <translation type="unfinished">فتح</translation>
+        <translation type="obsolete">فتح</translation>
     </message>
     <message>
         <source>Execute</source>
@@ -3575,7 +3578,7 @@ Do you want to delete it anyway?</source>
     <name>QPPDOptionsModel</name>
     <message>
         <source>Name</source>
-        <translation type="unfinished">الإسم</translation>
+        <translation type="obsolete">الإسم</translation>
     </message>
     <message>
         <source>Value</source>
@@ -4329,15 +4332,15 @@ Do you want to delete it anyway?</source>
     <name>QPrintDialog</name>
     <message>
         <source>locally connected</source>
-        <translation>موصل محليّا</translation>
+        <translation type="vanished">موصل محليّا</translation>
     </message>
     <message>
         <source>Aliases: %1</source>
-        <translation>بدائل: %1</translation>
+        <translation type="vanished">بدائل: %1</translation>
     </message>
     <message>
         <source>unknown</source>
-        <translation>مجهول</translation>
+        <translation type="vanished">مجهول</translation>
     </message>
     <message>
         <source>Print To File ...</source>
@@ -4820,7 +4823,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">إغلاق</translation>
+        <translation type="obsolete">إغلاق</translation>
     </message>
     <message>
         <source>Export to PDF</source>
@@ -5045,7 +5048,7 @@ Please turn one of those options off.</source>
     <name>QPushButton</name>
     <message>
         <source>Open</source>
-        <translation type="unfinished">فتح</translation>
+        <translation type="obsolete">فتح</translation>
     </message>
 </context>
 <context>
@@ -5611,7 +5614,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Line up</source>
-        <translation type="unfinished">تصفيف</translation>
+        <translation type="obsolete">تصفيف</translation>
     </message>
     <message>
         <source>Position</source>
@@ -5713,6 +5716,7 @@ Please turn one of those options off.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
+        <extracomment>This and all following &quot;incomprehensible&quot; strings in QShortcut context are key names. Please use the localized names appearing on actual keyboards or whatever is commonly used.</extracomment>
         <translation type="unfinished">فراغ</translation>
     </message>
     <message>
@@ -6041,10 +6045,12 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Call</source>
+        <extracomment>Button to start a call (note: a separate button is used to end the call)</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Hangup</source>
+        <extracomment>Button to end a call (note: a separate button is used to start the call)</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7130,43 +7136,43 @@ Role of an accessible object</extracomment>
     <name>QSql</name>
     <message>
         <source>Delete</source>
-        <translation>حذف</translation>
+        <translation type="vanished">حذف</translation>
     </message>
     <message>
         <source>Delete this record?</source>
-        <translation>حذف هذاالتّسجيل؟</translation>
+        <translation type="vanished">حذف هذاالتّسجيل؟</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>نعم</translation>
+        <translation type="vanished">نعم</translation>
     </message>
     <message>
         <source>No</source>
-        <translation>لا</translation>
+        <translation type="vanished">لا</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>إدراج</translation>
+        <translation type="vanished">إدراج</translation>
     </message>
     <message>
         <source>Update</source>
-        <translation>تحديث</translation>
+        <translation type="vanished">تحديث</translation>
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>حفظ التّغييرات؟</translation>
+        <translation type="vanished">حفظ التّغييرات؟</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>إلغاء</translation>
+        <translation type="vanished">إلغاء</translation>
     </message>
     <message>
         <source>Confirm</source>
-        <translation>تأكيد</translation>
+        <translation type="vanished">تأكيد</translation>
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>إلغاء التّغييرات؟</translation>
+        <translation type="vanished">إلغاء التّغييرات؟</translation>
     </message>
 </context>
 <context>
@@ -7490,31 +7496,31 @@ Role of an accessible object</extracomment>
     <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
-        <translation type="unfinished">&amp;تراجع</translation>
+        <translation type="obsolete">&amp;تراجع</translation>
     </message>
     <message>
         <source>&amp;Redo</source>
-        <translation type="unfinished">إ&amp;عادة</translation>
+        <translation type="obsolete">إ&amp;عادة</translation>
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation type="unfinished">&amp;قصّ</translation>
+        <translation type="obsolete">&amp;قصّ</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
-        <translation type="unfinished">&amp;نسخ</translation>
+        <translation type="obsolete">&amp;نسخ</translation>
     </message>
     <message>
         <source>&amp;Paste</source>
-        <translation type="unfinished">ت&amp;لصيق</translation>
+        <translation type="obsolete">ت&amp;لصيق</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation type="unfinished">حذف</translation>
+        <translation type="obsolete">حذف</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation type="unfinished">انتقاء الجميع</translation>
+        <translation type="obsolete">انتقاء الجميع</translation>
     </message>
     <message>
         <source>Copy &amp;Link Location</source>
@@ -7525,7 +7531,7 @@ Role of an accessible object</extracomment>
     <name>QToolButton</name>
     <message>
         <source>Open</source>
-        <translation type="unfinished">فتح</translation>
+        <translation type="obsolete">فتح</translation>
     </message>
     <message>
         <source>Press</source>
@@ -7536,11 +7542,11 @@ Role of an accessible object</extracomment>
     <name>QUndoGroup</name>
     <message>
         <source>Undo</source>
-        <translation type="unfinished">تراجع</translation>
+        <translation type="obsolete">تراجع</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation type="unfinished">إعادة</translation>
+        <translation type="obsolete">إعادة</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7572,11 +7578,11 @@ Role of an accessible object</extracomment>
     <name>QUndoStack</name>
     <message>
         <source>Undo</source>
-        <translation type="unfinished">تراجع</translation>
+        <translation type="obsolete">تراجع</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation type="unfinished">إعادة</translation>
+        <translation type="obsolete">إعادة</translation>
     </message>
     <message>
         <source>Undo %1</source>
@@ -7665,7 +7671,7 @@ Role of an accessible object</extracomment>
     <message>
         <source>Stop</source>
         <comment>Stop context menu item</comment>
-        <translation type="unfinished">توقّف</translation>
+        <translation type="obsolete">توقّف</translation>
     </message>
     <message>
         <source>Bad HTTP request</source>
@@ -8005,7 +8011,7 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     </message>
     <message>
         <source>Quit</source>
-        <translation type="unfinished">إنتهاء</translation>
+        <translation type="obsolete">إنتهاء</translation>
     </message>
     <message>
         <source>Help</source>
@@ -8028,55 +8034,55 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation type="unfinished">ا&amp;ستعاد</translation>
+        <translation type="obsolete">ا&amp;ستعاد</translation>
     </message>
     <message>
         <source>&amp;Move</source>
-        <translation type="unfinished">&amp;تحريك</translation>
+        <translation type="obsolete">&amp;تحريك</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation type="unfinished">&amp;حجم</translation>
+        <translation type="obsolete">&amp;حجم</translation>
     </message>
     <message>
         <source>Mi&amp;nimize</source>
-        <translation type="unfinished">ت&amp;صغير</translation>
+        <translation type="obsolete">ت&amp;صغير</translation>
     </message>
     <message>
         <source>Ma&amp;ximize</source>
-        <translation type="unfinished">ت&amp;كبير</translation>
+        <translation type="obsolete">ت&amp;كبير</translation>
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation type="unfinished">إ&amp;غلاق</translation>
+        <translation type="obsolete">إ&amp;غلاق</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation type="unfinished">ال&amp;بقاء في الأمام</translation>
+        <translation type="obsolete">ال&amp;بقاء في الأمام</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
-        <translation type="unfinished">ت&amp;ظليل</translation>
+        <translation type="obsolete">ت&amp;ظليل</translation>
     </message>
     <message>
         <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
+        <translation type="vanished">%1 - [%2]</translation>
     </message>
     <message>
         <source>Minimize</source>
-        <translation type="unfinished">تصغير</translation>
+        <translation type="obsolete">تصغير</translation>
     </message>
     <message>
         <source>Restore Down</source>
-        <translation type="unfinished">استعاد في الأسفل</translation>
+        <translation type="obsolete">استعاد في الأسفل</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="unfinished">إغلاق</translation>
+        <translation type="obsolete">إغلاق</translation>
     </message>
     <message>
         <source>&amp;Unshade</source>
-        <translation type="unfinished">إ&amp;لغاء التّظليل</translation>
+        <translation type="obsolete">إ&amp;لغاء التّظليل</translation>
     </message>
 </context>
 <context>

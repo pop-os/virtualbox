@@ -1775,7 +1775,7 @@
     </message>
     <message>
         <source>&lt;b&gt;The appliance is signed by an unverified self signed certificate issued by &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
-        <translation>&lt;b&gt;De appliance is getekend door een ongeverifieerd &apos;self signed certificate&apos; uitgegeven door &apos;%1&apos;. We raden aan alleen met importeren door te gaan als je echt weet met wie je te maken hebt.&lt;/b&gt;</translation>
+        <translation>&lt;b&gt;De appliance is getekend door een ongeverifieerd &apos;self signed certificate&apos; uitgegeven door &apos;%1&apos;. We raden aan alleen met importeren door te gaan als u echt weet met wie u te maken hebt.&lt;/b&gt;</translation>
     </message>
     <message>
         <source>&lt;b&gt;The appliance is signed by an unverified certificate issued to &apos;%1&apos;. We recommend to only proceed with the importing if you are sure you should trust this entity.&lt;/b&gt;</source>
@@ -2587,6 +2587,34 @@
             <numerusform>&lt;nobr&gt;Gebruikt door de volgende %n harde schijf:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
             <numerusform>&lt;nobr&gt;Gebruikt door de volgende %n harde schijven&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
         </translation>
+    </message>
+</context>
+<context>
+    <name>UIErrorString</name>
+    <message>
+        <source>Result&amp;nbsp;Code: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Resultaatcode:</translation>
+    </message>
+    <message>
+        <source>Component: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Component:</translation>
+    </message>
+    <message>
+        <source>Interface: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Interface:</translation>
+    </message>
+    <message>
+        <source>Callee: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Callee:</translation>
+    </message>
+    <message>
+        <source>Callee&amp;nbsp;RC: </source>
+        <comment>error info</comment>
+        <translation type="obsolete">Callee&amp;nbsp;RC: </translation>
     </message>
 </context>
 <context>
@@ -4126,7 +4154,7 @@
     </message>
     <message>
         <source>Supports DHCP</source>
-        <translation>Ondersteund DHCP</translation>
+        <translation>Ondersteunt DHCP</translation>
     </message>
     <message>
         <source>yes</source>
@@ -4138,7 +4166,7 @@
     </message>
     <message>
         <source>Supports IPv6</source>
-        <translation>Ondersteund IPv6</translation>
+        <translation>Ondersteunt IPv6</translation>
     </message>
     <message>
         <source>Default IPv6 route</source>
@@ -4421,7 +4449,7 @@
     </message>
     <message>
         <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
-        <translation>Toont het host-IPv6-adres voor deze adapter indien IPv6 ondersteund wordt.</translation>
+        <translation>Toont het host-IPv6-adres voor deze adapter indien IPv6 wordt ondersteund.</translation>
     </message>
     <message>
         <source>IPv6 Prefix &amp;Length:</source>
@@ -4429,7 +4457,7 @@
     </message>
     <message>
         <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
-        <translation>Toont de prefixlengte van het host-IPv6-netwerkmasker voor deze adapter indien IPv6 ondersteund wordt.</translation>
+        <translation>Toont de prefixlengte van het host-IPv6-netwerkmasker voor deze adapter indien IPv6 wordt ondersteund.</translation>
     </message>
     <message>
         <source>&amp;DHCP Server</source>
@@ -4520,11 +4548,11 @@
     </message>
     <message>
         <source>Supports &amp;DHCP</source>
-        <translation>Ondersteund &amp;DCPH</translation>
+        <translation>Ondersteunt &amp;DCPH</translation>
     </message>
     <message>
         <source>Supports &amp;IPv6</source>
-        <translation>Ondersteund &amp;IPv6</translation>
+        <translation>Ondersteunt &amp;IPv6</translation>
     </message>
     <message>
         <source>Advertise Default IPv6 &amp;Route</source>
@@ -4579,7 +4607,7 @@
     <name>UIGlobalSettingsPortForwardingDlg</name>
     <message>
         <source>Port Forwarding Rules</source>
-        <translation>Portdoorverwijsregels</translation>
+        <translation>Poortdoorverwijsregels</translation>
     </message>
     <message>
         <source>IPv4</source>
@@ -4871,7 +4899,7 @@
     </message>
     <message>
         <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
-        <translation type="vanished">Toont het host-IPv6-adres voor deze adapter indien IPv6 ondersteund wordt.</translation>
+        <translation type="vanished">Toont het host-IPv6-adres voor deze adapter indien IPv6 wordt ondersteund.</translation>
     </message>
     <message>
         <source>IPv6 Prefix &amp;Length:</source>
@@ -4879,7 +4907,7 @@
     </message>
     <message>
         <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
-        <translation type="vanished">Toont de host-IPv6-prefixlengte van het voor deze adapter indien IPv6 ondersteund wordt.</translation>
+        <translation type="vanished">Toont de host-IPv6-prefixlengte van het voor deze adapter indien IPv6 wordt ondersteund.</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -7096,7 +7124,7 @@
     <name>UIMachineSettingsPortForwardingDlg</name>
     <message>
         <source>Port Forwarding Rules</source>
-        <translation>Doorverwijsregels van de poort</translation>
+        <translation>Poortdoorverwijsregels</translation>
     </message>
     <message>
         <source>This table contains a list of port forwarding rules.</source>
@@ -8832,6 +8860,26 @@
     <message>
         <source>C&amp;lose</source>
         <translation type="obsolete">S&amp;luiten</translation>
+    </message>
+    <message>
+        <source>Copy Disk Image File (%1)</source>
+        <translation type="obsolete">Kopiëer disk-imagebestand (%1)</translation>
+    </message>
+    <message>
+        <source>Remove Disk Image File (%1)</source>
+        <translation type="obsolete">Verwijderen disk-imagebestand (%1)</translation>
+    </message>
+    <message>
+        <source>Release Disk Image File (%1)</source>
+        <translation type="obsolete">Vrijgeven disk-imagebestand (%1)</translation>
+    </message>
+    <message>
+        <source>Open Disk Image File Properties (%1)</source>
+        <translation type="obsolete">Openen disk-imagebestand-eigenschappen(%1)</translation>
+    </message>
+    <message>
+        <source>Refresh Disk Image Files (%1)</source>
+        <translation type="obsolete">Verversen disk-imagebestanden (%1)</translation>
     </message>
 </context>
 <context>
@@ -10608,6 +10656,10 @@
         <source>&lt;p&gt;One or more virtual hard disks, optical or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Eén of meer virtuele harde schijven, optische bestanden of schijfimagebestanden zijn nu niet te benaderen. U kunt niet met de virtuele machines die deze media gebruiken werken, totdat dit medium of deze media weer benaderbaar zijn.&lt;/p&gt;&lt;p&gt;Druk op de knop &lt;b&gt;Controleren&lt;/b&gt; om de Virtuele Media Manager te openen om na te gaan welk medium niet te benaderen is, of druk op de knop &lt;b&gt;Negeren&lt;/b&gt; om dit bericht te negeren.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the &lt;b&gt;%1&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%2&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
+        <translation type="vanished">&lt;p&gt;Kon schijf-image-bestand &lt;b&gt;%1&lt;/b&gt; niet in virtuele machine &lt;b&gt;%2&lt;/b&gt; doen, omdat deze machine geen optisch station heeft. Voeg een station toe bij Instellingen -&gt; Opslag van deze machine.&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetUserManual</name>
@@ -11183,6 +11235,17 @@
     </message>
 </context>
 <context>
+    <name>UIPopupPane</name>
+    <message>
+        <source>&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt;</source>
+        <translation type="vanished">&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt; (%1 of %2)</source>
+        <translation type="vanished">&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt; (%1 of %2)</translation>
+    </message>
+</context>
+<context>
     <name>UIPortForwardingModel</name>
     <message>
         <source>Name</source>
@@ -11580,6 +11643,10 @@
     <message>
         <source>Snapshot name is empty</source>
         <translation type="vanished">Geen snapshotnaam opgegeven</translation>
+    </message>
+    <message>
+        <source>Take Snapshot (%1)</source>
+        <translation type="obsolete">Neem snapshot (%1)</translation>
     </message>
 </context>
 <context>
@@ -12241,7 +12308,7 @@
     <name>UIWizardCloneVD</name>
     <message>
         <source>Copy</source>
-        <translation>Kopieer</translation>
+        <translation>Kopiëren</translation>
     </message>
     <message>
         <source>&amp;Dynamically allocated</source>
@@ -13035,7 +13102,7 @@
     </message>
     <message>
         <source>&amp;Memory size</source>
-        <translation>&amp;Geheugengrootte</translation>
+        <translation>Ge&amp;heugengrootte</translation>
     </message>
     <message>
         <source>IDE Controller</source>
@@ -13140,7 +13207,8 @@
     </message>
     <message>
         <source>Reset</source>
-        <translation type="vanished">Terugzetten</translation>
+        <translatorcomment>Reset=reset; restore=terugzetten - RL</translatorcomment>
+        <translation type="vanished">Reset</translation>
     </message>
     <message>
         <source>Resets the folder path to the default value.</source>
