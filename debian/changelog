@@ -1,3 +1,9 @@
+virtualbox (5.1.30-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 5.1.30-dfsg
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 17 Oct 2017 08:50:29 +0200
+
 virtualbox (5.1.28-dfsg-3) unstable; urgency=medium
 
   * Drop the ntp conflict, users seems to be not happy with not having it.
